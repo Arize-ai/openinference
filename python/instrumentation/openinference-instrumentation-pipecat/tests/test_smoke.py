@@ -6,6 +6,8 @@ catch integration drift — frame ordering, lifecycle hooks, the
 TurnTrackingObserver parent class, and the PipelineTask wrapper.
 """
 
+import json
+
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pipecat.frames.frames import (
     Frame,
@@ -14,7 +16,7 @@ from pipecat.frames.frames import (
     LLMFullResponseStartFrame,
     LLMTextFrame,
 )
-from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.processors.aggregators.llm_context import LLMContext, LLMSpecificMessage
 from pipecat.processors.frame_processor import FrameDirection
 from pipecat.services.llm_service import LLMService
 from pipecat.tests.utils import SleepFrame, run_test
@@ -77,3 +79,67 @@ async def test_observer_creates_spans_through_real_pipeline(
 
     assert llm_span.attributes is not None
     assert "Hi there" in str(llm_span.attributes.get("output.value", ""))
+
+
+async def test_observer_handles_dict_valued_message_content(
+    observer: OpenInferenceObserver,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Multimodal/dict message content must be normalized before reaching OTel.
+
+    OpenTelemetry rejects dict attribute values, so the observer's LLM-context
+    path must JSON-serialize structured content. Without normalization the
+    `llm.input_messages.0.message.content` attribute is dropped entirely.
+    """
+    service = StubLLMService()
+    structured_content = {"type": "text", "text": "Hello"}
+    context = LLMContext(messages=[{"role": "user", "content": structured_content}])
+
+    await run_test(
+        service,
+        frames_to_send=[LLMContextFrame(context=context), SleepFrame(sleep=0.1)],
+        observers=[observer],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_span = next(s for s in spans if s.name == "pipecat.llm")
+    assert llm_span.attributes is not None
+
+    content_attr = llm_span.attributes.get("llm.input_messages.0.message.content")
+    assert content_attr == json.dumps(structured_content)
+
+
+async def test_observer_handles_llm_specific_message(
+    observer: OpenInferenceObserver,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """LLMSpecificMessage entries in the context must be unwrapped, not skipped.
+
+    Provider-specific message wrappers don't expose `.items()`, so iterating
+    them like dicts raises and the input attrs are lost. The observer must
+    unwrap to the inner payload before setting span attributes.
+    """
+    service = StubLLMService()
+    context = LLMContext(
+        messages=[
+            LLMSpecificMessage(
+                llm="openai",
+                message={"role": "user", "content": "Hello from provider-specific"},
+            ),
+        ]
+    )
+
+    await run_test(
+        service,
+        frames_to_send=[LLMContextFrame(context=context), SleepFrame(sleep=0.1)],
+        observers=[observer],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_span = next(s for s in spans if s.name == "pipecat.llm")
+    assert llm_span.attributes is not None
+
+    role = llm_span.attributes.get("llm.input_messages.0.message.role")
+    content = llm_span.attributes.get("llm.input_messages.0.message.content")
+    assert role == "user", f"expected role 'user', got {role!r} (LLMSpecificMessage skipped)"
+    assert content == "Hello from provider-specific"

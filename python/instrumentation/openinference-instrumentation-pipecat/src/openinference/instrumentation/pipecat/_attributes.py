@@ -108,6 +108,30 @@ def safe_extract(extractor: Callable[[], Any], default: Any = None) -> Any:
         return default
 
 
+def _normalize_message_content(content: Any) -> Any:
+    """Return an OpenTelemetry-safe value for message content."""
+    if isinstance(content, (dict, list)):
+        return safe_json_dumps(content)
+    return content
+
+
+def _get_tool_call_attributes(
+    prefix: str,
+    tool_call: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Return flattened attributes for a tool call on an LLM input message."""
+    attributes: Dict[str, Any] = {}
+    if "id" in tool_call:
+        attributes[f"{prefix}.tool_call.id"] = tool_call["id"]
+    if "function" in tool_call and isinstance(tool_call["function"], dict):
+        function = tool_call["function"]
+        if "name" in function:
+            attributes[f"{prefix}.tool_call.function.name"] = function["name"]
+        if "arguments" in function:
+            attributes[f"{prefix}.tool_call.function.arguments"] = function["arguments"]
+    return attributes
+
+
 def detect_frame_type(frame: Frame) -> str:
     """Detect the type of frame using MRO for inheritance support."""
     # Walk through the Method Resolution Order to find first matching frame type
@@ -265,11 +289,10 @@ class LLMContextFrameExtractor(FrameAttributeExtractor):
                 serializable_messages = []
                 for msg in messages_list:
                     if isinstance(msg, dict):
-                        # Normalize dict-valued content to JSON so downstream
-                        # span attribute consumers receive a string, not a dict.
                         raw_content = msg.get("content")
-                        if isinstance(raw_content, dict):
-                            msg = {**msg, "content": safe_json_dumps(raw_content)}
+                        content = _normalize_message_content(raw_content)
+                        if content is not raw_content:
+                            msg = {**msg, "content": content}
                         serializable_messages.append(msg)
                     elif isinstance(msg, LLMSpecificMessage):
                         # Provider-specific message: unwrap to the underlying
@@ -277,8 +300,9 @@ class LLMContextFrameExtractor(FrameAttributeExtractor):
                         inner = msg.message
                         if isinstance(inner, dict):
                             raw_content = inner.get("content")
-                            if isinstance(raw_content, dict):
-                                inner = {**inner, "content": safe_json_dumps(raw_content)}
+                            content = _normalize_message_content(raw_content)
+                            if content is not raw_content:
+                                inner = {**inner, "content": content}
                             serializable_messages.append(inner)
                         else:
                             serializable_messages.append({"role": "unknown", "content": str(inner)})
@@ -321,6 +345,15 @@ class LLMContextFrameExtractor(FrameAttributeExtractor):
                                 results[f"llm.input_messages.{index}.message.name"] = message.get(
                                     "name"
                                 )
+                            tool_calls = message.get("tool_calls")
+                            if isinstance(tool_calls, list):
+                                for tool_call_index, tool_call in enumerate(tool_calls):
+                                    if isinstance(tool_call, dict):
+                                        prefix = (
+                                            f"llm.input_messages.{index}.message.tool_calls."
+                                            f"{tool_call_index}"
+                                        )
+                                        results.update(_get_tool_call_attributes(prefix, tool_call))
 
                     # For input.value, only capture the LAST user message (current turn's input)
                     last_user_message = None
@@ -392,8 +425,8 @@ class LLMMessagesSequenceFrameExtractor(FrameAttributeExtractor):
         results: Dict[str, Any] = {
             "llm.response_phase": self.phase,
         }
-        if hasattr(frame, "_messages") and frame._messages:
-            messages = frame._messages
+        messages = getattr(frame, "messages", None)
+        if messages:
             results[SpanAttributes.LLM_INPUT_MESSAGES] = []
             # Extract text content for input.value
             for message in messages:
