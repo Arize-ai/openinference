@@ -306,21 +306,6 @@ def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
     span.set_attributes(prefixed_attributes)
 
 
-def _get_agent_i18n_prompt_file(agent: Any) -> str:
-    """Return the agent's i18n prompt file path, falling back to I18N_DEFAULT."""
-    try:
-        return agent.i18n.prompt_file or ""
-    except AttributeError:
-        try:
-            from crewai.utilities.i18n import (  # type: ignore[attr-defined,unused-ignore]
-                I18N_DEFAULT,
-            )
-
-            return I18N_DEFAULT.prompt_file or ""
-        except ImportError:
-            return ""
-
-
 class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -463,7 +448,6 @@ class _CrewKickoffWrapper:
                             "verbose?": agent.verbose,
                             "max_iter": agent.max_iter,
                             "max_rpm": agent.max_rpm,
-                            "i18n": _get_agent_i18n_prompt_file(agent),
                             "delegation_enabled": agent.allow_delegation,
                             "tools_names": [tool.name.casefold() for tool in agent.tools or []],
                         }
