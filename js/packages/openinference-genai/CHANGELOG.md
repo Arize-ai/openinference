@@ -1,5 +1,12 @@
 # @arizeai/openinference-genai
 
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [e09ce3f]
+  - @arizeai/openinference-semantic-conventions@2.3.0
+
 ## 0.1.7
 
 ### Patch Changes
