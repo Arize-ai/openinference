@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.47...python-openinference-instrumentation-v0.1.48) (2026-04-29)
+
+
+### Bug Fixes
+
+* **instrumentation:** serialize pydantic model attributes in json mode ([#2813](https://github.com/Arize-ai/openinference/issues/2813)) ([ee13799](https://github.com/Arize-ai/openinference/commit/ee137997d761ff54eea53a8bab558806babe6036))
+
 ## [0.1.47](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.46...python-openinference-instrumentation-v0.1.47) (2026-04-21)
 
 

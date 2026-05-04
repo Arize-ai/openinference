@@ -2,6 +2,21 @@
 
 Python auto-instrumentation library for Pipecat. This library allows you to convert Pipecat traces to OpenInference, which is OpenTelemetry compatible, and view those traces in [Arize Phoenix](https://github.com/Arize-ai/phoenix).
 
+## Compatibility
+
+| `openinference-instrumentation-pipecat` | `pipecat-ai`     | Python   |
+| --------------------------------------- | ---------------- | -------- |
+| `>=1.0`                                 | `>=1.0`          | `>=3.11` |
+| `<=0.1.4`                               | `<1.0` (e.g. `0.0.99`) | `>=3.10` |
+
+Pipecat 1.0 introduced breaking changes (renamed observers, removed
+`LLMMessagesFrame`, dropped Python 3.10). If you're still on `pipecat-ai<1.0`,
+pin this instrumentor to `<=0.1.4`:
+
+```shell
+pip install 'openinference-instrumentation-pipecat<=0.1.4' 'pipecat-ai<1.0'
+```
+
 ## Installation
 
 ```shell

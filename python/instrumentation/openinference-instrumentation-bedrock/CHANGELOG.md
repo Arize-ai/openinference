@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.35...python-openinference-instrumentation-bedrock-v0.1.36) (2026-04-30)
+
+
+### Bug Fixes
+
+* **bedrock:** capture toolUse output attributes in converse ([#3022](https://github.com/Arize-ai/openinference/issues/3022)) ([282a67b](https://github.com/Arize-ai/openinference/commit/282a67befc578b4ca083145b6bf9b5517335da24))
+
 ## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.34...python-openinference-instrumentation-bedrock-v0.1.35) (2026-04-21)
 
 

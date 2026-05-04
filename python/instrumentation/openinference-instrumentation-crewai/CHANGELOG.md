@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.3...python-openinference-instrumentation-crewai-v1.1.4) (2026-05-04)
+
+
+### Bug Fixes
+
+* removed the per-agent i18n field ([f2d4191](https://github.com/Arize-ai/openinference/commit/f2d419170879b1d161e9bd2b167be640319533d4))
+
 ## [1.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.2...python-openinference-instrumentation-crewai-v1.1.3) (2026-04-21)
 
 
