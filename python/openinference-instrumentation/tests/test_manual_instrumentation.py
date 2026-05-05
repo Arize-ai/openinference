@@ -2999,7 +2999,7 @@ class TestGetProviderFromHost:
             ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER),
         ],
     )
-    def test_known_hosts(self, host: str, expected: str) -> None:
+    def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:
         assert infer_llm_provider_from_host(host) == expected
 
     @pytest.mark.parametrize("host", ["API.OPENAI.COM", "Api.Openai.Com"])
@@ -3066,7 +3066,7 @@ class TestGetSystemFromModel:
             ("google-palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
         ],
     )
-    def test_known_models(self, model_name: str, expected: str) -> None:
+    def test_known_models(self, model_name: str, expected: OpenInferenceLLMSystemValues) -> None:
         assert infer_llm_system_from_model_name(model_name) == expected
 
     @pytest.mark.parametrize("model_name", ["GPT-4O", "Claude-3-Haiku", "GEMINI-1.5-PRO"])
