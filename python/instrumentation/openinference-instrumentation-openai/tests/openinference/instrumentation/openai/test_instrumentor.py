@@ -407,10 +407,11 @@ def test_completions(
         # Check output completions
         for i, text in enumerate(output_texts):
             assert attributes.pop(f"{LLM_CHOICES}.{i}.completion.text", None) == text
+        # finish_reason is captured only for the first choice. The streaming
+        # mock sets "length" on each choice; the non-streaming mock sets "stop".
+        expected_finish_reason = "length" if is_stream else "stop"
+        assert attributes.pop(LLM_FINISH_REASON, None) == expected_finish_reason
         if not is_stream:
-            # finish_reason is captured only for the first choice. The streaming
-            # mock omits finish_reason entirely.
-            assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
             assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == completion_usage["prompt_tokens"]
@@ -1822,6 +1823,7 @@ def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
             b'data: {"choices": [{"delta": {"tool_calls": [{"index": 1, "function": {"arguments": "}"}}]}, "index": 0}]}\n\n',  # noqa: E501
             b'data: {"choices": [{"delta": {"content": "}"}, "index": 1}]}\n\n',
             b'data: {"choices": [{"finish_reason": "tool_calls", "index": 0}]}\n\n',  # noqa: E501
+            b'data: {"choices": [{"finish_reason": "stop", "index": 1}]}\n\n',
             b"data: [DONE]\n",
         ],
         [
@@ -1882,6 +1884,8 @@ def completion_mock_stream() -> Tuple[List[bytes], List[str]]:
             b'data: {"choices": [{"text": "t\\"}", "index": 0}]}\n\n',
             b'data: {"choices": [{"text": "heit\\"", "index": 1}]}\n\n',
             b'data: {"choices": [{"text": "}", "index": 1}]}\n\n',
+            b'data: {"choices": [{"finish_reason": "length", "index": 0}]}\n\n',
+            b'data: {"choices": [{"finish_reason": "stop", "index": 1}]}\n\n',
             b"data: [DONE]\n",
         ],
         [
