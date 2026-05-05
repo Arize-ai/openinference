@@ -235,7 +235,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                 setattr(functions, "tracer", original)
 
 
-class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc]
+class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """Tracer proxy that suppresses span creation by yielding the current span.
 
     Used to neutralize an ADK-internal tracer whose spans would duplicate work that
@@ -254,7 +254,7 @@ class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc]
         yield get_current_span()
 
 
-class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc]
+class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """Tracer proxy that emits OI spans for ``execute_tool *`` and suppresses the rest.
 
     Why this exists
