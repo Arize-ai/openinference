@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.10...python-openinference-instrumentation-google-adk-v0.1.11) (2026-05-05)
+
+
+### Bug Fixes
+
+* **google-adk:** support ADK 1.32 symbol moves ([#3048](https://github.com/Arize-ai/openinference/issues/3048)) ([57be443](https://github.com/Arize-ai/openinference/commit/57be4431a5e90b74fca3c51613a629ef6551a231))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.9...python-openinference-instrumentation-google-adk-v0.1.10) (2026-03-03)
 
 
