@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v1.0.0...python-openinference-instrumentation-pipecat-v1.0.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* ensure pipecat metadata is JSON ([#3003](https://github.com/Arize-ai/openinference/issues/3003)) ([b179790](https://github.com/Arize-ai/openinference/commit/b17979036fc0269b6ebeebbfdbacf204fa7b2869))
+
 ## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v0.1.4...python-openinference-instrumentation-pipecat-v1.0.0) (2026-05-04)
 
 
