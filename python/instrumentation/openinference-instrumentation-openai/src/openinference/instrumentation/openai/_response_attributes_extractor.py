@@ -104,6 +104,10 @@ class _ResponseAttributesExtractor:
                 if message := getattr(choice, "message", None):
                     for key, value in self._get_attributes_from_chat_completion_message(message):
                         yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+                # Only capture finish_reason for the first choice.
+                if index == 0:
+                    if (finish_reason := getattr(choice, "finish_reason", None)) is not None:
+                        yield SpanAttributes.LLM_FINISH_REASON, finish_reason
 
     def _get_attributes_from_completion(
         self,
@@ -124,6 +128,10 @@ class _ResponseAttributesExtractor:
                         f"{SpanAttributes.LLM_CHOICES}.{index}.{ChoiceAttributes.COMPLETION_TEXT}",
                         text,
                     )
+                # Only capture finish_reason for the first choice.
+                if index == 0:
+                    if (finish_reason := getattr(choice, "finish_reason", None)) is not None:
+                        yield SpanAttributes.LLM_FINISH_REASON, finish_reason
 
     def _get_attributes_from_create_embedding_response(
         self,
