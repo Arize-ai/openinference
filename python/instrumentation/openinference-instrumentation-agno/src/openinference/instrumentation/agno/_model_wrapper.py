@@ -492,7 +492,7 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.ainvoke_stream"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
@@ -501,11 +501,15 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+
+        # Manually attach context (instead of using use_span context manager)
+        token = context_api.attach(trace_api.set_span_in_context(span))
+
+        try:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
-            # Token usage will be set after streaming completes based on final response
 
             responses = []
             async for chunk in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
@@ -528,14 +532,12 @@ class _ModelWrapper:
             if final_response_with_metrics and final_response_with_metrics.response_usage:
                 metrics = final_response_with_metrics.response_usage
 
-                # Set token usage attributes
                 if hasattr(metrics, "input_tokens") and metrics.input_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
 
-                # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
                     span.set_attribute(
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
@@ -545,6 +547,19 @@ class _ModelWrapper:
                     span.set_attribute(
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
+
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
+
+        finally:
+            # Wrap detach in try/except to handle context mismatch on cancellation
+            try:
+                context_api.detach(token)
+            except Exception:
+                pass
+            span.end()
 
 
 # span attributes
