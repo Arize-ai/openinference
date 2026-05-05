@@ -10,12 +10,17 @@ This test verifies that the GoogleADKInstrumentor correctly patches and unpatchs
 - trace_call_llm and trace_tool_call methods
 """
 
+from types import ModuleType
 from typing import cast
 
 from google.adk import __version__ as _ADK_VERSION_STR
 
 from openinference.instrumentation import OITracer
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor, _PassthroughTracer
+from openinference.instrumentation.google_adk import (
+    GoogleADKInstrumentor,
+    _PassthroughTracer,
+    _SelectiveExecuteToolTracer,
+)
 
 _ADK_VERSION = cast(tuple[int, int, int], tuple(int(x) for x in _ADK_VERSION_STR.split(".")[:3]))
 
@@ -36,12 +41,15 @@ def test_instrumentation_patching() -> None:
 
     # ADK 1.32 moved trace_tool_call from flows.llm_flows.functions to telemetry.tracing
     # and removed the re-export of `tracer` from agents.base_agent.
+    trace_tool_module: ModuleType
     if _ADK_VERSION >= (1, 32, 0):
-        from google.adk.telemetry import tracing as trace_tool_module
+        from google.adk.telemetry import tracing
+
+        trace_tool_module = tracing
     else:
-        from google.adk.flows.llm_flows import (
-            functions as trace_tool_module,  # type: ignore[no-redef]
-        )
+        from google.adk.flows.llm_flows import functions
+
+        trace_tool_module = functions
 
     # Store original state of all methods and tracers
     original_runner_run_async = Runner.run_async
@@ -53,7 +61,7 @@ def test_instrumentation_patching() -> None:
     original_trace_tool_call = trace_tool_module.trace_tool_call
 
     if _ADK_VERSION < (1, 32, 0):
-        from google.adk.agents import base_agent  # type: ignore[attr-defined]
+        from google.adk.agents import base_agent
 
         original_agents_tracer = base_agent.tracer
 
@@ -73,8 +81,14 @@ def test_instrumentation_patching() -> None:
     assert isinstance(runners.tracer, _PassthroughTracer)
     assert isinstance(base_llm_flow.tracer, OITracer)
     if _ADK_VERSION >= (1, 32, 0):
-        # tracing.tracer is the global ADK tracer suppressed via _PassthroughTracer
-        assert isinstance(trace_tool_module.tracer, _PassthroughTracer)
+        # tracing.tracer is the global ADK tracer; on >= 1.32 we wrap it with a
+        # selective tracer that emits OI spans for `execute_tool *` and passes
+        # through everything else.
+        assert isinstance(trace_tool_module.tracer, _SelectiveExecuteToolTracer)
+        # functions.tracer is also wrapped to catch `execute_tool (merged)` spans.
+        from google.adk.flows.llm_flows import functions as _functions
+
+        assert isinstance(_functions.tracer, _SelectiveExecuteToolTracer)
     else:
         # functions.tracer is module-local; we substitute our OITracer directly
         assert isinstance(trace_tool_module.tracer, OITracer)
