@@ -7,7 +7,7 @@
     "python/instrumentation/openinference-instrumentation-langchain": "0.1.63",
     "python/instrumentation/openinference-instrumentation-bedrock": "0.1.36",
     "python/instrumentation/openinference-instrumentation-mistralai": "2.0.1",
-    "python/openinference-instrumentation": "0.1.48",
+    "python/openinference-instrumentation": "0.1.49",
     "python/instrumentation/openinference-instrumentation-guardrails": "0.1.11",
     "python/instrumentation/openinference-instrumentation-vertexai": "0.1.13",
     "python/instrumentation/openinference-instrumentation-crewai": "1.1.4",

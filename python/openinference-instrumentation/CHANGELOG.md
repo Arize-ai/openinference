@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.48...python-openinference-instrumentation-v0.1.49) (2026-05-06)
+
+
+### Features
+
+* Centralize host-to-provider & model-to-system Resolution Helpers ([#2919](https://github.com/Arize-ai/openinference/issues/2919)) ([e58e90c](https://github.com/Arize-ai/openinference/commit/e58e90c217f40e7da5455dd1e71ba36d51a6c2e0))
+
 ## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.47...python-openinference-instrumentation-v0.1.48) (2026-04-29)
 
 
