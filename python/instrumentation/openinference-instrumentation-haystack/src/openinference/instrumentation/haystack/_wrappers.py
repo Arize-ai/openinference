@@ -22,14 +22,17 @@ import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from typing_extensions import TypeGuard, assert_never
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    infer_llm_system_from_model_name,
+    safe_json_dumps,
+)
 from openinference.instrumentation.haystack._base64 import decode_base64_float32
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
     OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -578,9 +581,9 @@ def _get_llm_model_provider_system_attributes(
     if model:
         yield LLM_MODEL_NAME, model
     if provider := infer_llm_provider_from_class_name(instance):
-        yield LLM_PROVIDER, provider.value
-    if system := infer_llm_system_from_model(model):
-        yield LLM_SYSTEM, system.value
+        yield LLM_PROVIDER, provider
+    if system := infer_llm_system_from_model_name(model):
+        yield LLM_SYSTEM, system
 
 
 def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -946,7 +949,7 @@ def _set_component_runner_response_attributes(
 
 def infer_llm_provider_from_class_name(
     instance: Any = None,
-) -> Optional[OpenInferenceLLMProviderValues]:
+) -> Optional[str]:
     """Infer the LLM provider from an SDK instance using the model class name when possible."""
     if instance is None:
         return None
@@ -960,56 +963,15 @@ def infer_llm_provider_from_class_name(
             if isinstance(model, str):
                 provider_prefix = model.split("/", 1)[0].lower()
                 try:
-                    return OpenInferenceLLMProviderValues(provider_prefix)
+                    return OpenInferenceLLMProviderValues(provider_prefix).value
                 except ValueError:
                     return None
 
     if class_name in ["OpenAIGenerator", "DALLEImageGenerator", "OpenAIChatGenerator"]:
-        return OpenInferenceLLMProviderValues.OPENAI
+        return OpenInferenceLLMProviderValues.OPENAI.value
 
     if class_name in ["AzureOpenAIGenerator", "AzureOpenAIChatGenerator"]:
-        return OpenInferenceLLMProviderValues.AZURE
-
-    return None
-
-
-def infer_llm_system_from_model(
-    model_name: Optional[str] = None,
-) -> Optional[OpenInferenceLLMSystemValues]:
-    """Infer the LLM system from a model identifier when possible."""
-    if not isinstance(model_name, str):
-        return None
-
-    model = model_name.lower()
-
-    if model.startswith(
-        (
-            "gpt",
-            "o1",
-            "o3",
-            "o4",
-            "text-embedding",
-            "davinci",
-            "curie",
-            "babbage",
-            "ada",
-            "azure",
-            "openai",
-        )
-    ):
-        return OpenInferenceLLMSystemValues.OPENAI
-
-    if model.startswith(("anthropic", "claude", "google_anthropic_vertex")):
-        return OpenInferenceLLMSystemValues.ANTHROPIC
-
-    if model.startswith(("cohere", "command")):
-        return OpenInferenceLLMSystemValues.COHERE
-
-    if model.startswith(("mistral", "mixtral", "pixtral")):
-        return OpenInferenceLLMSystemValues.MISTRALAI
-
-    if model.startswith(("vertex", "gemini", "google")):
-        return OpenInferenceLLMSystemValues.VERTEXAI
+        return OpenInferenceLLMProviderValues.AZURE.value
 
     return None
 
