@@ -24,7 +24,7 @@ from typing_extensions import TypeGuard, assert_never
 
 from openinference.instrumentation import (
     get_attributes_from_context,
-    get_system_from_model,
+    infer_llm_system_from_model_name,
     safe_json_dumps,
 )
 from openinference.instrumentation.haystack._base64 import decode_base64_float32
@@ -582,7 +582,7 @@ def _get_llm_model_provider_system_attributes(
         yield LLM_MODEL_NAME, model
     if provider := infer_llm_provider_from_class_name(instance):
         yield LLM_PROVIDER, provider
-    if system := get_system_from_model(model):
+    if system := infer_llm_system_from_model_name(model):
         yield LLM_SYSTEM, system
 
 

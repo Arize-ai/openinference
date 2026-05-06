@@ -12,8 +12,8 @@ from opentelemetry.util.types import AttributeValue
 import openinference.instrumentation as oi
 from openinference.instrumentation import (
     get_attributes_from_context,
-    get_provider_from_host,
-    get_system_from_model,
+    infer_llm_provider_from_host,
+    infer_llm_system_from_model_name,
     safe_json_dumps,
 )
 from openinference.semconv.trace import (
@@ -491,12 +491,12 @@ class _ModelWrapper:
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
             if provider := (
                 infer_llm_provider_from_class_name(instance)
-                or get_provider_from_host(
+                or infer_llm_provider_from_host(
                     extract_llm_endpoint_from_sdk_instance(instance)
                 )
             ):
                 span.set_attribute(LLM_PROVIDER, provider)
-            if system := get_system_from_model(model.model_id):
+            if system := infer_llm_system_from_model_name(model.model_id):
                 span.set_attribute(LLM_SYSTEM, system)
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))

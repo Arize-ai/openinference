@@ -23,7 +23,7 @@ from typing_extensions import TypeAlias
 
 from openinference.instrumentation import (
     get_attributes_from_context,
-    get_provider_from_host,
+    infer_llm_provider_from_host,
 )
 from openinference.instrumentation.openai._image_utils import redact_images_from_request_parameters
 from openinference.instrumentation.openai._request_attributes_extractor import (
@@ -152,7 +152,7 @@ class _WithOpenAI(ABC):
             or not isinstance(host, str)
         ):
             return
-        if provider := get_provider_from_host(host):
+        if provider := infer_llm_provider_from_host(host):
             yield SpanAttributes.LLM_PROVIDER, provider
 
     def _get_attributes_from_request(

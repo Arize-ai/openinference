@@ -10,7 +10,7 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.util.types import AttributeValue
 
 from instructor.utils import is_async
-from openinference.instrumentation import get_provider_from_host, safe_json_dumps
+from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMSystemValues,
@@ -210,7 +210,7 @@ class _PatchWrapper:
 
                     if model_name := kwargs.get("model"):
                         span.set_attribute(LLM_MODEL_NAME, model_name)
-                    if provider := get_provider_from_host(
+                    if provider := infer_llm_provider_from_host(
                         extract_llm_endpoint_from_sdk_instance(create, client)
                     ):
                         span.set_attribute(LLM_PROVIDER, provider)
@@ -253,7 +253,7 @@ class _PatchWrapper:
 
                     if model_name := kwargs.get("model"):
                         span.set_attribute(LLM_MODEL_NAME, model_name)
-                    if provider := get_provider_from_host(
+                    if provider := infer_llm_provider_from_host(
                         extract_llm_endpoint_from_sdk_instance(create, client)
                     ):
                         span.set_attribute(LLM_PROVIDER, provider)
