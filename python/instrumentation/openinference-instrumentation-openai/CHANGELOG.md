@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.45...python-openinference-instrumentation-openai-v0.1.46) (2026-05-06)
+
+
+### Features
+
+* **openai:** capture llm.finish_reason for the first choice ([#3056](https://github.com/Arize-ai/openinference/issues/3056)) ([8165c0e](https://github.com/Arize-ai/openinference/commit/8165c0e709362483b0396a58993109ee20d26dc9))
+
+
+### Bug Fixes
+
+* **openai:** guard None token details in response usage ([#3057](https://github.com/Arize-ai/openinference/issues/3057)) ([1478dca](https://github.com/Arize-ai/openinference/commit/1478dca77bd8b7712fedda2fdb3f2ae6ae657c5c))
+
 ## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.44...python-openinference-instrumentation-openai-v0.1.45) (2026-04-21)
 
 
