@@ -14,6 +14,7 @@ from ._attributes import (
     get_output_attributes,
     get_tool_attributes,
 )
+from ._genai_conversion import get_genai_attributes
 from ._types import OpenInferenceMimeType
 from .config import (
     TraceConfig,
@@ -51,6 +52,11 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
+        if self._self_config.enable_genai_semconv:
+            source_attributes = span._attributes
+            for key, value in get_genai_attributes(source_attributes).items():
+                if key not in source_attributes:
+                    span.set_attribute(key, value)
         span.end(end_time)
 
     def set_input(
