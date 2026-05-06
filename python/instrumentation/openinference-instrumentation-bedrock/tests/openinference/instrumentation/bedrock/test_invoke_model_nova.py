@@ -1,0 +1,332 @@
+"""Integration tests for Amazon Nova model support via invoke_model API.
+
+Cassettes recorded against the real AWS Bedrock API and replayed for CI.
+"""
+
+import json
+
+import boto3
+import pytest
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+
+
+class TestNovaInvokeModel:
+    @pytest.mark.vcr(
+        before_record_request=lambda r: r.headers.clear() or r,
+    )
+    def test_nova_micro_text(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Basic text response from amazon.nova-micro-v1:0 via invoke_model."""
+        model_id = "amazon.nova-micro-v1:0"
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
+        user_text = "What is 2+2? Reply with just the number."
+        request_body = {
+            "schemaVersion": "messages-v1",
+            "messages": [{"role": "user", "content": [{"text": user_text}]}],
+            "inferenceConfig": {"maxTokens": 64, "temperature": 0.1},
+        }
+        response = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(request_body),
+        )
+        response_body = json.loads(response["body"].read())
+        assert response_body["output"]["message"]["role"] == "assistant"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+        assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+        input_value = attributes.pop(INPUT_VALUE)
+        assert isinstance(input_value, str) and user_text in input_value
+        assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+        output_value = attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value, str) and len(output_value) > 0
+        assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert isinstance(
+            invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str
+        )
+        assert json.loads(invocation_parameters_str) == {"maxTokens": 64, "temperature": 0.1}
+        for k in list(attributes.keys()):
+            if k.startswith("llm."):
+                attributes.pop(k)
+        assert attributes == {}
+
+    @pytest.mark.vcr(
+        before_record_request=lambda r: r.headers.clear() or r,
+    )
+    def test_nova_lite_with_system(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Nova Lite invoke_model with system prompt and multi-turn messages."""
+        model_id = "amazon.nova-lite-v1:0"
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
+        user_text = "Hello! Who are you?"
+        request_body = {
+            "schemaVersion": "messages-v1",
+            "system": [{"text": "You are a helpful assistant. Keep responses brief."}],
+            "messages": [{"role": "user", "content": [{"text": user_text}]}],
+            "inferenceConfig": {"maxTokens": 128, "temperature": 0.5},
+        }
+        response = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(request_body),
+        )
+        response_body = json.loads(response["body"].read())
+        assert response_body["output"]["message"]["role"] == "assistant"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+        assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+        input_value = attributes.pop(INPUT_VALUE)
+        assert isinstance(input_value, str) and user_text in input_value
+        assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+        output_value = attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value, str) and len(output_value) > 0
+        assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert isinstance(
+            invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str
+        )
+        assert json.loads(invocation_parameters_str) == {"maxTokens": 128, "temperature": 0.5}
+        for k in list(attributes.keys()):
+            if k.startswith("llm."):
+                attributes.pop(k)
+        assert attributes == {}
+
+    @pytest.mark.vcr(
+        before_record_request=lambda r: r.headers.clear() or r,
+    )
+    def test_nova_with_tool_use(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Nova invoke_model where the model responds with a tool call."""
+        model_id = "amazon.nova-micro-v1:0"
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
+        user_text = "What is the weather in Seattle?"
+        tool_name = "get_weather"
+        request_body = {
+            "schemaVersion": "messages-v1",
+            "messages": [{"role": "user", "content": [{"text": user_text}]}],
+            "toolConfig": {
+                "tools": [
+                    {
+                        "toolSpec": {
+                            "name": tool_name,
+                            "description": "Get the current weather for a location.",
+                            "inputSchema": {
+                                "json": {
+                                    "type": "object",
+                                    "properties": {
+                                        "location": {
+                                            "type": "string",
+                                            "description": "The city and state",
+                                        }
+                                    },
+                                    "required": ["location"],
+                                }
+                            },
+                        }
+                    }
+                ]
+            },
+            "inferenceConfig": {"maxTokens": 256, "temperature": 0.1},
+        }
+        response = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(request_body),
+        )
+        response_body = json.loads(response["body"].read())
+        assert response_body["stopReason"] == "tool_use"
+        tool_use_block = response_body["output"]["message"]["content"][1]["toolUse"]
+        tool_use_id = tool_use_block["toolUseId"]
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+        assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+
+        input_value = attributes.pop(INPUT_VALUE)
+        assert isinstance(input_value, str) and user_text in input_value
+        assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+
+        output_value = attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value, str) and tool_name in output_value
+        assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+
+        tool_call_prefix = "llm.output_messages.0.message.tool_calls.0.tool_call"
+        assert attributes.pop(f"{tool_call_prefix}.id") == tool_use_id
+        assert attributes.pop(f"{tool_call_prefix}.function.name") == tool_name
+        tool_args = json.loads(
+            str(attributes.pop(f"{tool_call_prefix}.function.arguments") or "{}")
+        )
+        assert "location" in tool_args
+        for k in list(attributes.keys()):
+            if k.startswith("llm."):
+                attributes.pop(k)
+        assert attributes == {}
+
+    @pytest.mark.vcr(
+        before_record_request=lambda r: r.headers.clear() or r,
+    )
+    def test_nova_converse(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Nova model via the converse API — uses unified response format."""
+        model_id = "amazon.nova-micro-v1:0"
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
+        user_text = "What is the capital of France?"
+        response = client.converse(
+            modelId=model_id,
+            messages=[{"role": "user", "content": [{"text": user_text}]}],
+            inferenceConfig={"maxTokens": 64, "temperature": 0.1},
+        )
+        assert response["output"]["message"]["role"] == "assistant"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+        assert attributes.pop(LLM_MODEL_NAME) == model_id
+        input_value = str(attributes.pop(INPUT_VALUE))
+        assert user_text in input_value
+        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert isinstance(attributes.pop(INPUT_MIME_TYPE), str)
+        assert isinstance(attributes.pop(OUTPUT_MIME_TYPE), str)
+
+        remaining = {k: v for k, v in attributes.items()}
+        message_keys = [k for k in remaining if k.startswith("llm.")]
+        for k in message_keys:
+            attributes.pop(k)
+        assert attributes == {}
+
+
+class TestNovaInvokeModelWithResponseStream:
+    @pytest.mark.vcr(
+        before_record_request=lambda r: r.headers.clear() or r,
+    )
+    def test_nova_micro_streaming(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        model_id = "amazon.nova-micro-v1:0"
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
+        user_text = "What are the three primary colors? Reply in one sentence."
+        inference_config = {"maxTokens": 64, "temperature": 0.1}
+        request_body = {
+            "schemaVersion": "messages-v1",
+            "messages": [{"role": "user", "content": [{"text": user_text}]}],
+            "inferenceConfig": inference_config,
+        }
+
+        response = client.invoke_model_with_response_stream(
+            modelId=model_id,
+            body=json.dumps(request_body),
+        )
+
+        for _ in response["body"]:
+            pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+        assert attributes.pop(LLM_MODEL_NAME) == model_id
+        input_value = attributes.pop(INPUT_VALUE)
+        assert isinstance(input_value, str) and user_text in input_value
+        assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+        output_value = attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value, str) and len(output_value) > 0
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        # Nova streaming metadata does not include totalTokens (only inputTokens/outputTokens)
+        attributes.pop(LLM_TOKEN_COUNT_TOTAL, None)
+        invocation_parameters_str = attributes.pop(LLM_INVOCATION_PARAMETERS)
+        assert isinstance(invocation_parameters_str, str)
+        assert json.loads(invocation_parameters_str) == inference_config
+        assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+        for k in list(attributes.keys()):
+            if k.startswith("llm."):
+                attributes.pop(k)
+        assert attributes == {}
+
+
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE

@@ -409,7 +409,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                             anthropic_attributes.set_input_attributes(span, request_body, model_id)
                         else:
                             _extract_invoke_model_attributes.set_input_attributes(
-                                span, request_body
+                                span, request_body, kwargs
                             )
                 except Exception:
                     logger.warning("Failed to extract input attributes", exc_info=True)
@@ -478,7 +478,7 @@ def _async_model_invocation_wrapper(
                             anthropic_attributes.set_input_attributes(span, request_body, model_id)
                         else:
                             _extract_invoke_model_attributes.set_input_attributes(
-                                span, request_body
+                                span, request_body, kwargs
                             )
                 except Exception:
                     logger.warning("Failed to extract input attributes", exc_info=True)
