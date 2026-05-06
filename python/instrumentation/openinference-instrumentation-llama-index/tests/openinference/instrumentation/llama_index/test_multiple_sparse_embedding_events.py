@@ -3,7 +3,7 @@ from typing import Iterator
 
 import pytest
 from llama_index.core.instrumentation import get_dispatcher  # type: ignore[attr-defined]
-from llama_index.core.instrumentation.events.embedding import EmbeddingEndEvent
+from llama_index.core.instrumentation.events.embedding import SparseEmbeddingEndEvent
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -22,11 +22,11 @@ dispatcher = get_dispatcher(__name__)
 def foo(m: int, n: int) -> None:
     for i in range(m):
         chunks = [f"{i}-{j}" for j in range(n)]
-        embeddings = [list(map(float, [i, j])) for j in range(n)]
-        dispatcher.event(EmbeddingEndEvent(chunks=chunks, embeddings=embeddings))
+        embeddings = [{j: float(i + j), j + 1: float(i * j)} for j in range(n)]
+        dispatcher.event(SparseEmbeddingEndEvent(chunks=chunks, embeddings=embeddings))
 
 
-async def test_multiple_embedding_events(
+async def test_multiple_sparse_embedding_events(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     m, n = 3, 2
@@ -38,9 +38,15 @@ async def test_multiple_embedding_events(
     assert attributes.pop(INPUT_MIME_TYPE, None) == OpenInferenceMimeTypeValues.JSON.value
 
     for k, (i, j) in enumerate(product(range(m), range(n))):
-        text, vector = f"{i}-{j}", tuple(map(float, [i, j]))
+        text = f"{i}-{j}"
+        vector = {j: float(i + j), j + 1: float(i * j)}
         assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{k}.{EMBEDDING_TEXT}", None) == text
-        assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{k}.{EMBEDDING_VECTOR}", None) == vector
+        # Sparse vectors are stored as JSON strings
+        import json
+
+        stored = attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{k}.{EMBEDDING_VECTOR}", None)
+        assert isinstance(stored, str)
+        assert json.loads(stored) == {str(k): v for k, v in vector.items()}
 
     assert attributes == {}
 
