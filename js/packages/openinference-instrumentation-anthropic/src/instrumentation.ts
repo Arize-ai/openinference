@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { APIPromise } from "@anthropic-ai/sdk";
 import type { Stream } from "@anthropic-ai/sdk/streaming";
 import type { Attributes, Span, Tracer, TracerProvider } from "@opentelemetry/api";
 import { context, diag, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
@@ -234,15 +235,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             return result;
           };
 
-          const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error: Error) => {
-            span.recordException(error);
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: error.message,
-            });
-            span.end();
-            throw error;
-          });
+          const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
           return context.bind(execContext, wrappedPromise);
         };
       },
@@ -277,6 +270,35 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
   }
+}
+
+/**
+ * Type-guard for the Anthropic SDK's `APIPromise` subclass.
+ */
+function isAPIPromise<T>(promise: unknown): promise is APIPromise<T> {
+  return promise instanceof APIPromise;
+}
+
+/**
+ * Invokes a thenable while preserving the Anthropic SDK's `APIPromise`
+ * contract when present. `APIPromise._thenUnwrap` returns a new `APIPromise`
+ * wrapping the transform, so SDK helpers like `.withResponse()` /
+ * `.asResponse()` survive instrumentation. Falls back to `.then(...)` for
+ * plain promises. Mirrors `@arizeai/openinference-instrumentation-openai`.
+ */
+function invokeMaybeAPIPromise<T>(
+  promise: T,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  then: (value: any) => unknown,
+): T {
+  if (isAPIPromise<T>(promise)) {
+    return promise._thenUnwrap(then) as T;
+  }
+  if (promise instanceof Promise) {
+    return promise.then(then) as T;
+  }
+  diag.warn("Promise is not an APIPromise or a regular promise, cannot instrument.");
+  return promise;
 }
 
 /**
