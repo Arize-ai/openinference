@@ -31,6 +31,21 @@ class TestResponseUsage:
                 },
                 id="with_token_details",
             ),
+            pytest.param(
+                ResponseUsage.model_construct(
+                    input_tokens=200,
+                    output_tokens=100,
+                    total_tokens=300,
+                    input_tokens_details=None,
+                    output_tokens_details=None,
+                ),
+                {
+                    "llm.token_count.total": 300,
+                    "llm.token_count.prompt": 200,
+                    "llm.token_count.completion": 100,
+                },
+                id="with_none_token_details",
+            ),
         ],
     )
     def test_ResponseUsage(
