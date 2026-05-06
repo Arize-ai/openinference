@@ -729,6 +729,132 @@ async def test_acompletion_stream(
         )
 
 
+async def test_acompletion_stream_finalizes_span_on_cancellation_in_anext(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """When `asyncio.CancelledError` is raised while waiting for the next
+    chunk (i.e. inside `await stream.__anext__()`), the span must be ended.
+
+    The previous `async def ... yield` finalizer handled this implicitly via
+    its `finally:` block. The class-based wrapper must explicitly catch
+    BaseException (CancelledError is BaseException in 3.8+) to match.
+
+    Setup: monkey-patch `__anext__` on the wrapped CustomStreamWrapper to
+    sleep so we can deterministically land the cancel inside it.
+    """
+    import asyncio
+
+    in_memory_span_exporter.clear()
+
+    response = await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "ping"}],
+        mock_response="pong",
+        stream=True,
+    )
+
+    # Patch the wrapped CSW's __anext__ to await a long sleep, then cancel
+    # the task. Since `_oi_wrapped` is the underlying CustomStreamWrapper,
+    # patching its __anext__ ensures the cancel lands while we're awaiting
+    # the wrapped's __anext__ — exactly the bug-prone path.
+    wrapped = response._oi_wrapped
+
+    async def slow_anext() -> Any:
+        await asyncio.sleep(60)  # never actually completes
+
+    wrapped.__anext__ = slow_anext  # type: ignore[method-assign]
+
+    async def consume() -> None:
+        async for _ in response:
+            pass
+
+    task = asyncio.create_task(consume())
+    await asyncio.sleep(0.05)  # let the consume task block on slow_anext
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, (
+        f"expected exactly 1 finished span after cancellation, got {len(spans)}"
+    )
+    assert spans[0].name == "acompletion"
+
+
+async def test_acompletion_stream_finalizes_span_on_aclose(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """When a consumer explicitly calls `await stream.aclose()` (e.g.
+    FastAPI disconnect handler, anyio task-group cancellation), the span
+    must be finalized."""
+    in_memory_span_exporter.clear()
+
+    response = await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "ping"}],
+        mock_response="pong",
+        stream=True,
+    )
+
+    # Iterate one chunk then aclose without exhausting the stream.
+    async for _ in response:
+        break
+    await response.aclose()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "acompletion"
+
+
+async def test_acompletion_stream_preserves_custom_stream_wrapper_type(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Regression test: when the instrumentor wraps a streaming `acompletion`
+    response, the returned object must remain `isinstance(.,
+    litellm.CustomStreamWrapper)`.
+
+    Background: litellm's Responses-API->Chat-Completions bridge handler at
+    `litellm/responses/litellm_completion_transformation/handler.py` does an
+    `isinstance(response, CustomStreamWrapper)` check on the value
+    `await litellm.acompletion(...)` returns. If the instrumentor wraps the
+    stream into a plain `async_generator`, that check fails and the bridge
+    raises `Unexpected response type: async_generator` for any non-native
+    provider (Gemini/Anthropic/Bedrock/Vertex) that bridges Responses through
+    Chat Completions.
+    """
+    from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
+
+    in_memory_span_exporter.clear()
+
+    response = await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "ping"}],
+        mock_response="pong",
+        stream=True,
+    )
+
+    # The critical assertion — must remain a CustomStreamWrapper after wrapping.
+    assert isinstance(response, CustomStreamWrapper), (
+        f"expected CustomStreamWrapper, got {type(response).__name__}"
+    )
+
+    # Iteration must still work and produce chunks.
+    chunks = []
+    async for chunk in response:
+        chunks.append(chunk)
+    assert chunks, "stream produced no chunks"
+
+    # Span finalization should still happen on iteration completion.
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "acompletion"
+
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_acompletion_stream_token_count(
     in_memory_span_exporter: InMemorySpanExporter,

@@ -583,6 +583,155 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
         span.end()
 
 
+def _make_async_instrumented_stream_wrapper_class() -> Any:
+    """Lazily build a `CustomStreamWrapper` subclass used to wrap the result of
+    `await litellm.acompletion(stream=True)` while preserving its public type.
+
+    Why a subclass: the previous implementation passed the stream through
+    `_finalize_streaming_span` (an `async def ... yield` function), which
+    returned a bare `async_generator`. That broke litellm's
+    Responses->Chat-Completions bridge handler at
+    `litellm/responses/litellm_completion_transformation/handler.py`, whose
+    `isinstance(result, CustomStreamWrapper)` check then fell through to
+    `raise ValueError("Unexpected response type: ...")`.
+
+    By subclassing `CustomStreamWrapper`, the returned object is still a
+    `CustomStreamWrapper` for downstream consumers, while iteration is
+    intercepted to populate OpenInference span attributes.
+    """
+    from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
+
+    class _AsyncInstrumentedCustomStreamWrapper(CustomStreamWrapper):  # type: ignore[misc]
+        # Don't call CustomStreamWrapper.__init__ — `wrapped` is fully
+        # initialized; we only need to expose its state on this instance.
+        def __init__(
+            self, span: trace_api.Span, wrapped: "CustomStreamWrapper"
+        ) -> None:
+            self.__dict__.update(wrapped.__dict__)
+            self._oi_span = span
+            self._oi_wrapped = wrapped
+            self._oi_output_messages: Dict[int, Dict[str, Any]] = {}
+            self._oi_usage_stats: Any = None
+            self._oi_finalized = False
+
+        def __aiter__(self) -> "_AsyncInstrumentedCustomStreamWrapper":
+            return self
+
+        async def __anext__(self) -> Any:
+            try:
+                token = await self._oi_wrapped.__anext__()
+            except StopAsyncIteration:
+                if not self._oi_finalized:
+                    self._oi_finalize()
+                raise
+            except BaseException as exc:
+                # Catch BaseException (not just Exception) so asyncio.CancelledError
+                # — which is a BaseException in Python 3.8+ — also finalizes the
+                # span. Without this, cancelling a request mid-stream leaks the
+                # span. Don't record CancelledError as an "error" since it's a
+                # routine control-flow signal.
+                if not self._oi_finalized:
+                    try:
+                        import asyncio as _aio  # local import; cheap, std-lib
+                        if not isinstance(exc, _aio.CancelledError):
+                            self._oi_span.record_exception(exc)
+                    except Exception:
+                        pass
+                    try:
+                        self._oi_span.end()
+                    finally:
+                        self._oi_finalized = True
+                raise
+            self._oi_track(token)
+            return token
+
+        async def aclose(self) -> None:
+            """Forward to the wrapped stream's aclose, then finalize the span.
+            Called by FastAPI streaming-response disconnect handlers, anyio
+            task-group cancellations, and explicit consumer-side cleanup. The
+            old `async def ... yield` finalizer handled this implicitly via
+            its `finally:` block; we have to do it explicitly now.
+            """
+            try:
+                wrapped_aclose = getattr(self._oi_wrapped, "aclose", None)
+                if callable(wrapped_aclose):
+                    await wrapped_aclose()
+            finally:
+                if not self._oi_finalized:
+                    self._oi_finalize()
+
+        def _oi_track(self, token: Any) -> None:
+            try:
+                if getattr(token, "choices", None):
+                    for choice in token.choices:
+                        idx = getattr(choice, "index", 0)
+                        if idx not in self._oi_output_messages:
+                            self._oi_output_messages[idx] = {"role": None, "content": ""}
+                        delta = getattr(choice, "delta", None)
+                        if delta is not None:
+                            role = getattr(delta, "role", None)
+                            content = getattr(delta, "content", None)
+                            if (
+                                role is not None
+                                and self._oi_output_messages[idx]["role"] is None
+                            ):
+                                self._oi_output_messages[idx]["role"] = role
+                            if content is not None:
+                                self._oi_output_messages[idx]["content"] += content
+                usage_attrs = getattr(token, "usage", None)
+                if usage_attrs:
+                    self._oi_usage_stats = usage_attrs
+            except Exception:  # pragma: no cover - never fail iteration
+                pass
+
+        def _oi_finalize(self) -> None:
+            try:
+                aggregated = self._oi_output_messages.get(0, {}).get("content", "")
+                _set_span_attribute(
+                    self._oi_span, SpanAttributes.OUTPUT_VALUE, aggregated
+                )
+                for idx, msg in self._oi_output_messages.items():
+                    message = {"role": msg.get("role"), "content": msg.get("content")}
+                    for key, value in _get_attributes_from_message_param(message):
+                        _set_span_attribute(
+                            self._oi_span,
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}",
+                            value,
+                        )
+                if self._oi_usage_stats:
+                    _set_token_counts_from_usage(
+                        self._oi_span, SimpleNamespace(usage=self._oi_usage_stats)
+                    )
+                _set_span_status(self._oi_span, aggregated)
+            except Exception:  # pragma: no cover - never fail iteration
+                pass
+            finally:
+                try:
+                    self._oi_span.end()
+                except Exception:
+                    pass
+                self._oi_finalized = True
+
+    return _AsyncInstrumentedCustomStreamWrapper
+
+
+# Cached subclass — built once on first use so we don't import litellm at
+# module load (the instrumentor must be importable without litellm at runtime
+# for some lazy-load scenarios).
+_AsyncInstrumentedStreamWrapperClass: Any = None
+
+
+def _AsyncInstrumentedCustomStreamWrapper(
+    span: trace_api.Span, wrapped: Any
+) -> Any:
+    global _AsyncInstrumentedStreamWrapperClass
+    if _AsyncInstrumentedStreamWrapperClass is None:
+        _AsyncInstrumentedStreamWrapperClass = (
+            _make_async_instrumented_stream_wrapper_class()
+        )
+    return _AsyncInstrumentedStreamWrapperClass(span, wrapped)
+
+
 async def _finalize_aresponses_streaming_span(span: trace_api.Span, stream: Any) -> Any:
     from litellm.responses.streaming_iterator import ResponsesAPIStreamingIterator
     from litellm.types.llms.openai import ResponsesAPIStreamEvents
@@ -738,6 +887,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 return result
 
     async def _acompletion_wrapper(self, *args: Any, **kwargs: Any) -> Any:
+        from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
+
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await self.original_litellm_funcs["acompletion"](*args, **kwargs)
 
@@ -749,8 +900,24 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
             result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
 
-            if hasattr(result, "__aiter__"):
-                return _finalize_streaming_span(span, result)
+            # When `litellm.aresponses(stream=True)` is bridged to chat
+            # completions for non-native providers (Gemini/Anthropic/Bedrock/
+            # Vertex), the bridge handler at
+            # `litellm/responses/litellm_completion_transformation/handler.py`
+            # does an `isinstance(response, CustomStreamWrapper)` check on the
+            # value `await litellm.acompletion(...)` returns. We MUST preserve
+            # that type, otherwise the bridge raises
+            # `Unexpected response type: async_generator`. The previous
+            # implementation called `_finalize_streaming_span(span, result)`
+            # which is an `async def ... yield` function — calling it returns
+            # a plain `async_generator`, breaking the isinstance check.
+            #
+            # Fix: wrap the stream in a `CustomStreamWrapper` subclass that
+            # delegates iteration to the original while populating span
+            # attributes. `isinstance(wrapped, CustomStreamWrapper)` continues
+            # to succeed for downstream consumers.
+            if isinstance(result, CustomStreamWrapper):
+                return _AsyncInstrumentedCustomStreamWrapper(span, result)
 
             _finalize_span(span, result)
             span.end()
