@@ -34,7 +34,7 @@ from typing import (
 )
 from uuid import UUID
 
-import wrapt  # type: ignore
+import wrapt
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.ai import UsageMetadata
 from langchain_core.tracers import BaseTracer, LangChainTracer
@@ -46,7 +46,7 @@ from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import NotRequired, TypeGuard
-from wrapt import ObjectProxy
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
@@ -85,7 +85,7 @@ IGNORED_EXCEPTION_PATTERNS = [
 ]
 
 
-@wrapt.decorator  # type: ignore
+@wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
 def audit_timing(wrapped: Any, _: Any, args: Any, kwargs: Any) -> Any:
     if not _AUDIT_TIMING:
         return wrapped(*args, **kwargs)
@@ -101,7 +101,7 @@ K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")
 
 
-class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
+class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """
     A wrapped dictionary with lock
     """
@@ -120,15 +120,15 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
 
     def __getitem__(self, key: K) -> V:
         with self._self_lock:
-            return cast(V, super().__getitem__(key))
+            return cast(V, super().__getitem__(key))  # type: ignore[misc,no-untyped-call,unused-ignore]
 
     def __setitem__(self, key: K, value: V) -> None:
         with self._self_lock:
-            super().__setitem__(key, value)
+            super().__setitem__(key, value)  # type: ignore[misc,no-untyped-call,unused-ignore]
 
     def __delitem__(self, key: K) -> None:
         with self._self_lock:
-            super().__delitem__(key)
+            super().__delitem__(key)  # type: ignore[misc,no-untyped-call,unused-ignore]
 
 
 class OpenInferenceTracer(BaseTracer):
@@ -158,10 +158,10 @@ class OpenInferenceTracer(BaseTracer):
         if TYPE_CHECKING:
             # check that `run_map` still exists in parent class
             assert self.run_map
-        self.run_map = _DictWithLock[str, Run](self.run_map)
+        self.run_map = _DictWithLock[str, Run](self.run_map)  # type: ignore[assignment]
         self._tracer = tracer
         self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
-        self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
+        self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()  # type: ignore[assignment]
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[Span]:
@@ -254,7 +254,7 @@ class OpenInferenceTracer(BaseTracer):
         return LangChainTracer.on_chat_model_start(self, *args, **kwargs)  # type: ignore
 
 
-@audit_timing  # type: ignore
+@audit_timing
 def _record_exception(span: Span, error: BaseException) -> None:
     if isinstance(error, Exception):
         span.record_exception(error)
@@ -276,7 +276,7 @@ def _record_exception(span: Span, error: BaseException) -> None:
     span.add_event(name="exception", attributes=attributes)
 
 
-@audit_timing  # type: ignore
+@audit_timing
 def _update_span(span: Span, run: Run) -> None:
     # If there  is no error or if there is an agent control exception, set the span to OK
     if run.error is None or any(

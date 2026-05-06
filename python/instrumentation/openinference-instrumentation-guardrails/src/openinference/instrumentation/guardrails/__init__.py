@@ -6,7 +6,8 @@ from typing import Any, Collection
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from packaging.version import Version
-from wrapt import ObjectProxy, wrap_function_wrapper
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
+from wrapt.patches import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.guardrails._wrap_guard_call import (
@@ -25,7 +26,7 @@ _LLM_PROVIDERS_MODULE = "guardrails.llm_providers"
 _RUNNER_MODULE = "guardrails.run"
 
 
-class _Contextvars(ObjectProxy):  # type: ignore
+class _Contextvars(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(self, cv: Any) -> None:
         super().__init__(cv)
 
@@ -69,7 +70,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         gd.guard.contextvars = _Contextvars(gd.guard.contextvars)
         gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
         for name in ("pydantic", "string", "rail_string", "rail"):
-            wrap_function_wrapper(
+            wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "guardrails.guard",
                 f"Guard.from_{name}",
                 lambda f, _, args, kwargs: f(*args, **{**kwargs, "tracer": self._tracer}),
@@ -78,7 +79,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         runner_module = import_module(_RUNNER_MODULE)
         self._original_guardrails_runner_step = runner_module.Runner.step
         runner_wrapper = _ParseCallableWrapper(tracer=self._tracer)
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             _RUNNER_MODULE,
             "Runner.step",
             runner_wrapper,
@@ -89,7 +90,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
             llm_providers_module.PromptCallableBase.__call__
         )
         prompt_callable_wrapper = _PromptCallableWrapper(tracer=self._tracer)
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             _LLM_PROVIDERS_MODULE,
             "PromptCallableBase.__call__",
             prompt_callable_wrapper,
@@ -100,7 +101,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
             validation_module.ValidatorServiceBase.after_run_validator
         )
         post_validator_wrapper = _PostValidationWrapper(tracer=self._tracer)
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             _VALIDATION_MODULE,
             "ValidatorServiceBase.after_run_validator",
             post_validator_wrapper,

@@ -6,7 +6,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import wrap_function_wrapper
+from wrapt.patches import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.mistralai._chat_wrapper import (
@@ -72,49 +72,49 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_sync_stream_agent_method = Agents.stream
         self._original_async_agent_method = Agents.complete_async
         self._original_async_stream_agent_method = Agents.stream_async
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "mistralai.client.chat",
             "Chat.complete",
             _SyncChatWrapper("MistralClient.chat", self._tracer, mistralai_client),
         )
 
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "mistralai.client.chat",
             "Chat.stream",
             _SyncChatWrapper("MistralClient.chat", self._tracer, mistralai_client),
         )
 
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "mistralai.client.chat",
             "Chat.complete_async",
             _AsyncChatWrapper("MistralAsyncClient.chat", self._tracer, mistralai_client),
         )
 
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "mistralai.client.chat",
             "Chat.stream_async",
             _AsyncStreamChatWrapper("MistralAsyncClient.chat", self._tracer, mistralai_client),
         )
 
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "mistralai.client.agents",
             "Agents.complete",
             _SyncChatWrapper("MistralClient.agents", self._tracer, mistralai_client),
         )
 
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "mistralai.client.agents",
             "Agents.stream",
             _SyncChatWrapper("MistralClient.agents", self._tracer, mistralai_client),
         )
 
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "mistralai.client.agents",
             "Agents.complete_async",
             _AsyncChatWrapper("MistralAsyncClient.agents", self._tracer, mistralai_client),
         )
 
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "mistralai.client.agents",
             "Agents.stream_async",
             _AsyncStreamChatWrapper("MistralAsyncClient.agents", self._tracer, mistralai_client),

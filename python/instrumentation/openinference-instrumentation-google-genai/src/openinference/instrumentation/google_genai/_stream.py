@@ -16,7 +16,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from wrapt import ObjectProxy
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._context import (
@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-class _Stream(ObjectProxy):  # type: ignore
+class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_response_accumulator",
         "_with_span",

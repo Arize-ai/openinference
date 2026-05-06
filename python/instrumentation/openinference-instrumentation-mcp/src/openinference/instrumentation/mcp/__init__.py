@@ -5,7 +5,9 @@ from typing import Any, AsyncGenerator, Callable, Collection, Tuple
 from opentelemetry import context, propagate
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.instrumentation.utils import unwrap
-from wrapt import ObjectProxy, register_post_import_hook, wrap_function_wrapper
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
+from wrapt.importer import register_post_import_hook
+from wrapt.patches import wrap_function_wrapper
 
 from openinference.instrumentation.mcp.package import _instruments
 
@@ -20,7 +22,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _instrument(self, **kwargs: Any) -> None:
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(
+            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "mcp.client.streamable_http",
                 "streamable_http_client",
                 self._wrap_transport_with_callback,
@@ -29,7 +31,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(
+            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "mcp.server.streamable_http",
                 "StreamableHTTPServerTransport.connect",
                 self._wrap_plain_transport,
@@ -38,25 +40,25 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(
+            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "mcp.client.sse", "sse_client", self._wrap_plain_transport
             ),
             "mcp.client.sse",
         )
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(
+            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "mcp.server.sse", "SseServerTransport.connect_sse", self._wrap_plain_transport
             ),
             "mcp.server.sse",
         )
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(
+            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "mcp.client.stdio", "stdio_client", self._wrap_plain_transport
             ),
             "mcp.client.stdio",
         )
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(
+            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "mcp.server.stdio", "stdio_server", self._wrap_plain_transport
             ),
             "mcp.server.stdio",
@@ -70,7 +72,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         # may be a reasonable generic instrumentation for anyio itself to allow its streams to
         # propagate context broadly.
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(
+            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "mcp.server.session", "ServerSession.__init__", self._base_session_init_wrapper
             ),
             "mcp.server.session",
@@ -86,8 +88,8 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter", Any], None]:
         async with wrapped(*args, **kwargs) as (read_stream, write_stream, get_session_id_callback):
             yield (
-                InstrumentedStreamReader(read_stream),
-                InstrumentedStreamWriter(write_stream),
+                InstrumentedStreamReader(read_stream),  # type: ignore[no-untyped-call,unused-ignore]
+                InstrumentedStreamWriter(write_stream),  # type: ignore[no-untyped-call,unused-ignore]
                 get_session_id_callback,
             )
 
@@ -96,7 +98,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
     ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter"], None]:
         async with wrapped(*args, **kwargs) as (read_stream, write_stream):
-            yield InstrumentedStreamReader(read_stream), InstrumentedStreamWriter(write_stream)
+            yield InstrumentedStreamReader(read_stream), InstrumentedStreamWriter(write_stream)  # type: ignore[no-untyped-call,unused-ignore]
 
     def _base_session_init_wrapper(
         self, wrapped: Callable[..., None], instance: Any, args: Any, kwargs: Any
@@ -106,12 +108,14 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         writer = getattr(instance, "_incoming_message_stream_writer", None)
         if reader and writer:
             setattr(
-                instance, "_incoming_message_stream_reader", ContextAttachingStreamReader(reader)
+                instance,
+                "_incoming_message_stream_reader",
+                ContextAttachingStreamReader(reader),  # type: ignore[no-untyped-call,unused-ignore]
             )
-            setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))
+            setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))  # type: ignore[no-untyped-call,unused-ignore]
 
 
-class InstrumentedStreamReader(ObjectProxy):  # type: ignore
+class InstrumentedStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     # ObjectProxy missing context manager - https://github.com/GrahamDumpleton/wrapt/issues/73
     async def __aenter__(self) -> Any:
         return await self.__wrapped__.__aenter__()
@@ -149,7 +153,7 @@ class InstrumentedStreamReader(ObjectProxy):  # type: ignore
             yield item
 
 
-class InstrumentedStreamWriter(ObjectProxy):  # type: ignore
+class InstrumentedStreamWriter(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     # ObjectProxy missing context manager - https://github.com/GrahamDumpleton/wrapt/issues/73
     async def __aenter__(self) -> Any:
         return await self.__wrapped__.__aenter__()
@@ -183,7 +187,7 @@ class ItemWithContext:
     ctx: context.Context
 
 
-class ContextSavingStreamWriter(ObjectProxy):  # type: ignore
+class ContextSavingStreamWriter(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     # ObjectProxy missing context manager - https://github.com/GrahamDumpleton/wrapt/issues/73
     async def __aenter__(self) -> Any:
         return await self.__wrapped__.__aenter__()
@@ -196,7 +200,7 @@ class ContextSavingStreamWriter(ObjectProxy):  # type: ignore
         return await self.__wrapped__.send(ItemWithContext(item, ctx))
 
 
-class ContextAttachingStreamReader(ObjectProxy):  # type: ignore
+class ContextAttachingStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     # ObjectProxy missing context manager - https://github.com/GrahamDumpleton/wrapt/issues/73
     async def __aenter__(self) -> Any:
         return await self.__wrapped__.__aenter__()
