@@ -86,9 +86,9 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
 
             # Wrap PipelineTask.__init__ to inject our observer
             wrap_function_wrapper(
-                module="pipecat.pipeline.task",
-                name="PipelineTask.__init__",
-                wrapper=_TaskInitWrapper(
+                "pipecat.pipeline.task",
+                "PipelineTask.__init__",
+                _TaskInitWrapper(
                     tracer=tracer,
                     config=config,
                     default_debug_log_filename=self._debug_log_filename,

@@ -48,14 +48,14 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_request = openai.OpenAI.request
         self._original_async_request = openai.AsyncOpenAI.request
         wrap_function_wrapper(
-            module=_MODULE,
-            name="OpenAI.request",
-            wrapper=_Request(tracer=tracer, openai=openai),
+            _MODULE,
+            "OpenAI.request",
+            _Request(tracer=tracer, openai=openai),
         )
         wrap_function_wrapper(
-            module=_MODULE,
-            name="AsyncOpenAI.request",
-            wrapper=_AsyncRequest(tracer=tracer, openai=openai),
+            _MODULE,
+            "AsyncOpenAI.request",
+            _AsyncRequest(tracer=tracer, openai=openai),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

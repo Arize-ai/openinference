@@ -15,11 +15,18 @@ from smolagents.models import (  # type: ignore[import-untyped]
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
+    MessageRole,
 )
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-from openinference.instrumentation.smolagents._wrappers import infer_llm_provider_from_class_name
+from openinference.instrumentation.smolagents._wrappers import (
+    _llm_input_messages,
+    _llm_output_messages,
+    infer_llm_provider_from_class_name,
+    infer_llm_provider_from_endpoint,
+    infer_llm_system_from_model,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -134,10 +141,9 @@ class TestModels:
 
         output_message = model(
             messages=[
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": input_message_content}],
-                }
+                ChatMessage(
+                    role=MessageRole.USER, content=[{"type": "text", "text": input_message_content}]
+                )
             ],
             tools_to_call_from=[GetWeatherTool()],
         )
@@ -841,6 +847,264 @@ class TestInferLLMProviderFromClassName:
 
         result = infer_llm_provider_from_class_name(mock_instance)
         assert result is None
+
+
+class TestInferLLMProviderFromEndpoint:
+    @pytest.mark.parametrize(
+        "endpoint",
+        [None, ""],
+    )
+    def test_returns_none_for_invalid_input(self, endpoint: Optional[str]) -> None:
+        result = infer_llm_provider_from_endpoint(endpoint)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "endpoint_url, expected",
+        [
+            ("https://api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
+            ("https://subdomain.api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
+            (
+                "https://my-resource.openai.azure.com/openai/deployments",
+                OpenInferenceLLMProviderValues.AZURE,
+            ),
+            (
+                "https://different-resource.openai.azure.com/v1",
+                OpenInferenceLLMProviderValues.AZURE,
+            ),
+            (
+                "https://generativelanguage.googleapis.com/v1",
+                OpenInferenceLLMProviderValues.GOOGLE,
+            ),
+            ("https://api.anthropic.com/v1", OpenInferenceLLMProviderValues.ANTHROPIC),
+            (
+                "https://bedrock-runtime.us-east-1.amazonaws.com",
+                OpenInferenceLLMProviderValues.AWS,
+            ),
+            ("https://someservice.us-west-2.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            ("https://api.cohere.ai/v1", OpenInferenceLLMProviderValues.COHERE),
+            ("https://api.mistral.ai/v1", OpenInferenceLLMProviderValues.MISTRALAI),
+            ("https://api.x.ai/v1", OpenInferenceLLMProviderValues.XAI),
+            ("https://api.deepseek.com/v1", OpenInferenceLLMProviderValues.DEEPSEEK),
+        ],
+    )
+    def test_known_endpoints_return_expected_provider(
+        self, endpoint_url: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        result = infer_llm_provider_from_endpoint(endpoint_url)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "https://unknown-provider-xyz.com/v1",
+            "https://custom-llm-provider.com/v1",
+            "https://my-provider-custom.com/v1",
+        ],
+    )
+    def test_unknown_endpoints_return_none(self, endpoint: str) -> None:
+        result = infer_llm_provider_from_endpoint(endpoint)
+        assert result is None
+
+    def test_case_insensitive_matching(self) -> None:
+        result = infer_llm_provider_from_endpoint("https://API.OPENAI.COM/v1")
+        assert result == OpenInferenceLLMProviderValues.OPENAI
+
+
+class TestInferLLMSystemFromModel:
+    @pytest.mark.parametrize(
+        "model_name",
+        [None, ""],
+    )
+    def test_returns_none_for_invalid_input(self, model_name: Optional[str]) -> None:
+        result = infer_llm_system_from_model(model_name)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "model_name, expected",
+        [
+            # OpenAI
+            ("gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("gpt-4-turbo-preview", OpenInferenceLLMSystemValues.OPENAI),
+            ("gpt.3.5.turbo", OpenInferenceLLMSystemValues.OPENAI),
+            ("o1-preview", OpenInferenceLLMSystemValues.OPENAI),
+            ("o3-mini", OpenInferenceLLMSystemValues.OPENAI),
+            ("o4-turbo", OpenInferenceLLMSystemValues.OPENAI),
+            ("text-embedding-ada-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("davinci-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("curie", OpenInferenceLLMSystemValues.OPENAI),
+            ("babbage", OpenInferenceLLMSystemValues.OPENAI),
+            ("ada", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure_openai/gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure_ai/some-model", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure/deployment-name", OpenInferenceLLMSystemValues.OPENAI),
+            # Anthropic
+            ("anthropic.claude-v2", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("anthropic/claude-3-opus", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("claude-3-opus-20240229", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("google_anthropic_vertex/claude-3", OpenInferenceLLMSystemValues.ANTHROPIC),
+            # Cohere
+            ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE),
+            ("command-r-plus", OpenInferenceLLMSystemValues.COHERE),
+            ("cohere/embed-english-v3", OpenInferenceLLMSystemValues.COHERE),
+            # Mistral
+            ("mistralai/mistral-large", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mistral-small", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI),
+            # VertexAI
+            ("google_vertexai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("google_genai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertexai/gemini-ultra", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertex_ai/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertex/bison", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("google/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+        ],
+    )
+    def test_known_model_names_return_expected_system(
+        self, model_name: str, expected: OpenInferenceLLMSystemValues
+    ) -> None:
+        result = infer_llm_system_from_model(model_name)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "unknown-model-xyz",
+            "custom-llm-v1",
+            "my-gpt-4-custom",
+        ],
+    )
+    def test_unknown_model_names_return_none(self, model_name: str) -> None:
+        result = infer_llm_system_from_model(model_name)
+        assert result is None
+
+    def test_case_insensitive_matching(self) -> None:
+        result = infer_llm_system_from_model("GPT-4-Turbo")
+        assert result == OpenInferenceLLMSystemValues.OPENAI
+
+
+class TestLlmInputMessages:
+    def test_dict_messages_with_list_content(self) -> None:
+        arguments = {
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+                {"role": "assistant", "content": [{"type": "text", "text": "Hi there"}]},
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+            == "user"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hello"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}"]
+            == "assistant"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hi there"
+        )
+
+    def test_chatmessage_objects_with_string_content(self) -> None:
+        arguments = {
+            "messages": [
+                ChatMessage(role=MessageRole.USER, content="Hello"),
+                ChatMessage(role=MessageRole.ASSISTANT, content="Hi there"),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+            == "user"
+        )
+        assert isinstance(
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"], str
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hello"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}"]
+            == "assistant"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hi there"
+        )
+
+    def test_chatmessage_objects_with_list_content(self) -> None:
+        """ChatMessage objects with list content (multimodal format) should be handled correctly."""
+        arguments = {
+            "messages": [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[{"type": "text", "text": "Describe this image"}],
+                ),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+            == "user"
+        )
+        assert isinstance(
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"], str
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Describe this image"
+        )
+
+
+class TestLlmOutputMessages:
+    def test_chatmessage_role_is_plain_string(self) -> None:
+        output = ChatMessage(role=MessageRole.ASSISTANT, content="Paris")
+        result = dict(_llm_output_messages(output))
+        role_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"
+        assert result[role_key] == "assistant"
+        assert isinstance(result[role_key], str)
+
+    def test_chatmessage_content_is_captured(self) -> None:
+        output = ChatMessage(role=MessageRole.ASSISTANT, content="Hello world")
+        result = dict(_llm_output_messages(output))
+        text_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Hello world"
+
+    def test_chatmessage_with_tool_calls(self) -> None:
+        output = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=None,
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_123",
+                    type="function",
+                    function=ChatMessageToolCallFunction(
+                        name="get_weather", arguments='{"location": "Paris"}'
+                    ),
+                )
+            ],
+        )
+        result = dict(_llm_output_messages(output))
+        role_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"
+        assert result[role_key] == "assistant"
+        assert isinstance(result[role_key], str)
+        tool_name_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        )
+        assert result[tool_name_key] == "get_weather"
 
 
 # message attributes

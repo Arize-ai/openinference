@@ -77,7 +77,7 @@ class ClaudeAgentSDKInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         for qualified, wrapper in method_wrappers.items():
             module, name = qualified.split(":", 1)
             self._originals.append(resolve_path(module, name))
-            wrap_function_wrapper(module=module, name=name, wrapper=wrapper)
+            wrap_function_wrapper(module, name, wrapper)
 
         # Sync package export so "from claude_agent_sdk import query" resolves to the wrapper
         import claude_agent_sdk

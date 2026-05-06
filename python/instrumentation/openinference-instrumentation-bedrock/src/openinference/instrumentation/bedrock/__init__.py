@@ -33,11 +33,9 @@ Edge cases and limitations:
   after setting span status to ERROR.
 """
 
-import base64
 import io
 import json
 import logging
-from enum import Enum
 from functools import wraps
 from importlib import import_module
 from inspect import signature
@@ -47,9 +45,6 @@ from typing import (
     Callable,
     Collection,
     Dict,
-    Iterable,
-    Iterator,
-    List,
     Optional,
     Tuple,
     TypeVar,
@@ -70,7 +65,12 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     get_attributes_from_context,
-    safe_json_dumps,
+)
+from openinference.instrumentation.bedrock._converse_attributes import (
+    get_attributes_from_request_data as _get_converse_request_attributes,
+)
+from openinference.instrumentation.bedrock._converse_attributes import (
+    get_attributes_from_response_data as _get_converse_response_attributes,
 )
 from openinference.instrumentation.bedrock._rag_wrappers import (
     _retrieve_and_generate_wrapper,
@@ -89,13 +89,6 @@ from openinference.instrumentation.bedrock.utils.anthropic import (
     _attributes as anthropic_attributes,
 )
 from openinference.instrumentation.bedrock.version import __version__
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 
 # -----------------------------------------------------------------------------
 # Constants
@@ -514,11 +507,6 @@ def _async_model_invocation_wrapper(
     return _invocation_wrapper
 
 
-# -----------------------------------------------------------------------------
-# converse wrapper
-# -----------------------------------------------------------------------------
-
-
 def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Callable[..., Any]]:
     """
     Wraps bedrock-runtime converse: one span per call; sets input/output and
@@ -532,87 +520,14 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
             kwargs: Dict[str, Any],
             response: Dict[str, Any],
         ) -> Dict[str, Any]:
-            """Set output message, role, content and token usage on span from response."""
-            if (
-                (response_message := response.get("output", {}).get("message"))
-                and (response_role := response_message.get("role"))
-                and (response_content := response_message.get("content", []))
-            ):
-                # Currently only supports text-based data
-                response_text = "\n".join(
-                    content_input.get("text", "") for content_input in response_content
-                )
-                _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
-
-                span_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
-                _set_span_attribute(span, f"{span_prefix}.message.role", response_role)
-                _set_span_attribute(span, f"{span_prefix}.message.content", response_text)
-
-            if usage := response.get("usage"):
-                if input_token_count := usage.get("inputTokens"):
-                    _set_span_attribute(
-                        span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count
-                    )
-                if response_token_count := usage.get("outputTokens"):
-                    _set_span_attribute(
-                        span,
-                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
-                        response_token_count,
-                    )
-                if total_token_count := usage.get("totalTokens"):
-                    _set_span_attribute(
-                        span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
-                    )
-
+            """Set output message and token usage on span from response."""
+            try:
+                span.set_attributes(_get_converse_response_attributes(kwargs, response))  # type: ignore[arg-type]
+            except Exception:
+                logger.warning("Failed to set response attributes on span", exc_info=True)
             span.set_attributes(dict(get_attributes_from_context()))
+            span.set_status(Status(StatusCode.OK))
             return response
-
-        def _set_input_attributes(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
-            """Set input attributes on the span."""
-            span.set_attribute(
-                SpanAttributes.OPENINFERENCE_SPAN_KIND,
-                OpenInferenceSpanKindValues.LLM.value,
-            )
-
-            if model_id := kwargs.get("modelId"):
-                _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
-
-            if inference_config := kwargs.get("inferenceConfig"):
-                invocation_parameters = safe_json_dumps(inference_config)
-                _set_span_attribute(
-                    span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
-                )
-
-            aggregated_messages: List[Any] = []
-            if system_prompts := kwargs.get("system"):
-                aggregated_messages.append(
-                    {
-                        "role": "system",
-                        "content": [
-                            {"text": " ".join(prompt.get("text", "") for prompt in system_prompts)}
-                        ],
-                    }
-                )
-
-            aggregated_messages.extend(kwargs.get("messages", []))
-            for idx, msg in enumerate(aggregated_messages):
-                if not isinstance(msg, dict):
-                    # Only dictionaries supported for now
-                    continue
-                for key, value in _get_attributes_from_message_param(msg):
-                    _set_span_attribute(
-                        span,
-                        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{key}",
-                        value,
-                    )
-            last_message = aggregated_messages[-1] if aggregated_messages else None
-            if isinstance(last_message, dict) and (
-                request_msg_content := last_message.get("content")
-            ):
-                request_msg_prompt = "\n".join(
-                    content_input.get("text", "") for content_input in request_msg_content
-                ).strip("\n")
-                _set_span_attribute(span, SpanAttributes.INPUT_VALUE, request_msg_prompt)
 
         # Use async wrapper when client is async (aiobotocore).
         if hasattr(wrapped_client, "__aenter__"):
@@ -623,8 +538,17 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
                     return await wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
 
                 with tracer.start_as_current_span("bedrock.converse") as span:
-                    _set_input_attributes(span, kwargs)
-                    response = await wrapped_client._unwrapped_converse(*args, **kwargs)
+                    try:
+                        span.set_attributes(_get_converse_request_attributes(kwargs))  # type: ignore[arg-type]
+                    except Exception:
+                        logger.warning("Failed to set request attributes on span", exc_info=True)
+                    try:
+                        response = await wrapped_client._unwrapped_converse(*args, **kwargs)
+                    except Exception as e:
+                        span.record_exception(e)
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        span.end()
+                        raise
                     return _process_converse(span, args, kwargs, response)
 
             return async_instrumented_response
@@ -636,18 +560,22 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
                     return wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
 
                 with tracer.start_as_current_span("bedrock.converse") as span:
-                    _set_input_attributes(span, kwargs)
-                    response = wrapped_client._unwrapped_converse(*args, **kwargs)
+                    try:
+                        span.set_attributes(_get_converse_request_attributes(kwargs))  # type: ignore[arg-type]
+                    except Exception:
+                        logger.warning("Failed to set request attributes on span", exc_info=True)
+                    try:
+                        response = wrapped_client._unwrapped_converse(*args, **kwargs)
+                    except Exception as e:
+                        span.record_exception(e)
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        span.end()
+                        raise
                     return _process_converse(span, args, kwargs, response)
 
             return sync_instrumented_response
 
     return _converse_wrapper
-
-
-# -----------------------------------------------------------------------------
-# Instrumentor
-# -----------------------------------------------------------------------------
 
 
 class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
@@ -685,9 +613,9 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         botocore = import_module(_BASE_MODULE)
         self._original_client_creator = boto.ClientCreator.create_client
         wrap_function_wrapper(
-            module=_MODULE,
-            name="ClientCreator.create_client",
-            wrapper=_sync_client_creation_wrapper(
+            _MODULE,
+            "ClientCreator.create_client",
+            _sync_client_creation_wrapper(
                 tracer=self._tracer,
                 module_version=botocore.__version__,
             ),
@@ -697,9 +625,9 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
             aioboto = import_module(_AIO_MODULE)
             self._original_aio_client_creator = aioboto.AioClientCreator.create_client
             wrap_function_wrapper(
-                module=_AIO_MODULE,
-                name="AioClientCreator.create_client",
-                wrapper=_async_client_creation_wrapper(
+                _AIO_MODULE,
+                "AioClientCreator.create_client",
+                _async_client_creation_wrapper(
                     tracer=self._tracer,
                     # Converse check uses botocore version (same as sync);
                     # aiobotocore wraps botocore.
@@ -726,74 +654,7 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
             pass
 
 
-# -----------------------------------------------------------------------------
-# Span and message attribute helpers (converse / message APIs)
-# -----------------------------------------------------------------------------
-
-
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
     """Set a span attribute only if value is non-empty."""
     if value is not None and value != "":
         span.set_attribute(name, value)
-
-
-def _get_attributes_from_message_param(
-    message: Dict[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    """Yield (attr_name, value) for role and content from a converse message dict."""
-    if not hasattr(message, "get"):
-        return
-    if role := message.get("role"):
-        yield (
-            MessageAttributes.MESSAGE_ROLE,
-            role.value if isinstance(role, Enum) else role,
-        )
-
-    if content := message.get("content"):
-        if isinstance(content, str):
-            yield MessageAttributes.MESSAGE_CONTENT, content
-        elif is_iterable_of(content, dict):
-            for index, c in list(enumerate(content)):
-                for key, value in _get_attributes_from_message_content(c):
-                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
-        elif isinstance(content, List):
-            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_user_message_param.py#L14  # noqa: E501
-            try:
-                value = safe_json_dumps(content)
-            except Exception:
-                logger.exception("Failed to serialize message content")
-            yield MessageAttributes.MESSAGE_CONTENT, value
-
-
-def _get_attributes_from_message_content(
-    content: Dict[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    """Yield (attr_name, value) for a single content block (text or image)."""
-    content = dict(content)
-    if text := content.get("text"):
-        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
-    if image := content.get("image"):
-        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
-        for key, value in _get_attributes_from_image(image):
-            yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
-
-
-def _get_attributes_from_image(
-    image: Dict[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    """Yield (attr_name, value) for image content (e.g. base64-encoded bytes)."""
-    if (source := image.get("source")) and (img_bytes := source.get("bytes")):
-        base64_img = base64.b64encode(img_bytes).decode("utf-8")
-        yield (
-            f"{ImageAttributes.IMAGE_URL}",
-            f"data:image/jpeg;base64,{base64_img}",
-        )
-
-
-T = TypeVar("T", bound=type)
-
-
-def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
-    """Return True if lst is an iterable whose elements are all of type tp."""
-    return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)
