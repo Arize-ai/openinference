@@ -48,20 +48,31 @@ from openinference.instrumentation import (
     ToolCallFunction,
     get_llm_attributes,
     get_output_attributes,
+    infer_llm_provider_from_host,
+    infer_llm_system_from_model_name,
     suppress_tracing,
     using_session,
+)
+from openinference.instrumentation._attributes import (
+    _HOST_SUFFIX_TO_PROVIDER,
+    _MODEL_PREFIX_TO_SYSTEM,
 )
 from openinference.instrumentation._tracers import _infer_tool_parameters
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
 )
+
+ALL_PROVIDER_VALUES: set[str] = {p.value for p in OpenInferenceLLMProviderValues}
+ALL_SYSTEM_VALUES: set[str] = {s.value for s in OpenInferenceLLMSystemValues}
 
 
 def remove_all_vcr_request_headers(request: Any) -> Any:
@@ -2958,3 +2969,137 @@ class TestGetOutputAttributes:
 
         assert parsed == expected
         assert result["output.mime_type"] == "application/json"
+
+
+class TestGetProviderFromHost:
+    @pytest.mark.parametrize(
+        "host, expected",
+        [
+            ("api.openai.com", OpenInferenceLLMProviderValues.OPENAI),
+            ("openai.azure.com", OpenInferenceLLMProviderValues.AZURE),
+            ("services.ai.azure.com", OpenInferenceLLMProviderValues.AZURE),
+            ("cognitiveservices.azure.com", OpenInferenceLLMProviderValues.AZURE),
+            ("api.anthropic.com", OpenInferenceLLMProviderValues.ANTHROPIC),
+            ("api.cohere.com", OpenInferenceLLMProviderValues.COHERE),
+            ("api.cohere.ai", OpenInferenceLLMProviderValues.COHERE),
+            ("api.mistral.ai", OpenInferenceLLMProviderValues.MISTRALAI),
+            ("generativelanguage.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE),
+            ("aiplatform.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE),
+            ("bedrock-runtime.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            ("bedrock-runtime.us-east-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            ("bedrock-runtime.eu-west-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            ("api.x.ai", OpenInferenceLLMProviderValues.XAI),
+            ("api.deepseek.com", OpenInferenceLLMProviderValues.DEEPSEEK),
+            ("api.groq.com", OpenInferenceLLMProviderValues.GROQ),
+            ("api.fireworks.ai", OpenInferenceLLMProviderValues.FIREWORKS),
+            ("api.moonshot.cn", OpenInferenceLLMProviderValues.MOONSHOT),
+            ("api.cerebras.ai", OpenInferenceLLMProviderValues.CEREBRAS),
+            ("api.perplexity.ai", OpenInferenceLLMProviderValues.PERPLEXITY),
+            ("api.together.ai", OpenInferenceLLMProviderValues.TOGETHER),
+            ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER),
+        ],
+    )
+    def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:
+        assert infer_llm_provider_from_host(host) == expected
+
+    @pytest.mark.parametrize("host", ["API.OPENAI.COM", "Api.Openai.Com"])
+    def test_case_insensitive(self, host: str) -> None:
+        assert infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
+
+    @pytest.mark.parametrize("host", ["  api.openai.com  ", "\tapi.openai.com\t"])
+    def test_whitespace_stripped(self, host: str) -> None:
+        assert infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
+
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "api.unknown-provider.com",
+            "storage.googleapis.com",
+            "",
+        ],
+    )
+    def test_unrecognised_host_returns_none(self, host: str) -> None:
+        assert infer_llm_provider_from_host(host) is None
+
+    def test_every_provider_has_at_least_one_host_entry(self) -> None:
+        mapped = {provider.value for provider in _HOST_SUFFIX_TO_PROVIDER.values()}
+        missing = ALL_PROVIDER_VALUES - mapped
+        assert not missing, f"Providers without a hostname entry: {missing}"
+
+    def test_all_suffix_values_are_valid_provider_values(self) -> None:
+        mapped = {provider.value for provider in _HOST_SUFFIX_TO_PROVIDER.values()}
+        invalid = mapped - ALL_PROVIDER_VALUES
+        assert not invalid, f"Suffixes map to unknown provider values: {invalid}"
+
+
+class TestGetSystemFromModel:
+    @pytest.mark.parametrize(
+        "model_name, expected",
+        [
+            ("gpt-4o", OpenInferenceLLMSystemValues.OPENAI),
+            ("gpt-3.5-turbo", OpenInferenceLLMSystemValues.OPENAI),
+            ("o1-preview", OpenInferenceLLMSystemValues.OPENAI),
+            ("o3-mini", OpenInferenceLLMSystemValues.OPENAI),
+            ("o4-mini", OpenInferenceLLMSystemValues.OPENAI),
+            ("text-embedding-ada-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("text-embedding-3-large", OpenInferenceLLMSystemValues.OPENAI),
+            ("davinci-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("curie", OpenInferenceLLMSystemValues.OPENAI),
+            ("babbage-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("ada", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure-gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("openai-gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("claude-3-5-sonnet-20241022", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("claude-3-haiku", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("anthropic.claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("google_anthropic_vertex.claude", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE),
+            ("command-r-plus", OpenInferenceLLMSystemValues.COHERE),
+            ("command-light", OpenInferenceLLMSystemValues.COHERE),
+            ("mistral-large-latest", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mistral-7b-instruct", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("gemini-2.0-flash", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertex-ai-model", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("google-palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+        ],
+    )
+    def test_known_models(self, model_name: str, expected: OpenInferenceLLMSystemValues) -> None:
+        assert infer_llm_system_from_model_name(model_name) == expected
+
+    @pytest.mark.parametrize("model_name", ["GPT-4O", "Claude-3-Haiku", "GEMINI-1.5-PRO"])
+    def test_case_insensitive(self, model_name: str) -> None:
+        assert infer_llm_system_from_model_name(model_name) is not None
+
+    @pytest.mark.parametrize("model_name", ["  gpt-4o  ", "\tclaude-3\t"])
+    def test_whitespace_stripped(self, model_name: str) -> None:
+        assert infer_llm_system_from_model_name(model_name) is not None
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "unknown-model-xyz",
+            "llama-3-70b",
+            "",
+        ],
+    )
+    def test_unrecognised_model_returns_none(self, model_name: str) -> None:
+        assert infer_llm_system_from_model_name(model_name) is None
+
+    def test_every_system_has_at_least_one_prefix_entry(self) -> None:
+        mapped = {system.value for system in _MODEL_PREFIX_TO_SYSTEM.values()}
+        missing = ALL_SYSTEM_VALUES - mapped
+        assert not missing, f"Systems without a prefix entry: {missing}"
+
+    def test_all_prefix_values_are_valid_system_values(self) -> None:
+        mapped = {system.value for system in _MODEL_PREFIX_TO_SYSTEM.values()}
+        invalid = mapped - ALL_SYSTEM_VALUES
+        assert not invalid, f"Prefixes map to unknown system values: {invalid}"
+
+    def test_google_anthropic_vertex_resolves_to_anthropic_not_vertexai(self) -> None:
+        assert (
+            infer_llm_system_from_model_name("google_anthropic_vertex.claude-3")
+            == OpenInferenceLLMSystemValues.ANTHROPIC
+        )
