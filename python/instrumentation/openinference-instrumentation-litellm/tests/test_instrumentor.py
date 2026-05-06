@@ -729,6 +729,51 @@ async def test_acompletion_stream(
         )
 
 
+async def test_acompletion_stream_preserves_custom_stream_wrapper_type(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Regression test: when the instrumentor wraps a streaming `acompletion`
+    response, the returned object must remain `isinstance(.,
+    litellm.CustomStreamWrapper)`.
+
+    Background: litellm's Responses-API->Chat-Completions bridge handler at
+    `litellm/responses/litellm_completion_transformation/handler.py` does an
+    `isinstance(response, CustomStreamWrapper)` check on the value
+    `await litellm.acompletion(...)` returns. If the instrumentor wraps the
+    stream into a plain `async_generator`, that check fails and the bridge
+    raises `Unexpected response type: async_generator` for any non-native
+    provider (Gemini/Anthropic/Bedrock/Vertex) that bridges Responses through
+    Chat Completions.
+    """
+    from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
+
+    in_memory_span_exporter.clear()
+
+    response = await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "ping"}],
+        mock_response="pong",
+        stream=True,
+    )
+
+    # The critical assertion — must remain a CustomStreamWrapper after wrapping.
+    assert isinstance(response, CustomStreamWrapper), (
+        f"expected CustomStreamWrapper, got {type(response).__name__}"
+    )
+
+    # Iteration must still work and produce chunks.
+    chunks = []
+    async for chunk in response:
+        chunks.append(chunk)
+    assert chunks, "stream produced no chunks"
+
+    # Span finalization should still happen on iteration completion.
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "acompletion"
+
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_acompletion_stream_token_count(
     in_memory_span_exporter: InMemorySpanExporter,
