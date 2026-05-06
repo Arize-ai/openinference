@@ -624,17 +624,41 @@ def _make_async_instrumented_stream_wrapper_class() -> Any:
                 if not self._oi_finalized:
                     self._oi_finalize()
                 raise
-            except Exception as exc:
+            except BaseException as exc:
+                # Catch BaseException (not just Exception) so asyncio.CancelledError
+                # — which is a BaseException in Python 3.8+ — also finalizes the
+                # span. Without this, cancelling a request mid-stream leaks the
+                # span. Don't record CancelledError as an "error" since it's a
+                # routine control-flow signal.
                 if not self._oi_finalized:
                     try:
-                        self._oi_span.record_exception(exc)
+                        import asyncio as _aio  # local import; cheap, std-lib
+                        if not isinstance(exc, _aio.CancelledError):
+                            self._oi_span.record_exception(exc)
                     except Exception:
                         pass
-                    self._oi_span.end()
-                    self._oi_finalized = True
+                    try:
+                        self._oi_span.end()
+                    finally:
+                        self._oi_finalized = True
                 raise
             self._oi_track(token)
             return token
+
+        async def aclose(self) -> None:
+            """Forward to the wrapped stream's aclose, then finalize the span.
+            Called by FastAPI streaming-response disconnect handlers, anyio
+            task-group cancellations, and explicit consumer-side cleanup. The
+            old `async def ... yield` finalizer handled this implicitly via
+            its `finally:` block; we have to do it explicitly now.
+            """
+            try:
+                wrapped_aclose = getattr(self._oi_wrapped, "aclose", None)
+                if callable(wrapped_aclose):
+                    await wrapped_aclose()
+            finally:
+                if not self._oi_finalized:
+                    self._oi_finalize()
 
         def _oi_track(self, token: Any) -> None:
             try:
