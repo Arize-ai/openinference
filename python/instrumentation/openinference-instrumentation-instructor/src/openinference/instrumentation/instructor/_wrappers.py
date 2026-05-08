@@ -213,7 +213,7 @@ class _PatchWrapper:
                     if provider := infer_llm_provider_from_host(
                         extract_llm_endpoint_from_sdk_instance(create, client)
                     ):
-                        span.set_attribute(LLM_PROVIDER, provider)
+                        span.set_attribute(LLM_PROVIDER, provider.value)
                     span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
 
                     span.set_status(trace_api.StatusCode.OK)
@@ -256,7 +256,7 @@ class _PatchWrapper:
                     if provider := infer_llm_provider_from_host(
                         extract_llm_endpoint_from_sdk_instance(create, client)
                     ):
-                        span.set_attribute(LLM_PROVIDER, provider)
+                        span.set_attribute(LLM_PROVIDER, provider.value)
                     span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
 
                     span.set_status(trace_api.StatusCode.OK)

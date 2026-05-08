@@ -495,9 +495,9 @@ class _ModelWrapper:
                     extract_llm_endpoint_from_sdk_instance(instance)
                 )
             ):
-                span.set_attribute(LLM_PROVIDER, provider)
+                span.set_attribute(LLM_PROVIDER, provider.value)
             if system := infer_llm_system_from_model_name(model.model_id):
-                span.set_attribute(LLM_SYSTEM, system)
+                span.set_attribute(LLM_SYSTEM, system.value)
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
@@ -575,7 +575,7 @@ def _has_active_llm_parent_span() -> bool:
 
 def infer_llm_provider_from_class_name(
     instance: Any = None,
-) -> Optional[str]:
+) -> Optional[OpenInferenceLLMProviderValues]:
     """Infer the LLM provider from an SDK instance using the model class name when possible."""
     if instance is None:
         return None
@@ -587,7 +587,7 @@ def infer_llm_provider_from_class_name(
         if isinstance(model_id, str):
             provider_prefix = model_id.split("/", 1)[0].lower()
             try:
-                return OpenInferenceLLMProviderValues(provider_prefix).value
+                return OpenInferenceLLMProviderValues(provider_prefix)
             except ValueError:
                 return None
 
@@ -597,13 +597,13 @@ def infer_llm_provider_from_class_name(
     # Added backward compatibility for OpenAIServerModel which were renamed to
     # OpenAIModel in newer versions
     if class_name == "OpenAIModel":
-        return OpenInferenceLLMProviderValues.OPENAI.value
+        return OpenInferenceLLMProviderValues.OPENAI
 
     if class_name == "AzureOpenAIModel":
-        return OpenInferenceLLMProviderValues.AZURE.value
+        return OpenInferenceLLMProviderValues.AZURE
 
     if class_name == "AmazonBedrockModel":
-        return OpenInferenceLLMProviderValues.AWS.value
+        return OpenInferenceLLMProviderValues.AWS
 
     return None
 

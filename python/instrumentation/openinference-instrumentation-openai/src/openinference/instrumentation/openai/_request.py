@@ -153,7 +153,7 @@ class _WithOpenAI(ABC):
         ):
             return
         if provider := infer_llm_provider_from_host(host):
-            yield SpanAttributes.LLM_PROVIDER, provider
+            yield SpanAttributes.LLM_PROVIDER, provider.value
 
     def _get_attributes_from_request(
         self,

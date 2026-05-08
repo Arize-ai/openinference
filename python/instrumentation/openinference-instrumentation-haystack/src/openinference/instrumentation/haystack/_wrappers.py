@@ -581,9 +581,9 @@ def _get_llm_model_provider_system_attributes(
     if model:
         yield LLM_MODEL_NAME, model
     if provider := infer_llm_provider_from_class_name(instance):
-        yield LLM_PROVIDER, provider
+        yield LLM_PROVIDER, provider.value
     if system := infer_llm_system_from_model_name(model):
-        yield LLM_SYSTEM, system
+        yield LLM_SYSTEM, system.value
 
 
 def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -949,7 +949,7 @@ def _set_component_runner_response_attributes(
 
 def infer_llm_provider_from_class_name(
     instance: Any = None,
-) -> Optional[str]:
+) -> Optional[OpenInferenceLLMProviderValues]:
     """Infer the LLM provider from an SDK instance using the model class name when possible."""
     if instance is None:
         return None
@@ -963,15 +963,15 @@ def infer_llm_provider_from_class_name(
             if isinstance(model, str):
                 provider_prefix = model.split("/", 1)[0].lower()
                 try:
-                    return OpenInferenceLLMProviderValues(provider_prefix).value
+                    return OpenInferenceLLMProviderValues(provider_prefix)
                 except ValueError:
                     return None
 
     if class_name in ["OpenAIGenerator", "DALLEImageGenerator", "OpenAIChatGenerator"]:
-        return OpenInferenceLLMProviderValues.OPENAI.value
+        return OpenInferenceLLMProviderValues.OPENAI
 
     if class_name in ["AzureOpenAIGenerator", "AzureOpenAIChatGenerator"]:
-        return OpenInferenceLLMProviderValues.AZURE.value
+        return OpenInferenceLLMProviderValues.AZURE
 
     return None
 
