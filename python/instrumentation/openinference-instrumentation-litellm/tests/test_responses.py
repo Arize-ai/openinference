@@ -101,7 +101,7 @@ def test_responses_simple_input_stream(
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
     # streams will not have cost unless litellm.include_cost_in_streaming_usage is set to True
-    attributes.pop("llm.cost.total", None)
+    assert "llm.cost.total" not in attributes
     assert attributes == {}
 
 

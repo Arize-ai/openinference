@@ -510,8 +510,10 @@ def _set_cost_from_response(span: trace_api.Span, result: Any) -> None:
 
     if isinstance(hidden_params, dict):
         response_cost = hidden_params.get("response_cost")
-        if response_cost is not None:
-            _set_span_attribute(span, SpanAttributes.LLM_COST_TOTAL, response_cost)
+    else:
+        response_cost = _get_value(hidden_params, "response_cost")
+    if response_cost is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_COST_TOTAL, response_cost)
 
 
 def _set_span_status(span: trace_api.Span, result: Any) -> None:
