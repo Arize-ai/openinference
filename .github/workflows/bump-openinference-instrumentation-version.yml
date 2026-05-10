@@ -25,14 +25,12 @@ jobs:
           # Guard against that by requiring the suffix to be a bare semver.
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::notice::Tag $TAG is not a core openinference-instrumentation release (extracted '$VERSION'); skipping."
-            echo "valid=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          echo "valid=true" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Update pyproject.toml files
-        if: steps.version.outputs.valid == 'true'
+        if: steps.version.outputs.version
         run: |
           NEW_VERSION="${{ steps.version.outputs.version }}"
           # Match the quoted dependency string exactly to avoid touching
@@ -41,7 +39,7 @@ jobs:
             sed -i 's/"openinference-instrumentation>=.*"/"openinference-instrumentation>='"$NEW_VERSION"'"/' {} +
 
       - name: Create pull request
-        if: steps.version.outputs.valid == 'true'
+        if: steps.version.outputs.version
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
           token: ${{ secrets.MY_RELEASE_PLEASE }}
