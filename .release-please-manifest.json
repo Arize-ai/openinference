@@ -16,7 +16,7 @@
     "python/instrumentation/openinference-instrumentation-groq": "0.1.13",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.14",
     "python/instrumentation/openinference-instrumentation-anthropic": "1.0.1",
-    "python/instrumentation/openinference-instrumentation-smolagents": "0.1.27",
+    "python/instrumentation/openinference-instrumentation-smolagents": "0.1.28",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.11",
     "python/instrumentation/openinference-instrumentation-openai-agents": "1.4.2",
     "python/instrumentation/openinference-instrumentation-portkey": "0.1.8",
