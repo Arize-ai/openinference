@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.31...python-openinference-instrumentation-litellm-v0.1.32) (2026-05-10)
+
+
+### Features
+
+* **litellm:** capture tool calls in streaming responses ([#2646](https://github.com/Arize-ai/openinference/issues/2646)) ([a3e18f3](https://github.com/Arize-ai/openinference/commit/a3e18f385bc24fab767e6340376b7a5c367d8994))
+
 ## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.30...python-openinference-instrumentation-litellm-v0.1.31) (2026-05-10)
 
 
