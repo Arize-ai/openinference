@@ -120,7 +120,7 @@ jobs:
             - [ ] REQUIRED: Linting and formatting pass
             - [ ] REQUIRED: PR created with a clear description
             - [ ] RECOMMENDED: Screenshots or examples included when applicable
-          claude_args: '--allowedTools Read,Write,Edit,Glob,Grep,Agent,"Bash(git:*)","Bash(gh:*)","Bash(tox:*)","Bash(uv:*)","Bash(pnpm:*)","Bash(npx:*)","Bash(./gradlew:*)"'
+          claude_args: '--allowedTools Read,Write,Edit,Glob,Grep,Agent,Skill,"Bash(git:*)","Bash(gh:*)","Bash(tox:*)","Bash(uv:*)","Bash(pnpm:*)","Bash(npx:*)","Bash(./gradlew:*)"'
 
       - name: Cleanup
         if: always() && env.READY == 'true'
