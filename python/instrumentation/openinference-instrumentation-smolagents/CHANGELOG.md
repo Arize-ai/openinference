@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.27...python-openinference-instrumentation-smolagents-v0.1.28) (2026-05-10)
+
+
+### Features
+
+* **smolagents:** Smolagents multimodel messages ([#3001](https://github.com/Arize-ai/openinference/issues/3001)) ([96c183a](https://github.com/Arize-ai/openinference/commit/96c183a7f2ede96bd8fb072e57aefa12d2234c6f))
+
 ## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.26...python-openinference-instrumentation-smolagents-v0.1.27) (2026-04-29)
 
 
