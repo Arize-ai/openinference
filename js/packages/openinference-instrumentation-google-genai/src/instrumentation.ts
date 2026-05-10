@@ -1,3 +1,4 @@
+import type * as GoogleGenAIModule from "@google/genai";
 import type {
   Batches,
   Chat,
@@ -33,7 +34,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// oxlint-disable-next-line typescript/prefer-ts-expect-error
 // @ts-ignore - No version file until build
 import { VERSION } from "./version";
 
@@ -41,7 +42,7 @@ const MODULE_NAME = "@google/genai";
 
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-google-genai";
 
-type GenAIModule = typeof import("@google/genai");
+type GenAIModule = typeof GoogleGenAIModule;
 
 type PatchableModule = GenAIModule & { openInferencePatched?: boolean };
 
