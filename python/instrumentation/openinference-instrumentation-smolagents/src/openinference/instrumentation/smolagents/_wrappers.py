@@ -331,6 +331,8 @@ def _image_content_to_url(element: dict[str, Any]) -> Optional[str]:
         return image_url.get("url") if isinstance(image_url, dict) else None
     if content_type == "image":
         image = element.get("image")
+        # TODO: detect actual image MIME type instead of hardcoding image/png.
+        # `encode_image_base64` may return JPEG/WebP/etc.; consumers will see the wrong MIME.
         if isinstance(image, str):
             return f"data:image/png;base64,{image}"
         if image is not None:
@@ -339,6 +341,7 @@ def _image_content_to_url(element: dict[str, Any]) -> Optional[str]:
 
                 return f"data:image/png;base64,{encode_image_base64(image)}"
             except Exception:
+                # TODO: log a warning here — currently failures are silent and hard to debug.
                 pass
     return None
 

@@ -136,6 +136,8 @@ def agent_with_image() -> None:
 
 if __name__ == "__main__":
     setup_tracing()
+    # TODO: default to a cheap example (e.g. image_url_input) instead of generate_image,
+    # which calls dall-e-3 and incurs cost on every run.
     generate_image()
     # image_url_input()
     # pil_image_input()
