@@ -480,7 +480,7 @@ describe("LangChainInstrumentation", () => {
       [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_MIME_TYPE]: "application/json",
       metadata:
-        '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1}',
+        '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1,"ls_integration":"langchain_chat_model","versions":{"@langchain/core":"1.1.44"}}',
     });
     // Make sure the input and output values are set
     expect(inputValue).toBeDefined();
@@ -558,7 +558,7 @@ describe("LangChainInstrumentation", () => {
       [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_VALUE]: "this is a test tool",
       [OUTPUT_MIME_TYPE]: "text/plain",
-      metadata: "{}",
+      metadata: '{"versions":{"@langchain/core":"1.1.44"}}',
     });
   });
 
@@ -601,7 +601,7 @@ describe("LangChainInstrumentation", () => {
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
         "llm.token_count.total": 17,
-        "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}",
+        "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0,"ls_integration":"langchain_chat_model","versions":{"@langchain/core":"1.1.44"}}",
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
         "session.id": "session-id",
@@ -764,7 +764,7 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     expect(span.attributes["llm.token_count.prompt"]).toBe(12);
     expect(span.attributes["llm.token_count.total"]).toBe(17);
     expect(span.attributes["metadata"]).toBe(
-      `{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}`,
+      `{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0,"ls_integration":"langchain_chat_model","versions":{"@langchain/core":"1.1.44"}}`,
     );
     expect(span.attributes["openinference.span.kind"]).toBe("LLM");
     expect(span.attributes["output.mime_type"]).toBe("application/json");

@@ -681,8 +681,8 @@ importers:
         version: 1.30.1(@opentelemetry/api@1.9.0)
     devDependencies:
       '@openai/agents':
-        specifier: ^0.0.11
-        version: 0.0.11(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
+        specifier: ^0.9.1
+        version: 0.9.1(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
       '@opentelemetry/exporter-trace-otlp-proto':
         specifier: ^0.50.0
         version: 0.50.0(@opentelemetry/api@1.9.0)
@@ -1530,22 +1530,28 @@ packages:
   '@open-draft/until@2.1.0':
     resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
 
-  '@openai/agents-core@0.0.11':
-    resolution: {integrity: sha512-kMG/B620fsFAwUe/ounmXty4FuAmWbMWgql4z/gCoER3S6h5tBqNTxffN0MAOFHV3EuPLiqTxA0kGiSdTpDwyA==}
+  '@openai/agents-core@0.9.1':
+    resolution: {integrity: sha512-WSH7S46qopzNCGfHrJxeDVeZCKU0pK9gqhVevRfHdlrcWUcjm7Sj58SiTdGi3v/v1sw2xKDzVN08C4K8qxjNoQ==}
     peerDependencies:
-      zod: 3.25.40 - 3.25.67
+      zod: ^4.0.0
     peerDependenciesMeta:
       zod:
         optional: true
 
-  '@openai/agents-openai@0.0.11':
-    resolution: {integrity: sha512-gqVVDfyD0UYYBkc4kPJgbWzFzayKCKQBHMKHnbMsReZ8/nqHKGEd/hjBiqAZGqDW0BTKNaGfzGB8XAiLWWipnw==}
+  '@openai/agents-openai@0.9.1':
+    resolution: {integrity: sha512-UqyYCuTh5dQgFY2R73UlH+n1P0gBatQ/hlcGZwca7f4N6+2xMy1wBkFJo7x9SMW9cN2XYlWl96sQYMqh+X+v7w==}
+    peerDependencies:
+      zod: ^4.0.0
 
-  '@openai/agents-realtime@0.0.11':
-    resolution: {integrity: sha512-gVdrKri0dPBOJfsQR6m9rdpBscRZK/efc1zLKqOA2mfmaL0RxI2/LvnyXbwrDGHQ6GEbovULkbWWQ9D4nUafow==}
+  '@openai/agents-realtime@0.9.1':
+    resolution: {integrity: sha512-INUkmYtSRupNxUAIb85zt1DTwVLsKHyCbIi9PZq3rfAFuldpaD39Fqo1F7pmY47+Tt773+sGBTMVxqqW7PxTZw==}
+    peerDependencies:
+      zod: ^4.0.0
 
-  '@openai/agents@0.0.11':
-    resolution: {integrity: sha512-MYSuQ0PptjryTb/BzrqoZB+cajv/p31uF42uXeqkI3s9PihqRttnQBJ1YCTJS/xQCl4f5R9cIradh/o5PpbDkA==}
+  '@openai/agents@0.9.1':
+    resolution: {integrity: sha512-IxVlkr3ixeE1vxTp6Gaj1nn9I+J+Lwf+ZhHWKOVC2/SKV//B1KVBllWkX0bj4OKZO1VyO+NHA0eDVLLZxQIqIw==}
+    peerDependencies:
+      zod: ^4.0.0
 
   '@opentelemetry/api-logs@0.206.0':
     resolution: {integrity: sha512-yIVDu9jX//nV5wSMLZLdHdb1SKHIMj9k+wQVFtln5Flcgdldz9BkHtavvExQiJqBZg2OpEEJEZmzQazYztdz2A==}
@@ -4228,18 +4234,6 @@ packages:
       zod:
         optional: true
 
-  openai@5.23.2:
-    resolution: {integrity: sha512-MQBzmTulj+MM5O8SKEk/gL8a7s5mktS9zUtAkU257WjvobGc9nKcBuVwjyEEcb9SI8a8Y2G/mzn3vm9n1Jlleg==}
-    hasBin: true
-    peerDependencies:
-      ws: ^8.18.0
-      zod: ^3.23.8
-    peerDependenciesMeta:
-      ws:
-        optional: true
-      zod:
-        optional: true
-
   openai@6.36.0:
     resolution: {integrity: sha512-Has2YbIusMq9wQEierFsgf9c783dy1y9arX459LmphNacEkkM5yxi2RIyXP0LmkOroQyW19iTwALHL8Yf26UKA==}
     hasBin: true
@@ -5211,9 +5205,6 @@ packages:
     resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
     peerDependencies:
       zod: ^3.25.28 || ^4
-
-  zod@3.25.67:
-    resolution: {integrity: sha512-idA2YXwpCdqUSKRCACDE6ItZD9TZzy3OZMtpfLoh6oPR47lipysRrJfjzMqFxQ3uJuUPyUeWe1r9vLH33xO/Qw==}
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
@@ -6476,11 +6467,10 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@openai/agents-core@0.0.11(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)':
+  '@openai/agents-core@0.9.1(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)':
     dependencies:
-      '@openai/zod': zod@3.25.67
       debug: 4.4.3
-      openai: 5.23.2(ws@8.18.3)(zod@3.25.76)
+      openai: 6.36.0(ws@8.18.3)(zod@3.25.76)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
       zod: 3.25.76
@@ -6489,46 +6479,44 @@ snapshots:
       - supports-color
       - ws
 
-  '@openai/agents-openai@0.0.11(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)':
+  '@openai/agents-openai@0.9.1(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)':
     dependencies:
-      '@openai/agents-core': 0.0.11(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
-      '@openai/zod': zod@3.25.67
+      '@openai/agents-core': 0.9.1(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
       debug: 4.4.3
-      openai: 5.23.2(ws@8.18.3)(zod@3.25.76)
+      openai: 6.36.0(ws@8.18.3)(zod@3.25.76)
+      zod: 3.25.76
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - supports-color
       - ws
-      - zod
 
-  '@openai/agents-realtime@0.0.11(@cfworker/json-schema@4.1.1)(zod@3.25.76)':
+  '@openai/agents-realtime@0.9.1(@cfworker/json-schema@4.1.1)(zod@3.25.76)':
     dependencies:
-      '@openai/agents-core': 0.0.11(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
-      '@openai/zod': zod@3.25.67
+      '@openai/agents-core': 0.9.1(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
       '@types/ws': 8.18.1
       debug: 4.4.3
       ws: 8.18.3
+      zod: 3.25.76
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - bufferutil
       - supports-color
       - utf-8-validate
-      - zod
 
-  '@openai/agents@0.0.11(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)':
+  '@openai/agents@0.9.1(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)':
     dependencies:
-      '@openai/agents-core': 0.0.11(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
-      '@openai/agents-openai': 0.0.11(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
-      '@openai/agents-realtime': 0.0.11(@cfworker/json-schema@4.1.1)(zod@3.25.76)
+      '@openai/agents-core': 0.9.1(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
+      '@openai/agents-openai': 0.9.1(@cfworker/json-schema@4.1.1)(ws@8.18.3)(zod@3.25.76)
+      '@openai/agents-realtime': 0.9.1(@cfworker/json-schema@4.1.1)(zod@3.25.76)
       debug: 4.4.3
-      openai: 5.23.2(ws@8.18.3)(zod@3.25.76)
+      openai: 6.36.0(ws@8.18.3)(zod@3.25.76)
+      zod: 3.25.76
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - bufferutil
       - supports-color
       - utf-8-validate
       - ws
-      - zod
 
   '@opentelemetry/api-logs@0.206.0':
     dependencies:
@@ -9244,16 +9232,10 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  openai@5.23.2(ws@8.18.3)(zod@3.25.76):
-    optionalDependencies:
-      ws: 8.18.3
-      zod: 3.25.76
-
   openai@6.36.0(ws@8.18.3)(zod@3.25.76):
     optionalDependencies:
       ws: 8.18.3
       zod: 3.25.76
-    optional: true
 
   openai@6.36.0(ws@8.18.3)(zod@4.4.3):
     optionalDependencies:
@@ -10004,7 +9986,7 @@ snapshots:
   vite-node@2.1.9(@types/node@24.9.1)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.8.4):
     dependencies:
       cac: 6.7.14
-      debug: 4.4.0
+      debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 1.1.2
       vite: 6.3.5(@types/node@24.9.1)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.8.4)
@@ -10262,8 +10244,6 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:
       zod: 4.4.3
-
-  zod@3.25.67: {}
 
   zod@3.25.76: {}
 

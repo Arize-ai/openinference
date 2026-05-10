@@ -1,8 +1,11 @@
-import { trace, Tracer, TracerProvider } from "@opentelemetry/api";
+import type { addTraceProcessor, startTraceExportLoop } from "@openai/agents";
+import { trace } from "@opentelemetry/api";
+import type { Tracer, TracerProvider } from "@opentelemetry/api";
 
-import { TraceConfigOptions } from "@arizeai/openinference-core";
+import type { TraceConfigOptions } from "@arizeai/openinference-core";
 
-import { OpenInferenceTracingProcessor, OpenInferenceTracingProcessorConfig } from "./processor";
+import { OpenInferenceTracingProcessor } from "./processor";
+import type { OpenInferenceTracingProcessorConfig } from "./processor";
 import { VERSION } from "./version";
 
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai-agents";
@@ -13,8 +16,10 @@ const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai-agen
  * Users pass their statically imported SDK namespace so the processor is
  * registered with the correct module instance under ESM.
  */
-export type OpenAIAgentsSDK = Pick<typeof import("@openai/agents"), "addTraceProcessor"> &
-  Partial<Pick<typeof import("@openai/agents"), "startTraceExportLoop">>;
+export type OpenAIAgentsSDK = {
+  addTraceProcessor: typeof addTraceProcessor;
+  startTraceExportLoop?: typeof startTraceExportLoop;
+};
 
 export interface OpenAIAgentsInstrumentationConfig extends OpenInferenceTracingProcessorConfig {
   /**

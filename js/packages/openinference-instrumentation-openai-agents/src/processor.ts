@@ -1,20 +1,13 @@
 import type { Span as SDKSpan, Trace as SDKTrace, TracingProcessor } from "@openai/agents";
-import {
-  Attributes,
-  Context,
-  context,
-  Span as OTelSpan,
-  SpanStatusCode,
-  trace,
-  Tracer,
-} from "@opentelemetry/api";
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
+import type { Attributes, Context, Span as OTelSpan, Tracer } from "@opentelemetry/api";
 
 import {
   getInputAttributes,
   getOutputAttributes,
   safelyJSONStringify,
-  TraceConfigOptions,
 } from "@arizeai/openinference-core";
+import type { TraceConfigOptions } from "@arizeai/openinference-core";
 import {
   LLMProvider,
   LLMSystem,
@@ -472,10 +465,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     }
 
     if (data.input) {
-      Object.assign(
-        attributes,
-        getInputAttributes({ value: data.input, mimeType: MimeType.JSON }),
-      );
+      Object.assign(attributes, getInputAttributes({ value: data.input, mimeType: MimeType.JSON }));
     }
 
     if (data.output) {

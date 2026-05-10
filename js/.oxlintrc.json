@@ -13,10 +13,7 @@
     "typescript/no-unsafe-type-assertion": "error",
     "eqeqeq": ["error", "smart"],
     "eslint/prefer-const": "error",
-    "eslint/no-implicit-conversion": [
-      "error",
-      { "boolean": false, "number": true, "string": false }
-    ],
+    "eslint/no-implicit-coercion": ["error", { "boolean": false, "number": true, "string": false }],
     "typescript/prefer-reduce-type-parameter": "error",
     "typescript/no-unused-vars": [
       "error",
