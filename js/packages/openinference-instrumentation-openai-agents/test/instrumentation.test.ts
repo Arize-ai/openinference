@@ -1,12 +1,8 @@
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OpenInferenceTracingProcessor } from "../src/processor";
-
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("OpenInferenceTracingProcessor", () => {
   let processor: OpenInferenceTracingProcessor;
@@ -120,12 +116,8 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(funcSpan).toBeDefined();
     expect(funcSpan?.attributes["openinference.span.kind"]).toBe("TOOL");
     expect(funcSpan?.attributes["tool.name"]).toBe("get_weather");
-    expect(funcSpan?.attributes["input.value"]).toBe(
-      '{"location": "San Francisco"}',
-    );
-    expect(funcSpan?.attributes["output.value"]).toBe(
-      '{"temperature": 72, "unit": "F"}',
-    );
+    expect(funcSpan?.attributes["input.value"]).toBe('{"location": "San Francisco"}');
+    expect(funcSpan?.attributes["output.value"]).toBe('{"temperature": 72, "unit": "F"}');
   });
 
   it("should handle agent spans with graph tracking", async () => {
@@ -214,21 +206,15 @@ describe("OpenInferenceTracingProcessor", () => {
     const spans = exporter.getFinishedSpans();
 
     // Check handoff span
-    const handoffOtelSpan = spans.find(
-      (s) => s.name === "handoff to SpecialistAgent",
-    );
+    const handoffOtelSpan = spans.find((s) => s.name === "handoff to SpecialistAgent");
     expect(handoffOtelSpan).toBeDefined();
     expect(handoffOtelSpan?.attributes["openinference.span.kind"]).toBe("TOOL");
 
     // Check specialist agent span has parent_id set from handoff
     const specialistOtelSpan = spans.find((s) => s.name === "SpecialistAgent");
     expect(specialistOtelSpan).toBeDefined();
-    expect(specialistOtelSpan?.attributes["graph.node.id"]).toBe(
-      "SpecialistAgent",
-    );
-    expect(specialistOtelSpan?.attributes["graph.node.parent_id"]).toBe(
-      "TriageAgent",
-    );
+    expect(specialistOtelSpan?.attributes["graph.node.id"]).toBe("SpecialistAgent");
+    expect(specialistOtelSpan?.attributes["graph.node.parent_id"]).toBe("TriageAgent");
   });
 
   it("should handle error spans", async () => {
@@ -327,14 +313,10 @@ describe("OpenInferenceTracingProcessor", () => {
 
     expect(genSpan).toBeDefined();
     expect(
-      genSpan?.attributes[
-        "llm.input_messages.0.message.contents.0.message_content.type"
-      ],
+      genSpan?.attributes["llm.input_messages.0.message.contents.0.message_content.type"],
     ).toBe("text");
     expect(
-      genSpan?.attributes[
-        "llm.input_messages.0.message.contents.0.message_content.text"
-      ],
+      genSpan?.attributes["llm.input_messages.0.message.contents.0.message_content.text"],
     ).toBe("What is in this image?");
   });
 
@@ -386,15 +368,11 @@ describe("OpenInferenceTracingProcessor", () => {
     const genSpan = spans.find((s) => s.name === "tool call generation");
 
     expect(genSpan).toBeDefined();
+    expect(genSpan?.attributes["llm.output_messages.0.message.tool_calls.0.tool_call.id"]).toBe(
+      "call_123",
+    );
     expect(
-      genSpan?.attributes[
-        "llm.output_messages.0.message.tool_calls.0.tool_call.id"
-      ],
-    ).toBe("call_123");
-    expect(
-      genSpan?.attributes[
-        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name"
-      ],
+      genSpan?.attributes["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"],
     ).toBe("get_weather");
     expect(
       genSpan?.attributes[
@@ -402,28 +380,114 @@ describe("OpenInferenceTracingProcessor", () => {
       ],
     ).toBe('{"location": "New York"}');
   });
+
+  it("should populate llm.input_messages for response spans with array input", async () => {
+    const trace = {
+      type: "trace" as const,
+      traceId: "test-trace-id",
+      name: "Test Agent Workflow",
+    };
+
+    const responseSpan = {
+      type: "trace.span" as const,
+      traceId: "test-trace-id",
+      spanId: "response-span-id",
+      parentId: null,
+      spanData: {
+        type: "response",
+        response_id: "resp_123",
+        _input: [
+          { role: "system", content: "You are a helpful assistant." },
+          {
+            role: "user",
+            content: [{ type: "input_text", text: "Hello, world!" }],
+          },
+        ],
+        _response: {
+          model: "gpt-4o",
+          output: [],
+          usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+        },
+      },
+      startedAt: new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      error: null,
+    };
+
+    await processor.onTraceStart(trace);
+    await processor.onSpanStart(responseSpan);
+    await processor.onSpanEnd(responseSpan);
+    await processor.onTraceEnd(trace);
+
+    const spans = exporter.getFinishedSpans();
+    const respSpan = spans.find((s) => s.name === "response");
+
+    expect(respSpan).toBeDefined();
+    expect(respSpan?.attributes["llm.input_messages.0.message.role"]).toBe("system");
+    expect(respSpan?.attributes["llm.input_messages.0.message.content"]).toBe(
+      "You are a helpful assistant.",
+    );
+    expect(respSpan?.attributes["llm.input_messages.1.message.role"]).toBe("user");
+    expect(
+      respSpan?.attributes["llm.input_messages.1.message.contents.0.message_content.type"],
+    ).toBe("text");
+    expect(
+      respSpan?.attributes["llm.input_messages.1.message.contents.0.message_content.text"],
+    ).toBe("Hello, world!");
+  });
+
+  it("should populate llm.input_messages for response spans with string input", async () => {
+    const trace = {
+      type: "trace" as const,
+      traceId: "test-trace-id",
+      name: "Test Agent Workflow",
+    };
+
+    const responseSpan = {
+      type: "trace.span" as const,
+      traceId: "test-trace-id",
+      spanId: "response-span-id",
+      parentId: null,
+      spanData: {
+        type: "response",
+        response_id: "resp_123",
+        _input: "What is the weather?",
+      },
+      startedAt: new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      error: null,
+    };
+
+    await processor.onTraceStart(trace);
+    await processor.onSpanStart(responseSpan);
+    await processor.onSpanEnd(responseSpan);
+    await processor.onTraceEnd(trace);
+
+    const spans = exporter.getFinishedSpans();
+    const respSpan = spans.find((s) => s.name === "response");
+
+    expect(respSpan).toBeDefined();
+    expect(respSpan?.attributes["llm.input_messages.0.message.role"]).toBe("user");
+    expect(respSpan?.attributes["llm.input_messages.0.message.content"]).toBe(
+      "What is the weather?",
+    );
+  });
 });
 
 describe("OpenAIAgentsInstrumentation", () => {
   it("should export the instrumentation class", async () => {
-    const { OpenAIAgentsInstrumentation } = await import(
-      "../src/instrumentation"
-    );
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
     expect(OpenAIAgentsInstrumentation).toBeDefined();
   });
 
   it("should not be enabled by default", async () => {
-    const { OpenAIAgentsInstrumentation } = await import(
-      "../src/instrumentation"
-    );
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
     const instrumentation = new OpenAIAgentsInstrumentation();
     expect(instrumentation.isEnabled()).toBe(false);
   });
 
   it("should accept custom tracer provider", async () => {
-    const { OpenAIAgentsInstrumentation } = await import(
-      "../src/instrumentation"
-    );
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
     const provider = new NodeTracerProvider();
     const instrumentation = new OpenAIAgentsInstrumentation({
       tracerProvider: provider,
@@ -433,9 +497,7 @@ describe("OpenAIAgentsInstrumentation", () => {
   });
 
   it("should accept trace config options", async () => {
-    const { OpenAIAgentsInstrumentation } = await import(
-      "../src/instrumentation"
-    );
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
     const instrumentation = new OpenAIAgentsInstrumentation({
       traceConfig: {
         hideInputs: true,
@@ -447,21 +509,15 @@ describe("OpenAIAgentsInstrumentation", () => {
   });
 
   it("should throw error when instrument() is called without SDK module", async () => {
-    const { OpenAIAgentsInstrumentation } = await import(
-      "../src/instrumentation"
-    );
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
     const instrumentation = new OpenAIAgentsInstrumentation();
 
     // @ts-expect-error - testing invalid input
-    expect(() => instrumentation.instrument(null)).toThrow(
-      "Invalid SDK module",
-    );
+    expect(() => instrumentation.instrument(null)).toThrow("Invalid SDK module");
   });
 
   it("should create processor via createProcessor()", async () => {
-    const { OpenAIAgentsInstrumentation } = await import(
-      "../src/instrumentation"
-    );
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
     const provider = new NodeTracerProvider();
     const instrumentation = new OpenAIAgentsInstrumentation({
       tracerProvider: provider,
@@ -469,14 +525,13 @@ describe("OpenAIAgentsInstrumentation", () => {
 
     const processor = instrumentation.createProcessor();
     expect(processor).toBeDefined();
-    expect(instrumentation.isEnabled()).toBe(true);
+    // createProcessor() does not flip the enabled flag; only instrument() does.
+    expect(instrumentation.isEnabled()).toBe(false);
     expect(instrumentation.getProcessor()).toBe(processor);
   });
 
   it("should instrument with mock SDK module", async () => {
-    const { OpenAIAgentsInstrumentation } = await import(
-      "../src/instrumentation"
-    );
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
     const provider = new NodeTracerProvider();
     const instrumentation = new OpenAIAgentsInstrumentation({
       tracerProvider: provider,

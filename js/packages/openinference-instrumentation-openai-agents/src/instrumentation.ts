@@ -1,29 +1,22 @@
-import { TraceConfigOptions } from "@arizeai/openinference-core";
-
 import { trace, Tracer, TracerProvider } from "@opentelemetry/api";
 
-import {
-  OpenInferenceTracingProcessor,
-  OpenInferenceTracingProcessorConfig,
-} from "./processor";
+import { TraceConfigOptions } from "@arizeai/openinference-core";
+
+import { OpenInferenceTracingProcessor, OpenInferenceTracingProcessorConfig } from "./processor";
 import { VERSION } from "./version";
 
-const INSTRUMENTATION_NAME =
-  "@arizeai/openinference-instrumentation-openai-agents";
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai-agents";
 
 /**
- * Type for the SDK module that can be passed to instrument()
- * This allows users to pass their statically imported SDK module to avoid
- * ESM module resolution issues.
+ * The minimal surface of the `@openai/agents` module used by `instrument()`.
+ *
+ * Users pass their statically imported SDK namespace so the processor is
+ * registered with the correct module instance under ESM.
  */
-export interface OpenAIAgentsSDK {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  addTraceProcessor: (processor: any) => void;
-  startTraceExportLoop?: () => void;
-}
+export type OpenAIAgentsSDK = Pick<typeof import("@openai/agents"), "addTraceProcessor"> &
+  Partial<Pick<typeof import("@openai/agents"), "startTraceExportLoop">>;
 
-export interface OpenAIAgentsInstrumentationConfig
-  extends OpenInferenceTracingProcessorConfig {
+export interface OpenAIAgentsInstrumentationConfig extends OpenInferenceTracingProcessorConfig {
   /**
    * An optional custom tracer provider to be used for tracing.
    * If not provided, the global tracer provider will be used.
@@ -96,6 +89,10 @@ export class OpenAIAgentsInstrumentation {
    * Create and return the processor without registering it.
    * Useful when you want to register the processor yourself.
    *
+   * Note: this does not flip {@link isEnabled} to true — only {@link instrument}
+   * does, since enablement reflects whether the processor has been registered
+   * with the SDK.
+   *
    * @example
    * ```typescript
    * import { addTraceProcessor } from "@openai/agents";
@@ -111,7 +108,6 @@ export class OpenAIAgentsInstrumentation {
       tracer: this.tracer,
       traceConfig: this.traceConfig,
     });
-    this._enabled = true;
     return this.processor;
   }
 
@@ -146,10 +142,12 @@ export class OpenAIAgentsInstrumentation {
       );
     }
 
-    this.processor = new OpenInferenceTracingProcessor({
-      tracer: this.tracer,
-      traceConfig: this.traceConfig,
-    });
+    if (!this.processor) {
+      this.processor = new OpenInferenceTracingProcessor({
+        tracer: this.tracer,
+        traceConfig: this.traceConfig,
+      });
+    }
 
     // Use the SDK's addTraceProcessor from the user's import
     sdk.addTraceProcessor(this.processor);

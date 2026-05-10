@@ -1,4 +1,17 @@
+import type { Span as SDKSpan, Trace as SDKTrace, TracingProcessor } from "@openai/agents";
 import {
+  Attributes,
+  Context,
+  context,
+  Span as OTelSpan,
+  SpanStatusCode,
+  trace,
+  Tracer,
+} from "@opentelemetry/api";
+
+import {
+  getInputAttributes,
+  getOutputAttributes,
   safelyJSONStringify,
   TraceConfigOptions,
 } from "@arizeai/openinference-core";
@@ -10,71 +23,37 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import {
-  Attributes,
-  Context,
-  context,
-  Span as OTelSpan,
-  SpanStatusCode,
-  trace,
-  Tracer,
-} from "@opentelemetry/api";
-
-// Types from @openai/agents - we define minimal interfaces to avoid hard dependency
-// These will be duck-typed at runtime
-
-interface SDKTrace {
-  type: "trace";
-  traceId: string;
-  name: string;
-  groupId?: string | null;
-}
-
-interface SDKSpanData {
+// The SpanData union is not part of the public @openai/agents exports, so we
+// narrow `span.spanData` at runtime by `type`. The structural shape below
+// captures only the fields we read across the SDK's span data variants.
+type SDKSpanData = {
   type: string;
   name?: string;
-  // Generation span data
-  input?: Array<Record<string, unknown>>;
-  output?: Array<Record<string, unknown>>;
+  // generation
+  input?: unknown;
+  output?: unknown;
   model?: string;
   model_config?: Record<string, unknown>;
   usage?: Record<string, unknown>;
-  // Response span data
+  // response
   response_id?: string;
-  _input?: string | Record<string, unknown>[];
+  _input?: string | Array<Record<string, unknown>>;
   _response?: Record<string, unknown>;
-  // Function span data
+  // function
   mcp_data?: string;
-  // Handoff span data
+  // handoff
   from_agent?: string;
   to_agent?: string;
-  // Custom/Guardrail span data
+  // custom / guardrail
   data?: Record<string, unknown>;
   triggered?: boolean;
-  // Agent span data
-  handoffs?: string[];
-  tools?: string[];
-  output_type?: string;
-  // MCP span data
+  // mcp_tools
   server?: string;
   result?: string[];
-}
+};
 
-interface SDKSpanError {
-  message: string;
-  data?: Record<string, unknown>;
-}
-
-interface SDKSpan {
-  type: "trace.span";
-  traceId: string;
-  spanId: string;
-  parentId: string | null;
-  spanData: SDKSpanData;
-  startedAt: string | null;
-  endedAt: string | null;
-  error: SDKSpanError | null;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySDKSpan = SDKSpan<any>;
 
 export interface OpenInferenceTracingProcessorConfig {
   /**
@@ -96,7 +75,7 @@ const MAX_HANDOFFS_IN_FLIGHT = 1000;
  * This processor implements the SDK's TracingProcessor interface and can be
  * registered with the global trace provider.
  */
-export class OpenInferenceTracingProcessor {
+export class OpenInferenceTracingProcessor implements TracingProcessor {
   private tracer: Tracer | null;
   private traceConfig?: TraceConfigOptions;
 
@@ -132,8 +111,7 @@ export class OpenInferenceTracingProcessor {
 
     const otelSpan = this.tracer.startSpan(sdkTrace.name, {
       attributes: {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.AGENT,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
       },
     });
 
@@ -157,7 +135,7 @@ export class OpenInferenceTracingProcessor {
   /**
    * Called when a span is started
    */
-  async onSpanStart(span: SDKSpan): Promise<void> {
+  async onSpanStart(span: AnySDKSpan): Promise<void> {
     if (this._shutdown || !this.tracer || !span.startedAt) return;
 
     const startTime = new Date(span.startedAt);
@@ -195,7 +173,7 @@ export class OpenInferenceTracingProcessor {
   /**
    * Called when a span is ended
    */
-  async onSpanEnd(span: SDKSpan): Promise<void> {
+  async onSpanEnd(span: AnySDKSpan): Promise<void> {
     if (this._shutdown) return;
 
     const otelSpan = this.otelSpans.get(span.spanId);
@@ -248,8 +226,8 @@ export class OpenInferenceTracingProcessor {
   /**
    * Get the span name from SDK span data
    */
-  private getSpanName(span: SDKSpan): string {
-    const data = span.spanData;
+  private getSpanName(span: AnySDKSpan): string {
+    const data = span.spanData as SDKSpanData;
 
     if (data.name && typeof data.name === "string") {
       return data.name;
@@ -286,8 +264,8 @@ export class OpenInferenceTracingProcessor {
   /**
    * Extract OpenInference attributes from SDK span data
    */
-  private extractAttributes(span: SDKSpan): Attributes {
-    const data = span.spanData;
+  private extractAttributes(span: AnySDKSpan): Attributes {
+    const data = span.spanData as SDKSpanData;
     const attributes: Attributes = {};
 
     switch (data.type) {
@@ -320,10 +298,7 @@ export class OpenInferenceTracingProcessor {
   /**
    * Add attributes for generation (LLM) spans
    */
-  private addGenerationAttributes(
-    data: SDKSpanData,
-    attributes: Attributes,
-  ): void {
+  private addGenerationAttributes(data: SDKSpanData, attributes: Attributes): void {
     if (data.model) {
       attributes[SemanticConventions.LLM_MODEL_NAME] = data.model;
     }
@@ -346,9 +321,13 @@ export class OpenInferenceTracingProcessor {
 
     // Add input messages
     if (data.input && Array.isArray(data.input)) {
-      attributes[SemanticConventions.INPUT_VALUE] =
-        safelyJSONStringify(data.input) || "";
-      attributes[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
+      Object.assign(
+        attributes,
+        getInputAttributes({
+          value: safelyJSONStringify(data.input) || "",
+          mimeType: MimeType.JSON,
+        }),
+      );
       this.addChatMessagesAttributes(
         data.input,
         `${SemanticConventions.LLM_INPUT_MESSAGES}`,
@@ -358,9 +337,13 @@ export class OpenInferenceTracingProcessor {
 
     // Add output messages
     if (data.output && Array.isArray(data.output)) {
-      attributes[SemanticConventions.OUTPUT_VALUE] =
-        safelyJSONStringify(data.output) || "";
-      attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+      Object.assign(
+        attributes,
+        getOutputAttributes({
+          value: safelyJSONStringify(data.output) || "",
+          mimeType: MimeType.JSON,
+        }),
+      );
       this.addChatMessagesAttributes(
         data.output,
         `${SemanticConventions.LLM_OUTPUT_MESSAGES}`,
@@ -377,16 +360,17 @@ export class OpenInferenceTracingProcessor {
   /**
    * Add attributes for response spans
    */
-  private addResponseAttributes(
-    data: SDKSpanData,
-    attributes: Attributes,
-  ): void {
+  private addResponseAttributes(data: SDKSpanData, attributes: Attributes): void {
     // Handle response data
     if (data._response) {
       const response = data._response;
-      attributes[SemanticConventions.OUTPUT_VALUE] =
-        safelyJSONStringify(response) || "";
-      attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+      Object.assign(
+        attributes,
+        getOutputAttributes({
+          value: safelyJSONStringify(response) || "",
+          mimeType: MimeType.JSON,
+        }),
+      );
 
       // Extract model name
       if (response.model && typeof response.model === "string") {
@@ -395,26 +379,17 @@ export class OpenInferenceTracingProcessor {
 
       // Extract tools
       if (response.tools && Array.isArray(response.tools)) {
-        this.addToolsAttributes(
-          response.tools as Record<string, unknown>[],
-          attributes,
-        );
+        this.addToolsAttributes(response.tools as Record<string, unknown>[], attributes);
       }
 
       // Extract usage
       if (response.usage) {
-        this.addResponseUsageAttributes(
-          response.usage as Record<string, unknown>,
-          attributes,
-        );
+        this.addResponseUsageAttributes(response.usage as Record<string, unknown>, attributes);
       }
 
       // Extract output messages
       if (response.output && Array.isArray(response.output)) {
-        this.addResponseOutputAttributes(
-          response.output as Record<string, unknown>[],
-          attributes,
-        );
+        this.addResponseOutputAttributes(response.output as Record<string, unknown>[], attributes);
       }
 
       // Extract invocation parameters
@@ -425,18 +400,28 @@ export class OpenInferenceTracingProcessor {
       delete params.output;
       delete params.error;
       delete params.status;
-      attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
-        safelyJSONStringify(params) || "";
+      attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] = safelyJSONStringify(params) || "";
     }
 
     // Handle input
     if (data._input) {
       if (typeof data._input === "string") {
-        attributes[SemanticConventions.INPUT_VALUE] = data._input;
+        Object.assign(attributes, getInputAttributes(data._input));
+        attributes[
+          `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`
+        ] = "user";
+        attributes[
+          `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`
+        ] = data._input;
       } else if (Array.isArray(data._input)) {
-        attributes[SemanticConventions.INPUT_VALUE] =
-          safelyJSONStringify(data._input) || "";
-        attributes[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
+        Object.assign(
+          attributes,
+          getInputAttributes({
+            value: safelyJSONStringify(data._input) || "",
+            mimeType: MimeType.JSON,
+          }),
+        );
+        this.addResponseInputAttributes(data._input, attributes);
       }
     }
   }
@@ -444,58 +429,43 @@ export class OpenInferenceTracingProcessor {
   /**
    * Add attributes for function (tool) spans
    */
-  private addFunctionAttributes(
-    data: SDKSpanData,
-    attributes: Attributes,
-  ): void {
+  private addFunctionAttributes(data: SDKSpanData, attributes: Attributes): void {
     if (data.name) {
       attributes[SemanticConventions.TOOL_NAME] = data.name;
     }
 
     // Handle input - for function spans, data.input is the input JSON
-    // Use type assertion through unknown to access the input field
     const dataRecord = data as unknown as Record<string, unknown>;
     const inputValue = dataRecord.input;
     if (inputValue) {
-      if (typeof inputValue === "string") {
-        attributes[SemanticConventions.INPUT_VALUE] = inputValue;
-        attributes[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
-      } else {
-        attributes[SemanticConventions.INPUT_VALUE] =
-          safelyJSONStringify(inputValue) || "";
-        attributes[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
-      }
+      const inputStr =
+        typeof inputValue === "string" ? inputValue : safelyJSONStringify(inputValue) || "";
+      Object.assign(attributes, getInputAttributes({ value: inputStr, mimeType: MimeType.JSON }));
     }
 
     // Handle output - for function spans, data.output is the output string/object
     const outputValue = dataRecord.output;
     if (outputValue !== undefined && outputValue !== null) {
       const outputStr =
-        typeof outputValue === "string"
-          ? outputValue
-          : safelyJSONStringify(outputValue) || "";
-      attributes[SemanticConventions.OUTPUT_VALUE] = outputStr;
-
-      // Set mime type if output looks like JSON
-      if (
-        typeof outputValue === "string" &&
-        outputValue.length > 1 &&
-        outputValue.startsWith("{") &&
-        outputValue.endsWith("}")
-      ) {
-        attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
-      }
+        typeof outputValue === "string" ? outputValue : safelyJSONStringify(outputValue) || "";
+      // Tool outputs are typically JSON-encoded strings or objects we just stringified.
+      // Fall back to TEXT only for bare strings that don't look like JSON.
+      const looksLikeJson =
+        typeof outputValue !== "string" ||
+        (outputStr.length > 1 && outputStr.startsWith("{") && outputStr.endsWith("}"));
+      Object.assign(
+        attributes,
+        getOutputAttributes(
+          looksLikeJson ? { value: outputStr, mimeType: MimeType.JSON } : outputStr,
+        ),
+      );
     }
   }
 
   /**
    * Add attributes for agent spans
    */
-  private addAgentAttributes(
-    data: SDKSpanData,
-    traceId: string,
-    attributes: Attributes,
-  ): void {
+  private addAgentAttributes(data: SDKSpanData, traceId: string, attributes: Attributes): void {
     if (data.name) {
       attributes[SemanticConventions.GRAPH_NODE_ID] = data.name;
     }
@@ -514,8 +484,8 @@ export class OpenInferenceTracingProcessor {
   /**
    * Handle handoff tracking for graph visualization
    */
-  private handleHandoffTracking(span: SDKSpan, _otelSpan: OTelSpan): void {
-    const data = span.spanData;
+  private handleHandoffTracking(span: AnySDKSpan, _otelSpan: OTelSpan): void {
+    const data = span.spanData as SDKSpanData;
 
     if (data.type === "handoff" && data.to_agent && data.from_agent) {
       const key = `${data.to_agent}:${span.traceId}`;
@@ -534,24 +504,22 @@ export class OpenInferenceTracingProcessor {
   /**
    * Add attributes for MCP tools listing spans
    */
-  private addMcpToolsAttributes(
-    data: SDKSpanData,
-    attributes: Attributes,
-  ): void {
+  private addMcpToolsAttributes(data: SDKSpanData, attributes: Attributes): void {
     if (data.result) {
-      attributes[SemanticConventions.OUTPUT_VALUE] =
-        safelyJSONStringify(data.result) || "";
-      attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+      Object.assign(
+        attributes,
+        getOutputAttributes({
+          value: safelyJSONStringify(data.result) || "",
+          mimeType: MimeType.JSON,
+        }),
+      );
     }
   }
 
   /**
    * Add attributes for guardrail spans
    */
-  private addGuardrailAttributes(
-    data: SDKSpanData,
-    attributes: Attributes,
-  ): void {
+  private addGuardrailAttributes(data: SDKSpanData, attributes: Attributes): void {
     if (data.name) {
       attributes[SemanticConventions.TOOL_NAME] = data.name;
     }
@@ -565,9 +533,13 @@ export class OpenInferenceTracingProcessor {
    */
   private addCustomAttributes(data: SDKSpanData, attributes: Attributes): void {
     if (data.data) {
-      attributes[SemanticConventions.OUTPUT_VALUE] =
-        safelyJSONStringify(data.data) || "";
-      attributes[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+      Object.assign(
+        attributes,
+        getOutputAttributes({
+          value: safelyJSONStringify(data.data) || "",
+          mimeType: MimeType.JSON,
+        }),
+      );
     }
   }
 
@@ -586,28 +558,24 @@ export class OpenInferenceTracingProcessor {
 
       // Role
       if (msg.role && typeof msg.role === "string") {
-        attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
-          msg.role;
+        attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = msg.role;
       }
 
       // Content
       const content = msg.content;
       if (content) {
         if (typeof content === "string") {
-          attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
-            content;
+          attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] = content;
         } else if (Array.isArray(content)) {
           content.forEach((item, contentIdx) => {
             const contentItem = item as Record<string, unknown>;
             const contentPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIdx}`;
 
             if (contentItem.type === "text" && contentItem.text) {
-              attributes[
-                `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`
-              ] = "text";
-              attributes[
-                `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
-              ] = String(contentItem.text);
+              attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+              attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = String(
+                contentItem.text,
+              );
             }
           });
         }
@@ -615,8 +583,7 @@ export class OpenInferenceTracingProcessor {
 
       // Tool call ID (for tool role messages)
       if (msg.tool_call_id && typeof msg.tool_call_id === "string") {
-        attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
-          msg.tool_call_id;
+        attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = msg.tool_call_id;
       }
 
       // Tool calls (for assistant messages)
@@ -625,21 +592,19 @@ export class OpenInferenceTracingProcessor {
           const tcPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIdx}`;
 
           if (tc.id) {
-            attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
-              String(tc.id);
+            attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_ID}`] = String(tc.id);
           }
 
           const func = tc.function as Record<string, unknown> | undefined;
           if (func) {
             if (func.name) {
-              attributes[
-                `${tcPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-              ] = String(func.name);
+              attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = String(
+                func.name,
+              );
             }
             if (func.arguments && func.arguments !== "{}") {
-              attributes[
-                `${tcPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-              ] = String(func.arguments);
+              attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+                String(func.arguments);
             }
           }
 
@@ -652,73 +617,50 @@ export class OpenInferenceTracingProcessor {
   /**
    * Add usage attributes from generation spans
    */
-  private addUsageAttributes(
-    usage: Record<string, unknown>,
-    attributes: Attributes,
-  ): void {
+  private addUsageAttributes(usage: Record<string, unknown>, attributes: Attributes): void {
     if (usage.input_tokens !== undefined) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = Number(
-        usage.input_tokens,
-      );
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = Number(usage.input_tokens);
     }
     if (usage.output_tokens !== undefined) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = Number(
-        usage.output_tokens,
-      );
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = Number(usage.output_tokens);
     }
   }
 
   /**
    * Add usage attributes from response spans
    */
-  private addResponseUsageAttributes(
-    usage: Record<string, unknown>,
-    attributes: Attributes,
-  ): void {
+  private addResponseUsageAttributes(usage: Record<string, unknown>, attributes: Attributes): void {
     if (usage.input_tokens !== undefined) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = Number(
-        usage.input_tokens,
-      );
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = Number(usage.input_tokens);
     }
     if (usage.output_tokens !== undefined) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = Number(
-        usage.output_tokens,
-      );
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = Number(usage.output_tokens);
     }
     if (usage.total_tokens !== undefined) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = Number(
-        usage.total_tokens,
-      );
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = Number(usage.total_tokens);
     }
 
     // Handle input token details
-    const inputDetails = usage.input_tokens_details as
-      | Record<string, unknown>
-      | undefined;
+    const inputDetails = usage.input_tokens_details as Record<string, unknown> | undefined;
     if (inputDetails?.cached_tokens !== undefined) {
-      attributes[
-        SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
-      ] = Number(inputDetails.cached_tokens);
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = Number(
+        inputDetails.cached_tokens,
+      );
     }
 
     // Handle output token details
-    const outputDetails = usage.output_tokens_details as
-      | Record<string, unknown>
-      | undefined;
+    const outputDetails = usage.output_tokens_details as Record<string, unknown> | undefined;
     if (outputDetails?.reasoning_tokens !== undefined) {
-      attributes[
-        SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
-      ] = Number(outputDetails.reasoning_tokens);
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = Number(
+        outputDetails.reasoning_tokens,
+      );
     }
   }
 
   /**
    * Add tools attributes
    */
-  private addToolsAttributes(
-    tools: Array<Record<string, unknown>>,
-    attributes: Attributes,
-  ): void {
+  private addToolsAttributes(tools: Array<Record<string, unknown>>, attributes: Attributes): void {
     tools.forEach((tool, idx) => {
       if (tool.type === "function") {
         const schema = {
@@ -754,62 +696,117 @@ export class OpenInferenceTracingProcessor {
         const msgPrefix = `${prefix}.${msgIdx}`;
 
         if (item.role) {
-          attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
-            String(item.role);
+          attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = String(item.role);
         }
 
         if (item.content && Array.isArray(item.content)) {
-          (item.content as Array<Record<string, unknown>>).forEach(
-            (contentItem, contentIdx) => {
-              const contentPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIdx}`;
+          (item.content as Array<Record<string, unknown>>).forEach((contentItem, contentIdx) => {
+            const contentPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIdx}`;
 
-              if (contentItem.type === "output_text" && contentItem.text) {
-                attributes[
-                  `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`
-                ] = "text";
-                attributes[
-                  `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
-                ] = String(contentItem.text);
-              } else if (
-                contentItem.type === "refusal" &&
-                contentItem.refusal
-              ) {
-                attributes[
-                  `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`
-                ] = "text";
-                attributes[
-                  `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
-                ] = String(contentItem.refusal);
-              }
-            },
-          );
+            if (contentItem.type === "output_text" && contentItem.text) {
+              attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+              attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = String(
+                contentItem.text,
+              );
+            } else if (contentItem.type === "refusal" && contentItem.refusal) {
+              attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+              attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = String(
+                contentItem.refusal,
+              );
+            }
+          });
         }
 
         msgIdx++;
       } else if (item.type === "function_call") {
         const msgPrefix = `${prefix}.${msgIdx}`;
-        attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
-          "assistant";
+        attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "assistant";
 
         const tcPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIdx}`;
 
         if (item.call_id) {
-          attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
-            String(item.call_id);
+          attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_ID}`] = String(item.call_id);
         }
         if (item.name) {
-          attributes[
-            `${tcPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-          ] = String(item.name);
+          attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = String(
+            item.name,
+          );
         }
         if (item.arguments && item.arguments !== "{}") {
-          attributes[
-            `${tcPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-          ] = String(item.arguments);
+          attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+            String(item.arguments);
         }
 
         toolCallIdx++;
       }
+    });
+  }
+
+  /**
+   * Add input message attributes for response spans.
+   *
+   * The Responses API input is an array of items: bare messages
+   * (`{role, content}` where content is a string or content-part array),
+   * or structured items like `function_call_output`.
+   */
+  private addResponseInputAttributes(
+    input: Array<Record<string, unknown>>,
+    attributes: Attributes,
+  ): void {
+    const prefix = SemanticConventions.LLM_INPUT_MESSAGES;
+    let msgIdx = 0;
+
+    input.forEach((item) => {
+      const itemType = item.type;
+
+      if (itemType === "function_call_output") {
+        const msgPrefix = `${prefix}.${msgIdx}`;
+        attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "tool";
+        if (item.call_id) {
+          attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = String(
+            item.call_id,
+          );
+        }
+        if (item.output !== undefined && item.output !== null) {
+          attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] =
+            typeof item.output === "string" ? item.output : safelyJSONStringify(item.output) || "";
+        }
+        msgIdx++;
+        return;
+      }
+
+      // Treat bare messages and explicit `type === "message"` items the same.
+      if (itemType !== undefined && itemType !== "message" && item.role === undefined) {
+        return;
+      }
+
+      const msgPrefix = `${prefix}.${msgIdx}`;
+      if (item.role) {
+        attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = String(item.role);
+      }
+
+      const content = item.content;
+      if (typeof content === "string") {
+        attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_CONTENT}`] = content;
+      } else if (Array.isArray(content)) {
+        (content as Array<Record<string, unknown>>).forEach((contentItem, contentIdx) => {
+          const contentPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIdx}`;
+          const cType = contentItem.type;
+          if ((cType === "input_text" || cType === "text") && contentItem.text) {
+            attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+            attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = String(
+              contentItem.text,
+            );
+          } else if (cType === "input_image" && contentItem.image_url) {
+            attributes[`${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "image";
+            attributes[
+              `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
+            ] = String(contentItem.image_url);
+          }
+        });
+      }
+
+      msgIdx++;
     });
   }
 }

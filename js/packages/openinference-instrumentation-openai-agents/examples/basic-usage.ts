@@ -62,13 +62,7 @@ async function main() {
     console.error("Error running agent:", error);
   }
 
-  // Force flush spans to ensure they are exported
-  await provider.forceFlush();
-
-  // Give time for spans to be exported
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-
-  // Shutdown provider
+  // Shutdown provider — flushes pending spans before exit
   await provider.shutdown();
 }
 
