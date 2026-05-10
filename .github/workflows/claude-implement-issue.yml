@@ -6,7 +6,6 @@ on:
 
 jobs:
   implement:
-    # Only run when good-agent-issue label is added
     if: github.event.label.name == 'good-agent-issue'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -25,24 +24,20 @@ jobs:
       - name: Guard – check permissions and duplicates
         env:
           SENDER_LOGIN: ${{ github.event.sender.login }}
-          REPOSITORY: ${{ github.repository }}
         run: |
-          # Verify sender has write access
-          PERMISSION=$(gh api "repos/${REPOSITORY}/collaborators/${SENDER_LOGIN}/permission" -q '.permission')
+          PERMISSION=$(gh api "repos/${GH_REPO}/collaborators/${SENDER_LOGIN}/permission" -q '.permission')
           if [[ "$PERMISSION" != "admin" && "$PERMISSION" != "maintain" && "$PERMISSION" != "write" ]]; then
             echo "Sender ${SENDER_LOGIN} has '$PERMISSION' permission, skipping"
             exit 0
           fi
 
-          # Skip if already assigned
           ASSIGNEES=$(gh issue view "$ISSUE_NUMBER" --json assignees -q '.assignees | length')
           if [ "$ASSIGNEES" -gt 0 ]; then
             echo "Issue already assigned, skipping"
             exit 0
           fi
 
-          # Skip if a PR already exists for this issue's branch
-          EXISTING=$(gh pr list --head "claude/issue-$ISSUE_NUMBER" --json number -q 'length')
+          EXISTING=$(gh pr list --head "claude/issue-$ISSUE_NUMBER" --state open --json number -q 'length')
           if [ "$EXISTING" -gt 0 ]; then
             echo "PR already exists for claude/issue-$ISSUE_NUMBER, skipping"
             exit 0
@@ -53,8 +48,7 @@ jobs:
       - name: Claim issue
         if: env.READY == 'true'
         run: |
-          gh issue edit "$ISSUE_NUMBER" --add-label "agent-in-progress"
-          gh issue edit "$ISSUE_NUMBER" --add-assignee "mikeldking"
+          gh issue edit "$ISSUE_NUMBER" --add-label "agent-in-progress" --add-assignee "mikeldking"
           gh issue comment "$ISSUE_NUMBER" --body "🤖 Agent is working on this issue. Follow progress in the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})."
 
       - name: Checkout repository
