@@ -1,15 +1,42 @@
 {
   "name": "@arizeai/openinference-instrumentation-google-genai",
   "version": "0.1.0",
-  "description": "OpenInference instrumentation for Google Gen AI SDK (@google/genai)",
   "private": false,
-  "main": "dist/src/index.js",
-  "module": "dist/esm/index.js",
-  "esnext": "dist/esnext/index.js",
-  "types": "dist/src/index.d.ts",
+  "description": "OpenInference instrumentation for Google Gen AI SDK (@google/genai)",
+  "keywords": [
+    "ai",
+    "gemini",
+    "generative-ai",
+    "google",
+    "google-genai",
+    "image-generation",
+    "instrumentation",
+    "llm",
+    "multimodal",
+    "openinference",
+    "opentelemetry",
+    "tracing",
+    "video-generation"
+  ],
+  "license": "Apache-2.0",
+  "author": "oss-devs@arize.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/Arize-ai/openinference.git"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "main": "dist/src/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/src/index.d.ts",
+  "esnext": "dist/esnext/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/src/index.js"
+    }
   },
   "scripts": {
     "prebuild": "rimraf dist && pnpm run version:update",
@@ -17,13 +44,7 @@
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "vitest"
-  },
-  "exports": {
-    ".": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/src/index.js"
-    }
+    "test": "vitest run"
   },
   "dependencies": {
     "@arizeai/openinference-core": "workspace:*",
@@ -32,27 +53,6 @@
     "@opentelemetry/core": "^1.25.1",
     "@opentelemetry/instrumentation": "^0.46.0"
   },
-  "keywords": [
-    "google",
-    "gemini",
-    "google-genai",
-    "generative-ai",
-    "openinference",
-    "opentelemetry",
-    "instrumentation",
-    "tracing",
-    "ai",
-    "llm",
-    "multimodal",
-    "image-generation",
-    "video-generation"
-  ],
-  "files": [
-    "dist",
-    "src"
-  ],
-  "author": "oss-devs@arize.com",
-  "license": "Apache-2.0",
   "devDependencies": {
     "@google/genai": "^1.0.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",

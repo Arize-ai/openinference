@@ -1,14 +1,11 @@
+import type { GoogleGenAI } from "@google/genai";
 import { context } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { GoogleGenAIInstrumentation } from "../src/instrumentation";
-
-import { beforeEach, describe, expect, it } from "vitest";
 
 describe("GoogleGenAIInstrumentation", () => {
   let instrumentation: GoogleGenAIInstrumentation;
@@ -36,11 +33,6 @@ describe("GoogleGenAIInstrumentation", () => {
     );
   });
 
-  it("should export isPatched function", () => {
-    // Just verify the structure exists
-    expect(instrumentation).toBeDefined();
-  });
-
   describe("with manual mock modules", () => {
     it("should create span for generateContent when called", async () => {
       class Models {
@@ -63,23 +55,9 @@ describe("GoogleGenAIInstrumentation", () => {
         }
       }
 
-      class Chat {
-        async sendMessage(_message: unknown) {
-          return { text: "Response" };
-        }
-      }
-
-      class Chats {
-        create(_config: unknown) {
-          return new Chat();
-        }
-      }
-
-      // Create a mock GoogleGenAI instance
       const mockGoogleGenAI = {
         models: new Models(),
-        chats: new Chats(),
-      };
+      } as unknown as GoogleGenAI;
 
       instrumentation.instrumentInstance(mockGoogleGenAI);
 
@@ -106,23 +84,9 @@ describe("GoogleGenAIInstrumentation", () => {
         }
       }
 
-      class Chat {
-        async sendMessage(_message: unknown) {
-          return { text: "Response" };
-        }
-      }
-
-      class Chats {
-        create(_config: unknown) {
-          return new Chat();
-        }
-      }
-
-      // Create a mock GoogleGenAI instance
       const mockGoogleGenAI = {
         models: new Models(),
-        chats: new Chats(),
-      };
+      } as unknown as GoogleGenAI;
 
       instrumentation.instrumentInstance(mockGoogleGenAI);
 
@@ -173,23 +137,9 @@ describe("GoogleGenAIInstrumentation", () => {
         }
       }
 
-      class Chat {
-        async sendMessage(_message: unknown) {
-          return { text: "Response" };
-        }
-      }
-
-      class Chats {
-        create(_config: unknown) {
-          return new Chat();
-        }
-      }
-
-      // Create a mock GoogleGenAI instance
       const mockGoogleGenAI = {
         models: new Models(),
-        chats: new Chats(),
-      };
+      } as unknown as GoogleGenAI;
 
       instrumentation.instrumentInstance(mockGoogleGenAI);
 
@@ -198,7 +148,6 @@ describe("GoogleGenAIInstrumentation", () => {
         contents: "Hello",
       });
 
-      // Consume the stream
       const chunks = [];
       for await (const chunk of result) {
         chunks.push(chunk);
@@ -215,12 +164,6 @@ describe("GoogleGenAIInstrumentation", () => {
     });
 
     it("should handle Chat sendMessage", async () => {
-      class Models {
-        async generateContent(_params: unknown) {
-          return { candidates: [], usageMetadata: {} };
-        }
-      }
-
       class Chat {
         async sendMessage(_params: unknown) {
           return {
@@ -242,12 +185,10 @@ describe("GoogleGenAIInstrumentation", () => {
         }
       }
 
-      // Create a mock GoogleGenAI instance with a chat
       const mockChats = new Chats();
       const mockGoogleGenAI = {
-        models: new Models(),
         chats: mockChats,
-      };
+      } as unknown as GoogleGenAI;
 
       instrumentation.instrumentInstance(mockGoogleGenAI);
 
@@ -259,7 +200,7 @@ describe("GoogleGenAIInstrumentation", () => {
 
       const span = spans[0];
       expect(span.name).toBe("Google GenAI Chat Send Message");
-      expect(span.attributes["openinference.span.kind"]).toBe("CHAIN");
+      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
     });
 
     it("should handle Batches createEmbeddings", async () => {
@@ -272,14 +213,17 @@ describe("GoogleGenAIInstrumentation", () => {
         }
       }
 
-      // Create a mock GoogleGenAI instance
       const mockGoogleGenAI = {
         batches: new Batches(),
-      };
+      } as unknown as GoogleGenAI;
 
       instrumentation.instrumentInstance(mockGoogleGenAI);
 
-      await mockGoogleGenAI.batches.createEmbeddings({
+      await (
+        mockGoogleGenAI.batches as unknown as {
+          createEmbeddings: (params: unknown) => Promise<unknown>;
+        }
+      ).createEmbeddings({
         model: "text-embedding-004",
         requests: [{ content: "test" }],
       });
@@ -290,66 +234,108 @@ describe("GoogleGenAIInstrumentation", () => {
       const span = spans[0];
       expect(span.name).toBe("Google GenAI Batch Create Embeddings");
       expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
-      expect(span.attributes["embedding.model_name"]).toBe(
-        "text-embedding-004",
-      );
+      expect(span.attributes["embedding.model_name"]).toBe("text-embedding-004");
     });
 
-    it.skip("should handle errors gracefully", async () => {
+    it("should record errors and end the span", async () => {
       class Models {
         async generateContent(_params: unknown): Promise<never> {
           throw new Error("API Error");
         }
       }
 
-      class Chat {
-        async sendMessage(_message: unknown) {
-          return { text: "Response" };
-        }
-      }
-
-      class Chats {
-        create(_config: unknown) {
-          return new Chat();
-        }
-      }
-
-      // Create a mock GoogleGenAI instance
-      const models = new Models();
       const mockGoogleGenAI = {
-        models,
-        chats: new Chats(),
-      };
-
-      // Store reference to original method
-      const originalMethod = models.generateContent;
+        models: new Models(),
+      } as unknown as GoogleGenAI;
 
       instrumentation.instrumentInstance(mockGoogleGenAI);
 
-      // Verify the method was patched
-      expect(models.generateContent).not.toBe(originalMethod);
-
-      // Call the method and catch the error
-      try {
-        await mockGoogleGenAI.models.generateContent({
+      await expect(
+        mockGoogleGenAI.models.generateContent({
           model: "gemini-2.0-flash",
           contents: "Hello",
-        });
-        // Should not reach here
-        expect.fail("Expected an error to be thrown");
-      } catch (error: unknown) {
-        // Verify the error was thrown
-        expect((error as Error).message).toBe("API Error");
-      }
+        }),
+      ).rejects.toThrow("API Error");
 
-      // Flush the span processor to ensure spans are exported
       await provider.forceFlush();
 
       const spans = memoryExporter.getFinishedSpans();
       expect(spans.length).toBeGreaterThan(0);
+      expect(spans[0].status.code).toBe(2); // ERROR
+    });
 
+    it("should split multi-turn function call/response inputs into separate messages", async () => {
+      class Models {
+        async generateContent(_params: unknown) {
+          return {
+            candidates: [
+              {
+                content: {
+                  role: "model",
+                  parts: [{ text: "Sunny" }],
+                },
+              },
+            ],
+          };
+        }
+      }
+
+      const mockGoogleGenAI = {
+        models: new Models(),
+      } as unknown as GoogleGenAI;
+
+      instrumentation.instrumentInstance(mockGoogleGenAI);
+
+      await mockGoogleGenAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: "What's the weather in SF?" }],
+          },
+          {
+            role: "model",
+            parts: [
+              {
+                functionCall: { name: "get_weather", args: { location: "SF" } },
+              },
+            ],
+          },
+          {
+            role: "user",
+            parts: [
+              {
+                functionResponse: {
+                  name: "get_weather",
+                  response: { output: "sunny" },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const spans = memoryExporter.getFinishedSpans();
       const span = spans[0];
-      expect(span.status.code).toBe(2); // ERROR
+
+      expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+      expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
+        "What's the weather in SF?",
+      );
+
+      expect(span.attributes["llm.input_messages.1.message.role"]).toBe("model");
+      expect(
+        span.attributes["llm.input_messages.1.message.tool_calls.0.tool_call.function.name"],
+      ).toBe("get_weather");
+      expect(
+        span.attributes["llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments"],
+      ).toBe(JSON.stringify({ location: "SF" }));
+
+      expect(span.attributes["llm.input_messages.2.message.role"]).toBe("tool");
+      expect(span.attributes["llm.input_messages.2.message.name"]).toBe("get_weather");
+      expect(span.attributes["llm.input_messages.2.message.content"]).toBe(
+        JSON.stringify({ output: "sunny" }),
+      );
     });
 
     it("should apply trace configuration", async () => {
@@ -377,23 +363,9 @@ describe("GoogleGenAIInstrumentation", () => {
         }
       }
 
-      class Chat {
-        async sendMessage(_message: unknown) {
-          return { text: "Response" };
-        }
-      }
-
-      class Chats {
-        create(_config: unknown) {
-          return new Chat();
-        }
-      }
-
-      // Create a mock GoogleGenAI instance
       const mockGoogleGenAI = {
         models: new Models(),
-        chats: new Chats(),
-      };
+      } as unknown as GoogleGenAI;
 
       instrumentationWithConfig.instrumentInstance(mockGoogleGenAI);
 
@@ -406,7 +378,6 @@ describe("GoogleGenAIInstrumentation", () => {
       expect(spans.length).toBeGreaterThan(0);
 
       const span = spans[0];
-      // Verify span was created (trace config masking is handled by OITracer)
       expect(span.name).toBe("Google GenAI Generate Content");
     });
   });

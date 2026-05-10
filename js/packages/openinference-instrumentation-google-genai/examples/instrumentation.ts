@@ -8,6 +8,9 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+
+import { GoogleGenAIInstrumentation } from "../src";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
@@ -27,6 +30,10 @@ export const provider = new NodeTracerProvider({
 });
 
 provider.register();
+
+registerInstrumentations({
+  instrumentations: [new GoogleGenAIInstrumentation()],
+});
 
 // eslint-disable-next-line no-console
 console.log("👀 OpenInference initialized");

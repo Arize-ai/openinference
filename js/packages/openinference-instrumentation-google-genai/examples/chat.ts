@@ -1,13 +1,11 @@
 import "./instrumentation";
 
-import { createInstrumentedGoogleGenAI } from "../src";
+import { GoogleGenAI } from "@google/genai";
 
-// Create an instrumented GoogleGenAI instance
-const ai = createInstrumentedGoogleGenAI({
+const ai = new GoogleGenAI({
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY!,
 });
 
-// Use the AI instance normally - all calls are automatically traced
 ai.models
   .generateContent({
     model: "gemini-2.5-flash",

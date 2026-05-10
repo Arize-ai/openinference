@@ -1,17 +1,15 @@
 /* eslint-disable no-console */
 import "./instrumentation";
 
-import { createInstrumentedGoogleGenAI } from "../src";
+import { GoogleGenAI } from "@google/genai";
 
-// Create an instrumented GoogleGenAI instance
-const ai = createInstrumentedGoogleGenAI({
+const ai = new GoogleGenAI({
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY!,
 });
 
 async function main() {
   console.log("Creating embeddings...\n");
 
-  // Create embeddings using the batch API
   const result = await ai.batches.createEmbeddings({
     model: "text-embedding-004",
     requests: [
