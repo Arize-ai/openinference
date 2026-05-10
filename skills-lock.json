@@ -4,7 +4,8 @@
     "phoenix-cli": {
       "source": "Arize-ai/phoenix",
       "sourceType": "github",
-      "computedHash": "45ee9c6d6a3778b67e4c2e82b006ca76d673ed5dcfb811789ad7d492edd3ab01"
+      "skillPath": ".agents/skills/phoenix-cli/SKILL.md",
+      "computedHash": "9c5330acaeb452983c284adc1c5128a258cca101c009f30caee211120a8c9fdf"
     }
   }
 }
