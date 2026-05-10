@@ -1,6 +1,11 @@
+import { context } from "@opentelemetry/api";
+import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
+import { suppressTracing } from "@opentelemetry/core";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { setMetadata, setSession, setTags, setUser } from "@arizeai/openinference-core";
 
 import { OpenInferenceTracingProcessor } from "../src/processor";
 
@@ -8,6 +13,20 @@ describe("OpenInferenceTracingProcessor", () => {
   let processor: OpenInferenceTracingProcessor;
   let provider: NodeTracerProvider;
   let exporter: InMemorySpanExporter;
+  let contextManager: AsyncHooksContextManager;
+
+  beforeAll(() => {
+    // Required so `context.with(...)` actually pins the active context inside
+    // the async callback — without it, the global no-op manager makes context
+    // attribute propagation untestable.
+    contextManager = new AsyncHooksContextManager().enable();
+    context.setGlobalContextManager(contextManager);
+  });
+
+  afterAll(() => {
+    context.disable();
+    contextManager.disable();
+  });
 
   beforeEach(() => {
     exporter = new InMemorySpanExporter();
@@ -471,6 +490,132 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(respSpan?.attributes["llm.input_messages.0.message.content"]).toBe(
       "What is the weather?",
     );
+  });
+
+  it("should not emit spans when tracing is suppressed", async () => {
+    const trace = {
+      type: "trace" as const,
+      traceId: "test-trace-id",
+      name: "Test Agent Workflow",
+    };
+
+    const generationSpan = {
+      type: "trace.span" as const,
+      traceId: "test-trace-id",
+      spanId: "generation-span-id",
+      parentId: null,
+      spanData: {
+        type: "generation",
+        name: "gpt-4o generation",
+        model: "gpt-4o",
+        input: [{ role: "user", content: "Hello" }],
+        output: [{ role: "assistant", content: "Hi" }],
+      },
+      startedAt: new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      error: null,
+    };
+
+    await context.with(suppressTracing(context.active()), async () => {
+      await processor.onTraceStart(trace);
+      await processor.onSpanStart(generationSpan);
+      await processor.onSpanEnd(generationSpan);
+      await processor.onTraceEnd(trace);
+    });
+
+    expect(exporter.getFinishedSpans().length).toBe(0);
+  });
+
+  it("should propagate context attributes onto generated spans", async () => {
+    const trace = {
+      type: "trace" as const,
+      traceId: "test-trace-id",
+      name: "Test Agent Workflow",
+    };
+
+    const generationSpan = {
+      type: "trace.span" as const,
+      traceId: "test-trace-id",
+      spanId: "generation-span-id",
+      parentId: null,
+      spanData: {
+        type: "generation",
+        name: "gpt-4o generation",
+        model: "gpt-4o",
+      },
+      startedAt: new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      error: null,
+    };
+
+    let ctx = context.active();
+    ctx = setSession(ctx, { sessionId: "session-123" });
+    ctx = setUser(ctx, { userId: "user-456" });
+    ctx = setMetadata(ctx, { foo: "bar" });
+    ctx = setTags(ctx, ["tag-a", "tag-b"]);
+
+    await context.with(ctx, async () => {
+      await processor.onTraceStart(trace);
+      await processor.onSpanStart(generationSpan);
+      await processor.onSpanEnd(generationSpan);
+      await processor.onTraceEnd(trace);
+    });
+
+    const genSpan = exporter.getFinishedSpans().find((s) => s.name === "gpt-4o generation");
+    expect(genSpan).toBeDefined();
+    expect(genSpan?.attributes["session.id"]).toBe("session-123");
+    expect(genSpan?.attributes["user.id"]).toBe("user-456");
+    expect(genSpan?.attributes["metadata"]).toBe(JSON.stringify({ foo: "bar" }));
+    expect(genSpan?.attributes["tag.tags"]).toBe(JSON.stringify(["tag-a", "tag-b"]));
+  });
+
+  it("should respect TraceConfig masking when hideInputs/hideOutputs are set", async () => {
+    const localExporter = new InMemorySpanExporter();
+    const localProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(localExporter)],
+    });
+    const tracer = localProvider.getTracer("test");
+    const maskedProcessor = new OpenInferenceTracingProcessor({
+      tracer,
+      traceConfig: { hideInputs: true, hideOutputs: true },
+    });
+
+    const trace = {
+      type: "trace" as const,
+      traceId: "test-trace-id",
+      name: "Test Agent Workflow",
+    };
+
+    const generationSpan = {
+      type: "trace.span" as const,
+      traceId: "test-trace-id",
+      spanId: "generation-span-id",
+      parentId: null,
+      spanData: {
+        type: "generation",
+        name: "gpt-4o generation",
+        model: "gpt-4o",
+        input: [{ role: "user", content: "secret prompt" }],
+        output: [{ role: "assistant", content: "secret answer" }],
+      },
+      startedAt: new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      error: null,
+    };
+
+    await maskedProcessor.onTraceStart(trace);
+    await maskedProcessor.onSpanStart(generationSpan);
+    await maskedProcessor.onSpanEnd(generationSpan);
+    await maskedProcessor.onTraceEnd(trace);
+
+    const genSpan = localExporter.getFinishedSpans().find((s) => s.name === "gpt-4o generation");
+    expect(genSpan).toBeDefined();
+    // OITracer redacts the values rather than dropping the keys; the redacted
+    // marker proves the trace config was actually applied.
+    expect(genSpan?.attributes["input.value"]).toBe("__REDACTED__");
+    expect(genSpan?.attributes["output.value"]).toBe("__REDACTED__");
+
+    await maskedProcessor.shutdown();
   });
 });
 

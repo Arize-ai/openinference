@@ -1,10 +1,12 @@
 import type { Span as SDKSpan, Trace as SDKTrace, TracingProcessor } from "@openai/agents";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { Attributes, Context, Span as OTelSpan, Tracer } from "@opentelemetry/api";
+import { isTracingSuppressed } from "@opentelemetry/core";
 
 import {
   getInputAttributes,
   getOutputAttributes,
+  OITracer,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
 import type { TraceConfigOptions } from "@arizeai/openinference-core";
@@ -87,11 +89,15 @@ type AnySDKSpan = SDKSpan<any>;
 
 export interface OpenInferenceTracingProcessorConfig {
   /**
-   * The OpenTelemetry tracer to use for creating spans
+   * The tracer to use for creating spans. Accepts either a raw OpenTelemetry
+   * {@link Tracer} or a pre-built {@link OITracer}. A raw `Tracer` is wrapped
+   * internally; pass `traceConfig` alongside to configure masking.
    */
-  tracer?: Tracer;
+  tracer?: Tracer | OITracer;
   /**
-   * Optional trace configuration for masking sensitive data
+   * Optional trace configuration for masking sensitive data. Ignored if the
+   * provided `tracer` is already an {@link OITracer} (in that case, configure
+   * the trace config on the OITracer directly).
    */
   traceConfig?: TraceConfigOptions;
 }
@@ -106,7 +112,7 @@ const MAX_HANDOFFS_IN_FLIGHT = 1000;
  * registered with the global trace provider.
  */
 export class OpenInferenceTracingProcessor implements TracingProcessor {
-  private tracer: Tracer | null;
+  private oiTracer: OITracer | null;
   private traceConfig?: TraceConfigOptions;
 
   // Maps SDK span/trace IDs to OTel spans
@@ -120,26 +126,35 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   private _shutdown = false;
 
   constructor(config: OpenInferenceTracingProcessorConfig = {}) {
-    this.tracer = config.tracer || null;
     this.traceConfig = config.traceConfig;
+    this.oiTracer = config.tracer ? this.toOITracer(config.tracer) : null;
+  }
+
+  private toOITracer(tracer: Tracer | OITracer): OITracer {
+    return tracer instanceof OITracer
+      ? tracer
+      : new OITracer({ tracer, traceConfig: this.traceConfig });
   }
 
   /**
    * Set the tracer to use for creating spans
    */
-  setTracer(tracer: Tracer): void {
-    this.tracer = tracer;
+  setTracer(tracer: Tracer | OITracer): void {
+    this.oiTracer = this.toOITracer(tracer);
   }
 
   /**
    * Called when a trace is started
    */
   async onTraceStart(sdkTrace: SDKTrace): Promise<void> {
-    if (this._shutdown || !this.tracer) {
+    if (this._shutdown || !this.oiTracer) {
+      return;
+    }
+    if (isTracingSuppressed(context.active())) {
       return;
     }
 
-    const otelSpan = this.tracer.startSpan(sdkTrace.name, {
+    const otelSpan = this.oiTracer.startSpan(sdkTrace.name, {
       attributes: {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
       },
@@ -166,7 +181,8 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    * Called when a span is started
    */
   async onSpanStart(span: AnySDKSpan): Promise<void> {
-    if (this._shutdown || !this.tracer || !span.startedAt) return;
+    if (this._shutdown || !this.oiTracer || !span.startedAt) return;
+    if (isTracingSuppressed(context.active())) return;
 
     const startTime = new Date(span.startedAt);
     const parentSpan = span.parentId
@@ -185,7 +201,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
       parentContext = context.active();
     }
 
-    const otelSpan = this.tracer.startSpan(
+    const otelSpan = this.oiTracer.startSpan(
       spanName,
       {
         startTime,
@@ -238,9 +254,19 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
 
   /**
    * Shutdown the processor
+   *
+   * Ends any in-flight OTel spans before clearing. Without this, OTel never
+   * sees `.end()` for those spans and silently drops them, and the
+   * `TracerProvider` may hang during its own shutdown.
    */
   async shutdown(_timeout?: number): Promise<void> {
     this._shutdown = true;
+    for (const span of this.otelSpans.values()) {
+      span.end();
+    }
+    for (const span of this.rootSpans.values()) {
+      span.end();
+    }
     this.rootSpans.clear();
     this.otelSpans.clear();
     this.reverseHandoffsDict.clear();
@@ -569,8 +595,6 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     prefix: string,
     attributes: Attributes,
   ): void {
-    let toolCallIdx = 0;
-
     messages.forEach((msg, msgIdx) => {
       const msgPrefix = `${prefix}.${msgIdx}`;
 
@@ -604,9 +628,11 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
         attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = msg.tool_call_id;
       }
 
-      // Tool calls (for assistant messages)
+      // Tool calls (for assistant messages). Index is per-message: the
+      // semantic-convention key is `…tool_calls.{idx}` scoped under each
+      // message, so it must restart at 0 for every message.
       if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
-        (msg.tool_calls as Array<Record<string, unknown>>).forEach((tc) => {
+        (msg.tool_calls as Array<Record<string, unknown>>).forEach((tc, toolCallIdx) => {
           const tcPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIdx}`;
 
           if (tc.id) {
@@ -625,8 +651,6 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
                 String(func.arguments);
             }
           }
-
-          toolCallIdx++;
         });
       }
     });
@@ -704,12 +728,14 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     output: Array<Record<string, unknown>>,
     attributes: Attributes,
   ): void {
+    const prefix = SemanticConventions.LLM_OUTPUT_MESSAGES;
+    // Each top-level item maps to its own message slot. Bundling consecutive
+    // `function_call` items into one slot (with a shared `toolCallIdx`) is
+    // tempting but breaks indexing once a `message` arrives between them — the
+    // reused `msgIdx` collides and `toolCallIdx` keeps growing across slots.
     let msgIdx = 0;
-    let toolCallIdx = 0;
 
     output.forEach((item) => {
-      const prefix = SemanticConventions.LLM_OUTPUT_MESSAGES;
-
       if (item.type === "message") {
         const msgPrefix = `${prefix}.${msgIdx}`;
 
@@ -740,7 +766,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
         const msgPrefix = `${prefix}.${msgIdx}`;
         attributes[`${msgPrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "assistant";
 
-        const tcPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIdx}`;
+        const tcPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALLS}.0`;
 
         if (item.call_id) {
           attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_ID}`] = String(item.call_id);
@@ -755,7 +781,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
             String(item.arguments);
         }
 
-        toolCallIdx++;
+        msgIdx++;
       }
     });
   }

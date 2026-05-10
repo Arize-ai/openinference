@@ -1,7 +1,8 @@
 import type { addTraceProcessor, startTraceExportLoop } from "@openai/agents";
 import { trace } from "@opentelemetry/api";
-import type { Tracer, TracerProvider } from "@opentelemetry/api";
+import type { TracerProvider } from "@opentelemetry/api";
 
+import { OITracer } from "@arizeai/openinference-core";
 import type { TraceConfigOptions } from "@arizeai/openinference-core";
 
 import { OpenInferenceTracingProcessor } from "./processor";
@@ -67,13 +68,15 @@ export class OpenAIAgentsInstrumentation {
   }
 
   /**
-   * Get the tracer for this instrumentation
+   * Get the {@link OITracer} for this instrumentation. The OITracer applies
+   * {@link TraceConfigOptions} masking and propagates context attributes
+   * (session ID, user ID, metadata, tags) onto every span.
    */
-  get tracer(): Tracer {
-    if (this.tracerProvider) {
-      return this.tracerProvider.getTracer(INSTRUMENTATION_NAME, VERSION);
-    }
-    return trace.getTracer(INSTRUMENTATION_NAME, VERSION);
+  get tracer(): OITracer {
+    const otelTracer = this.tracerProvider
+      ? this.tracerProvider.getTracer(INSTRUMENTATION_NAME, VERSION)
+      : trace.getTracer(INSTRUMENTATION_NAME, VERSION);
+    return new OITracer({ tracer: otelTracer, traceConfig: this.traceConfig });
   }
 
   /**
