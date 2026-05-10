@@ -404,8 +404,9 @@ def _get_attributes_from_generation_span_data(
         param := {k: v for k, v in obj.model_config.items() if v is not None}
     ):
         yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(param)
-        if base_url := param.get("base_url") and isinstance(base_url, str):
-            host = urlparse(base_url).hostname
+        if isinstance(base_url := param.get("base_url"), str) and (
+            host := urlparse(base_url).hostname
+        ):
             if provider := infer_llm_provider_from_host(host):
                 yield LLM_PROVIDER, provider.value
     yield from _get_attributes_from_chat_completions_input(obj.input)
