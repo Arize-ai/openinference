@@ -1,4 +1,16 @@
-import type { Span as SDKSpan, Trace as SDKTrace, TracingProcessor } from "@openai/agents";
+import type {
+  AgentSpanData,
+  CustomSpanData,
+  FunctionSpanData,
+  GenerationSpanData,
+  GuardrailSpanData,
+  MCPListToolsSpanData,
+  ResponseSpanData,
+  Span as SDKSpan,
+  SpanData,
+  Trace as SDKTrace,
+  TracingProcessor,
+} from "@openai/agents";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { Attributes, Context, Span as OTelSpan, Tracer } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
@@ -18,72 +30,8 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-// `@openai/agents` does not publicly export the discriminated `SpanData`
-// union or its variants — only the `Span<TData>` class and `TracingProcessor`
-// interface are exposed (and `TracingProcessor` itself uses `Span<any>`).
-// We model the union structurally so we can narrow on `data.type` without
-// resorting to `any`. Field shapes track @openai/agents-core's
-// dist/tracing/spans.d.ts.
-type GenerationSpanData = {
-  type: "generation";
-  input?: Array<Record<string, unknown>>;
-  output?: Array<Record<string, unknown>>;
-  model?: string;
-  model_config?: Record<string, unknown>;
-  usage?: Record<string, unknown>;
-};
-type ResponseSpanData = {
-  type: "response";
-  response_id?: string;
-  _input?: string | Array<Record<string, unknown>>;
-  _response?: Record<string, unknown>;
-};
-type FunctionSpanData = {
-  type: "function";
-  name: string;
-  input: string;
-  output: string;
-  mcp_data?: string;
-};
-type AgentSpanData = {
-  type: "agent";
-  name: string;
-  handoffs?: string[];
-  tools?: string[];
-  output_type?: string;
-};
-type HandoffSpanData = {
-  type: "handoff";
-  from_agent?: string;
-  to_agent?: string;
-};
-type CustomSpanData = {
-  type: "custom";
-  name: string;
-  data: Record<string, unknown>;
-};
-type GuardrailSpanData = {
-  type: "guardrail";
-  name: string;
-  triggered: boolean;
-};
-type MCPListToolsSpanData = {
-  type: "mcp_tools";
-  server?: string;
-  result?: string[];
-};
-type SDKSpanData =
-  | GenerationSpanData
-  | ResponseSpanData
-  | FunctionSpanData
-  | AgentSpanData
-  | HandoffSpanData
-  | CustomSpanData
-  | GuardrailSpanData
-  | MCPListToolsSpanData;
-
 // `TracingProcessor.onSpan{Start,End}` uses `Span<any>` in the SDK, so we
-// match that signature and narrow `span.spanData` to `SDKSpanData` below.
+// match that signature and narrow `span.spanData` to `SpanData` below.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySDKSpan = SDKSpan<any>;
 
@@ -190,7 +138,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
       : this.rootSpans.get(span.traceId);
 
     const spanName = this.getSpanName(span);
-    const spanKind = this.getSpanKind(span.spanData as SDKSpanData);
+    const spanKind = this.getSpanKind(span.spanData as SpanData);
 
     // Create span with parent context if available
     // Use trace.setSpan to properly establish the parent-child relationship
@@ -283,7 +231,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    * Get the span name from SDK span data
    */
   private getSpanName(span: AnySDKSpan): string {
-    const data = span.spanData as SDKSpanData;
+    const data = span.spanData as SpanData;
 
     if ("name" in data && data.name) {
       return data.name;
@@ -299,7 +247,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   /**
    * Map SDK span data type to OpenInference span kind
    */
-  private getSpanKind(data: SDKSpanData): OpenInferenceSpanKind {
+  private getSpanKind(data: SpanData): OpenInferenceSpanKind {
     switch (data.type) {
       case "agent":
         return OpenInferenceSpanKind.AGENT;
@@ -321,7 +269,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    * Extract OpenInference attributes from SDK span data
    */
   private extractAttributes(span: AnySDKSpan): Attributes {
-    const data = span.spanData as SDKSpanData;
+    const data = span.spanData as SpanData;
     const attributes: Attributes = {};
 
     switch (data.type) {
@@ -531,7 +479,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    * Handle handoff tracking for graph visualization
    */
   private handleHandoffTracking(span: AnySDKSpan, _otelSpan: OTelSpan): void {
-    const data = span.spanData as SDKSpanData;
+    const data = span.spanData as SpanData;
 
     if (data.type === "handoff" && data.to_agent && data.from_agent) {
       const key = `${data.to_agent}:${span.traceId}`;
