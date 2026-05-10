@@ -1,4 +1,3 @@
-import builtins
 import json
 import os
 from typing import Any, Dict, Generator, List, Mapping, Optional, Union, cast
@@ -332,7 +331,6 @@ def test_completion_streaming_with_tool_calls(
     setup_litellm_instrumentation: Any,
 ) -> None:
     """Test that tool calls are captured correctly in streaming responses."""
-    from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
     from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
     from openai.types.chat.chat_completion_chunk import (
         ChoiceDeltaToolCall,
@@ -345,7 +343,7 @@ def test_completion_streaming_with_tool_calls(
     def make_delta(
         role: Optional[str] = None,
         content: Optional[str] = None,
-        tool_calls: Optional[list] = None,  # type: ignore[type-arg]
+        tool_calls: Optional[List[ChoiceDeltaToolCall]] = None,
     ) -> Delta:
         return Delta.model_construct(role=role, content=content, tool_calls=tool_calls)
 
@@ -439,7 +437,7 @@ def test_completion_streaming_with_tool_calls(
     ]
 
     class MockStreamWrapper:
-        def __init__(self, chunks: list) -> None:  # type: ignore[type-arg]
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
             self._chunks = chunks
             self._index = 0
 
@@ -457,30 +455,27 @@ def test_completion_streaming_with_tool_calls(
 
     original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
 
-    # Patch isinstance so MockStreamWrapper passes the CustomStreamWrapper check in the wrapper.
-    original_isinstance = builtins.isinstance
-
-    def patched_isinstance(obj: object, classinfo: type | tuple[type, ...]) -> bool:
-        if classinfo is CustomStreamWrapper and type(obj).__name__ == "MockStreamWrapper":
-            return True
-        return original_isinstance(obj, classinfo)
-
+    # The wrapper does `from litellm.litellm_core_utils.streaming_handler import
+    # CustomStreamWrapper` on each call, so patching the source module makes the
+    # `isinstance(result, CustomStreamWrapper)` branch accept our mock.
     try:
-        builtins.isinstance = patched_isinstance  # type: ignore[assignment]
         LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
             lambda *args, **kwargs: MockStreamWrapper(chunks)
         )
 
-        response = litellm.completion(
-            model="gpt-3.5-turbo",
-            messages=input_messages,
-            stream=True,
-        )
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            MockStreamWrapper,
+        ):
+            response = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=input_messages,
+                stream=True,
+            )
 
-        chunks_received = list(response)
-        assert len(chunks_received) == 4
+            chunks_received = list(response)
+            assert len(chunks_received) == 4
     finally:
-        builtins.isinstance = original_isinstance
         LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -520,7 +515,7 @@ async def test_acompletion_streaming_with_tool_calls(
     def make_delta(
         role: Optional[str] = None,
         content: Optional[str] = None,
-        tool_calls: Optional[list] = None,  # type: ignore[type-arg]
+        tool_calls: Optional[List[ChoiceDeltaToolCall]] = None,
     ) -> Delta:
         return Delta.model_construct(role=role, content=content, tool_calls=tool_calls)
 
@@ -607,7 +602,7 @@ async def test_acompletion_streaming_with_tool_calls(
     ]
 
     class MockAsyncStreamWrapper:
-        def __init__(self, chunks: list) -> None:  # type: ignore[type-arg]
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
             self._chunks = chunks
             self._index = 0
 
