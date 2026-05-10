@@ -23,35 +23,72 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-// The SpanData union is not part of the public @openai/agents exports, so we
-// narrow `span.spanData` at runtime by `type`. The structural shape below
-// captures only the fields we read across the SDK's span data variants.
-type SDKSpanData = {
-  type: string;
-  name?: string;
-  // generation
-  input?: unknown;
-  output?: unknown;
+// `@openai/agents` does not publicly export the discriminated `SpanData`
+// union or its variants — only the `Span<TData>` class and `TracingProcessor`
+// interface are exposed (and `TracingProcessor` itself uses `Span<any>`).
+// We model the union structurally so we can narrow on `data.type` without
+// resorting to `any`. Field shapes track @openai/agents-core's
+// dist/tracing/spans.d.ts.
+type GenerationSpanData = {
+  type: "generation";
+  input?: Array<Record<string, unknown>>;
+  output?: Array<Record<string, unknown>>;
   model?: string;
   model_config?: Record<string, unknown>;
   usage?: Record<string, unknown>;
-  // response
+};
+type ResponseSpanData = {
+  type: "response";
   response_id?: string;
   _input?: string | Array<Record<string, unknown>>;
   _response?: Record<string, unknown>;
-  // function
+};
+type FunctionSpanData = {
+  type: "function";
+  name: string;
+  input: string;
+  output: string;
   mcp_data?: string;
-  // handoff
+};
+type AgentSpanData = {
+  type: "agent";
+  name: string;
+  handoffs?: string[];
+  tools?: string[];
+  output_type?: string;
+};
+type HandoffSpanData = {
+  type: "handoff";
   from_agent?: string;
   to_agent?: string;
-  // custom / guardrail
-  data?: Record<string, unknown>;
-  triggered?: boolean;
-  // mcp_tools
+};
+type CustomSpanData = {
+  type: "custom";
+  name: string;
+  data: Record<string, unknown>;
+};
+type GuardrailSpanData = {
+  type: "guardrail";
+  name: string;
+  triggered: boolean;
+};
+type MCPListToolsSpanData = {
+  type: "mcp_tools";
   server?: string;
   result?: string[];
 };
+type SDKSpanData =
+  | GenerationSpanData
+  | ResponseSpanData
+  | FunctionSpanData
+  | AgentSpanData
+  | HandoffSpanData
+  | CustomSpanData
+  | GuardrailSpanData
+  | MCPListToolsSpanData;
 
+// `TracingProcessor.onSpan{Start,End}` uses `Span<any>` in the SDK, so we
+// match that signature and narrow `span.spanData` to `SDKSpanData` below.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySDKSpan = SDKSpan<any>;
 
@@ -144,7 +181,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
       : this.rootSpans.get(span.traceId);
 
     const spanName = this.getSpanName(span);
-    const spanKind = this.getSpanKind(span.spanData);
+    const spanKind = this.getSpanKind(span.spanData as SDKSpanData);
 
     // Create span with parent context if available
     // Use trace.setSpan to properly establish the parent-child relationship
@@ -229,7 +266,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   private getSpanName(span: AnySDKSpan): string {
     const data = span.spanData as SDKSpanData;
 
-    if (data.name && typeof data.name === "string") {
+    if ("name" in data && data.name) {
       return data.name;
     }
 
@@ -298,7 +335,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   /**
    * Add attributes for generation (LLM) spans
    */
-  private addGenerationAttributes(data: SDKSpanData, attributes: Attributes): void {
+  private addGenerationAttributes(data: GenerationSpanData, attributes: Attributes): void {
     if (data.model) {
       attributes[SemanticConventions.LLM_MODEL_NAME] = data.model;
     }
@@ -360,7 +397,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   /**
    * Add attributes for response spans
    */
-  private addResponseAttributes(data: SDKSpanData, attributes: Attributes): void {
+  private addResponseAttributes(data: ResponseSpanData, attributes: Attributes): void {
     // Handle response data
     if (data._response) {
       const response = data._response;
@@ -429,34 +466,27 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   /**
    * Add attributes for function (tool) spans
    */
-  private addFunctionAttributes(data: SDKSpanData, attributes: Attributes): void {
+  private addFunctionAttributes(data: FunctionSpanData, attributes: Attributes): void {
     if (data.name) {
       attributes[SemanticConventions.TOOL_NAME] = data.name;
     }
 
-    // Handle input - for function spans, data.input is the input JSON
-    const dataRecord = data as unknown as Record<string, unknown>;
-    const inputValue = dataRecord.input;
-    if (inputValue) {
-      const inputStr =
-        typeof inputValue === "string" ? inputValue : safelyJSONStringify(inputValue) || "";
-      Object.assign(attributes, getInputAttributes({ value: inputStr, mimeType: MimeType.JSON }));
+    if (data.input) {
+      Object.assign(
+        attributes,
+        getInputAttributes({ value: data.input, mimeType: MimeType.JSON }),
+      );
     }
 
-    // Handle output - for function spans, data.output is the output string/object
-    const outputValue = dataRecord.output;
-    if (outputValue !== undefined && outputValue !== null) {
-      const outputStr =
-        typeof outputValue === "string" ? outputValue : safelyJSONStringify(outputValue) || "";
-      // Tool outputs are typically JSON-encoded strings or objects we just stringified.
-      // Fall back to TEXT only for bare strings that don't look like JSON.
+    if (data.output) {
+      // Tool outputs are typically JSON-encoded strings; fall back to TEXT for
+      // bare strings that don't look like JSON.
       const looksLikeJson =
-        typeof outputValue !== "string" ||
-        (outputStr.length > 1 && outputStr.startsWith("{") && outputStr.endsWith("}"));
+        data.output.length > 1 && data.output.startsWith("{") && data.output.endsWith("}");
       Object.assign(
         attributes,
         getOutputAttributes(
-          looksLikeJson ? { value: outputStr, mimeType: MimeType.JSON } : outputStr,
+          looksLikeJson ? { value: data.output, mimeType: MimeType.JSON } : data.output,
         ),
       );
     }
@@ -465,7 +495,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   /**
    * Add attributes for agent spans
    */
-  private addAgentAttributes(data: SDKSpanData, traceId: string, attributes: Attributes): void {
+  private addAgentAttributes(data: AgentSpanData, traceId: string, attributes: Attributes): void {
     if (data.name) {
       attributes[SemanticConventions.GRAPH_NODE_ID] = data.name;
     }
@@ -504,7 +534,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   /**
    * Add attributes for MCP tools listing spans
    */
-  private addMcpToolsAttributes(data: SDKSpanData, attributes: Attributes): void {
+  private addMcpToolsAttributes(data: MCPListToolsSpanData, attributes: Attributes): void {
     if (data.result) {
       Object.assign(
         attributes,
@@ -519,19 +549,17 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   /**
    * Add attributes for guardrail spans
    */
-  private addGuardrailAttributes(data: SDKSpanData, attributes: Attributes): void {
+  private addGuardrailAttributes(data: GuardrailSpanData, attributes: Attributes): void {
     if (data.name) {
       attributes[SemanticConventions.TOOL_NAME] = data.name;
     }
-    if (data.triggered !== undefined) {
-      attributes["guardrail.triggered"] = data.triggered;
-    }
+    attributes["guardrail.triggered"] = data.triggered;
   }
 
   /**
    * Add attributes for custom spans
    */
-  private addCustomAttributes(data: SDKSpanData, attributes: Attributes): void {
+  private addCustomAttributes(data: CustomSpanData, attributes: Attributes): void {
     if (data.data) {
       Object.assign(
         attributes,
