@@ -354,6 +354,9 @@ def extract_llm_endpoint_from_sdk_instance(
         or getattr(instance, "host", None)
     )
 
+    if not isinstance(endpoint, str) and endpoint is not None:
+        endpoint = str(endpoint)
+
     if isinstance(endpoint, str):
         return urlparse(endpoint).hostname
 
