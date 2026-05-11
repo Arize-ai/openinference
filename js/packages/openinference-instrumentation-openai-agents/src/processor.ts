@@ -18,7 +18,9 @@ import { isTracingSuppressed } from "@opentelemetry/core";
 import {
   getInputAttributes,
   getOutputAttributes,
+  getToolAttributes,
   OITracer,
+  safelyJSONParse,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
 import type { TraceConfigOptions } from "@arizeai/openinference-core";
@@ -34,6 +36,17 @@ import {
 // match that signature and narrow `span.spanData` to `SpanData` below.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySDKSpan = SDKSpan<any>;
+
+/**
+ * Safely coerces an unknown value to `Record<string, unknown>`. Returns an
+ * empty object for non-object values (strings, arrays, null, etc.).
+ */
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
 
 export interface OpenInferenceTracingProcessorConfig {
   /**
@@ -51,6 +64,28 @@ export interface OpenInferenceTracingProcessorConfig {
 }
 
 const MAX_HANDOFFS_IN_FLIGHT = 1000;
+
+/**
+ * Request-side parameters from the Responses API that map to
+ * {@link SemanticConventions.LLM_INVOCATION_PARAMETERS}. Everything else on the
+ * response object is response-side metadata and is intentionally excluded.
+ */
+const RESPONSE_INVOCATION_PARAM_KEYS = [
+  "temperature",
+  "top_p",
+  "top_logprobs",
+  "max_output_tokens",
+  "max_tool_calls",
+  "tool_choice",
+  "parallel_tool_calls",
+  "truncation",
+  "reasoning",
+  "instructions",
+  "text",
+  "previous_response_id",
+  "prompt",
+  "user",
+] as const;
 
 /**
  * A TracingProcessor implementation that converts OpenAI Agents SDK spans
@@ -396,15 +431,22 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
         this.addResponseOutputAttributes(response.output as Record<string, unknown>[], attributes);
       }
 
-      // Extract invocation parameters
-      const params = { ...response };
-      delete params.object;
-      delete params.tools;
-      delete params.usage;
-      delete params.output;
-      delete params.error;
-      delete params.status;
-      attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] = safelyJSONStringify(params) || "";
+      // Extract invocation parameters. The Responses API span carries the full
+      // response object (mostly response-side metadata: id, created_at,
+      // output_text, service_tier, …), so use an allow-list of request-side
+      // parameters rather than copying everything and deleting a few fields.
+      const responseRecord = response as Record<string, unknown>;
+      const params: Record<string, unknown> = {};
+      for (const key of RESPONSE_INVOCATION_PARAM_KEYS) {
+        const value = responseRecord[key];
+        if (value != null) {
+          params[key] = value;
+        }
+      }
+      if (Object.keys(params).length > 0) {
+        attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
+          safelyJSONStringify(params) || "";
+      }
     }
 
     // Handle input
@@ -435,7 +477,15 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    */
   private addFunctionAttributes(data: FunctionSpanData, attributes: Attributes): void {
     if (data.name) {
-      attributes[SemanticConventions.TOOL_NAME] = data.name;
+      Object.assign(
+        attributes,
+        getToolAttributes({
+          name: data.name,
+          parameters: asRecord(
+            typeof data.input === "string" ? safelyJSONParse(data.input) : data.input,
+          ),
+        }),
+      );
     }
 
     if (data.input) {
@@ -444,9 +494,13 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
 
     if (data.output) {
       // Tool outputs are typically JSON-encoded strings; fall back to TEXT for
-      // bare strings that don't look like JSON.
+      // bare strings that don't look like JSON. The Agents SDK serializes return
+      // values with `JSON.stringify`, so both objects (`{…}`) and arrays (`[…]`)
+      // are possible.
       const looksLikeJson =
-        data.output.length > 1 && data.output.startsWith("{") && data.output.endsWith("}");
+        data.output.length > 1 &&
+        ((data.output.startsWith("{") && data.output.endsWith("}")) ||
+          (data.output.startsWith("[") && data.output.endsWith("]")));
       Object.assign(
         attributes,
         getOutputAttributes(
@@ -485,12 +539,15 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
       const key = `${data.to_agent}:${span.traceId}`;
       this.reverseHandoffsDict.set(key, data.from_agent);
 
-      // Cap the size to prevent memory leaks
-      if (this.reverseHandoffsDict.size > MAX_HANDOFFS_IN_FLIGHT) {
+      // Cap the size to prevent unbounded growth when handoffs are never
+      // consumed by a following agent span. Evict oldest entries until we are
+      // back within the limit.
+      while (this.reverseHandoffsDict.size > MAX_HANDOFFS_IN_FLIGHT) {
         const firstKey = this.reverseHandoffsDict.keys().next().value;
-        if (firstKey) {
-          this.reverseHandoffsDict.delete(firstKey);
+        if (firstKey === undefined) {
+          break;
         }
+        this.reverseHandoffsDict.delete(firstKey);
       }
     }
   }
@@ -515,7 +572,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    */
   private addGuardrailAttributes(data: GuardrailSpanData, attributes: Attributes): void {
     if (data.name) {
-      attributes[SemanticConventions.TOOL_NAME] = data.name;
+      Object.assign(attributes, getToolAttributes({ name: data.name, parameters: {} }));
     }
     attributes["guardrail.triggered"] = data.triggered;
   }
