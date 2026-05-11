@@ -211,7 +211,7 @@ class _PatchWrapper:
                     if model_name := kwargs.get("model"):
                         span.set_attribute(LLM_MODEL_NAME, model_name)
                     if provider := infer_llm_provider_from_host(
-                        extract_llm_endpoint_from_sdk_instance(create, client)
+                        extract_llm_endpoint_from_sdk_instance(create, client)  # type: ignore[arg-type]
                     ):
                         span.set_attribute(LLM_PROVIDER, provider.value)
                     span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
@@ -254,7 +254,7 @@ class _PatchWrapper:
                     if model_name := kwargs.get("model"):
                         span.set_attribute(LLM_MODEL_NAME, model_name)
                     if provider := infer_llm_provider_from_host(
-                        extract_llm_endpoint_from_sdk_instance(create, client)
+                        extract_llm_endpoint_from_sdk_instance(create, client)  # type: ignore[arg-type]
                     ):
                         span.set_attribute(LLM_PROVIDER, provider.value)
                     span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)

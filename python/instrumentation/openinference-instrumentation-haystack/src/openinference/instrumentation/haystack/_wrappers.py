@@ -582,7 +582,7 @@ def _get_llm_model_provider_system_attributes(
         yield LLM_MODEL_NAME, model
     if provider := infer_llm_provider_from_class_name(instance):
         yield LLM_PROVIDER, provider.value
-    if system := infer_llm_system_from_model_name(model):
+    if system := infer_llm_system_from_model_name(model):  # type: ignore[arg-type]
         yield LLM_SYSTEM, system.value
 
 

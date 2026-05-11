@@ -550,9 +550,7 @@ class _ModelWrapper:
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
             if provider := (
                 infer_llm_provider_from_class_name(instance)
-                or infer_llm_provider_from_host(
-                    extract_llm_endpoint_from_sdk_instance(instance)
-                )
+                or infer_llm_provider_from_host(extract_llm_endpoint_from_sdk_instance(instance))  # type: ignore[arg-type]
             ):
                 span.set_attribute(LLM_PROVIDER, provider.value)
             if system := infer_llm_system_from_model_name(model.model_id):
