@@ -189,10 +189,13 @@ jobs:
           shopt -s globstar nullglob || true
           mod="${AFFECTED_MODULE}"
           if [ -z "$mod" ] || [ "$mod" = "." ]; then
-            target="."
-          else
-            target="$mod"
+            # Whole-repo scope: grepping the entire tree for empty-error patterns
+            # produces false positives from unrelated upstream code. The signal is
+            # only meaningful when we have a specific module to scope to.
+            echo "no specific module scope; skipping (whole-repo grep is too noisy)"
+            exit 0
           fi
+          target="$mod"
           if [ ! -e "$target" ]; then
             echo "module path '$target' not found; skipping"
             exit 0
