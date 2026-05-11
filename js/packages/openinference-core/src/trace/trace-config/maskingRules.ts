@@ -153,6 +153,25 @@ const maskPromptsRule: MaskingRule = {
 };
 
 /**
+ * Masks (removes) the tool definitions advertised to the LLM.
+ * Will mask information stored under keys that include `llm.tools` such as
+ * `llm.tools.[i].tool.json_schema`. Tool definitions are part of the request sent
+ * to the LLM, so they are also hidden when `hideInputs` is true.
+ * @example
+ * ```typescript
+ *  maskLLMToolsRule.condition({
+ *      config: {hideLLMTools: true},
+ *      key: "llm.tools.0.tool.json_schema"
+ *  }) // returns true so the rule applies and the value will be removed
+ * ```
+ */
+const maskLLMToolsRule: MaskingRule = {
+  condition: ({ config, key }) =>
+    (config.hideInputs || config.hideLLMTools) && key.includes(SemanticConventions.LLM_TOOLS),
+  action: () => undefined,
+};
+
+/**
  * A list of {@link MaskingRule}s that are applied to span attributes to either redact or remove sensitive information.
  * The order of these rules is important as it can ensure appropriate masking of information
  * Rules should go from more specific to more general so that things like `llm.input_messages.[i].message.content` are masked with {@link REDACTED_VALUE} before the more generic masking of `llm.input_messages` might happen with `undefined` might happen.
@@ -196,6 +215,7 @@ const maskingRules: MaskingRule[] = [
   maskLongBase64ImageRule,
   maskEmbeddingVectorsRule,
   maskPromptsRule,
+  maskLLMToolsRule,
 ];
 
 /**

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.2...python-openinference-instrumentation-anthropic-v1.0.3) (2026-05-11)
+
+
+### Bug Fixes
+
+* **anthropic:** add system message in input messages ([#3076](https://github.com/Arize-ai/openinference/issues/3076)) ([9f3d0d0](https://github.com/Arize-ai/openinference/commit/9f3d0d05d6f818d7e6d9abe4c02e0b5ab23c5fb0))
+
 ## [1.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.1...python-openinference-instrumentation-anthropic-v1.0.2) (2026-05-10)
 
 

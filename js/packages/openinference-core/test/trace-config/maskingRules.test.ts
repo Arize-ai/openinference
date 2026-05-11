@@ -111,6 +111,24 @@ const generateMaskTestCases = (): MaskTestCases[] => {
           "some prompt",
         ]);
         break;
+      case "hideLLMTools":
+        testCases.push(
+          [
+            `should return undefined for "llm.tools.0.tool.json_schema" when hideLLMTools is set to true`,
+            { ...DefaultTraceConfig, hideLLMTools: true },
+            undefined,
+            "llm.tools.0.tool.json_schema",
+            '{"type":"function","function":{"name":"get_weather"}}',
+          ],
+          [
+            `should return undefined for "llm.tools.0.tool.json_schema" when hideInputs is set to true`,
+            { ...DefaultTraceConfig, hideInputs: true },
+            undefined,
+            "llm.tools.0.tool.json_schema",
+            '{"type":"function","function":{"name":"get_weather"}}',
+          ],
+        );
+        break;
       default:
         assertUnreachable(configKey);
     }

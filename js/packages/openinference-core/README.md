@@ -263,6 +263,7 @@ const traced = withSpan(async (prompt: string) => `model response for ${prompt}`
 
 You can also configure masking with environment variables:
 
+- `OPENINFERENCE_HIDE_LLM_TOOLS`
 - `OPENINFERENCE_HIDE_INPUTS`
 - `OPENINFERENCE_HIDE_OUTPUTS`
 - `OPENINFERENCE_HIDE_INPUT_MESSAGES`
