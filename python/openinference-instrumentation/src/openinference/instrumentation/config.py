@@ -65,6 +65,8 @@ class suppress_tracing:
 
 
 OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS = "OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS"
+OPENINFERENCE_HIDE_LLM_TOOLS = "OPENINFERENCE_HIDE_LLM_TOOLS"
+# Hides the tool definitions advertised to the LLM
 OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS"
 # Hides input value & messages
 OPENINFERENCE_HIDE_OUTPUTS = "OPENINFERENCE_HIDE_OUTPUTS"
@@ -95,6 +97,7 @@ REDACTED_VALUE = "__REDACTED__"
 # When a value is hidden, it will be replaced by this redacted value
 
 DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS = False
+DEFAULT_HIDE_LLM_TOOLS = False
 DEFAULT_HIDE_PROMPTS = False
 DEFAULT_HIDE_CHOICES = False
 DEFAULT_HIDE_INPUTS = False
@@ -133,6 +136,14 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS,
         },
     )
+    hide_llm_tools: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_LLM_TOOLS,
+            "default_value": DEFAULT_HIDE_LLM_TOOLS,
+        },
+    )
+    """Hides the tool definitions advertised to the LLM"""
     hide_inputs: Optional[bool] = field(
         default=None,
         metadata={
@@ -256,6 +267,8 @@ class TraceConfig:
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> Optional[AttributeValue]:
         if self.hide_llm_invocation_parameters and key == SpanAttributes.LLM_INVOCATION_PARAMETERS:
+            return None
+        elif (self.hide_inputs or self.hide_llm_tools) and SpanAttributes.LLM_TOOLS in key:
             return None
         elif self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
             value = REDACTED_VALUE

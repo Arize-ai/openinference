@@ -24,6 +24,7 @@ from openinference.instrumentation.config import (
     DEFAULT_HIDE_INPUT_TEXT,
     DEFAULT_HIDE_INPUTS,
     DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS,
+    DEFAULT_HIDE_LLM_TOOLS,
     DEFAULT_HIDE_OUTPUT_MESSAGES,
     DEFAULT_HIDE_OUTPUT_TEXT,
     DEFAULT_HIDE_OUTPUTS,
@@ -43,12 +44,13 @@ from openinference.instrumentation.config import (
     OPENINFERENCE_HIDE_PROMPTS,
     REDACTED_VALUE,
 )
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import SpanAttributes, ToolAttributes
 
 
 def test_default_settings() -> None:
     config = TraceConfig()
     assert config.hide_llm_invocation_parameters == DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS
+    assert config.hide_llm_tools == DEFAULT_HIDE_LLM_TOOLS
     assert config.hide_inputs == DEFAULT_HIDE_INPUTS
     assert config.hide_outputs == DEFAULT_HIDE_OUTPUTS
     assert config.hide_input_messages == DEFAULT_HIDE_INPUT_MESSAGES
@@ -242,6 +244,27 @@ def test_settings_from_env_vars_and_code(
             SpanAttributes.LLM_INVOCATION_PARAMETERS,
             "{api_key: '123'}",
             "{api_key: '123'}",
+        ),
+        (
+            "hide_llm_tools",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}",
+            "{'type': 'function', 'function': {'name': 'get_weather'}}",
+            None,
+        ),
+        (
+            "hide_llm_tools",
+            None,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}",
+            "{'type': 'function', 'function': {'name': 'get_weather'}}",
+            "{'type': 'function', 'function': {'name': 'get_weather'}}",
+        ),
+        (
+            "hide_inputs",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}",
+            "{'type': 'function', 'function': {'name': 'get_weather'}}",
+            None,
         ),
     ],
 )

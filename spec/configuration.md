@@ -9,7 +9,8 @@ The possible settings are:
 | Environment Variable Name                    | Effect                                                                                                                         | Type | Default |
 |----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|------|---------|
 | OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS | Hides LLM invocation parameters (independent of input/output hiding)                                                           | bool | False   |
-| OPENINFERENCE_HIDE_INPUTS                    | Hides input.value and all input messages (input messages are hidden if either HIDE_INPUTS OR HIDE_INPUT_MESSAGES is true)      | bool | False   |
+| OPENINFERENCE_HIDE_LLM_TOOLS                 | Hides the tool definitions advertised to the LLM (`llm.tools.*`); also hidden when HIDE_INPUTS is true                         | bool | False   |
+| OPENINFERENCE_HIDE_INPUTS                    | Hides input.value, all input messages, and the tool definitions advertised to the LLM (input messages are hidden if either HIDE_INPUTS OR HIDE_INPUT_MESSAGES is true) | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUTS                   | Hides output.value and all output messages (output messages are hidden if either HIDE_OUTPUTS OR HIDE_OUTPUT_MESSAGES is true) | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_MESSAGES            | Hides all input messages (independent of HIDE_INPUTS)                                                                          | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_MESSAGES           | Hides all output messages (independent of HIDE_OUTPUTS)                                                                        | bool | False   |
@@ -45,6 +46,7 @@ If you are working in Python, and want to set up a configuration different than 
 from openinference.instrumentation import TraceConfig
 config = TraceConfig(
     hide_llm_invocation_parameters=...,
+    hide_llm_tools=...,  # Hides tool definitions advertised to the LLM
     hide_inputs=...,
     hide_outputs=...,
     hide_input_messages=...,

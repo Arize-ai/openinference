@@ -1,5 +1,7 @@
 import type { TraceConfig, TraceConfigFlag, TraceConfigKey } from "./types";
 
+/** Hides the tool definitions advertised to the LLM */
+export const OPENINFERENCE_HIDE_LLM_TOOLS = "OPENINFERENCE_HIDE_LLM_TOOLS";
 /** Hides input value & messages */
 export const OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS";
 /** Hides output value & messages */
@@ -21,6 +23,7 @@ export const OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE
 /** Hides LLM prompts */
 export const OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS";
 
+export const DEFAULT_HIDE_LLM_TOOLS = false;
 export const DEFAULT_HIDE_INPUTS = false;
 export const DEFAULT_HIDE_OUTPUTS = false;
 
@@ -44,6 +47,11 @@ export const REDACTED_VALUE = "__REDACTED__";
  * Used to generate a full TraceConfig object with the correct types and default values
  */
 export const traceConfigMetadata: Readonly<Record<TraceConfigKey, TraceConfigFlag>> = {
+  hideLLMTools: {
+    default: DEFAULT_HIDE_LLM_TOOLS,
+    envKey: OPENINFERENCE_HIDE_LLM_TOOLS,
+    type: "boolean",
+  },
   hideInputs: {
     default: DEFAULT_HIDE_INPUTS,
     envKey: OPENINFERENCE_HIDE_INPUTS,
@@ -97,6 +105,7 @@ export const traceConfigMetadata: Readonly<Record<TraceConfigKey, TraceConfigFla
 };
 
 export const DefaultTraceConfig: TraceConfig = {
+  hideLLMTools: DEFAULT_HIDE_LLM_TOOLS,
   hideInputs: DEFAULT_HIDE_INPUTS,
   hideOutputs: DEFAULT_HIDE_OUTPUTS,
   hideInputMessages: DEFAULT_HIDE_INPUT_MESSAGES,
