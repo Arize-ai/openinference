@@ -38,6 +38,7 @@ from openinference.instrumentation.config import (
     OPENINFERENCE_HIDE_INPUT_MESSAGES,
     OPENINFERENCE_HIDE_INPUT_TEXT,
     OPENINFERENCE_HIDE_INPUTS,
+    OPENINFERENCE_HIDE_LLM_TOOLS,
     OPENINFERENCE_HIDE_OUTPUT_MESSAGES,
     OPENINFERENCE_HIDE_OUTPUT_TEXT,
     OPENINFERENCE_HIDE_OUTPUTS,
@@ -138,6 +139,7 @@ def test_attribute_priority(k: str, in_memory_span_exporter: InMemorySpanExporte
 @pytest.mark.parametrize("hide_embeddings_text", [False, True])
 @pytest.mark.parametrize("hide_prompts", [False, True])
 @pytest.mark.parametrize("hide_choices", [False, True])
+@pytest.mark.parametrize("hide_llm_tools", [False, True])
 @pytest.mark.parametrize("base64_image_max_length", [10_000])
 def test_settings_from_env_vars_and_code(
     hide_inputs: bool,
@@ -151,6 +153,7 @@ def test_settings_from_env_vars_and_code(
     hide_embeddings_text: bool,
     hide_prompts: bool,
     hide_choices: bool,
+    hide_llm_tools: bool,
     base64_image_max_length: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -166,6 +169,7 @@ def test_settings_from_env_vars_and_code(
     monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_TEXT, str(hide_output_text))
     monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS, str(hide_embeddings_vectors))
     monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDINGS_TEXT, str(hide_embeddings_text))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_LLM_TOOLS, str(hide_llm_tools))
     monkeypatch.setenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, str(base64_image_max_length))
 
     config = TraceConfig()
@@ -182,6 +186,7 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_embeddings_text is parse_bool_from_env(OPENINFERENCE_HIDE_EMBEDDINGS_TEXT)
     assert config.hide_prompts is parse_bool_from_env(OPENINFERENCE_HIDE_PROMPTS)
     assert config.hide_choices is parse_bool_from_env(OPENINFERENCE_HIDE_CHOICES)
+    assert config.hide_llm_tools is parse_bool_from_env(OPENINFERENCE_HIDE_LLM_TOOLS)
     assert config.base64_image_max_length == int(
         os.getenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, default=-1)
     )
@@ -200,6 +205,7 @@ def test_settings_from_env_vars_and_code(
     new_hide_embeddings_text = not hide_embeddings_text
     new_hide_prompts = not hide_prompts
     new_hide_choices = not hide_choices
+    new_hide_llm_tools = not hide_llm_tools
     config = TraceConfig(
         hide_inputs=new_hide_inputs,
         hide_outputs=new_hide_outputs,
@@ -212,6 +218,7 @@ def test_settings_from_env_vars_and_code(
         hide_embeddings_text=new_hide_embeddings_text,
         hide_prompts=new_hide_prompts,
         hide_choices=new_hide_choices,
+        hide_llm_tools=new_hide_llm_tools,
         base64_image_max_length=new_base64_image_max_length,
     )
     assert config.hide_inputs is new_hide_inputs
@@ -225,6 +232,7 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_embeddings_text is new_hide_embeddings_text
     assert config.hide_prompts is new_hide_prompts
     assert config.hide_choices is new_hide_choices
+    assert config.hide_llm_tools is new_hide_llm_tools
     assert config.base64_image_max_length == new_base64_image_max_length
 
 
