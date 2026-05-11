@@ -38,7 +38,11 @@ from .helpers import safe_json_dumps
 _DATA_URL_PATTERN = re.compile(r"^data:(?P<mime>[^;]+);base64,(?P<content>.+)$")
 
 
-def get_genai_attributes(attributes: Mapping[str, AttributeValue]) -> Dict[str, AttributeValue]:
+def get_genai_attributes(
+    attributes: Optional[Mapping[str, AttributeValue]],
+) -> Dict[str, AttributeValue]:
+    if not attributes:
+        return {}
     output_messages = _get_output_messages(attributes)
     return {
         **get_genai_base_attributes(attributes),
@@ -124,6 +128,8 @@ def get_genai_message_attributes(
         _output_messages if _output_messages is not None else _get_output_messages(attributes)
     )
 
+    # `any`-typed OTel GenAI attrs are JSON-string-encoded on spans per semconv v1.40.0;
+    # span attribute values can't be nested structures.
     if input_messages:
         genai_attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES] = safe_json_dumps(input_messages)
     if output_messages:
@@ -137,12 +143,29 @@ def get_genai_response_attributes(
     *,
     _output_messages: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, AttributeValue]:
+    genai_attributes: Dict[str, AttributeValue] = {}
+
     finish_reasons = _get_response_finish_reasons(attributes, _output_messages=_output_messages)
-    if not finish_reasons:
-        return {}
-    return {
-        GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS: tuple(finish_reasons),
-    }
+    if finish_reasons:
+        genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS] = tuple(finish_reasons)
+
+    if _get_oi_span_kind(attributes) == OpenInferenceSpanKindValues.LLM.value:
+        if response_payload := _get_response_payload(attributes):
+            if response_id := _as_optional_str(response_payload.get("id")):
+                genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_ID] = response_id
+            if response_model := _as_optional_str(response_payload.get("model")):
+                genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_MODEL] = response_model
+
+    return genai_attributes
+
+
+def _get_response_payload(
+    attributes: Mapping[str, AttributeValue],
+) -> Optional[Mapping[str, Any]]:
+    if attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) != OpenInferenceMimeTypeValues.JSON.value:
+        return None
+    parsed = _maybe_parse_json(attributes.get(SpanAttributes.OUTPUT_VALUE))
+    return parsed if isinstance(parsed, Mapping) else None
 
 
 def get_genai_tool_attributes(

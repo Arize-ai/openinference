@@ -1,7 +1,9 @@
 import json
+from pathlib import Path
 from typing import Any, Dict, Mapping
 
 import pytest
+from jsonschema import Draft202012Validator
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
@@ -31,11 +33,30 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
+# OTel GenAI semconv JSON schemas (v1.40.0) vendored at tests/fixtures/genai_schemas/.
+# Source: https://github.com/open-telemetry/semantic-conventions/tree/v1.40.0/docs/gen-ai
+# Refresh from ~/.cache/oi-conformance/semconv/<version>/docs/gen-ai/ when bumping.
+_SCHEMA_DIR = Path(__file__).parent / "fixtures" / "genai_schemas"
+_GENAI_SCHEMA_VALIDATORS: Dict[str, Draft202012Validator] = {
+    GenAIAttributes.GEN_AI_INPUT_MESSAGES: Draft202012Validator(
+        json.loads((_SCHEMA_DIR / "gen-ai-input-messages.json").read_text())
+    ),
+    GenAIAttributes.GEN_AI_OUTPUT_MESSAGES: Draft202012Validator(
+        json.loads((_SCHEMA_DIR / "gen-ai-output-messages.json").read_text())
+    ),
+}
+
 
 def _load_json_attribute(attributes: Mapping[str, Any], key: str) -> Any:
     value = attributes[key]
     assert isinstance(value, str)
-    return json.loads(value)
+    parsed = json.loads(value)
+    if validator := _GENAI_SCHEMA_VALIDATORS.get(key):
+        errors = sorted(validator.iter_errors(parsed), key=lambda e: list(e.absolute_path))
+        assert not errors, f"{key} does not conform to OTel GenAI semconv schema:\n" + "\n".join(
+            f"  at {list(e.absolute_path)}: {e.message}" for e in errors
+        )
+    return parsed
 
 
 @pytest.mark.parametrize(
@@ -480,3 +501,57 @@ def test_oi_tracer_propagates_context_attributes_to_genai_semconv(
     attributes = dict(exported_span.attributes or {})
     assert attributes[SpanAttributes.SESSION_ID] == "session-abc"
     assert attributes[GenAIAttributes.GEN_AI_CONVERSATION_ID] == "session-abc"
+
+
+def test_get_genai_attributes_extracts_response_id_and_model_from_output_value() -> None:
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+        SpanAttributes.OUTPUT_VALUE: json.dumps(
+            {
+                "id": "chatcmpl-123",
+                "model": "gpt-4o-mini-2024-07-18",
+                "choices": [{"finish_reason": "stop"}],
+            }
+        ),
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_ID] == "chatcmpl-123"
+    assert genai_attributes[GenAIAttributes.GEN_AI_RESPONSE_MODEL] == "gpt-4o-mini-2024-07-18"
+
+
+def test_get_genai_attributes_skips_response_extraction_for_non_llm_spans() -> None:
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL.value,
+        SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
+        SpanAttributes.OUTPUT_VALUE: json.dumps({"id": "tool-123", "model": "should-not-leak"}),
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert GenAIAttributes.GEN_AI_RESPONSE_ID not in genai_attributes
+    assert GenAIAttributes.GEN_AI_RESPONSE_MODEL not in genai_attributes
+
+
+def test_get_genai_attributes_keeps_system_role_messages_in_input_messages() -> None:
+    """System role messages are part of the chat history and stay in
+    gen_ai.input.messages. The schema admits "system" as a valid role."""
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        **get_llm_attributes(
+            input_messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hello"},
+            ],
+        ),
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_INPUT_MESSAGES) == [
+        {"role": "system", "parts": [{"type": "text", "content": "You are a helpful assistant."}]},
+        {"role": "user", "parts": [{"type": "text", "content": "Hello"}]},
+    ]
+    assert GenAIAttributes.GEN_AI_SYSTEM_INSTRUCTIONS not in genai_attributes

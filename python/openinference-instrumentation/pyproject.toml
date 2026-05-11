@@ -68,11 +68,15 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]
+norecursedirs = [
+  "scripts",
+]
 
 [tool.mypy]
 strict = true
 explicit_package_bases = true
 exclude = [
+  "scripts/*",
   "src/openinference/instrumentation/agentspec/*",
   "src/openinference/instrumentation/agno/*",
   "src/openinference/instrumentation/anthropic/*",
