@@ -391,6 +391,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         span.set_attributes(_get_attributes_from_response_output(result))
 
     _set_token_counts_from_usage(span, result)
+    _set_cost_from_response(span, result)
     _set_span_status(span, result)
 
 
@@ -484,6 +485,36 @@ def _set_token_counts_from_usage(span: trace_api.Span, result: Any) -> None:
             span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
         )
 
+    _set_cost_from_usage(span, usage)
+
+
+def _set_cost_from_usage(span: trace_api.Span, usage: Any) -> None:
+    """
+    Sets cost attribute on a span from usage object (streaming responses).
+    """
+    if not usage:
+        return
+
+    cost = _get_value(usage, "cost")
+    if cost is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_COST_TOTAL, cost)
+
+
+def _set_cost_from_response(span: trace_api.Span, result: Any) -> None:
+    """
+    Sets cost attribute on a span from response's _hidden_params (non-streaming responses).
+    """
+    hidden_params = _get_value(result, "_hidden_params")
+    if not hidden_params:
+        return
+
+    if isinstance(hidden_params, dict):
+        response_cost = hidden_params.get("response_cost")
+    else:
+        response_cost = _get_value(hidden_params, "response_cost")
+    if response_cost is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_COST_TOTAL, response_cost)
+
 
 def _set_span_status(span: trace_api.Span, result: Any) -> None:
     """
@@ -499,6 +530,49 @@ def _set_span_status(span: trace_api.Span, result: Any) -> None:
         span.set_status(trace_api.Status(trace_api.StatusCode.OK))
 
 
+def _accumulate_tool_calls(
+    tool_calls: Any,
+    accumulated: Dict[int, Dict[str, Any]],
+) -> None:
+    if not tool_calls:
+        return
+
+    for tool_call in tool_calls:
+        tool_call_index = getattr(tool_call, "index", None)
+        if tool_call_index is None:
+            continue
+
+        if tool_call_index not in accumulated:
+            accumulated[tool_call_index] = {
+                "id": None,
+                "type": "function",
+                "function": {"name": None, "arguments": ""},
+            }
+
+        tool_call_entry = accumulated[tool_call_index]
+
+        if tool_call_id := getattr(tool_call, "id", None):
+            tool_call_entry["id"] = tool_call_id
+
+        if function := getattr(tool_call, "function", None):
+            if name := getattr(function, "name", None):
+                tool_call_entry["function"]["name"] = name
+            if arguments := getattr(function, "arguments", None):
+                tool_call_entry["function"]["arguments"] += arguments
+
+
+def _build_message_from_accumulated(msg: Dict[str, Any]) -> Dict[str, Any]:
+    message: Dict[str, Any] = {
+        "role": msg.get("role"),
+        "content": msg.get("content"),
+    }
+
+    if tool_calls_dict := msg.get("tool_calls"):
+        message["tool_calls"] = [tool_calls_dict[idx] for idx in sorted(tool_calls_dict.keys())]
+
+    return message
+
+
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
     output_messages: Dict[int, Dict[str, Any]] = {}
     usage_stats = None
@@ -508,16 +582,19 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             if token.choices:
                 for choice in token.choices:
                     idx = choice.index
-                    if idx not in output_messages:
-                        output_messages[idx] = {"role": None, "content": ""}
+                    entry = output_messages.get(idx)
+                    if entry is None:
+                        entry = output_messages[idx] = {"role": None, "content": ""}
                     delta = choice.delta
                     if delta:
                         role = getattr(delta, "role", None)
                         content = getattr(delta, "content", None)
-                        if role is not None and output_messages[idx]["role"] is None:
-                            output_messages[idx]["role"] = role
+                        if role is not None and entry["role"] is None:
+                            entry["role"] = role
                         if content is not None:
-                            output_messages[idx]["content"] += content
+                            entry["content"] += content
+                        if tool_calls := getattr(delta, "tool_calls", None):
+                            _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)
             if usage_attrs:
                 usage_stats = usage_attrs
@@ -525,7 +602,7 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
         for idx, msg in output_messages.items():
-            message = {"role": msg.get("role"), "content": msg.get("content")}
+            message = _build_message_from_accumulated(msg)
             for key, value in _get_attributes_from_message_param(message):
                 _set_span_attribute(
                     span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
@@ -550,16 +627,19 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             if token.choices:
                 for choice in token.choices:
                     idx = choice.index
-                    if idx not in output_messages:
-                        output_messages[idx] = {"role": None, "content": ""}
+                    entry = output_messages.get(idx)
+                    if entry is None:
+                        entry = output_messages[idx] = {"role": None, "content": ""}
                     delta = choice.delta
                     if delta:
                         role = getattr(delta, "role", None)
                         content = getattr(delta, "content", None)
-                        if role is not None and output_messages[idx]["role"] is None:
-                            output_messages[idx]["role"] = role
+                        if role is not None and entry["role"] is None:
+                            entry["role"] = role
                         if content is not None:
-                            output_messages[idx]["content"] += content
+                            entry["content"] += content
+                        if tool_calls := getattr(delta, "tool_calls", None):
+                            _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)
             if usage_attrs:
                 usage_stats = usage_attrs
@@ -567,7 +647,7 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
         for idx, msg in output_messages.items():
-            message = {"role": msg.get("role"), "content": msg.get("content")}
+            message = _build_message_from_accumulated(msg)
             for key, value in _get_attributes_from_message_param(message):
                 _set_span_attribute(
                     span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
