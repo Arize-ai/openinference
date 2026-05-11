@@ -10,6 +10,14 @@ from opentelemetry.util.types import AttributeValue
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
 
+def detach_context_tokens(initial_context: Any, current_context: Any, *tokens: Any) -> None:
+    """Detach context tokens only from the thread or task that attached them."""
+    if initial_context is current_context:
+        for token in tokens:
+            if token is not None:
+                context_api.detach(token)
+
+
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
         return
