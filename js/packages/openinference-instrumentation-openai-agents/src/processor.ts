@@ -19,6 +19,7 @@ import {
   getInputAttributes,
   getOutputAttributes,
   getToolAttributes,
+  isObjectWithStringKeys,
   OITracer,
   safelyJSONParse,
   safelyJSONStringify,
@@ -36,17 +37,6 @@ import {
 // match that signature and narrow `span.spanData` to `SpanData` below.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySDKSpan = SDKSpan<any>;
-
-/**
- * Safely coerces an unknown value to `Record<string, unknown>`. Returns an
- * empty object for non-object values (strings, arrays, null, etc.).
- */
-function asRecord(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
-}
 
 export interface OpenInferenceTracingProcessorConfig {
   /**
@@ -477,13 +467,12 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    */
   private addFunctionAttributes(data: FunctionSpanData, attributes: Attributes): void {
     if (data.name) {
+      const parsedInput = typeof data.input === "string" ? safelyJSONParse(data.input) : data.input;
       Object.assign(
         attributes,
         getToolAttributes({
           name: data.name,
-          parameters: asRecord(
-            typeof data.input === "string" ? safelyJSONParse(data.input) : data.input,
-          ),
+          parameters: isObjectWithStringKeys(parsedInput) ? parsedInput : {},
         }),
       );
     }
