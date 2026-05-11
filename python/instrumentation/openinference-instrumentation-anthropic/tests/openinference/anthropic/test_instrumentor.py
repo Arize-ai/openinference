@@ -451,11 +451,13 @@ def test_anthropic_instrumentation_messages(
 ) -> None:
     client = Anthropic(api_key="sk-ant-fake")
     input_message = "What's the capital of France?"
+    system_prompt = "You are a helpful geography assistant."
 
     invocation_params = {"max_tokens": 1024}
 
     client.messages.create(
         max_tokens=1024,
+        system=system_prompt,
         messages=[
             {
                 "role": "user",
@@ -473,8 +475,10 @@ def test_anthropic_instrumentation_messages(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
-    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
-    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == system_prompt
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
     assert isinstance(
         msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
     )
@@ -1149,9 +1153,14 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
             role="user",
         )
     ]
+    system_prompt = [
+        TextBlockParam(type="text", text="You are an expert image analyst."),
+        TextBlockParam(type="text", text="Always answer concisely."),
+    ]
     stream = client.messages.create(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1024,
+        system=system_prompt,
         messages=input_messages,
         stream=True,
     )
@@ -1163,14 +1172,40 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     assert attributes.pop(LLM_MODEL_NAME) == "claude-3-5-sonnet-20240620"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
-    assert isinstance(attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
-    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    # System (list of text blocks) is exposed as a synthetic system message at index 0,
+    # with each block indexed under MESSAGE_CONTENTS.
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "You are an expert image analyst."
+    )
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}")
+        == "Always answer concisely."
+    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"),
+        str,
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
         == "image"
     )
     assert attributes.pop(
-        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
     ).startswith("data:image/png;base64")
     assert isinstance(attributes.pop(f"{LLM_INVOCATION_PARAMETERS}"), str)
     assert attributes.pop(f"{INPUT_MIME_TYPE}") == "application/json"
@@ -1257,8 +1292,15 @@ def test_anthropic_instrumentation_image_input_messages(
     assert attributes.pop(LLM_MODEL_NAME) == "claude-3-5-sonnet-20240620"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
-    assert isinstance(attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"),
+        str,
+    )
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
         == "image"
@@ -2228,6 +2270,7 @@ MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
