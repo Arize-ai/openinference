@@ -24,10 +24,12 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import (
     Message,
     TextMessageContent,
+    Tool,
     ToolCall,
     ToolCallFunction,
     get_llm_attributes,
     get_llm_output_message_attributes,
+    get_llm_tool_attributes,
     get_output_attributes,
     safe_json_dumps,
 )
@@ -76,32 +78,33 @@ def _set_model_name_attributes(
         - Meta: Uses "generation" field
         - Amazon Nova: Uses "output.message.content" field
     """
-    vendor = ""
     content = ""
-    if model_id := kwargs.get("modelId"):
+    model_id = kwargs.get("modelId")
+    if model_id:
         _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
-        if isinstance(model_id, str):
+    if "amazon.nova" in str(model_id):
+        message = response_body.get("output", {}).get("message")
+        if message:
+            span.set_attributes(get_output_attributes(message))
+        output_messages = _build_nova_output_messages(response_body)
+        if output_messages:
+            span.set_attributes(get_llm_output_message_attributes(output_messages))
+    else:
+        vendor = ""
+        if model_id and isinstance(model_id, str):
             (vendor, *_) = model_id.split(".")
-    if vendor == "amazon":
-        if _is_nova_response(response_body):
-            message = response_body.get("output", {}).get("message")
-            if message:
-                span.set_attributes(get_output_attributes(message))
-            output_messages = _build_nova_output_messages(response_body)
-            if output_messages:
-                span.set_attributes(get_llm_output_message_attributes(output_messages))
-        else:
+        if vendor == "amazon":
             # Titan format: {results: [{outputText: "..."}]}
             results = response_body.get("results", [])
             content = results[0].get("outputText", "") if results else ""
-    if vendor == "ai21":
-        content = str(response_body.get("completions"))
-    elif vendor == "anthropic":
-        content = str(response_body.get("completion"))
-    elif vendor == "cohere":
-        content = str(response_body.get("generations"))
-    elif vendor == "meta":
-        content = str(response_body.get("generation"))
+        elif vendor == "ai21":
+            content = str(response_body.get("completions"))
+        elif vendor == "anthropic":
+            content = str(response_body.get("completion"))
+        elif vendor == "cohere":
+            content = str(response_body.get("generations"))
+        elif vendor == "meta":
+            content = str(response_body.get("generation"))
     if content:
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
 
@@ -154,21 +157,22 @@ def set_input_attributes(span: Span, request_body: Dict[str, Any], kwargs: Dict[
         request_body: The request body containing prompt and other parameters
         kwargs:  request input params
     """
-    vendor = ""
-    if model_id := kwargs.get("modelId"):
+    model_id = kwargs.get("modelId")
+    if model_id:
         _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
-        if isinstance(model_id, str):
-            (vendor, *_) = model_id.split(".")
 
     span.set_attribute(SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AWS.value)
 
-    if vendor == "amazon" and _is_nova_request(request_body):
+    if "amazon.nova" in str(model_id):
         input_value = safe_json_dumps(request_body.get("messages", []))
         span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value)
         invocation_parameters = safe_json_dumps(request_body.get("inferenceConfig", {}))
         input_messages = _build_nova_input_messages(request_body)
         if input_messages:
             span.set_attributes(get_llm_attributes(input_messages=input_messages))
+        tools = _build_nova_tools(request_body)
+        if tools:
+            span.set_attributes(get_llm_tool_attributes(tools))
     else:
         # All other models (anthropic completion style, cohere, meta, ai21):
         # input is the prompt field, remaining body fields are invocation params
@@ -201,7 +205,7 @@ def set_response_attributes(
     _set_model_name_attributes(span, response_body, kwargs)
     if metadata := response.get("ResponseMetadata"):
         _set_token_count_attributes(span, metadata)
-    if _is_nova_response(response_body):
+    if "amazon.nova" in str(kwargs.get("modelId")):
         _set_nova_body_token_attributes(span, response_body)
 
 
@@ -238,44 +242,19 @@ def is_claude_message_api(model_id: str) -> bool:
     )
 
 
-def _is_nova_request(request_body: Dict[str, Any]) -> bool:
-    """Detect Amazon Nova request format: {messages: [{role, content: [...]}], ...}."""
-    messages = request_body.get("messages")
-    return (
-        isinstance(messages, list)
-        and len(messages) > 0
-        and isinstance(messages[0], dict)
-        and "role" in messages[0]
-        and "content" in messages[0]
-        and isinstance(messages[0]["content"], list)
-    )
-
-
-def _is_nova_response(response_body: Dict[str, Any]) -> bool:
-    """Detect Amazon Nova response format: {output: {message: {...}}, usage: {...}}."""
-    output = response_body.get("output")
-    return bool(output and isinstance(output, dict) and output.get("message"))
-
-
-def _extract_nova_input(request_body: Dict[str, Any]) -> str:
-    """Extract the last user message text from a Nova request body."""
-    messages = request_body.get("messages", [])
-    for msg in reversed(messages):
-        if isinstance(msg, dict) and msg.get("role") == "user":
-            for block in msg.get("content", []):
-                if isinstance(block, dict) and (text := block.get("text")):
-                    return str(text)
-    return ""
-
-
-def _extract_nova_output(response_body: Dict[str, Any]) -> str:
-    """Extract assistant text from a Nova response body (text blocks only)."""
-    content_blocks = response_body.get("output", {}).get("message", {}).get("content", [])
-    return "\n".join(
-        block.get("text", "")
-        for block in content_blocks
-        if isinstance(block, dict) and block.get("text")
-    )
+def _build_nova_tools(request_body: Dict[str, Any]) -> List[Tool]:
+    """Extract Nova tool definitions from a request body's toolConfig."""
+    tool_config = request_body.get("toolConfig")
+    if not isinstance(tool_config, dict):
+        return []
+    raw_tools = tool_config.get("tools")
+    if not isinstance(raw_tools, list):
+        return []
+    tools: List[Tool] = []
+    for tool in raw_tools:
+        if isinstance(tool, dict) and isinstance(spec := tool.get("toolSpec"), dict):
+            tools.append(Tool(json_schema=dict(spec)))
+    return tools
 
 
 def _build_nova_input_messages(request_body: Dict[str, Any]) -> List[Message]:
@@ -365,7 +344,7 @@ def _set_nova_body_token_attributes(span: Span, response_body: Dict[str, Any]) -
     usage = response_body.get("usage", {})
     if not isinstance(usage, dict):
         return
-    if (v := usage.get("cacheReadInputTokens")) is not None:
+    if (v := usage.get("cacheReadInputTokenCount")) is not None:
         _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(v))
-    if (v := usage.get("cacheWriteInputTokens")) is not None:
+    if (v := usage.get("cacheWriteInputTokenCount")) is not None:
         _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, int(v))

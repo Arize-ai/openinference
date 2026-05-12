@@ -7,8 +7,10 @@ import json
 
 import boto3
 import pytest
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation.bedrock._wrappers import _NovaStreamCallback
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -62,6 +64,8 @@ class TestNovaInvokeModel:
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 0
         assert isinstance(
             invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str
         )
@@ -122,6 +126,8 @@ class TestNovaInvokeModel:
             invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str
         )
         assert json.loads(invocation_parameters_str) == {"maxTokens": 128, "temperature": 0.5}
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 0
         for k in list(attributes.keys()):
             if k.startswith("llm."):
                 attributes.pop(k)
@@ -209,6 +215,16 @@ class TestNovaInvokeModel:
             str(attributes.pop(f"{tool_call_prefix}.function.arguments") or "{}")
         )
         assert "location" in tool_args
+
+        # toolConfig is surfaced as llm.tools.<i>.tool.json_schema so downstream
+        # consumers can see the full tool definition, not just the invocation.
+        tool_schema_str = attributes.pop("llm.tools.0.tool.json_schema")
+        assert isinstance(tool_schema_str, str)
+        tool_schema = json.loads(tool_schema_str)
+        assert tool_schema["name"] == tool_name
+        assert "inputSchema" in tool_schema
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 0
         for k in list(attributes.keys()):
             if k.startswith("llm."):
                 attributes.pop(k)
@@ -306,10 +322,19 @@ class TestNovaInvokeModelWithResponseStream:
         assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
         output_value = attributes.pop(OUTPUT_VALUE)
         assert isinstance(output_value, str) and len(output_value) > 0
-        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
-        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
-        # Nova streaming metadata does not include totalTokens (only inputTokens/outputTokens)
-        attributes.pop(LLM_TOKEN_COUNT_TOTAL, None)
+        output_message = json.loads(output_value)
+        assert output_message["role"] == "assistant"
+        assert any("text" in block for block in output_message["content"])
+        assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
+        prompt_tokens = attributes.pop(LLM_TOKEN_COUNT_PROMPT)
+        completion_tokens = attributes.pop(LLM_TOKEN_COUNT_COMPLETION)
+        assert isinstance(prompt_tokens, int)
+        assert isinstance(completion_tokens, int)
+        # Nova streaming metadata omits totalTokens; the callback derives it from
+        # inputTokens + outputTokens so consumers don't have to.
+        assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == prompt_tokens + completion_tokens
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 0
         invocation_parameters_str = attributes.pop(LLM_INVOCATION_PARAMETERS)
         assert isinstance(invocation_parameters_str, str)
         assert json.loads(invocation_parameters_str) == inference_config
@@ -320,6 +345,152 @@ class TestNovaInvokeModelWithResponseStream:
         assert attributes == {}
 
 
+class TestNovaStreamCallbackUnit:
+    """Unit tests for ``_NovaStreamCallback`` that don't need a recorded cassette.
+
+    Drive the callback with synthetic event payloads so we can exercise the
+    tool-use streaming path (``contentBlockStart`` / ``contentBlockDelta`` with
+    ``toolUse``), which the recorded text-only cassette can't cover, plus the
+    derived ``totalTokens`` fallback for ``metadata.usage`` payloads that omit it.
+    """
+
+    @staticmethod
+    def _chunk(payload: dict) -> dict:  # type: ignore[type-arg]
+        return {"chunk": {"bytes": json.dumps(payload).encode("utf-8")}}
+
+    def test_streaming_tool_use_assembles_call_and_derives_total(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        span = tracer_provider.get_tracer(__name__).start_span("nova.stream.test")
+        request = {
+            "modelId": "us.amazon.nova-pro-v1:0",
+            "body": {
+                "messages": [{"role": "user", "content": [{"text": "weather in NYC"}]}],
+                "inferenceConfig": {"maxTokens": 128, "temperature": 0.0},
+                "toolConfig": {
+                    "tools": [
+                        {
+                            "toolSpec": {
+                                "name": "get_weather",
+                                "description": "weather",
+                                "inputSchema": {
+                                    "json": {
+                                        "type": "object",
+                                        "properties": {"location": {"type": "string"}},
+                                        "required": ["location"],
+                                    }
+                                },
+                            }
+                        }
+                    ]
+                },
+            },
+        }
+        callback = _NovaStreamCallback(span, request)
+        # Optional preface text block before the tool use.
+        callback(
+            self._chunk(
+                {"contentBlockDelta": {"delta": {"text": "Looking up "}, "contentBlockIndex": 0}}
+            )
+        )
+        callback(
+            self._chunk(
+                {"contentBlockDelta": {"delta": {"text": "weather."}, "contentBlockIndex": 0}}
+            )
+        )
+        callback(self._chunk({"contentBlockStop": {"contentBlockIndex": 0}}))
+        # Tool-use block streams in fragments.
+        callback(
+            self._chunk(
+                {
+                    "contentBlockStart": {
+                        "contentBlockIndex": 1,
+                        "start": {"toolUse": {"toolUseId": "tooluse_abc", "name": "get_weather"}},
+                    }
+                }
+            )
+        )
+        callback(
+            self._chunk(
+                {
+                    "contentBlockDelta": {
+                        "contentBlockIndex": 1,
+                        "delta": {"toolUse": {"input": '{"location":'}},
+                    }
+                }
+            )
+        )
+        callback(
+            self._chunk(
+                {
+                    "contentBlockDelta": {
+                        "contentBlockIndex": 1,
+                        "delta": {"toolUse": {"input": '"Seattle"}'}},
+                    }
+                }
+            )
+        )
+        callback(self._chunk({"contentBlockStop": {"contentBlockIndex": 1}}))
+        # Nova streaming omits totalTokens; the callback must derive it.
+        callback(
+            self._chunk(
+                {
+                    "metadata": {
+                        "usage": {
+                            "inputTokens": 30,
+                            "outputTokens": 12,
+                            "cacheReadInputTokenCount": 5,
+                            "cacheWriteInputTokenCount": 7,
+                        }
+                    }
+                }
+            )
+        )
+        callback(StopIteration())
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert spans, "stream callback did not end the span"
+        span_data = spans[-1]
+        attributes = dict(span_data.attributes or {})
+
+        assert attributes[LLM_TOKEN_COUNT_PROMPT] == 30
+        assert attributes[LLM_TOKEN_COUNT_COMPLETION] == 12
+        assert attributes[LLM_TOKEN_COUNT_TOTAL] == 42
+        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 5
+        assert attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 7
+
+        tool_call_prefix = "llm.output_messages.0.message.tool_calls.0.tool_call"
+        assert attributes[f"{tool_call_prefix}.id"] == "tooluse_abc"
+        assert attributes[f"{tool_call_prefix}.function.name"] == "get_weather"
+        tool_args_raw = attributes[f"{tool_call_prefix}.function.arguments"]
+        assert isinstance(tool_args_raw, str)
+        assert json.loads(tool_args_raw) == {"location": "Seattle"}
+
+        # Tool schema is surfaced on the input side.
+        tool_schema_raw = attributes["llm.tools.0.tool.json_schema"]
+        assert isinstance(tool_schema_raw, str)
+        tool_schema = json.loads(tool_schema_raw)
+        assert tool_schema["name"] == "get_weather"
+
+        output_value = attributes[OUTPUT_VALUE]
+        assert isinstance(output_value, str)
+        output_message = json.loads(output_value)
+        assert output_message["role"] == "assistant"
+        content_blocks = output_message["content"]
+        assert {"text": "Looking up weather."} in content_blocks
+        tool_use_block = next(b for b in content_blocks if "toolUse" in b)
+        assert tool_use_block["toolUse"]["toolUseId"] == "tooluse_abc"
+        assert tool_use_block["toolUse"]["name"] == "get_weather"
+        assert tool_use_block["toolUse"]["input"] == {"location": "Seattle"}
+        assert attributes[OUTPUT_MIME_TYPE] == "application/json"
+        assert (
+            attributes["llm.output_messages.0.message.contents.0.message_content.text"]
+            == "Looking up weather."
+        )
+
+
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
@@ -327,6 +498,10 @@ LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE

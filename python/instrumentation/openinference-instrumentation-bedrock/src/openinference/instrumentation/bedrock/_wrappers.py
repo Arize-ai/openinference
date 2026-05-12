@@ -15,6 +15,9 @@ from typing_extensions import override
 from openinference.instrumentation import (
     get_attributes_from_context,
     get_llm_attributes,
+    get_llm_output_message_attributes,
+    get_llm_tool_attributes,
+    get_output_attributes,
     safe_json_dumps,
 )
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
@@ -23,6 +26,8 @@ from openinference.instrumentation.bedrock._converse_attributes import (
 )
 from openinference.instrumentation.bedrock.utils._extract_invoke_model_attributes import (
     _build_nova_input_messages,
+    _build_nova_output_messages,
+    _build_nova_tools,
 )
 
 if TYPE_CHECKING:
@@ -50,16 +55,27 @@ class _NovaStreamCallback:
     """
     Processes Amazon Nova invoke_model_with_response_stream events.
 
-    Nova streaming uses the same chunk envelope as Anthropic ({chunk: {bytes: ...}})
-    but a different payload schema:
-      - contentBlockDelta: {delta: {text: "..."}, contentBlockIndex: N}
-      - messageStop: {stopReason: "..."}
-      - metadata: {usage: {inputTokens: N, outputTokens: M, totalTokens: P}}
+    Nova streaming uses the same chunk envelope as Anthropic (``{chunk: {bytes: ...}}``)
+    but a different payload schema. The events we care about are:
+      - ``contentBlockStart``: ``{start: {toolUse: {toolUseId, name}}, contentBlockIndex: N}``
+      - ``contentBlockDelta``: ``{delta: {text: "..."} | {toolUse: {input: "<partial json>"}},
+        contentBlockIndex: N}``
+      - ``contentBlockStop``: ``{contentBlockIndex: N}``
+      - ``messageStop``: ``{stopReason: "..."}``
+      - ``metadata``: ``{usage: {inputTokens, outputTokens, cacheReadInputTokenCount,
+        cacheWriteInputTokenCount}, metrics: {...}}``
+
+    Unlike the non-streaming response, Nova streaming usage does NOT include
+    ``totalTokens``; we compute it from input + output when both are present.
     """
 
     def __init__(self, span: Span, request: Mapping[str, Any]) -> None:
         self._span = span
+        # Track per-content-block state so streamed tool_use input fragments can be
+        # reassembled in arrival order and not interleaved with text deltas.
         self._text_chunks: list[str] = []
+        self._tool_uses: Dict[int, Dict[str, Any]] = {}
+        self._tool_use_order: list[int] = []
         body = request.get("body", {})
         span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
         span.set_attribute(LLM_PROVIDER, AWS)
@@ -73,6 +89,9 @@ class _NovaStreamCallback:
         input_messages = _build_nova_input_messages(body)
         if input_messages:
             span.set_attributes(get_llm_attributes(input_messages=input_messages))
+        tools = _build_nova_tools(body)
+        if tools:
+            span.set_attributes(get_llm_tool_attributes(tools))
 
     def __call__(self, obj: Any) -> Any:
         span = self._span
@@ -80,26 +99,94 @@ class _NovaStreamCallback:
             if "chunk" in obj and "bytes" in obj["chunk"]:
                 try:
                     payload = json.loads(obj["chunk"]["bytes"])
-                    if delta_event := payload.get("contentBlockDelta"):
-                        if text := delta_event.get("delta", {}).get("text"):
-                            self._text_chunks.append(text)
-                    if metadata := payload.get("metadata"):
-                        usage = metadata.get("usage", {})
-                        if (v := usage.get("inputTokens")) is not None:
-                            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, v)
-                        if (v := usage.get("outputTokens")) is not None:
-                            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, v)
-                        if (v := usage.get("totalTokens")) is not None:
-                            span.set_attribute(LLM_TOKEN_COUNT_TOTAL, v)
+                    self._process_payload(payload)
                 except Exception:
                     pass
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
-            if self._text_chunks:
-                span.set_attribute(OUTPUT_VALUE, "".join(self._text_chunks))
+            self._finalize_output()
             _finish(span, None, {})
         elif isinstance(obj, BaseException):
             _finish(span, obj, {})
         return obj
+
+    def _process_payload(self, payload: Mapping[str, Any]) -> None:
+        span = self._span
+        if (start_event := payload.get("contentBlockStart")) and isinstance(start_event, dict):
+            index = start_event.get("contentBlockIndex")
+            tool_use = (start_event.get("start") or {}).get("toolUse")
+            if isinstance(index, int) and isinstance(tool_use, dict):
+                self._tool_uses[index] = {
+                    "id": tool_use.get("toolUseId", ""),
+                    "name": tool_use.get("name", ""),
+                    "input": "",
+                }
+                self._tool_use_order.append(index)
+        if (delta_event := payload.get("contentBlockDelta")) and isinstance(delta_event, dict):
+            delta = delta_event.get("delta") or {}
+            if text := delta.get("text"):
+                self._text_chunks.append(text)
+            elif isinstance(tool_use_delta := delta.get("toolUse"), dict):
+                index = delta_event.get("contentBlockIndex")
+                if isinstance(index, int):
+                    entry = self._tool_uses.setdefault(index, {"id": "", "name": "", "input": ""})
+                    if index not in self._tool_use_order:
+                        self._tool_use_order.append(index)
+                    if (fragment := tool_use_delta.get("input")) is not None:
+                        entry["input"] += fragment if isinstance(fragment, str) else str(fragment)
+        if metadata := payload.get("metadata"):
+            usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
+            input_tokens = usage.get("inputTokens") if isinstance(usage, dict) else None
+            output_tokens = usage.get("outputTokens") if isinstance(usage, dict) else None
+            if input_tokens is not None:
+                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
+            if output_tokens is not None:
+                span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
+            # Nova streaming metadata omits ``totalTokens``; derive it when possible
+            # so consumers don't have to reconstruct the sum themselves.
+            total = usage.get("totalTokens") if isinstance(usage, dict) else None
+            if total is None and input_tokens is not None and output_tokens is not None:
+                total = input_tokens + output_tokens
+            if total is not None:
+                span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total)
+            if isinstance(usage, dict):
+                if (v := usage.get("cacheReadInputTokenCount")) is not None:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(v))
+                if (v := usage.get("cacheWriteInputTokenCount")) is not None:
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, int(v))
+
+    def _finalize_output(self) -> None:
+        span = self._span
+        text_output = "".join(self._text_chunks)
+        content_blocks: list[dict[str, Any]] = []
+        if text_output:
+            content_blocks.append({"text": text_output})
+        for idx in self._tool_use_order:
+            entry = self._tool_uses[idx]
+            raw_input = entry.get("input", "")
+            tool_input: Any = raw_input
+            if isinstance(raw_input, str) and raw_input:
+                try:
+                    tool_input = json.loads(raw_input)
+                except Exception:
+                    tool_input = raw_input
+            content_blocks.append(
+                {
+                    "toolUse": {
+                        "toolUseId": entry.get("id", ""),
+                        "name": entry.get("name", ""),
+                        "input": tool_input,
+                    }
+                }
+            )
+
+        if not content_blocks:
+            return
+
+        message: Dict[str, Any] = {"role": "assistant", "content": content_blocks}
+        span.set_attributes(get_output_attributes(message))
+        output_messages = _build_nova_output_messages({"output": {"message": message}})
+        if output_messages:
+            span.set_attributes(get_llm_output_message_attributes(output_messages))
 
 
 def _is_async_at_decoration(wrapped: Callable[..., Any]) -> bool:
@@ -183,7 +270,7 @@ class _InvokeModelWithResponseStream(_WithTracer):
                 )
                 return response
             model_id = str(kwargs.get("modelId", ""))
-            if model_id.startswith("amazon.nova"):
+            if "amazon.nova" in model_id:
                 parsed_request = {**kwargs, "body": body}
                 response["body"] = _EventStream(
                     response["body"],
@@ -671,6 +758,10 @@ LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE

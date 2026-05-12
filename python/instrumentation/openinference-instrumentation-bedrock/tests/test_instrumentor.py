@@ -121,6 +121,8 @@ class TestInstrumentor:
         "amazon.nova-micro-v1:0",
         "amazon.nova-lite-v1:0",
         "amazon.nova-pro-v1:0",
+        "us.amazon.nova-pro-v1:0",
+        "eu.amazon.nova-lite-v1:0",
     ],
 )
 def test_invoke_model_nova(
