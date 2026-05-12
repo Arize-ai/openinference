@@ -19,16 +19,12 @@ Where:
 
 Each content item has a required `type` attribute that identifies its semantic category. `type` is the discriminator used by renderers, redaction flags, and conditional-field rules. `mime_type` (when present) gives the precise wire format within a category.
 
-The set of well-known `type` values is **closed**; adding new values requires a spec update.
-
 - `"text"` — Text content
-- `"image"` — Image content
-- `"audio"` — Audio content
-- `"document"` — Document content such as a PDF
+- `"image"` — Image content (URL or base64)
+- `"audio"` — Audio content (URL or base64)
+- `"document"` — Document content such as a PDF (URL or base64)
 
 ### Text Content
-
-Text content is special-cased: it lives directly on `message_content.text` rather than under a `file.*` namespace.
 
 ```
 llm.input_messages.0.message.contents.0.message_content.type = "text"
@@ -37,7 +33,7 @@ llm.input_messages.0.message.contents.0.message_content.text = "What is in this 
 
 ### File Content (Image, Audio, Document)
 
-All non-text content types share a single `message_content.file.*` namespace. Renderers, redaction flags, and conditional-field rules branch on `type`; the shared shape removes the need for per-type duplication.
+All non-text content types share a single `message_content.file.*` namespace. Renderers, redaction flags, and conditional-field rules branch on `type`.
 
 **Shared fields** (apply to any `type` other than `"text"`):
 
@@ -49,8 +45,6 @@ All non-text content types share a single `message_content.file.*` namespace. Re
 **Type-conditional fields**:
 
 - `file.transcript` — applies when `type = "audio"`; rendered text of the audio content (input or assistant output)
-
-The TTS voice preset is request-side configuration rather than content metadata; emit it as `llm.voice_name` (an invocation parameter) on the span rather than on individual content blocks.
 
 #### Image
 
