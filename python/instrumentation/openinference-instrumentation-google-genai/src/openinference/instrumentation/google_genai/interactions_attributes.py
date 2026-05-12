@@ -41,7 +41,7 @@ def get_step_messages(steps: Any) -> list[Message]:
     contents: list[MessageContent] = []
     for step in steps or []:
         if isinstance(step, types.ModelOutputStep):
-            # ModelOutputStep holds a list of Content (TextContent | ImageContent | FunctionCallStep)
+            # ModelOutputStep holds a list of Content (TextContent | ImageContent)
             for output in step.content or []:
                 if isinstance(output, types.TextContent):
                     contents.append(TextMessageContent(type="text", text=output.text or ""))
