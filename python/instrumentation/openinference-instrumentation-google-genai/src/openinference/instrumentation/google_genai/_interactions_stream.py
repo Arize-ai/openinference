@@ -133,7 +133,7 @@ class _InteractionAccumulator:
 
             # Initialize based on step type (text, thought, function_call)
             if event.step.type == "thought":
-                self._steps[event.index] = types.Thought(type="thought", signature=None)
+                self._steps[event.index] = types.ThoughtStep(type="thought", signature=None)
             elif event.step.type == "text":
                 self._steps[event.index] = types.TextContent(type="text", text="")
 
@@ -145,7 +145,7 @@ class _InteractionAccumulator:
                 return
 
             if delta.type == "thought_signature":
-                if isinstance(self._steps[idx], types.Thought):
+                if isinstance(self._steps[idx], types.ThoughtStep):
                     self._steps[idx].signature = delta.signature
             elif delta.type == "text":
                 if isinstance(self._steps[idx], types.TextContent):
