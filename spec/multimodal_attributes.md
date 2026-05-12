@@ -71,10 +71,10 @@ llm.input_messages.0.message.contents.2.message_content.file.mime_type = "audio/
 llm.input_messages.0.message.contents.2.message_content.file.transcript = "Hello, how are you?"
 ```
 
-For assistant audio outputs, the same shape is used; emit `llm.voice_name` on the span if a specific TTS preset was requested:
+For assistant audio outputs the same shape is used. The requested TTS voice preset is a request-side knob and belongs inside `llm.invocation_parameters` (alongside other invocation params like `temperature`, `top_p`, etc.) rather than on individual content blocks:
 
 ```
-llm.voice_name = "alloy"
+llm.invocation_parameters = "{\"model\": \"gpt-realtime\", \"voice\": \"alloy\"}"
 
 llm.output_messages.0.message.contents.0.message_content.type = "audio"
 llm.output_messages.0.message.contents.0.message_content.file.url = "gs://voice-bucket/turn-1-out.mp3"
@@ -150,11 +150,11 @@ When `OPENINFERENCE_HIDE_INPUT_TEXT` is set to true:
 
 ## Example: Audio-to-Audio Conversation Turn
 
-Voice agents typically observe a single round of conversation as one LLM span whose input *and* output are both audio. The `transcript` field on each block carries the rendered text, while `url` carries the audio asset; backends that cannot replay audio can still search and display the conversation via the transcripts. The requested TTS voice preset lives on the span as `llm.voice_name`.
+Voice agents typically observe a single round of conversation as one LLM span whose input *and* output are both audio. The `transcript` field on each block carries the rendered text, while `url` carries the audio asset; backends that cannot replay audio can still search and display the conversation via the transcripts. Request-side knobs like the requested TTS voice preset belong inside `llm.invocation_parameters`.
 
 ```json
 {
-  "llm.voice_name": "alloy",
+  "llm.invocation_parameters": "{\"model\": \"gpt-realtime\", \"voice\": \"alloy\"}",
 
   "llm.input_messages.0.message.role": "user",
   "llm.input_messages.0.message.contents.0.message_content.type": "audio",
