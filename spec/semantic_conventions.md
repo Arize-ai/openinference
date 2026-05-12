@@ -226,14 +226,14 @@ The `llm.cost` prefix is used to group cost-related attributes. When these keys 
 
 ### End Reason Values
 
-The `openinference.end_reason` attribute is optional, but when emitted it describes how a span ended from the observer's perspective. It complements `llm.finish_reason`: `finish_reason` reports why the *model* stopped generating tokens (provider-reported), while `end_reason` reports the *span lifecycle* outcome. `end_reason` lives at the top level rather than under `llm.*` because it applies to any span kind — voice-conversation rounds, agent-harness invocations, tool executions, retrievers, or ordinary single-shot LLM calls. Conditions already representable via OTel span `status=ERROR` (provider/transport errors, timeouts) are not enumerated here — set the span status instead. The following values are well-known; if one of them applies, the respective value MUST be used.
+The `openinference.end_reason` attribute is optional, but when emitted it describes how a span ended from the observer's perspective. It complements `llm.finish_reason`: `finish_reason` reports why the *model* stopped generating tokens (provider-reported), while `end_reason` reports the *span lifecycle* outcome. `end_reason` lives at the top level rather than under `llm.*` because it applies to any span kind (see [Span Kinds](#span-kinds)) — not only `LLM`. Conditions already representable via OTel span `status=ERROR` (provider/transport errors, timeouts) are not enumerated here — set the span status instead. The following values are well-known; if one of them applies, the respective value MUST be used.
 
 | Value                 | Description                                                                                                  |
 | --------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `completed`           | Span ended normally.                                                                                         |
-| `interrupted_by_user` | Assistant response was cut off by the user (voice barge-in, escape in an agent harness, etc.).               |
-| `cancelled`           | Programmatic cancellation (e.g., `response.cancel`, manual stop).                                            |
-| `session_closed`      | Outer session terminated mid-span (e.g., disconnect, shutdown).                                              |
+| `interrupted_by_user` | The operation was cut off by a user-initiated action before completing.                                      |
+| `cancelled`           | Programmatic cancellation (e.g., a stop signal from the caller).                                             |
+| `session_closed`      | An enclosing session terminated mid-span (e.g., disconnect, shutdown).                                       |
 
 ## Deprecation Policy
 

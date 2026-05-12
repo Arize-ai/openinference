@@ -71,7 +71,7 @@ llm.input_messages.0.message.contents.2.message_content.file.mime_type = "audio/
 llm.input_messages.0.message.contents.2.message_content.file.transcript = "Hello, how are you?"
 ```
 
-For assistant audio outputs the same shape is used. The requested TTS voice preset is a request-side knob and belongs inside `llm.invocation_parameters` (alongside other invocation params like `temperature`, `top_p`, etc.) rather than on individual content blocks:
+For assistant audio outputs the same shape is used. The requested text-to-speech (TTS) voice preset is a request-side knob and belongs inside `llm.invocation_parameters` (alongside other invocation params like `temperature`, `top_p`, etc.) rather than on individual content blocks:
 
 ```
 llm.invocation_parameters = "{\"model\": \"gpt-realtime\", \"voice\": \"alloy\"}"
