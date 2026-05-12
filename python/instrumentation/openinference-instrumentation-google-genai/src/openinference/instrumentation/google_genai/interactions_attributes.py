@@ -33,29 +33,34 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def get_output_messages(steps: Any) -> list[Message]:
+def get_step_messages(steps: Any) -> list[Message]:
     from google.genai._interactions import types
 
     messages = []
     tool_calls = []
     contents: list[MessageContent] = []
-    for output in outputs or []:
-        if isinstance(output, types.TextContent):
-            contents.append(TextMessageContent(type="text", text=output.text or ""))
-        elif isinstance(output, types.FunctionCallContent):
+    for step in steps or []:
+        if isinstance(step, types.ModelOutputStep):
+            # ModelOutputStep holds a list of Content (TextContent | ImageContent | FunctionCallStep)
+            for output in step.content or []:
+                if isinstance(output, types.TextContent):
+                    contents.append(TextMessageContent(type="text", text=output.text or ""))
+                elif isinstance(output, types.ImageContent):
+                    if output.uri is not None:
+                        contents.append(
+                            ImageMessageContent(type="image", image=Image(url=output.uri))
+                        )
+                    elif output.data is not None:
+                        mime_type = output.mime_type if output.mime_type else "image/png"
+                        url = f"data:{mime_type};base64,{output.data}"
+                        contents.append(ImageMessageContent(type="image", image=Image(url=url)))
+        elif isinstance(step, types.FunctionCallStep):
             tool_calls.append(
                 ToolCall(
-                    id=output.id,
-                    function=ToolCallFunction(name=output.name, arguments=output.arguments),
+                    id=step.id,
+                    function=ToolCallFunction(name=step.name, arguments=step.arguments),
                 )
             )
-        elif isinstance(output, types.ImageContent):
-            if output.uri is not None:
-                contents.append(ImageMessageContent(type="image", image=Image(url=output.uri)))
-            elif output.data is not None:
-                mime_type = output.mime_type if output.mime_type else "image/png"
-                url = f"data:{mime_type};base64,{output.data}"
-                contents.append(ImageMessageContent(type="image", image=Image(url=url)))
     messages.append(Message(role="model", contents=contents, tool_calls=tool_calls))
     return messages
 
@@ -90,7 +95,7 @@ def get_message_objects(inputs: Any) -> list[Message]:
                         )
                     )
                 elif isinstance(message.get("content"), list):
-                    messages.extend(get_output_messages(message.get("content")))
+                    messages.extend(get_step_messages(message.get("content")))
         if contents:
             messages.append(Message(role="user", contents=contents))
     return messages
@@ -181,6 +186,6 @@ def get_attributes_from_response(
     return {
         **get_llm_model_name_attributes(response.model),
         **get_output_attributes(safe_json_dumps(steps)),
-        **get_llm_output_message_attributes(get_output_messages(steps)),
+        **get_llm_output_message_attributes(get_step_messages(steps)),
         **get_llm_token_count_attributes(get_token_object_from_response(response)),
     }
