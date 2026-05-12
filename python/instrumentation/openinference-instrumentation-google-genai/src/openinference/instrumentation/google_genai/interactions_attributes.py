@@ -106,8 +106,9 @@ def get_token_object_from_response(response: Any) -> TokenCount:
     if hasattr(response, "usage") and response.usage:
         usage = response.usage
         # total_thought_tokens is part of the completion budget in Gemini 3
-        completion_tokens = (getattr(usage, "total_output_tokens", 0) or 0) + \
-                            (getattr(usage, "total_thought_tokens", 0) or 0)
+        completion_tokens = (getattr(usage, "total_output_tokens", 0) or 0) + (
+            getattr(usage, "total_thought_tokens", 0) or 0
+        )
         token_count = TokenCount(
             total=usage.total_tokens or 0,
             prompt=usage.total_input_tokens or 0,
