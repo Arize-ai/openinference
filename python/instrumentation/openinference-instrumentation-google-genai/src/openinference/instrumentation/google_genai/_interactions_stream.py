@@ -98,22 +98,21 @@ class _InteractionAccumulator:
     __slots__ = (
         "_is_null",
         "_interaction",
-        "_outputs",
+        "_steps",
     )
 
     def __init__(self) -> None:
         self._is_null = True
         self._interaction: Optional["Interaction"] = None
-        self._outputs: Any = []
+        self._steps: list[Any] = []
 
     def process_chunk(self, event: Any) -> None:
         """Process a single streaming event and update the Interaction object."""
         self._is_null = False
-        event_type = event.event_type
+        event_type = getattr(event, "type", getattr(event, "event_type", None))
         from google.genai._interactions import types
 
-        if event_type == "interaction.start":
-            # Initialize the Interaction object
+        if event_type == "interaction.created":
             created_at = event.interaction.created or datetime.now(timezone.utc)
             self._interaction = types.Interaction(
                 id=event.interaction.id,
@@ -121,83 +120,48 @@ class _InteractionAccumulator:
                 agent=None,
                 created=created_at,
                 model=event.interaction.model,
-                outputs=[],
+                steps=[],
                 previous_interaction_id=None,
                 role=None,
                 updated=event.interaction.updated or created_at,
                 usage=None,
             )
 
-        elif event_type == "interaction.status_update":
-            if self._interaction:
-                self._interaction.status = event.status
+        elif event_type == "step.start":
+            while len(self._steps) <= event.index:
+                self._steps.append(None)
 
-        elif event_type == "content.start":
-            # Ensure outputs list is large enough
-            while len(self._outputs) <= event.index:
-                self._outputs.append(None)
+            # Initialize based on step type (text, thought, function_call)
+            if event.step.type == "thought":
+                self._steps[event.index] = types.Thought(type="thought", signature=None)
+            elif event.step.type == "text":
+                self._steps[event.index] = types.TextContent(type="text", text="")
 
-            # Initialize the appropriate content type
-            if event.content.type == "thought":
-                self._outputs[event.index] = types.ThoughtContent(
-                    type="thought",
-                    signature=None,
-                    summary=None,
-                )
-            elif event.content.type == "text":
-                self._outputs[event.index] = types.TextContent(
-                    type="text",
-                    annotations=None,
-                    text="",
-                )
-            elif event.content.type == "image":
-                self._outputs[event.index] = types.ImageContent(
-                    type="image", data=None, mime_type=None, resolution=None
-                )
-
-        elif event_type == "content.delta":
+        elif event_type == "step.delta":
             delta = event.delta
             idx = event.index
 
-            if delta.type == "thought_signature":
-                # Update thought signature
-                if self._outputs[idx] and isinstance(self._outputs[idx], types.ThoughtContent):
-                    self._outputs[idx].signature = delta.signature
+            if not self._steps[idx]:
+                return
 
+            if delta.type == "thought_signature":
+                if isinstance(self._steps[idx], types.Thought):
+                    self._steps[idx].signature = delta.signature
             elif delta.type == "text":
-                # Append text delta
-                if self._outputs[idx] and isinstance(self._outputs[idx], types.TextContent):
-                    if self._outputs[idx].text is None:
-                        self._outputs[idx].text = delta.text or ""
-                    else:
-                        self._outputs[idx].text += delta.text or ""
-            else:
-                if self._outputs[idx] and isinstance(self._outputs[idx], types.ImageContent):
-                    if self._outputs[idx].data is None:
-                        self._outputs[idx].data = delta.data or ""
-                    else:
-                        self._outputs[idx].data += delta.data or ""
-                    if delta.mime_type is not None:
-                        self._outputs[idx].mime_type = delta.mime_type
-                    if delta.resolution is not None:
-                        self._outputs[idx].resolution = delta.resolution
-        elif event_type == "interaction.complete":
-            # Update final metadata
+                if isinstance(self._steps[idx], types.TextContent):
+                    current_text = self._steps[idx].text or ""
+                    self._steps[idx].text = current_text + (delta.text or "")
+
+        elif event_type == "interaction.completed":
             if self._interaction:
-                self._interaction.id = event.interaction.id
                 self._interaction.status = event.interaction.status
-                self._interaction.created = event.interaction.created
-                self._interaction.updated = event.interaction.updated
-                self._interaction.role = event.interaction.role
                 self._interaction.usage = event.interaction.usage
-                # Assign the accumulated outputs
-                self._interaction.outputs = [out for out in self._outputs if out is not None]
+                self._interaction.steps = [s for s in self._steps if s is not None]
 
     def result(self) -> Optional["Interaction"]:
         """Return the accumulated Interaction object."""
         if self._is_null or self._interaction is None:
             return self._interaction
-        # Ensure outputs are assigned (in case interaction.complete wasn't received)
-        if not self._interaction.outputs and self._outputs:
-            self._interaction.outputs = [out for out in self._outputs if out is not None]
+        if not self._interaction.steps and self._steps:
+            self._interaction.steps = [s for s in self._steps if s is not None]
         return self._interaction

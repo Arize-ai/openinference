@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def get_output_messages(outputs: Any) -> list[Message]:
+def get_output_messages(steps: Any) -> list[Message]:
     from google.genai._interactions import types
 
     messages = []
@@ -105,10 +105,13 @@ def get_token_object_from_response(response: Any) -> TokenCount:
     token_count = TokenCount()
     if hasattr(response, "usage") and response.usage:
         usage = response.usage
+        # total_thought_tokens is part of the completion budget in Gemini 3
+        completion_tokens = (getattr(usage, "total_output_tokens", 0) or 0) + \
+                            (getattr(usage, "total_thought_tokens", 0) or 0)
         token_count = TokenCount(
             total=usage.total_tokens or 0,
             prompt=usage.total_input_tokens or 0,
-            completion=(usage.total_thought_tokens or 0) + (usage.total_output_tokens or 0),
+            completion=completion_tokens,
         )
     return token_count
 
@@ -171,9 +174,12 @@ def get_attributes_from_response(
             **get_output_attributes(safe_json_dumps(response)),
         }
 
+    # Accessing the new steps array
+    steps = getattr(response, "steps", [])
+
     return {
         **get_llm_model_name_attributes(response.model),
-        **get_output_attributes(safe_json_dumps(response.outputs)),
-        **get_llm_output_message_attributes(get_output_messages(response.outputs)),
+        **get_output_attributes(safe_json_dumps(steps)),
+        **get_llm_output_message_attributes(get_output_messages(steps)),
         **get_llm_token_count_attributes(get_token_object_from_response(response)),
     }
