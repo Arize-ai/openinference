@@ -49,7 +49,8 @@ All non-text content types share a single `message_content.file.*` namespace. Re
 **Type-conditional fields**:
 
 - `file.transcript` — applies when `type = "audio"`; rendered text of the audio content (input or assistant output)
-- `file.voice_name` — applies when `type = "audio"` on assistant output messages; the provider-defined TTS voice preset (e.g., OpenAI's `"alloy"`, `"verse"`). This is a preset identifier, not a speaker/diarization id and not a user identity.
+
+The TTS voice preset is request-side configuration rather than content metadata; emit it as `llm.voice_name` (an invocation parameter) on the span rather than on individual content blocks.
 
 #### Image
 
@@ -76,14 +77,15 @@ llm.input_messages.0.message.contents.2.message_content.file.mime_type = "audio/
 llm.input_messages.0.message.contents.2.message_content.file.transcript = "Hello, how are you?"
 ```
 
-For assistant audio outputs, include `voice_name` when known:
+For assistant audio outputs, the same shape is used; emit `llm.voice_name` on the span if a specific TTS preset was requested:
 
 ```
+llm.voice_name = "alloy"
+
 llm.output_messages.0.message.contents.0.message_content.type = "audio"
 llm.output_messages.0.message.contents.0.message_content.file.url = "gs://voice-bucket/turn-1-out.mp3"
 llm.output_messages.0.message.contents.0.message_content.file.mime_type = "audio/mpeg"
 llm.output_messages.0.message.contents.0.message_content.file.transcript = "Hello! What's your confirmation number?"
-llm.output_messages.0.message.contents.0.message_content.file.voice_name = "alloy"
 ```
 
 #### Document
@@ -117,7 +119,7 @@ llm.input_messages.0.message.contents.0.message_content.file.name = "termination
 
 ## Privacy Considerations
 
-Multimodal content can carry sensitive payloads (PII in audio transcripts, document URLs that leak filenames, etc.). Each non-text content type gets a single redaction flag — when set, *all* fields of matching content blocks are redacted (`file.url`, `file.mime_type`, `file.name`, `file.file_id`, `file.transcript`, `file.voice_name`) rather than picking individual sub-fields. Redaction applies only when the surrounding input messages are not already completely hidden.
+Multimodal content can carry sensitive payloads (PII in audio transcripts, document URLs that leak filenames, etc.). Each non-text content type gets a single redaction flag — when set, *all* fields of matching content blocks are redacted (`file.url`, `file.mime_type`, `file.name`, `file.file_id`, `file.transcript`) rather than picking individual sub-fields. Redaction applies only when the surrounding input messages are not already completely hidden.
 
 ### Hiding Images
 
@@ -154,10 +156,12 @@ When `OPENINFERENCE_HIDE_INPUT_TEXT` is set to true:
 
 ## Example: Audio-to-Audio Conversation Turn
 
-Voice agents typically observe a single round of conversation as one LLM span whose input *and* output are both audio. The `transcript` field on each block carries the rendered text, while `url` carries the audio asset; backends that cannot replay audio can still search and display the conversation via the transcripts. `voice_name` identifies the TTS preset used to synthesize the assistant turn.
+Voice agents typically observe a single round of conversation as one LLM span whose input *and* output are both audio. The `transcript` field on each block carries the rendered text, while `url` carries the audio asset; backends that cannot replay audio can still search and display the conversation via the transcripts. The requested TTS voice preset lives on the span as `llm.voice_name`.
 
 ```json
 {
+  "llm.voice_name": "alloy",
+
   "llm.input_messages.0.message.role": "user",
   "llm.input_messages.0.message.contents.0.message_content.type": "audio",
   "llm.input_messages.0.message.contents.0.message_content.file.url": "gs://voice-bucket/turn-1-in.wav",
@@ -168,12 +172,11 @@ Voice agents typically observe a single round of conversation as one LLM span wh
   "llm.output_messages.0.message.contents.0.message_content.type": "audio",
   "llm.output_messages.0.message.contents.0.message_content.file.url": "gs://voice-bucket/turn-1-out.mp3",
   "llm.output_messages.0.message.contents.0.message_content.file.mime_type": "audio/mpeg",
-  "llm.output_messages.0.message.contents.0.message_content.file.transcript": "It's sunny and 72°F.",
-  "llm.output_messages.0.message.contents.0.message_content.file.voice_name": "alloy"
+  "llm.output_messages.0.message.contents.0.message_content.file.transcript": "It's sunny and 72°F."
 }
 ```
 
-A turn cut off by the user emits the same shape, plus `llm.end_reason = "interrupted_by_user"` on the span. The assistant `transcript` should reflect only what was actually synthesized before the interruption.
+A turn cut off by the user emits the same shape, plus `openinference.end_reason = "interrupted_by_user"` on the span. The assistant `transcript` should reflect only what was actually synthesized before the interruption.
 
 ## Example: Multimodal Message
 
