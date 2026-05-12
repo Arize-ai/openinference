@@ -40,6 +40,7 @@ export const LLMAttributePostfixes = {
   function_call: "function_call",
   tools: "tools",
   cost: "cost",
+  finish_reason: "finish_reason",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -234,6 +235,12 @@ export const LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO =
 /** Token count for the entire transaction with the llm (in tokens) */
 export const LLM_TOKEN_COUNT_TOTAL =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.total` as const;
+
+/**
+ * The reason the model stopped generating tokens, e.g. `"stop"` or `"length"`.
+ */
+export const LLM_FINISH_REASON =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.finish_reason}` as const;
 
 /**
  * Key prefix for additional prompt token count details. Each detail should be a separate attribute
@@ -647,6 +654,7 @@ export const SemanticConventions = {
   LLM_SYSTEM,
   LLM_PROVIDER,
   LLM_TOOLS,
+  LLM_FINISH_REASON,
   LLM_COST,
   LLM_COST_PROMPT,
   LLM_COST_COMPLETION,

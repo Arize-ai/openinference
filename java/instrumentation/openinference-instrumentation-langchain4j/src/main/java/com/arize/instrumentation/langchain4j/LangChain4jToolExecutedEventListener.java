@@ -60,13 +60,15 @@ public class LangChain4jToolExecutedEventListener implements ToolExecutedEventLi
 
         span.setAttribute(
                 SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.TOOL.getValue());
-        if (!tracer.getConfig().isHideInputMessages()) {
+        if (!tracer.getConfig().isHideInputs()) {
             span.setAttribute(SemanticConventions.INPUT_VALUE, event.request().arguments());
             span.setAttribute(SemanticConventions.INPUT_MIME_TYPE, SemanticConventions.MimeType.JSON.getValue());
+        }
+        if (!tracer.getConfig().isHideInputs() && !tracer.getConfig().isHideToolParameters()) {
             span.setAttribute(
                     SemanticConventions.TOOL_PARAMETERS, event.request().arguments());
         }
-        if (!tracer.getConfig().isHideOutputMessages()) {
+        if (!tracer.getConfig().isHideOutputs()) {
             span.setAttribute(SemanticConventions.OUTPUT_VALUE, event.resultText());
             span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, SemanticConventions.MimeType.TEXT.getValue());
         }

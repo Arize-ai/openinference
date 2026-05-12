@@ -525,7 +525,8 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         """
         graph_attrs: Dict[str, Any] = {}
         span_name = span.name
-        span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
+        span_context = span.get_span_context()
+        span_id = span_context.span_id if span_context is not None else 0
 
         if span_kind == "AGENT":
             graph_attrs["graph.node.id"] = "strands_agent"

@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v1.0.1...python-openinference-instrumentation-pipecat-v1.0.2) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [1.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v1.0.0...python-openinference-instrumentation-pipecat-v1.0.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* ensure pipecat metadata is JSON ([#3003](https://github.com/Arize-ai/openinference/issues/3003)) ([b179790](https://github.com/Arize-ai/openinference/commit/b17979036fc0269b6ebeebbfdbacf204fa7b2869))
+
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v0.1.4...python-openinference-instrumentation-pipecat-v1.0.0) (2026-05-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **pipecat:** support pipecat 1.0 (drop pipecat 0.x and Python 3.10) ([#3046](https://github.com/Arize-ai/openinference/issues/3046))
+
+### Features
+
+* **pipecat:** support pipecat 1.0 (drop pipecat 0.x and Python 3.10) ([#3046](https://github.com/Arize-ai/openinference/issues/3046)) ([f49176f](https://github.com/Arize-ai/openinference/commit/f49176ffcac6042b9dfc1d23370701f84c7c9003))
+
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v0.1.3...python-openinference-instrumentation-pipecat-v0.1.4) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v0.1.2...python-openinference-instrumentation-pipecat-v0.1.3) (2026-02-12)
 
 

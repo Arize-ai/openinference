@@ -57,6 +57,80 @@ except ImportError:
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
+# Maps hostname suffixes to their corresponding LLM provider value.
+_HOST_SUFFIX_TO_PROVIDER: Dict[str, OpenInferenceLLMProviderValues] = {
+    "api.openai.com": OpenInferenceLLMProviderValues.OPENAI,
+    "openai.azure.com": OpenInferenceLLMProviderValues.AZURE,
+    "services.ai.azure.com": OpenInferenceLLMProviderValues.AZURE,
+    "cognitiveservices.azure.com": OpenInferenceLLMProviderValues.AZURE,
+    "api.anthropic.com": OpenInferenceLLMProviderValues.ANTHROPIC,
+    "api.cohere.com": OpenInferenceLLMProviderValues.COHERE,
+    "api.cohere.ai": OpenInferenceLLMProviderValues.COHERE,
+    "api.mistral.ai": OpenInferenceLLMProviderValues.MISTRALAI,
+    "generativelanguage.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE,
+    "aiplatform.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE,
+    "amazonaws.com": OpenInferenceLLMProviderValues.AWS,
+    "api.x.ai": OpenInferenceLLMProviderValues.XAI,
+    "api.deepseek.com": OpenInferenceLLMProviderValues.DEEPSEEK,
+    "api.groq.com": OpenInferenceLLMProviderValues.GROQ,
+    "api.fireworks.ai": OpenInferenceLLMProviderValues.FIREWORKS,
+    "api.moonshot.cn": OpenInferenceLLMProviderValues.MOONSHOT,
+    "api.cerebras.ai": OpenInferenceLLMProviderValues.CEREBRAS,
+    "api.perplexity.ai": OpenInferenceLLMProviderValues.PERPLEXITY,
+    "api.together.ai": OpenInferenceLLMProviderValues.TOGETHER,
+    "api.together.xyz": OpenInferenceLLMProviderValues.TOGETHER,
+}
+
+# Maps model name prefixes to their corresponding LLM system value.
+_MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC,
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC,
+    "claude": OpenInferenceLLMSystemValues.ANTHROPIC,
+    "gpt": OpenInferenceLLMSystemValues.OPENAI,
+    "o1": OpenInferenceLLMSystemValues.OPENAI,
+    "o3": OpenInferenceLLMSystemValues.OPENAI,
+    "o4": OpenInferenceLLMSystemValues.OPENAI,
+    "text-embedding": OpenInferenceLLMSystemValues.OPENAI,
+    "davinci": OpenInferenceLLMSystemValues.OPENAI,
+    "curie": OpenInferenceLLMSystemValues.OPENAI,
+    "babbage": OpenInferenceLLMSystemValues.OPENAI,
+    "ada": OpenInferenceLLMSystemValues.OPENAI,
+    "azure": OpenInferenceLLMSystemValues.OPENAI,
+    "openai": OpenInferenceLLMSystemValues.OPENAI,
+    "cohere": OpenInferenceLLMSystemValues.COHERE,
+    "command": OpenInferenceLLMSystemValues.COHERE,
+    "mistral": OpenInferenceLLMSystemValues.MISTRALAI,
+    "mixtral": OpenInferenceLLMSystemValues.MISTRALAI,
+    "pixtral": OpenInferenceLLMSystemValues.MISTRALAI,
+    "gemini": OpenInferenceLLMSystemValues.VERTEXAI,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI,
+}
+
+
+def infer_llm_provider_from_host(host: str) -> Optional[OpenInferenceLLMProviderValues]:
+    """Return the LLM provider name for the given API hostname."""
+    if not isinstance(host, str):
+        return None
+
+    normalised = host.lower().strip()
+    for suffix, provider in _HOST_SUFFIX_TO_PROVIDER.items():
+        if normalised.endswith(suffix):
+            return provider
+    return None
+
+
+def infer_llm_system_from_model_name(model_name: str) -> Optional[OpenInferenceLLMSystemValues]:
+    """Return the LLM system name for the given model identifier."""
+    if not isinstance(model_name, str):
+        return None
+
+    normalised = model_name.lower().strip()
+    for prefix, system in _MODEL_PREFIX_TO_SYSTEM.items():
+        if normalised.startswith(prefix):
+            return system
+    return None
+
 
 def get_reranker_attributes(
     *,
@@ -265,7 +339,7 @@ class IOValueJSONEncoder(JSONEncoder):
             if _is_dataclass_instance(obj):
                 return asdict(obj)
             if pydantic is not None and isinstance(obj, pydantic.BaseModel):
-                return obj.model_dump()
+                return obj.model_dump(mode="json")
             if isinstance(obj, datetime):
                 return obj.isoformat()
             return super().default(obj)

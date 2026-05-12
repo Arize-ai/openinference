@@ -1,5 +1,17 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.3.0
+
+### Minor Changes
+
+- e09ce3f: Add `llm.finish_reason` semantic convention — a string indicating the reason the model stopped generating tokens (e.g. `"stop"`, `"length"`).
+
+## 2.2.0
+
+### Minor Changes
+
+- 7eb1c88: Add groq, fireworks, moonshot, cerebras, perplexity, and together as new well-known values to the LLMProvider enum
+
 ## 2.1.7
 
 ### Patch Changes

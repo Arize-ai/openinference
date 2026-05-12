@@ -10,6 +10,8 @@ from openinference.instrumentation import (
     Image,
     ImageMessageContent,
     Message,
+    MessageContent,
+    PromptDetails,
     TextMessageContent,
     TokenCount,
     Tool,
@@ -23,6 +25,7 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
 )
 
@@ -71,7 +74,7 @@ def get_message_objects(message_list: Sequence[MessageUnionTypeDef]) -> List[Mes
                 image_source = _image["source"]
                 if "bytes" in image_source:
                     base64_img = base64.b64encode(image_source["bytes"]).decode("utf-8")
-                    image_url = f"data:{_image['format']};base64,{base64_img}"
+                    image_url = f"data:image/{_image['format']};base64,{base64_img}"
                     contents.append(ImageMessageContent(type="image", image=Image(url=image_url)))
             if "toolUse" in _content:
                 _tool_use: ToolUseBlockOutputTypeDef = _content["toolUse"]
@@ -121,11 +124,12 @@ def get_input_messages(
     """
     messages: List[Message] = []
     if "system" in request_data:
+        contents: list[MessageContent] = []
         for system_prompt in request_data["system"]:
-            msg = Message(role="system")
             if "text" in system_prompt:
-                msg["content"] = system_prompt["text"]
-            messages.append(msg)
+                contents.append(TextMessageContent(text=system_prompt["text"], type="text"))
+        if contents:
+            messages.append(Message(role="system", contents=contents))
     if "messages" in request_data:
         messages.extend(get_message_objects(list(request_data["messages"])))
     return messages
@@ -163,7 +167,7 @@ def get_attributes_from_request_data(
     llm_attributes["input_messages"] = get_input_messages(request_data)
 
     return {
-        **get_llm_attributes(**llm_attributes),
+        **get_llm_attributes(**llm_attributes, provider=OpenInferenceLLMProviderValues.AWS),
         **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
         **get_input_attributes(
             list(request_data["messages"]) if "messages" in request_data else []
@@ -186,11 +190,19 @@ def get_token_counts(output_params: ConverseResponseTypeDef) -> TokenCount | Non
     if "usage" not in output_params:
         return None
     usage = output_params["usage"]
-    return TokenCount(
+    token_count = TokenCount(
         prompt=usage["inputTokens"],
         completion=usage["outputTokens"],
         total=usage["totalTokens"],
     )
+    prompt_details: PromptDetails = {}
+    if (cache_read := usage.get("cacheReadInputTokens")) is not None:
+        prompt_details["cache_read"] = cache_read
+    if (cache_write := usage.get("cacheWriteInputTokens")) is not None:
+        prompt_details["cache_write"] = cache_write
+    if prompt_details:
+        token_count["prompt_details"] = prompt_details
+    return token_count
 
 
 def get_attributes_from_response_data(

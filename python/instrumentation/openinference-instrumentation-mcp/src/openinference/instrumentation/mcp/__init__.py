@@ -22,7 +22,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
                 "mcp.client.streamable_http",
-                "streamablehttp_client",
+                "streamable_http_client",
                 self._wrap_transport_with_callback,
             ),
             "mcp.client.streamable_http",

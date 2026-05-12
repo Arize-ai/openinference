@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import weakref
@@ -92,13 +93,55 @@ def _first_not_none(*values: Any) -> Any:
     return None
 
 
+def _normalize_tool_call_function_arguments(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    try:
+        json.loads(value)
+    except json.JSONDecodeError:
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            inner = value[1:-1]
+            try:
+                json.loads(inner)
+            except json.JSONDecodeError:
+                return value
+            return inner
+        return value
+    return value
+
+
+def _normalize_llm_message(message: Mapping[str, Any]) -> Message:
+    normalized_message = dict(message)
+    tool_calls = normalized_message.get("tool_calls")
+    if isinstance(tool_calls, Sequence) and not isinstance(tool_calls, (str, bytes, bytearray)):
+        normalized_tool_calls: list[Any] = []
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, Mapping):
+                normalized_tool_calls.append(tool_call)
+                continue
+            normalized_tool_call = dict(tool_call)
+            function = normalized_tool_call.get("function")
+            if isinstance(function, Mapping):
+                normalized_function = dict(function)
+                if "arguments" in normalized_function:
+                    normalized_function["arguments"] = _normalize_tool_call_function_arguments(
+                        normalized_function.get("arguments")
+                    )
+                normalized_tool_call["function"] = normalized_function
+            normalized_tool_calls.append(normalized_tool_call)
+        normalized_message["tool_calls"] = normalized_tool_calls
+    return cast(Message, normalized_message)
+
+
 def _normalize_llm_messages(value: Any, default_role: str) -> list[Message]:
     if isinstance(value, str):
         return [cast(Message, {"role": default_role, "content": value})]
     if isinstance(value, Mapping):
-        return [cast(Message, dict(value))]
+        return [_normalize_llm_message(value)]
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return [cast(Message, dict(message)) for message in value if isinstance(message, Mapping)]
+        return [
+            _normalize_llm_message(message) for message in value if isinstance(message, Mapping)
+        ]
     return []
 
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.49...python-openinference-instrumentation-v0.1.50) (2026-05-11)
+
+
+### Features
+
+* add hide_llm_tools config to mask LLM tool definitions ([#3082](https://github.com/Arize-ai/openinference/issues/3082)) ([cfb128c](https://github.com/Arize-ai/openinference/commit/cfb128cf08e178fae7b20e5f44d6d83eae0015e3))
+
+## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.48...python-openinference-instrumentation-v0.1.49) (2026-05-06)
+
+
+### Features
+
+* Centralize host-to-provider & model-to-system Resolution Helpers ([#2919](https://github.com/Arize-ai/openinference/issues/2919)) ([e58e90c](https://github.com/Arize-ai/openinference/commit/e58e90c217f40e7da5455dd1e71ba36d51a6c2e0))
+
+## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.47...python-openinference-instrumentation-v0.1.48) (2026-04-29)
+
+
+### Bug Fixes
+
+* **instrumentation:** serialize pydantic model attributes in json mode ([#2813](https://github.com/Arize-ai/openinference/issues/2813)) ([ee13799](https://github.com/Arize-ai/openinference/commit/ee137997d761ff54eea53a8bab558806babe6036))
+
+## [0.1.47](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.46...python-openinference-instrumentation-v0.1.47) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
 ## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.45...python-openinference-instrumentation-v0.1.46) (2026-03-04)
 
 

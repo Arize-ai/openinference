@@ -277,13 +277,18 @@ public class ChatMessageAttributeUtils {
             setLlmToolAttributes(span, toolSpecifications);
         }
 
-        // Set input attributes
-        if (!tracer.getConfig().isHideInputMessages()) {
+        // Set input messages (gated by hideInputs OR hideInputMessages)
+        if (!tracer.getConfig().isHideInputs() && !tracer.getConfig().isHideInputMessages()) {
             try {
-                // Set input messages with proper structure
                 setInputMessageAttributes(span, request.messages());
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Failed to process input messages", e);
+            }
+        }
 
-                // Also set input.value and input.mime_type for compatibility
+        // Set input.value and input.mime_type (gated only by hideInputs)
+        if (!tracer.getConfig().isHideInputs()) {
+            try {
                 List<Map<String, Object>> messagesList = convertMessages(request.messages());
                 String messagesJson = objectMapper.writeValueAsString(messagesList);
                 span.setAttribute(SemanticConventions.INPUT_VALUE, messagesJson);
@@ -305,15 +310,20 @@ public class ChatMessageAttributeUtils {
                     List.of(response.finishReason().name()));
         }
 
-        // Set output message with proper structure
-        if (!tracer.getConfig().isHideOutputMessages() && response.aiMessage() != null) {
+        // Set output attributes
+        if (response.aiMessage() != null) {
             AiMessage aiMessage = response.aiMessage();
 
-            // Set output messages with proper structure
-            setOutputMessageAttributes(span, aiMessage);
+            // Set output messages (gated by hideOutputs OR hideOutputMessages)
+            if (!tracer.getConfig().isHideOutputs() && !tracer.getConfig().isHideOutputMessages()) {
+                setOutputMessageAttributes(span, aiMessage);
+            }
 
-            span.setAttribute(SemanticConventions.OUTPUT_VALUE, aiMessage.text());
-            span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, "text/plain");
+            // Set output.value and output.mime_type (gated only by hideOutputs)
+            if (!tracer.getConfig().isHideOutputs()) {
+                span.setAttribute(SemanticConventions.OUTPUT_VALUE, aiMessage.text());
+                span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, "text/plain");
+            }
         }
 
         // Set token usage if available

@@ -19,6 +19,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          token: ${{ secrets.MY_CHANGESET_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -37,13 +38,16 @@ jobs:
         working-directory: ./js
         run: pnpm install --frozen-lockfile
       - name: Create and publish versions
-        uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
+        # Pinned to v1.5.2 because released versions after that still break monorepo
+        # cwd handling; the upstream fix merged after v1.7.0 but is not released yet.
+        uses: changesets/action@d183df40791e90508058cd180e6435cdd9ba16a4 # v1.5.2
         with:
           version: pnpm ci:version
           commit: "chore(js): update versions"
           title: "chore(js): update versions"
           publish: pnpm ci:publish
           createGithubReleases: true
-          cwd: "./js"
+          # v1.5.2 resolves cwd relative to the action runtime, not github.workspace.
+          cwd: "${{ github.workspace }}/js"
         env:
           GITHUB_TOKEN: ${{ secrets.MY_CHANGESET_TOKEN }}

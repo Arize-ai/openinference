@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.16...python-openinference-instrumentation-google-genai-v0.1.17) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.15...python-openinference-instrumentation-google-genai-v0.1.16) (2026-04-21)
+
+
+### Bug Fixes
+
+* **google-genai:** don't double-count cached tokens in prompt ([#3016](https://github.com/Arize-ai/openinference/issues/3016)) ([4a0b3dd](https://github.com/Arize-ai/openinference/commit/4a0b3ddd4f2c8d8fefc8250f0b8c8cae4d1ea4fb))
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.14...python-openinference-instrumentation-google-genai-v0.1.15) (2026-04-14)
+
+
+### Features
+
+* **google-genai:** Handled Image Data & Multiple tool calls in Response ([#2598](https://github.com/Arize-ai/openinference/issues/2598)) ([7f421cf](https://github.com/Arize-ai/openinference/commit/7f421cfca6d1a8a60ef97e3ea4378d7b5bc807e5))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.13...python-openinference-instrumentation-google-genai-v0.1.14) (2026-03-24)
 
 

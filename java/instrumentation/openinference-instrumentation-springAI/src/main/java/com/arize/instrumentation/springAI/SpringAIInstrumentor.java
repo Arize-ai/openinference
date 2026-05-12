@@ -58,9 +58,15 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
         // Set invocation parameters
         setInvocationParameters(span, chatContext);
 
-        // Set input attributes
-        if (!tracer.getConfig().isHideInputMessages()) {
+        // Set input message attributes (gated by hideInputs OR hideInputMessages)
+        if (!tracer.getConfig().isHideInputs() && !tracer.getConfig().isHideInputMessages()) {
             setInputMessageAttributes(span, chatContext);
+        }
+
+        // Set input.value and input.mime_type (gated only by hideInputs)
+        // Must be set even when hideInputMessages is true
+        if (!tracer.getConfig().isHideInputs()) {
+            setInputValueAttributes(span, chatContext);
         }
 
         // Store span context for later use
@@ -86,9 +92,14 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
         Span span = spanContext.span;
 
         try (Scope scope = spanContext.context.makeCurrent()) {
-            // Set output attributes
-            if (!tracer.getConfig().isHideOutputMessages()) {
+            // Set output message attributes (gated by hideOutputs OR hideOutputMessages)
+            if (!tracer.getConfig().isHideOutputs() && !tracer.getConfig().isHideOutputMessages()) {
                 setOutputMessageAttributes(span, chatContext);
+            }
+
+            // Set output.value and output.mime_type (gated only by hideOutputs)
+            if (!tracer.getConfig().isHideOutputs()) {
+                setOutputValueAttributes(span, chatContext);
             }
 
             // Set token usage if available
@@ -212,13 +223,21 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
                 }
             }
 
-            // Set input.value for compatibility
+        } catch (Exception e) {
+            log.warn("Failed to set input message attributes", e);
+        }
+    }
+
+    private void setInputValueAttributes(Span span, ChatModelObservationContext context) {
+        try {
+            List<Message> messages = context.getRequest().getInstructions();
+            if (messages == null || messages.isEmpty()) return;
             List<Map<String, Object>> messagesList = convertMessages(messages);
             String messagesJson = objectMapper.writeValueAsString(messagesList);
             span.setAttribute(SemanticConventions.INPUT_VALUE, messagesJson);
             span.setAttribute(SemanticConventions.INPUT_MIME_TYPE, "application/json");
         } catch (Exception e) {
-            log.warn("Failed to set input message attributes", e);
+            log.warn("Failed to set input value attributes", e);
         }
     }
 
@@ -228,9 +247,8 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
                 return;
             }
 
-            // Get the results and combine the output
+            // Get the results and set per-message attributes
             List<Generation> results = context.getResponse().getResults();
-            List<Message> outs = new ArrayList<>();
             for (int i = 0; i < results.size(); i++) {
                 Generation generation = results.get(i);
                 var output = generation.getOutput();
@@ -249,20 +267,32 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
                             && !assistantMessage.getToolCalls().isEmpty()) {
                         setToolCallAttributes(span, prefix, assistantMessage.getToolCalls());
                     }
-
-                    outs.add(assistantMessage);
-                }
-
-                if (!outs.isEmpty()) {
-                    List<Map<String, Object>> messagesList = convertMessages(outs);
-                    String messagesJson = objectMapper.writeValueAsString(messagesList);
-
-                    span.setAttribute(SemanticConventions.OUTPUT_VALUE, messagesJson);
-                    span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
                 }
             }
         } catch (Exception e) {
             log.warn("Failed to set output message attributes", e);
+        }
+    }
+
+    private void setOutputValueAttributes(Span span, ChatModelObservationContext context) {
+        try {
+            if (context.getResponse() == null || context.getResponse().getResults() == null) return;
+            List<Generation> results = context.getResponse().getResults();
+            List<Message> outs = new ArrayList<>();
+            for (Generation generation : results) {
+                var output = generation.getOutput();
+                if (output instanceof AssistantMessage) {
+                    outs.add((AssistantMessage) output);
+                }
+            }
+            if (!outs.isEmpty()) {
+                List<Map<String, Object>> messagesList = convertMessages(outs);
+                String messagesJson = objectMapper.writeValueAsString(messagesList);
+                span.setAttribute(SemanticConventions.OUTPUT_VALUE, messagesJson);
+                span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
+            }
+        } catch (Exception e) {
+            log.warn("Failed to set output value attributes", e);
         }
     }
 

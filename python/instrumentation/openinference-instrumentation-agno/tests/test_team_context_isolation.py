@@ -267,3 +267,97 @@ async def test_mixed_sync_async_team_runs_create_separate_traces(
         assert parent_span_context is None or not parent_span_context.is_valid, (
             "Mixed sync/async runs are nesting"
         )
+
+
+def test_streamed_team_run_outer_span_remains_current(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
+    """Regression: outer workflow span must remain current after a streamed Team run.
+
+    Verifies that team_token is detached before ctx_token so the OTel context
+    stack is unwound in LIFO order.
+    """
+    from opentelemetry import trace as trace_api
+
+    team, exporter = instrumented_team
+    tracer = trace_api.get_tracer("test")
+
+    outer_span = tracer.start_span("outer_workflow")
+    outer_ctx = trace_api.use_span(outer_span, end_on_exit=False)
+    outer_ctx.__enter__()
+
+    try:
+        try:
+            for _ in team.run("Stream question", stream=True, yield_run_output=True):
+                pass
+        except Exception:
+            pass
+
+        current_span = trace_api.get_current_span()
+        assert current_span.get_span_context().span_id == outer_span.get_span_context().span_id, (
+            "Outer workflow span is no longer current after streamed Team run — "
+            "context tokens were detached in the wrong order"
+        )
+    finally:
+        outer_ctx.__exit__(None, None, None)
+        outer_span.end()
+
+
+@pytest.mark.asyncio
+async def test_streamed_async_team_run_outer_span_remains_current(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
+    """Regression: outer workflow span must remain current after a streamed async Team run.
+
+    Verifies that team_token is detached before ctx_token so the OTel context
+    stack is unwound in LIFO order.
+    """
+    from opentelemetry import trace as trace_api
+
+    team, exporter = instrumented_team
+    tracer = trace_api.get_tracer("test")
+
+    outer_span = tracer.start_span("outer_workflow")
+    outer_ctx = trace_api.use_span(outer_span, end_on_exit=False)
+    outer_ctx.__enter__()
+
+    try:
+        try:
+            async for _ in team.arun("Async stream question", stream=True, yield_run_output=True):
+                pass
+        except Exception:
+            pass
+
+        current_span = trace_api.get_current_span()
+        assert current_span.get_span_context().span_id == outer_span.get_span_context().span_id, (
+            "Outer workflow span is no longer current after streamed async Team run — "
+            "context tokens were detached in the wrong order"
+        )
+    finally:
+        outer_ctx.__exit__(None, None, None)
+        outer_span.end()
+
+
+def test_sequential_streamed_team_runs_create_separate_traces(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
+    """Sequential streamed Team runs must produce separate root traces, not nested ones."""
+    team, exporter = instrumented_team
+
+    for question in ("Stream 1", "Stream 2", "Stream 3"):
+        try:
+            for _ in team.run(question, stream=True, yield_run_output=True):
+                pass
+        except Exception:
+            pass
+
+    spans = exporter.get_finished_spans()
+    team_spans = _get_team_spans(spans)
+
+    assert len(team_spans) >= 3, f"Expected at least 3 team spans, got {len(team_spans)}"
+
+    for team_span in team_spans:
+        parent_span_context = team_span.parent
+        assert parent_span_context is None or not parent_span_context.is_valid, (
+            "Streamed Team span has a parent — traces are nesting instead of being separate"
+        )

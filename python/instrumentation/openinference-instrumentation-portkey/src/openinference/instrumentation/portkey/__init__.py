@@ -43,26 +43,26 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_completions_create = Completions.create
         wrap_function_wrapper(
-            module="portkey_ai.api_resources.apis.chat_complete",
-            name="Completions.create",
-            wrapper=_CompletionsWrapper(tracer=self._tracer),
+            "portkey_ai.api_resources.apis.chat_complete",
+            "Completions.create",
+            _CompletionsWrapper(tracer=self._tracer),
         )
         wrap_function_wrapper(
-            module="portkey_ai.api_resources.apis.generation",
-            name="Completions.create",
-            wrapper=_CompletionsWrapper(tracer=self._tracer),
+            "portkey_ai.api_resources.apis.generation",
+            "Completions.create",
+            _CompletionsWrapper(tracer=self._tracer),
         )
 
         self._original_async_completions_create = AsyncCompletions.create
         wrap_function_wrapper(
-            module="portkey_ai.api_resources.apis.chat_complete",
-            name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
+            "portkey_ai.api_resources.apis.chat_complete",
+            "AsyncCompletions.create",
+            _AsyncCompletionsWrapper(tracer=self._tracer),
         )
         wrap_function_wrapper(
-            module="portkey_ai.api_resources.apis.generation",
-            name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
+            "portkey_ai.api_resources.apis.generation",
+            "AsyncCompletions.create",
+            _AsyncCompletionsWrapper(tracer=self._tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

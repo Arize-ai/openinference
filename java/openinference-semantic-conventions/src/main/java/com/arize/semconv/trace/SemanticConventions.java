@@ -44,6 +44,7 @@ public class SemanticConventions {
         public static final String TOOLS = "tools";
         public static final String COST = "cost";
         public static final String CHOICES = "choices";
+        public static final String FINISH_REASON = "finish_reason";
     }
 
     @UtilityClass
@@ -268,6 +269,12 @@ public class SemanticConventions {
     /** Token count for the entire transaction with the llm (in tokens) */
     public static final String LLM_TOKEN_COUNT_TOTAL =
             SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".total";
+
+    /**
+     * The reason the model stopped generating tokens, e.g. {@code "stop"} or {@code "length"}.
+     */
+    public static final String LLM_FINISH_REASON =
+            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.FINISH_REASON;
 
     /**
      * Key prefix for additional prompt token count details. Each detail should be a separate attribute

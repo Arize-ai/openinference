@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.4.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.4.2...python-openinference-instrumentation-openai-agents-v1.4.3) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [1.4.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.4.1...python-openinference-instrumentation-openai-agents-v1.4.2) (2026-04-29)
+
+
+### Bug Fixes
+
+* Openai instrumentation returning the incorrect span kind for GuardrailSpanData  ([#2964](https://github.com/Arize-ai/openinference/issues/2964)) ([e1b7eb7](https://github.com/Arize-ai/openinference/commit/e1b7eb72d9b5d5ea9afede827f333ef3e538de91))
+
+## [1.4.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.4.0...python-openinference-instrumentation-openai-agents-v1.4.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **openai,openai-agents:** handle new output item types from latest OpenAI SDK ([#2923](https://github.com/Arize-ai/openinference/issues/2923)) ([75667be](https://github.com/Arize-ai/openinference/commit/75667be1128ee402ded7251755f148fb0ce14d5d))
+
 ## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.3.1...python-openinference-instrumentation-openai-agents-v1.4.0) (2025-12-04)
 
 

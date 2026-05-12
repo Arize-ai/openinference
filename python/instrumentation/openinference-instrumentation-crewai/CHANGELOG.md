@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.4...python-openinference-instrumentation-crewai-v1.1.5) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [1.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.3...python-openinference-instrumentation-crewai-v1.1.4) (2026-05-04)
+
+
+### Bug Fixes
+
+* removed the per-agent i18n field ([f2d4191](https://github.com/Arize-ai/openinference/commit/f2d419170879b1d161e9bd2b167be640319533d4))
+
+## [1.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.2...python-openinference-instrumentation-crewai-v1.1.3) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.1...python-openinference-instrumentation-crewai-v1.1.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* **crewai:** serialize agent task input as structured JSON ([#2916](https://github.com/Arize-ai/openinference/issues/2916)) ([e6ed1f6](https://github.com/Arize-ai/openinference/commit/e6ed1f63b8062e590a1cd51f17ba26bab9e22a72))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.0...python-openinference-instrumentation-crewai-v1.1.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **crewAI:** sanitize event message ([#2946](https://github.com/Arize-ai/openinference/issues/2946)) ([b05ec92](https://github.com/Arize-ai/openinference/commit/b05ec926e037c026769d2a543e205b40033c9847))
+
 ## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.0.0...python-openinference-instrumentation-crewai-v1.1.0) (2026-03-23)
 
 

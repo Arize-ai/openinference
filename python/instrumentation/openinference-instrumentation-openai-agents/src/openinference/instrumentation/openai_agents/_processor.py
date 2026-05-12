@@ -231,7 +231,7 @@ def _get_span_kind(obj: SpanData) -> str:
     if isinstance(obj, CustomSpanData):
         return OpenInferenceSpanKindValues.CHAIN.value
     if isinstance(obj, GuardrailSpanData):
-        return OpenInferenceSpanKindValues.CHAIN.value
+        return OpenInferenceSpanKindValues.GUARDRAIL.value
     return OpenInferenceSpanKindValues.CHAIN.value
 
 

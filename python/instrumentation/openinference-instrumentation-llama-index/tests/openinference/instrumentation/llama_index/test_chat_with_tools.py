@@ -19,7 +19,7 @@ llms = [OpenAI(max_retries=0), Anthropic(max_retries=0, model="claude-3-5-haiku-
 if Version(version("llama-index-llms-openai")) >= Version("0.3.30"):
     from llama_index.llms.openai import OpenAIResponses
 
-    llms.append(OpenAIResponses(max_retries=0))
+    llms.append(OpenAIResponses(max_retries=0, api_key="sk-fake"))
 
 
 @pytest.mark.disable_socket

@@ -12,7 +12,6 @@ Core utilities for automatically tracing function execution. See [withSpan](with
 
 ```typescript
 import { withSpan } from "@arizeai/openinference-core";
-import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 const fetchData = async (url: string) => {
   const response = await fetch(url);
@@ -21,9 +20,20 @@ const fetchData = async (url: string) => {
 
 const tracedFetch = withSpan(fetchData, {
   name: "api-request",
-  kind: OpenInferenceSpanKind.LLM,
+  kind: "LLM",
 });
 ```
+
+Agent notes for `withSpan`:
+
+- Prefer uppercase string literals like `"LLM"` for `kind`; enum members are
+  equivalent
+- Wrapped methods preserve the `this` they are called with; detached method
+  references still need `.bind(instance)` before calling them standalone
+- Synchronous throws and rejected promises are both recorded on the span, which
+  is marked `ERROR`, ended, and then re-thrown
+- If you omit `tracer`, the wrapper resolves the current global tracer provider
+  each time it is invoked
 
 **`traceChain`** - Convenience wrapper for tracing workflow sequences (CHAIN span kind):
 
@@ -73,7 +83,7 @@ Class method decoration for automatic tracing. See [decorators](decorators.ts) f
 import { observe } from "@arizeai/openinference-core";
 
 class MyService {
-  @observe({ kind: "chain" })
+  @observe({ kind: "CHAIN" })
   async processData(input: string) {
     // Method implementation
     return `processed: ${input}`;

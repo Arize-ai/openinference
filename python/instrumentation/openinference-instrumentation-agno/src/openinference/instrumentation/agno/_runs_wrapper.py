@@ -1,6 +1,9 @@
+import asyncio
 import json
+import threading
 from typing import (
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Iterator,
@@ -18,8 +21,10 @@ from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent
 from agno.models.message import Message
+from agno.run.agent import RunCompletedEvent as AgentRunCompletedEvent
 from agno.run.agent import RunOutput
 from agno.run.messages import RunMessages
+from agno.run.team import RunCompletedEvent as TeamRunCompletedEvent
 from agno.run.team import TeamRunOutput
 from agno.team import Team
 from agno.tools.function import Function
@@ -91,6 +96,18 @@ def _extract_run_response_output(run_response: Union[RunOutput, TeamRunOutput]) 
         else:
             return str(run_response.content.model_dump_json())
     return ""
+
+
+def _extract_completed_event_output(
+    completed_event: Union[AgentRunCompletedEvent, TeamRunCompletedEvent],
+) -> str:
+    if completed_event.content is None:
+        return ""
+    if isinstance(completed_event.content, str):
+        return completed_event.content
+    if hasattr(completed_event.content, "model_dump_json"):
+        return str(completed_event.content.model_dump_json())
+    return str(completed_event.content)
 
 
 def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -228,8 +245,11 @@ def _get_team_span_context(agent_or_team: Optional[Union[Agent, Team]]) -> Optio
     if not isinstance(agent_or_team, Team):
         return None
 
-    # Check if we're inside a parent Team context
-    # This is more reliable than get_current_span() when Agno uses thread pools
+    # If there's already a recording span in context, record team span under it.
+    if trace_api.get_current_span().is_recording():
+        return None
+
+    # Check if we're inside a parent Team context (internal agno context key)
     parent_team_node_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
 
     # Only force root span if we're NOT inside a parent Team
@@ -239,6 +259,17 @@ def _get_team_span_context(agent_or_team: Optional[Union[Agent, Team]]) -> Optio
 
     # Inside parent team - let it nest naturally
     return None
+
+
+def detach_context_tokens(
+    initial_thread: Any, current_thread: Any, team_token: Any, ctx_token: Any
+) -> None:
+    """Helper function to detach context token with error handling."""
+    if initial_thread is current_thread:
+        if team_token:
+            context_api.detach(team_token)
+        if ctx_token is not None:
+            context_api.detach(ctx_token)
 
 
 class _RunWrapper:
@@ -385,28 +416,31 @@ class _RunWrapper:
         )
 
         team_token = None
+        ctx_token = None
+        initial_thread = threading.current_thread()
         try:
-            current_run_id = None
             yield_run_output_set = False
             if kwargs.get("yield_run_output") is not True:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
 
             run_response = None
-            with trace_api.use_span(span, end_on_exit=False):
-                team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
-                for response in wrapped(*args, **kwargs):
-                    if hasattr(response, "run_id"):
-                        current_run_id = response.run_id
-                        if current_run_id:
-                            span.set_attribute("agno.run.id", current_run_id)
+            # Manually attach/detach instead of use_span() context manager to context errors
+            # when yielding results across threads.
+            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+            team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
+            for response in wrapped(*args, **kwargs):
+                if hasattr(response, "run_id"):
+                    current_run_id = response.run_id
+                    if current_run_id:
+                        span.set_attribute("agno.run.id", current_run_id)
 
-                    if isinstance(response, (RunOutput, TeamRunOutput)):
-                        run_response = response
-                        if yield_run_output_set:
-                            continue
+                if isinstance(response, (RunOutput, TeamRunOutput)):
+                    run_response = response
+                    if yield_run_output_set:
+                        continue
 
-                    yield response
+                yield response
 
             if run_response is not None:
                 output = _extract_run_response_output(run_response)
@@ -414,18 +448,12 @@ class _RunWrapper:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_status(trace_api.StatusCode.OK)
-
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
             raise
-
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
+            detach_context_tokens(threading.current_thread(), initial_thread, team_token, ctx_token)
             span.end()
 
     async def arun(
@@ -560,33 +588,47 @@ class _RunWrapper:
         )
 
         team_token = None
+        ctx_token = None
+        initial_task = asyncio.current_task()
         try:
-            current_run_id = None
             yield_run_output_set = False
             if kwargs.get("yield_run_output") is not True:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
-            with trace_api.use_span(span, end_on_exit=False):
-                team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
-                async for response in wrapped(*args, **kwargs):  # type: ignore
-                    if hasattr(response, "run_id"):
-                        current_run_id = response.run_id
-                        if current_run_id:
-                            span.set_attribute("agno.run.id", current_run_id)
+            completed_event_output = ""
+            iterator = cast(AsyncIterator[Any], wrapped(*args, **kwargs))
+            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+            team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
+            async for response in iterator:
+                if hasattr(response, "run_id"):
+                    current_run_id = response.run_id
+                    if current_run_id:
+                        span.set_attribute("agno.run.id", current_run_id)
 
-                    if isinstance(response, (RunOutput, TeamRunOutput)):
-                        run_response = response
-                        if yield_run_output_set:
-                            continue
+                if isinstance(response, (RunOutput, TeamRunOutput)):
+                    run_response = response
+                    if yield_run_output_set:
+                        continue
 
+                if isinstance(response, (AgentRunCompletedEvent, TeamRunCompletedEvent)):
+                    completed_event_output = _extract_completed_event_output(response)
+
+                try:
                     yield response
+                except GeneratorExit:
+                    if hasattr(iterator, "aclose"):
+                        await iterator.aclose()
+                    break
 
             if run_response is not None:
                 output = _extract_run_response_output(run_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            elif completed_event_output:
+                span.set_attribute(OUTPUT_VALUE, completed_event_output)
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_status(trace_api.StatusCode.OK)
 
         except Exception as e:
@@ -595,11 +637,7 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
+            detach_context_tokens(asyncio.current_task(), initial_task, team_token, ctx_token)
             span.end()
 
 

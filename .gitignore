@@ -16,11 +16,11 @@ sdist
 # Generated files
 .python-version
 .safety-project.ini
-.mastra
 uv.lock
 
 # Generated docs
 js/**/docs
+!js/packages/openinference-core/docs
 
 # Data files
 *.csv
@@ -115,3 +115,5 @@ Thumbs.db
 
 # Workspace Definitions
 *.code-workspace
+.workbench/
+use-workbench/

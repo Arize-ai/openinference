@@ -20,6 +20,8 @@ from ._attributes import (
     get_tag_attributes,
     get_tool_attributes,
     get_user_id_attributes,
+    infer_llm_provider_from_host,
+    infer_llm_system_from_model_name,
 )
 from ._capture import capture_span_context
 from ._projects import dangerously_using_project
@@ -97,6 +99,8 @@ __all__ = [
     "get_tag_attributes",
     "get_tool_attributes",
     "get_user_id_attributes",
+    "infer_llm_provider_from_host",
+    "infer_llm_system_from_model_name",
     "Document",
     "Embedding",
     "Image",

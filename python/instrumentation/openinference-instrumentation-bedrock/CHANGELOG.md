@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.36...python-openinference-instrumentation-bedrock-v0.1.37) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.35...python-openinference-instrumentation-bedrock-v0.1.36) (2026-04-30)
+
+
+### Bug Fixes
+
+* **bedrock:** capture toolUse output attributes in converse ([#3022](https://github.com/Arize-ai/openinference/issues/3022)) ([282a67b](https://github.com/Arize-ai/openinference/commit/282a67befc578b4ca083145b6bf9b5517335da24))
+
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.34...python-openinference-instrumentation-bedrock-v0.1.35) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.33...python-openinference-instrumentation-bedrock-v0.1.34) (2026-04-10)
+
+
+### Features
+
+* **bedrock:** bedrock-runtime apply_guardrail instrumentation ([#2949](https://github.com/Arize-ai/openinference/issues/2949)) ([ae6f78e](https://github.com/Arize-ai/openinference/commit/ae6f78e1dac8619e4c4e1c0b40a7e6307cd9e516))
+
 ## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.32...python-openinference-instrumentation-bedrock-v0.1.33) (2026-02-24)
 
 

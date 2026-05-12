@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.arize.instrumentation.OITracer;
 import com.arize.instrumentation.OpenInferenceAgent;
+import com.arize.instrumentation.TraceConfig;
 import com.arize.instrumentation.trace.TracedSpan;
 import com.arize.semconv.trace.SemanticConventions;
 import io.opentelemetry.api.common.AttributeKey;
@@ -89,6 +90,65 @@ class MappingTest {
                 .isNotNull();
         assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("spanMethod")))
                 .isNotNull();
+    }
+
+    // --- hide inputs suppresses input mappings ---
+
+    @Test
+    void hideInputsSuppressesInputMappings() throws Exception {
+        OpenInferenceAgent.unregister();
+        exporter.reset();
+
+        TraceConfig config = TraceConfig.builder().hideInputs(true).build();
+        SdkTracerProvider provider = SdkTracerProvider.builder()
+                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                .build();
+        OITracer hiddenTracer = new OITracer(provider.get("test-hidden"), config);
+        OpenInferenceAgent.register(hiddenTracer);
+
+        Method method = MappingTarget.class.getMethod("withInputMapping", String.class, String.class);
+        Object[] args = {"secret-prompt", "gpt-4o"};
+
+        TracedSpan span = TraceAdvice.onEnter(method, args);
+        TraceAdvice.onExit(span, method, null, null);
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        // Non-sensitive mapped attribute (llm.model_name) should still be present —
+        // shouldHide() only blocks sensitive keys, not all mappings
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
+                .isEqualTo("gpt-4o");
+        // Input value should be suppressed by hideInputs
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+    }
+
+    @Test
+    void hideOutputsSuppressesOutputMappings() throws Exception {
+        OpenInferenceAgent.unregister();
+        exporter.reset();
+
+        TraceConfig config = TraceConfig.builder().hideOutputs(true).build();
+        SdkTracerProvider provider = SdkTracerProvider.builder()
+                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                .build();
+        OITracer hiddenTracer = new OITracer(provider.get("test-hidden"), config);
+        OpenInferenceAgent.register(hiddenTracer);
+
+        Method method = MappingTarget.class.getMethod("withOutputMapping");
+        Object[] args = {};
+
+        TracedSpan span = TraceAdvice.onEnter(method, args);
+        Map<String, Object> result = Map.of("usage", Map.of("totalTokens", 150));
+        TraceAdvice.onExit(span, method, result, null);
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        // Non-sensitive mapped attribute (llm.token_count.total) should still be present —
+        // shouldHide() only blocks sensitive keys, not all mappings
+        assertThat(data.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL)))
+                .isEqualTo(150L);
+        // Output value should be suppressed by hideOutputs
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
     }
 
     // --- Test target with mapping annotations ---

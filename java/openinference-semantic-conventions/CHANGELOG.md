@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.11...java-openinference-semantic-conventions-v0.1.12) (2026-04-21)
+
+
+### Features
+
+* add llm.finish_reason semantic convention ([#2991](https://github.com/Arize-ai/openinference/issues/2991)) ([e09ce3f](https://github.com/Arize-ai/openinference/commit/e09ce3f88892dff236f2ba79f395006c3c6447db))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.10...java-openinference-semantic-conventions-v0.1.11) (2026-03-23)
 
 

@@ -6,6 +6,8 @@ This directory contains integration tests for the agent-framework instrumentatio
 
 The processor tests use `pytest-recording` to record real API interactions with agent-framework and OpenAI, allowing tests to run without actual API calls after initial recording. pytest-recording has excellent httpx support, which is crucial since agent-framework uses the httpx-based OpenAI client.
 
+Stable `agent-framework==1.0.0` uses the OpenAI Responses API for `OpenAIChatClient`, so cassettes recorded against the older Chat Completions path need to be re-recorded after the version bump.
+
 ### Prerequisites
 
 1. Install test dependencies:
@@ -19,7 +21,7 @@ The processor tests use `pytest-recording` to record real API interactions with 
    enable_instrumentation(enable_sensitive_data=True)
    ```
 
-   Note: API may vary by version. Pinned to 1.0.0b260130 for stability.
+   Note: API changed between `1.0.0rc1` and stable `1.0.0`. Tests are now pinned to `1.0.0`.
 
    Note: `enable_sensitive_data=True` is required to capture message content in spans.
 

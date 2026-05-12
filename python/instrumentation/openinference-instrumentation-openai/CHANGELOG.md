@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.1.47](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.46...python-openinference-instrumentation-openai-v0.1.47) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.45...python-openinference-instrumentation-openai-v0.1.46) (2026-05-06)
+
+
+### Features
+
+* **openai:** capture llm.finish_reason for the first choice ([#3056](https://github.com/Arize-ai/openinference/issues/3056)) ([8165c0e](https://github.com/Arize-ai/openinference/commit/8165c0e709362483b0396a58993109ee20d26dc9))
+
+
+### Bug Fixes
+
+* **openai:** guard None token details in response usage ([#3057](https://github.com/Arize-ai/openinference/issues/3057)) ([1478dca](https://github.com/Arize-ai/openinference/commit/1478dca77bd8b7712fedda2fdb3f2ae6ae657c5c))
+
+## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.44...python-openinference-instrumentation-openai-v0.1.45) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.43...python-openinference-instrumentation-openai-v0.1.44) (2026-04-03)
+
+
+### Bug Fixes
+
+* **openai,openai-agents:** handle new output item types from latest OpenAI SDK ([#2923](https://github.com/Arize-ai/openinference/issues/2923)) ([75667be](https://github.com/Arize-ai/openinference/commit/75667be1128ee402ded7251755f148fb0ce14d5d))
+
 ## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.42...python-openinference-instrumentation-openai-v0.1.43) (2026-03-24)
 
 

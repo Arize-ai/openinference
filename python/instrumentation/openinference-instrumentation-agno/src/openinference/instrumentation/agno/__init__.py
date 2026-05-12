@@ -122,60 +122,60 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_run_method = getattr(agent_run_module, "_run", None)
         if self._original_run_method:
             wrap_function_wrapper(
-                module=agent_run_module,
-                name="_run",
-                wrapper=run_wrapper.run,
+                agent_run_module,
+                "_run",
+                run_wrapper.run,
             )
         self._original_run_stream_method = getattr(agent_run_module, "_run_stream", None)
         if self._original_run_stream_method:
             wrap_function_wrapper(
-                module=agent_run_module,
-                name="_run_stream",
-                wrapper=run_wrapper.run_stream,
+                agent_run_module,
+                "_run_stream",
+                run_wrapper.run_stream,
             )
         self._original_arun_method = getattr(agent_run_module, "_arun", None)
         if self._original_arun_method:
             wrap_function_wrapper(
-                module=agent_run_module,
-                name="_arun",
-                wrapper=run_wrapper.arun,
+                agent_run_module,
+                "_arun",
+                run_wrapper.arun,
             )
         self._original_arun_stream_method = getattr(agent_run_module, "_arun_stream", None)
         if self._original_arun_stream_method:
             wrap_function_wrapper(
-                module=agent_run_module,
-                name="_arun_stream",
-                wrapper=run_wrapper.arun_stream,
+                agent_run_module,
+                "_arun_stream",
+                run_wrapper.arun_stream,
             )
 
         # Wrap Team module-level run functions
         self._original_team_run_method = getattr(team_run_module, "_run", None)
         if self._original_team_run_method:
             wrap_function_wrapper(
-                module=team_run_module,
-                name="_run",
-                wrapper=run_wrapper.run,
+                team_run_module,
+                "_run",
+                run_wrapper.run,
             )
         self._original_team_run_stream_method = getattr(team_run_module, "_run_stream", None)
         if self._original_team_run_stream_method:
             wrap_function_wrapper(
-                module=team_run_module,
-                name="_run_stream",
-                wrapper=run_wrapper.run_stream,
+                team_run_module,
+                "_run_stream",
+                run_wrapper.run_stream,
             )
         self._original_team_arun_method = getattr(team_run_module, "_arun", None)
         if self._original_team_arun_method:
             wrap_function_wrapper(
-                module=team_run_module,
-                name="_arun",
-                wrapper=run_wrapper.arun,
+                team_run_module,
+                "_arun",
+                run_wrapper.arun,
             )
         self._original_team_arun_stream_method = getattr(team_run_module, "_arun_stream", None)
         if self._original_team_arun_stream_method:
             wrap_function_wrapper(
-                module=team_run_module,
-                name="_arun_stream",
-                wrapper=run_wrapper.arun_stream,
+                team_run_module,
+                "_arun_stream",
+                run_wrapper.arun_stream,
             )
 
         self._original_model_call_methods: Optional[dict[type, dict[str, Callable[..., Any]]]] = {}
@@ -197,41 +197,41 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 if method is not None:
                     if method_name == "invoke":
                         wrap_function_wrapper(
-                            module=model_subclass,
-                            name=method_name,
-                            wrapper=model_wrapper.run,
+                            model_subclass,
+                            method_name,
+                            model_wrapper.run,
                         )
                     elif method_name == "invoke_stream":
                         wrap_function_wrapper(
-                            module=model_subclass,
-                            name=method_name,
-                            wrapper=model_wrapper.run_stream,
+                            model_subclass,
+                            method_name,
+                            model_wrapper.run_stream,
                         )
                     elif method_name == "ainvoke":
                         wrap_function_wrapper(
-                            module=model_subclass,
-                            name=method_name,
-                            wrapper=model_wrapper.arun,
+                            model_subclass,
+                            method_name,
+                            model_wrapper.arun,
                         )
                     elif method_name == "ainvoke_stream":
                         wrap_function_wrapper(
-                            module=model_subclass,
-                            name=method_name,
-                            wrapper=model_wrapper.arun_stream,
+                            model_subclass,
+                            method_name,
+                            model_wrapper.arun_stream,
                         )
 
         function_call_wrapper = _FunctionCallWrapper(tracer=self._tracer)
         self._original_function_execute_method = getattr(FunctionCall, "execute", None)
         wrap_function_wrapper(
-            module=FunctionCall,
-            name="execute",
-            wrapper=function_call_wrapper.run,
+            FunctionCall,
+            "execute",
+            function_call_wrapper.run,
         )
         self._original_function_aexecute_method = getattr(FunctionCall, "aexecute", None)
         wrap_function_wrapper(
-            module=FunctionCall,
-            name="aexecute",
-            wrapper=function_call_wrapper.arun,
+            FunctionCall,
+            "aexecute",
+            function_call_wrapper.arun,
         )
 
         # Instrument Workflow and Step
@@ -250,45 +250,45 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             if hasattr(Workflow, "run") and callable(getattr(Workflow, "run", None)):
                 self._original_workflow_methods["run"] = Workflow.run
                 wrap_function_wrapper(
-                    module=Workflow,
-                    name="run",
-                    wrapper=workflow_wrapper.run,
+                    Workflow,
+                    "run",
+                    workflow_wrapper.run,
                 )
 
             # Wrap Workflow.arun (async) - wraps both streaming and non-streaming
             if hasattr(Workflow, "arun") and callable(getattr(Workflow, "arun", None)):
                 self._original_workflow_methods["arun"] = Workflow.arun  # type: ignore[assignment]
                 wrap_function_wrapper(
-                    module=Workflow,
-                    name="arun",
-                    wrapper=workflow_wrapper.arun,
+                    Workflow,
+                    "arun",
+                    workflow_wrapper.arun,
                 )
 
             # Wrap Step.execute (sync)
             if hasattr(Step, "execute") and callable(getattr(Step, "execute", None)):
                 self._original_step_methods["execute"] = Step.execute
                 wrap_function_wrapper(
-                    module=Step,
-                    name="execute",
-                    wrapper=step_wrapper.run,
+                    Step,
+                    "execute",
+                    step_wrapper.run,
                 )
 
             # Wrap Step.execute_stream (sync streaming)
             if hasattr(Step, "execute_stream") and callable(getattr(Step, "execute_stream", None)):
                 self._original_step_methods["execute_stream"] = Step.execute_stream  # type: ignore[assignment]
                 wrap_function_wrapper(
-                    module=Step,
-                    name="execute_stream",
-                    wrapper=step_wrapper.run,
+                    Step,
+                    "execute_stream",
+                    step_wrapper.run,
                 )
 
             # Wrap Step.aexecute (async)
             if hasattr(Step, "aexecute") and callable(getattr(Step, "aexecute", None)):
                 self._original_step_methods["aexecute"] = Step.aexecute  # type: ignore[assignment]
                 wrap_function_wrapper(
-                    module=Step,
-                    name="aexecute",
-                    wrapper=step_wrapper.arun,
+                    Step,
+                    "aexecute",
+                    step_wrapper.arun,
                 )
 
             # Wrap Step.aexecute_stream (async streaming)
@@ -297,9 +297,9 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             ):
                 self._original_step_methods["aexecute_stream"] = Step.aexecute_stream  # type: ignore[assignment]
                 wrap_function_wrapper(
-                    module=Step,
-                    name="aexecute_stream",
-                    wrapper=step_wrapper.arun,
+                    Step,
+                    "aexecute_stream",
+                    step_wrapper.arun,
                 )
 
             # Instrument Parallel for context propagation to worker threads
@@ -313,9 +313,9 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 if hasattr(Parallel, "execute") and callable(getattr(Parallel, "execute", None)):
                     self._original_parallel_methods["execute"] = Parallel.execute
                     wrap_function_wrapper(
-                        module=Parallel,
-                        name="execute",
-                        wrapper=parallel_wrapper.execute,
+                        Parallel,
+                        "execute",
+                        parallel_wrapper.execute,
                     )
 
                 # Wrap Parallel.execute_stream (sync streaming)
@@ -324,18 +324,18 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 ):
                     self._original_parallel_methods["execute_stream"] = Parallel.execute_stream  # type: ignore[assignment]
                     wrap_function_wrapper(
-                        module=Parallel,
-                        name="execute_stream",
-                        wrapper=parallel_wrapper.execute,
+                        Parallel,
+                        "execute_stream",
+                        parallel_wrapper.execute,
                     )
 
                 # Wrap Parallel.aexecute (async non-streaming)
                 if hasattr(Parallel, "aexecute") and callable(getattr(Parallel, "aexecute", None)):
                     self._original_parallel_methods["aexecute"] = Parallel.aexecute  # type: ignore[assignment]
                     wrap_function_wrapper(
-                        module=Parallel,
-                        name="aexecute",
-                        wrapper=parallel_wrapper.aexecute,
+                        Parallel,
+                        "aexecute",
+                        parallel_wrapper.aexecute,
                     )
 
                 # Wrap Parallel.aexecute_stream (async streaming)
@@ -344,9 +344,9 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 ):
                     self._original_parallel_methods["aexecute_stream"] = Parallel.aexecute_stream  # type: ignore[assignment]
                     wrap_function_wrapper(
-                        module=Parallel,
-                        name="aexecute_stream",
-                        wrapper=parallel_wrapper.aexecute,
+                        Parallel,
+                        "aexecute_stream",
+                        parallel_wrapper.aexecute,
                     )
 
             except (ImportError, AttributeError):

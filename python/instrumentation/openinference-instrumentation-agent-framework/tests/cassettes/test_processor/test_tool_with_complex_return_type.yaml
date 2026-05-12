@@ -1,10 +1,10 @@
 interactions:
 - request:
-    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You help
-      manage user information. Use the get_user_profile tool to fetch user details.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"Get
-      the profile for user ''user123''","additional_properties":{}}]}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"get_user_profile","description":"Get
-      detailed user profile information.","parameters":{"properties":{"user_id":{"title":"User
-      Id","type":"string"}},"required":["user_id"],"title":"get_user_profile_input","type":"object"}}}]}'
+    body: '{"input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"You
+      help manage user information. Use the get_user_profile tool to fetch user details."}]},{"type":"message","role":"user","content":[{"type":"input_text","text":"Get
+      the profile for user ''user123''"}]}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"name":"get_user_profile","parameters":{"properties":{"user_id":{"title":"User
+      Id","type":"string"}},"required":["user_id"],"title":"get_user_profile_input","type":"object","additionalProperties":false},"strict":false,"type":"function","description":"Get
+      detailed user profile information."}]}'
     headers:
       Accept:
       - application/json
@@ -13,13 +13,13 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '628'
+      - '648'
       Content-Type:
       - application/json
       Host:
       - api.openai.com
       User-Agent:
-      - agent-framework-python/1.0.0b260210
+      - agent-framework-python/1.0.0
       X-Stainless-Arch:
       - arm64
       X-Stainless-Async:
@@ -29,45 +29,57 @@ interactions:
       X-Stainless-OS:
       - MacOS
       X-Stainless-Package-Version:
-      - 2.20.0
+      - 2.30.0
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
       - 3.10.18
       agent-framework-version:
-      - python/1.0.0b260210
+      - python/1.0.0
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
       - '0'
     method: POST
-    uri: https://api.openai.com/v1/chat/completions
+    uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D8EhxuXH2G31ASubnytGwc0OGb6dS\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770855533,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
-        \           \"id\": \"call_Z2GDsFLeVM2WxPDrIhDksfZI\",\n            \"type\":
-        \"function\",\n            \"function\": {\n              \"name\": \"get_user_profile\",\n
-        \             \"arguments\": \"{\\\"user_id\\\":\\\"user123\\\"}\"\n            }\n
-        \         }\n        ],\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 81,\n    \"completion_tokens\":
-        17,\n    \"total_tokens\": 98,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+      string: "{\n  \"id\": \"resp_0770eba4b47ce2e60069d6f97bccc88195b7097d54b5a68b92\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1775696251,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1775696252,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-4o-mini-2024-07-18\",\n  \"output\": [\n    {\n      \"id\": \"fc_0770eba4b47ce2e60069d6f97c87a48195807d709e0b1fd7b3\",\n
+        \     \"type\": \"function_call\",\n      \"status\": \"completed\",\n      \"arguments\":
+        \"{\\\"user_id\\\":\\\"user123\\\"}\",\n      \"call_id\": \"call_Cdiw0n3MNuTH2ViiSUdEhwvs\",\n
+        \     \"name\": \"get_user_profile\"\n    }\n  ],\n  \"parallel_tool_calls\":
+        true,\n  \"presence_penalty\": 0.0,\n  \"previous_response_id\": null,\n  \"prompt_cache_key\":
+        null,\n  \"prompt_cache_retention\": null,\n  \"reasoning\": {\n    \"effort\":
+        null,\n    \"summary\": null\n  },\n  \"safety_identifier\": null,\n  \"service_tier\":
+        \"default\",\n  \"store\": true,\n  \"temperature\": 1.0,\n  \"text\": {\n
+        \   \"format\": {\n      \"type\": \"text\"\n    },\n    \"verbosity\": \"medium\"\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [\n    {\n      \"type\":
+        \"function\",\n      \"description\": \"Get detailed user profile information.\",\n
+        \     \"name\": \"get_user_profile\",\n      \"parameters\": {\n        \"properties\":
+        {\n          \"user_id\": {\n            \"title\": \"User Id\",\n            \"type\":
+        \"string\"\n          }\n        },\n        \"required\": [\n          \"user_id\"\n
+        \       ],\n        \"title\": \"get_user_profile_input\",\n        \"type\":
+        \"object\",\n        \"additionalProperties\": false\n      },\n      \"strict\":
+        false\n    }\n  ],\n  \"top_logprobs\": 0,\n  \"top_p\": 1.0,\n  \"truncation\":
+        \"disabled\",\n  \"usage\": {\n    \"input_tokens\": 79,\n    \"input_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"output_tokens\": 18,\n    \"output_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 97\n  },\n
+        \ \"user\": null,\n  \"metadata\": {}\n}"
     headers:
       CF-RAY:
-      - 9cc7e94b9fc6cf2e-SJC
+      - 9e958ee31ed82acf-LAX
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Thu, 12 Feb 2026 00:18:54 GMT
+      - Thu, 09 Apr 2026 00:57:32 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -76,28 +88,24 @@ interactions:
       - chunked
       X-Content-Type-Options:
       - nosniff
-      access-control-expose-headers:
-      - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '1094'
+      - '1963'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '481'
+      - '996'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
       set-cookie:
-      - __cf_bm=ceFBtT19ZjhDjHviZgl1mcaMTDpVrap4VIxR.jQeQcA-1770855533.3763292-1.0.1.1-UnOAb400kfLfXIH._w78tKvveYfbX70Q48zVotmAcA2ZjBOET1FoWMMbIL01b5R30MjJK1BC4.xnowQr3D_goSOvrrc2m47k5xfcssZTch0NYQrtzXdfrYahiW8INqSy;
-        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
-        00:48:54 GMT
-      x-openai-proxy-wasm:
-      - v0.1
+      - __cf_bm=Thm47OHkniqz2QfnAJXlZ3_Ch6bIxNrKlNVT6UShruE-1775696251.3800187-1.0.1.1-BpZkEAY7TqjZumYVaDT_S8K_VzW5VIHFOVJ1I5CRfaYA1OYMPFF0XFUKUlyJWPj02XzkIOogpY5n0aDm24SKSI8too068i8UBp8aPjVjsCRDzKyr3E3XZNqPBLGgTmfL;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 09 Apr 2026
+        01:27:32 GMT
       x-ratelimit-limit-requests:
       - '30000'
       x-ratelimit-limit-tokens:
@@ -105,25 +113,23 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999967'
+      - '149999705'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_c98189a6c1d8465da3a48422ae891e92
+      - req_998ff47aa5fa4e6fac0ff1f65fda221f
     status:
       code: 200
       message: OK
 - request:
-    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You help
-      manage user information. Use the get_user_profile tool to fetch user details.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"Get
-      the profile for user ''user123''","additional_properties":{}}]},{"role":"assistant","tool_calls":[{"id":"call_Z2GDsFLeVM2WxPDrIhDksfZI","type":"function","function":{"name":"get_user_profile","arguments":"{\"user_id\":\"user123\"}"}}]},{"role":"tool","tool_call_id":"call_Z2GDsFLeVM2WxPDrIhDksfZI","content":"{\"user_id\":
+    body: '{"input":[{"call_id":"call_Cdiw0n3MNuTH2ViiSUdEhwvs","type":"function_call_output","output":"{\"user_id\":
       \"user123\", \"name\": \"John Doe\", \"email\": \"john@example.com\", \"preferences\":
       {\"theme\": \"dark\", \"notifications\": true}, \"stats\": {\"posts\": 42, \"followers\":
-      150}}"}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"get_user_profile","description":"Get
-      detailed user profile information.","parameters":{"properties":{"user_id":{"title":"User
-      Id","type":"string"}},"required":["user_id"],"title":"get_user_profile_input","type":"object"}}}]}'
+      150}}"}],"model":"gpt-4o-mini","previous_response_id":"resp_0770eba4b47ce2e60069d6f97bccc88195b7097d54b5a68b92","stream":false,"tool_choice":"auto","tools":[{"name":"get_user_profile","parameters":{"properties":{"user_id":{"title":"User
+      Id","type":"string"}},"required":["user_id"],"title":"get_user_profile_input","type":"object","additionalProperties":false},"strict":false,"type":"function","description":"Get
+      detailed user profile information."}]}'
     headers:
       Accept:
       - application/json
@@ -132,15 +138,15 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '1072'
+      - '735'
       Content-Type:
       - application/json
       Cookie:
-      - __cf_bm=ceFBtT19ZjhDjHviZgl1mcaMTDpVrap4VIxR.jQeQcA-1770855533.3763292-1.0.1.1-UnOAb400kfLfXIH._w78tKvveYfbX70Q48zVotmAcA2ZjBOET1FoWMMbIL01b5R30MjJK1BC4.xnowQr3D_goSOvrrc2m47k5xfcssZTch0NYQrtzXdfrYahiW8INqSy
+      - __cf_bm=Thm47OHkniqz2QfnAJXlZ3_Ch6bIxNrKlNVT6UShruE-1775696251.3800187-1.0.1.1-BpZkEAY7TqjZumYVaDT_S8K_VzW5VIHFOVJ1I5CRfaYA1OYMPFF0XFUKUlyJWPj02XzkIOogpY5n0aDm24SKSI8too068i8UBp8aPjVjsCRDzKyr3E3XZNqPBLGgTmfL
       Host:
       - api.openai.com
       User-Agent:
-      - agent-framework-python/1.0.0b260210
+      - agent-framework-python/1.0.0
       X-Stainless-Arch:
       - arm64
       X-Stainless-Async:
@@ -150,44 +156,62 @@ interactions:
       X-Stainless-OS:
       - MacOS
       X-Stainless-Package-Version:
-      - 2.20.0
+      - 2.30.0
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
       - 3.10.18
       agent-framework-version:
-      - python/1.0.0b260210
+      - python/1.0.0
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
       - '0'
     method: POST
-    uri: https://api.openai.com/v1/chat/completions
+    uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D8EhygeFOx6vHAKWlS8vUDTfEefja\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770855534,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Here is the profile information for
-        user 'user123':\\n\\n- **Name**: John Doe\\n- **Email**: john@example.com\\n-
-        **Preferences**:\\n  - Theme: Dark\\n  - Notifications: Enabled\\n- **Stats**:\\n
-        \ - Posts: 42\\n  - Followers: 150\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 159,\n    \"completion_tokens\":
-        64,\n    \"total_tokens\": 223,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+      string: "{\n  \"id\": \"resp_0770eba4b47ce2e60069d6f97d38148195b305ef69151aa08f\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1775696253,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1775696254,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-4o-mini-2024-07-18\",\n  \"output\": [\n    {\n      \"id\": \"msg_0770eba4b47ce2e60069d6f97de9a08195ad584450a45f5fdb\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [],\n          \"logprobs\": [],\n          \"text\": \"Here\\u2019s the profile
+        for user **John Doe**:\\n\\n- **User ID**: user123\\n- **Email**: john@example.com\\n-
+        **Preferences**:\\n  - Theme: Dark\\n  - Notifications: Enabled\\n- **Statistics**:\\n
+        \ - Posts: 42\\n  - Followers: 150\"\n        }\n      ],\n      \"role\":
+        \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\": true,\n  \"presence_penalty\":
+        0.0,\n  \"previous_response_id\": \"resp_0770eba4b47ce2e60069d6f97bccc88195b7097d54b5a68b92\",\n
+        \ \"prompt_cache_key\": null,\n  \"prompt_cache_retention\": null,\n  \"reasoning\":
+        {\n    \"effort\": null,\n    \"summary\": null\n  },\n  \"safety_identifier\":
+        null,\n  \"service_tier\": \"default\",\n  \"store\": true,\n  \"temperature\":
+        1.0,\n  \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    },\n
+        \   \"verbosity\": \"medium\"\n  },\n  \"tool_choice\": \"auto\",\n  \"tools\":
+        [\n    {\n      \"type\": \"function\",\n      \"description\": \"Get detailed
+        user profile information.\",\n      \"name\": \"get_user_profile\",\n      \"parameters\":
+        {\n        \"properties\": {\n          \"user_id\": {\n            \"title\":
+        \"User Id\",\n            \"type\": \"string\"\n          }\n        },\n
+        \       \"required\": [\n          \"user_id\"\n        ],\n        \"title\":
+        \"get_user_profile_input\",\n        \"type\": \"object\",\n        \"additionalProperties\":
+        false\n      },\n      \"strict\": false\n    }\n  ],\n  \"top_logprobs\":
+        0,\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n  \"usage\": {\n    \"input_tokens\":
+        158,\n    \"input_tokens_details\": {\n      \"cached_tokens\": 0\n    },\n
+        \   \"output_tokens\": 66,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\":
+        0\n    },\n    \"total_tokens\": 224\n  },\n  \"user\": null,\n  \"metadata\":
+        {}\n}"
     headers:
       CF-RAY:
-      - 9cc7e951fc7898ae-SJC
+      - 9e958eecef924633-LAX
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Thu, 12 Feb 2026 00:18:55 GMT
+      - Thu, 09 Apr 2026 00:57:34 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -196,28 +220,20 @@ interactions:
       - chunked
       X-Content-Type-Options:
       - nosniff
-      access-control-expose-headers:
-      - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '1029'
+      - '2287'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '1410'
+      - '1672'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
-      set-cookie:
-      - __cf_bm=4bwjF.7C7ad8vPT54SNlf.wc4kewa5UUZkgTbzua4Tg-1770855534.3919284-1.0.1.1-3tMeY6mG.pXX3vLVNLvsjYAODxUDiVVUK2HabaQDVE1u7PO0uGZ9RHF.7j3bHsPw3QQEB0.rdhyHAKOdGwlTFizRG.QWkgaNdWZg9wlqa1eTD9fx7j08t553eRAxyLFy;
-        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
-        00:48:55 GMT
-      x-openai-proxy-wasm:
-      - v0.1
       x-ratelimit-limit-requests:
       - '30000'
       x-ratelimit-limit-tokens:
@@ -225,13 +241,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999922'
+      - '149999625'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_9f1940134fbe4b03a5d15cce06ecbfc6
+      - req_c781bb58301d4d05b9bcf95230bddc47
     status:
       code: 200
       message: OK

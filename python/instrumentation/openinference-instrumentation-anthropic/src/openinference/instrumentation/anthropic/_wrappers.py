@@ -59,7 +59,8 @@ if TYPE_CHECKING:
         BetaMessageStreamManager,
         MessageStreamManager,
     )
-    from anthropic.types import Message, MessageParam, ToolUnionParam, Usage
+    from anthropic.types import Message, MessageParam, TextBlockParam, ToolUnionParam, Usage
+    from anthropic.types.message_create_params import MessageCreateParamsBase
 
 
 def _stop_on_exception(
@@ -299,15 +300,16 @@ class _AsyncCompletionsWrapper(_WithTracer):
 
 @_stop_on_exception
 def _get_attributes_from_messages_create(
-    kwargs: Mapping[str, Any],
+    kwargs: MessageCreateParamsBase,
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield from _get_llm_model_name_from_input(kwargs)
     invocation_parameters = dict(kwargs)
     invocation_parameters.pop("extra_headers", None)
     invocation_parameters.pop("model", None)
     invocation_parameters.pop("output_format", None)
-    if isinstance(messages := invocation_parameters.pop("messages", None), Iterable):
-        yield from _get_llm_input_messages(messages)
+    system = invocation_parameters.pop("system", None)
+    messages = invocation_parameters.pop("messages", None)
+    yield from _get_llm_input_messages(messages, system)
     if isinstance(tools := invocation_parameters.pop("tools", None), Iterable):
         yield from _get_llm_tools(tools)
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
@@ -727,12 +729,20 @@ def _get_llm_prompts(prompt: str) -> Iterator[Tuple[str, Any]]:
 
 
 @_stop_on_exception
-def _get_llm_input_messages(messages: Iterable[MessageParam]) -> Iterator[Tuple[str, Any]]:
+def _get_llm_input_messages(
+    messages: Iterable[MessageParam],
+    system: str | Iterable[TextBlockParam] | None = None,
+) -> Iterator[Tuple[str, Any]]:
     """
-    Extracts the messages from the chat response
-    """
+    Extracts the messages from the chat response.
 
-    for i, message in enumerate(messages):
+    The Anthropic Messages API takes `system` as a separate top-level parameter
+    rather than as a system role entry in `messages`. When provided, prepend a
+    synthetic system message so OI consumers see system content in
+    LLM_INPUT_MESSAGES alongside user/assistant turns.
+    """
+    start = 1 if system else 0
+    for i, message in enumerate(messages, start=start):
         tool_index = 0
         if role := message["role"]:
             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
@@ -743,7 +753,9 @@ def _get_llm_input_messages(messages: Iterable[MessageParam]) -> Iterator[Tuple[
             for j, block in enumerate(content):
                 if isinstance(block, dict):
                     if block["type"] == "text":
-                        yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block["text"]
+                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block["text"]
                     elif block["type"] == "tool_use":
                         yield (
                             f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
@@ -805,7 +817,9 @@ def _get_llm_input_messages(messages: Iterable[MessageParam]) -> Iterator[Tuple[
                         assert_never(block)
                 else:
                     if block.type == "text":
-                        yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.text
+                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.text
                     elif block.type == "tool_use":
                         if tool_call_id := block.id:
                             yield (
@@ -843,6 +857,24 @@ def _get_llm_input_messages(messages: Iterable[MessageParam]) -> Iterator[Tuple[
                         pass
                     elif TYPE_CHECKING:
                         assert_never(block)
+
+    if system:
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "system"
+        if isinstance(system, str):
+            yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", system
+        else:
+            for j, block in enumerate(system):
+                if block["type"] == "text":
+                    yield (
+                        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TYPE}",
+                        "text",
+                    )
+                    yield (
+                        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TEXT}",
+                        block["text"],
+                    )
+                elif TYPE_CHECKING:
+                    assert_never(block)
 
 
 @_stop_on_exception
@@ -927,6 +959,7 @@ IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME

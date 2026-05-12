@@ -16,7 +16,6 @@
     "**/__fixtures__/**",
     "pnpm-lock.yaml",
     ".next/**",
-    ".mastra/**",
     "**/CHANGELOG.md",
     "**/AGENTS.md",
   ],

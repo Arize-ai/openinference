@@ -152,6 +152,24 @@ def _end_event(started_event_id: str, **kwargs: Any) -> Any:
     return SimpleNamespace(started_event_id=started_event_id, timestamp=_timestamp(1), **kwargs)
 
 
+def _llm_message_with_tool_call(arguments: Any) -> list[dict[str, Any]]:
+    return [
+        {
+            "role": "assistant",
+            "content": "Calling query_local_cities_database",
+            "tool_calls": [
+                {
+                    "id": "call-123",
+                    "function": {
+                        "name": "query_local_cities_database",
+                        "arguments": arguments,
+                    },
+                }
+            ],
+        }
+    ]
+
+
 def _span_parent_name(
     span: ReadableSpan,
     spans_by_id: dict[int, ReadableSpan],
@@ -377,6 +395,123 @@ def _assert_error_span(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == expected_kind.value
     assert attributes.pop(OUTPUT_VALUE, None) is None
     assert attributes.pop(OUTPUT_MIME_TYPE, None) is None
+
+
+def test_normalize_llm_messages_strips_wrapping_quotes_from_tool_call_arguments() -> None:
+    original_messages = _llm_message_with_tool_call(
+        '\'{"search_query":"Campinas","filter_by":"name"}\''
+    )
+
+    normalized_messages = event_listener_module._normalize_llm_messages(
+        original_messages,
+        default_role="assistant",
+    )
+
+    assert (
+        normalized_messages[0]["tool_calls"][0]["function"]["arguments"]
+        == '{"search_query":"Campinas","filter_by":"name"}'
+    )
+    assert (
+        original_messages[0]["tool_calls"][0]["function"]["arguments"]
+        == '\'{"search_query":"Campinas","filter_by":"name"}\''
+    )
+
+
+def test_normalize_llm_messages_preserves_valid_json_string_arguments() -> None:
+    original_messages = _llm_message_with_tool_call(
+        '{ "search_query": "Campinas", "filter_by": "name" }'
+    )
+
+    normalized_messages = event_listener_module._normalize_llm_messages(
+        original_messages,
+        default_role="assistant",
+    )
+
+    assert (
+        normalized_messages[0]["tool_calls"][0]["function"]["arguments"]
+        == '{ "search_query": "Campinas", "filter_by": "name" }'
+    )
+
+
+def test_normalize_llm_messages_preserves_dict_tool_call_arguments() -> None:
+    original_messages = _llm_message_with_tool_call(
+        {"search_query": "Campinas", "filter_by": "name"}
+    )
+
+    normalized_messages = event_listener_module._normalize_llm_messages(
+        original_messages,
+        default_role="assistant",
+    )
+
+    assert normalized_messages[0]["tool_calls"][0]["function"]["arguments"] == {
+        "search_query": "Campinas",
+        "filter_by": "name",
+    }
+
+
+def test_normalize_llm_messages_preserves_invalid_string_tool_call_arguments() -> None:
+    original_messages = _llm_message_with_tool_call("'{search_query: Campinas}'")
+
+    normalized_messages = event_listener_module._normalize_llm_messages(
+        original_messages,
+        default_role="assistant",
+    )
+
+    assert (
+        normalized_messages[0]["tool_calls"][0]["function"]["arguments"]
+        == "'{search_query: Campinas}'"
+    )
+
+
+def test_get_llm_input_attributes_serializes_dict_tool_call_arguments_to_json_string() -> None:
+    tool_call_arguments = {"search_query": "Campinas", "filter_by": "name"}
+
+    attributes = event_listener_module._get_llm_input_attributes(
+        _llm_message_with_tool_call(tool_call_arguments)
+    )
+
+    assert attributes[
+        "llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments"
+    ] == json.dumps(tool_call_arguments)
+
+
+def test_event_listener_emits_sanitized_tool_call_arguments_for_input_and_output_messages(
+    direct_event_listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    messages = _llm_message_with_tool_call('\'{"search_query":"Campinas","filter_by":"name"}\'')
+
+    direct_event_listener._on_llm_started(
+        None,
+        _event(
+            "llm-start",
+            model="gpt-4.1-nano",
+            call_id="call-1",
+            messages=messages,
+        ),
+    )
+    direct_event_listener._on_llm_completed(
+        None,
+        _end_event(
+            "llm-start",
+            call_id="call-1",
+            response=_llm_message_with_tool_call(
+                '\'{"search_query":"Campinas","filter_by":"name"}\''
+            ),
+        ),
+    )
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert (
+        attributes.pop("llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments")
+        == '{"search_query":"Campinas","filter_by":"name"}'
+    )
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments")
+        == '{"search_query":"Campinas","filter_by":"name"}'
+    )
 
 
 def test_llm_token_usage_patch_is_reference_counted(
