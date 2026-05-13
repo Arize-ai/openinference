@@ -1,79 +1,85 @@
 interactions:
 - request:
-    body: '{"input":[{"type":"text","text":"Describe the image."},{"type":"image","uri":"https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U","mime_type":"image/jpg"}],"model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":true}'
+    body: '{"input":[{"type":"text","text":"Describe the image."},{"type":"image","uri":"https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U","mime_type":"image/jpeg"}],"model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":true}'
     headers: {}
     method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/interactions
   response:
     body:
-      string: 'event: interaction.start
+      string: 'event: interaction.created
 
-        data: {"event_type":"interaction.start","interaction":{"id":"v1_ChdxSnFmYVp1NEdLWHN6N0lQNDZHamdRVRIXcUpxZmFadTRHS1hzejdJUDQ2R2pnUVU","model":"gemini-2.5-flash","object":"interaction","status":"in_progress"}}
+        data: {"interaction":{"id":"v1_ChcwTFFFYW9yOUVwVG03TThQdmVHeXVBNBIXMExRRWFvcjlFcFRtN004UHZlR3l1QTQ","status":"in_progress","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.created"}
 
 
         event: interaction.status_update
 
-        data: {"event_type":"interaction.status_update","interaction_id":"v1_ChdxSnFmYVp1NEdLWHN6N0lQNDZHamdRVRIXcUpxZmFadTRHS1hzejdJUDQ2R2pnUVU","status":"in_progress"}
+        data: {"interaction_id":"v1_ChcwTFFFYW9yOUVwVG03TThQdmVHeXVBNBIXMExRRWFvcjlFcFRtN004UHZlR3l1QTQ","status":"in_progress","event_type":"interaction.status_update"}
 
 
-        event: content.start
+        event: step.start
 
-        data: {"content":{"type":"thought"},"event_type":"content.start","index":0}
-
-
-        event: content.delta
-
-        data: {"delta":{"signature":"CiUBvj72+8sOQar5WouiidOGQUKDRaQF3Pqz+7eVM8nliImUtJnrCmkBvj72+6UUNcJBI1MyOlcryvuL0TSjgAQ0JF2OhtHs7Az+g6IQ18azTQ1VT/f7WcN7e8KEhdo8pyo1wVpRUCXdsHtHuqSUJK65Lq8CMKG/0nS3MpMhZ7jj5aq3Xp3QW9rFGKWbX9A1GcsKgwIBvj72+1UZztMZ3BcI3dnAQbyOXaDDA3StGVQU8efXSVFRLrIkI9E54JzLh/vVzQAgkQ2U/8ZSURTiEgodmKhNrhIHbKEE4ZzQ0cmDGEgvut8HqEP6Tr/lvjfOMavRevkU0LDvt0jHKa9vepx3cdxq+K3Ouf6f8iPFJYraqnd4CBb8bDmaf0ZhzNlxEtgGNc3frEpSzgXYCZ/j+O/wI+rD9Gyca9DSQ0Z1+as5u2/Jvo81yjjJG2GcjKMYAr89YK26dtfNZrFA61WpLb35wdrzAhEPTOh37FluuPft3wiXWQqpmezWJH7vyuiCj7LlInMI4JvW+KAGmfLjKFsHw/VjMYPKCrYBAb4+9vsTqxCdvSRSG1cHVontqYEbf9CzNlqLqr+RJMusNa2ngFTeD5tjCf+ojsYnjlDuM4bGqPPwrgVjftwXkOrYWCp3+LKgqbvN5+6nrVWyaOEFJ56X28b7o9TF7kMMrbxdg4wOAZruENRtEgLuqpMlnzmNvDI5zXZn6ktv1FpqZYx2To4NNU5u/ZMpnqCXQdhuPPsAtMtmdoAsyRb50y2Pm6OHj4NKuNlpkLDoXLtSt6Hi0BoK1QEBvj72+7qwRh53SQeoh0Lrr0gctb+UywYfI1tfm261lQEn1M/URpA8x1bG4Ht0jS30WySh3JrRd8wPBUewYGfLo8UyJYvSVGAc7ygv9m0xepB08q15At9Fo9we++rUCv4bAyiQf+y4Yvbs2s6eFj5qi2yZAleYosSOSsqBs/2WX5VHh748HG/lKDqC4mAqfteGXplNn8gpJJK8x57znIu4g0Ca2J4LMVr4ZuPLlm1HrC5RhFO5sQRsin/kESm3SI/cqUabB/LMwFMCSqyRSCfwU5MoHUsKbwG+Pvb7Fca37t6QMWbRJfWZe3RBxElQiu6PcHYJvzwR0a4HEfPTXUDpusyjMvUQzY8SfDQxJlOrmxSwlxTWtNrpT9jBRQ2VjdkRESvCWebLAUGFvB9wUttMUTQxIzgiXfIUelieZSgWj2hHi2PcoQ==","type":"thought_signature"},"event_type":"content.delta","index":0}
+        data: {"index":0,"step":{"type":"thought"},"event_type":"step.start"}
 
 
-        event: content.stop
+        event: step.delta
 
-        data: {"event_type":"content.stop","index":0}
-
-
-        event: content.start
-
-        data: {"content":{"type":"text"},"event_type":"content.start","index":1}
+        data: {"index":0,"delta":{"signature":"CiUBDDnWx7EbrGUi1OMrrqqxYMAd/VcaTCimQKP+Fr13ufspjVSWCmkBDDnWx8KZ9lbClv5uSLQm++YA65CjBOCm27llzDkzky/0vxb+FcWwSL5ag8BJhC9VLAB8vgrnltTEPOZu+01g0YLeppSznXaI4fmt/1AhaQSgS6b8rAAXbXW1PIBFTFOwhwxbRg4eGMAKgQIBDDnWx+YmC+3vDHTTztjy9+rmb/WSVoPgUbjL3uQp5IAnZDvzPKz1f3X299pusrVGL2F8p+YS1GnaSMoac57nYH3K0Zd17MotUKQ+xPeVp02eGwky7pq42iaMf824ACYF5+HTm8vwvbDV0jisrVJyK6yL+/qhtfQMRxDD0wQ1OBqr/CjdGOAYD6uai4IIUekukZ2zsGnaGxoXh/Oxy9yG1Jl+JWmxBHUghjtwi/CG7gRvFeas5FxrZgNnySTMIUau9V4036nUNftMEUx01IejifqCj+JgJe/BU3qwySJIFWqM6TTtAPV/yzFNHyPAN0zSxyy+4taoYgp9QKC10BPYBwrAAQEMOdbHgiMvRplUr7tokMlwR3YFG0QLquznHSzuuK/Hn9CPORJoB2L8nRPZXv+OJH0HJ/3DXN5W1NV62KqeLCfpRVt55sib3z/jSqm73d4LvpvwDmmVxl8NAbTcQFikAeaBB8MfSwcT2eajCjn3SwZahlYenWpjSIiA804HKU82uOgudj0UL13X6rK7xV8Pl2BgHatLFsDzB7AV6TlP+tNnlfN+NAnqFe3QmltxIMy0mfDOHb8DsT6f9GOy9M1jBgrgAQEMOdbH08QGICAH5Sn8uA4eaVNZA9ElgqtrKXkfx3ifsUJbS0NA9b78i1wsSlyptjZ4893xKp4gO8y/FZFq77rWI4DMp8ffgY/P9Ks9dh1bbCMBmBpNgugnSSclw5rJPfDdERzyygjcYYoBUKegl3qd5rxl8UxE08sF0DSdcWuK51GlZ9Zn5yay0ekxDUL/WlJUl11gCjoBwFAlLv4Ky/bfLE2Ud3Y61q3mvRZBn7gHl31QE4ldoHHRb0kxj5rBMv4ebnhHqkeyRrr6bLlwzOTEuWZvoEDc2iDRJ8NLVrRXCp4BAQw51sfWVCFmW1twQrdTIoJK+kzY2fA+ejvPFHkRYPP3WBtJzTuFwqaPMIkArCpXGqSOQaHyDN3nldjcxamgU6uXKja2Ss/fROaAT6ckbvXAi+5YZbq6zjFkcJWfHPq2oRRzMeXr2BHxziq9gFEudTGN3XD27gfCmSU0VARMqM39tR8CurcloDRVzVstJ9i93vZVqHyubN0shPC4g+8=","type":"thought_signature"},"event_type":"step.delta"}
 
 
-        event: content.delta
+        event: step.stop
 
-        data: {"delta":{"text":"This is a close-up, eye-level shot of an adorable
-        black Labrador Retriever puppy looking directly up at the viewer.\n\nThe puppy
-        is entirely black, with","type":"text"},"event_type":"content.delta","index":1}
+        data: {"index":0,"event_type":"step.stop"}
 
 
-        event: content.delta
+        event: step.start
 
-        data: {"delta":{"text":" short, sleek fur. Its large, dark eyes are bright
-        and expressive, reflecting a hint of light, giving it an innocent and engaging
-        gaze. Its ears are floppy and set wide, characteristic of the breed, and its
-        nose is a shiny","type":"text"},"event_type":"content.delta","index":1}
+        data: {"index":1,"step":{"type":"model_output"},"event_type":"step.start"}
 
 
-        event: content.delta
+        event: step.delta
 
-        data: {"delta":{"text":" black. The puppy''s head is slightly tilted, adding
-        to its charming expression.\n\nIt''s positioned on what appears to be a rustic
-        wooden surface, possibly a deck or floor, with visible grain and subtle variations
-        in tone, providing","type":"text"},"event_type":"content.delta","index":1}
+        data: {"index":1,"delta":{"text":"This is a close-up, high-angle shot of an
+        adorable black Labrador Retriever","type":"text"},"event_type":"step.delta"}
 
 
-        event: content.delta
+        event: step.delta
 
-        data: {"delta":{"text":" a textured, natural backdrop that contrasts softly
-        with the puppy''s dark fur. The lighting seems natural and gentle, highlighting
-        the puppy''s features without harsh shadows.","type":"text"},"event_type":"content.delta","index":1}
-
-
-        event: content.stop
-
-        data: {"event_type":"content.stop","index":1}
+        data: {"index":1,"delta":{"text":" puppy, looking directly up at the viewer
+        with bright, inquisitive eyes.\n\nThe puppy is entirely black, with sleek,
+        short fur that appears very soft. Its eyes are a prominent feature, a warm,
+        reflective brown or amber color, and they convey","type":"text"},"event_type":"step.delta"}
 
 
-        event: interaction.complete
+        event: step.delta
 
-        data: {"event_type":"interaction.complete","interaction":{"created":"2026-02-26T00:58:20Z","id":"v1_ChdxSnFmYVp1NEdLWHN6N0lQNDZHamdRVRIXcUpxZmFadTRHS1hzejdJUDQ2R2pnUVU","model":"gemini-2.5-flash","object":"interaction","role":"model","status":"completed","updated":"2026-02-26T00:58:20Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":5},{"modality":"image","tokens":258}],"total_cached_tokens":0,"total_input_tokens":263,"total_output_tokens":162,"total_thought_tokens":184,"total_tokens":609,"total_tool_use_tokens":0}}}
+        data: {"index":1,"delta":{"text":" a sense of innocence and curiosity. Its
+        nose is dark and wet-looking, and its floppy ears frame its sweet face.\n\nThe
+        puppy is lying or sitting on a textured surface that appears to be weathered
+        wooden planks, possibly a deck or floor.","type":"text"},"event_type":"step.delta"}
+
+
+        event: step.delta
+
+        data: {"index":1,"delta":{"text":" The wood has visible grain and subtle variations
+        in tone, providing a rustic backdrop that contrasts slightly with the puppy''s
+        dark fur.\n\nThe lighting seems soft but highlights the puppy''s features,
+        especially its eyes, making them stand out. The","type":"text"},"event_type":"step.delta"}
+
+
+        event: step.delta
+
+        data: {"index":1,"delta":{"text":" overall impression is one of cuteness and
+        warmth.","type":"text"},"event_type":"step.delta"}
+
+
+        event: step.stop
+
+        data: {"index":1,"event_type":"step.stop"}
+
+
+        event: interaction.completed
+
+        data: {"interaction":{"id":"v1_ChcwTFFFYW9yOUVwVG03TThQdmVHeXVBNBIXMExRRWFvcjlFcFRtN004UHZlR3l1QTQ","status":"completed","usage":{"total_tokens":0,"total_input_tokens":0,"total_cached_tokens":0,"total_output_tokens":177,"total_tool_use_tokens":0,"total_thought_tokens":195},"created":"2026-05-13T17:28:52Z","updated":"2026-05-13T17:28:52Z","service_tier":"standard","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.completed"}
 
 
         event: done

@@ -1,22 +1,34 @@
 interactions:
 - request:
-    body: '{"input":[{"type":"text","text":"Describe the image."},{"type":"image","uri":"https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U","mime_type":"image/jpg"}],"model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":false}'
+    body: '{"input":[{"type":"text","text":"Describe the image."},{"type":"image","uri":"https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U","mime_type":"image/jpeg"}],"model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":false}'
     headers: {}
     method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/interactions
   response:
     body:
-      string: '{"created":"2026-02-26T00:58:16Z","id":"v1_ChdvNXFmYWNLbU92N296N0lQMzZhaC1RcxIXbzVxZmFjS21PdjdvejdJUDM2YWgtUXM","model":"gemini-2.5-flash","object":"interaction","outputs":[{"signature":"CvcFAb4+9vujF+GGup3ef5e2cwwW0TvC8UrwL4ORKYdUIt9rqMOlgajbHmSaUThfUmUpJ3lE4dxmgRiReaeA6ZZ4aztC/doJ//4gIQel/lWOgac+lM9TZwvDBGXu7lljcDJqaUXb16JHIVs9xcJT0L+1YIYD1OPsjgHiohlxac36xPJHL0Cv+Znj5v0Ju/jEHRbzex7vjdTlRvW4j3H3YMDYq8zYvxOEcax1QlXQWEnwmT7nlBxmng8hgC/VvoBejT+xi4ODQGatzDkKeP67Z58ZY1I+QQcNG1zvFs6/3/Snt/jeTsrU5ZiLBUUNoEDjyLlRvXSYdbBhZgaNmJ3O/1IpV4PLcaaz6MxSsgIqNt6HpDzaAj+ADbKzT/MzexwtukW6OV699SrdO56CfXVid79xZtCpwGWaZa14eSiN0ch1gG2DV+z2COg5nY1BylvVYaUvhGz6qkho3ci9le0q/9xFnXXpoUfSHPAKlUvpGG/h8OAda4oc9lb8OXCdPn/7XKyoBPEryy4TnRCLBkR/w/o13dgqFBuXLKNQX1vXQqY+3XDj7j6k6FhvfCNA+awAg5QuqcFQoCoW6jxioeTympsEdxRBVfEzjZ0Him0e5ORsvPOPndx6HC8lJvVJMtk2VxoPv4btm+0WBFGSFW1mLFvC5HxWh5St2O7WyvsuBkofsVHFOL9dcbxZLhF9zAbSL7QSWJCr8qaRdn3u2+oAp+xj/XoQgBpIRkHpJhKoCF63RKZnv20DA3PEoChhIJeLKtR53fFJ81D5z3GhgxBjk8VTo0w77Y14oGv/3MgimoA+rmBjTGKq72PjtNCW/4wmmSTDsdlbR2qEIPFPfiY62IVtUVQB5V9TNpfnozbzyYIVqz1sNMkp/pCHM9rY2TRcpry/ff2SIxSeDEkIVTtDhuQPCoGE1jrBtskZsnUhb0dBlvuHxej8v3V4kAzIWVY4xOIooZMxZ/CcG3cAVRkynQm3H7Um5Qm1efla5i6sl1hFtxmR7F8UUezH","type":"thought"},{"text":"This
-        is a close-up, high-angle shot of an adorable black Labrador Retriever puppy
-        looking directly up at the viewer.\n\nThe puppy has incredibly dark, almost
-        velvety black fur, and its large, expressive brown eyes are the focal point,
-        reflecting a hint of light. Its ears are floppy and set low, characteristic
-        of a Labrador. The puppy''s nose is a shiny black, and its mouth is closed.\n\nIt
-        appears to be sitting or lying down on a surface made of light brown or greyish
-        weathered wooden planks, which provides a rustic, textured contrast to the
-        puppy''s smooth, dark coat. The lighting seems soft, highlighting the puppy''s
-        features and giving its fur a subtle sheen. The overall impression is one
-        of innocence and cuteness.","type":"text"}],"role":"model","status":"completed","updated":"2026-02-26T00:58:16Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":5},{"modality":"image","tokens":258}],"total_cached_tokens":0,"total_input_tokens":263,"total_output_tokens":154,"total_thought_tokens":200,"total_tokens":617,"total_tool_use_tokens":0}}'
+      string: '{"error":{"message":"Resource has been exhausted (e.g. check quota).","code":"too_many_requests"}}'
+    headers: {}
+    status:
+      code: 429
+      message: Too Many Requests
+- request:
+    body: '{"input":[{"type":"text","text":"Describe the image."},{"type":"image","uri":"https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U","mime_type":"image/jpeg"}],"model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: '{"id":"v1_Chd5clFFYXRXX0ZvRE5uc0VQdXVLbTJRTRIXeXJRRWF0V19Gb0RObnNFUHV1S20yUU0","status":"completed","usage":{"total_tokens":0,"total_input_tokens":0,"total_cached_tokens":0,"total_output_tokens":160,"total_tool_use_tokens":0,"total_thought_tokens":255},"created":"2026-05-13T17:28:47Z","updated":"2026-05-13T17:28:47Z","service_tier":"standard","steps":[{"signature":"CoEIAQw51sdugDrUiWB9L6ESJPrcx6VqOsF+/UkPy4ljXOzTOIdfCo8HN2gBvsW5BJdDBxOnhdQoPw/Bf/p4Z2b5MLfsEf1Pt4apTXqG6pCjI2OQ920vhSZI2JaHMr1HW7KqtThopGJAncJTJeia8zmwetowkbrcFdfKTfu0GLjF/jJR7c1qSr2jqKEgdZgm5z6m300KDs89Em8fAkfQ/Qd9ADLA7wkVnvde82PsRAbBkQ1S8XKQZZ2EJxdJhDO7jRP+g72Zdq/ssKFFwcDFKo/r4EWZBhyWs7bbpRoLPks0ePv2nDQMm6BEaTWR0UhcA9ul0OUMbsqUpNZDpH35TyylL5F4QQCT121rhoR9h9thKg+9ASf9dk6ckEq89+sXI8yWKHay9HsrwEkdxyLNbmxD4JhUSLUl08qdRqG8vcEviUongKeVDkOhZsbKDHhmswz92407RRXzSUOwUJK2q7AuQQDujFm2SYUV/xMgfQj1q5XKvUyqU6K1EeFaURZ0UfeeFJrDq3GMGoCD8M2J8UmRsbU2q7bo9LOyVirSq9+tt2mUUO7pezrlNbsIvAncap5nMKd3RYtNQM78PSNfEITbBxE96uQkfzLPKooGGTI6m3B2mnPc1hWe67kGYfdbFnjuAjcr0g7saFXrHKiA2mxyRML1izbyZkJeo59meBBHJPrzSQQZJlAdL1yW2DxaObzkhCpjOa/qbsY/trCxE7FivHNtT12b9Ry8ifVtTYQA+9XL86aj1zRmOsPeGkG6LJRZ7XH3BWwNtaCZcMDU21+Ck/trUeNiISrSLGBicdt114qRPigqvDANFkGASkl7kx/ID+hRWdQLd982447O8Dl0Xoxz94s6ekcZTKZBVAGkIEd5k0UH5JJgWGDm81ijVNHe+HDsx+jNFNLcAnq7+G7TqE77iCgZrM4SJfLKsmJALh7sZkfMfkdiMikTy4ov7VG1MDSo7D/+8knYHMjkSfdzj5mtHew/Uz9GMQtFgO0yNSNV3jCWas8q5JrvqgEvNGw2HG+RUrRtm0f9jYhkde72yBVwmYcqsXkpYGIba5mhAFy14h9vmInpRS4Rp5HGshHQzD8i0MSCGm8ZvauYyM0deTd4ChNzhr5m9FD9EH7W6Jsaw9VdutB2CbIt8JMhkFfXLcAPjgCSqjdeA2lI2RP4gs7XyVnxXpGlw3xG22hU4ab/sATpvmcETyVGZlxZ7wITFI/u0exy6MptHrgKNSUHV2fxMvmVUv+WF99z4bj6Yj9K47xMmiCW4C6F5eg9hHHfPHEbxO6ilgInx99xtB4AgDmp2CRvuVvlw6juoUZuF31eyc01Uyp0Fu4M9GIqVM1uIOF+NrmXElQsVgW8N3zXugs=","type":"thought"},{"content":[{"text":"This
+        is a close-up, high-angle shot of an adorable black Labrador Retriever puppy,
+        looking directly at the viewer.\n\nThe puppy has glossy, deep black fur and
+        prominent, warm brown eyes that appear bright and inquisitive, with small
+        reflections in them. Its nose is a small, wet-looking black button. Its floppy
+        ears are also black and frame its sweet face. The puppy''s expression is gentle
+        and engaging, giving it a very appealing and innocent look.\n\nIt is positioned
+        on a surface that appears to be light-colored wooden planks, possibly distressed
+        or weathered, with a visible wood grain and slight variations in tone, providing
+        a rustic backdrop that contrasts subtly with the puppy''s dark fur. The lighting
+        seems soft but highlights the puppy''s features well, especially its eyes.","type":"text"}],"type":"model_output"}],"object":"interaction","model":"gemini-2.5-flash"}'
     headers: {}
     status:
       code: 200
