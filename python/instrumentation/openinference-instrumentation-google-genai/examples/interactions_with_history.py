@@ -23,7 +23,7 @@ if __name__ == "__main__":
     conversation_history = [
         {
             "type": "user_input",
-            "content": [{"type": "text", "text": "What are the three largest cities in Spain?"}]
+            "content": [{"type": "text", "text": "What are the three largest cities in Spain?"}],
         }
     ]
 
@@ -39,10 +39,14 @@ if __name__ == "__main__":
         # Convert the SDK Step object to a dictionary
         conversation_history.append(step.model_dump())
 
-    conversation_history.append({
-        "type": "user_input",
-        "content": [{"type": "text", "text": "What is the most famous landmark in the second one?"}]
-    })
+    conversation_history.append(
+        {
+            "type": "user_input",
+            "content": [
+                {"type": "text", "text": "What is the most famous landmark in the second one?"}
+            ],
+        }
+    )
 
     interaction2 = client.interactions.create(
         model=model_id,
