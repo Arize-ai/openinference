@@ -16,7 +16,7 @@ Go packages for instrumenting AI/LLM applications with OpenInference semantic co
 go get github.com/Arize-ai/openinference/go/semconv@latest
 ```
 
-Requires Go 1.23+.
+Requires Go 1.25+ (driven by the latest `anthropic-sdk-go` and OTel module floors).
 
 ## Quick start
 
