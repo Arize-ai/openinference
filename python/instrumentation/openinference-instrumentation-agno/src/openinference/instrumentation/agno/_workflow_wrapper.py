@@ -1,5 +1,3 @@
-import asyncio
-import threading
 from typing import (
     Any,
     Awaitable,
@@ -9,11 +7,6 @@ from typing import (
     Tuple,
 )
 
-from openinference.semconv.trace import (
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -24,7 +17,11 @@ from openinference.instrumentation.agno.utils import (
     _bind_arguments,
     _flatten,
     _generate_node_id,
-    detach_context_tokens,
+)
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 
 
@@ -281,13 +278,23 @@ class _WorkflowWrapper:
     ) -> Any:
         """Continue streaming workflow with existing span"""
         final_response = None
-        ctx_token = None
-        workflow_token = None
-        initial_thread = threading.current_thread()
+        iterator = iter(iterator)
         try:
-            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
-            workflow_token = _setup_workflow_context(node_id)
-            for response in iterator:
+            while True:
+                ctx_token = None
+                workflow_token = None
+                try:
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    workflow_token = _setup_workflow_context(node_id)
+                    response = next(iterator)
+                except StopIteration:
+                    break
+                finally:
+                    if workflow_token is not None:
+                        context_api.detach(workflow_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
                 final_response = response
                 yield response
 
@@ -313,9 +320,6 @@ class _WorkflowWrapper:
             raise
 
         finally:
-            detach_context_tokens(
-                initial_thread, threading.current_thread(), workflow_token, ctx_token
-            )
             span.end()
 
     def arun(
@@ -430,13 +434,23 @@ class _WorkflowWrapper:
     ) -> Any:
         """Continue streaming async workflow with existing span"""
         final_response = None
-        ctx_token = None
-        workflow_token = None
-        initial_task = asyncio.current_task()
+        iterator = async_iter.__aiter__()
         try:
-            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
-            workflow_token = _setup_workflow_context(node_id)
-            async for response in async_iter:
+            while True:
+                ctx_token = None
+                workflow_token = None
+                try:
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    workflow_token = _setup_workflow_context(node_id)
+                    response = await anext(iterator)
+                except StopAsyncIteration:
+                    break
+                finally:
+                    if workflow_token is not None:
+                        context_api.detach(workflow_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
                 final_response = response
                 yield response
 
@@ -462,9 +476,6 @@ class _WorkflowWrapper:
             raise
 
         finally:
-            detach_context_tokens(
-                initial_task, asyncio.current_task(), workflow_token, ctx_token
-            )
             span.end()
 
 
@@ -576,13 +587,23 @@ class _StepWrapper:
     ) -> Any:
         """Continue streaming step with existing span"""
         final_response = None
-        ctx_token = None
-        step_token = None
-        initial_thread = threading.current_thread()
+        iterator = iter(iterator)
         try:
-            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
-            step_token = _setup_step_context(node_id)
-            for response in iterator:
+            while True:
+                ctx_token = None
+                step_token = None
+                try:
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    step_token = _setup_step_context(node_id)
+                    response = next(iterator)
+                except StopIteration:
+                    break
+                finally:
+                    if step_token is not None:
+                        context_api.detach(step_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
                 final_response = response
                 yield response
 
@@ -600,9 +621,6 @@ class _StepWrapper:
             raise
 
         finally:
-            detach_context_tokens(
-                initial_thread, threading.current_thread(), step_token, ctx_token
-            )
             span.end()
 
     def arun(
@@ -711,13 +729,23 @@ class _StepWrapper:
     ) -> Any:
         """Continue streaming async step with existing span"""
         final_response = None
-        ctx_token = None
-        step_token = None
-        initial_task = asyncio.current_task()
+        iterator = async_iter.__aiter__()
         try:
-            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
-            step_token = _setup_step_context(node_id)
-            async for response in async_iter:
+            while True:
+                ctx_token = None
+                step_token = None
+                try:
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    step_token = _setup_step_context(node_id)
+                    response = await anext(iterator)
+                except StopAsyncIteration:
+                    break
+                finally:
+                    if step_token is not None:
+                        context_api.detach(step_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
                 final_response = response
                 yield response
 
@@ -735,7 +763,6 @@ class _StepWrapper:
             raise
 
         finally:
-            detach_context_tokens(initial_task, asyncio.current_task(), step_token, ctx_token)
             span.end()
 
 
@@ -858,13 +885,23 @@ class _ParallelWrapper:
     ) -> Any:
         """Continue streaming parallel execution with existing span"""
         accumulated_output = []
-        ctx_token = None
-        parallel_token = None
-        initial_thread = threading.current_thread()
+        iterator = iter(iterator)
         try:
-            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
-            parallel_token = _setup_parallel_context(node_id)
-            for response in iterator:
+            while True:
+                ctx_token = None
+                parallel_token = None
+                try:
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    parallel_token = _setup_parallel_context(node_id)
+                    response = next(iterator)
+                except StopIteration:
+                    break
+                finally:
+                    if parallel_token is not None:
+                        context_api.detach(parallel_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
                 if hasattr(response, "content") and response.content:
                     accumulated_output.append(str(response.content))
                 yield response
@@ -880,9 +917,6 @@ class _ParallelWrapper:
             raise
 
         finally:
-            detach_context_tokens(
-                initial_thread, threading.current_thread(), parallel_token, ctx_token
-            )
             span.end()
 
     def aexecute(
@@ -992,13 +1026,23 @@ class _ParallelWrapper:
     ) -> Any:
         """Continue streaming async parallel execution with existing span"""
         accumulated_output = []
-        ctx_token = None
-        parallel_token = None
-        initial_task = asyncio.current_task()
+        iterator = async_iter.__aiter__()
         try:
-            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
-            parallel_token = _setup_parallel_context(node_id)
-            async for response in async_iter:
+            while True:
+                ctx_token = None
+                parallel_token = None
+                try:
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    parallel_token = _setup_parallel_context(node_id)
+                    response = await anext(iterator)
+                except StopAsyncIteration:
+                    break
+                finally:
+                    if parallel_token is not None:
+                        context_api.detach(parallel_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
                 if hasattr(response, "content") and response.content:
                     accumulated_output.append(str(response.content))
                 yield response
@@ -1014,9 +1058,6 @@ class _ParallelWrapper:
             raise
 
         finally:
-            detach_context_tokens(
-                initial_task, asyncio.current_task(), parallel_token, ctx_token
-            )
             span.end()
 
 

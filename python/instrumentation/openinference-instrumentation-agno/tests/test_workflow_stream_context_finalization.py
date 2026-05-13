@@ -4,6 +4,7 @@ import threading
 from typing import Any, AsyncIterator, Iterator
 
 import pytest
+from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -15,6 +16,7 @@ from openinference.instrumentation.agno._workflow_wrapper import (
     _StepWrapper,
     _WorkflowWrapper,
 )
+from openinference.instrumentation.agno.utils import _AGNO_PARENT_NODE_CONTEXT_KEY
 
 
 class _Response:
@@ -89,11 +91,20 @@ def test_sync_stream_close_from_other_thread_does_not_log_detach_error(
     caplog.set_level(logging.ERROR)
     wrapper, exporter = _build_wrapper(wrapper_cls)
     errors: list[BaseException] = []
+    restored_context: list[tuple[bool, bool]] = []
 
     def consume_and_close() -> None:
         try:
+            initial_span = trace_api.get_current_span()
+            initial_parent_node = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
             stream = getattr(wrapper, method_name)(_sync_stream, instance, (), {})
             next(stream)
+            restored_context.append(
+                (
+                    trace_api.get_current_span() is initial_span,
+                    context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY) == initial_parent_node,
+                )
+            )
 
             def close_stream() -> None:
                 try:
@@ -104,6 +115,12 @@ def test_sync_stream_close_from_other_thread_does_not_log_detach_error(
             close_thread = threading.Thread(target=close_stream)
             close_thread.start()
             close_thread.join()
+            restored_context.append(
+                (
+                    trace_api.get_current_span() is initial_span,
+                    context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY) == initial_parent_node,
+                )
+            )
         except BaseException as exc:
             errors.append(exc)
 
@@ -112,6 +129,7 @@ def test_sync_stream_close_from_other_thread_does_not_log_detach_error(
     consume_thread.join()
 
     assert errors == []
+    assert restored_context == [(True, True), (True, True)]
     assert len(exporter.get_finished_spans()) == 1
     assert "Failed to detach context" not in caplog.text
 
@@ -125,20 +143,36 @@ def test_async_stream_aclose_from_other_task_does_not_log_detach_error(
 ) -> None:
     caplog.set_level(logging.ERROR)
     wrapper, exporter = _build_wrapper(wrapper_cls)
+    restored_context: list[tuple[bool, bool]] = []
 
     async def run_test() -> None:
         async def consume_and_close() -> None:
+            initial_span = trace_api.get_current_span()
+            initial_parent_node = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
             stream = getattr(wrapper, method_name)(_async_stream, instance, (), {})
             await anext(stream)
+            restored_context.append(
+                (
+                    trace_api.get_current_span() is initial_span,
+                    context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY) == initial_parent_node,
+                )
+            )
 
             async def close_stream() -> None:
                 await stream.aclose()
 
             await asyncio.create_task(close_stream())
+            restored_context.append(
+                (
+                    trace_api.get_current_span() is initial_span,
+                    context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY) == initial_parent_node,
+                )
+            )
 
         await asyncio.create_task(consume_and_close())
 
     asyncio.run(run_test())
 
+    assert restored_context == [(True, True), (True, True)]
     assert len(exporter.get_finished_spans()) == 1
     assert "Failed to detach context" not in caplog.text

@@ -14,12 +14,6 @@ from typing import (
     cast,
 )
 
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context.context import Context
@@ -42,6 +36,12 @@ from openinference.instrumentation.agno.utils import (
     _flatten,
     _generate_node_id,
     detach_context_tokens,
+)
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 
 
