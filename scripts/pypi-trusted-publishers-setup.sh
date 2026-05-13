@@ -7,6 +7,8 @@
 #   - Reads Python package names from release-please-config.json.
 #   - Opens each existing PyPI project's Publishing settings page.
 #   - In default mode, fills and submits PyPI's GitHub trusted publisher form.
+#   - In CHECK_EXISTING=1 mode, prints whether each project already has any
+#     trusted publishers configured.
 #   - In REMOVE_EXISTING=1 mode, removes matching GitHub publishers only and
 #     does not add a replacement.
 #
@@ -30,6 +32,8 @@
 #        REMOVE_EXISTING=1 LIMIT_PACKAGE=openinference-instrumentation-google-genai ./scripts/pypi-trusted-publishers-setup.sh
 #   5) Skip known packages:
 #        EXCLUDE_PACKAGES="pkg-one,pkg-two" ./scripts/pypi-trusted-publishers-setup.sh
+#   6) Check whether publishers already exist:
+#        CHECK_EXISTING=1 ./scripts/pypi-trusted-publishers-setup.sh
 #
 # PyPI pre-filled publishing URLs:
 #   https://docs.pypi.org/trusted-publishers/adding-a-publisher/
@@ -42,6 +46,7 @@
 #   AGENT_BROWSER_SESSION                 Named browser session to reuse.
 #   LIMIT_PACKAGE                         Process one PyPI project only.
 #   EXCLUDE_PACKAGES                      Comma- or space-separated PyPI projects to skip.
+#   CHECK_EXISTING                        Print whether publishers exist; do not add/remove.
 #   REMOVE_EXISTING                       Remove existing publishers only.
 #   AGENT_BROWSER_WAIT_TIMEOUT_MS         Browser wait timeout in milliseconds.
 #   PACKAGE_SLEEP_SECONDS                 Delay between projects.
@@ -63,6 +68,7 @@ set -euo pipefail
 SESSION_NAME="${AGENT_BROWSER_SESSION:-pypi-trusted-publishers}"
 LIMIT_PACKAGE="${LIMIT_PACKAGE:-}"
 EXCLUDE_PACKAGES="${EXCLUDE_PACKAGES:-}"
+CHECK_EXISTING="${CHECK_EXISTING:-}"
 REMOVE_EXISTING="${REMOVE_EXISTING:-}"
 AGENT_BROWSER_WAIT_TIMEOUT_MS="${AGENT_BROWSER_WAIT_TIMEOUT_MS:-5000}"
 PACKAGE_SLEEP_SECONDS="${PACKAGE_SLEEP_SECONDS:-1}"
@@ -141,6 +147,49 @@ count_matching_publishers() {
     .filter(matchesExpectedPublisher).length;
 })()
 EVALEOF
+}
+
+count_existing_publishers() {
+  AGENT_BROWSER_DEFAULT_TIMEOUT="$AGENT_BROWSER_WAIT_TIMEOUT_MS" \
+    agent-browser --session-name "$SESSION_NAME" eval --stdin <<'EVALEOF'
+(() => {
+  const pageText = document.body.textContent.replace(/\s+/g, " ").trim();
+  const hasPublisherHeading = Array.from(document.querySelectorAll("h1, h2"))
+    .some((heading) => heading.textContent.trim() === "Trusted Publisher Management");
+  if (!hasPublisherHeading) {
+    throw new Error(`Trusted Publisher Management content not found on page titled: ${document.title}`);
+  }
+  if (pageText.includes("No publishers are currently configured.")) {
+    return 0;
+  }
+
+  const publisherRows = Array.from(document.querySelectorAll("table.table--publisher-list tbody tr"))
+    .filter((row) => row.querySelectorAll("td").length >= 3).length;
+  const removeLinks = document.querySelectorAll('a[href^="#remove-publisher-"]').length;
+  return Math.max(publisherRows, removeLinks);
+})()
+EVALEOF
+}
+
+check_existing_publishers() {
+  local pkg="$1"
+  local publisher_count
+
+  publisher_count="$(count_existing_publishers 2>/dev/null || true)"
+  if [[ ! "$publisher_count" =~ ^[0-9]+$ ]]; then
+    wait_for_page "$pkg" "checking existing publishers"
+    publisher_count="$(count_existing_publishers 2>/dev/null || true)"
+  fi
+  if [[ ! "$publisher_count" =~ ^[0-9]+$ ]]; then
+    echo "Could not check existing publishers for ${pkg}; page may still be navigating." >&2
+    return 1
+  fi
+
+  if ((publisher_count > 0)); then
+    echo "${pkg}: Yes"
+  else
+    echo "${pkg}: No"
+  fi
 }
 
 remove_existing_publishers() {
@@ -349,6 +398,8 @@ else
 fi
 if [[ -n "$REMOVE_EXISTING" ]]; then
   echo "Mode: remove existing publishers only (will not add publishers)"
+elif [[ -n "$CHECK_EXISTING" ]]; then
+  echo "Mode: check whether publishers exist only (will not add or remove publishers)"
 fi
 if ((${#EXCLUDED_PACKAGES[@]} > 0)); then
   echo "Excluded projects: ${#EXCLUDED_PACKAGES[@]}"
@@ -372,9 +423,17 @@ for i in "${!PACKAGES[@]}"; do
   agent-browser --session-name "$SESSION_NAME" open "$url" >/dev/null
   wait_for_page "$pkg" "opening publishing page"
   current="$(agent-browser --session-name "$SESSION_NAME" get url)"
+  title="$(agent-browser --session-name "$SESSION_NAME" get title)"
   if [[ "$current" != *"/manage/project/${pkg}/"* ]]; then
     echo "Not on project publishing page (got: $current). Run with --login first." >&2
     FAILED_PACKAGES+=("$pkg")
+  elif [[ "$title" != "Trusted Publisher Management · PyPI" ]]; then
+    echo "Not on trusted publisher management page for ${pkg} (title: ${title}). Re-authenticate if PyPI is asking to confirm your password." >&2
+    FAILED_PACKAGES+=("$pkg")
+  elif [[ -n "$CHECK_EXISTING" ]]; then
+    if ! check_existing_publishers "$pkg"; then
+      FAILED_PACKAGES+=("$pkg")
+    fi
   elif [[ -n "$REMOVE_EXISTING" ]]; then
     if ! remove_existing_publishers "$pkg"; then
       FAILED_PACKAGES+=("$pkg")
@@ -401,6 +460,8 @@ fi
 
 if [[ -n "$REMOVE_EXISTING" ]]; then
   echo "Done. Existing publishers were removed where present; no publishers were added."
+elif [[ -n "$CHECK_EXISTING" ]]; then
+  echo "Done. Existing publisher check completed."
 else
   echo "Done. Review each project's Publishing page for errors or duplicate publishers."
 fi
