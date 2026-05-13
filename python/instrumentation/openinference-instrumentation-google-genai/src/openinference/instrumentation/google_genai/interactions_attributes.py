@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Optional, Sequence
 
 from opentelemetry.util.types import AttributeValue
 
@@ -26,6 +26,7 @@ from openinference.instrumentation import (
 from openinference.instrumentation.google_genai._utils import (
     _stop_on_exception_for_dict,
     _stop_on_exception_for_iter,
+    get_attribute,
 )
 from openinference.semconv.trace import OpenInferenceLLMProviderValues
 
@@ -33,30 +34,68 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def get_output_messages(outputs: Any) -> list[Message]:
-    from google.genai._interactions import types
+def _get_message_from_contents(role: str, contents: Any) -> Optional[Message]:
+    message_contents: list[MessageContent] = []
+    tool_calls: list[ToolCall] = []
+    for content in contents or []:
+        _append_content(content, message_contents, tool_calls)
+    if not message_contents and not tool_calls:
+        return None
+    message = Message(role=role)
+    if message_contents:
+        message["contents"] = message_contents
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+    return message
 
-    messages = []
-    tool_calls = []
+
+def _append_content(
+    content: Any,
+    message_contents: list[MessageContent],
+    tool_calls: list[ToolCall],
+) -> None:
+    content_type = get_attribute(content, "type")
+    if content_type == "model_output":
+        for item in get_attribute(content, "content") or []:
+            _append_content(item, message_contents, tool_calls)
+    elif content_type == "text":
+        message_contents.append(
+            TextMessageContent(type="text", text=get_attribute(content, "text", "") or "")
+        )
+    elif content_type == "function_call":
+        name = get_attribute(content, "name")
+        arguments = get_attribute(content, "arguments")
+        tool_call = ToolCall(function=ToolCallFunction(name=name, arguments=arguments))
+        if call_id := get_attribute(content, "id"):
+            tool_call["id"] = call_id
+        tool_calls.append(tool_call)
+    elif content_type == "image":
+        if uri := get_attribute(content, "uri"):
+            message_contents.append(ImageMessageContent(type="image", image=Image(url=uri)))
+        elif data := get_attribute(content, "data"):
+            mime_type = get_attribute(content, "mime_type") or "image/png"
+            url = f"data:{mime_type};base64,{data}"
+            message_contents.append(ImageMessageContent(type="image", image=Image(url=url)))
+
+
+def get_output_messages(steps: Any) -> list[Message]:
+    messages: list[Message] = []
     contents: list[MessageContent] = []
-    for output in outputs or []:
-        if isinstance(output, types.TextContent):
-            contents.append(TextMessageContent(type="text", text=output.text or ""))
-        elif isinstance(output, types.FunctionCallContent):
-            tool_calls.append(
-                ToolCall(
-                    id=output.id,
-                    function=ToolCallFunction(name=output.name, arguments=output.arguments),
+    tool_calls: list[ToolCall] = []
+    for step in steps or []:
+        step_type = get_attribute(step, "type")
+        if step_type == "function_result":
+            messages.append(
+                Message(
+                    role="tool",
+                    content=get_attribute(step, "result", "") or "",
+                    tool_call_id=get_attribute(step, "call_id", "") or "",
                 )
             )
-        elif isinstance(output, types.ImageContent):
-            if output.uri is not None:
-                contents.append(ImageMessageContent(type="image", image=Image(url=output.uri)))
-            elif output.data is not None:
-                mime_type = output.mime_type if output.mime_type else "image/png"
-                url = f"data:{mime_type};base64,{output.data}"
-                contents.append(ImageMessageContent(type="image", image=Image(url=url)))
-    messages.append(Message(role="model", contents=contents, tool_calls=tool_calls))
+        else:
+            _append_content(step, contents, tool_calls)
+    if contents or tool_calls or not messages:
+        messages.append(Message(role="model", contents=contents, tool_calls=tool_calls))
     return messages
 
 
@@ -68,29 +107,47 @@ def get_message_objects(inputs: Any) -> list[Message]:
     if isinstance(inputs, list):
         contents: list[MessageContent] = []
         for message in inputs:
-            if isinstance(message, dict):
-                if message.get("type") == "function_result":
+            if isinstance(message, dict) or hasattr(message, "type"):
+                message_type = get_attribute(message, "type")
+                if message_type == "function_result":
                     messages.append(
                         Message(
                             role="tool",
-                            content=message.get("result", "") or "",
-                            tool_call_id=message.get("call_id") or "",
+                            content=get_attribute(message, "result", "") or "",
+                            tool_call_id=get_attribute(message, "call_id") or "",
                         )
                     )
-                elif message.get("type") == "text":
-                    contents.append(TextMessageContent(text=message.get("text") or "", type="text"))
-                elif message.get("type") == "image":
+                elif message_type == "user_input":
+                    if step_message := _get_message_from_contents(
+                        "user", get_attribute(message, "content")
+                    ):
+                        messages.append(step_message)
+                elif message_type == "model_output":
+                    if step_message := _get_message_from_contents(
+                        "model", get_attribute(message, "content")
+                    ):
+                        messages.append(step_message)
+                elif message_type == "function_call":
+                    messages.extend(get_output_messages([message]))
+                elif message_type == "text":
                     contents.append(
-                        ImageMessageContent(image=Image(url=message.get("uri") or ""), type="image")
+                        TextMessageContent(text=get_attribute(message, "text") or "", type="text")
                     )
-                elif isinstance(message.get("content"), str):
+                elif message_type == "image":
+                    _append_content(message, contents, [])
+                elif isinstance(get_attribute(message, "content"), str):
                     messages.append(
                         Message(
-                            role=message.get("role", "user"), content=message.get("content", "")
+                            role=get_attribute(message, "role", "user"),
+                            content=get_attribute(message, "content", ""),
                         )
                     )
-                elif isinstance(message.get("content"), list):
-                    messages.extend(get_output_messages(message.get("content")))
+                elif isinstance(get_attribute(message, "content"), Sequence):
+                    role = get_attribute(message, "role", "model")
+                    if step_message := _get_message_from_contents(
+                        role, get_attribute(message, "content")
+                    ):
+                        messages.append(step_message)
         if contents:
             messages.append(Message(role="user", contents=contents))
     return messages
@@ -103,12 +160,12 @@ def get_tools(request_params: Mapping[str, Any]) -> list[Tool]:
 
 def get_token_object_from_response(response: Any) -> TokenCount:
     token_count = TokenCount()
-    if hasattr(response, "usage") and response.usage:
-        usage = response.usage
+    if usage := get_attribute(response, "usage"):
         token_count = TokenCount(
-            total=usage.total_tokens or 0,
-            prompt=usage.total_input_tokens or 0,
-            completion=(usage.total_thought_tokens or 0) + (usage.total_output_tokens or 0),
+            total=get_attribute(usage, "total_tokens", 0) or 0,
+            prompt=get_attribute(usage, "total_input_tokens", 0) or 0,
+            completion=(get_attribute(usage, "total_thought_tokens", 0) or 0)
+            + (get_attribute(usage, "total_output_tokens", 0) or 0),
         )
     return token_count
 
@@ -132,7 +189,9 @@ def get_attributes_from_request_object(
     if system_instruction := request_parameters.get("system_instruction"):
         input_messages.append(Message(role="system", content=system_instruction))
     input_messages.extend(get_message_objects(request_parameters.get("input")))
-    invocation_parameters = request_parameters.get("generation_config") or {}
+    invocation_parameters = dict(request_parameters.get("generation_config") or {})
+    if response_format := request_parameters.get("response_format"):
+        invocation_parameters["response_format"] = response_format
     metadata = {}
     if previous_interaction_id := request_parameters.get("previous_interaction_id"):
         metadata["previous_interaction_id"] = previous_interaction_id
@@ -171,9 +230,10 @@ def get_attributes_from_response(
             **get_output_attributes(safe_json_dumps(response)),
         }
 
+    steps = get_attribute(response, "steps")
     return {
-        **get_llm_model_name_attributes(response.model),
-        **get_output_attributes(safe_json_dumps(response.outputs)),
-        **get_llm_output_message_attributes(get_output_messages(response.outputs)),
+        **get_llm_model_name_attributes(get_attribute(response, "model")),
+        **get_output_attributes(safe_json_dumps(steps)),
+        **get_llm_output_message_attributes(get_output_messages(steps)),
         **get_llm_token_count_attributes(get_token_object_from_response(response)),
     }

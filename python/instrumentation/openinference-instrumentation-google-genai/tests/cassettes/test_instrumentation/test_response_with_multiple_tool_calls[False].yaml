@@ -22,12 +22,13 @@ interactions:
         \             \"name\": \"get_weather\",\n              \"args\": {\n                \"location\":
         \"New Delhi\"\n              }\n            }\n          }\n        ],\n        \"role\":
         \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
-        -0.0099561532790010624\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        -0.011320823972875422\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
         64,\n    \"candidatesTokenCount\": 11,\n    \"totalTokenCount\": 75,\n    \"promptTokensDetails\":
         [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 64\n
         \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
-        \"TEXT\",\n        \"tokenCount\": 11\n      }\n    ]\n  },\n  \"modelVersion\":
-        \"gemini-2.0-flash\",\n  \"responseId\": \"fvZbaYr4NcKmjuMP2OOM6AQ\"\n}\n"
+        \"TEXT\",\n        \"tokenCount\": 11\n      }\n    ],\n    \"serviceTier\":
+        \"standard\"\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
+        \"ldcEaoCaO72smtkPzqzB8Aw\"\n}\n"
     headers: {}
     status:
       code: 200
