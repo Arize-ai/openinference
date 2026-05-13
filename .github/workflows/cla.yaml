@@ -5,15 +5,17 @@ on:
     pull_request_target:
         types: [assigned, opened, synchronize, reopened]
 
-permissions:
-    actions: write
-    contents: write
-    pull-requests: write
-    statuses: write
+# Default to no permissions; the CLA job below requests only what it needs.
+permissions: {}
 
 jobs:
     CLAAssistant:
         runs-on: ubuntu-latest
+        permissions:
+            actions: write
+            contents: write
+            pull-requests: write
+            statuses: write
         steps:
             - name: "CLA Assistant"
               if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
