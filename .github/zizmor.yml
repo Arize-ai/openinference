@@ -1,0 +1,7 @@
+rules:
+  dangerous-triggers:
+    ignore:
+      # pull_request_target is required so the CLA action can comment on
+      # and update PRs opened from forks (it needs write access to the
+      # base repo, which fork-triggered pull_request runs do not have).
+      - cla.yaml

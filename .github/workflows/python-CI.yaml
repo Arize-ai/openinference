@@ -60,11 +60,12 @@ jobs:
         with:
           version: 0.11.2
           enable-cache: false
-      - run: |
-          DIFF_FILES='${{ needs.changes.outputs.diff_files }}'
+      - env:
+          DIFF_FILES: ${{ needs.changes.outputs.diff_files }}
+        run: |
           TOX_ENVIRONMENTS=$(uvx --with tox-uv tox list | grep ^py | awk '{print $1}' | jq -R . | jq -sc .)
           SELECTED_TOX_ENVIRONMENTS=$(python3 scripts/select_tox_environments.py "$DIFF_FILES" "$TOX_ENVIRONMENTS")
-          echo "list=$SELECTED_TOX_ENVIRONMENTS" >> $GITHUB_OUTPUT
+          echo "list=$SELECTED_TOX_ENVIRONMENTS" >> "$GITHUB_OUTPUT"
         working-directory: python
         id: testenv
       - name: Fail if no testenv is found
@@ -89,7 +90,9 @@ jobs:
         with:
           version: 0.11.2
           enable-cache: false
-      - run: uvx --with tox-uv tox run -e ${{ matrix.testenv }}
+      - env:
+          TESTENV: ${{ matrix.testenv }}
+        run: uvx --with tox-uv tox run -e "$TESTENV"
         working-directory: python
         timeout-minutes: 15
 
