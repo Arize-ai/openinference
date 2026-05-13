@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.10...python-openinference-instrumentation-llama-index-v4.4.0) (2026-05-13)
+
+
+### Features
+
+* **llama_index:** Instrument Sparse Embedding & Workflow Events ([#2928](https://github.com/Arize-ai/openinference/issues/2928)) ([4d03efb](https://github.com/Arize-ai/openinference/commit/4d03efb48951eabe24b46c9476cd5e17934f8cdc))
+
 ## [4.3.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.9...python-openinference-instrumentation-llama-index-v4.3.10) (2026-05-10)
 
 
