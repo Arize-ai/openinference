@@ -19,26 +19,34 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 if __name__ == "__main__":
     client = genai.Client()
     model_id = "gemini-3-flash-preview"
+    store_enabled = False
+    conversation_history = [
+        {
+            "type": "user_input",
+            "content": [{"type": "text", "text": "What are the three largest cities in Spain?"}]
+        }
+    ]
 
-    # Turn 1: Initial Request
-    # The 'input' can be a simple string or a structured step_list
     interaction1 = client.interactions.create(
-        model=model_id, 
-        input="What are the three largest cities in Spain?"
+        model=model_id,
+        store=store_enabled,
+        input=conversation_history,
     )
+    print(f"Response 1: {interaction1.steps[-1].content[0].text}")
 
-    # Note: Accessing content now requires checking step types
-    # Typically the last step is 'model_output'
-    response_text1 = interaction1.steps[-1].content[0].text
-    print(f"Model 1: {response_text1}")
+    # Append the response steps from model to conversation history
+    for step in interaction1.steps:
+        # Convert the SDK Step object to a dictionary
+        conversation_history.append(step.model_dump())
 
-    # Turn 2: Follow-up using 'previous_interaction_id'
-    # This avoids the 'turn_list' error by letting the server handle history.
+    conversation_history.append({
+        "type": "user_input",
+        "content": [{"type": "text", "text": "What is the most famous landmark in the second one?"}]
+    })
+
     interaction2 = client.interactions.create(
         model=model_id,
-        input="What is the most famous landmark in the second one?",
-        previous_interaction_id=interaction1.id  # Server-side history management
+        store=store_enabled,
+        input=conversation_history,
     )
-
-    response_text2 = interaction2.steps[-1].content[0].text
-    print(f"Model 2: {response_text2}")
+    print(f"Response 2: {interaction2.steps[-1].content[0].text}")
