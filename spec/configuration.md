@@ -14,6 +14,11 @@ The possible settings are:
 | OPENINFERENCE_HIDE_INPUT_MESSAGES            | Hides all input messages (independent of HIDE_INPUTS)                                                                          | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_MESSAGES           | Hides all output messages (independent of HIDE_OUTPUTS)                                                                        | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_IMAGES              | Hides images from input messages (only applies when input messages are not already hidden)                                     | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUT_IMAGES             | Hides images from output messages (only applies when output messages are not already hidden)                                   | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_AUDIO               | Hides audio content from input messages (only applies when input messages are not already hidden)                              | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUT_AUDIO              | Hides audio content from output messages (only applies when output messages are not already hidden)                            | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_DOCUMENTS           | Hides document content from input messages (only applies when input messages are not already hidden)                           | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUT_DOCUMENTS          | Hides document content from output messages (only applies when output messages are not already hidden)                         | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_TEXT                | Hides text from input messages (only applies when input messages are not already hidden)                                       | bool | False   |
 | OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts (completions API)                                                                                            | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_TEXT               | Hides text from output messages (only applies when output messages are not already hidden)                                     | bool | False   |
@@ -21,7 +26,8 @@ The possible settings are:
 | OPENINFERENCE_HIDE_EMBEDDING_VECTORS         | Deprecated: use OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS                                                                          | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS        | Replaces embedding.embeddings.*.embedding.vector values with `"__REDACTED__"`                                                  | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDINGS_TEXT           | Replaces embedding.embeddings.*.embedding.text values with `"__REDACTED__"`                                                    | bool | False   |
-| OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
+| OPENINFERENCE_BASE64_DATA_MAX_LENGTH         | Limits characters of any base64 `data:` URI in `message_content.file.url` (images, audio, documents, and future content types) | int  | 32,000  |
+| OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Deprecated: use OPENINFERENCE_BASE64_DATA_MAX_LENGTH. When set, applies to all base64 `data:` URIs (not only images).           | int  | 32,000  |
 
 ## Redacted Content
 

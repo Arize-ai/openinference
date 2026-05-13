@@ -113,13 +113,17 @@ llm.input_messages.0.message.contents.0.message_content.file.name = "termination
 
 ## Privacy Considerations
 
-Multimodal content can carry sensitive payloads (PII in audio transcripts, document URLs that leak filenames, etc.). Each non-text content type gets a single redaction flag — when set, *all* fields of matching content blocks are redacted (`file.url`, `file.mime_type`, `file.name`, `file.file_id`, `file.transcript`) rather than picking individual sub-fields. Redaction applies only when the surrounding input messages are not already completely hidden.
+Multimodal content can carry sensitive payloads (PII in audio transcripts, document URLs that leak filenames, etc.). Each non-text content type gets a pair of redaction flags — one for input, one for output. When set, *all* fields of matching content blocks are redacted (`file.url`, `file.mime_type`, `file.name`, `file.file_id`, `file.transcript`) rather than picking individual sub-fields. Redaction applies only when the surrounding messages are not already completely hidden.
 
 ### Hiding Images
 
 When `OPENINFERENCE_HIDE_INPUT_IMAGES` is set to true:
 - All fields of input content blocks with `type = "image"` will be replaced with `"__REDACTED__"`
 - This only applies when input messages are not already completely hidden
+
+When `OPENINFERENCE_HIDE_OUTPUT_IMAGES` is set to true:
+- All fields of output content blocks with `type = "image"` will be replaced with `"__REDACTED__"`
+- This only applies when output messages are not already completely hidden
 
 ### Hiding Audio
 
@@ -128,6 +132,11 @@ When `OPENINFERENCE_HIDE_INPUT_AUDIO` is set to true:
 - The transcript is particularly sensitive because it *is* the rendered message content for voice conversations
 - This only applies when input messages are not already completely hidden
 
+When `OPENINFERENCE_HIDE_OUTPUT_AUDIO` is set to true:
+- All fields of output content blocks with `type = "audio"` will be replaced with `"__REDACTED__"`
+- Assistant audio transcripts may repeat sensitive information back to the user (account numbers, names, health information, etc.)
+- This only applies when output messages are not already completely hidden
+
 ### Hiding Documents
 
 When `OPENINFERENCE_HIDE_INPUT_DOCUMENTS` is set to true:
@@ -135,12 +144,18 @@ When `OPENINFERENCE_HIDE_INPUT_DOCUMENTS` is set to true:
 - `file.name` may itself be sensitive (e.g., filenames that disclose the subject matter)
 - This only applies when input messages are not already completely hidden
 
-### Base64 Image Truncation
+When `OPENINFERENCE_HIDE_OUTPUT_DOCUMENTS` is set to true:
+- All fields of output content blocks with `type = "document"` will be replaced with `"__REDACTED__"`
+- This only applies when output messages are not already completely hidden
 
-When `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is set (default: 32000):
-- Base64-encoded images longer than this limit will be truncated
-- The truncation preserves the data URL prefix (e.g., `data:image/png;base64,`)
+### Base64 Data Truncation
+
+When `OPENINFERENCE_BASE64_DATA_MAX_LENGTH` is set (default: 32000):
+- Any `data:` URI in `file.url` longer than this limit will be truncated, regardless of `message_content.type` — covers images, audio, documents, and any future content types that use inline base64 bytes
+- The truncation preserves the `data:` URI prefix (e.g., `data:image/png;base64,`, `data:audio/wav;base64,`, `data:application/pdf;base64,`)
 - Only the base64 content portion is subject to the length limit
+
+`OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is **deprecated** in favor of `OPENINFERENCE_BASE64_DATA_MAX_LENGTH`. When the deprecated form is set, consumers MUST honor it and apply it to all `data:` URIs in `file.url`, not only image content. Support continues through the 12-month window described in the [Deprecation Policy](semantic_conventions.md#deprecation-policy).
 
 ### Hiding Text Content
 
