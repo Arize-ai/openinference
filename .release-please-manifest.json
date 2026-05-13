@@ -2,7 +2,7 @@
     "python/openinference-semantic-conventions": "0.1.29",
     "python/instrumentation/openinference-instrumentation-agno": "0.1.32",
     "python/instrumentation/openinference-instrumentation-openai": "0.1.47",
-    "python/instrumentation/openinference-instrumentation-llama-index": "4.3.10",
+    "python/instrumentation/openinference-instrumentation-llama-index": "4.4.0",
     "python/instrumentation/openinference-instrumentation-dspy": "0.1.35",
     "python/instrumentation/openinference-instrumentation-langchain": "0.1.64",
     "python/instrumentation/openinference-instrumentation-bedrock": "0.1.37",
