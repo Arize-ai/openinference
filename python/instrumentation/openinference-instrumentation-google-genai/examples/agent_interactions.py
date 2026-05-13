@@ -29,7 +29,7 @@ async def run():
         print(f"Status: {interaction.status}")
 
         if interaction.status == "completed":
-            print("\nFinal Report:\n", interaction.outputs[-1].text)
+            print("\nFinal Report:\n", interaction.steps[-1].content[0].text)
             break
         elif interaction.status in ["failed", "cancelled"]:
             print(f"Failed with status: {interaction.status}")
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         print(f"Status: {interaction.status}")
 
         if interaction.status == "completed":
-            print("\nFinal Report:\n", interaction.outputs[-1].text)
+            print("\nFinal Report:\n", interaction.steps[-1].content[0].text)
             break
         elif interaction.status in ["failed", "cancelled"]:
             print(f"Failed with status: {interaction.status}")

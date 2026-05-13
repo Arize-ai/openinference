@@ -25,8 +25,8 @@ if __name__ == "__main__":
     interaction1 = client.interactions.create(
         model="gemini-3-flash-preview", input=conversation_history
     )
-    print(f"Model: {interaction1.outputs[-1].text}")
-    conversation_history.append({"role": "model", "content": interaction1.outputs})
+    print(f"Model: {interaction1.steps[-1].content[0].text}")
+    conversation_history.append({"role": "model", "content": interaction1.steps[-1].content})
     conversation_history.append(
         {"role": "user", "content": "What is the most famous landmark in the second one?"}
     )
@@ -35,4 +35,4 @@ if __name__ == "__main__":
         model="gemini-3-flash-preview", input=conversation_history
     )
 
-    print(f"Model: {interaction2.outputs[-1].text}")
+    print(f"Model: {interaction2.steps[-1].content[0].text}")

@@ -154,8 +154,13 @@ class _InteractionAccumulator:
 
         elif event_type == "interaction.completed":
             if self._interaction:
+                self._interaction.id = event.interaction.id
                 self._interaction.status = event.interaction.status
+                self._interaction.created = event.interaction.created
+                self._interaction.updated = event.interaction.updated
+                self._interaction.role = event.interaction.role
                 self._interaction.usage = event.interaction.usage
+                # Assign the accumulated steps
                 self._interaction.steps = [s for s in self._steps if s is not None]
 
     def result(self) -> Optional["Interaction"]:

@@ -44,11 +44,13 @@ def run():
         input="What is the weather in Paris & New Delhi?",
         tools=[weather_tool],
     )
-    for output in interaction.outputs:
-        if output.type == "function_call":
-            print(f"Tool Call: {output.name}({output.arguments})")
+
+    for step in interaction.steps:
+        if step.type == "function_call":
+            print(f"Tool Call: {step.name}({step.arguments})")
+
             # Execute tool
-            result = get_weather(**output.arguments)
+            result = get_weather(**step.arguments)
             print(f"Result: {result}")
 
             # Send result back
@@ -58,13 +60,13 @@ def run():
                 input=[
                     {
                         "type": "function_result",
-                        "name": output.name,
-                        "call_id": output.id,
+                        "name": step.name,
+                        "call_id": step.id,
                         "result": result,
                     }
                 ],
             )
-            print(interaction.outputs)
+            print(interaction.steps)
 
 
 if __name__ == "__main__":

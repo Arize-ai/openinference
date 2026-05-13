@@ -48,7 +48,7 @@ def test_generate_interactions_simple_message(
     usage_metadata = None
     if use_stream:
         for chunk in interaction:
-            if hasattr(chunk, "interaction") and chunk.interaction.usage:
+            if getattr(chunk, "interaction", None) and chunk.interaction.usage:
                 usage_metadata = chunk.interaction.usage
     else:
         usage_metadata = interaction.usage
@@ -127,7 +127,7 @@ def test_generate_interactions_multi_model_messages(
     usage_metadata = None
     if use_stream:
         for chunk in interaction:
-            if hasattr(chunk, "interaction") and chunk.interaction.usage:
+            if getattr(chunk, "interaction", None) and chunk.interaction.usage:
                 usage_metadata = chunk.interaction.usage
     else:
         usage_metadata = interaction.usage
@@ -209,7 +209,7 @@ async def test_generate_interactions_async(
     usage_metadata = None
     if use_stream:
         async for chunk in interaction:
-            if hasattr(chunk, "interaction") and chunk.interaction.usage:
+            if getattr(chunk, "interaction", None) and chunk.interaction.usage:
                 usage_metadata = chunk.interaction.usage
     else:
         usage_metadata = interaction.usage
