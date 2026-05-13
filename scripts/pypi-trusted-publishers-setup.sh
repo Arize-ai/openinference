@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Add GitHub Actions trusted publishing to each OpenInference Python project on PyPI.
 #
-# Requires: agent-browser (https://github.com/stevekinney/agent-browser), jq
+# Requires: agent-browser (https://github.com/vercel-labs/agent-browser), jq
 #
 # What it does:
 #   - Reads Python package names from release-please-config.json.
