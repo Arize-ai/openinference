@@ -26,7 +26,7 @@ func TestSuppression(t *testing.T) {
 	}
 }
 
-func TestApplyContextAttributes_NoBaggageNoOp(t *testing.T) {
+func TestApplyContextAttributes_EmptyContextNoOp(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	ctx := context.Background()
@@ -47,7 +47,7 @@ func TestApplyContextAttributes_NoBaggageNoOp(t *testing.T) {
 	}
 }
 
-func TestApplyContextAttributes_BaggagePropagation(t *testing.T) {
+func TestApplyContextAttributes_AllValuesPropagated(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 
@@ -76,9 +76,6 @@ func TestApplyContextAttributes_BaggagePropagation(t *testing.T) {
 	if got := attrs["metadata"]; got != `{"team":"platform"}` {
 		t.Errorf("metadata: got %v", got)
 	}
-	// tag.tags MUST be a string slice (matches the OpenInference spec
-	// and Python). attribute.StringSlice serialises as []string via
-	// AsInterface().
 	gotTags, ok := attrs["tag.tags"].([]string)
 	if !ok {
 		t.Fatalf("tag.tags should be []string, got %T = %v", attrs["tag.tags"], attrs["tag.tags"])
@@ -115,13 +112,17 @@ func TestWithTags_VariadicAndEmpty(t *testing.T) {
 	}
 }
 
-func TestWithTags_PreservesTagsContainingCommas(t *testing.T) {
-	// JSON encoding inside baggage protects against the comma-split
-	// foot-gun a naive separator-based encoding would have.
+func TestWithTags_DefensiveCopy(t *testing.T) {
+	// The tag slice passed by the caller must be copied so that
+	// subsequent mutations don't retroactively change what the span
+	// records.
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 
-	ctx := instrumentation.WithTags(context.Background(), "team:platform,sre", "env:prod")
+	src := []string{"prod", "canary"}
+	ctx := instrumentation.WithTags(context.Background(), src...)
+	src[0] = "MUTATED"
+
 	_, span := tp.Tracer("test").Start(ctx, "test")
 	instrumentation.ApplyContextAttributes(ctx, span)
 	span.End()
@@ -134,12 +135,12 @@ func TestWithTags_PreservesTagsContainingCommas(t *testing.T) {
 	if !ok {
 		t.Fatalf("tag.tags should be []string, got %T", attrs["tag.tags"])
 	}
-	if !reflect.DeepEqual(gotTags, []string{"team:platform,sre", "env:prod"}) {
-		t.Errorf("tags with embedded commas: got %v", gotTags)
+	if !reflect.DeepEqual(gotTags, []string{"prod", "canary"}) {
+		t.Errorf("post-mutation tags: got %v want [prod canary]", gotTags)
 	}
 }
 
-func TestApplyContextAttributes_PartialBaggage(t *testing.T) {
+func TestApplyContextAttributes_Partial(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 

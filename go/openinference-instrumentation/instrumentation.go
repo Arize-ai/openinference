@@ -4,16 +4,23 @@
 //
 //   - suppress-tracing escape hatch for evaluator/grader calls;
 //   - context attribute propagation (session.id, user.id, metadata,
-//     tag.tags) that auto-applies to every LLM span via OTel baggage;
+//     tag.tags) that auto-applies to every LLM span;
 //   - sensitive-data masking via TraceConfig, driven by the canonical
 //     OPENINFERENCE_HIDE_* environment variables.
 //
 // Context attributes need a propagation channel because OTel span
 // attributes don't auto-inherit from parent to child — a customer
 // setting session.id on a CHAIN span does NOT cause the child LLM
-// spans to carry session.id. We use OTel baggage so the values cross
-// goroutine and process boundaries the way customers already expect
-// for distributed-tracing context.
+// spans to carry session.id. We use unexported `context.Context` keys
+// (the same pattern as Java's ContextKey, JS's createContextKey, and
+// Python's OTel context values) so the values flow through the
+// customer's call graph in-process but never leave the process. In
+// particular, these values are NOT placed in OTel baggage, so an
+// application running a baggage propagator will not serialize them
+// into outbound HTTP headers on downstream calls (e.g. LLM provider
+// requests). This matters for `metadata`, which callers may legitimately
+// populate with tenant IDs, workflow labels, or other internal data
+// that should not cross trust boundaries.
 //
 // Typical use:
 //
@@ -37,29 +44,24 @@ package instrumentation
 
 import (
 	"context"
-	"encoding/json"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Arize-ai/openinference/go/openinference-semantic-conventions"
 )
 
-// Baggage keys recognised by OpenInference instrumentors. Customers can
-// either set them via the With* helpers below, or directly via the OTel
-// baggage API. The literal values mirror the corresponding OpenInference
-// attribute names so a customer's mental model is "the baggage key IS
-// the attribute key" — except BaggageTags, whose baggage value is a
-// JSON-encoded array because OTel baggage values must be strings.
-const (
-	BaggageSessionID = "session.id"
-	BaggageUserID    = "user.id"
-	BaggageMetadata  = "metadata"
-	BaggageTags      = "tag.tags"
+// Unexported key types ensure these values can only be set via the
+// With* helpers in this package — no risk of accidental key collisions
+// with other libraries' context values, and (unlike baggage) they
+// cannot escape the process via a propagator.
+type (
+	suppressKey struct{}
+	sessionKey  struct{}
+	userKey     struct{}
+	metadataKey struct{}
+	tagsKey     struct{}
 )
-
-type suppressKey struct{}
 
 // WithSuppression returns a context that suppresses OpenInference LLM
 // instrumentation for any provider call descended from it. Use this in
@@ -78,100 +80,74 @@ func IsSuppressed(ctx context.Context) bool {
 	return v
 }
 
-// WithSession returns a context carrying sessionID via baggage. Provider
+// WithSession returns a context carrying sessionID. Provider
 // instrumentors apply it to every LLM span descended from this context
 // as the OpenInference session.id attribute.
 //
 // Returns ctx unchanged if sessionID is empty.
 func WithSession(ctx context.Context, sessionID string) context.Context {
-	return setBaggage(ctx, BaggageSessionID, sessionID)
+	if sessionID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, sessionKey{}, sessionID)
 }
 
-// WithUser returns a context carrying userID via baggage. Applied as
-// the OpenInference user.id attribute.
+// WithUser returns a context carrying userID. Applied as the
+// OpenInference user.id attribute.
+//
+// Returns ctx unchanged if userID is empty.
 func WithUser(ctx context.Context, userID string) context.Context {
-	return setBaggage(ctx, BaggageUserID, userID)
+	if userID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, userKey{}, userID)
 }
 
 // WithMetadata returns a context carrying a free-form metadata JSON
-// string via baggage. Applied as the OpenInference metadata attribute.
-// Caller is responsible for JSON-encoding the map.
+// string. Applied as the OpenInference metadata attribute. Caller is
+// responsible for JSON-encoding the map.
+//
+// Returns ctx unchanged if metadataJSON is empty.
 func WithMetadata(ctx context.Context, metadataJSON string) context.Context {
-	return setBaggage(ctx, BaggageMetadata, metadataJSON)
+	if metadataJSON == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, metadataKey{}, metadataJSON)
 }
 
-// WithTags returns a context carrying a list of categorical tags via
-// baggage. Applied as the OpenInference tag.tags attribute, which is
-// typed as a string list (the spec, the Python SDK, and the Arize UI
-// all treat it as []string).
-//
-// Tags are JSON-encoded inside the baggage value because OTel baggage
-// values must be strings; ApplyContextAttributes decodes them back to
-// a string slice for attribute.StringSlice on the span.
+// WithTags returns a context carrying a list of categorical tags.
+// Applied as the OpenInference tag.tags attribute, which is typed as a
+// string list (the spec, the Python SDK, and the Arize UI all treat it
+// as []string).
 //
 // Returns ctx unchanged if no tags are provided.
 func WithTags(ctx context.Context, tags ...string) context.Context {
 	if len(tags) == 0 {
 		return ctx
 	}
-	encoded, err := json.Marshal(tags)
-	if err != nil {
-		return ctx
-	}
-	return setBaggage(ctx, BaggageTags, string(encoded))
+	// Defensive copy so a caller mutating their slice afterwards
+	// cannot retroactively change what the span will record.
+	copied := make([]string, len(tags))
+	copy(copied, tags)
+	return context.WithValue(ctx, tagsKey{}, copied)
 }
 
-// ApplyContextAttributes copies any recognised OpenInference baggage
-// members from ctx onto span. Provider instrumentors call this once
-// per LLM span (right after Start) so customer-set session.id / user.id
-// / metadata / tags appear on every LLM span in the trace, not just on
+// ApplyContextAttributes copies any OpenInference context attributes
+// from ctx onto span. Provider instrumentors call this once per LLM
+// span (right after Start) so customer-set session.id / user.id /
+// metadata / tags appear on every LLM span in the trace, not just on
 // the manually-instrumented CHAIN span.
 func ApplyContextAttributes(ctx context.Context, span trace.Span) {
-	bag := baggage.FromContext(ctx)
-	if v := memberValue(bag, BaggageSessionID); v != "" {
+	if v, ok := ctx.Value(sessionKey{}).(string); ok && v != "" {
 		span.SetAttributes(attribute.String(semconv.SessionID, v))
 	}
-	if v := memberValue(bag, BaggageUserID); v != "" {
+	if v, ok := ctx.Value(userKey{}).(string); ok && v != "" {
 		span.SetAttributes(attribute.String(semconv.UserID, v))
 	}
-	if v := memberValue(bag, BaggageMetadata); v != "" {
+	if v, ok := ctx.Value(metadataKey{}).(string); ok && v != "" {
 		span.SetAttributes(attribute.String(semconv.Metadata, v))
 	}
-	if v := memberValue(bag, BaggageTags); v != "" {
-		// Decode the JSON-encoded slice back to []string and emit
-		// as a typed list attribute, matching the OpenInference spec
-		// (and the Python implementation).
-		var tags []string
-		if err := json.Unmarshal([]byte(v), &tags); err == nil && len(tags) > 0 {
-			span.SetAttributes(attribute.StringSlice(semconv.TagTags, tags))
-		}
+	if v, ok := ctx.Value(tagsKey{}).([]string); ok && len(v) > 0 {
+		span.SetAttributes(attribute.StringSlice(semconv.TagTags, v))
 	}
-}
-
-func memberValue(bag baggage.Baggage, key string) string {
-	m := bag.Member(key)
-	if m.Key() == "" {
-		return ""
-	}
-	return m.Value()
-}
-
-// setBaggage is the internal builder used by the With* helpers.
-// Returns ctx unchanged on a zero-length value or on a baggage-API
-// rejection (e.g., a value containing reserved characters); we never
-// want a tracing helper to error a customer's request path.
-func setBaggage(ctx context.Context, key, value string) context.Context {
-	if value == "" {
-		return ctx
-	}
-	bag := baggage.FromContext(ctx)
-	m, err := baggage.NewMemberRaw(key, value)
-	if err != nil {
-		return ctx
-	}
-	updated, err := bag.SetMember(m)
-	if err != nil {
-		return ctx
-	}
-	return baggage.ContextWithBaggage(ctx, updated)
 }
