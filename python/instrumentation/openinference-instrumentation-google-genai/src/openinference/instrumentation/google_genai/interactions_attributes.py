@@ -8,6 +8,7 @@ from openinference.instrumentation import (
     ImageMessageContent,
     Message,
     MessageContent,
+    PromptDetails,
     TextMessageContent,
     TokenCount,
     Tool,
@@ -158,21 +159,62 @@ def get_tools(request_params: Mapping[str, Any]) -> list[Tool]:
     return [Tool(json_schema=tool) for tool in tools]
 
 
+def _as_int(value: Any) -> int:
+    if value is None:
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _sum_token_values(items: Any) -> int:
+    total = 0
+    for item in items or []:
+        total += _as_int(get_attribute(item, "tokens") or get_attribute(item, "token_count"))
+    return total
+
+
 def get_token_object_from_response(response: Any) -> TokenCount:
     token_count = TokenCount()
     if usage := get_attribute(response, "usage"):
-        token_count = TokenCount(
-            total=get_attribute(usage, "total_tokens", 0) or 0,
-            prompt=get_attribute(usage, "total_input_tokens", 0) or 0,
-            completion=(get_attribute(usage, "total_thought_tokens", 0) or 0)
-            + (get_attribute(usage, "total_output_tokens", 0) or 0),
+        cached_tokens = _as_int(get_attribute(usage, "total_cached_tokens"))
+        prompt = (
+            max(
+                _as_int(get_attribute(usage, "total_input_tokens")),
+                _sum_token_values(get_attribute(usage, "input_tokens_by_modality")),
+            )
+            + cached_tokens
         )
+        completion = (
+            _as_int(get_attribute(usage, "total_thought_tokens"))
+            + _as_int(get_attribute(usage, "total_output_tokens"))
+            + _as_int(get_attribute(usage, "total_tool_use_tokens"))
+        )
+        total = _as_int(get_attribute(usage, "total_tokens"))
+        if total > prompt + completion and (prompt or completion):
+            prompt = total - completion
+        else:
+            total = max(total, prompt + completion)
+        token_count = TokenCount(
+            total=total,
+            prompt=prompt,
+            completion=completion,
+        )
+        if cached_tokens:
+            token_count["prompt_details"] = PromptDetails(cache_read=cached_tokens)
     return token_count
 
 
 def is_agent_call(request_parameters: Mapping[str, Any]) -> bool:
     return isinstance(request_parameters.get("agent"), str) and not isinstance(
         request_parameters.get("model"), str
+    )
+
+
+def is_agent_response(response: Any) -> bool:
+    return isinstance(get_attribute(response, "agent"), str) and not isinstance(
+        get_attribute(response, "model"), str
     )
 
 
@@ -208,11 +250,29 @@ def get_attributes_from_request_object(
     }
 
 
+def get_attributes_from_get_request_object(
+    request_parameters: Mapping[str, Any],
+) -> dict[str, AttributeValue]:
+    metadata = {}
+    if interaction_id := request_parameters.get("id"):
+        metadata["interaction_id"] = interaction_id
+    return get_metadata_attributes(metadata=metadata)
+
+
 @_stop_on_exception_for_iter
 def get_attributes_from_request(
     request_parameters: Mapping[str, Any],
 ) -> Iterable[tuple[str, AttributeValue]]:
     attributes = get_attributes_from_request_object(request_parameters)
+    for key, value in attributes.items():
+        yield key, value
+
+
+@_stop_on_exception_for_iter
+def get_attributes_from_get_request(
+    request_parameters: Mapping[str, Any],
+) -> Iterable[tuple[str, AttributeValue]]:
+    attributes = get_attributes_from_get_request_object(request_parameters)
     for key, value in attributes.items():
         yield key, value
 
@@ -225,13 +285,16 @@ def get_attributes_from_response(
     if not response:
         return {}
 
-    if is_agent_call(request_parameters):
+    if is_agent_call(request_parameters) or is_agent_response(response):
         return {
+            **get_span_kind_attributes("agent"),
             **get_output_attributes(safe_json_dumps(response)),
         }
 
     steps = get_attribute(response, "steps")
     return {
+        **get_llm_attributes(provider=OpenInferenceLLMProviderValues.GOOGLE.value),
+        **get_span_kind_attributes("llm"),
         **get_llm_model_name_attributes(get_attribute(response, "model")),
         **get_output_attributes(safe_json_dumps(steps)),
         **get_llm_output_message_attributes(get_output_messages(steps)),
