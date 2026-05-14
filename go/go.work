@@ -1,4 +1,4 @@
-go 1.25
+go 1.25.0
 
 // In-repo workspace: lets `go build` / `go test` in any submodule
 // resolve cross-package deps from the working tree without requiring
