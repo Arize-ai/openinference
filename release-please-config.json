@@ -196,6 +196,14 @@
                     "path": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties"
                 }
             ]
+        },
+        "go": {
+            "package-name": "openinference-go",
+            "component": "go",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true,
+            "release-as": "0.1.0"
         }
     }
 }
