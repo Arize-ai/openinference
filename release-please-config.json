@@ -196,6 +196,22 @@
                     "path": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties"
                 }
             ]
+        },
+        "go/openinference-semantic-conventions": {
+            "package-name": "openinference-semantic-conventions-go",
+            "component": "go/openinference-semantic-conventions",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true,
+            "release-as": "0.1.0"
+        },
+        "go/openinference-instrumentation": {
+            "package-name": "openinference-instrumentation-go",
+            "component": "go/openinference-instrumentation",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true,
+            "release-as": "0.1.0"
         }
     }
 }
