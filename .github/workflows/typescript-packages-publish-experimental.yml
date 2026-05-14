@@ -1,7 +1,9 @@
 name: Publish Any Pull Request
-# TODO: Only publish on pull requests by arize team members
 on:
   pull_request:
+
+# Least-privilege default; jobs below opt into exactly what they need.
+permissions: {}
 
 jobs:
   # JOB to run change detection
@@ -27,14 +29,24 @@ jobs:
 
   publish-experimental-packages:
     needs: changes
-    if: ${{ needs.changes.outputs.packages == 'true' || needs.changes.outputs.workflow_file == 'true' }}
+    # Only run for PRs from branches in this repo. Forked-PR branches are
+    # attacker-controlled; building + publishing them would execute untrusted
+    # code on a runner with repo context (see the "pwn request" attack class).
+    if: >-
+      (needs.changes.outputs.packages == 'true' || needs.changes.outputs.workflow_file == 'true') &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # pkg-pr-new posts the preview-package URL as a PR comment
     env:
       NODE_OPTIONS: "--max-old-space-size=8192"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       # workaround for broken corepack https://github.com/nodejs/corepack/issues/612
       - run: |

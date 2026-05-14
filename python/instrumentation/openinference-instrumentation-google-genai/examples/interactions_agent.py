@@ -22,7 +22,6 @@ def run():
     interaction = client.interactions.create(
         input="Research the history of the Google TPUs with a focus on 2025 and 2026.",
         agent="deep-research-pro-preview-12-2025",
-        background=True,
     )
     print(interaction)
 

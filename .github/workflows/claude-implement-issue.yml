@@ -4,6 +4,9 @@ on:
   issues:
     types: [labeled]
 
+# Least-privilege default; the job below opts into exactly what it needs.
+permissions: {}
+
 jobs:
   implement:
     if: github.event.label.name == 'good-agent-issue'
@@ -16,7 +19,7 @@ jobs:
       id-token: write
       actions: read
     env:
-      GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+      GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
       GH_REPO: ${{ github.repository }}
       ISSUE_NUMBER: ${{ github.event.issue.number }}
 
@@ -70,7 +73,7 @@ jobs:
         uses: anthropics/claude-code-action@094bd24d575e7b30ac1576024817bf1a97c81262 # v1.0.80
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+          github_token: ${{ secrets.MY_RELEASE_PLEASE }}
           prompt: |
             Implement GitHub issue #${{ github.event.issue.number }} end-to-end. Deliver a complete, merge-ready PR.
 

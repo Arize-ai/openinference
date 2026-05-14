@@ -10,6 +10,9 @@ on:
     #   - "src/**/*.js"
     #   - "src/**/*.jsx"
 
+# Least-privilege default; the job below opts into exactly what it needs.
+permissions: {}
+
 jobs:
   claude-review:
     # Automatic reviews only for internal team PRs (non-forked)

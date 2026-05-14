@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.49...python-openinference-instrumentation-v0.1.50) (2026-05-11)
+
+
+### Features
+
+* add hide_llm_tools config to mask LLM tool definitions ([#3082](https://github.com/Arize-ai/openinference/issues/3082)) ([cfb128c](https://github.com/Arize-ai/openinference/commit/cfb128cf08e178fae7b20e5f44d6d83eae0015e3))
+
 ## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.48...python-openinference-instrumentation-v0.1.49) (2026-05-06)
 
 
