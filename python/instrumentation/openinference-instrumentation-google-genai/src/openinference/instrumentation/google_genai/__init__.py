@@ -26,7 +26,9 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_generate_content_stream",
         "_original_async_generate_content_stream",
         "_original_create_interactions_resource",
+        "_original_get_interactions_resource",
         "_original_async_create_interactions_resource",
+        "_original_async_get_interactions_resource",
         "_original_create_caches",
         "_original_async_create_caches",
         "_original_api_request",
@@ -68,11 +70,13 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             _AsyncEmbedContentWrapper,
             _AsyncGenerateContentStream,
             _AsyncGenerateContentWrapper,
+            _AsyncGetInteractionWrapper,
             _SyncCreateCachesWrapper,
             _SyncCreateInteractionWrapper,
             _SyncEmbedContentWrapper,
             _SyncGenerateContent,
             _SyncGenerateContentStream,
+            _SyncGetInteractionWrapper,
         )
 
         self._original_create_interactions_resource = InteractionsResource.create
@@ -80,6 +84,12 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             "google.genai._interactions.resources",
             "InteractionsResource.create",
             _SyncCreateInteractionWrapper(tracer=self._tracer),
+        )
+        self._original_get_interactions_resource = InteractionsResource.get
+        wrap_function_wrapper(
+            "google.genai._interactions.resources",
+            "InteractionsResource.get",
+            _SyncGetInteractionWrapper(tracer=self._tracer),
         )
 
         self._original_create_caches = Caches.create
@@ -142,6 +152,12 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             "google.genai._interactions.resources",
             "AsyncInteractionsResource.create",
             _AsyncCreateInteractionWrapper(tracer=self._tracer),
+        )
+        self._original_async_get_interactions_resource = AsyncInteractionsResource.get
+        wrap_function_wrapper(
+            "google.genai._interactions.resources",
+            "AsyncInteractionsResource.get",
+            _AsyncGetInteractionWrapper(tracer=self._tracer),
         )
 
         from google.genai._api_client import BaseApiClient
@@ -219,8 +235,18 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
                 self._original_async_create_interactions_resource,
             )
 
+        if self._original_async_get_interactions_resource is not None:
+            setattr(
+                AsyncInteractionsResource,
+                "get",
+                self._original_async_get_interactions_resource,
+            )
+
         if self._original_create_interactions_resource is not None:
             setattr(InteractionsResource, "create", self._original_create_interactions_resource)
+
+        if self._original_get_interactions_resource is not None:
+            setattr(InteractionsResource, "get", self._original_get_interactions_resource)
 
         from google.genai._api_client import BaseApiClient
 

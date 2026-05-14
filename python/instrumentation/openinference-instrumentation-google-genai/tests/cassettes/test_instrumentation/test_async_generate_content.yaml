@@ -5,7 +5,7 @@ interactions:
       that can answer questions and help with tasks."}], "role": "user"}, "generationConfig":
       {}}'
     headers: {}
-    method: POST
+    method: post
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
   response:
     body:
@@ -18,8 +18,8 @@ interactions:
         26,\n    \"totalTokenCount\": 47,\n    \"promptTokensDetails\": [\n      {\n
         \       \"modality\": \"TEXT\",\n        \"tokenCount\": 21\n      }\n    ],\n
         \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
-        \       \"tokenCount\": 26\n      }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n
-        \ \"responseId\": \"hpGfafCiBsXez7IPwZDQsA0\"\n}\n"
+        \       \"tokenCount\": 26\n      }\n    ],\n    \"serviceTier\": \"standard\"\n
+        \ },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\": \"h9cEasnrMqCVmtkP9P7tiQU\"\n}\n"
     headers: {}
     status:
       code: 200

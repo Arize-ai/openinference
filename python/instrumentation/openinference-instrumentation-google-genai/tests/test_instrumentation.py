@@ -1,5 +1,6 @@
 # type: ignore
 # ruff: noqa: E501
+import base64
 import json
 import os
 from typing import Any, Dict
@@ -337,7 +338,7 @@ def test_generate_content_describe_image(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -347,7 +348,9 @@ def test_generate_content_describe_image(
             "You are a helpful assistant that can answer questions and help with tasks."
         )
     )
-    image_bytes = b"iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
+    image_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII="
+    )
     image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
     content = Content(
         role="user",
@@ -1272,7 +1275,7 @@ def test_response_with_multiple_tool_calls(
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
 ) -> None:
-    api_key = "dummy-key"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -2013,7 +2016,7 @@ def test_generate_content_with_file_uri_image(
     inlineData bytes, allowing the model to fetch the image from the given URI.
     Delete the cassette and set GEMINI_API_KEY to re-record.
     """
-    api_key = "api-key-placeholder"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     client = genai.Client(api_key=api_key)
 
     file_uri = "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U"
@@ -2024,13 +2027,14 @@ def test_generate_content_with_file_uri_image(
             Part.from_uri(file_uri=file_uri, mime_type="image/jpeg"),
         ],
     )
+    model_name = "gemini-2.5-flash"
     config = GenerateContentConfig(
         system_instruction="You are a helpful assistant that can describe images."
     )
 
     if streaming:
         response = client.models.generate_content_stream(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents=content,
             config=config,
         )
@@ -2038,7 +2042,7 @@ def test_generate_content_with_file_uri_image(
             ...
     else:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents=content,
             config=config,
         )
@@ -2053,7 +2057,7 @@ def test_generate_content_with_file_uri_image(
     expected_attributes: Dict[str, Any] = {
         SpanAttributes.LLM_PROVIDER: "google",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.LLM_MODEL_NAME: model_name,
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",

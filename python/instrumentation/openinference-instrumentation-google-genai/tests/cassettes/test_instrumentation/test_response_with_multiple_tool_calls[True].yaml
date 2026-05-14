@@ -16,14 +16,13 @@ interactions:
   response:
     body:
       string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\":
-        {\"name\": \"get_weather\", \"args\": {\"location\": \"Boston\"}}}, {\"functionCall\":
-        {\"name\": \"get_weather\", \"args\": {\"location\": \"New Delhi\"}}}], \"role\":
-        \"model\"}, \"finishReason\": \"STOP\", \"avgLogprobs\": -0.0099561532790010624}],
-        \"usageMetadata\": {\"promptTokenCount\": 64, \"candidatesTokenCount\": 11,
-        \"totalTokenCount\": 75, \"promptTokensDetails\": [{\"modality\": \"TEXT\",
-        \"tokenCount\": 64}], \"candidatesTokensDetails\": [{\"modality\": \"TEXT\",
-        \"tokenCount\": 11}]}, \"modelVersion\": \"gemini-2.0-flash\", \"responseId\":
-        \"fvZbaYr4NcKmjuMP2OOM6AQ\"}\r\n\r\n"
+        {\"name\": \"get_weather\",\"args\": {\"location\": \"Boston\"}}},{\"functionCall\":
+        {\"name\": \"get_weather\",\"args\": {\"location\": \"New Delhi\"}}}],\"role\":
+        \"model\"},\"finishReason\": \"STOP\"}],\"usageMetadata\": {\"promptTokenCount\":
+        64,\"candidatesTokenCount\": 11,\"totalTokenCount\": 75,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 64}],\"candidatesTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-2.0-flash\",\"responseId\": \"l9cEarvcAfjC7_UPtZea-Aw\"}\r\n\r\n"
     headers: {}
     status:
       code: 200
