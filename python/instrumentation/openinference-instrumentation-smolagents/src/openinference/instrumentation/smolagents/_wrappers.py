@@ -548,10 +548,10 @@ class _ModelWrapper:
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
             span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total_tokens)
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
-            if provider := (
-                infer_llm_provider_from_class_name(instance)
-                or infer_llm_provider_from_host(extract_llm_endpoint_from_sdk_instance(instance))  # type: ignore[arg-type]
-            ):
+            provider = infer_llm_provider_from_class_name(instance)
+            if provider is None and (host := extract_llm_endpoint_from_sdk_instance(instance)):
+                provider = infer_llm_provider_from_host(host)
+            if provider:
                 span.set_attribute(LLM_PROVIDER, provider.value)
             if system := infer_llm_system_from_model_name(model.model_id):
                 span.set_attribute(LLM_SYSTEM, system.value)
