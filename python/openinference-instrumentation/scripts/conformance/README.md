@@ -49,5 +49,5 @@ The summary has four sections:
 ## Caveats
 
 - This is an MVP. Coverage is the chat / tool / embeddings / retriever scenarios listed above; expand by adding scenarios to the provider scripts and corresponding response shapes to `mock_server.py`.
-- The pinned versions are `WEAVER_VERSION=v0.22.1` and `SEMCONV_VERSION=v1.40.0` (see top of [run.py](./run.py)).
+- The pinned versions are `WEAVER_VERSION=v0.23.0` and `SEMCONV_VERSION=v1.41.1` (see top of [run.py](./run.py)).
 - The runner deletes and recreates `./results/` on each invocation.

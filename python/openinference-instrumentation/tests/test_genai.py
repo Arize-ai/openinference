@@ -33,8 +33,8 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
-# OTel GenAI semconv JSON schemas (v1.40.0) vendored at tests/fixtures/genai_schemas/.
-# Source: https://github.com/open-telemetry/semantic-conventions/tree/v1.40.0/docs/gen-ai
+# OTel GenAI semconv JSON schemas (v1.41.1) vendored at tests/fixtures/genai_schemas/.
+# Source: https://github.com/open-telemetry/semantic-conventions/tree/v1.41.1/docs/gen-ai
 # Refresh from ~/.cache/oi-conformance/semconv/<version>/docs/gen-ai/ when bumping.
 _SCHEMA_DIR = Path(__file__).parent / "fixtures" / "genai_schemas"
 _GENAI_SCHEMA_VALIDATORS: Dict[str, Draft202012Validator] = {

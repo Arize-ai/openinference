@@ -128,7 +128,7 @@ def get_genai_message_attributes(
         _output_messages if _output_messages is not None else _get_output_messages(attributes)
     )
 
-    # `any`-typed OTel GenAI attrs are JSON-string-encoded on spans per semconv v1.40.0;
+    # `any`-typed OTel GenAI attrs are JSON-string-encoded on spans per semconv v1.41.1;
     # span attribute values can't be nested structures.
     if input_messages:
         genai_attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES] = safe_json_dumps(input_messages)

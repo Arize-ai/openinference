@@ -72,20 +72,21 @@ For category 3 (mock data gap):
 
 ## Bumping the semconv version
 
-The harness pins `SEMCONV_VERSION` (currently `v1.40.0`) and `WEAVER_VERSION` in `run.py`. When OTel cuts a new semconv release, walk this checklist:
+The harness pins `SEMCONV_VERSION` (currently `v1.41.1`) and `WEAVER_VERSION` (currently `v0.23.0`) in `run.py`. When OTel cuts a new semconv release, walk this checklist:
 
-1. **Bump the constants** in [run.py](../../python/openinference-instrumentation/scripts/conformance/run.py): `SEMCONV_VERSION` always; `WEAVER_VERSION` only if a newer Weaver is needed for new registry features.
-2. **Run the harness once** (`uv run python/openinference-instrumentation/scripts/conformance/run.py`) so it downloads the new registry into `~/.cache/oi-conformance/semconv/<new-version>/`.
-3. **Refresh the vendored JSON schemas** at [tests/fixtures/genai_schemas/](../../python/openinference-instrumentation/tests/fixtures/genai_schemas/) from `~/.cache/oi-conformance/semconv/<new-version>/docs/gen-ai/gen-ai-{input,output}-messages.json`.
-4. **Run unit tests** (`pytest tests/test_genai.py`). The `_load_json_attribute` validator runs the new schemas against every emitted message payload — any breaking shape change surfaces here.
-5. **Skim the semconv changelog** for these specific risks (each one usually requires a code change in `_genai_conversion.py`):
+1. **Check for a newer Weaver release too** — always run `gh release list --repo open-telemetry/weaver --limit 5` alongside the semconv check. Weaver and the registry version independently; the harness depends on both. Bump `WEAVER_VERSION` whenever a newer release exists, and skim its notes for `live-check`-relevant fixes.
+2. **Bump the constants** in [run.py](../../python/openinference-instrumentation/scripts/conformance/run.py): `SEMCONV_VERSION` and `WEAVER_VERSION` to the latest releases.
+3. **Run the harness once** (`uv run python/openinference-instrumentation/scripts/conformance/run.py`) so it downloads the new registry into `~/.cache/oi-conformance/semconv/<new-version>/`.
+4. **Refresh the vendored JSON schemas** at [tests/fixtures/genai_schemas/](../../python/openinference-instrumentation/tests/fixtures/genai_schemas/) from `~/.cache/oi-conformance/semconv/<new-version>/docs/gen-ai/gen-ai-{input,output}-messages.json`.
+5. **Run unit tests** (`pytest tests/test_genai.py`). The `_load_json_attribute` validator runs the new schemas against every emitted message payload — any breaking shape change surfaces here.
+6. **Skim the semconv changelog** for these specific risks (each one usually requires a code change in `_genai_conversion.py`):
    - New required fields on `ChatMessage` / `OutputMessage` parts (`TextPart`, `ToolCallRequestPart`, etc.) → builder functions need to populate them.
    - New `Role` enum values → `_normalize_message_role` may need a mapping.
    - New `FinishReason` enum values → `_normalize_finish_reason` may need a mapping.
    - Added `gen_ai.*` registry attrs → opportunity for new dual-write mappings; re-run the harness and look at the "Missing registry attributes" summary.
    - Removed / renamed `gen_ai.*` attrs → drop from `_genai_attributes.py` and stop emitting in `_genai_conversion.py`.
-6. **Refresh inline version refs**: the "v1.40.0" mentions in [test_genai.py](../../python/openinference-instrumentation/tests/test_genai.py) (schema-source comment), [README.md](../../python/openinference-instrumentation/scripts/conformance/README.md) (caveats section), and [_genai_conversion.py](../../python/openinference-instrumentation/src/openinference/instrumentation/_genai_conversion.py) (the encoding comment inside `get_genai_message_attributes`).
-7. **Re-run the conformance harness** end-to-end; verify no `gen_ai.*` attribute regressed and no genuine shape errors appear in `results/live_check.json` (advice with `id != "missing_attribute"`).
+7. **Refresh inline version refs**: the semconv-version mentions in [test_genai.py](../../python/openinference-instrumentation/tests/test_genai.py) (schema-source comment), [README.md](../../python/openinference-instrumentation/scripts/conformance/README.md) (caveats section, includes Weaver version too), and [_genai_conversion.py](../../python/openinference-instrumentation/src/openinference/instrumentation/_genai_conversion.py) (the encoding comment inside `get_genai_message_attributes`).
+8. **Re-run the conformance harness** end-to-end; verify no `gen_ai.*` attribute regressed and no genuine shape errors appear in `results/live_check.json` (advice with `id != "missing_attribute"`).
 
 ## Gotchas
 

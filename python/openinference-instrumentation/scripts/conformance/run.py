@@ -32,8 +32,8 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CACHE_ROOT = Path.home() / ".cache" / "oi-conformance"
-SEMCONV_VERSION = "v1.40.0"
-WEAVER_VERSION = "v0.22.1"
+SEMCONV_VERSION = "v1.41.1"
+WEAVER_VERSION = "v0.23.0"
 WEAVER_INACTIVITY_TIMEOUT = 90
 PROVIDER_SCRIPTS = (
     "anthropic_conformance.py",
@@ -210,9 +210,12 @@ def _summarize(result_dir: Path) -> int:
         return 1
 
     print("\n========== OPENINFERENCE GENAI CONFORMANCE SUMMARY ==========")
-    coverage = statistics.get("registry_coverage")
-    if isinstance(coverage, (int, float)):
-        print(f"Registry coverage: {coverage:.1%}")
+    seen_attrs = statistics.get("seen_registry_attributes") or {}
+    genai_attrs = {n: c for n, c in seen_attrs.items() if n.startswith("gen_ai.")}
+    if genai_attrs:
+        seen = sum(1 for c in genai_attrs.values() if c > 0)
+        total = len(genai_attrs)
+        print(f"GenAI coverage: {seen}/{total} = {seen / total:.1%}")
 
     def _print_seen(label: str, key: str) -> None:
         seen = {n: c for n, c in (statistics.get(key) or {}).items() if c > 0}
