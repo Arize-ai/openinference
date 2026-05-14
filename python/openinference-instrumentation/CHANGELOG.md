@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.50...python-openinference-instrumentation-v0.1.51) (2026-05-14)
+
+
+### Features
+
+* **genai:** Add optional OITracer GenAI semconv export ([#3024](https://github.com/Arize-ai/openinference/issues/3024)) ([584cb4a](https://github.com/Arize-ai/openinference/commit/584cb4ad764ebe2848cb32c7cc56a68015338929))
+
 ## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.49...python-openinference-instrumentation-v0.1.50) (2026-05-11)
 
 

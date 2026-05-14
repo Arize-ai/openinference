@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.4.3...python-openinference-instrumentation-openai-agents-v1.5.0) (2026-05-14)
+
+
+### Features
+
+* Use host-to-provider & model-to-system Resolution Helpers from Common Package ([#2959](https://github.com/Arize-ai/openinference/issues/2959)) ([8475221](https://github.com/Arize-ai/openinference/commit/8475221faf93f21a02f70523963259555a9f8be9))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
 ## [1.4.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.4.2...python-openinference-instrumentation-openai-agents-v1.4.3) (2026-05-10)
 
 
