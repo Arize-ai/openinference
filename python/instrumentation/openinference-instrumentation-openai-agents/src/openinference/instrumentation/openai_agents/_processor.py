@@ -4,6 +4,7 @@ import logging
 from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
+from urllib.parse import urlparse
 
 from agents import MCPListToolsSpanData
 from agents.tracing import Span, Trace, TracingProcessor
@@ -49,11 +50,10 @@ from opentelemetry.trace import (
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
-    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -404,9 +404,11 @@ def _get_attributes_from_generation_span_data(
         param := {k: v for k, v in obj.model_config.items() if v is not None}
     ):
         yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(param)
-        if base_url := param.get("base_url"):
-            if "api.openai.com" in base_url:
-                yield LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+        if isinstance(base_url := param.get("base_url"), str) and (
+            host := urlparse(base_url).hostname
+        ):
+            if provider := infer_llm_provider_from_host(host):
+                yield LLM_PROVIDER, provider.value
     yield from _get_attributes_from_chat_completions_input(obj.input)
     yield from _get_attributes_from_chat_completions_output(obj.output)
     yield from _get_attributes_from_chat_completions_usage(obj.usage)
