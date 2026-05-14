@@ -1,5 +1,11 @@
 # @arizeai/openinference-core
 
+## 2.1.0
+
+### Minor Changes
+
+- cfb128c: Add `hideLLMTools` trace config option (and `OPENINFERENCE_HIDE_LLM_TOOLS` env var) to mask the tool definitions advertised to the LLM (`llm.tools.*`). These attributes are also hidden when `hideInputs` is enabled.
+
 ## 2.0.8
 
 ### Patch Changes
