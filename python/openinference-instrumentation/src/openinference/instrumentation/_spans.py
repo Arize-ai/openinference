@@ -1,6 +1,6 @@
 from typing import Any, Callable, Dict, Mapping, Optional, Union, cast
 
-import wrapt  # type: ignore[import-untyped]
+import wrapt
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 
@@ -24,7 +24,7 @@ _IMPORTANT_ATTRIBUTES = [
 ]
 
 
-class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
+class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config

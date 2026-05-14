@@ -11,7 +11,7 @@ from typing import (
 )
 
 from opentelemetry import trace as trace_api
-from wrapt import ObjectProxy
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 
 from openinference.instrumentation.google_genai._utils import get_attribute
 from openinference.instrumentation.google_genai._with_span import _WithSpan
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-class _InteractionsStream(ObjectProxy):  # type: ignore
+class _InteractionsStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_response_accumulator",
         "_with_span",

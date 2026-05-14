@@ -8,7 +8,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
     BaseInstrumentor,
 )
-from wrapt import resolve_path, wrap_function_wrapper
+from wrapt.patches import resolve_path, wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.claude_agent_sdk._wrappers import (
@@ -52,7 +52,7 @@ class ClaudeAgentSDKInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         method_wrappers: Dict[str, Any] = {
-            "claude_agent_sdk.query:query": _QueryWrapper(tracer=self._tracer),
+            "claude_agent_sdk.query:query": _QueryWrapper(tracer=self._tracer),  # type: ignore[arg-type]
         }
 
         # ClaudeSDKClient: trace each response turn (connect/query + receive_response())
@@ -62,13 +62,13 @@ class ClaudeAgentSDKInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             method_wrappers.update(
                 {
                     "claude_agent_sdk.client:ClaudeSDKClient.connect": _ClientConnectWrapper(
-                        tracer=self._tracer
+                        tracer=self._tracer  # type: ignore[arg-type]
                     ),
                     "claude_agent_sdk.client:ClaudeSDKClient.query": _ClientQueryWrapper(
-                        tracer=self._tracer
+                        tracer=self._tracer  # type: ignore[arg-type]
                     ),
                     "claude_agent_sdk.client:ClaudeSDKClient.receive_response": (
-                        _ClientReceiveResponseWrapper(tracer=self._tracer)
+                        _ClientReceiveResponseWrapper(tracer=self._tracer)  # type: ignore[arg-type]
                     ),
                 }
             )
@@ -76,8 +76,8 @@ class ClaudeAgentSDKInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self._originals: List[Tuple[Any, Any, Any]] = []
         for qualified, wrapper in method_wrappers.items():
             module, name = qualified.split(":", 1)
-            self._originals.append(resolve_path(module, name))
-            wrap_function_wrapper(module, name, wrapper)
+            self._originals.append(resolve_path(module, name))  # type: ignore[no-untyped-call]
+            wrap_function_wrapper(module, name, wrapper)  # type: ignore[no-untyped-call]
 
         # Sync package export so "from claude_agent_sdk import query" resolves to the wrapper
         import claude_agent_sdk
