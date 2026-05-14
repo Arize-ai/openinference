@@ -1,0 +1,11 @@
+go 1.25
+
+// In-repo workspace: lets `go build` / `go test` in any submodule
+// resolve cross-package deps from the working tree without requiring
+// the dependency to be tagged. Customers consuming the modules via
+// `go get` ignore this file entirely — the published modules' go.mod
+// require lines resolve via the Go module proxy.
+use (
+	./openinference-semantic-conventions
+	./openinference-instrumentation
+)
