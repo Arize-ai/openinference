@@ -5,7 +5,7 @@ from typing import Any, Callable, Collection, Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import wrap_function_wrapper
+from wrapt.patches import wrap_function_wrapper
 
 from openinference.instrumentation import (
     OITracer,
@@ -51,19 +51,19 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
-        run_wrapper = _RunWrapper(tracer=self._tracer)
+        run_wrapper = _RunWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         self._original_run_method = getattr(MultiStepAgent, "run", None)
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "smolagents",
             "MultiStepAgent.run",
             run_wrapper,
         )
 
         self._original_step_stream_methods: Optional[dict[type, Optional[Callable[..., Any]]]] = {}
-        step_wrapper = _StepWrapper(tracer=self._tracer)
+        step_wrapper = _StepWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         for step_cls in [CodeAgent, ToolCallingAgent]:
             self._original_step_stream_methods[step_cls] = getattr(step_cls, "_step_stream", None)
-            wrap_function_wrapper(
+            wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "smolagents",
                 f"{step_cls.__name__}._step_stream",
                 step_wrapper,
@@ -78,12 +78,12 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         ]
 
         for model_subclass in exported_model_subclasses:
-            model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
+            model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)  # type: ignore[arg-type]
 
             self._original_model_generate_methods[model_subclass] = getattr(
                 model_subclass, "generate"
             )
-            wrap_function_wrapper(
+            wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "smolagents",
                 model_subclass.__name__ + ".generate",
                 model_subclass_wrapper,
@@ -110,9 +110,9 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
 
         setattr(module, "ThreadPoolExecutor", _make_context_aware_executor)
 
-        tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
+        tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         self._original_tool_call_method = getattr(Tool, "__call__", None)
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "smolagents",
             "Tool.__call__",
             tool_call_wrapper,

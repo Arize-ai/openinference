@@ -142,6 +142,17 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [Annotation Example](java/examples/annotation-example) | Annotation-based tracing with `@Chain`, `@LLM`, `@Tool`, `@Agent` | Beginner         |
 | [Programmatic Example](java/examples/programmatic-example) | Manual tracing with typed span classes (`LLMSpan`, `AgentSpan`, etc.) | Beginner         |
 
+## Go
+
+### Libraries
+
+| Package | Description | Version |
+| --- | --- | --- |
+| [`openinference-semantic-conventions`](./go/openinference-semantic-conventions) | Semantic conventions for tracing of LLM Apps. | `go get github.com/Arize-ai/openinference/go/openinference-semantic-conventions` |
+| [`openinference-instrumentation`](./go/openinference-instrumentation) | Suppression, context attribute propagation, and `TraceConfig` masking. Honors `OPENINFERENCE_HIDE_*` env vars. | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation` |
+
+Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to Arize AX, or wire up any OTel exporter (e.g. Phoenix at `http://localhost:6006/v1/traces`). Per-provider instrumentor packages (`openinference-instrumentation-anthropic`, `openinference-instrumentation-openai`) ship in follow-on PRs.
+
 ## Supported Destinations
 
 OpenInference supports the following destinations as span collectors.

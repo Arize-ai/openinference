@@ -6,54 +6,50 @@ interactions:
     uri: https://generativelanguage.googleapis.com/v1beta/interactions
   response:
     body:
-      string: 'event: interaction.start
+      string: 'event: interaction.created
 
-        data: {"event_type":"interaction.start","interaction":{"id":"v1_ChdwcHFmYWFER0lMcUl6N0lQcGVMenVBURIXcHBxZmFhREdJTHFJejdJUHBlTHp1QVE","model":"gemini-2.5-flash","object":"interaction","status":"in_progress"}}
+        data: {"interaction":{"id":"v1_Chd0TmNFYXVEWFBLNmRxdHNQX08tZjBBcxIXdE5jRWF1RFhQSzZkcXRzUF9PLWYwQXM","status":"in_progress","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.created"}
 
 
         event: interaction.status_update
 
-        data: {"event_type":"interaction.status_update","interaction_id":"v1_ChdwcHFmYWFER0lMcUl6N0lQcGVMenVBURIXcHBxZmFhREdJTHFJejdJUHBlTHp1QVE","status":"in_progress"}
+        data: {"interaction_id":"v1_Chd0TmNFYXVEWFBLNmRxdHNQX08tZjBBcxIXdE5jRWF1RFhQSzZkcXRzUF9PLWYwQXM","status":"in_progress","event_type":"interaction.status_update"}
 
 
-        event: content.start
+        event: step.start
 
-        data: {"content":{"type":"thought"},"event_type":"content.start","index":0}
-
-
-        event: content.delta
-
-        data: {"delta":{"signature":"CiUBvj72+6ITcxzvNPpgRDsyYLTM857E1G74yJTpmUQWGvC00SGYCmQBvj72+64wnavfDlQ70oCm3PDQg3tgf4NnAE/82uGab5YHQqvAxZyQ0ptVotnZi1xLnEMYQ3NEEjQgThOMTyoaj+dT0fln+kLs4l/EHYFEcPTVcvVbXiBESfJS5HXRf7NhO2LoCtkBAb4+9vutMrbaVdSLR7LagXzwjkTebL/QByyMMfFWwG29XE32qI817XyJhnYA/LwFx+fPbRi05UDeiH1E8cqvpC36QlN0CP57394aFlnlQUF8jmX3/k22GsJtjc3DKl/J5aEKmaV5qmKGBNYD/fHsfM5UfqR7DQuRKViBLrNjpak/xwRtdXYJoYbEqjOqoQ2mRzqnaW347CRpv7XZ75wAMWRjED9ZaYqej2lsrojUjBHU4jyj4QTLZOE/iRcQ+BQpwPntBl7w1Uy837G+LYBizvzC5MvGrxgEwwrKAQG+Pvb7PwqMEdYfN8AN/D+5vCoxIA0BNCvbkR7A5iWGI6qJ8G9BMZencO0vjdflO3XEIUNXrVV3QjCjLWf2RiY9z3Cgi/9XBlKHcYS5+fE1luHExmhVVrL5iLbVccXrOPtc8zajulKbYrs3uiKhNeUv5POdGuPER3CvKK9H5o3hniyuhxQyrooWR/oD9WB8tiUGoFJPk9gbqYYPcQ/EiA1z2zLAC3NI/ij9vUTQhboz9QJ/CjDh1OSHnzpXgYGLym1ZxSRFJhBVHTkKyQEBvj72+3/3RlegITojL2z/OLC01v0oNonDxjUQp2VYPGpVjM01Lth73ypCLsWe/O8Z0HUFH2hPdNvZA4zOrt5XjkKoCWgv2TXjC4PfkNk+ErLaw2HzQ5oEFzqA+XPHXmHjsXsNP80CaLSm+hyjO2Nij4eudLqa5S/xpOLdv3QGiJCikmEw/60YRgs3z1IxirtzE4NyQtw/zR6erjggAt8uX5If4kB1N3BR5RVcS5TA8SiOG8YBgKe+22Re930d2whIHPGJFHxp2lsKygEBvj72+4WlUkPIRNwHKlNeFNt6CmER62j/KWaxGHkXxM/IeCoN3+WWERWJOIuWWuLF34HzVNYTqbmqZk/lgDmm7G4Bqjnay3gdP4UKBde/g19WT4ZHT2YKH+JXaCH/t15LP8W8xQ6gtasXB1rQX4xPwvdEzT1jvrexMUWO/IADRHh+meZ0CtyoWs85sSKRPvA3mQIA5rNXkCDGrU2dwdDM0/zy4g1ruAuohwTdQa1S2utx9efcl+ZxE59WXdgCawwJrsxZ7eTqivXY","type":"thought_signature"},"event_type":"content.delta","index":0}
+        data: {"index":0,"step":{"type":"thought"},"event_type":"step.start"}
 
 
-        event: content.stop
+        event: step.delta
 
-        data: {"event_type":"content.stop","index":0}
-
-
-        event: content.start
-
-        data: {"content":{"type":"text"},"event_type":"content.start","index":1}
+        data: {"index":0,"delta":{"signature":"CiUBDDnWx1JOHJdIx6fcXp9zmlXm+QtIpoUsVCl7fp71VGwUbbLbCmQBDDnWxx8xGzbmykb2bxk+oU50NpsfDJwJpKgW9hlbLidpu4cwbnrLTWZUtQwu2a0Oa5drpY4K7Kq2PBRWOTVlsNoH5NPXnShWd7F5hhSuH8XlJyNsEAv+SEbwghheSk8GK30aCuABAQw51scy82Ly228/SsLNeEUgwT2cNVs/NyqLtdeO0PAifNFfYVXN9nX9lrT1GopSgBZUS0QEN+VWtZCqPpO/tcib7UhrSJqiNNFNF4Wz4GpnEMckP5xtnn7el5WYrSN+KNbs3gikUmADLFE0JmBmTvAyCveuGluwNin74scbgzlNOvQkbG7k65ZxyKPUszNHJrASVrAjYH+NnWG5qEQstFEgPN6QXhATEx0GfWiW1o4g28vDZxjee/l1S+fQzEu/xAEHQbmRzHm4rHnOYS+0GQTV2nrxLLJRCUQ3of75bOsK5AEBDDnWx5edyx8TjQ/BKe8CAF1GdKVRIfVV7a1r34sZaQsuOlBXPjcVy6QNwaL29tgT3yHdl7RFAWd/KCNc6Sh7B48XhSldgvoI9wb8RoO4skA6KCKMzSfIJdl6/PX5mrQyGsA+sc8DZz9Obvvn9D1MtYqLmIgGyjQm3FCJF0MOhAl5CksRA+sMY+dYaOc2HsA3iiXtOlhwKgmgtLpOz1XP+mSfPL+TBUvpFQb4JeugcqcQQt21Dh4e5SW2q0jbPxHfAD+MQ2TqhRdhK26dUxS7PJFn+O72cO+v7eycHJfAdMDYIZgKzgEBDDnWx6IKeYGeskCRsv7FJgLGLP3G7kkUsIdbKyWq1rRjyy1DvjvMttLGUHt9jPt6QmulaUTxsfxTKINiI3DVd5+jr87JuZUEOtNHgg5yzSZTMrEVd/NvCAUghdTfnQmIs5khEaPrtItaN+u8Nz68MIHhAyRrNwK7BDTR+gbeYYzHiu3fzwqkmbVJC3HjBmqvWka0fjkFxrjTA+0OEQptStOj0Aq60PrDsYBClPdAYSWwWyPE4/wuTGLQ5xeexrxdcUeATkLd9yD40DvVuArBAQEMOdbHzMR/dRtTcleh83vdpA7IYcS2W1inZ5zzeBNZleVk5rkKrxpWqBpOVhad4ofM1T/Lfz+NJuVGRikMmnlVD33sNH0YZiI91h2TCDyNlAGENNUk1f6zpgF9ETo5z9GLTv5dT/ztpRuR9YVs5mEltUgdpH5OAmsXcwRlSTiojkY6JQjV207Czp+VgTXys06QqGJyMCjliqfeAjN/1MJnYpJFeHShoz5wEyyH1DlXV5N+x9/Je+Nu8j3qygF+JYwKMQEMOdbHss8IShnOTsIYml2V2z+sdec/jQ0PcnN2vFm/7G7IvtM67aEA+8oAMxcF/DA=","type":"thought_signature"},"event_type":"step.delta"}
 
 
-        event: content.delta
+        event: step.stop
 
-        data: {"delta":{"text":"Why was the JavaScript developer sad?\n\nBecause he","type":"text"},"event_type":"content.delta","index":1}
-
-
-        event: content.delta
-
-        data: {"delta":{"text":" didn''t Node how to Express himself.","type":"text"},"event_type":"content.delta","index":1}
+        data: {"index":0,"event_type":"step.stop"}
 
 
-        event: content.stop
+        event: step.start
 
-        data: {"event_type":"content.stop","index":1}
+        data: {"index":1,"step":{"type":"model_output"},"event_type":"step.start"}
 
 
-        event: interaction.complete
+        event: step.delta
 
-        data: {"event_type":"interaction.complete","interaction":{"created":"2026-02-26T00:58:16Z","id":"v1_ChdwcHFmYWFER0lMcUl6N0lQcGVMenVBURIXcHBxZmFhREdJTHFJejdJUHBlTHp1QVE","model":"gemini-2.5-flash","object":"interaction","role":"model","status":"completed","updated":"2026-02-26T00:58:16Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_input_tokens":9,"total_output_tokens":19,"total_thought_tokens":201,"total_tokens":229,"total_tool_use_tokens":0}}}
+        data: {"index":1,"delta":{"text":"Why do programmers prefer dark mode?\n\nBecause
+        light attracts bugs!","type":"text"},"event_type":"step.delta"}
+
+
+        event: step.stop
+
+        data: {"index":1,"event_type":"step.stop"}
+
+
+        event: interaction.completed
+
+        data: {"interaction":{"id":"v1_Chd0TmNFYXVEWFBLNmRxdHNQX08tZjBBcxIXdE5jRWF1RFhQSzZkcXRzUF9PLWYwQXM","status":"completed","usage":{"total_tokens":242,"total_input_tokens":9,"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_output_tokens":13,"total_tool_use_tokens":0,"total_thought_tokens":220},"created":"2026-05-13T19:57:43Z","updated":"2026-05-13T19:57:43Z","service_tier":"standard","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.completed"}
 
 
         event: done

@@ -4,6 +4,9 @@ on:
   issues:
     types: [labeled]
 
+# Least-privilege default; the job below opts into exactly what it needs.
+permissions: {}
+
 jobs:
   implement:
     if: github.event.label.name == 'good-agent-issue'

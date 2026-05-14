@@ -64,10 +64,8 @@ def pytest_recording_configure(config: Any, vcr: Any) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def _bridge_google_api_key() -> None:
-    if not os.environ.get("GEMINI_API_KEY"):
-        google_api_key = os.environ.get("GOOGLE_API_KEY")
-        if google_api_key:
-            os.environ["GEMINI_API_KEY"] = google_api_key
+    if google_api_key := os.environ.get("GOOGLE_API_KEY"):
+        os.environ["GEMINI_API_KEY"] = google_api_key
 
 
 # Three patches for vcrpy's aiohttp stubs (upstream bug: https://github.com/kevin1024/vcrpy/issues/927).

@@ -15,6 +15,7 @@ from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
 from openinference.instrumentation.config import (
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
+    DEFAULT_ENABLE_GENAI_SEMCONV,
     DEFAULT_HIDE_CHOICES,
     DEFAULT_HIDE_EMBEDDING_VECTORS,
     DEFAULT_HIDE_EMBEDDINGS_TEXT,
@@ -30,6 +31,7 @@ from openinference.instrumentation.config import (
     DEFAULT_HIDE_OUTPUTS,
     DEFAULT_HIDE_PROMPTS,
     OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
+    OPENINFERENCE_ENABLE_GENAI_SEMCONV,
     OPENINFERENCE_HIDE_CHOICES,
     OPENINFERENCE_HIDE_EMBEDDING_VECTORS,
     OPENINFERENCE_HIDE_EMBEDDINGS_TEXT,
@@ -64,6 +66,7 @@ def test_default_settings() -> None:
     assert config.hide_embeddings_text == DEFAULT_HIDE_EMBEDDINGS_TEXT
     assert config.hide_prompts == DEFAULT_HIDE_PROMPTS
     assert config.hide_choices == DEFAULT_HIDE_CHOICES
+    assert config.enable_genai_semconv == DEFAULT_ENABLE_GENAI_SEMCONV
     assert config.base64_image_max_length == DEFAULT_BASE64_IMAGE_MAX_LENGTH
 
 
@@ -140,6 +143,7 @@ def test_attribute_priority(k: str, in_memory_span_exporter: InMemorySpanExporte
 @pytest.mark.parametrize("hide_prompts", [False, True])
 @pytest.mark.parametrize("hide_choices", [False, True])
 @pytest.mark.parametrize("hide_llm_tools", [False, True])
+@pytest.mark.parametrize("enable_genai_semconv", [False, True])
 @pytest.mark.parametrize("base64_image_max_length", [10_000])
 def test_settings_from_env_vars_and_code(
     hide_inputs: bool,
@@ -154,6 +158,7 @@ def test_settings_from_env_vars_and_code(
     hide_prompts: bool,
     hide_choices: bool,
     hide_llm_tools: bool,
+    enable_genai_semconv: bool,
     base64_image_max_length: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -171,6 +176,7 @@ def test_settings_from_env_vars_and_code(
     monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDINGS_TEXT, str(hide_embeddings_text))
     monkeypatch.setenv(OPENINFERENCE_HIDE_LLM_TOOLS, str(hide_llm_tools))
     monkeypatch.setenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, str(base64_image_max_length))
+    monkeypatch.setenv(OPENINFERENCE_ENABLE_GENAI_SEMCONV, str(enable_genai_semconv))
 
     config = TraceConfig()
     assert config.hide_inputs is parse_bool_from_env(OPENINFERENCE_HIDE_INPUTS)
@@ -187,6 +193,7 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_prompts is parse_bool_from_env(OPENINFERENCE_HIDE_PROMPTS)
     assert config.hide_choices is parse_bool_from_env(OPENINFERENCE_HIDE_CHOICES)
     assert config.hide_llm_tools is parse_bool_from_env(OPENINFERENCE_HIDE_LLM_TOOLS)
+    assert config.enable_genai_semconv is parse_bool_from_env(OPENINFERENCE_ENABLE_GENAI_SEMCONV)
     assert config.base64_image_max_length == int(
         os.getenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, default=-1)
     )
@@ -206,6 +213,7 @@ def test_settings_from_env_vars_and_code(
     new_hide_prompts = not hide_prompts
     new_hide_choices = not hide_choices
     new_hide_llm_tools = not hide_llm_tools
+    new_enable_genai_semconv = not enable_genai_semconv
     config = TraceConfig(
         hide_inputs=new_hide_inputs,
         hide_outputs=new_hide_outputs,
@@ -219,6 +227,7 @@ def test_settings_from_env_vars_and_code(
         hide_prompts=new_hide_prompts,
         hide_choices=new_hide_choices,
         hide_llm_tools=new_hide_llm_tools,
+        enable_genai_semconv=new_enable_genai_semconv,
         base64_image_max_length=new_base64_image_max_length,
     )
     assert config.hide_inputs is new_hide_inputs
@@ -233,6 +242,7 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_prompts is new_hide_prompts
     assert config.hide_choices is new_hide_choices
     assert config.hide_llm_tools is new_hide_llm_tools
+    assert config.enable_genai_semconv is new_enable_genai_semconv
     assert config.base64_image_max_length == new_base64_image_max_length
 
 

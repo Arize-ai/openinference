@@ -32,6 +32,7 @@ from openinference.instrumentation.google_genai._stream import _Stream
 from openinference.instrumentation.google_genai._utils import _finish_tracing
 from openinference.instrumentation.google_genai._with_span import _WithSpan
 from openinference.instrumentation.google_genai.interactions_attributes import (
+    get_attributes_from_get_request,
     get_attributes_from_request,
     get_attributes_from_response,
 )
@@ -146,6 +147,10 @@ def _parse_args(
         except Exception:
             request_data[key] = str(value)
     return request_data
+
+
+def _is_streaming_request(request_parameters: Mapping[str, Any]) -> bool:
+    return request_parameters.get("stream") is True
 
 
 class _SyncEmbedContentWrapper(_WithTracer):
@@ -346,7 +351,51 @@ class _SyncCreateInteractionWrapper(_WithTracer):
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
-                if request_parameters.get("stream", False):
+                if _is_streaming_request(request_parameters):
+                    return _InteractionsStream(
+                        stream=response,
+                        with_span=span,
+                        request_parameters=request_parameters,
+                    )
+                span.set_attributes(get_attributes_from_response(request_parameters, response))
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+                span.finish_tracing(status=status)
+            except Exception as exception:
+                span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
+                raise
+        return response
+
+
+class _SyncGetInteractionWrapper(_WithTracer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "InteractionsResource.get"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=chain(
+                get_attributes_from_context(),
+                get_attributes_from_get_request(request_parameters),
+            ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+                if _is_streaming_request(request_parameters):
                     return _InteractionsStream(
                         stream=response,
                         with_span=span,
@@ -560,7 +609,51 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
-                if request_parameters.get("stream", False):
+                if _is_streaming_request(request_parameters):
+                    return _InteractionsStream(
+                        stream=response,
+                        with_span=span,
+                        request_parameters=request_parameters,
+                    )
+                span.set_attributes(get_attributes_from_response(request_parameters, response))
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+                span.finish_tracing(status=status)
+            except Exception as exception:
+                span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
+                raise
+        return response
+
+
+class _AsyncGetInteractionWrapper(_WithTracer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "AsyncInteractionsResource.get"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=chain(
+                get_attributes_from_context(),
+                get_attributes_from_get_request(request_parameters),
+            ),
+        ) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+                if _is_streaming_request(request_parameters):
                     return _InteractionsStream(
                         stream=response,
                         with_span=span,

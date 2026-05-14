@@ -570,7 +570,7 @@ class OpenInferenceEventListener(BaseEventListener):
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
-        self._assembler = CrewAIEventAssembler(tracer=self._tracer)
+        self._assembler = CrewAIEventAssembler(tracer=self._tracer)  # type: ignore[arg-type]
         self._create_llm_spans = create_llm_spans
         self._llm_usage_by_call_id: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._llm_usage_lock = threading.RLock()
