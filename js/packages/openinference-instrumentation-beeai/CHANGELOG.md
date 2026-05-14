@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.5.14
+
+### Patch Changes
+
+- Updated dependencies [cfb128c]
+  - @arizeai/openinference-core@2.1.0
+
 ## 1.5.13
 
 ### Patch Changes
