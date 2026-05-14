@@ -22,7 +22,7 @@
     "python/instrumentation/openinference-instrumentation-portkey": "0.1.9",
     "python/instrumentation/openinference-instrumentation-beeai": "0.1.17",
     "python/instrumentation/openinference-instrumentation-mcp": "2.0.1",
-    "python/instrumentation/openinference-instrumentation-google-genai": "0.1.17",
+    "python/instrumentation/openinference-instrumentation-google-genai": "1.0.0",
     "python/instrumentation/openinference-instrumentation-autogen-agentchat": "0.1.7",
     "python/instrumentation/openinference-instrumentation-pydantic-ai": "0.1.13",
     "python/instrumentation/openinference-instrumentation-google-adk": "0.1.12",

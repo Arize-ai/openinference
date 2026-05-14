@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.17...python-openinference-instrumentation-google-genai-v1.0.0) (2026-05-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **google-genai:** require google-genai sdk 2 ([#3098](https://github.com/Arize-ai/openinference/issues/3098))
+
+### Features
+
+* **google-genai:** require google-genai sdk 2 ([#3098](https://github.com/Arize-ai/openinference/issues/3098)) ([ce0dbc8](https://github.com/Arize-ai/openinference/commit/ce0dbc88d0e427fd141d8fd91a9d1a236a2515ae))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.16...python-openinference-instrumentation-google-genai-v0.1.17) (2026-05-10)
 
 
