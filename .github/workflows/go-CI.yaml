@@ -31,6 +31,7 @@ jobs:
             diff:
               - ".github/workflows/go-CI.yaml"
               - "go/go.work"
+              - "go/go.work.sum"
               - "go/openinference-semantic-conventions/**"
               - "go/openinference-instrumentation/**"
               - "scripts/check_go_semconv.py"
@@ -52,9 +53,12 @@ jobs:
         with:
           go-version-file: go/openinference-semantic-conventions/go.mod
           cache: true
+          # Glob catches every module's go.sum (semconv has none today,
+          # since it has no external deps) plus the workspace-level
+          # go.work.sum that aggregates them.
           cache-dependency-path: |
-            go/openinference-semantic-conventions/go.sum
-            go/openinference-instrumentation/go.sum
+            go/go.work.sum
+            go/**/go.sum
 
       - name: gofmt
         working-directory: ./go
