@@ -32,12 +32,13 @@ jobs:
           node-version: "20"
 
       - name: Run skills update
-        run: npx --yes skills
+        run: npx --yes skills@1.5.6
 
       - name: Check for changes
         id: verify-changed-files
         run: |
-          if git diff --quiet -- .agents/skills skills-lock.json; then
+          git add -- .agents/skills skills-lock.json
+          if git diff --quiet --cached -- .agents/skills skills-lock.json; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
