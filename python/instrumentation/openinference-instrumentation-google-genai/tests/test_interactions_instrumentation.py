@@ -16,6 +16,8 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
+TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII="
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -48,8 +50,10 @@ def test_generate_interactions_simple_message(
     usage_metadata = None
     if use_stream:
         for chunk in interaction:
-            if hasattr(chunk, "interaction") and chunk.interaction.usage:
-                usage_metadata = chunk.interaction.usage
+            if (stream_interaction := getattr(chunk, "interaction", None)) and (
+                usage := stream_interaction.usage
+            ):
+                usage_metadata = usage
     else:
         usage_metadata = interaction.usage
         assert interaction is not None
@@ -106,29 +110,33 @@ def test_generate_interactions_multi_model_messages(
     # Initialize the client
     client = genai.Client(api_key=api_key)
     input_messages = [
-        {"type": "text", "text": "Describe the image."},
+        {"type": "text", "text": "Describe the image in one sentence."},
         {
             "type": "image",
-            "uri": "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U",
-            "mime_type": "image/jpg",
+            "data": TINY_PNG_BASE64,
+            "mime_type": "image/png",
+            "resolution": "low",
         },
     ]
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-2.5-flash-lite"
+    generation_config = {
+        "temperature": 0.7,
+        "max_output_tokens": 64,
+        "thinking_level": "high",
+    }
     interaction = client.interactions.create(
         model=model_name,
         input=input_messages,
-        generation_config={
-            "temperature": 0.7,
-            "max_output_tokens": 500,
-            "thinking_level": "low",
-        },
+        generation_config=generation_config,
         stream=use_stream,
     )
     usage_metadata = None
     if use_stream:
         for chunk in interaction:
-            if hasattr(chunk, "interaction") and chunk.interaction.usage:
-                usage_metadata = chunk.interaction.usage
+            if (stream_interaction := getattr(chunk, "interaction", None)) and (
+                usage := stream_interaction.usage
+            ):
+                usage_metadata = usage
     else:
         usage_metadata = interaction.usage
         assert interaction is not None
@@ -144,9 +152,9 @@ def test_generate_interactions_multi_model_messages(
         INPUT_VALUE: safe_json_dumps(input_messages),
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}": "user",
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "text",
-        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}": "Describe the image.",
+        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}": "Describe the image in one sentence.",
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}": "image",
-        LLM_INVOCATION_PARAMETERS: '{"temperature": 0.7, "max_output_tokens": 500, "thinking_level": "low"}',
+        LLM_INVOCATION_PARAMETERS: safe_json_dumps(generation_config),
         LLM_MODEL_NAME: model_name,
         OUTPUT_MIME_TYPE: "text/plain",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "model",
@@ -209,8 +217,10 @@ async def test_generate_interactions_async(
     usage_metadata = None
     if use_stream:
         async for chunk in interaction:
-            if hasattr(chunk, "interaction") and chunk.interaction.usage:
-                usage_metadata = chunk.interaction.usage
+            if (stream_interaction := getattr(chunk, "interaction", None)) and (
+                usage := stream_interaction.usage
+            ):
+                usage_metadata = usage
     else:
         usage_metadata = interaction.usage
         assert interaction is not None

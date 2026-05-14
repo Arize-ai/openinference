@@ -89,13 +89,13 @@ interactions:
       Agent, and your job is to answer the user query based on the Context you have
       access to."}], "role": "user"}}'
     headers: {}
-    method: POST
+    method: post
     uri: https://generativelanguage.googleapis.com/v1beta/cachedContents
   response:
     body:
-      string: "{\n  \"name\": \"cachedContents/sfxrxenk39uyl210qrj8cca9suzbgf94x6agipzz\",\n
-        \ \"model\": \"models/gemini-2.5-flash\",\n  \"createTime\": \"2026-02-24T17:13:04.282570Z\",\n
-        \ \"updateTime\": \"2026-02-24T17:13:04.282570Z\",\n  \"expireTime\": \"2026-02-24T17:18:02.144023669Z\",\n
+      string: "{\n  \"name\": \"cachedContents/giyefq82eefufylqffl0mtzbf5ikuthyow4444h5\",\n
+        \ \"model\": \"models/gemini-2.5-flash\",\n  \"createTime\": \"2026-05-13T19:56:50.753813Z\",\n
+        \ \"updateTime\": \"2026-05-13T19:56:50.753813Z\",\n  \"expireTime\": \"2026-05-13T20:01:50.410559486Z\",\n
         \ \"displayName\": \"test story cache\",\n  \"usageMetadata\": {\n    \"totalTokenCount\":
         1090\n  }\n}\n"
     headers: {}

@@ -4,7 +4,7 @@ interactions:
       {"text": "What is the capital of France?"}]}, "taskType": "RETRIEVAL_DOCUMENT",
       "model": "models/gemini-embedding-001"}]}'
     headers: {}
-    method: POST
+    method: post
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents
   response:
     body:
