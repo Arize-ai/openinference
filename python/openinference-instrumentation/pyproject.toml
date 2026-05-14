@@ -28,7 +28,7 @@ classifiers = [
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-sdk",
-  "openinference-semantic-conventions>=0.1.26",
+  "openinference-semantic-conventions>=0.1.29",
   "wrapt>=1.14.0,<3",
 ]
 
@@ -68,11 +68,15 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]
+norecursedirs = [
+  "scripts",
+]
 
 [tool.mypy]
 strict = true
 explicit_package_bases = true
 exclude = [
+  "scripts/*",
   "src/openinference/instrumentation/agentspec/*",
   "src/openinference/instrumentation/agno/*",
   "src/openinference/instrumentation/anthropic/*",

@@ -93,6 +93,8 @@ OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
 # Hides LLM prompts (completions API)
 OPENINFERENCE_HIDE_CHOICES = "OPENINFERENCE_HIDE_CHOICES"
 # Hides LLM choices (completions API outputs)
+OPENINFERENCE_ENABLE_GENAI_SEMCONV = "OPENINFERENCE_ENABLE_GENAI_SEMCONV"
+# Emits OTel GenAI semantic conventions alongside OpenInference attributes
 REDACTED_VALUE = "__REDACTED__"
 # When a value is hidden, it will be replaced by this redacted value
 
@@ -100,6 +102,7 @@ DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS = False
 DEFAULT_HIDE_LLM_TOOLS = False
 DEFAULT_HIDE_PROMPTS = False
 DEFAULT_HIDE_CHOICES = False
+DEFAULT_ENABLE_GENAI_SEMCONV = False
 DEFAULT_HIDE_INPUTS = False
 DEFAULT_HIDE_OUTPUTS = False
 
@@ -240,6 +243,14 @@ class TraceConfig:
         },
     )
     """Hides LLM choices (completions API outputs)"""
+    enable_genai_semconv: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_ENABLE_GENAI_SEMCONV,
+            "default_value": DEFAULT_ENABLE_GENAI_SEMCONV,
+        },
+    )
+    """Emits OTel GenAI semantic conventions alongside OpenInference attributes"""
     base64_image_max_length: Optional[int] = field(
         default=None,
         metadata={
