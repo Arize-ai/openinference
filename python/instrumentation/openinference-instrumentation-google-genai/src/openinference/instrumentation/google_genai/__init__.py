@@ -86,7 +86,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             _SyncCreateInteractionWrapper(tracer=self._tracer),
         )
         self._original_get_interactions_resource = InteractionsResource.get
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "google.genai._interactions.resources",
             "InteractionsResource.get",
             _SyncGetInteractionWrapper(tracer=self._tracer),
@@ -154,7 +154,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             _AsyncCreateInteractionWrapper(tracer=self._tracer),
         )
         self._original_async_get_interactions_resource = AsyncInteractionsResource.get
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "google.genai._interactions.resources",
             "AsyncInteractionsResource.get",
             _AsyncGetInteractionWrapper(tracer=self._tracer),
