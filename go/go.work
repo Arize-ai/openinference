@@ -8,4 +8,7 @@ go 1.25.0
 use (
 	./openinference-semantic-conventions
 	./openinference-instrumentation
+	./openinference-instrumentation-anthropic-sdk-go
+	./openinference-instrumentation-anthropic-sdk-go/examples/auto-instrumentation
+	./openinference-instrumentation-anthropic-sdk-go/examples/manual-instrumentation
 )

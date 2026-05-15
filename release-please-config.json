@@ -212,6 +212,14 @@
             "tag-separator": "/",
             "include-component-in-tag": true,
             "release-as": "0.1.0"
+        },
+        "go/openinference-instrumentation-anthropic-sdk-go": {
+            "package-name": "openinference-instrumentation-anthropic-sdk-go",
+            "component": "go/openinference-instrumentation-anthropic-sdk-go",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true,
+            "release-as": "0.1.0"
         }
     }
 }

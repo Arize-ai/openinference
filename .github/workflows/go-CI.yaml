@@ -34,6 +34,7 @@ jobs:
               - "go/go.work.sum"
               - "go/openinference-semantic-conventions/**"
               - "go/openinference-instrumentation/**"
+              - "go/openinference-instrumentation-anthropic-sdk-go/**"
               - "scripts/check_go_semconv.py"
               - "python/openinference-semantic-conventions/src/openinference/semconv/trace/__init__.py"
 
@@ -74,14 +75,20 @@ jobs:
         working-directory: ./go
         run: |
           go vet ./openinference-semantic-conventions/... \
-                 ./openinference-instrumentation/...
+                 ./openinference-instrumentation/... \
+                 ./openinference-instrumentation-anthropic-sdk-go/... \
+                 ./openinference-instrumentation-anthropic-sdk-go/examples/auto-instrumentation/... \
+                 ./openinference-instrumentation-anthropic-sdk-go/examples/manual-instrumentation/...
 
       - name: go test (workspace)
         working-directory: ./go
         run: |
           go test -race -count=1 \
             ./openinference-semantic-conventions/... \
-            ./openinference-instrumentation/...
+            ./openinference-instrumentation/... \
+            ./openinference-instrumentation-anthropic-sdk-go/... \
+            ./openinference-instrumentation-anthropic-sdk-go/examples/auto-instrumentation/... \
+            ./openinference-instrumentation-anthropic-sdk-go/examples/manual-instrumentation/...
 
       - name: Set up Python for semconv drift check
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0

@@ -23,7 +23,7 @@ _, _ = evalClient.CreateChatCompletion(suppressedCtx, req)  // no span emitted
 
 ## Context attribute propagation
 
-OTel span attributes do NOT inherit from parent to child — a customer setting `session.id` on a CHAIN span does NOT cause child LLM spans to carry it. These helpers stash the values on the `context.Context` (via unexported keys, not OTel baggage, so they never leave the process via a baggage propagator); the provider instrumentors (`openinference-instrumentation-openai`, `openinference-instrumentation-anthropic`) read them back and auto-apply them to every LLM span descended from the context:
+OTel span attributes do NOT inherit from parent to child — a customer setting `session.id` on a CHAIN span does NOT cause child LLM spans to carry it. These helpers stash the values on the `context.Context` (via unexported keys, not OTel baggage, so they never leave the process via a baggage propagator); the provider instrumentors (`openinference-instrumentation-openai`, `openinference-instrumentation-anthropic-sdk-go`) read them back and auto-apply them to every LLM span descended from the context:
 
 ```go
 ctx = instrumentation.WithSession(ctx, "session-abc")
