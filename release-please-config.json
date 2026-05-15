@@ -78,8 +78,8 @@
             "package-name": "python-openinference-instrumentation-instructor",
             "release-type": "python"
         },
-        "python/instrumentation/openinference-instrumentation-anthropic-sdk-go": {
-            "package-name": "python-openinference-instrumentation-anthropic-sdk-go",
+        "python/instrumentation/openinference-instrumentation-anthropic": {
+            "package-name": "python-openinference-instrumentation-anthropic",
             "release-type": "python"
         },
         "python/instrumentation/openinference-instrumentation-claude-agent-sdk": {

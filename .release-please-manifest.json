@@ -15,7 +15,7 @@
     "python/instrumentation/openinference-instrumentation-litellm": "0.1.33",
     "python/instrumentation/openinference-instrumentation-groq": "0.1.15",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.16",
-    "python/instrumentation/openinference-instrumentation-anthropic-sdk-go": "1.0.4",
+    "python/instrumentation/openinference-instrumentation-anthropic": "1.0.4",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.30",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.13",
     "python/instrumentation/openinference-instrumentation-openai-agents": "1.5.0",

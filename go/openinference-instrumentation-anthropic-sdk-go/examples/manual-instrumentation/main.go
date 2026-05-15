@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -47,7 +46,7 @@ func main() {
 		_ = tp.Shutdown(shutdownCtx)
 	}()
 
-	tracer := otel.Tracer("anthropic-manual-example")
+	tracer := tp.Tracer("anthropic-manual-example")
 	client := anthropic.NewClient() // no middleware — we span by hand
 
 	userPrompt := "In one sentence, what is observability?"

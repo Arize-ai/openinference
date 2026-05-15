@@ -25,7 +25,6 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -53,7 +52,7 @@ func main() {
 	// One line wires up the auto-instrumentor: every /v1/messages call
 	// emits an LLM-kind span with the OpenInference attributes.
 	client := anthropic.NewClient(
-		option.WithMiddleware(anthropicotel.Middleware(otel.Tracer("anthropic-auto-example"))),
+		option.WithMiddleware(anthropicotel.Middleware(tp.Tracer("anthropic-auto-example"))),
 	)
 
 	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
