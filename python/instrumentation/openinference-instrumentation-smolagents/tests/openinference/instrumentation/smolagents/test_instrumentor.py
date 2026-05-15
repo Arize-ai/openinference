@@ -1,6 +1,6 @@
 import json
 from contextlib import contextmanager
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -55,7 +55,7 @@ def make_non_recording_span() -> NonRecordingSpan:
 
 
 @contextmanager
-def assert_no_attribute_error():
+def assert_no_attribute_error() -> Iterator[None]:
     """Helper to fail the test if an AttributeError sneaks through."""
     try:
         yield
