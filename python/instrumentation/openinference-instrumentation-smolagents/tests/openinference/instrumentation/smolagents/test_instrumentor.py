@@ -1,10 +1,12 @@
 import json
+from contextlib import contextmanager
 from typing import Any, Optional
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from opentelemetry.util._importlib_metadata import entry_points
 from smolagents import LiteLLMModel, OpenAIServerModel, Tool, tool
 from smolagents.agents import (  # type: ignore[import-untyped]
@@ -21,6 +23,7 @@ from smolagents.models import (  # type: ignore[import-untyped]
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from openinference.instrumentation.smolagents._wrappers import (
+    _finalize_step_span,
     _llm_input_messages,
     _llm_output_messages,
     infer_llm_provider_from_class_name,
@@ -37,6 +40,86 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+
+def make_non_recording_span() -> NonRecordingSpan:
+    """Helper to construct a dropped/invalid span as OTEL would produce."""
+    return NonRecordingSpan(
+        SpanContext(
+            trace_id=0,
+            span_id=0,
+            is_remote=False,
+            trace_flags=TraceFlags(0),
+        )
+    )
+
+
+@contextmanager
+def assert_no_attribute_error():
+    """Helper to fail the test if an AttributeError sneaks through."""
+    try:
+        yield
+    except AttributeError as e:
+        pytest.fail(f"Unexpected AttributeError: {e}")
+
+
+class TestFinalizeStepSpanWithDroppedSpan:
+    """Guards against AttributeError when OTEL drops or misconfigures a span."""
+
+    def test_with_observations_and_no_error_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock()
+        step_log.observations = "Test observations from Agent."
+        step_log.error = None
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_with_error_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock()
+        step_log.observations = None
+        step_log.error = RuntimeError("Something went wrong.")
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_with_expected_tool_error_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+
+        tool_error = MagicMock()
+        tool_error.__class__.__name__ = "AgentToolExecutionError"
+        tool_error.dict.return_value = {"message": "Tool does not work."}
+
+        step_log = MagicMock()
+        step_log.observations = None
+        step_log.error = tool_error
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_with_no_observations_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock(spec=[])
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_early_return_means_no_side_effects(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock()
+        step_log.observations = "Test observations from Agent."
+        step_log.error = None
+
+        with (
+            patch.object(span, "set_attribute", wraps=span.set_attribute) as mock_set_attr,
+            patch.object(span, "set_status", wraps=span.set_status) as mock_set_status,
+        ):
+            with assert_no_attribute_error():
+                _finalize_step_span(span, step_log)
+
+            mock_set_attr.assert_not_called()
+            mock_set_status.assert_not_called()
 
 
 class TestInstrumentor:
