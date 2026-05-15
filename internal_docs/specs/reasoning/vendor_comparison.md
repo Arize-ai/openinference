@@ -26,7 +26,7 @@ For deep details on any single vendor, see the sibling docs:
 | Continuity token | `encrypted_content` (opaque) | `signature` (opaque, authenticates plaintext) | `thoughtSignature` (opaque, encrypts state) |
 | Stateful path | `previous_response_id` + `store: true` | none — always echo | none — always echo |
 | Stateless path | echo prior `output[]` + `include: ["reasoning.encrypted_content"]` | echo prior `content[]` with `signature` intact | echo prior `parts[]` with `thoughtSignature` intact |
-| Drop continuity → result | server rejects when reasoning preceded a tool call | server rejects when thinking preceded a `tool_use` | Gemini 3 + tools: HTTP 400; Gemini 2.5: silent quality loss |
+| Drop continuity → result | server rejects when a reasoning item immediately preceding a `function_call` is dropped; otherwise reasoning replays from scratch | server rejects when a `thinking` block immediately preceding a `tool_use` is dropped; outside tool use the request is accepted but thinking is disabled | Gemini 3 + tools: HTTP 400 when `thoughtSignature` is missing from a `functionCall` part; Gemini 2.5: silent quality loss |
 | Streaming envelope | typed SSE events (`response.*`) | typed SSE events (`content_block_*`) | partial `GenerateContentResponse` chunks (no envelope) |
 | Usage field for reasoning tokens | `output_tokens_details.reasoning_tokens` | implicit in `output_tokens` (no separate field) | `usageMetadata.thoughtsTokenCount` |
 
@@ -38,15 +38,19 @@ How each vendor accepts the "turn reasoning on" config. All three are optional, 
 
 ### Minimal enable
 
-| OpenAI | Anthropic | Gemini |
-|---|---|---|
-| ```json
+OpenAI:
+
+```json
 {
   "model": "gpt-5",
   "input": "...",
   "reasoning": { "effort": "medium" }
 }
-``` | ```json
+```
+
+Anthropic:
+
+```json
 {
   "model": "claude-opus-4-6",
   "max_tokens": 16000,
@@ -56,7 +60,11 @@ How each vendor accepts the "turn reasoning on" config. All three are optional, 
   },
   "messages": [...]
 }
-``` | ```json
+```
+
+Gemini:
+
+```json
 {
   "contents": [...],
   "generationConfig": {
@@ -65,7 +73,7 @@ How each vendor accepts the "turn reasoning on" config. All three are optional, 
     }
   }
 }
-``` |
+```
 
 ### Adaptive / dynamic budget
 
@@ -130,9 +138,9 @@ What lands in the response when the model reasoned. Each vendor uses a different
 
 ### Canonical JSON examples
 
-| OpenAI reasoning item | Anthropic thinking block | Gemini thought summary + signed answer |
-|---|---|---|
-| ```json
+OpenAI reasoning item:
+
+```json
 {
   "id": "rs_abc123",
   "type": "reasoning",
@@ -146,13 +154,21 @@ What lands in the response when the model reasoned. Each vendor uses a different
   "encrypted_content": "gAAAAA...",
   "status": "completed"
 }
-``` | ```json
+```
+
+Anthropic thinking block:
+
+```json
 {
   "type": "thinking",
   "thinking": "Let me work through this...",
   "signature": "EuYBCkQYAiJA..."
 }
-``` | ```json
+```
+
+Gemini thought summary + signed answer:
+
+```json
 [
   {
     "thought": true,
@@ -163,7 +179,7 @@ What lands in the response when the model reasoned. Each vendor uses a different
     "thoughtSignature": "CiQB..."
   }
 ]
-``` |
+```
 
 ### Ordering within an assistant turn
 
