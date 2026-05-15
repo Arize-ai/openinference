@@ -174,6 +174,109 @@ A synthesis call using a function call output
 }
 ```
 
+### Reasoning Content
+
+Assistant messages from reasoning-capable models (OpenAI o-series / Responses, Anthropic extended thinking, Gemini thinking) may include `"reasoning"` items in `message.contents` alongside `"text"` and tool calls. Two attributes carry the vendor-specific bits:
+
+- `message_content.signature` — opaque echo token (OpenAI `encrypted_content`, Anthropic `signature` / `data`, Gemini `thoughtSignature`). Required verbatim on the next-turn echo for stateless multi-turn.
+- `message_content.id` — vendor-assigned block ID (OpenAI Responses uses `rs_*` for reasoning items and `msg_*` for message items; required on echo).
+
+Block ordering within `message.contents` MUST match the order the vendor returned. Dropping or reordering a reasoning block that precedes a tool call triggers HTTP 400 from OpenAI / Anthropic and silent quality degradation from Gemini 2.5.
+
+#### OpenAI Responses
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "openai",
+        "llm.model_name": "gpt-5",
+        "llm.output_messages": [
+            {
+                "message.role": "assistant",
+                "message.contents": [
+                    {
+                        "message_content.type": "reasoning",
+                        "message_content.id": "rs_abc123",
+                        "message_content.text": "User asked for the capital of France...",
+                        "message_content.signature": "gAAAAA...=="
+                    },
+                    {
+                        "message_content.type": "text",
+                        "message_content.id": "msg_def456",
+                        "message_content.text": "Paris."
+                    }
+                ]
+            }
+        ],
+        "llm.token_count.completion_details.reasoning": 482
+    }
+}
+```
+
+#### Anthropic Messages
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "anthropic",
+        "llm.model_name": "claude-opus-4-6",
+        "llm.output_messages": [
+            {
+                "message.role": "assistant",
+                "message.contents": [
+                    {
+                        "message_content.type": "reasoning",
+                        "message_content.text": "Let me work through this. The capital of France is...",
+                        "message_content.signature": "EuYBCkQYAiJA..."
+                    },
+                    {
+                        "message_content.type": "text",
+                        "message_content.text": "Paris."
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+For a `redacted_thinking` block, `message_content.text` is absent and `message_content.signature` carries the `data` blob. A consumer reconstructing the next turn re-emits it as `{"type": "redacted_thinking", "data": "<signature>"}`.
+
+#### Gemini
+
+Gemini attaches its `thoughtSignature` to data-bearing parts (`functionCall`, `text`), never to `thought: true` summary parts. When the model called a tool, the signature lives on the tool call:
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "google",
+        "llm.model_name": "gemini-3-pro",
+        "llm.output_messages": [
+            {
+                "message.role": "model",
+                "message.contents": [
+                    {
+                        "message_content.type": "reasoning",
+                        "message_content.text": "The user asked for the temperature in Paris..."
+                    }
+                ],
+                "message.tool_calls": [
+                    {
+                        "tool_call.function.name": "get_current_temperature",
+                        "tool_call.function.arguments": "{\"location\":\"Paris\"}",
+                        "tool_call.signature": "CiQB..."
+                    }
+                ]
+            }
+        ],
+        "llm.token_count.completion_details.reasoning": 318
+    }
+}
+```
+
 ### Completions
 
 A span for a simple completion (shown in logical JSON format for clarity)
