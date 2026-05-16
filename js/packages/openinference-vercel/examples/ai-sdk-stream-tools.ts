@@ -31,12 +31,15 @@ async function main() {
     stopWhen: stepCountIs(3),
     prompt:
       "What's the weather in Boston? Use the weather tool and then answer in one short sentence.",
-    experimental_telemetry: {
-      isEnabled: true,
+    runtimeContext: {
+      example: "ai-sdk-v7",
+      mode: "streamText+tools",
+    },
+    telemetry: {
       functionId: "openinference-vercel-ai-sdk-stream-tools",
-      metadata: {
-        example: "ai-sdk-v6",
-        mode: "streamText+tools",
+      includeRuntimeContext: {
+        example: true,
+        mode: true,
       },
     },
   });

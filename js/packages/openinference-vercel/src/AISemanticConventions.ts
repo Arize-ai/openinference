@@ -19,6 +19,8 @@ const AIPrefixes = {
   prompt: "prompt",
   toolCall: "toolCall",
   response: "response",
+  documents: "documents",
+  ranking: "ranking",
 } as const;
 
 const AIUsagePostfixes = {
@@ -124,6 +126,11 @@ const TOOL_CALL_ARGS = `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixe
 const TOOL_CALL_RESULT =
   `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.result}` as const;
 
+// Reranking supplemental attributes emitted by AI SDK v7 @ai-sdk/otel when enabled.
+const RERANK_DOCUMENTS = `${AI_PREFIX}.${AIPrefixes.documents}` as const;
+const RERANKING_OUTPUT = `${AI_PREFIX}.${AIPrefixes.ranking}` as const;
+const RERANKING_OUTPUT_TYPE = `${AI_PREFIX}.${AIPrefixes.ranking}.type` as const;
+
 /**
  * The semantic conventions used by the Vercel AI SDK (`ai.*` attributes).
  * @see https://sdk.vercel.ai/docs/ai-sdk-core/telemetry#collected-data
@@ -177,6 +184,11 @@ export const AISemanticConventions = {
   TOOL_CALL_NAME,
   TOOL_CALL_ARGS,
   TOOL_CALL_RESULT,
+
+  // Reranking
+  RERANK_DOCUMENTS,
+  RERANKING_OUTPUT,
+  RERANKING_OUTPUT_TYPE,
 } as const;
 
 export const AISemanticConventionsList = Object.freeze(Object.values(AISemanticConventions));

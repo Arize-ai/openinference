@@ -48,12 +48,15 @@ const agent = new ToolLoopAgent({
     calculator: calculatorTool,
   },
   stopWhen: stepCountIs(6),
-  experimental_telemetry: {
-    isEnabled: true,
+  runtimeContext: {
+    example: "ai-sdk-v7",
+    primitive: "ToolLoopAgent",
+  },
+  telemetry: {
     functionId: "openinference-vercel-ai-sdk-tool-loop-agent",
-    metadata: {
-      example: "ai-sdk-v6",
-      primitive: "ToolLoopAgent",
+    includeRuntimeContext: {
+      example: true,
+      primitive: true,
     },
   },
 });
