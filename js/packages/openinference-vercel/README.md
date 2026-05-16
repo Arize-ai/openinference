@@ -19,20 +19,115 @@ This package provides utilities to ingest [Vercel AI SDK](https://github.com/ver
 npm install --save @arizeai/openinference-vercel
 ```
 
-You will also need to install OpenTelemetry, `ai`, and `@ai-sdk/otel` packages to your project.
+You will also need to install OpenTelemetry, `ai`, `@ai-sdk/otel`, and the AI SDK provider package you use. The example below uses `@ai-sdk/openai`.
 
 ```shell
-npm i ai @ai-sdk/otel @opentelemetry/api @vercel/otel @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-semantic-conventions
+npm i ai@^7 @ai-sdk/otel@^1 @ai-sdk/openai@^4 @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto@^0.57.2 @opentelemetry/resources@^1.30.1 @opentelemetry/sdk-trace-base@^1.30.1 @opentelemetry/sdk-trace-node@^1.30.1 @arizeai/openinference-semantic-conventions
+```
+
+If you are deploying a Next.js application, also install `@vercel/otel`
+
+```shell
+npm i @vercel/otel
 ```
 
 ## Usage
 
-`@arizeai/openinference-vercel` provides a set of utilities to help you ingest Vercel AI SDK spans into platforms and works in conjunction with Vercel's OpenTelemetry support. To get started, you will need to add OpenTelemetry support to your Vercel project according to their [guide](https://vercel.com/docs/observability/otel-overview)
+`@arizeai/openinference-vercel` provides a set of utilities to help you ingest Vercel AI SDK spans into platforms and works in conjunction with Vercel's OpenTelemetry support. To get started, you will need to add OpenTelemetry support to your Vercel project according to their [guide](https://vercel.com/docs/observability/otel-overview).
+
+For Next.js apps deployed on Vercel, `registerOTel` from `@vercel/otel` is still used to register the OpenTelemetry provider, resource attributes, exporters, and span processors. AI SDK v7's `registerTelemetry(new OpenTelemetry(...))` does not replace that setup; it configures the AI SDK's own telemetry emission.
 
 To process your Vercel AI SDK Spans add a `OpenInferenceSimpleSpanProcessor` or `OpenInferenceBatchSpanProcessor` to your OpenTelemetry configuration.
 
 > [!NOTE]
-> The `OpenInferenceSpanProcessor` does not handle the exporting of spans so you will pass it an [exporter](https://opentelemetry.io/docs/languages/js/exporters/) as a parameter.
+> The `OpenInferenceSpanProcessor` does not handle the exporting of spans by itself, pass it an [exporter](https://opentelemetry.io/docs/languages/js/exporters/) as a parameter.
+
+
+### TypeScript Application
+
+For a standalone TypeScript or Node.js application, exporting to Arize Phoenix, create an instrumentation module and import it before your AI SDK calls run.
+
+```typescript
+// instrumentation.ts
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+import {
+  OpenInferenceBatchSpanProcessor,
+} from "@arizeai/openinference-vercel";
+
+import { OpenTelemetry } from "@ai-sdk/otel";
+import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { Resource } from "@opentelemetry/resources";
+import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { registerTelemetry } from "ai";
+
+// For troubleshooting, set the log level to DiagLogLevel.DEBUG.
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
+
+const phoenixUrl =
+  process.env["PHOENIX_COLLECTOR_ENDPOINT"] ??
+  "http://localhost:6006/v1/traces";
+
+export const tracerProvider = new NodeTracerProvider({
+  resource: new Resource({
+    [SEMRESATTRS_PROJECT_NAME]:
+      process.env["PHOENIX_PROJECT_NAME"] ?? "my-typescript-app",
+  }),
+  spanProcessors: [
+    // Optional local debugging.
+    new OpenInferenceBatchSpanProcessor({
+      exporter: new ConsoleSpanExporter(),
+    }),
+    // Export to Phoenix.
+    new OpenInferenceBatchSpanProcessor({
+      exporter: new OTLPTraceExporter({
+        url: phoenixUrl,
+        headers:
+          process.env["PHOENIX_API_KEY"] != null
+            ? {
+                api_key: process.env["PHOENIX_API_KEY"],
+                Authorization: `Bearer ${process.env["PHOENIX_API_KEY"]}`,
+              }
+            : undefined,
+      }),
+    }),
+  ],
+});
+
+tracerProvider.register();
+
+registerTelemetry(
+  new OpenTelemetry({
+    // Optional, but recommended for fuller OpenInference coverage.
+    usage: true,
+    providerMetadata: true,
+    embedding: true,
+    reranking: true,
+    runtimeContext: true,
+    headers: true,
+    toolChoice: true,
+    schema: true,
+  }),
+);
+```
+
+Then import the instrumentation module before using the AI SDK.
+
+```typescript
+import "./instrumentation";
+
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+
+const result = await generateText({
+  model: openai("gpt-4o-mini"),
+  prompt: "Write a short story about a cat.",
+  telemetry: { functionId: "story-agent" },
+});
+```
+
+### Next.js Application
 
 ```typescript
 // instrumentation.ts
