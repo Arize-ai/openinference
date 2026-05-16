@@ -11,7 +11,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { VercelSDKFunctionNameToSpanKindMap } from "./constants";
+import { GenAIOperationNameToSpanKindMap, VercelSDKFunctionNameToSpanKindMap } from "./constants";
 import type { OpenInferenceIOConventionKey, SpanFilter } from "./types";
 import { isArrayOfObjects, isStringArray } from "./typeUtils";
 import { VercelAISemanticConventions } from "./VercelAISemanticConventions";
@@ -48,14 +48,20 @@ const getOISpanKindFromAttributes = (
     return existingOISpanKind;
   }
   const maybeOperationName = attributes["operation.name"];
-  if (maybeOperationName == null || typeof maybeOperationName !== "string") {
-    return;
+  if (typeof maybeOperationName === "string") {
+    const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
+    if (maybeFunctionName != null) {
+      const spanKind = VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName);
+      if (spanKind != null) {
+        return spanKind;
+      }
+    }
   }
-  const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
-  if (maybeFunctionName == null) {
-    return;
+
+  const maybeGenAIOperationName = attributes["gen_ai.operation.name"];
+  if (typeof maybeGenAIOperationName === "string") {
+    return GenAIOperationNameToSpanKindMap.get(maybeGenAIOperationName);
   }
-  return VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName);
 };
 
 /**
@@ -73,9 +79,12 @@ const safelyGetOISpanKindFromAttributes = withSafety({
  * @returns the OpenInference attributes associated with the invocation parameters
  */
 const getInvocationParamAttributes = (attributes: Attributes) => {
-  const settingAttributeKeys = Object.keys(attributes).filter((key) =>
-    key.startsWith(VercelAISemanticConventions.SETTINGS),
-  );
+  const settingAttributeKeys = Object.keys(attributes).filter((key) => {
+    if (!key.startsWith(`${VercelAISemanticConventions.SETTINGS}.`)) {
+      return false;
+    }
+    return key.split(".").length === 3;
+  });
   if (settingAttributeKeys.length === 0) {
     return null;
   }
@@ -505,6 +514,36 @@ const safelyGetMetadataAttributes = withSafety({
 });
 
 /**
+ * Gets OpenInference metadata attributes from AI SDK v7 runtime context attributes.
+ * @param attributes the initial attributes of the span
+ * @returns the OpenInference metadata attributes
+ */
+const getSettingsContextAttributes = (attributes: Attributes) => {
+  const contextPrefix = `${VercelAISemanticConventions.SETTINGS}.context.`;
+  const contextAttributeKeys = Object.keys(attributes)
+    .filter((key) => key.startsWith(contextPrefix))
+    .map((key) => ({ key: key.slice(contextPrefix.length), value: attributes[key] }));
+
+  if (contextAttributeKeys.length === 0) {
+    return null;
+  }
+
+  return contextAttributeKeys.reduce((acc, { key, value }) => {
+    return key.length > 0
+      ? {
+          ...acc,
+          [`${SemanticConventions.METADATA}.${key}`]: value,
+        }
+      : acc;
+  }, {});
+};
+
+const safelyGetSettingsContextAttributes = withSafety({
+  fn: getSettingsContextAttributes,
+  onError: onErrorCallback("settings context"),
+});
+
+/**
  * Gets the tool call span attributes for TOOL spans
  * @param attributes the span attributes
  * @param spanKind the span kind
@@ -690,6 +729,63 @@ const safelyGetModelNameAttribute = withSafety({
 });
 
 /**
+ * Gets a model name from GenAI model attributes using the OpenInference key for the span kind.
+ * @param attributes the span attributes
+ * @param spanKind the OpenInference span kind
+ * @returns the model name attribute for the span kind
+ */
+const getGenAIModelNameAttribute = (
+  attributes: Attributes,
+  spanKind: OpenInferenceSpanKind | string | undefined,
+): Attributes | null => {
+  const requestModel = attributes["gen_ai.request.model"];
+  const responseModel = attributes["gen_ai.response.model"];
+  const modelName = typeof responseModel === "string" ? responseModel : requestModel;
+
+  if (typeof modelName !== "string") {
+    return null;
+  }
+
+  if (spanKind === OpenInferenceSpanKind.EMBEDDING) {
+    return { [SemanticConventions.EMBEDDING_MODEL_NAME]: modelName };
+  }
+  if (spanKind === OpenInferenceSpanKind.RERANKER) {
+    return { [SemanticConventions.RERANKER_MODEL_NAME]: modelName };
+  }
+  if (spanKind === OpenInferenceSpanKind.LLM || spanKind === OpenInferenceSpanKind.AGENT) {
+    return { [SemanticConventions.LLM_MODEL_NAME]: modelName };
+  }
+
+  return null;
+};
+
+const safelyGetGenAIModelNameAttribute = withSafety({
+  fn: getGenAIModelNameAttribute,
+  onError: onErrorCallback("gen_ai model name"),
+});
+
+/**
+ * Gets Vercel-specific fixes for GenAI attributes that need span-kind-aware OpenInference keys.
+ * @param attributes the span attributes
+ * @param spanKind the OpenInference span kind
+ * @returns the mapped OpenInference attributes
+ */
+const getVercelGenAIAttributes = (
+  attributes: Attributes,
+  spanKind: OpenInferenceSpanKind | string | undefined,
+): Attributes => {
+  const result: Attributes = {
+    ...safelyGetGenAIModelNameAttribute(attributes, spanKind),
+  };
+
+  if (attributes["gen_ai.output.type"] === "json") {
+    result[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  return result;
+};
+
+/**
  * Gets token count attributes from Vercel ai.usage.* attributes when gen_ai.* are not present
  * @param attributes the span attributes
  * @param spanKind the span kind
@@ -734,6 +830,49 @@ const safelyGetTokenCountAttributes = withSafety({
 });
 
 /**
+ * Gets reranker input and output document attributes from AI SDK v7 supplemental attributes.
+ * @param attributes the span attributes
+ * @param spanKind the OpenInference span kind
+ * @returns the reranker document attributes
+ */
+const getRerankAttributes = (
+  attributes: Attributes,
+  spanKind: OpenInferenceSpanKind | string | undefined,
+): Attributes | null => {
+  if (spanKind !== OpenInferenceSpanKind.RERANKER) {
+    return null;
+  }
+
+  const result: Attributes = {};
+  const documents = attributes[VercelAISemanticConventions.RERANK_DOCUMENTS];
+  if (Array.isArray(documents)) {
+    documents.forEach((document, index) => {
+      if (isAttributeValue(document)) {
+        result[`${SemanticConventions.RERANKER_INPUT_DOCUMENTS}.${index}.document.content`] =
+          document;
+      }
+    });
+  }
+
+  const ranking = attributes[VercelAISemanticConventions.RERANKING_OUTPUT];
+  if (Array.isArray(ranking)) {
+    ranking.forEach((document, index) => {
+      if (isAttributeValue(document)) {
+        result[`${SemanticConventions.RERANKER_OUTPUT_DOCUMENTS}.${index}.document.content`] =
+          document;
+      }
+    });
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+};
+
+const safelyGetRerankAttributes = withSafety({
+  fn: getRerankAttributes,
+  onError: onErrorCallback("rerank"),
+});
+
+/**
  * Gets Vercel-specific attributes that are not covered by gen_ai.* conventions
  * @param attributes - The span attributes
  * @param spanKind - The OpenInference span kind
@@ -755,6 +894,9 @@ const getVercelSpecificAttributes = (
 
     // Metadata from ai.telemetry.metadata.*
     ...safelyGetMetadataAttributes(attributes),
+
+    // Runtime context from AI SDK v7 supplemental telemetry
+    ...safelyGetSettingsContextAttributes(attributes),
 
     // Output messages from ai.response.toolCalls
     ...safelyGetToolCallMessageAttributes(
@@ -779,6 +921,9 @@ const getVercelSpecificAttributes = (
 
     // Token counts from ai.usage.* (fallback if gen_ai.* not present)
     ...safelyGetTokenCountAttributes(attributes, spanKind),
+
+    // Reranking documents from v7 supplemental ai.* attributes
+    ...safelyGetRerankAttributes(attributes, spanKind),
   };
 
   // Set output.value from tool calls if output is not already meaningfully set
@@ -837,6 +982,7 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
 
   // Step 3: Get Vercel-specific attributes not covered by gen_ai.*
   const vercelSpecificAttributes = getVercelSpecificAttributes(attributes, spanKind);
+  const vercelGenAIAttributes = getVercelGenAIAttributes(attributes, spanKind);
 
   // Step 4: Determine final span kind
   // Use Vercel's operation.name-based span kind as it's more specific
@@ -846,11 +992,26 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
     (hasGenAI ? genAIAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] : undefined);
 
   // Step 5: Merge with gen_ai attributes taking precedence for overlapping keys
-  return {
+  const result: Attributes = {
     ...vercelSpecificAttributes,
     ...genAIAttributes, // gen_ai takes precedence for model name, tokens, etc.
+    ...vercelGenAIAttributes,
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: finalSpanKind,
   };
+
+  if (
+    finalSpanKind === OpenInferenceSpanKind.EMBEDDING ||
+    finalSpanKind === OpenInferenceSpanKind.RERANKER
+  ) {
+    delete result[SemanticConventions.LLM_MODEL_NAME];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_PROMPT];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_TOTAL];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE];
+  }
+
+  return result;
 };
 
 /**

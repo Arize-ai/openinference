@@ -1,10 +1,12 @@
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 
+import { OpenTelemetry } from "@ai-sdk/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { Resource } from "@opentelemetry/resources";
 import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { registerTelemetry } from "ai";
 
 import { isOpenInferenceSpan, OpenInferenceSimpleSpanProcessor } from "../src";
 
@@ -44,6 +46,19 @@ export const tracerProvider = new NodeTracerProvider({
 });
 
 tracerProvider.register();
+
+registerTelemetry(
+  new OpenTelemetry({
+    usage: true,
+    providerMetadata: true,
+    embedding: true,
+    reranking: true,
+    runtimeContext: true,
+    headers: true,
+    toolChoice: true,
+    schema: true,
+  }),
+);
 
 // eslint-disable-next-line no-console
 console.log(`\nOpenInference Vercel example initialized`);

@@ -4,15 +4,14 @@
 
 This package provides utilities to ingest [Vercel AI SDK](https://github.com/vercel/ai) spans into platforms like [Arize](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
 
-> Note: This package targets AI SDK v6 and is tested against v6 telemetry. Older versions (>= 3.3) are best-effort compatible.
+> Note: This package targets AI SDK v7 telemetry. Use the latest v2 release for AI SDK v6.
 
 ## AI SDK Compatibility
 
-| AI SDK version | Support level | Notes                                                                                                                                          |
-| -------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| v6.x           | Targeted      | Emits `gen_ai.*` (OTel GenAI semconv) + `ai.*` (Vercel-specific). `@arizeai/openinference-vercel` prefers `gen_ai.*` and falls back to `ai.*`. |
-| v5.x           | Best effort   | Telemetry primarily uses `ai.*`. Some standard `gen_ai.*`-derived mappings may be unavailable.                                                 |
-| >= 3.3 and < 5 | Best effort   | Telemetry is experimental; attribute shapes may differ.                                                                                        |
+| AI SDK version | Support level | Notes                                                                                                                                            |
+| -------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| v7.x           | Targeted      | Uses `@ai-sdk/otel` `OpenTelemetry`, which emits `gen_ai.*` spans by default. Optional supplemental `ai.*` attributes fill non-GenAI data gaps. |
+| v6.x and older | Unsupported   | Use `@arizeai/openinference-vercel` v2.x.                                                                                                       |
 
 ## Installation
 
@@ -20,10 +19,10 @@ This package provides utilities to ingest [Vercel AI SDK](https://github.com/ver
 npm install --save @arizeai/openinference-vercel
 ```
 
-You will also need to install OpenTelemetry and Vercel packages to your project.
+You will also need to install OpenTelemetry, `ai`, and `@ai-sdk/otel` packages to your project.
 
 ```shell
-npm i @opentelemetry/api @vercel/otel @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-semantic-conventions
+npm i ai @ai-sdk/otel @opentelemetry/api @vercel/otel @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-semantic-conventions
 ```
 
 ## Usage
@@ -38,6 +37,8 @@ To process your Vercel AI SDK Spans add a `OpenInferenceSimpleSpanProcessor` or 
 ```typescript
 // instrumentation.ts
 import { registerOTel } from "@vercel/otel";
+import { registerTelemetry } from "ai";
+import { OpenTelemetry } from "@ai-sdk/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import {
   isOpenInferenceSpan,
@@ -50,6 +51,20 @@ import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conven
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 export function register() {
+  registerTelemetry(
+    new OpenTelemetry({
+      // Optional, but recommended for fuller OpenInference coverage.
+      usage: true,
+      providerMetadata: true,
+      embedding: true,
+      reranking: true,
+      runtimeContext: true,
+      headers: true,
+      toolChoice: true,
+      schema: true,
+    }),
+  );
+
   registerOTel({
     serviceName: "phoenix-next-app",
     attributes: {
@@ -79,17 +94,17 @@ export function register() {
 }
 ```
 
-Now enable telemetry in your AI SDK calls by setting the `experimental_telemetry` parameter to `true`.
+Once `registerTelemetry(new OpenTelemetry())` is called, AI SDK v7 telemetry is enabled by default. Use `telemetry` only for metadata such as `functionId` or to opt out.
 
 ```typescript
 const result = await generateText({
   model: openai("gpt-4-turbo"),
   prompt: "Write a short story about a cat.",
-  experimental_telemetry: { isEnabled: true },
+  telemetry: { functionId: "story-agent" },
 });
 ```
 
-For details on Vercel AI SDK telemetry see the [Vercel AI SDK Telemetry documentation](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
+For details on Vercel AI SDK telemetry see the [Vercel AI SDK Telemetry documentation](https://ai-sdk.dev/v7/docs/ai-sdk-core/telemetry).
 
 For more information on Vercel OpenTelemetry support see the [Vercel AI SDK Telemetry documentation](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
 
