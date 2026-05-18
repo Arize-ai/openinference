@@ -249,6 +249,30 @@ const processMessageParts = ({
 };
 
 /**
+ * Set OpenInference attributes for a single tool response message.
+ *
+ * GenAI can group multiple tool_call_response parts under one tool-role message;
+ * each response needs its own OpenInference message to avoid overwriting siblings.
+ * @param params - The tool response message mapping parameters
+ */
+const setToolCallResponseMessage = ({
+  attrs,
+  msgPrefix,
+  part,
+}: {
+  attrs: Attributes;
+  msgPrefix: string;
+  part: Extract<AnyPart, { type: "tool_call_response" }>;
+}): void => {
+  const id = part.id ?? undefined;
+  const response = toStringContent(part.response);
+
+  set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, "tool");
+  set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`, id);
+  set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`, response);
+};
+
+/**
  * Convert GenAI span attributes to OpenInference span attributes
  * @param spanAttributes - The span attributes containing GenAI span attributes to convert
  * @returns The converted OpenInference span attributes
@@ -499,13 +523,30 @@ export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
   const genAIInputMessages = safelyParseJSON(spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES]);
 
   if (Array.isArray(genAIInputMessages)) {
-    (genAIInputMessages as unknown[]).forEach((msg, msgIndex) => {
+    let msgIndex = 0;
+    (genAIInputMessages as unknown[]).forEach((msg) => {
       if (!isGenAIChatMessage(msg)) return;
+
+      const toolCallResponses = msg.parts.filter(
+        (part): part is Extract<AnyPart, { type: "tool_call_response" }> =>
+          part?.type === "tool_call_response",
+      );
+
+      if (msg.role === "tool" && toolCallResponses.length > 0) {
+        toolCallResponses.forEach((part) => {
+          const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${msgIndex}.`;
+          setToolCallResponseMessage({ attrs, msgPrefix, part });
+          msgIndex += 1;
+        });
+        return;
+      }
+
       const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${msgIndex}.`;
       // set the message role
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
       // process and set the rest of the message parts
       processMessageParts({ attrs, msgPrefix, parts: msg.parts });
+      msgIndex += 1;
     });
   }
 
