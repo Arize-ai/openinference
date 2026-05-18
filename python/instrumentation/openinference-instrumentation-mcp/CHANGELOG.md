@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.2...python-openinference-instrumentation-mcp-v2.0.3) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
 ## [2.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.1...python-openinference-instrumentation-mcp-v2.0.2) (2026-05-14)
 
 
