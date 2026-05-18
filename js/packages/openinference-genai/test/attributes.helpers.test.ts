@@ -1,7 +1,16 @@
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import type { Attributes } from "@opentelemetry/api";
 
 import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import {
+  addOpenInferenceAttributesToSpan,
+  convertGenAISpanToOpenInference,
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
+  mapFinishReason,
+  mapGenAIMessageEvents,
   mapInputMessages,
   mapInputValue,
   mapInvocationParameters,
@@ -22,11 +31,28 @@ import {
 
 describe("attributes helpers", () => {
   describe("mapProviderAndSystem", () => {
-    it("maps provider to llm.system and llm.provider", () => {
+    it("maps provider and system to their OpenInference fields", () => {
       const attrs = mapProviderAndSystem({
         "gen_ai.provider.name": "openai",
+        "gen_ai.system": "openai",
       });
       expect(attrs["llm.provider"]).toBe("openai");
+      expect(attrs["llm.system"]).toBe("openai");
+    });
+
+    it("does not use system as provider unless configured", () => {
+      expect(mapProviderAndSystem({ "gen_ai.system": "openai" })).toEqual({
+        "llm.system": "openai",
+      });
+      expect(
+        mapProviderAndSystem(
+          { "gen_ai.system": "openai" },
+          { providerMapping: "system-as-provider-fallback" },
+        ),
+      ).toEqual({
+        "llm.provider": "openai",
+        "llm.system": "openai",
+      });
     });
 
     it("ignores non-string provider", () => {
@@ -62,8 +88,13 @@ describe("attributes helpers", () => {
   });
 
   describe("mapSpanKind", () => {
-    it("defaults to LLM when no agent or tool execution markers are present", () => {
+    it("omits span kind when no GenAI markers are present", () => {
       const attrs = mapSpanKind({});
+      expect(attrs["openinference.span.kind"]).toBeUndefined();
+    });
+
+    it("defaults to LLM when GenAI attributes do not identify a more specific kind", () => {
+      const attrs = mapSpanKind({ "gen_ai.request.model": "gpt-4" });
       expect(attrs["openinference.span.kind"]).toBe("LLM");
     });
 
@@ -81,9 +112,9 @@ describe("attributes helpers", () => {
       expect(attrs["openinference.span.kind"]).toBe("TOOL");
     });
 
-    it("remains LLM for unrelated attributes (malformed)", () => {
+    it("ignores unrelated attributes", () => {
       const attrs = mapSpanKind({ any: "thing" });
-      expect(attrs["openinference.span.kind"]).toBe("LLM");
+      expect(attrs["openinference.span.kind"]).toBeUndefined();
     });
   });
 
@@ -385,7 +416,7 @@ describe("attributes helpers", () => {
       expect(attrs["tool.description"]).toBe(
         "Retrieves the current weather report for a specified city.",
       );
-      expect(attrs["tool_call.id"]).toBe("1234");
+      expect(attrs["tool.id"]).toBe("1234");
       // input and output are mapped separately
       const inOutAttrs = {
         ...mapInputValue(spanAttrs),
@@ -400,10 +431,109 @@ describe("attributes helpers", () => {
     });
   });
 
+  describe("mapFinishReason", () => {
+    it("maps first finish reason by default", () => {
+      expect(mapFinishReason({ "gen_ai.response.finish_reasons": ["stop", "length"] })).toEqual({
+        "llm.finish_reason": "stop",
+      });
+    });
+
+    it("supports alternate finish reason strategies", () => {
+      expect(
+        mapFinishReason(
+          { "gen_ai.response.finish_reasons": ["stop", "length"] },
+          { finishReasonStrategy: "join" },
+        ),
+      ).toEqual({ "llm.finish_reason": "stop,length" });
+    });
+  });
+
+  describe("mapGenAIMessageEvents", () => {
+    it("maps GenAI message events to input and output messages", () => {
+      const attrs = mapGenAIMessageEvents([
+        { name: "gen_ai.user.message", attributes: { content: "Hi" } },
+        {
+          name: "gen_ai.choice",
+          attributes: {
+            content: "Hello",
+            tool_calls: [{ id: "call-1", name: "lookup", arguments: { query: "Hi" } }],
+          } as unknown as Record<string, never>,
+        },
+      ]);
+
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.0.message.content"]).toBe("Hi");
+      expect(attrs["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(attrs["llm.output_messages.0.message.content"]).toBe("Hello");
+      expect(attrs["llm.output_messages.0.message.tool_calls.0.tool_call.id"]).toBe("call-1");
+      expect(attrs["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"]).toBe(
+        "lookup",
+      );
+    });
+
+    it("appends event messages after caller-provided start indexes", () => {
+      const attrs = mapGenAIMessageEvents(
+        [{ name: "gen_ai.user.message", attributes: { content: "Hi" } }],
+        { inputStartIndex: 1 },
+      );
+
+      expect(attrs["llm.input_messages.0.message.role"]).toBeUndefined();
+      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.1.message.content"]).toBe("Hi");
+    });
+  });
+
   describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
-    it("returns minimal defaults for empty attributes (span kind only)", () => {
+    it("returns no defaults for empty attributes", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({});
-      expect(attrs).toEqual({ "openinference.span.kind": "LLM" });
+      expect(attrs).toEqual({});
+    });
+  });
+
+  describe("convertGenAISpanToOpenInference", () => {
+    it("allows callers to customize span kind detection", () => {
+      const attrs = convertGenAISpanToOpenInference(
+        { attributes: { "gen_ai.operation.name": "chat", "framework.workflow": "root" } },
+        {
+          spanKindResolver: ({ attributes, defaultKind }) =>
+            attributes["framework.workflow"] === "root" ? OpenInferenceSpanKind.AGENT : defaultKind,
+        },
+      );
+      expect(attrs["openinference.span.kind"]).toBe("AGENT");
+    });
+
+    it("appends event messages after structured GenAI messages", () => {
+      const attrs = convertGenAISpanToOpenInference({
+        attributes: {
+          "gen_ai.input.messages": JSON.stringify([
+            { role: "system", parts: [{ type: "text", content: "Be concise" }] },
+          ]),
+        },
+        events: [{ name: "gen_ai.user.message", attributes: { content: "Hi" } }],
+      });
+
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "Be concise",
+      );
+      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.1.message.content"]).toBe("Hi");
+    });
+  });
+
+  describe("addOpenInferenceAttributesToSpan", () => {
+    it("mutates a span-like object with converted attributes", () => {
+      const span = {
+        attributes: {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.system": "openai",
+        } as Attributes,
+      };
+
+      addOpenInferenceAttributesToSpan(span);
+
+      expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+      expect(span.attributes["llm.system"]).toBe("openai");
     });
   });
 });

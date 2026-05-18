@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-tanstack-ai.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-tanstack-ai)
 
-This package provides an OpenInference middleware for [TanStack AI](https://tanstack.com/ai/latest/docs/getting-started/overview). It emits OpenTelemetry spans shaped according to the OpenInference specification so TanStack AI runs can be visualized in systems like [Arize](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
+This package provides an OpenInference middleware for [TanStack AI](https://tanstack.com/ai/latest/docs/getting-started/overview). It wraps TanStack AI's native OpenTelemetry middleware and adds OpenInference attributes so TanStack AI runs can be visualized in systems like [Arize](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
 
 ## Installation
 
@@ -45,7 +45,7 @@ const stream = chat({
 });
 ```
 
-The middleware works for both streaming and non-streaming TanStack AI calls.
+The middleware works for both streaming and non-streaming TanStack AI calls. It uses TanStack AI's native span lifecycle, so existing TanStack AI OpenTelemetry behavior is preserved while OpenInference semantic attributes are added to the same spans.
 
 ```ts
 const text = await chat({
@@ -121,6 +121,25 @@ const middleware = openInferenceMiddleware({ tracer });
 
 This is useful when you want the middleware to participate in a specific tracer setup without relying on the global default.
 
+## Configuration
+
+`openInferenceMiddleware()` accepts TanStack AI's native OTEL middleware options, plus OpenInference-specific options:
+
+```ts
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import { openInferenceMiddleware } from "@arizeai/openinference-tanstack-ai";
+
+const middleware = openInferenceMiddleware({
+  traceConfig: {
+    hideInputText: true,
+    hideOutputText: true,
+  },
+  spanKindResolver: ({ defaultKind }) => defaultKind ?? OpenInferenceSpanKind.LLM,
+});
+```
+
+Use `traceConfig` to apply OpenInference masking rules. Use `spanKindResolver` only when you need to override the default GenAI-to-OpenInference span kind mapping.
+
 ## What Gets Traced
 
 The middleware emits the following span structure for a TanStack AI run:
@@ -137,6 +156,32 @@ For a tool loop, the trace will typically look like:
 - `LLM 2`
 
 The `AGENT` span captures the top-level request and final response. The `LLM` spans capture provider/model metadata, input messages, output messages, tool definitions, and token counts. The `TOOL` spans capture tool names, arguments, outputs, and errors.
+
+## GenAI Span Conversion
+
+The middleware converts TanStack AI's native GenAI span attributes to OpenInference attributes automatically. If you need to convert captured TanStack AI span data yourself, this package also exports `convertTanStackAISpanToOpenInference`:
+
+```ts
+import { convertTanStackAISpanToOpenInference } from "@arizeai/openinference-tanstack-ai";
+
+const openInferenceAttributes = convertTanStackAISpanToOpenInference({
+  name: span.name,
+  kind: span.kind,
+  attributes: span.attributes,
+  events: span.events,
+});
+```
+
+The converter uses `@arizeai/openinference-genai` for standard GenAI attributes and events, then applies TanStack-specific span kind detection for root chat spans. You can override that detection:
+
+```ts
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import { convertTanStackAISpanToOpenInference } from "@arizeai/openinference-tanstack-ai";
+
+const openInferenceAttributes = convertTanStackAISpanToOpenInference(span, {
+  spanKindResolver: ({ defaultKind }) => defaultKind ?? OpenInferenceSpanKind.CHAIN,
+});
+```
 
 ## Examples
 

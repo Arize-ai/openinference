@@ -1,429 +1,335 @@
-import { context, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
+import {
+  context,
+  trace,
+  type Attributes,
+  type AttributeValue,
+  type Context,
+  type Exception,
+  type Link,
+  type Span,
+  type SpanContext,
+  type SpanOptions,
+  type SpanStatus,
+  type TimeInput,
+  type Tracer,
+} from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
 import type { ChatMiddleware } from "@tanstack/ai";
+import {
+  otelMiddleware,
+  type OtelMiddlewareOptions,
+  type OtelSpanInfo,
+} from "@tanstack/ai/middlewares/otel";
 
 import {
-  getInputAttributes,
-  getLLMAttributes,
-  getMetadataAttributes,
-  getOutputAttributes,
-  getToolAttributes,
-  OITracer,
-  safelyJSONStringify,
+  getAttributesFromContext,
+  generateTraceConfig,
+  REDACTED_VALUE,
+  type TraceConfig,
+  type TraceConfigOptions,
 } from "@arizeai/openinference-core";
-import {
-  MimeType,
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+import type { ConvertGenAISpanOptions, GenAISpanEvent } from "@arizeai/openinference-genai";
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import {
-  AGENT_SPAN_NAME,
-  INSTRUMENTATION_NAME,
-  LLM_SPAN_PREFIX,
-  TOOL_SPAN_PREFIX,
-} from "./constants";
-import {
-  completeToolCall,
-  getInputMessages,
-  getInvocationParameters,
-  getLLMInputValue,
-  getLLMOutput,
-  initializeToolCall,
-  setUsageAttributes,
-  toOpenInferenceTools,
-  updateToolCallArguments,
-} from "./converters";
-import type { OpenInferenceTanStackAIMiddlewareOptions, RequestState, UsageInfo } from "./types";
-import { finalizeSpan, getToolDescription, toRecord } from "./utils";
+import { INSTRUMENTATION_NAME } from "./constants";
+import { convertTanStackAISpanToOpenInference } from "./genai";
 import { VERSION } from "./version";
 
-/**
- * Marks unfinished tool spans as failed before ending them.
- */
-function endToolSpansWithError(
-  toolSpans: Map<string, ReturnType<OITracer["startSpan"]>>,
-  message: string,
-) {
-  toolSpans.forEach((span) => {
-    span.setStatus({ code: SpanStatusCode.ERROR, message });
-    span.end();
-  });
+export type OpenInferenceTanStackAIMiddlewareOptions = Omit<
+  OtelMiddlewareOptions,
+  "tracer" | "attributeEnricher"
+> & {
+  tracer?: Tracer;
+  traceConfig?: TraceConfigOptions;
+  attributeEnricher?: OtelMiddlewareOptions["attributeEnricher"];
+  spanKindResolver?: ConvertGenAISpanOptions["spanKindResolver"];
+};
+
+class OpenInferenceConvertingSpan implements Span {
+  private readonly attributes: Attributes;
+  private readonly events: GenAISpanEvent[] = [];
+  private ended = false;
+
+  constructor({
+    name,
+    span,
+    traceConfig,
+    convertOptions,
+    initialAttributes,
+    contextAttributes,
+  }: {
+    name: string;
+    span: Span;
+    traceConfig: ReturnType<typeof generateTraceConfig>;
+    convertOptions: ConvertGenAISpanOptions;
+    initialAttributes?: Attributes;
+    contextAttributes?: Attributes;
+  }) {
+    this.name = name;
+    this.span = span;
+    this.attributes = { ...(initialAttributes ?? {}), ...(contextAttributes ?? {}) };
+    this.traceConfig = traceConfig;
+    this.convertOptions = convertOptions;
+    if (contextAttributes != null) {
+      this.span.setAttributes(withoutUndefinedValues(contextAttributes));
+    }
+  }
+
+  private readonly name: string;
+  private readonly span: Span;
+  private readonly traceConfig: TraceConfig;
+  private readonly convertOptions: ConvertGenAISpanOptions;
+
+  setAttribute(key: string, value: AttributeValue): this {
+    this.attributes[key] = value;
+    this.span.setAttribute(key, value);
+    return this;
+  }
+
+  setAttributes(attributes: Attributes): this {
+    Object.assign(this.attributes, attributes);
+    this.span.setAttributes(attributes);
+    return this;
+  }
+
+  addEvent(
+    name: string,
+    attributesOrStartTime?: Attributes | TimeInput,
+    startTime?: TimeInput,
+  ): this {
+    if (isAttributes(attributesOrStartTime)) {
+      this.events.push({ name, attributes: attributesOrStartTime });
+    }
+    this.span.addEvent(name, attributesOrStartTime, startTime);
+    return this;
+  }
+
+  addLink(link: Link): this {
+    this.span.addLink(link);
+    return this;
+  }
+
+  addLinks(links: Link[]): this {
+    this.span.addLinks(links);
+    return this;
+  }
+
+  end(endTime?: TimeInput): void {
+    if (!this.ended) {
+      this.ended = true;
+      this.span.setAttributes(
+        maskOpenInferenceAttributes(
+          convertTanStackAISpanToOpenInference(
+            {
+              name: this.name,
+              attributes: this.attributes,
+              events: this.events,
+            },
+            this.convertOptions,
+          ),
+          this.traceConfig,
+        ),
+      );
+    }
+    this.span.end(endTime);
+  }
+
+  isRecording(): boolean {
+    return this.span.isRecording();
+  }
+
+  recordException(exception: Exception, time?: TimeInput): void {
+    this.span.recordException(exception, time);
+  }
+
+  spanContext(): SpanContext {
+    return this.span.spanContext();
+  }
+
+  setStatus(status: SpanStatus): this {
+    this.span.setStatus(status);
+    return this;
+  }
+
+  updateName(name: string): this {
+    this.span.updateName(name);
+    return this;
+  }
 }
 
-/**
- * Finalizes the current LLM span with output, usage, finish reason, and status.
- */
-function endCurrentLLMSpan(options: {
-  state: RequestState;
-  status: { code: SpanStatusCode; message?: string };
-  usage?: UsageInfo;
-  finishReason?: string | null;
-  error?: Error;
-}) {
-  const llmState = options.state.currentLLMSpan;
-  if (llmState == null) {
-    return;
-  }
+const maskOpenInferenceAttributes = (
+  attributes: Attributes,
+  traceConfig: TraceConfig,
+): Attributes => {
+  return Object.entries(attributes).reduce((masked, [key, value]) => {
+    if (traceConfig.hideInputs && key.startsWith("input.")) return masked;
+    if (traceConfig.hideOutputs && key.startsWith("output.")) return masked;
+    if (traceConfig.hideInputMessages && key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)) {
+      return masked;
+    }
+    if (traceConfig.hideOutputMessages && key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES)) {
+      return masked;
+    }
+    if (
+      traceConfig.hideInputText &&
+      key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES) &&
+      key.endsWith(SemanticConventions.MESSAGE_CONTENT_TEXT)
+    ) {
+      masked[key] = REDACTED_VALUE;
+      return masked;
+    }
+    if (
+      traceConfig.hideOutputText &&
+      key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES) &&
+      key.endsWith(SemanticConventions.MESSAGE_CONTENT_TEXT)
+    ) {
+      masked[key] = REDACTED_VALUE;
+      return masked;
+    }
+    masked[key] = value;
+    return masked;
+  }, {} as Attributes);
+};
 
-  const output = getLLMOutput({
-    outputText: llmState.outputText,
-    outputToolCalls: Array.from(llmState.outputToolCalls.values()),
-  });
+const isAttributes = (value: Attributes | TimeInput | undefined): value is Attributes => {
+  return (
+    typeof value === "object" && value != null && !Array.isArray(value) && !(value instanceof Date)
+  );
+};
 
-  if (output != null) {
-    llmState.span.setAttributes({
-      ...getOutputAttributes({ value: output.value, mimeType: output.mimeType }),
-      ...getLLMAttributes({ outputMessages: output.outputMessages }),
-    });
-  }
-
-  if (options.usage != null) {
-    setUsageAttributes(llmState.span, options.usage);
-  }
-
-  if (options.finishReason != null) {
-    llmState.span.setAttribute("tanstack.ai.finish_reason", options.finishReason);
-  }
-
-  if (options.error != null) {
-    llmState.span.recordException(options.error);
-  }
-
-  llmState.span.setStatus(options.status);
-  llmState.span.end();
-  options.state.currentLLMSpan = undefined;
-}
-
-/**
- * Creates a TanStack AI middleware that emits OpenInference-compatible AGENT,
- * LLM, and TOOL spans.
- *
- * The middleware is intentionally stateful per chat request so it can shape a
- * single agent run into a readable span tree while preserving LLM inputs and
- * outputs in the form Phoenix expects.
- */
-export function openInferenceMiddleware({
+const createOpenInferenceTracer = ({
   tracer,
   traceConfig,
-}: OpenInferenceTanStackAIMiddlewareOptions = {}): ChatMiddleware {
-  const oiTracer = new OITracer({
-    tracer: tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION),
+  convertOptions,
+}: {
+  tracer: Tracer;
+  traceConfig: TraceConfig;
+  convertOptions: ConvertGenAISpanOptions;
+}): Tracer => {
+  return {
+    startSpan(name: string, options?: SpanOptions, ctx?: Context): Span {
+      const spanContext = ctx ?? context.active();
+      return new OpenInferenceConvertingSpan({
+        name,
+        span: tracer.startSpan(name, options, ctx),
+        traceConfig,
+        convertOptions,
+        initialAttributes: options?.attributes,
+        contextAttributes: getAttributesFromContext(spanContext),
+      });
+    },
+    startActiveSpan: tracer.startActiveSpan.bind(tracer),
+  } as Tracer;
+};
+
+const shouldCaptureContent = (options: OpenInferenceTanStackAIMiddlewareOptions): boolean => {
+  if (options.captureContent != null) {
+    return options.captureContent;
+  }
+  return !(options.traceConfig?.hideInputs === true && options.traceConfig?.hideOutputs === true);
+};
+
+const createRedactor = (options: OpenInferenceTanStackAIMiddlewareOptions) => {
+  const userRedact = options.redact ?? ((text: string) => text);
+  return (text: string): string => {
+    if (
+      options.traceConfig?.hideInputs === true ||
+      options.traceConfig?.hideOutputs === true ||
+      options.traceConfig?.hideInputText === true ||
+      options.traceConfig?.hideOutputText === true
+    ) {
+      return REDACTED_VALUE;
+    }
+    return userRedact(text);
+  };
+};
+
+const isSuppressed = () => isTracingSuppressed(context.active());
+
+const withoutUndefinedValues = (attributes: Attributes): Record<string, AttributeValue> => {
+  return Object.entries(attributes).reduce(
+    (result, [key, value]) => {
+      if (value != null) {
+        result[key] = value;
+      }
+      return result;
+    },
+    {} as Record<string, AttributeValue>,
+  );
+};
+
+export function openInferenceMiddleware(
+  options: OpenInferenceTanStackAIMiddlewareOptions = {},
+): ChatMiddleware {
+  const traceConfig = generateTraceConfig(options.traceConfig);
+  const tracer = createOpenInferenceTracer({
+    tracer: options.tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION),
     traceConfig,
+    convertOptions: {
+      spanKindResolver: options.spanKindResolver,
+    },
   });
-  const requestStates = new Map<string, RequestState>();
+  const attributeEnricher: OtelMiddlewareOptions["attributeEnricher"] = (info: OtelSpanInfo) =>
+    withoutUndefinedValues({
+      ...getAttributesFromContext(context.active()),
+      ...(options.attributeEnricher?.(info) ?? {}),
+    });
+  const nativeMiddleware = otelMiddleware({
+    ...options,
+    tracer,
+    captureContent: shouldCaptureContent(options),
+    redact: createRedactor(options),
+    attributeEnricher,
+  });
 
   return {
     name: INSTRUMENTATION_NAME,
-
-    onStart(ctx) {
-      if (isTracingSuppressed(context.active())) {
-        return;
-      }
-
-      const input = safelyJSONStringify({
-        messages: ctx.messages,
-        systemPrompts: ctx.systemPrompts,
-        options: ctx.options,
-        modelOptions: ctx.modelOptions,
-        toolNames: ctx.toolNames,
-        source: ctx.source,
-        streaming: ctx.streaming,
-      });
-
-      const chatSpan = oiTracer.startSpan(AGENT_SPAN_NAME, {
-        kind: SpanKind.INTERNAL,
-        attributes: {
-          [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
-          "tanstack.ai.request.id": ctx.requestId,
-          "tanstack.ai.stream.id": ctx.streamId,
-          "tanstack.ai.source": ctx.source,
-          "tanstack.ai.streaming": ctx.streaming,
-          ...(input == null ? {} : getInputAttributes({ value: input, mimeType: MimeType.JSON })),
-          ...(ctx.options == null ? {} : getMetadataAttributes(ctx.options)),
-        },
-      });
-
-      requestStates.set(ctx.requestId, {
-        chatSpan,
-        toolSpans: new Map(),
-      });
-    },
-
     onConfig(ctx, config) {
-      if (ctx.phase !== "beforeModel" || isTracingSuppressed(context.active())) {
-        return;
-      }
-
-      const state = requestStates.get(ctx.requestId);
-      if (state == null) {
-        return;
-      }
-
-      if (state.currentLLMSpan != null) {
-        endCurrentLLMSpan({
-          state,
-          status: {
-            code: SpanStatusCode.ERROR,
-            message: "Starting next model call before previous LLM span finished",
-          },
-        });
-      }
-
-      const inputMessages = getInputMessages(config);
-      const tools = toOpenInferenceTools(config.tools);
-      const invocationParameters = getInvocationParameters({ model: ctx.model, config });
-      const inputValue = getLLMInputValue({ inputMessages, tools, invocationParameters });
-
-      const llmSpan = oiTracer.startSpan(
-        `${LLM_SPAN_PREFIX}${ctx.iteration + 1}`,
-        {
-          kind: SpanKind.INTERNAL,
-          attributes: {
-            [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-            ...(inputValue == null
-              ? {}
-              : getInputAttributes({ value: inputValue, mimeType: MimeType.JSON })),
-            ...getLLMAttributes({
-              provider: ctx.provider,
-              system: ctx.provider,
-              modelName: ctx.model,
-              invocationParameters,
-              inputMessages,
-              tools,
-            }),
-          },
-        },
-        trace.setSpan(context.active(), state.chatSpan),
-      );
-
-      state.currentLLMSpan = {
-        span: llmSpan,
-        outputText: "",
-        outputToolCalls: new Map(),
-      };
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onConfig?.(ctx, config);
     },
-
+    onStart(ctx) {
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onStart?.(ctx);
+    },
     onIteration(ctx, info) {
-      const chatSpan = requestStates.get(ctx.requestId)?.chatSpan;
-      if (chatSpan == null) {
-        return;
-      }
-
-      chatSpan.addEvent("tanstack.ai.iteration", {
-        iteration: info.iteration,
-        "tanstack.ai.message.id": info.messageId,
-      });
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onIteration?.(ctx, info);
     },
-
     onChunk(ctx, chunk) {
-      const state = requestStates.get(ctx.requestId);
-      if (state == null) {
-        return;
-      }
-
-      const llmState = state.currentLLMSpan;
-      if (llmState == null) {
-        return;
-      }
-
-      switch (chunk.type) {
-        case "TEXT_MESSAGE_CONTENT": {
-          llmState.outputText = chunk.content ?? `${llmState.outputText}${chunk.delta}`;
-          break;
-        }
-        case "TOOL_CALL_START": {
-          initializeToolCall(llmState, chunk);
-          break;
-        }
-        case "TOOL_CALL_ARGS": {
-          updateToolCallArguments(llmState, chunk);
-          break;
-        }
-        case "TOOL_CALL_END": {
-          completeToolCall(llmState, chunk);
-          break;
-        }
-        case "RUN_FINISHED": {
-          endCurrentLLMSpan({
-            state,
-            status: { code: SpanStatusCode.OK },
-            usage: chunk.usage ?? undefined,
-            finishReason: chunk.finishReason,
-          });
-          break;
-        }
-        case "RUN_ERROR": {
-          endCurrentLLMSpan({
-            state,
-            status: {
-              code: SpanStatusCode.ERROR,
-              message: chunk.error.message,
-            },
-            error: new Error(chunk.error.message),
-          });
-          break;
-        }
-      }
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onChunk?.(ctx, chunk);
     },
-
     onBeforeToolCall(ctx, hookCtx) {
-      if (isTracingSuppressed(context.active())) {
-        return;
-      }
-
-      const state = requestStates.get(ctx.requestId);
-      if (state == null) {
-        return;
-      }
-
-      const serializedInput = safelyJSONStringify(hookCtx.args);
-      const toolSpan = oiTracer.startSpan(
-        `${TOOL_SPAN_PREFIX}${hookCtx.toolName}`,
-        {
-          kind: SpanKind.INTERNAL,
-          attributes: {
-            [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
-            "tanstack.ai.tool.call.id": hookCtx.toolCallId,
-            ...getToolAttributes({
-              name: hookCtx.toolName,
-              description: getToolDescription(hookCtx.tool),
-              parameters: toRecord(hookCtx.args),
-            }),
-            ...(serializedInput == null
-              ? {}
-              : getInputAttributes({ value: serializedInput, mimeType: MimeType.JSON })),
-          },
-        },
-        trace.setSpan(context.active(), state.chatSpan),
-      );
-
-      state.toolSpans.set(hookCtx.toolCallId, toolSpan);
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onBeforeToolCall?.(ctx, hookCtx);
     },
-
     onAfterToolCall(ctx, info) {
-      const state = requestStates.get(ctx.requestId);
-      const toolSpan = state?.toolSpans.get(info.toolCallId);
-      if (toolSpan == null) {
-        return;
-      }
-
-      toolSpan.setAttribute("tanstack.ai.tool.duration_ms", info.duration);
-
-      if (info.ok) {
-        const serializedOutput = safelyJSONStringify(info.result);
-        toolSpan.setAttributes(
-          serializedOutput == null
-            ? {}
-            : getOutputAttributes({ value: serializedOutput, mimeType: MimeType.JSON }),
-        );
-        toolSpan.setStatus({ code: SpanStatusCode.OK });
-      } else {
-        if (info.error instanceof Error) {
-          toolSpan.recordException(info.error);
-        }
-        toolSpan.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: info.error instanceof Error ? info.error.message : "Tool call failed",
-        });
-      }
-
-      toolSpan.end();
-      state?.toolSpans.delete(info.toolCallId);
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onAfterToolCall?.(ctx, info);
     },
-
-    onUsage() {},
-
+    onToolPhaseComplete(ctx, info) {
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onToolPhaseComplete?.(ctx, info);
+    },
+    onUsage(ctx, usage) {
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onUsage?.(ctx, usage);
+    },
     onFinish(ctx, info) {
-      const state = requestStates.get(ctx.requestId);
-      if (state == null) {
-        return;
-      }
-
-      if (state.currentLLMSpan != null) {
-        endCurrentLLMSpan({
-          state,
-          status: { code: SpanStatusCode.OK },
-        });
-      }
-
-      state.chatSpan.setAttributes({
-        ...getOutputAttributes(info.content),
-        "tanstack.ai.finish_reason": info.finishReason ?? "",
-        "tanstack.ai.duration_ms": info.duration,
-      });
-
-      state.chatSpan.setStatus({ code: SpanStatusCode.OK });
-      state.toolSpans.forEach(finalizeSpan);
-      finalizeSpan(state.chatSpan);
-      requestStates.delete(ctx.requestId);
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onFinish?.(ctx, info);
     },
-
     onAbort(ctx, info) {
-      const state = requestStates.get(ctx.requestId);
-      if (state == null) {
-        return;
-      }
-
-      if (state.currentLLMSpan != null) {
-        endCurrentLLMSpan({
-          state,
-          status: {
-            code: SpanStatusCode.ERROR,
-            message: info.reason ?? "TanStack AI run aborted",
-          },
-        });
-      }
-
-      state.chatSpan.setAttributes({
-        "tanstack.ai.abort.reason": info.reason ?? "",
-        "tanstack.ai.duration_ms": info.duration,
-      });
-      state.chatSpan.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: info.reason ?? "TanStack AI run aborted",
-      });
-      endToolSpansWithError(state.toolSpans, info.reason ?? "TanStack AI run aborted");
-      finalizeSpan(state.chatSpan);
-      requestStates.delete(ctx.requestId);
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onAbort?.(ctx, info);
     },
-
     onError(ctx, info) {
-      const state = requestStates.get(ctx.requestId);
-      if (state == null) {
-        return;
-      }
-
-      if (state.currentLLMSpan != null) {
-        endCurrentLLMSpan({
-          state,
-          status: {
-            code: SpanStatusCode.ERROR,
-            message: info.error instanceof Error ? info.error.message : "TanStack AI run failed",
-          },
-          error: info.error instanceof Error ? info.error : undefined,
-        });
-      }
-
-      if (info.error instanceof Error) {
-        state.chatSpan.recordException(info.error);
-      }
-
-      state.chatSpan.setAttributes({
-        "tanstack.ai.duration_ms": info.duration,
-      });
-      state.chatSpan.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: info.error instanceof Error ? info.error.message : "TanStack AI run failed",
-      });
-      endToolSpansWithError(
-        state.toolSpans,
-        info.error instanceof Error ? info.error.message : "TanStack AI run failed",
-      );
-      finalizeSpan(state.chatSpan);
-      requestStates.delete(ctx.requestId);
+      if (isSuppressed()) return undefined;
+      return nativeMiddleware.onError?.(ctx, info);
     },
   };
 }
 
-export type { OpenInferenceTanStackAIMiddlewareOptions } from "./types";
+export { convertTanStackAISpanToOpenInference, tanStackAISpanKindResolver } from "./genai";
+export type { ConvertTanStackAISpanOptions } from "./genai";

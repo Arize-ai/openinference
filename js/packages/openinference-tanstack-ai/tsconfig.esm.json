@@ -3,6 +3,7 @@
   "compilerOptions": {
     "outDir": "dist/esm",
     "rootDir": "src",
+    "moduleResolution": "bundler",
     "tsBuildInfoFile": "dist/esm/tsconfig.esm.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
