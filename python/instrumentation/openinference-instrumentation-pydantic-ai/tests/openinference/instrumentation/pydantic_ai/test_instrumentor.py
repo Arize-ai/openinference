@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import List, Mapping, Sequence, Union, cast
+from typing import Any, List, Mapping, Sequence, Union, cast
 
 import pytest
 from opentelemetry import trace
@@ -80,7 +80,7 @@ def _test_openai_agent_and_llm_spans(
 
     # Create the model and agent
     model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
-    agent = Agent(
+    agent = cast(Any, Agent)(
         model,
         instructions=["Use the weather tool", "Use the calculator tool"],
         system_prompt="You are a weather assistant",
@@ -222,7 +222,7 @@ def _test_openai_agent_and_llm_spans_message_history(
     # Create the model and agent
     api_key = os.getenv("OPENAI_API_KEY", "sk-test")
     model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
-    agent = Agent(model, output_type=LocationModel, instrument=instrumentation)
+    agent = cast(Any, Agent)(model, output_type=LocationModel, instrument=instrumentation)
 
     # Create message history with multiple messages
     message_history: List[Union[ModelRequest, ModelResponse]] = [

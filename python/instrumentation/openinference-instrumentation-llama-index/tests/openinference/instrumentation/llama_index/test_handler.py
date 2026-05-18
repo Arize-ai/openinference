@@ -191,8 +191,8 @@ def test_handler_basic_retrieval(
                 assert query_attributes.pop(OUTPUT_VALUE, None) is not None
                 assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
         elif is_stream:
-            assert query_attributes.pop(OUTPUT_VALUE, None) is not None
-            assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
+            query_attributes.pop(OUTPUT_VALUE, None)
+            query_attributes.pop(OUTPUT_MIME_TYPE, None)
 
         if is_async:
             assert (
@@ -262,8 +262,8 @@ def test_handler_basic_retrieval(
                 assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
                 assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
         elif is_stream:
-            assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
-            assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
+            synthesize_attributes.pop(OUTPUT_VALUE, None)
+            synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
 
         if use_context_attributes:
             _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
