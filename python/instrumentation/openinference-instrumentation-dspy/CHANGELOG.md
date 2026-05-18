@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.36...python-openinference-instrumentation-dspy-v0.1.37) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
 ## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.35...python-openinference-instrumentation-dspy-v0.1.36) (2026-05-14)
 
 

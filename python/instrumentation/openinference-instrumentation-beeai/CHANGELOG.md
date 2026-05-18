@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.18...python-openinference-instrumentation-beeai-v0.1.19) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.17...python-openinference-instrumentation-beeai-v0.1.18) (2026-05-14)
 
 

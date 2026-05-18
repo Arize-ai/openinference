@@ -47,7 +47,7 @@ This package is exporter-agnostic — pair it with whatever OTel exporter your r
 - **Arize AX**: configure an OTLP/HTTP exporter pointed at `otlp.arize.com` with `space_id` + `api_key` headers, or use the [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) helper which wraps the setup in one call.
 - **Phoenix (self-hosted)**: configure OTLP/HTTP at `http://localhost:6006/v1/traces` (or your Phoenix host).
 
-For LLM clients with first-party auto-instrumentation, use [`openinference-instrumentation-openai`](../openinference-instrumentation-openai) (when available) or [`openinference-instrumentation-anthropic-sdk-go`](../openinference-instrumentation-anthropic-sdk-go) (when available) — they call into this package automatically.
+For LLM clients with first-party auto-instrumentation, use [`openinference-instrumentation-openai-go`](../openinference-instrumentation-openai-go) (when available) or [`openinference-instrumentation-anthropic-sdk-go`](../openinference-instrumentation-anthropic-sdk-go) (when available) — they call into this package automatically.
 
 ## Drift policy
 
