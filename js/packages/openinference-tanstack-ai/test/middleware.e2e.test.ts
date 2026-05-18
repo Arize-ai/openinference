@@ -318,7 +318,41 @@ describe("openInferenceMiddleware e2e", () => {
       );
 
     expect(llmSpan?.attributes["llm.input_messages.0.message.content"]).toBe("__REDACTED__");
+    expect(
+      llmSpan?.attributes["llm.input_messages.0.message.contents.0.message_content.text"],
+    ).toBe("__REDACTED__");
     expect(llmSpan?.attributes["llm.output_messages.0.message.content"]).toBe("__REDACTED__");
+    expect(
+      llmSpan?.attributes["llm.output_messages.0.message.contents.0.message_content.text"],
+    ).toBe("__REDACTED__");
+  });
+
+  it("does not over-redact output text when only input text is hidden", async () => {
+    const { exporter, tracer } = createTracer();
+    const adapter = createFinishedTextAdapter("visible output");
+
+    await chat({
+      adapter,
+      stream: false,
+      messages: [{ role: "user", content: "secret input" }],
+      middleware: [
+        openInferenceMiddleware({
+          tracer,
+          traceConfig: { hideInputText: true },
+        }),
+      ],
+    });
+
+    const llmSpan = exporter
+      .getFinishedSpans()
+      .find(
+        (span) =>
+          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+          OpenInferenceSpanKind.LLM,
+      );
+
+    expect(llmSpan?.attributes["llm.input_messages.0.message.content"]).toBe("__REDACTED__");
+    expect(llmSpan?.attributes["llm.output_messages.0.message.content"]).toBe("visible output");
   });
 
   it("suppresses spans for a real chat() run when tracing is suppressed", async () => {

@@ -306,6 +306,23 @@ describe("attributes helpers", () => {
       expect(inOutAttrs["input.mime_type"]).toBe("application/json");
     });
 
+    it("does not let content fallback overwrite existing input message parts", () => {
+      const attrs = mapInputMessages({
+        "gen_ai.input.messages": JSON.stringify([
+          {
+            role: "user",
+            content: "fallback content",
+            parts: [{ type: "text", content: "part content" }],
+          },
+        ]),
+      });
+
+      expect(attrs["llm.input_messages.0.message.content"]).toBeUndefined();
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "part content",
+      );
+    });
+
     it("stringifies unparseable input messages (malformed)", () => {
       const attrs = mapInputMessages({
         // not JSON
@@ -367,6 +384,23 @@ describe("attributes helpers", () => {
       };
       expect(inOutAttrs["output.value"]).toBe(spanAttrs["gen_ai.completion"]);
       expect(inOutAttrs["output.mime_type"]).toBe("application/json");
+    });
+
+    it("does not let content fallback overwrite existing output message parts", () => {
+      const attrs = mapOutputMessages({
+        "gen_ai.output.messages": JSON.stringify([
+          {
+            role: "assistant",
+            content: "fallback content",
+            parts: [{ type: "text", content: "part content" }],
+          },
+        ]),
+      });
+
+      expect(attrs["llm.output_messages.0.message.content"]).toBeUndefined();
+      expect(attrs["llm.output_messages.0.message.contents.0.message_content.text"]).toBe(
+        "part content",
+      );
     });
 
     it("stringifies unparseable output messages (malformed)", () => {

@@ -173,7 +173,7 @@ const maskOpenInferenceAttributes = (
     if (
       traceConfig.hideInputText &&
       key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES) &&
-      key.endsWith(SemanticConventions.MESSAGE_CONTENT_TEXT)
+      isMessageContentAttribute(key)
     ) {
       masked[key] = REDACTED_VALUE;
       return masked;
@@ -181,7 +181,7 @@ const maskOpenInferenceAttributes = (
     if (
       traceConfig.hideOutputText &&
       key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES) &&
-      key.endsWith(SemanticConventions.MESSAGE_CONTENT_TEXT)
+      isMessageContentAttribute(key)
     ) {
       masked[key] = REDACTED_VALUE;
       return masked;
@@ -190,6 +190,10 @@ const maskOpenInferenceAttributes = (
     return masked;
   }, {} as Attributes);
 };
+
+const isMessageContentAttribute = (key: string): boolean =>
+  key.endsWith(SemanticConventions.MESSAGE_CONTENT_TEXT) ||
+  key.endsWith(SemanticConventions.MESSAGE_CONTENT);
 
 const isAttributes = (value: Attributes | TimeInput | undefined): value is Attributes => {
   return (
@@ -206,19 +210,82 @@ const createOpenInferenceTracer = ({
   traceConfig: TraceConfig;
   convertOptions: ConvertGenAISpanOptions;
 }): Tracer => {
+  const wrapSpan = ({
+    name,
+    span,
+    options,
+    spanContext,
+  }: {
+    name: string;
+    span: Span;
+    options?: SpanOptions;
+    spanContext: Context;
+  }): Span =>
+    new OpenInferenceConvertingSpan({
+      name,
+      span,
+      traceConfig,
+      convertOptions,
+      initialAttributes: options?.attributes,
+      contextAttributes: getAttributesFromContext(spanContext),
+    });
+
   return {
     startSpan(name: string, options?: SpanOptions, ctx?: Context): Span {
       const spanContext = ctx ?? context.active();
-      return new OpenInferenceConvertingSpan({
+      return wrapSpan({
         name,
         span: tracer.startSpan(name, options, ctx),
-        traceConfig,
-        convertOptions,
-        initialAttributes: options?.attributes,
-        contextAttributes: getAttributesFromContext(spanContext),
+        options,
+        spanContext,
       });
     },
-    startActiveSpan: tracer.startActiveSpan.bind(tracer),
+    startActiveSpan(
+      name: string,
+      optionsOrCallback?: SpanOptions | ((span: Span) => unknown),
+      contextOrCallback?: Context | ((span: Span) => unknown),
+      callback?: (span: Span) => unknown,
+    ): unknown {
+      if (typeof optionsOrCallback === "function") {
+        return tracer.startActiveSpan(name, (span) =>
+          optionsOrCallback(
+            wrapSpan({
+              name,
+              span,
+              spanContext: context.active(),
+            }),
+          ),
+        );
+      }
+
+      const options = optionsOrCallback;
+      if (typeof contextOrCallback === "function") {
+        return tracer.startActiveSpan(name, options ?? {}, (span) =>
+          contextOrCallback(
+            wrapSpan({
+              name,
+              span,
+              options,
+              spanContext: context.active(),
+            }),
+          ),
+        );
+      }
+
+      if (callback != null) {
+        const spanContext = contextOrCallback ?? context.active();
+        return tracer.startActiveSpan(name, options ?? {}, spanContext, (span) =>
+          callback(
+            wrapSpan({
+              name,
+              span,
+              options,
+              spanContext,
+            }),
+          ),
+        );
+      }
+    },
   } as Tracer;
 };
 
@@ -233,10 +300,8 @@ const createRedactor = (options: OpenInferenceTanStackAIMiddlewareOptions) => {
   const userRedact = options.redact ?? ((text: string) => text);
   return (text: string): string => {
     if (
-      options.traceConfig?.hideInputs === true ||
-      options.traceConfig?.hideOutputs === true ||
-      options.traceConfig?.hideInputText === true ||
-      options.traceConfig?.hideOutputText === true
+      (options.traceConfig?.hideInputs === true && options.traceConfig?.hideOutputs === true) ||
+      (options.traceConfig?.hideInputText === true && options.traceConfig?.hideOutputText === true)
     ) {
       return REDACTED_VALUE;
     }

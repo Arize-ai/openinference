@@ -470,7 +470,7 @@ export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
       // process and set the rest of the message parts
       processMessageParts({ attrs, msgPrefix, parts: msg.parts });
-      if (msg.content != null) {
+      if (msg.content != null && !msg.parts?.length) {
         set(
           attrs,
           `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
@@ -506,7 +506,7 @@ export const mapOutputMessages = (spanAttributes: Attributes): Attributes => {
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
       // process and set the rest of the message parts
       processMessageParts({ attrs, msgPrefix, parts: msg.parts });
-      if (msg.content != null) {
+      if (msg.content != null && !msg.parts?.length) {
         set(
           attrs,
           `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
