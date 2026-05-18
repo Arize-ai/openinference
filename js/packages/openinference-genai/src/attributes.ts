@@ -143,7 +143,11 @@ const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
  * @returns The normalized tool definition, or the original value when it cannot be normalized
  */
 const normalizeToolDefinition = (toolDefinition: unknown): unknown => {
-  if (typeof toolDefinition !== "object" || toolDefinition === null || Array.isArray(toolDefinition)) {
+  if (
+    typeof toolDefinition !== "object" ||
+    toolDefinition === null ||
+    Array.isArray(toolDefinition)
+  ) {
     return toolDefinition;
   }
 

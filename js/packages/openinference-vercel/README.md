@@ -8,8 +8,8 @@ This package provides utilities to ingest [Vercel AI SDK](https://github.com/ver
 
 ## AI SDK Compatibility
 
-| AI SDK version | Support level | Notes                                                                                                                                            |
-| -------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| AI SDK version | Support level | Notes                                                                                                                                           |
+| -------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | v7.x           | Targeted      | Uses `@ai-sdk/otel` `OpenTelemetry`, which emits `gen_ai.*` spans by default. Optional supplemental `ai.*` attributes fill non-GenAI data gaps. |
 | v6.x and older | Unsupported   | Use `@arizeai/openinference-vercel` v2.x.                                                                                                       |
 
@@ -42,7 +42,6 @@ To process your Vercel AI SDK Spans add a `OpenInferenceSimpleSpanProcessor` or 
 > [!NOTE]
 > The `OpenInferenceSpanProcessor` does not handle the exporting of spans by itself, pass it an [exporter](https://opentelemetry.io/docs/languages/js/exporters/) as a parameter.
 
-
 ### TypeScript Application
 
 For a standalone TypeScript or Node.js application, exporting to Arize Phoenix, create an instrumentation module and import it before your AI SDK calls run.
@@ -50,9 +49,7 @@ For a standalone TypeScript or Node.js application, exporting to Arize Phoenix, 
 ```typescript
 // instrumentation.ts
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import {
-  OpenInferenceBatchSpanProcessor,
-} from "@arizeai/openinference-vercel";
+import { OpenInferenceBatchSpanProcessor } from "@arizeai/openinference-vercel";
 
 import { OpenTelemetry } from "@ai-sdk/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
@@ -65,14 +62,11 @@ import { registerTelemetry } from "ai";
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG.
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
-const phoenixUrl =
-  process.env["PHOENIX_COLLECTOR_ENDPOINT"] ??
-  "http://localhost:6006/v1/traces";
+const phoenixUrl = process.env["PHOENIX_COLLECTOR_ENDPOINT"] ?? "http://localhost:6006/v1/traces";
 
 export const tracerProvider = new NodeTracerProvider({
   resource: new Resource({
-    [SEMRESATTRS_PROJECT_NAME]:
-      process.env["PHOENIX_PROJECT_NAME"] ?? "my-typescript-app",
+    [SEMRESATTRS_PROJECT_NAME]: process.env["PHOENIX_PROJECT_NAME"] ?? "my-typescript-app",
   }),
   spanProcessors: [
     // Optional local debugging.
