@@ -32,7 +32,10 @@ export const convertTanStackAISpanToOpenInference = (
     ...options,
     spanKindResolver(input) {
       const tanStackDefaultKind = tanStackAISpanKindResolver(input);
-      return options.spanKindResolver?.({ ...input, defaultKind: tanStackDefaultKind }) ?? tanStackDefaultKind;
+      return (
+        options.spanKindResolver?.({ ...input, defaultKind: tanStackDefaultKind }) ??
+        tanStackDefaultKind
+      );
     },
   });
 

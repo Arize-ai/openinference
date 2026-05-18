@@ -131,7 +131,9 @@ const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
 const isGenAIMessageLike = (
   value: unknown,
 ): value is { role: string; parts?: AnyPart[]; content?: unknown } => {
-  return typeof value === "object" && value !== null && "role" in value && typeof value.role === "string";
+  return (
+    typeof value === "object" && value !== null && "role" in value && typeof value.role === "string"
+  );
 };
 
 /**
@@ -483,7 +485,11 @@ export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
       // process and set the rest of the message parts
       processMessageParts({ attrs, msgPrefix, parts: msg.parts });
       if (msg.content != null) {
-        set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`, toStringContent(msg.content));
+        set(
+          attrs,
+          `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
+          toStringContent(msg.content),
+        );
         processMessageParts({
           attrs,
           msgPrefix,
@@ -515,7 +521,11 @@ export const mapOutputMessages = (spanAttributes: Attributes): Attributes => {
       // process and set the rest of the message parts
       processMessageParts({ attrs, msgPrefix, parts: msg.parts });
       if (msg.content != null) {
-        set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`, toStringContent(msg.content));
+        set(
+          attrs,
+          `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
+          toStringContent(msg.content),
+        );
         processMessageParts({
           attrs,
           msgPrefix,
