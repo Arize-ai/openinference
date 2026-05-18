@@ -220,6 +220,14 @@
             "tag-separator": "/",
             "include-component-in-tag": true,
             "release-as": "0.1.0"
+        },
+        "go/openinference-instrumentation-openai-go": {
+            "package-name": "openinference-instrumentation-openai-go",
+            "component": "go/openinference-instrumentation-openai-go",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true,
+            "release-as": "0.1.0"
         }
     }
 }
