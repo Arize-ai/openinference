@@ -183,11 +183,17 @@ type requestPayload struct {
 }
 
 type requestMessage struct {
-	Role       string            `json:"role"`
-	Name       string            `json:"name,omitempty"`
-	Content    json.RawMessage   `json:"content,omitempty"`
-	ToolCallID string            `json:"tool_call_id,omitempty"`
-	ToolCalls  []requestToolCall `json:"tool_calls,omitempty"`
+	Role         string               `json:"role"`
+	Name         string               `json:"name,omitempty"`
+	Content      json.RawMessage      `json:"content,omitempty"`
+	ToolCallID   string               `json:"tool_call_id,omitempty"`
+	FunctionCall *requestFunctionCall `json:"function_call,omitempty"`
+	ToolCalls    []requestToolCall    `json:"tool_calls,omitempty"`
+}
+
+type requestFunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
 }
 
 type requestToolCall struct {
@@ -235,6 +241,14 @@ func (m *middleware) setRequestAttrs(span trace.Span, body []byte) {
 			}
 			if msg.ToolCallID != "" {
 				span.SetAttributes(attribute.String(semconv.LLMInputMessageToolCallIDKey(i), msg.ToolCallID))
+			}
+			if msg.FunctionCall != nil {
+				if msg.FunctionCall.Name != "" {
+					span.SetAttributes(attribute.String(inputMessageKey(i, semconv.MessageFunctionCallName), msg.FunctionCall.Name))
+				}
+				if msg.FunctionCall.Arguments != "" {
+					span.SetAttributes(attribute.String(inputMessageKey(i, semconv.MessageFunctionCallArgumentsJSON), msg.FunctionCall.Arguments))
+				}
 			}
 			for j, tc := range msg.ToolCalls {
 				span.SetAttributes(
@@ -342,9 +356,15 @@ type responseChoice struct {
 }
 
 type responseMessage struct {
-	Role      string             `json:"role"`
-	Content   string             `json:"content"`
-	ToolCalls []responseToolCall `json:"tool_calls,omitempty"`
+	Role         string                `json:"role"`
+	Content      string                `json:"content"`
+	FunctionCall *responseFunctionCall `json:"function_call,omitempty"`
+	ToolCalls    []responseToolCall    `json:"tool_calls,omitempty"`
+}
+
+type responseFunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
 }
 
 type responseToolCall struct {
@@ -406,6 +426,14 @@ func (m *middleware) setResponseAttrs(span trace.Span, body []byte, statusCode i
 					span.SetAttributes(attribute.String(semconv.LLMOutputMessageContentKey(i), c.Message.Content))
 				}
 			}
+			if c.Message.FunctionCall != nil {
+				if c.Message.FunctionCall.Name != "" {
+					span.SetAttributes(attribute.String(outputMessageKey(i, semconv.MessageFunctionCallName), c.Message.FunctionCall.Name))
+				}
+				if c.Message.FunctionCall.Arguments != "" {
+					span.SetAttributes(attribute.String(outputMessageKey(i, semconv.MessageFunctionCallArgumentsJSON), c.Message.FunctionCall.Arguments))
+				}
+			}
 			for j, tc := range c.Message.ToolCalls {
 				span.SetAttributes(
 					attribute.String(semconv.LLMOutputMessageToolCallKey(i, j, semconv.ToolCallID), tc.ID),
@@ -452,4 +480,12 @@ func (m *middleware) setResponseAttrs(span trace.Span, body []byte, statusCode i
 			}
 		}
 	}
+}
+
+func inputMessageKey(i int, child string) string {
+	return fmt.Sprintf("%s.%d.%s", semconv.LLMInputMessages, i, child)
+}
+
+func outputMessageKey(i int, child string) string {
+	return fmt.Sprintf("%s.%d.%s", semconv.LLMOutputMessages, i, child)
 }

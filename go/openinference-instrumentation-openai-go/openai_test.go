@@ -177,6 +177,63 @@ func TestMiddleware_ToolCallsCaptured(t *testing.T) {
 	}
 }
 
+func TestMiddleware_FunctionCallCaptured(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tp := trace.NewTracerProvider(trace.WithSpanProcessor(recorder))
+	mw := openaiotel.Middleware(tp.Tracer("test"))
+
+	reqBody := `{
+		"model":"gpt-4o",
+		"messages":[{
+			"role":"assistant",
+			"content":"",
+			"function_call":{"name":"legacy_weather","arguments":"{\"city\":\"sf\"}"}
+		}]
+	}`
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader([]byte(reqBody)))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	resp, err := mw(req, func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(`{
+				"id":"id","object":"chat.completion","created":0,"model":"gpt-4o",
+				"choices":[{
+					"index":0,"finish_reason":"function_call","logprobs":null,
+					"message":{
+						"role":"assistant",
+						"content":"",
+						"function_call":{"name":"legacy_weather","arguments":"{\"city\":\"sf\"}"}
+					}
+				}],
+				"usage":{"prompt_tokens":5,"completion_tokens":7,"total_tokens":12}
+			}`)),
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("middleware: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	_ = tp.ForceFlush(context.Background())
+
+	attrs := attrMap(recorder.Ended()[0].Attributes())
+	if got := attrs[semconv.LLMInputMessages+".0."+semconv.MessageFunctionCallName]; got != "legacy_weather" {
+		t.Errorf("input function_call name: got %v", got)
+	}
+	if got := attrs[semconv.LLMInputMessages+".0."+semconv.MessageFunctionCallArgumentsJSON]; got != `{"city":"sf"}` {
+		t.Errorf("input function_call args: got %v", got)
+	}
+	if got := attrs[semconv.LLMOutputMessages+".0."+semconv.MessageFunctionCallName]; got != "legacy_weather" {
+		t.Errorf("output function_call name: got %v", got)
+	}
+	if got := attrs[semconv.LLMOutputMessages+".0."+semconv.MessageFunctionCallArgumentsJSON]; got != `{"city":"sf"}` {
+		t.Errorf("output function_call args: got %v", got)
+	}
+}
+
 func TestMiddleware_ErrorResponseDoesNotPolluteTokenCounts(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

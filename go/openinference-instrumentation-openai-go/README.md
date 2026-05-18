@@ -14,6 +14,7 @@ go get github.com/Arize-ai/openinference/go/openinference-instrumentation-openai
 import (
     "github.com/openai/openai-go"
     "github.com/openai/openai-go/option"
+    "github.com/openai/openai-go/shared"
     "go.opentelemetry.io/otel"
 
     openaiotel "github.com/Arize-ai/openinference/go/openinference-instrumentation-openai-go"
@@ -42,10 +43,12 @@ Every `/v1/chat/completions` call now emits an LLM-kind span with:
 | `llm.model_name` | request `model`, then overwritten by response `model` (canonical name) |
 | `llm.invocation_parameters` | JSON of every non-content request field (model, temperature, top_p, max_tokens, max_completion_tokens, reasoning_effort, response_format, tool_choice, stream_options, presence_penalty, frequency_penalty, n, seed, …) |
 | `llm.input_messages.{i}.message.role` / `.content` / `.name` / `.tool_call_id` | each request message |
+| `llm.input_messages.{i}.message.function_call_*` | legacy request `function_call` fields |
 | `llm.input_messages.{i}.message.tool_calls.{j}.tool_call.*` | tool calls on the i-th input message |
 | `llm.tools.{i}.tool.json_schema` | tool advertisements (one per tool) |
 | `input.value` | last user message text |
 | `llm.output_messages.{i}.message.role` / `.content` | each response choice |
+| `llm.output_messages.{i}.message.function_call_*` | legacy response `function_call` fields |
 | `llm.output_messages.{i}.message.tool_calls.{j}.tool_call.*` | tool calls in response |
 | `output.value` | text of the first choice (omitted if first choice is pure tool-use) |
 | `llm.finish_reason` | finish_reason of the first choice |
