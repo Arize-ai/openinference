@@ -115,19 +115,6 @@ const OUTPUT_MESSAGE_EVENT_NAMES = new Set(["gen_ai.choice"]);
 // Shared part parsing
 type AnyPart = GenAIInputMessagePart | GenAIOutputMessagePart;
 
-/**
- * Type guard for a GenAI chat message
- * @param value - The value to check
- * @returns True if the value is a chat message, false otherwise
- */
-const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
-  if (typeof value !== "object" || value === null) return false;
-  if (!("role" in value) || !("parts" in value)) return false;
-  if (typeof value.role !== "string" || !Array.isArray(value.parts)) return false;
-  if (!value.parts || !Array.isArray(value.parts)) return false;
-  return true;
-};
-
 const isGenAIMessageLike = (
   value: unknown,
 ): value is { role: string; parts?: AnyPart[]; content?: unknown } => {
@@ -310,7 +297,6 @@ export const mapModels = (spanAttributes: Attributes): Attributes => {
 export const inferOpenInferenceSpanKindFromGenAI = (
   spanAttributes: Attributes,
 ): OpenInferenceSpanKind | undefined => {
-  const attrs: Attributes = {};
   const operationName = getString(spanAttributes[ATTR_GEN_AI_OPERATION_NAME]);
 
   if (operationName === "execute_tool") {
