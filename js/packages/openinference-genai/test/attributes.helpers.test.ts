@@ -257,6 +257,60 @@ describe("attributes helpers", () => {
       expect(inOutAttrs["input.mime_type"]).toBe("application/json");
     });
 
+    it("expands multiple tool call responses into separate input messages", () => {
+      const attrs = mapInputMessages({
+        "gen_ai.input.messages": JSON.stringify([
+          {
+            role: "user",
+            parts: [{ type: "text", content: "Use both tools." }],
+          },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "tool_call",
+                id: "call_weather",
+                name: "weather",
+                arguments: { location: "Boston" },
+              },
+              {
+                type: "tool_call",
+                id: "call_calculator",
+                name: "calculator",
+                arguments: { expression: "100 * 25 + 3" },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            parts: [
+              {
+                type: "tool_call_response",
+                id: "call_weather",
+                response: { location: "Boston", forecast: "sunny" },
+              },
+              {
+                type: "tool_call_response",
+                id: "call_calculator",
+                response: { expression: "100 * 25 + 3", value: 2503 },
+              },
+            ],
+          },
+        ]),
+      });
+
+      expect(attrs["llm.input_messages.2.message.role"]).toBe("tool");
+      expect(attrs["llm.input_messages.2.message.tool_call_id"]).toBe("call_weather");
+      expect(attrs["llm.input_messages.2.message.content"]).toBe(
+        JSON.stringify({ location: "Boston", forecast: "sunny" }),
+      );
+      expect(attrs["llm.input_messages.3.message.role"]).toBe("tool");
+      expect(attrs["llm.input_messages.3.message.tool_call_id"]).toBe("call_calculator");
+      expect(attrs["llm.input_messages.3.message.content"]).toBe(
+        JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }),
+      );
+    });
+
     it("falls back to deprecated prompt when input messages missing", () => {
       const spanAttrs = {
         "gen_ai.prompt": JSON.stringify([
