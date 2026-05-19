@@ -51,8 +51,6 @@ from common import (
     LLM_INVOCATION_PARAMETERS,
     LLM_MODEL_NAME,
     LLM_PROVIDER,
-    LLM_REASONING_BUDGET_TOKENS,
-    LLM_REASONING_INCLUDE_SUMMARY,
     LLM_SYSTEM,
     OPENINFERENCE_SPAN_KIND,
     begin_output_message,
@@ -152,8 +150,6 @@ def _set_request_attrs(attrs: dict[str, Any]) -> None:
     attrs[LLM_PROVIDER] = "google"
     attrs[LLM_SYSTEM] = "gemini"
     attrs[LLM_MODEL_NAME] = MODEL
-    attrs[LLM_REASONING_BUDGET_TOKENS] = BUDGET
-    attrs[LLM_REASONING_INCLUDE_SUMMARY] = True
     attrs[LLM_INVOCATION_PARAMETERS] = json.dumps(
         {
             "generationConfig": {

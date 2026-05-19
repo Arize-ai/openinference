@@ -45,8 +45,6 @@ from common import (
     LLM_INVOCATION_PARAMETERS,
     LLM_MODEL_NAME,
     LLM_PROVIDER,
-    LLM_REASONING_EFFORT,
-    LLM_REASONING_INCLUDE_SUMMARY,
     LLM_SYSTEM,
     OPENINFERENCE_SPAN_KIND,
     begin_output_message,
@@ -165,8 +163,6 @@ def _set_request_attrs(attrs: dict[str, Any], *, effort: str, summary: str) -> N
     attrs[LLM_PROVIDER] = "openai"
     attrs[LLM_SYSTEM] = "openai"
     attrs[LLM_MODEL_NAME] = MODEL
-    attrs[LLM_REASONING_EFFORT] = effort
-    attrs[LLM_REASONING_INCLUDE_SUMMARY] = True
     attrs[LLM_INVOCATION_PARAMETERS] = json.dumps(
         {
             "reasoning": {"effort": effort, "summary": summary},

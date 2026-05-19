@@ -45,12 +45,6 @@ LLM_SYSTEM = "llm.system"
 LLM_MODEL_NAME = "llm.model_name"
 LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
 
-# Proposed reasoning request-config conventions.
-LLM_REASONING_EFFORT = "llm.reasoning.effort"  # OpenAI: none|low|medium|high|...
-LLM_REASONING_BUDGET_TOKENS = "llm.reasoning.budget_tokens"  # Anthropic / Gemini 2.5
-LLM_REASONING_LEVEL = "llm.reasoning.level"  # Gemini 3
-LLM_REASONING_INCLUDE_SUMMARY = "llm.reasoning.include_summary"  # bool
-
 # Per-content-block discriminators.
 CONTENT_TYPE_TEXT = "text"
 CONTENT_TYPE_REASONING = "reasoning"

@@ -83,7 +83,7 @@ Gemini 2.5 silently drops thinking on signature loss instead of erroring, so its
 | Gemini thought summary | `...message_content.type` = `"reasoning_summary"`, `.text` |
 | Tool call | `...message_content.type` = `"tool_use"`, `.tool_call.id`, `.tool_call.function.name`, `.tool_call.function.arguments` |
 | Tool result (user turn) | `llm.input_messages.{i}.message.role` = `"tool"`, `.tool_call_id`, `.content` |
-| Reasoning request config | `llm.reasoning.effort` (OpenAI), `llm.reasoning.budget_tokens` (Anthropic/Gemini 2.5), `llm.reasoning.level` (Gemini 3), `llm.reasoning.include_summary` (bool); full JSON also on `llm.invocation_parameters` |
+| Reasoning request config | Captured as JSON on the existing `llm.invocation_parameters` attribute (e.g. `{"reasoning":{"effort":"medium",...}}` for OpenAI, `{"thinking":{"type":"enabled","budget_tokens":8000}}` for Anthropic, `{"generationConfig":{"thinkingConfig":{...}}}` for Gemini). No new top-level keys proposed. |
 
 ## Layout
 
