@@ -174,8 +174,10 @@ jobs:
 
       - name: Stage artifacts locally
         working-directory: ./java
+        env:
+          MATRIX_PATH: ${{ matrix.path }}
         run: |
-          RELATIVE_PATH="${{ matrix.path }}"
+          RELATIVE_PATH="$MATRIX_PATH"
           RELATIVE_PATH="${RELATIVE_PATH#java/}"
           GRADLE_PROJECT=$(echo ":${RELATIVE_PATH}" | sed 's|/|:|g')
           ./gradlew clean "${GRADLE_PROJECT}:publish"
@@ -188,10 +190,11 @@ jobs:
           JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
           JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRETKEY }}
           JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLICKEY }}
+          MATRIX_PATH: ${{ matrix.path }}
         run: |
-          RELATIVE_PATH="${{ matrix.path }}"
+          RELATIVE_PATH="$MATRIX_PATH"
           RELATIVE_PATH="${RELATIVE_PATH#java/}"
-          ./gradlew -PjreleaserStagingRepository=${RELATIVE_PATH}/build/staging-deploy jreleaserDeploy
+          ./gradlew "-PjreleaserStagingRepository=${RELATIVE_PATH}/build/staging-deploy" jreleaserDeploy
 
       - name: Clean up
         if: always()
