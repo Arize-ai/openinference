@@ -19,6 +19,9 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          # changesets/action uses git-cli commit mode by default, so this
+          # checkout intentionally keeps credentials available for git push.
+          persist-credentials: true
           token: ${{ secrets.MY_CHANGESET_TOKEN }}
 
       - name: Setup Node.js
