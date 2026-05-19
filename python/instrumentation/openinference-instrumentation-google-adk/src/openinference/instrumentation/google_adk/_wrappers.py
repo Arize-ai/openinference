@@ -136,7 +136,10 @@ class _RunnerRunAsync(_WithTracer):
                     # Only push a new session context when there is not one already.
                     # Without this guard, sub-agent invocation would overwrite the ambient
                     # session ID with the ADK-internal sub-session UUID for every child span.
-                    if session_id is not None and SpanAttributes.SESSION_ID not in ambient_attributes:
+                    if (
+                        session_id is not None
+                        and SpanAttributes.SESSION_ID not in ambient_attributes
+                    ):
                         stack.enter_context(using_session(session_id))
 
                     async for event in self.__wrapped__:
