@@ -140,6 +140,12 @@ const middleware = openInferenceMiddleware({
 
 Use `traceConfig` to apply OpenInference masking rules. Use `spanKindResolver` only when you need to override the default GenAI-to-OpenInference span kind mapping.
 
+### Redaction Behavior
+
+`openInferenceMiddleware()` applies OpenInference `traceConfig` masking to the OpenInference attributes it adds to spans.
+
+TanStack AI's native OTEL middleware exposes a single text redactor without input/output direction. For privacy, when any text-hiding option is enabled (`hideInputs`, `hideOutputs`, `hideInputText`, or `hideOutputText`), native TanStack GenAI text is redacted before export. This may redact raw `gen_ai.*` text more broadly than the OpenInference attributes.
+
 ## What Gets Traced
 
 The middleware emits the following span structure for a TanStack AI run:
