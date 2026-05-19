@@ -5,15 +5,15 @@ Three scripts — one per provider — that **prove** the proposed OpenInference
 Each script:
 
 1. Calls the live API with thinking enabled.
-2. Writes the assistant turn into an OTel `LLM` span as flat string-valued `llm.output_messages.*` attributes — including each vendor's opaque continuity token (`encrypted_content`, `signature`, `thoughtSignature`).
+2. Writes the assistant turn into an OTel `LLM` span as flat `llm.output_messages.*` attributes — including each vendor's opaque continuity token (`encrypted_content`, `signature`, `thoughtSignature`). Tools, model name, and reasoning config are captured too (`llm.tools.{i}.tool.json_schema`, `llm.model_name`, `llm.invocation_parameters`).
 3. Force-flushes the span to a local Phoenix instance.
 4. Uses `phoenix.client.Client` to fetch the span **back out of Phoenix**.
-5. Reconstructs the prior assistant turn purely from the fetched attributes (no in-memory references to the original SDK objects).
-6. Calls the API a second time with that reconstructed history and asserts success.
+5. Reconstructs the prior assistant turn purely from the fetched attributes.
+6. Issues turn 2 through a `replay_turn2(...)` helper whose `model=`, `tools=`, and `**invocation_parameters` arguments come **only** from the Phoenix-fetched attribute dict. The only Python-side inputs allowed are the genuinely-new follow-up user text and the tool execution result.
 
-The point of fetching back out of Phoenix is that round-trip via Python objects in the same process is not a real test — the only thing we care about is whether the on-the-wire attribute representation is lossless.
+That last point is what makes the round-trip a real proof: turn 2 cannot fall back on Python globals (`WEATHER_TOOL`, reasoning config literals, model name) — if any of those weren't captured into attributes, turn 2 would crash with a `KeyError`.
 
-The semantic-convention keys are **string literals**; nothing here is wired into the `openinference-semantic-conventions` package.
+The semantic conventions that already exist in `openinference-semantic-conventions` are imported directly (e.g. `SpanAttributes.LLM_OUTPUT_MESSAGES`, `MessageContentAttributes.MESSAGE_CONTENT_TYPE`, `ToolCallAttributes.TOOL_CALL_ID`). The new keys this PR is exploring live as string literals in `common.py`, clearly marked under `# Proposed`.
 
 ## Prerequisites
 
@@ -67,23 +67,34 @@ Gemini 2.5 silently drops thinking on signature loss instead of erroring, so its
 | Gemini `thoughtSignature` is `bytes` on the SDK / base64 on the wire | base64-encoded for storage in `gemini_roundtrip.py`, decoded on echo |
 | Gemini summary parts (`thought: true`) **never** carry a signature; signatures ride on the sibling data part | `set_output_reasoning_summary` vs `thought_signature` on text / tool_use blocks |
 
-## Proposed attribute keys (string literals, not promoted to `SpanAttributes`)
+## Attribute keys used
 
-| Purpose | Attribute key |
+Existing semconv (imported from `openinference.semconv.trace`):
+
+| Key | Source |
 |---|---|
-| Output message role | `llm.output_messages.{i}.message.role` |
-| Visible text | `llm.output_messages.{i}.message.contents.{j}.message_content.type` = `"text"`, `.text` |
-| Reasoning block | `...message_content.type` = `"reasoning"` |
-| Reasoning visible text | `...message_content.text` |
-| Reasoning item id | `...message_content.id` (OpenAI) |
-| OpenAI continuity token | `...message_content.encrypted_content` |
-| Anthropic continuity token | `...message_content.signature` |
-| Anthropic redacted blob | `...message_content.redacted_data` (with `type` = `"redacted_reasoning"`) |
-| Gemini continuity token | `...message_content.thought_signature` (sibling of data type) |
-| Gemini thought summary | `...message_content.type` = `"reasoning_summary"`, `.text` |
-| Tool call | `...message_content.type` = `"tool_use"`, `.tool_call.id`, `.tool_call.function.name`, `.tool_call.function.arguments` |
-| Tool result (user turn) | `llm.input_messages.{i}.message.role` = `"tool"`, `.tool_call_id`, `.content` |
-| Reasoning request config | Captured as JSON on the existing `llm.invocation_parameters` attribute (e.g. `{"reasoning":{"effort":"medium",...}}` for OpenAI, `{"thinking":{"type":"enabled","budget_tokens":8000}}` for Anthropic, `{"generationConfig":{"thinkingConfig":{...}}}` for Gemini). No new top-level keys proposed. |
+| `llm.model_name`, `llm.provider`, `llm.system`, `llm.invocation_parameters`, `openinference.span.kind` | `SpanAttributes` |
+| `llm.tools.{i}.tool.json_schema` | `SpanAttributes.LLM_TOOLS` + `tool.json_schema` |
+| `llm.input_messages.{i}.message.role`, `.message.content`, `.message.tool_call_id` | `MessageAttributes` |
+| `llm.output_messages.{i}.message.role`, `.message.contents.{j}.*` | `MessageAttributes` |
+| `message_content.type`, `message_content.text` | `MessageContentAttributes` |
+| `tool_call.id`, `tool_call.function.name`, `tool_call.function.arguments` | `ToolCallAttributes` |
+
+Proposed (string literals in `common.py`, **not yet** in semconv):
+
+| Purpose | Attribute suffix |
+|---|---|
+| Reasoning block discriminator | `message_content.type` = `"reasoning"` |
+| Gemini thought-summary block | `message_content.type` = `"reasoning_summary"` |
+| Anthropic redacted-thinking block | `message_content.type` = `"redacted_reasoning"` |
+| Tool-use block discriminator | `message_content.type` = `"tool_use"` |
+| OpenAI reasoning item id | `message_content.id` |
+| OpenAI continuity token | `message_content.encrypted_content` |
+| Anthropic continuity token | `message_content.signature` |
+| Gemini continuity token | `message_content.thought_signature` (sibling of any data part) |
+| Anthropic redacted blob | `message_content.redacted_data` |
+
+Reasoning request config (effort / budget / level / display) is captured as JSON inside the existing `llm.invocation_parameters` attribute — no new top-level keys are proposed for it.
 
 ## Layout
 

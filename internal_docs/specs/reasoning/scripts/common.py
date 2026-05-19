@@ -1,34 +1,35 @@
 """Shared helpers for the reasoning round-trip demo scripts.
 
-The point of these scripts is to prove that a flat dict of OpenInference-style
-span attributes contains enough state to reconstruct an LLM API request that
-re-invokes the model with the same conversational state — *including* the
-opaque per-vendor continuity tokens (OpenAI `encrypted_content`, Anthropic
-`signature`, Gemini `thoughtSignature`).
-
-To make that proof load-bearing, each per-provider script:
+Each per-provider script:
 
   1. Makes turn 1 against the live API.
-  2. Writes the assistant turn into a Phoenix-tracked LLM span as flat
-     `llm.output_messages.{i}.message.contents.{j}.message_content.*` keys.
-  3. Force-flushes the OTel pipeline.
-  4. Uses `phoenix.client` to fetch the span **back out of Phoenix** by trace_id.
-  5. Calls `read_assistant_turn(...)` on the *Phoenix-returned* attributes to
-     rebuild the SDK objects for turn 2.
-  6. Sends turn 2; asserts the server accepted it.
+  2. Writes the assistant turn into an OTel `LLM` span as flat
+     `llm.output_messages.{i}.message.contents.{j}.<suffix>` keys, including
+     the vendor continuity token.
+  3. Force-flushes the OTel pipeline to a local Phoenix.
+  4. Uses `phoenix.client` to fetch the span back out by trace_id.
+  5. Rebuilds the prior assistant turn from the fetched attribute dict.
+  6. Sends turn 2 with the reconstructed history; asserts the server accepted it.
 
-Attribute keys are string literals — nothing here is wired into the
-`openinference-semantic-conventions` Python package. The intent is to validate
-shape before promoting to real conventions.
+Established attribute keys come from `openinference.semconv.trace`. The
+"Proposed" block below holds keys this PR is exploring that are not yet in
+`openinference-semantic-conventions`.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
@@ -36,33 +37,69 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 # ---------------------------------------------------------------------------
-# Attribute key constants (string-only — not promoted to SpanAttributes yet)
+# Proposed (not yet in openinference-semantic-conventions)
+#
+# These string literals are what the PR is exploring. If/when they land in
+# the semantic-conventions packages, every reference below becomes a normal
+# `MessageContentAttributes.<NAME>` import.
 # ---------------------------------------------------------------------------
 
-OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
-LLM_PROVIDER = "llm.provider"
-LLM_SYSTEM = "llm.system"
-LLM_MODEL_NAME = "llm.model_name"
-LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
-
-# Per-content-block discriminators.
-CONTENT_TYPE_TEXT = "text"
+# Additional `message_content.type` discriminators.
+CONTENT_TYPE_TEXT = "text"  # parallels the existing MESSAGE_CONTENT_TEXT field
 CONTENT_TYPE_REASONING = "reasoning"
 CONTENT_TYPE_REASONING_SUMMARY = "reasoning_summary"  # Gemini thought-summary parts
 CONTENT_TYPE_REDACTED_REASONING = "redacted_reasoning"  # Anthropic redacted_thinking
 CONTENT_TYPE_TOOL_USE = "tool_use"
 
+# Additional `message_content.*` sub-fields. These carry the per-vendor
+# continuity token that the next turn must echo verbatim to keep reasoning
+# alive (or, on tool-use turns, to avoid HTTP 400).
+MESSAGE_CONTENT_ID = "message_content.id"  # OpenAI reasoning item id
+MESSAGE_CONTENT_ENCRYPTED_CONTENT = "message_content.encrypted_content"  # OpenAI
+MESSAGE_CONTENT_SIGNATURE = "message_content.signature"  # Anthropic
+MESSAGE_CONTENT_THOUGHT_SIGNATURE = "message_content.thought_signature"  # Gemini
+MESSAGE_CONTENT_REDACTED_DATA = "message_content.redacted_data"  # Anthropic redacted_thinking
 
-def _input_msg_key(i: int) -> str:
-    return f"llm.input_messages.{i}.message"
+PROPOSED_CONTINUITY_TOKEN_FIELDS: tuple[str, ...] = (
+    MESSAGE_CONTENT_SIGNATURE,
+    MESSAGE_CONTENT_ENCRYPTED_CONTENT,
+    MESSAGE_CONTENT_THOUGHT_SIGNATURE,
+    MESSAGE_CONTENT_REDACTED_DATA,
+)
 
 
-def _output_msg_key(i: int) -> str:
-    return f"llm.output_messages.{i}.message"
+# ---------------------------------------------------------------------------
+# Key builders
+#
+# Span attributes are flat dotted strings. These helpers compose them from
+# semconv pieces so callers never assemble raw keys by hand.
+# ---------------------------------------------------------------------------
 
 
-def _content_key(msg_key: str, j: int) -> str:
-    return f"{msg_key}.contents.{j}.message_content"
+def output_msg_key(message_index: int, suffix: str) -> str:
+    """`output_msg_key(0, MessageAttributes.MESSAGE_ROLE)` →
+    `llm.output_messages.0.message.role`."""
+    return f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{suffix}"
+
+
+def input_msg_key(message_index: int, suffix: str) -> str:
+    return f"{SpanAttributes.LLM_INPUT_MESSAGES}.{message_index}.{suffix}"
+
+
+def output_content_key(message_index: int, content_index: int, suffix: str) -> str:
+    """`output_content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TYPE)`
+    → `llm.output_messages.0.message.contents.0.message_content.type`."""
+    return (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}"
+        f".{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{suffix}"
+    )
+
+
+def input_content_key(message_index: int, content_index: int, suffix: str) -> str:
+    return (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{message_index}"
+        f".{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{suffix}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +114,9 @@ class TracingCtx:
     project_name: str
     phoenix_base_url: str
 
+    def flush(self) -> None:
+        self.provider.force_flush()
+
 
 def setup_tracing(project_name: str) -> TracingCtx:
     """Wire OTLP/HTTP export to a local Phoenix and return a tracer.
@@ -84,14 +124,12 @@ def setup_tracing(project_name: str) -> TracingCtx:
     `PHOENIX_COLLECTOR_ENDPOINT` defaults to `http://localhost:6006`.
     """
     base_url = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006").rstrip("/")
-    traces_url = f"{base_url}/v1/traces"
-
     resource = Resource.create({"openinference.project.name": project_name})
     provider = TracerProvider(resource=resource)
-    exporter = OTLPSpanExporter(endpoint=traces_url)
-    provider.add_span_processor(BatchSpanProcessor(exporter))
+    provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{base_url}/v1/traces"))
+    )
     trace.set_tracer_provider(provider)
-
     return TracingCtx(
         tracer=provider.get_tracer("reasoning-roundtrip"),
         provider=provider,
@@ -101,81 +139,89 @@ def setup_tracing(project_name: str) -> TracingCtx:
 
 
 # ---------------------------------------------------------------------------
-# Attribute setters (turn 1 → span attributes)
+# Attribute writers
 # ---------------------------------------------------------------------------
 
 
-def set_input_user_message(attrs: dict[str, Any], idx: int, text: str) -> None:
-    base = _input_msg_key(idx)
-    attrs[f"{base}.role"] = "user"
-    attrs[f"{base}.content"] = text
+def set_input_user_message(attrs: dict[str, Any], message_index: int, text: str) -> None:
+    attrs[input_msg_key(message_index, MessageAttributes.MESSAGE_ROLE)] = "user"
+    attrs[input_msg_key(message_index, MessageAttributes.MESSAGE_CONTENT)] = text
 
 
 def set_input_tool_result(
     attrs: dict[str, Any],
-    idx: int,
+    message_index: int,
     *,
     tool_call_id: str,
-    content: str,
+    content_text: str,
 ) -> None:
-    base = _input_msg_key(idx)
-    attrs[f"{base}.role"] = "tool"
-    attrs[f"{base}.tool_call_id"] = tool_call_id
-    attrs[f"{base}.content"] = content
+    attrs[input_msg_key(message_index, MessageAttributes.MESSAGE_ROLE)] = "tool"
+    attrs[input_msg_key(message_index, MessageAttributes.MESSAGE_TOOL_CALL_ID)] = tool_call_id
+    attrs[input_msg_key(message_index, MessageAttributes.MESSAGE_CONTENT)] = content_text
 
 
 def set_input_assistant_echo(
     attrs: dict[str, Any],
-    idx: int,
+    message_index: int,
     contents: list[dict[str, Any]],
     *,
     role: str = "assistant",
 ) -> None:
-    """Write an echoed prior assistant turn into `llm.input_messages.{idx}.*`.
+    """Echo a prior assistant turn into `llm.input_messages.{message_index}.*`.
 
-    `contents` is the list of content dicts returned by `read_output_contents`
-    — i.e. the round-tripped reasoning / text / tool_use blocks. Each dict's
-    keys are written verbatim as `message_content.<key>` siblings, which means
-    the input-side and output-side attributes share an identical shape and
-    Phoenix renders them in the same way. This is what lets you confirm,
-    visually in the UI, that the turn-2 input carries the same reasoning
-    block (and the same signature / encrypted_content) that was on the turn-1
-    output.
+    `contents` is the list returned by `read_output_contents` — each dict
+    maps a full sub-field suffix (already including the `message_content.` or
+    `tool_call.` prefix) to its value. They're written back verbatim, which
+    is what makes the byte-for-byte continuity-token match visible in
+    Phoenix between turn 1's output and turn 2's echoed input.
     """
-    base = _input_msg_key(idx)
-    attrs[f"{base}.role"] = role
-    for j, content in enumerate(contents):
-        k = f"{base}.contents.{j}.message_content"
-        for field, value in content.items():
-            attrs[f"{k}.{field}"] = value
+    attrs[input_msg_key(message_index, MessageAttributes.MESSAGE_ROLE)] = role
+    for content_index, content_block in enumerate(contents):
+        for suffix, value in content_block.items():
+            attrs[input_content_key(message_index, content_index, suffix)] = value
 
 
-def begin_output_message(attrs: dict[str, Any], idx: int, role: str = "assistant") -> str:
-    base = _output_msg_key(idx)
-    attrs[f"{base}.role"] = role
-    return base
+def set_output_role(attrs: dict[str, Any], message_index: int, role: str) -> None:
+    attrs[output_msg_key(message_index, MessageAttributes.MESSAGE_ROLE)] = role
+
+
+def _set_content_block(
+    attrs: dict[str, Any],
+    message_index: int,
+    content_index: int,
+    fields_by_suffix: dict[str, Any],
+) -> None:
+    """Write `{suffix: value}` pairs into one content slot, skipping Nones."""
+    for suffix, value in fields_by_suffix.items():
+        if value is not None:
+            attrs[output_content_key(message_index, content_index, suffix)] = value
 
 
 def set_output_text(
     attrs: dict[str, Any],
-    msg_idx: int,
-    j: int,
+    message_index: int,
+    content_index: int,
     text: str,
     *,
     thought_signature: str | None = None,
 ) -> None:
-    k = _content_key(_output_msg_key(msg_idx), j)
-    attrs[f"{k}.type"] = CONTENT_TYPE_TEXT
-    attrs[f"{k}.text"] = text
-    if thought_signature is not None:
-        # Gemini-only: a data-bearing text part can carry a signature.
-        attrs[f"{k}.thought_signature"] = thought_signature
+    _set_content_block(
+        attrs,
+        message_index,
+        content_index,
+        {
+            MessageContentAttributes.MESSAGE_CONTENT_TYPE: CONTENT_TYPE_TEXT,
+            MessageContentAttributes.MESSAGE_CONTENT_TEXT: text,
+            # Gemini-only: a text part may carry a thoughtSignature.
+            MESSAGE_CONTENT_THOUGHT_SIGNATURE: thought_signature,
+        },
+    )
 
 
 def set_output_reasoning(
     attrs: dict[str, Any],
-    msg_idx: int,
-    j: int,
+    message_index: int,
+    content_index: int,
     *,
     text: str | None = None,
     item_id: str | None = None,
@@ -183,56 +229,65 @@ def set_output_reasoning(
     signature: str | None = None,
     thought_signature: str | None = None,
 ) -> None:
-    """Write a reasoning content block.
-
-    Carries any subset of the three vendor continuity-token fields. Only
-    populated keys end up on the span — empty strings would round-trip as
-    truthy and break echo.
-    """
-    k = _content_key(_output_msg_key(msg_idx), j)
-    attrs[f"{k}.type"] = CONTENT_TYPE_REASONING
-    if text is not None:
-        attrs[f"{k}.text"] = text
-    if item_id is not None:
-        attrs[f"{k}.id"] = item_id
-    if encrypted_content is not None:
-        attrs[f"{k}.encrypted_content"] = encrypted_content
-    if signature is not None:
-        attrs[f"{k}.signature"] = signature
-    if thought_signature is not None:
-        attrs[f"{k}.thought_signature"] = thought_signature
+    """Reasoning block. Carries any subset of the three vendor continuity
+    tokens — presence/absence of each field is the discriminator."""
+    _set_content_block(
+        attrs,
+        message_index,
+        content_index,
+        {
+            MessageContentAttributes.MESSAGE_CONTENT_TYPE: CONTENT_TYPE_REASONING,
+            MessageContentAttributes.MESSAGE_CONTENT_TEXT: text,
+            MESSAGE_CONTENT_ID: item_id,
+            MESSAGE_CONTENT_ENCRYPTED_CONTENT: encrypted_content,
+            MESSAGE_CONTENT_SIGNATURE: signature,
+            MESSAGE_CONTENT_THOUGHT_SIGNATURE: thought_signature,
+        },
+    )
 
 
 def set_output_reasoning_summary(
     attrs: dict[str, Any],
-    msg_idx: int,
-    j: int,
+    message_index: int,
+    content_index: int,
     *,
     text: str,
 ) -> None:
     """Gemini-only: a `thought: true` summary part. Never carries a signature."""
-    k = _content_key(_output_msg_key(msg_idx), j)
-    attrs[f"{k}.type"] = CONTENT_TYPE_REASONING_SUMMARY
-    attrs[f"{k}.text"] = text
+    _set_content_block(
+        attrs,
+        message_index,
+        content_index,
+        {
+            MessageContentAttributes.MESSAGE_CONTENT_TYPE: CONTENT_TYPE_REASONING_SUMMARY,
+            MessageContentAttributes.MESSAGE_CONTENT_TEXT: text,
+        },
+    )
 
 
 def set_output_redacted_reasoning(
     attrs: dict[str, Any],
-    msg_idx: int,
-    j: int,
+    message_index: int,
+    content_index: int,
     *,
     data: str,
 ) -> None:
     """Anthropic-only: replaces `thinking` text with an opaque `data` blob."""
-    k = _content_key(_output_msg_key(msg_idx), j)
-    attrs[f"{k}.type"] = CONTENT_TYPE_REDACTED_REASONING
-    attrs[f"{k}.redacted_data"] = data
+    _set_content_block(
+        attrs,
+        message_index,
+        content_index,
+        {
+            MessageContentAttributes.MESSAGE_CONTENT_TYPE: CONTENT_TYPE_REDACTED_REASONING,
+            MESSAGE_CONTENT_REDACTED_DATA: data,
+        },
+    )
 
 
 def set_output_tool_use(
     attrs: dict[str, Any],
-    msg_idx: int,
-    j: int,
+    message_index: int,
+    content_index: int,
     *,
     tool_call_id: str,
     name: str,
@@ -240,54 +295,89 @@ def set_output_tool_use(
     text: str | None = None,
     thought_signature: str | None = None,
 ) -> None:
-    """Tool-use block on an assistant turn.
+    """Tool-use content block.
 
-    `text` carries any sibling text on the same part (Gemini: rare but legal).
-    `thought_signature` is Gemini-only — Anthropic / OpenAI tool calls do not
-    carry a signature directly; their signatures ride on the preceding
-    reasoning block.
+    `thought_signature` is Gemini-only — OpenAI / Anthropic carry their
+    signature on the preceding reasoning block, not on the tool call.
     """
-    k = _content_key(_output_msg_key(msg_idx), j)
-    attrs[f"{k}.type"] = CONTENT_TYPE_TOOL_USE
-    attrs[f"{k}.tool_call.id"] = tool_call_id
-    attrs[f"{k}.tool_call.function.name"] = name
-    attrs[f"{k}.tool_call.function.arguments"] = arguments_json
-    if text is not None:
-        attrs[f"{k}.text"] = text
-    if thought_signature is not None:
-        attrs[f"{k}.thought_signature"] = thought_signature
+    _set_content_block(
+        attrs,
+        message_index,
+        content_index,
+        {
+            MessageContentAttributes.MESSAGE_CONTENT_TYPE: CONTENT_TYPE_TOOL_USE,
+            ToolCallAttributes.TOOL_CALL_ID: tool_call_id,
+            ToolCallAttributes.TOOL_CALL_FUNCTION_NAME: name,
+            ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON: arguments_json,
+            MessageContentAttributes.MESSAGE_CONTENT_TEXT: text,
+            MESSAGE_CONTENT_THOUGHT_SIGNATURE: thought_signature,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
-# Attribute readers (Phoenix-returned attributes → SDK objects)
+# Tool definitions
+#
+# The OpenInference spec has `llm.tools.{i}.tool.json_schema` for the raw
+# JSON schema of each declared tool. We capture each provider's tool spec
+# under that key so turn 2 can rebuild the exact `tools=[...]` argument
+# without referring to the original Python literal.
+# ---------------------------------------------------------------------------
+
+LLM_TOOL_JSON_SCHEMA_SUFFIX = "tool.json_schema"
+
+
+def set_tools(attrs: dict[str, Any], tool_json_schemas: list[dict[str, Any]]) -> None:
+    for tool_index, schema in enumerate(tool_json_schemas):
+        attrs[f"{SpanAttributes.LLM_TOOLS}.{tool_index}.{LLM_TOOL_JSON_SCHEMA_SUFFIX}"] = json.dumps(
+            schema
+        )
+
+
+def read_tools(attrs: dict[str, Any]) -> list[dict[str, Any]]:
+    prefix = f"{SpanAttributes.LLM_TOOLS}."
+    grouped_by_tool_index: dict[int, str] = {}
+    for key, value in attrs.items():
+        if not key.startswith(prefix) or not key.endswith(f".{LLM_TOOL_JSON_SCHEMA_SUFFIX}"):
+            continue
+        tool_index_str = key[len(prefix):].split(".", 1)[0]
+        try:
+            grouped_by_tool_index[int(tool_index_str)] = value
+        except ValueError:
+            continue
+    return [json.loads(grouped_by_tool_index[i]) for i in sorted(grouped_by_tool_index)]
+
+
+# ---------------------------------------------------------------------------
+# Attribute reader
 # ---------------------------------------------------------------------------
 
 
-def read_output_contents(attrs: dict[str, Any], msg_idx: int) -> list[dict[str, Any]]:
-    """Walk `llm.output_messages.{msg_idx}.message.contents.{j}.message_content.*`
-    keys in `attrs` and return an ordered list of content dicts.
+def read_input_message_content(attrs: dict[str, Any], message_index: int) -> str:
+    """Return the `message.content` value for an input (user / tool) message."""
+    return attrs[input_msg_key(message_index, MessageAttributes.MESSAGE_CONTENT)]
 
-    Each dict's keys are the trailing component after `message_content.`, e.g.
-    `type`, `text`, `signature`, `tool_call.id`. The per-provider script maps
-    these back to its SDK objects.
-    """
-    prefix = _content_key(_output_msg_key(msg_idx), 0).rsplit(".0.", 1)[0] + "."
-    # prefix == "llm.output_messages.{i}.message.contents."
-    grouped: dict[int, dict[str, Any]] = {}
+
+def read_output_contents(attrs: dict[str, Any], message_index: int) -> list[dict[str, Any]]:
+    """Group `llm.output_messages.{message_index}.message.contents.{j}.*`
+    keys by `j`. Returned dicts map the trailing suffix (e.g.
+    `message_content.type`, `tool_call.id`) to its value — those suffixes
+    are exactly the semconv constant values for each field."""
+    prefix = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}"
+        f".{MessageAttributes.MESSAGE_CONTENTS}."
+    )
+    grouped_by_content_index: dict[int, dict[str, Any]] = {}
     for key, value in attrs.items():
         if not key.startswith(prefix):
             continue
-        rest = key[len(prefix):]  # "{j}.message_content.<field...>"
+        content_index_str, _, suffix = key[len(prefix):].partition(".")
         try:
-            j_str, _, field = rest.partition(".")
-            j = int(j_str)
+            content_index = int(content_index_str)
         except ValueError:
             continue
-        if not field.startswith("message_content."):
-            continue
-        field = field[len("message_content."):]
-        grouped.setdefault(j, {})[field] = value
-    return [grouped[j] for j in sorted(grouped)]
+        grouped_by_content_index.setdefault(content_index, {})[suffix] = value
+    return [grouped_by_content_index[i] for i in sorted(grouped_by_content_index)]
 
 
 # ---------------------------------------------------------------------------
@@ -302,53 +392,44 @@ def fetch_span_attributes(
     span_id_hex: str,
     timeout_s: float = 15.0,
 ) -> dict[str, Any]:
-    """Poll Phoenix until our span lands, then return its flat attribute dict.
-
-    `trace_id_hex` and `span_id_hex` are the 32- and 16-char hex strings from
-    `span.get_span_context()`. Phoenix's API uses these same hex strings as
-    `trace_id` / `id` on the returned `v1.Span` payload.
-    """
-    # Local import — keeps the helper module importable in environments that
-    # do not have arize-phoenix-client installed (each script declares it).
+    """Poll Phoenix until our span lands, then return its flat attribute dict."""
     from phoenix.client import Client
 
     client = Client(base_url=ctx.phoenix_base_url)
     deadline = time.monotonic() + timeout_s
-    last_err: Exception | None = None
+    last_error: Exception | None = None
     while time.monotonic() < deadline:
         try:
-            spans: Iterable[dict[str, Any]] = client.spans.get_spans(
+            for span in client.spans.get_spans(
                 project_identifier=ctx.project_name,
                 trace_ids=[trace_id_hex],
                 limit=20,
-            )
-            for s in spans:
-                if s.get("context", {}).get("span_id") == span_id_hex:
-                    return dict(s.get("attributes") or {})
-        except Exception as e:  # noqa: BLE001
-            last_err = e
+            ):
+                if span.get("context", {}).get("span_id") == span_id_hex:
+                    return dict(span.get("attributes") or {})
+        except Exception as error:  # noqa: BLE001
+            last_error = error
         time.sleep(0.5)
     raise TimeoutError(
-        f"Span {span_id_hex} not visible in Phoenix project "
-        f"{ctx.project_name!r} after {timeout_s}s (last err: {last_err!r})"
+        f"Span {span_id_hex} not visible in Phoenix project {ctx.project_name!r} "
+        f"after {timeout_s}s (last err: {last_error!r})"
     )
 
 
-def flush(ctx: TracingCtx) -> None:
-    ctx.provider.force_flush()
-
-
 # ---------------------------------------------------------------------------
-# Pretty-printing for the PASS/FAIL line
+# Pretty-print helper
 # ---------------------------------------------------------------------------
 
 
-def token_lens(contents: list[dict[str, Any]]) -> dict[str, int]:
-    """Continuity-token lengths per block — never the bytes themselves."""
-    out: dict[str, int] = {}
-    for j, c in enumerate(contents):
-        for field in ("signature", "encrypted_content", "thought_signature", "redacted_data"):
-            v = c.get(field)
-            if isinstance(v, str) and v:
-                out[f"block{j}.{field}"] = len(v)
-    return out
+def continuity_token_lengths(contents: list[dict[str, Any]]) -> dict[str, int]:
+    """Length, in characters, of every continuity token present on the
+    captured contents. Used for the PASS line — never the bytes themselves,
+    since they are large, opaque, and not human-readable."""
+    lengths: dict[str, int] = {}
+    for content_index, content_block in enumerate(contents):
+        for full_suffix in PROPOSED_CONTINUITY_TOKEN_FIELDS:
+            value = content_block.get(full_suffix)
+            if isinstance(value, str) and value:
+                short_name = full_suffix.removeprefix("message_content.")
+                lengths[f"block{content_index}.{short_name}"] = len(value)
+    return lengths

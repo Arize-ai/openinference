@@ -5,26 +5,24 @@
 #     "opentelemetry-api",
 #     "opentelemetry-sdk",
 #     "opentelemetry-exporter-otlp-proto-http",
+#     "openinference-semantic-conventions",
 #     "arize-phoenix-client",
 # ]
 # ///
 """Anthropic Messages-API extended-thinking round-trip.
 
-Captures `thinking` / `redacted_thinking` / `tool_use` blocks (with their
+Captures `thinking` / `redacted_thinking` / `tool_use` blocks (with
 `signature` / `data`) as flat span attributes, fetches them back out of
-Phoenix, and rebuilds `messages=[user, assistant{thinking,...}, ...]` for the
-next turn.
+Phoenix, and rebuilds `messages=[user, assistant{thinking,...}, ...]` for
+the follow-up turn.
 
 Two scenarios:
-  A. text:  thinking -> text                      (signature echoed, request accepted)
-  B. tool:  thinking -> tool_use -> tool_result   (signature is load-bearing; if
-            dropped the API returns HTTP 400)
-  Negative assertion: scenario B with signature stripped → expect API error.
+  A. text:  thinking -> text
+  B. tool:  thinking -> tool_use -> tool_result -> text
+  Negative assertion (in B): drop the signature and expect HTTP 400.
 
-Phoenix is required.
-
-Env vars: ANTHROPIC_API_KEY, PHOENIX_COLLECTOR_ENDPOINT, ANTHROPIC_MODEL
-(default `claude-opus-4-5`).
+Env vars: ANTHROPIC_API_KEY, PHOENIX_COLLECTOR_ENDPOINT,
+          ANTHROPIC_MODEL (default `claude-opus-4-5`).
 """
 
 from __future__ import annotations
@@ -36,6 +34,14 @@ from typing import Any
 
 import anthropic
 from anthropic import BadRequestError
+from openinference.semconv.trace import (
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry.trace import SpanKind
 
 from common import (
@@ -43,24 +49,24 @@ from common import (
     CONTENT_TYPE_REDACTED_REASONING,
     CONTENT_TYPE_TEXT,
     CONTENT_TYPE_TOOL_USE,
-    LLM_INVOCATION_PARAMETERS,
-    LLM_MODEL_NAME,
-    LLM_PROVIDER,
-    LLM_SYSTEM,
-    OPENINFERENCE_SPAN_KIND,
-    begin_output_message,
+    MESSAGE_CONTENT_REDACTED_DATA,
+    MESSAGE_CONTENT_SIGNATURE,
+    TracingCtx,
+    continuity_token_lengths,
     fetch_span_attributes,
-    flush,
+    read_input_message_content,
     read_output_contents,
+    read_tools,
     set_input_assistant_echo,
     set_input_tool_result,
     set_input_user_message,
     set_output_reasoning,
     set_output_redacted_reasoning,
+    set_output_role,
     set_output_text,
     set_output_tool_use,
+    set_tools,
     setup_tracing,
-    token_lens,
 )
 
 MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-5")
@@ -78,60 +84,12 @@ WEATHER_TOOL = {
 }
 
 
-def _record_assistant_turn(attrs: dict[str, Any], message: Any) -> None:
-    begin_output_message(attrs, 0, role="assistant")
-    for j, block in enumerate(message.content):
-        t = block.type
-        if t == "thinking":
-            set_output_reasoning(attrs, 0, j, text=block.thinking, signature=block.signature)
-        elif t == "redacted_thinking":
-            set_output_redacted_reasoning(attrs, 0, j, data=block.data)
-        elif t == "text":
-            set_output_text(attrs, 0, j, block.text)
-        elif t == "tool_use":
-            set_output_tool_use(
-                attrs,
-                0,
-                j,
-                tool_call_id=block.id,
-                name=block.name,
-                arguments_json=json.dumps(block.input),
-            )
-
-
-def _rebuild_assistant_content(
-    attrs: dict[str, Any], *, strip_signature: bool = False
-) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for c in read_output_contents(attrs, 0):
-        t = c.get("type")
-        if t == CONTENT_TYPE_REASONING:
-            block: dict[str, Any] = {"type": "thinking", "thinking": c.get("text", "")}
-            if not strip_signature and c.get("signature"):
-                block["signature"] = c["signature"]
-            out.append(block)
-        elif t == CONTENT_TYPE_REDACTED_REASONING:
-            out.append({"type": "redacted_thinking", "data": c["redacted_data"]})
-        elif t == CONTENT_TYPE_TEXT:
-            out.append({"type": "text", "text": c["text"]})
-        elif t == CONTENT_TYPE_TOOL_USE:
-            out.append(
-                {
-                    "type": "tool_use",
-                    "id": c["tool_call.id"],
-                    "name": c["tool_call.function.name"],
-                    "input": json.loads(c["tool_call.function.arguments"]),
-                }
-            )
-    return out
-
-
-def _set_request_attrs(attrs: dict[str, Any]) -> None:
-    attrs[OPENINFERENCE_SPAN_KIND] = "LLM"
-    attrs[LLM_PROVIDER] = "anthropic"
-    attrs[LLM_SYSTEM] = "anthropic"
-    attrs[LLM_MODEL_NAME] = MODEL
-    attrs[LLM_INVOCATION_PARAMETERS] = json.dumps(
+def set_request_attributes(attrs: dict[str, Any]) -> None:
+    attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
+    attrs[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.ANTHROPIC.value
+    attrs[SpanAttributes.LLM_SYSTEM] = OpenInferenceLLMSystemValues.ANTHROPIC.value
+    attrs[SpanAttributes.LLM_MODEL_NAME] = MODEL
+    attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS] = json.dumps(
         {
             "thinking": {"type": "enabled", "budget_tokens": BUDGET},
             "max_tokens": MAX_TOKENS,
@@ -139,151 +97,239 @@ def _set_request_attrs(attrs: dict[str, Any]) -> None:
     )
 
 
-def scenario_text(client: anthropic.Anthropic, ctx) -> bool:
+def record_assistant_turn(attrs: dict[str, Any], message: Any) -> None:
+    set_output_role(attrs, 0, "assistant")
+    for content_index, block in enumerate(message.content):
+        block_type = block.type
+        if block_type == "thinking":
+            set_output_reasoning(
+                attrs, 0, content_index, text=block.thinking, signature=block.signature
+            )
+        elif block_type == "redacted_thinking":
+            set_output_redacted_reasoning(attrs, 0, content_index, data=block.data)
+        elif block_type == "text":
+            set_output_text(attrs, 0, content_index, block.text)
+        elif block_type == "tool_use":
+            set_output_tool_use(
+                attrs,
+                0,
+                content_index,
+                tool_call_id=block.id,
+                name=block.name,
+                arguments_json=json.dumps(block.input),
+            )
+
+
+def rebuild_assistant_content_blocks(
+    fetched_attrs: dict[str, Any], *, strip_signature: bool = False
+) -> list[dict[str, Any]]:
+    rebuilt: list[dict[str, Any]] = []
+    for content_block in read_output_contents(fetched_attrs, 0):
+        block_type = content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE)
+        if block_type == CONTENT_TYPE_REASONING:
+            thinking_block: dict[str, Any] = {
+                "type": "thinking",
+                "thinking": content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TEXT, ""),
+            }
+            signature = content_block.get(MESSAGE_CONTENT_SIGNATURE)
+            if signature and not strip_signature:
+                thinking_block["signature"] = signature
+            rebuilt.append(thinking_block)
+        elif block_type == CONTENT_TYPE_REDACTED_REASONING:
+            rebuilt.append(
+                {"type": "redacted_thinking", "data": content_block[MESSAGE_CONTENT_REDACTED_DATA]}
+            )
+        elif block_type == CONTENT_TYPE_TEXT:
+            rebuilt.append(
+                {
+                    "type": "text",
+                    "text": content_block[MessageContentAttributes.MESSAGE_CONTENT_TEXT],
+                }
+            )
+        elif block_type == CONTENT_TYPE_TOOL_USE:
+            rebuilt.append(
+                {
+                    "type": "tool_use",
+                    "id": content_block[ToolCallAttributes.TOOL_CALL_ID],
+                    "name": content_block[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME],
+                    "input": json.loads(
+                        content_block[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]
+                    ),
+                }
+            )
+    return rebuilt
+
+
+def replay_turn2(
+    client: anthropic.Anthropic,
+    fetched_attrs: dict[str, Any],
+    messages: list[dict[str, Any]],
+) -> Any:
+    """Issue the follow-up call using only Phoenix-fetched config.
+
+    Everything except the `messages` list (which carries the genuinely-new
+    follow-up content) is decoded from the fetched attribute dict.
+    """
+    invocation_parameters = json.loads(fetched_attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])
+    tools = read_tools(fetched_attrs)
+    optional_tools = {"tools": tools} if tools else {}
+    return client.messages.create(
+        model=fetched_attrs[SpanAttributes.LLM_MODEL_NAME],
+        messages=messages,
+        **optional_tools,
+        **invocation_parameters,
+    )
+
+
+def scenario_text(client: anthropic.Anthropic, ctx: TracingCtx) -> bool:
     print("\n[anthropic] scenario A: thinking → text round-trip")
     user_text = "In one short sentence, what's special about the number 1729?"
 
     with ctx.tracer.start_as_current_span(
         "anthropic.messages.text.turn1.original", kind=SpanKind.CLIENT
-    ) as sp:
-        attrs: dict[str, Any] = {}
-        _set_request_attrs(attrs)
-        set_input_user_message(attrs, 0, user_text)
+    ) as turn1_span:
+        turn1_attrs: dict[str, Any] = {}
+        set_request_attributes(turn1_attrs)
+        set_input_user_message(turn1_attrs, 0, user_text)
 
-        msg = client.messages.create(
+        turn1_message = client.messages.create(
             model=MODEL,
             max_tokens=MAX_TOKENS,
             thinking={"type": "enabled", "budget_tokens": BUDGET},
             messages=[{"role": "user", "content": user_text}],
         )
-        _record_assistant_turn(attrs, msg)
-        for k, v in attrs.items():
-            sp.set_attribute(k, v)
-        ctx_ids = sp.get_span_context()
+        record_assistant_turn(turn1_attrs, turn1_message)
+        turn1_span.set_attributes(turn1_attrs)
+        turn1_span_context = turn1_span.get_span_context()
 
-    flush(ctx)
-    fetched = fetch_span_attributes(
+    ctx.flush()
+    fetched_attrs = fetch_span_attributes(
         ctx,
-        trace_id_hex=f"{ctx_ids.trace_id:032x}",
-        span_id_hex=f"{ctx_ids.span_id:016x}",
+        trace_id_hex=f"{turn1_span_context.trace_id:032x}",
+        span_id_hex=f"{turn1_span_context.span_id:016x}",
     )
-    contents = read_output_contents(fetched, 0)
-    follow_up = "Now in one sentence: who proved that property?"
+    prior_user_text = read_input_message_content(fetched_attrs, 0)
+    captured_contents = read_output_contents(fetched_attrs, 0)
+    follow_up_text = "Now in one sentence: who proved that property?"
 
     with ctx.tracer.start_as_current_span(
         "anthropic.messages.text.turn2.roundtrip", kind=SpanKind.CLIENT
-    ) as sp2:
-        attrs2: dict[str, Any] = {}
-        _set_request_attrs(attrs2)
-        set_input_user_message(attrs2, 0, user_text)
-        set_input_assistant_echo(attrs2, 1, contents)
-        set_input_user_message(attrs2, 2, follow_up)
+    ) as turn2_span:
+        turn2_attrs: dict[str, Any] = {}
+        set_request_attributes(turn2_attrs)
+        set_input_user_message(turn2_attrs, 0, prior_user_text)
+        set_input_assistant_echo(turn2_attrs, 1, captured_contents)
+        set_input_user_message(turn2_attrs, 2, follow_up_text)
 
-        msg2 = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            thinking={"type": "enabled", "budget_tokens": BUDGET},
+        turn2_message = replay_turn2(
+            client,
+            fetched_attrs,
             messages=[
-                {"role": "user", "content": user_text},
-                {"role": "assistant", "content": _rebuild_assistant_content(fetched)},
-                {"role": "user", "content": follow_up},
+                {"role": "user", "content": prior_user_text},
+                {"role": "assistant", "content": rebuild_assistant_content_blocks(fetched_attrs)},
+                {"role": "user", "content": follow_up_text},
             ],
         )
-        _record_assistant_turn(attrs2, msg2)
-        for k, v in attrs2.items():
-            sp2.set_attribute(k, v)
+        record_assistant_turn(turn2_attrs, turn2_message)
+        turn2_span.set_attributes(turn2_attrs)
 
-    final_text = next((b.text for b in msg2.content if b.type == "text"), "")
-    print(f"  fetched_blocks={len(contents)} token_lens={token_lens(contents)}")
+    final_text = next((block.text for block in turn2_message.content if block.type == "text"), "")
+    print(f"  fetched_blocks={len(captured_contents)} "
+          f"token_lens={continuity_token_lengths(captured_contents)}")
     print(f"  turn2_text={final_text[:120]!r}")
     return bool(final_text)
 
 
-def scenario_tool(client: anthropic.Anthropic, ctx) -> tuple[bool, bool]:
+def scenario_tool(client: anthropic.Anthropic, ctx: TracingCtx) -> tuple[bool, bool]:
     print("\n[anthropic] scenario B: thinking → tool_use round-trip (+ negative)")
     user_text = "What's the weather in Paris? Use the tool."
 
     with ctx.tracer.start_as_current_span(
         "anthropic.messages.tool.turn1.original", kind=SpanKind.CLIENT
-    ) as sp:
-        attrs: dict[str, Any] = {}
-        _set_request_attrs(attrs)
-        set_input_user_message(attrs, 0, user_text)
+    ) as turn1_span:
+        turn1_attrs: dict[str, Any] = {}
+        set_request_attributes(turn1_attrs)
+        set_tools(turn1_attrs, [WEATHER_TOOL])
+        set_input_user_message(turn1_attrs, 0, user_text)
 
-        msg = client.messages.create(
+        turn1_message = client.messages.create(
             model=MODEL,
             max_tokens=MAX_TOKENS,
             thinking={"type": "enabled", "budget_tokens": BUDGET},
             tools=[WEATHER_TOOL],
             messages=[{"role": "user", "content": user_text}],
         )
-        _record_assistant_turn(attrs, msg)
-        for k, v in attrs.items():
-            sp.set_attribute(k, v)
-        ctx_ids = sp.get_span_context()
+        record_assistant_turn(turn1_attrs, turn1_message)
+        turn1_span.set_attributes(turn1_attrs)
+        turn1_span_context = turn1_span.get_span_context()
 
-    flush(ctx)
-    fetched = fetch_span_attributes(
+    ctx.flush()
+    fetched_attrs = fetch_span_attributes(
         ctx,
-        trace_id_hex=f"{ctx_ids.trace_id:032x}",
-        span_id_hex=f"{ctx_ids.span_id:016x}",
+        trace_id_hex=f"{turn1_span_context.trace_id:032x}",
+        span_id_hex=f"{turn1_span_context.span_id:016x}",
     )
-    contents = read_output_contents(fetched, 0)
-    tool_block = next((c for c in contents if c.get("type") == CONTENT_TYPE_TOOL_USE), None)
-    if tool_block is None:
+    prior_user_text = read_input_message_content(fetched_attrs, 0)
+    captured_contents = read_output_contents(fetched_attrs, 0)
+    tool_use_block = next(
+        (
+            block
+            for block in captured_contents
+            if block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE) == CONTENT_TYPE_TOOL_USE
+        ),
+        None,
+    )
+    if tool_use_block is None:
         print("  SKIP: model did not call the tool")
         return True, True
 
-    tool_use_id = tool_block["tool_call.id"]
-    tool_result_content = json.dumps({"temperature_c": 14.5})
-    tool_result_msg = {
+    tool_use_id = tool_use_block[ToolCallAttributes.TOOL_CALL_ID]
+    tool_result_content_text = json.dumps({"temperature_c": 14.5})
+    tool_result_user_message = {
         "role": "user",
         "content": [
             {
                 "type": "tool_result",
                 "tool_use_id": tool_use_id,
-                "content": tool_result_content,
+                "content": tool_result_content_text,
             }
         ],
     }
 
-    # Positive: full echo.
     with ctx.tracer.start_as_current_span(
         "anthropic.messages.tool.turn2.roundtrip", kind=SpanKind.CLIENT
-    ) as sp2:
-        attrs2: dict[str, Any] = {}
-        _set_request_attrs(attrs2)
-        set_input_user_message(attrs2, 0, user_text)
-        set_input_assistant_echo(attrs2, 1, contents)
+    ) as turn2_span:
+        turn2_attrs: dict[str, Any] = {}
+        set_request_attributes(turn2_attrs)
+        set_tools(turn2_attrs, [WEATHER_TOOL])
+        set_input_user_message(turn2_attrs, 0, prior_user_text)
+        set_input_assistant_echo(turn2_attrs, 1, captured_contents)
         set_input_tool_result(
-            attrs2, 2, tool_call_id=tool_use_id, content=tool_result_content
+            turn2_attrs, 2, tool_call_id=tool_use_id, content_text=tool_result_content_text
         )
 
-        msg2 = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            thinking={"type": "enabled", "budget_tokens": BUDGET},
-            tools=[WEATHER_TOOL],
+        turn2_message = replay_turn2(
+            client,
+            fetched_attrs,
             messages=[
-                {"role": "user", "content": user_text},
-                {"role": "assistant", "content": _rebuild_assistant_content(fetched)},
-                tool_result_msg,
+                {"role": "user", "content": prior_user_text},
+                {"role": "assistant", "content": rebuild_assistant_content_blocks(fetched_attrs)},
+                tool_result_user_message,
             ],
         )
-        _record_assistant_turn(attrs2, msg2)
-        for k, v in attrs2.items():
-            sp2.set_attribute(k, v)
+        record_assistant_turn(turn2_attrs, turn2_message)
+        turn2_span.set_attributes(turn2_attrs)
 
-    final_text = next((b.text for b in msg2.content if b.type == "text"), "")
-    print(f"  fetched_blocks={len(contents)} token_lens={token_lens(contents)}")
+    final_text = next((block.text for block in turn2_message.content if block.type == "text"), "")
+    print(f"  fetched_blocks={len(captured_contents)} "
+          f"token_lens={continuity_token_lengths(captured_contents)}")
     print(f"  positive_turn2_text={final_text[:120]!r}")
     positive_ok = bool(final_text)
 
-    # Negative: drop the signature and expect HTTP 400.
     negative_rejected = False
     with ctx.tracer.start_as_current_span(
         "anthropic.messages.tool.turn2.roundtrip.negative", kind=SpanKind.CLIENT
-    ) as sp_neg:
+    ) as negative_span:
         try:
             client.messages.create(
                 model=MODEL,
@@ -294,16 +340,18 @@ def scenario_tool(client: anthropic.Anthropic, ctx) -> tuple[bool, bool]:
                     {"role": "user", "content": user_text},
                     {
                         "role": "assistant",
-                        "content": _rebuild_assistant_content(fetched, strip_signature=True),
+                        "content": rebuild_assistant_content_blocks(
+                            fetched_attrs, strip_signature=True
+                        ),
                     },
-                    tool_result_msg,
+                    tool_result_user_message,
                 ],
             )
-        except BadRequestError as e:
+        except BadRequestError as error:
             negative_rejected = True
-            sp_neg.set_attribute("error.expected", True)
-            sp_neg.set_attribute("error.message", str(e)[:200])
-            print(f"  negative correctly rejected: {str(e)[:120]!r}")
+            negative_span.set_attribute("error.expected", True)
+            negative_span.set_attribute("error.message", str(error)[:200])
+            print(f"  negative correctly rejected: {str(error)[:120]!r}")
     if not negative_rejected:
         print("  negative FAILED: stripped-signature request was accepted")
 
@@ -313,10 +361,13 @@ def scenario_tool(client: anthropic.Anthropic, ctx) -> tuple[bool, bool]:
 def main() -> int:
     ctx = setup_tracing("reasoning-roundtrip-anthropic")
     client = anthropic.Anthropic()
-    a = scenario_text(client, ctx)
-    b_pos, b_neg = scenario_tool(client, ctx)
-    print(f"\n[anthropic] text={a}  tool_positive={b_pos}  tool_negative={b_neg}")
-    return 0 if (a and b_pos and b_neg) else 1
+    text_ok = scenario_text(client, ctx)
+    tool_positive_ok, tool_negative_ok = scenario_tool(client, ctx)
+    print(
+        f"\n[anthropic] text={text_ok}  "
+        f"tool_positive={tool_positive_ok}  tool_negative={tool_negative_ok}"
+    )
+    return 0 if (text_ok and tool_positive_ok and tool_negative_ok) else 1
 
 
 if __name__ == "__main__":
