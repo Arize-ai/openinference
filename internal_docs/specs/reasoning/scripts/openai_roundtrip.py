@@ -53,6 +53,7 @@ from common import (
     fetch_span_attributes,
     flush,
     read_output_contents,
+    set_input_assistant_echo,
     set_input_tool_result,
     set_input_user_message,
     set_output_reasoning,
@@ -179,7 +180,9 @@ def scenario_text(client: OpenAI, ctx) -> bool:
     print("\n[openai] scenario A: text round-trip")
     user_text = "In one short sentence, what's special about the number 1729?"
 
-    with ctx.tracer.start_as_current_span("openai.responses.create", kind=SpanKind.CLIENT) as sp:
+    with ctx.tracer.start_as_current_span(
+        "openai.responses.text.turn1.original", kind=SpanKind.CLIENT
+    ) as sp:
         attrs: dict[str, Any] = {}
         _set_request_attrs(attrs, effort="medium", summary="auto")
         set_input_user_message(attrs, 0, user_text)
@@ -207,13 +210,28 @@ def scenario_text(client: OpenAI, ctx) -> bool:
     input_items = _rebuild_input_from_attrs(fetched, user_text)
     input_items.append({"role": "user", "content": follow_up})
 
-    resp2 = client.responses.create(
-        model=MODEL,
-        input=input_items,
-        reasoning={"effort": "medium", "summary": "auto"},
-        store=False,
-        include=["reasoning.encrypted_content"],
-    )
+    with ctx.tracer.start_as_current_span(
+        "openai.responses.text.turn2.roundtrip", kind=SpanKind.CLIENT
+    ) as sp2:
+        attrs2: dict[str, Any] = {}
+        _set_request_attrs(attrs2, effort="medium", summary="auto")
+        # Echoed history as input_messages — proves the round-trip carried
+        # the prior reasoning block (with its encrypted_content) into turn 2.
+        set_input_user_message(attrs2, 0, user_text)
+        set_input_assistant_echo(attrs2, 1, contents)
+        set_input_user_message(attrs2, 2, follow_up)
+
+        resp2 = client.responses.create(
+            model=MODEL,
+            input=input_items,
+            reasoning={"effort": "medium", "summary": "auto"},
+            store=False,
+            include=["reasoning.encrypted_content"],
+        )
+        _record_assistant_turn(attrs2, resp2)
+        for k, v in attrs2.items():
+            sp2.set_attribute(k, v)
+
     ok = any(getattr(it, "type", None) == "message" for it in resp2.output)
     print(f"  fetched_blocks={len(contents)} token_lens={token_lens(contents)}")
     print(f"  turn2_ok={ok}  turn2_text={(resp2.output_text or '')[:80]!r}")
@@ -224,7 +242,9 @@ def scenario_tool(client: OpenAI, ctx) -> bool:
     print("\n[openai] scenario B: reasoning → function_call round-trip")
     user_text = "What's the weather in Paris right now? Use the tool."
 
-    with ctx.tracer.start_as_current_span("openai.responses.create", kind=SpanKind.CLIENT) as sp:
+    with ctx.tracer.start_as_current_span(
+        "openai.responses.tool.turn1.original", kind=SpanKind.CLIENT
+    ) as sp:
         attrs: dict[str, Any] = {}
         _set_request_attrs(attrs, effort="medium", summary="auto")
         set_input_user_message(attrs, 0, user_text)
@@ -256,22 +276,36 @@ def scenario_tool(client: OpenAI, ctx) -> bool:
     call_id = tool_blocks[0]["tool_call.id"]
 
     input_items = _rebuild_input_from_attrs(fetched, user_text)
+    tool_output_json = json.dumps({"temperature_c": 14.5})
     input_items.append(
         {
             "type": "function_call_output",
             "call_id": call_id,
-            "output": json.dumps({"temperature_c": 14.5}),
+            "output": tool_output_json,
         }
     )
 
-    resp2 = client.responses.create(
-        model=MODEL,
-        input=input_items,
-        tools=[WEATHER_TOOL],
-        reasoning={"effort": "medium", "summary": "auto"},
-        store=False,
-        include=["reasoning.encrypted_content"],
-    )
+    with ctx.tracer.start_as_current_span(
+        "openai.responses.tool.turn2.roundtrip", kind=SpanKind.CLIENT
+    ) as sp2:
+        attrs2: dict[str, Any] = {}
+        _set_request_attrs(attrs2, effort="medium", summary="auto")
+        set_input_user_message(attrs2, 0, user_text)
+        set_input_assistant_echo(attrs2, 1, contents)
+        set_input_tool_result(attrs2, 2, tool_call_id=call_id, content=tool_output_json)
+
+        resp2 = client.responses.create(
+            model=MODEL,
+            input=input_items,
+            tools=[WEATHER_TOOL],
+            reasoning={"effort": "medium", "summary": "auto"},
+            store=False,
+            include=["reasoning.encrypted_content"],
+        )
+        _record_assistant_turn(attrs2, resp2)
+        for k, v in attrs2.items():
+            sp2.set_attribute(k, v)
+
     has_message = any(getattr(it, "type", None) == "message" for it in resp2.output)
     print(f"  fetched_blocks={len(contents)} token_lens={token_lens(contents)}")
     print(f"  turn2_has_final_message={has_message}")

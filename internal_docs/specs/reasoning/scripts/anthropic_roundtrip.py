@@ -53,6 +53,8 @@ from common import (
     fetch_span_attributes,
     flush,
     read_output_contents,
+    set_input_assistant_echo,
+    set_input_tool_result,
     set_input_user_message,
     set_output_reasoning,
     set_output_redacted_reasoning,
@@ -143,7 +145,9 @@ def scenario_text(client: anthropic.Anthropic, ctx) -> bool:
     print("\n[anthropic] scenario A: thinking → text round-trip")
     user_text = "In one short sentence, what's special about the number 1729?"
 
-    with ctx.tracer.start_as_current_span("anthropic.messages.create", kind=SpanKind.CLIENT) as sp:
+    with ctx.tracer.start_as_current_span(
+        "anthropic.messages.text.turn1.original", kind=SpanKind.CLIENT
+    ) as sp:
         attrs: dict[str, Any] = {}
         _set_request_attrs(attrs)
         set_input_user_message(attrs, 0, user_text)
@@ -168,16 +172,29 @@ def scenario_text(client: anthropic.Anthropic, ctx) -> bool:
     contents = read_output_contents(fetched, 0)
     follow_up = "Now in one sentence: who proved that property?"
 
-    msg2 = client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        thinking={"type": "enabled", "budget_tokens": BUDGET},
-        messages=[
-            {"role": "user", "content": user_text},
-            {"role": "assistant", "content": _rebuild_assistant_content(fetched)},
-            {"role": "user", "content": follow_up},
-        ],
-    )
+    with ctx.tracer.start_as_current_span(
+        "anthropic.messages.text.turn2.roundtrip", kind=SpanKind.CLIENT
+    ) as sp2:
+        attrs2: dict[str, Any] = {}
+        _set_request_attrs(attrs2)
+        set_input_user_message(attrs2, 0, user_text)
+        set_input_assistant_echo(attrs2, 1, contents)
+        set_input_user_message(attrs2, 2, follow_up)
+
+        msg2 = client.messages.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            thinking={"type": "enabled", "budget_tokens": BUDGET},
+            messages=[
+                {"role": "user", "content": user_text},
+                {"role": "assistant", "content": _rebuild_assistant_content(fetched)},
+                {"role": "user", "content": follow_up},
+            ],
+        )
+        _record_assistant_turn(attrs2, msg2)
+        for k, v in attrs2.items():
+            sp2.set_attribute(k, v)
+
     final_text = next((b.text for b in msg2.content if b.type == "text"), "")
     print(f"  fetched_blocks={len(contents)} token_lens={token_lens(contents)}")
     print(f"  turn2_text={final_text[:120]!r}")
@@ -188,7 +205,9 @@ def scenario_tool(client: anthropic.Anthropic, ctx) -> tuple[bool, bool]:
     print("\n[anthropic] scenario B: thinking → tool_use round-trip (+ negative)")
     user_text = "What's the weather in Paris? Use the tool."
 
-    with ctx.tracer.start_as_current_span("anthropic.messages.create", kind=SpanKind.CLIENT) as sp:
+    with ctx.tracer.start_as_current_span(
+        "anthropic.messages.tool.turn1.original", kind=SpanKind.CLIENT
+    ) as sp:
         attrs: dict[str, Any] = {}
         _set_request_attrs(attrs)
         set_input_user_message(attrs, 0, user_text)
@@ -218,29 +237,45 @@ def scenario_tool(client: anthropic.Anthropic, ctx) -> tuple[bool, bool]:
         return True, True
 
     tool_use_id = tool_block["tool_call.id"]
+    tool_result_content = json.dumps({"temperature_c": 14.5})
     tool_result_msg = {
         "role": "user",
         "content": [
             {
                 "type": "tool_result",
                 "tool_use_id": tool_use_id,
-                "content": json.dumps({"temperature_c": 14.5}),
+                "content": tool_result_content,
             }
         ],
     }
 
     # Positive: full echo.
-    msg2 = client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        thinking={"type": "enabled", "budget_tokens": BUDGET},
-        tools=[WEATHER_TOOL],
-        messages=[
-            {"role": "user", "content": user_text},
-            {"role": "assistant", "content": _rebuild_assistant_content(fetched)},
-            tool_result_msg,
-        ],
-    )
+    with ctx.tracer.start_as_current_span(
+        "anthropic.messages.tool.turn2.roundtrip", kind=SpanKind.CLIENT
+    ) as sp2:
+        attrs2: dict[str, Any] = {}
+        _set_request_attrs(attrs2)
+        set_input_user_message(attrs2, 0, user_text)
+        set_input_assistant_echo(attrs2, 1, contents)
+        set_input_tool_result(
+            attrs2, 2, tool_call_id=tool_use_id, content=tool_result_content
+        )
+
+        msg2 = client.messages.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            thinking={"type": "enabled", "budget_tokens": BUDGET},
+            tools=[WEATHER_TOOL],
+            messages=[
+                {"role": "user", "content": user_text},
+                {"role": "assistant", "content": _rebuild_assistant_content(fetched)},
+                tool_result_msg,
+            ],
+        )
+        _record_assistant_turn(attrs2, msg2)
+        for k, v in attrs2.items():
+            sp2.set_attribute(k, v)
+
     final_text = next((b.text for b in msg2.content if b.type == "text"), "")
     print(f"  fetched_blocks={len(contents)} token_lens={token_lens(contents)}")
     print(f"  positive_turn2_text={final_text[:120]!r}")
@@ -248,24 +283,29 @@ def scenario_tool(client: anthropic.Anthropic, ctx) -> tuple[bool, bool]:
 
     # Negative: drop the signature and expect HTTP 400.
     negative_rejected = False
-    try:
-        client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            thinking={"type": "enabled", "budget_tokens": BUDGET},
-            tools=[WEATHER_TOOL],
-            messages=[
-                {"role": "user", "content": user_text},
-                {
-                    "role": "assistant",
-                    "content": _rebuild_assistant_content(fetched, strip_signature=True),
-                },
-                tool_result_msg,
-            ],
-        )
-    except BadRequestError as e:
-        negative_rejected = True
-        print(f"  negative correctly rejected: {str(e)[:120]!r}")
+    with ctx.tracer.start_as_current_span(
+        "anthropic.messages.tool.turn2.roundtrip.negative", kind=SpanKind.CLIENT
+    ) as sp_neg:
+        try:
+            client.messages.create(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                thinking={"type": "enabled", "budget_tokens": BUDGET},
+                tools=[WEATHER_TOOL],
+                messages=[
+                    {"role": "user", "content": user_text},
+                    {
+                        "role": "assistant",
+                        "content": _rebuild_assistant_content(fetched, strip_signature=True),
+                    },
+                    tool_result_msg,
+                ],
+            )
+        except BadRequestError as e:
+            negative_rejected = True
+            sp_neg.set_attribute("error.expected", True)
+            sp_neg.set_attribute("error.message", str(e)[:200])
+            print(f"  negative correctly rejected: {str(e)[:120]!r}")
     if not negative_rejected:
         print("  negative FAILED: stripped-signature request was accepted")
 

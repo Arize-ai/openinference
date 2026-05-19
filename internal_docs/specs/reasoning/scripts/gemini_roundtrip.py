@@ -59,6 +59,8 @@ from common import (
     fetch_span_attributes,
     flush,
     read_output_contents,
+    set_input_assistant_echo,
+    set_input_tool_result,
     set_input_user_message,
     set_output_reasoning_summary,
     set_output_text,
@@ -175,7 +177,9 @@ def scenario_text(client: genai.Client, ctx) -> bool:
     print("\n[gemini] scenario A: text round-trip")
     user_text = "In one short sentence, what's special about the number 1729?"
 
-    with ctx.tracer.start_as_current_span("gemini.generate_content", kind=SpanKind.CLIENT) as sp:
+    with ctx.tracer.start_as_current_span(
+        "gemini.generate_content.text.turn1.original", kind=SpanKind.CLIENT
+    ) as sp:
         attrs: dict[str, Any] = {}
         _set_request_attrs(attrs)
         set_input_user_message(attrs, 0, user_text)
@@ -200,15 +204,28 @@ def scenario_text(client: genai.Client, ctx) -> bool:
     follow_up = "Now in one sentence: who proved that property?"
 
     model_content = _rebuild_model_content(fetched)
-    resp2 = client.models.generate_content(
-        model=MODEL,
-        contents=[
-            gtypes.Content(role="user", parts=[gtypes.Part(text=user_text)]),
-            model_content,
-            gtypes.Content(role="user", parts=[gtypes.Part(text=follow_up)]),
-        ],
-        config=_config(),
-    )
+    with ctx.tracer.start_as_current_span(
+        "gemini.generate_content.text.turn2.roundtrip", kind=SpanKind.CLIENT
+    ) as sp2:
+        attrs2: dict[str, Any] = {}
+        _set_request_attrs(attrs2)
+        set_input_user_message(attrs2, 0, user_text)
+        set_input_assistant_echo(attrs2, 1, contents, role="model")
+        set_input_user_message(attrs2, 2, follow_up)
+
+        resp2 = client.models.generate_content(
+            model=MODEL,
+            contents=[
+                gtypes.Content(role="user", parts=[gtypes.Part(text=user_text)]),
+                model_content,
+                gtypes.Content(role="user", parts=[gtypes.Part(text=follow_up)]),
+            ],
+            config=_config(),
+        )
+        _record_assistant_turn(attrs2, resp2)
+        for k, v in attrs2.items():
+            sp2.set_attribute(k, v)
+
     text2 = (resp2.text or "")[:120]
     print(f"  fetched_blocks={len(contents)} token_lens={token_lens(contents)}")
     print(f"  turn2_text={text2!r}")
@@ -219,7 +236,9 @@ def scenario_tool(client: genai.Client, ctx) -> tuple[bool, bool | None]:
     print("\n[gemini] scenario B: thinking → functionCall round-trip (+ optional negative)")
     user_text = "What's the weather in Paris? Use the tool."
 
-    with ctx.tracer.start_as_current_span("gemini.generate_content", kind=SpanKind.CLIENT) as sp:
+    with ctx.tracer.start_as_current_span(
+        "gemini.generate_content.tool.turn1.original", kind=SpanKind.CLIENT
+    ) as sp:
         attrs: dict[str, Any] = {}
         _set_request_attrs(attrs)
         set_input_user_message(attrs, 0, user_text)
@@ -246,6 +265,7 @@ def scenario_tool(client: genai.Client, ctx) -> tuple[bool, bool | None]:
         print("  SKIP: model did not call the tool")
         return True, None
 
+    tool_response_payload = {"temperature_c": 14.5}
     tool_response = gtypes.Content(
         role="user",
         parts=[
@@ -253,7 +273,7 @@ def scenario_tool(client: genai.Client, ctx) -> tuple[bool, bool | None]:
                 function_response=gtypes.FunctionResponse(
                     id=tool_block["tool_call.id"],
                     name=tool_block["tool_call.function.name"],
-                    response={"temperature_c": 14.5},
+                    response=tool_response_payload,
                 )
             )
         ],
@@ -261,15 +281,33 @@ def scenario_tool(client: genai.Client, ctx) -> tuple[bool, bool | None]:
 
     # Positive echo.
     model_content = _rebuild_model_content(fetched)
-    resp2 = client.models.generate_content(
-        model=MODEL,
-        contents=[
-            gtypes.Content(role="user", parts=[gtypes.Part(text=user_text)]),
-            model_content,
-            tool_response,
-        ],
-        config=_config(tools=[WEATHER_TOOL]),
-    )
+    with ctx.tracer.start_as_current_span(
+        "gemini.generate_content.tool.turn2.roundtrip", kind=SpanKind.CLIENT
+    ) as sp2:
+        attrs2: dict[str, Any] = {}
+        _set_request_attrs(attrs2)
+        set_input_user_message(attrs2, 0, user_text)
+        set_input_assistant_echo(attrs2, 1, contents, role="model")
+        set_input_tool_result(
+            attrs2,
+            2,
+            tool_call_id=tool_block["tool_call.id"],
+            content=json.dumps(tool_response_payload),
+        )
+
+        resp2 = client.models.generate_content(
+            model=MODEL,
+            contents=[
+                gtypes.Content(role="user", parts=[gtypes.Part(text=user_text)]),
+                model_content,
+                tool_response,
+            ],
+            config=_config(tools=[WEATHER_TOOL]),
+        )
+        _record_assistant_turn(attrs2, resp2)
+        for k, v in attrs2.items():
+            sp2.set_attribute(k, v)
+
     final_text = (resp2.text or "")[:120]
     print(f"  fetched_blocks={len(contents)} token_lens={token_lens(contents)}")
     print(f"  positive_turn2_text={final_text!r}")
@@ -283,19 +321,24 @@ def scenario_tool(client: genai.Client, ctx) -> tuple[bool, bool | None]:
 
     stripped = _rebuild_model_content(fetched, strip_signature=True)
     negative_rejected = False
-    try:
-        client.models.generate_content(
-            model=MODEL,
-            contents=[
-                gtypes.Content(role="user", parts=[gtypes.Part(text=user_text)]),
-                stripped,
-                tool_response,
-            ],
-            config=_config(tools=[WEATHER_TOOL]),
-        )
-    except Exception as e:  # google.genai raises various error types
-        negative_rejected = True
-        print(f"  negative correctly rejected: {str(e)[:120]!r}")
+    with ctx.tracer.start_as_current_span(
+        "gemini.generate_content.tool.turn2.roundtrip.negative", kind=SpanKind.CLIENT
+    ) as sp_neg:
+        try:
+            client.models.generate_content(
+                model=MODEL,
+                contents=[
+                    gtypes.Content(role="user", parts=[gtypes.Part(text=user_text)]),
+                    stripped,
+                    tool_response,
+                ],
+                config=_config(tools=[WEATHER_TOOL]),
+            )
+        except Exception as e:  # google.genai raises various error types
+            negative_rejected = True
+            sp_neg.set_attribute("error.expected", True)
+            sp_neg.set_attribute("error.message", str(e)[:200])
+            print(f"  negative correctly rejected: {str(e)[:120]!r}")
     if not negative_rejected:
         print("  negative FAILED: stripped-signature request was accepted on Gemini 3")
     return positive_ok, negative_rejected

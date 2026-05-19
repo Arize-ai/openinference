@@ -130,6 +130,32 @@ def set_input_tool_result(
     attrs[f"{base}.content"] = content
 
 
+def set_input_assistant_echo(
+    attrs: dict[str, Any],
+    idx: int,
+    contents: list[dict[str, Any]],
+    *,
+    role: str = "assistant",
+) -> None:
+    """Write an echoed prior assistant turn into `llm.input_messages.{idx}.*`.
+
+    `contents` is the list of content dicts returned by `read_output_contents`
+    — i.e. the round-tripped reasoning / text / tool_use blocks. Each dict's
+    keys are written verbatim as `message_content.<key>` siblings, which means
+    the input-side and output-side attributes share an identical shape and
+    Phoenix renders them in the same way. This is what lets you confirm,
+    visually in the UI, that the turn-2 input carries the same reasoning
+    block (and the same signature / encrypted_content) that was on the turn-1
+    output.
+    """
+    base = _input_msg_key(idx)
+    attrs[f"{base}.role"] = role
+    for j, content in enumerate(contents):
+        k = f"{base}.contents.{j}.message_content"
+        for field, value in content.items():
+            attrs[f"{k}.{field}"] = value
+
+
 def begin_output_message(attrs: dict[str, Any], idx: int, role: str = "assistant") -> str:
     base = _output_msg_key(idx)
     attrs[f"{base}.role"] = role
