@@ -300,8 +300,10 @@ const createRedactor = (options: OpenInferenceTanStackAIMiddlewareOptions) => {
   const userRedact = options.redact ?? ((text: string) => text);
   return (text: string): string => {
     if (
-      (options.traceConfig?.hideInputs === true && options.traceConfig?.hideOutputs === true) ||
-      (options.traceConfig?.hideInputText === true && options.traceConfig?.hideOutputText === true)
+      options.traceConfig?.hideInputs === true ||
+      options.traceConfig?.hideOutputs === true ||
+      options.traceConfig?.hideInputText === true ||
+      options.traceConfig?.hideOutputText === true
     ) {
       return REDACTED_VALUE;
     }

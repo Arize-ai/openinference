@@ -1,4 +1,5 @@
-import type { AttributeValue, Attributes, SpanKind } from "@opentelemetry/api";
+import type { AttributeValue, Attributes } from "@opentelemetry/api";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import {
   ATTR_GEN_AI_AGENT_DESCRIPTION,
   ATTR_GEN_AI_AGENT_ID,
@@ -56,17 +57,13 @@ export type GenAIOutputMessage = OutputMessage & {
 };
 export type GenAIOutputMessagePart = OutputMessage["parts"][number];
 
-export type GenAISpanEvent = {
-  name: string;
-  attributes?: Attributes;
-};
+export type GenAISpanEvent = Pick<ReadableSpan["events"][number], "name"> &
+  Partial<Pick<ReadableSpan["events"][number], "attributes">>;
 
-export type GenAISpanLike = {
-  name?: string;
-  kind?: SpanKind;
-  attributes: Attributes;
-  events?: GenAISpanEvent[];
-};
+export type GenAISpanLike = Pick<ReadableSpan, "attributes"> &
+  Partial<Pick<ReadableSpan, "name" | "kind">> & {
+    events?: GenAISpanEvent[];
+  };
 
 export type MutableGenAISpanLike = GenAISpanLike & {
   attributes: Attributes;
@@ -78,7 +75,7 @@ export type ProviderMapping = "strict" | "system-as-provider-fallback";
 
 export type SpanKindResolver = (input: {
   name?: string;
-  kind?: SpanKind;
+  kind?: ReadableSpan["kind"];
   attributes: Attributes;
   events: GenAISpanEvent[];
   defaultKind?: OpenInferenceSpanKind;

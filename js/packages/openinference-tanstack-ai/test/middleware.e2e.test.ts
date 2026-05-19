@@ -327,7 +327,7 @@ describe("openInferenceMiddleware e2e", () => {
     ).toBe("__REDACTED__");
   });
 
-  it("does not over-redact output text when only input text is hidden", async () => {
+  it("redacts native GenAI text privacy-first when only input text is hidden", async () => {
     const { exporter, tracer } = createTracer();
     const adapter = createFinishedTextAdapter("visible output");
 
@@ -352,7 +352,7 @@ describe("openInferenceMiddleware e2e", () => {
       );
 
     expect(llmSpan?.attributes["llm.input_messages.0.message.content"]).toBe("__REDACTED__");
-    expect(llmSpan?.attributes["llm.output_messages.0.message.content"]).toBe("visible output");
+    expect(llmSpan?.attributes["llm.output_messages.0.message.content"]).toBe("__REDACTED__");
   });
 
   it("suppresses spans for a real chat() run when tracing is suppressed", async () => {
