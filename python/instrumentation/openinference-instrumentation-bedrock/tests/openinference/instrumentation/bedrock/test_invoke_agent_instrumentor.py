@@ -647,10 +647,8 @@ def _assert_routing_classifier_trace(events: list[Any], spans: Sequence[Any]) ->
         "[{text=Here is a list of agents for handling user's requests:",
     )
     assert routing_classifier_attributes.pop("openinference.span.kind") == "CHAIN"
-    assert routing_classifier_attributes.pop("output.mime_type") == "application/json"
-    assert starts_with(
-        routing_classifier_attributes.pop("output.value"), '[{"text": "<a>undecidable</a>"'
-    )
+    assert routing_classifier_attributes.pop("output.mime_type") == "text/plain"
+    assert routing_classifier_attributes.pop("output.value") == "<a>undecidable</a>"
     routing_metadata = routing_classifier_attributes.pop("metadata")
     assert routing_metadata is not None
     assert isinstance(routing_metadata, str)

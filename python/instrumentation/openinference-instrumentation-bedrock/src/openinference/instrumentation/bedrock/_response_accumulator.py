@@ -567,31 +567,10 @@ class _ResponseAccumulator:
                     routing_data = trace_data["routingClassifierTrace"]
                     if "modelInvocationOutput" in routing_data:
                         routing_output = routing_data["modelInvocationOutput"]
-                        if "rawResponse" in routing_output:
-                            raw_response = routing_output["rawResponse"]
-                            if "content" in raw_response and (
-                                raw_response_content := raw_response["content"]
-                            ):
-                                try:
-                                    response_content_json = json.loads(raw_response_content)
-                                    if (
-                                        "output" in response_content_json
-                                        and "message"
-                                        in (output_obj := response_content_json["output"])
-                                        and "content" in (message_obj := output_obj["message"])
-                                        and (output_content := message_obj["content"])
-                                    ):
-                                        return attributes.request_attributes.update(
-                                            get_output_attributes(output_content)
-                                        )
-                                    return attributes.request_attributes.update(
-                                        get_output_attributes(response_content_json)
-                                    )
-                                except Exception:
-                                    pass
-                                return attributes.request_attributes.update(
-                                    get_output_attributes(raw_response_content)
-                                )
+                        if output_value := AttributeExtractor.get_output_value(routing_output):
+                            return attributes.request_attributes.update(
+                                get_output_attributes(output_value)
+                            )
 
             # Recursively check nested nodes
             if isinstance(span, TraceNode):
