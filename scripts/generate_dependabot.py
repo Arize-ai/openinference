@@ -27,6 +27,7 @@ def _build_update_config(package_ecosystem: str, directory: str) -> dict[str, ob
     return {
         "package-ecosystem": package_ecosystem,
         "directory": directory,
+        "cooldown": {"default-days": 7},
         "schedule": {"interval": "weekly"},
         "ignore": [
             {

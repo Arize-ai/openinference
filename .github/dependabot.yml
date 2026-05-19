@@ -1,5 +1,7 @@
 updates:
-- directory: /java
+- cooldown:
+    default-days: 7
+  directory: /java
   ignore:
   - dependency-name: '*'
     update-types:
@@ -9,7 +11,9 @@ updates:
   package-ecosystem: gradle
   schedule:
     interval: weekly
-- directory: /js
+- cooldown:
+    default-days: 7
+  directory: /js
   ignore:
   - dependency-name: '*'
     update-types:
@@ -19,7 +23,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: /python
+- cooldown:
+    default-days: 7
+  directory: /python
   ignore:
   - dependency-name: '*'
     update-types:
@@ -29,7 +35,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-agent-framework
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-agent-framework
   ignore:
   - dependency-name: '*'
     update-types:
@@ -39,7 +47,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-agentspec
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-agentspec
   ignore:
   - dependency-name: '*'
     update-types:
@@ -49,7 +59,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-agno
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-agno
   ignore:
   - dependency-name: '*'
     update-types:
@@ -59,7 +71,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-anthropic
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-anthropic
   ignore:
   - dependency-name: '*'
     update-types:
@@ -69,7 +83,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-autogen
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-autogen
   ignore:
   - dependency-name: '*'
     update-types:
@@ -79,7 +95,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-autogen-agentchat
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-autogen-agentchat
   ignore:
   - dependency-name: '*'
     update-types:
@@ -89,7 +107,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-bedrock
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-bedrock
   ignore:
   - dependency-name: '*'
     update-types:
@@ -99,7 +119,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-beeai
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-beeai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -109,7 +131,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-claude-agent-sdk
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-claude-agent-sdk
   ignore:
   - dependency-name: '*'
     update-types:
@@ -119,7 +143,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-crewai
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-crewai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -129,7 +155,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-dspy
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-dspy
   ignore:
   - dependency-name: '*'
     update-types:
@@ -139,7 +167,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-google-adk
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-google-adk
   ignore:
   - dependency-name: '*'
     update-types:
@@ -149,7 +179,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-google-genai
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-google-genai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -159,7 +191,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-groq
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-groq
   ignore:
   - dependency-name: '*'
     update-types:
@@ -169,7 +203,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-guardrails
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-guardrails
   ignore:
   - dependency-name: '*'
     update-types:
@@ -179,7 +215,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-haystack
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-haystack
   ignore:
   - dependency-name: '*'
     update-types:
@@ -189,7 +227,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-instructor
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-instructor
   ignore:
   - dependency-name: '*'
     update-types:
@@ -199,7 +239,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-langchain
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-langchain
   ignore:
   - dependency-name: '*'
     update-types:
@@ -209,7 +251,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-litellm
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-litellm
   ignore:
   - dependency-name: '*'
     update-types:
@@ -219,7 +263,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-llama-index
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-llama-index
   ignore:
   - dependency-name: '*'
     update-types:
@@ -229,7 +275,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-mcp
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-mcp
   ignore:
   - dependency-name: '*'
     update-types:
@@ -239,7 +287,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-mistralai
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-mistralai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -249,7 +299,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-openai
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-openai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -259,7 +311,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-openai-agents
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-openai-agents
   ignore:
   - dependency-name: '*'
     update-types:
@@ -269,7 +323,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-openlit
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-openlit
   ignore:
   - dependency-name: '*'
     update-types:
@@ -279,7 +335,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-openllmetry
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-openllmetry
   ignore:
   - dependency-name: '*'
     update-types:
@@ -289,7 +347,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-pipecat
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-pipecat
   ignore:
   - dependency-name: '*'
     update-types:
@@ -299,7 +359,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-portkey
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-portkey
   ignore:
   - dependency-name: '*'
     update-types:
@@ -309,7 +371,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-pydantic-ai
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-pydantic-ai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -319,7 +383,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-smolagents
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-smolagents
   ignore:
   - dependency-name: '*'
     update-types:
@@ -329,7 +395,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-strands-agents
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-strands-agents
   ignore:
   - dependency-name: '*'
     update-types:
@@ -339,7 +407,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-vertexai
+- cooldown:
+    default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-vertexai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -349,7 +419,9 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: js/packages/openinference-core
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-core
   ignore:
   - dependency-name: '*'
     update-types:
@@ -359,7 +431,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-genai
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-genai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -369,7 +443,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-instrumentation-anthropic
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-instrumentation-anthropic
   ignore:
   - dependency-name: '*'
     update-types:
@@ -379,7 +455,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-instrumentation-bedrock
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-instrumentation-bedrock
   ignore:
   - dependency-name: '*'
     update-types:
@@ -389,7 +467,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-instrumentation-bedrock-agent-runtime
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-instrumentation-bedrock-agent-runtime
   ignore:
   - dependency-name: '*'
     update-types:
@@ -399,7 +479,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-instrumentation-beeai
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-instrumentation-beeai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -409,7 +491,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-instrumentation-claude-agent-sdk
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-instrumentation-claude-agent-sdk
   ignore:
   - dependency-name: '*'
     update-types:
@@ -419,7 +503,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-instrumentation-langchain
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-instrumentation-langchain
   ignore:
   - dependency-name: '*'
     update-types:
@@ -429,7 +515,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-instrumentation-langchain-v0
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-instrumentation-langchain-v0
   ignore:
   - dependency-name: '*'
     update-types:
@@ -439,7 +527,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-instrumentation-mcp
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-instrumentation-mcp
   ignore:
   - dependency-name: '*'
     update-types:
@@ -449,7 +539,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-instrumentation-openai
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-instrumentation-openai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -459,7 +551,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-semantic-conventions
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-semantic-conventions
   ignore:
   - dependency-name: '*'
     update-types:
@@ -469,7 +563,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-tanstack-ai
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-tanstack-ai
   ignore:
   - dependency-name: '*'
     update-types:
@@ -479,7 +575,9 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
-- directory: js/packages/openinference-vercel
+- cooldown:
+    default-days: 7
+  directory: js/packages/openinference-vercel
   ignore:
   - dependency-name: '*'
     update-types:
