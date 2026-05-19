@@ -727,7 +727,14 @@ def _update_tool_spans_from_messages(
                 tool_use_id = _get_field(block, "tool_use_id", "")
                 result_content = _get_field(block, "content")
                 if _get_field(block, "is_error"):
-                    tool_tracker.end_tool_span_with_error(tool_use_id, "Tool execution error")
+                    # Preserve the tool's own error output instead of dropping
+                    # it for a generic message.
+                    error_text = (
+                        safe_json_dumps(result_content)
+                        if result_content
+                        else "Tool execution error"
+                    )
+                    tool_tracker.end_tool_span_with_error(tool_use_id, error_text)
                 else:
                     tool_tracker.end_tool_span(tool_use_id, result_content)
     except Exception:

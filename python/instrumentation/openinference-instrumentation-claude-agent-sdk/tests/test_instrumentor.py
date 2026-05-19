@@ -214,6 +214,68 @@ async def test_query_exception_sets_error_status(
     assert "Simulated failure" in str(span.status.description)
 
 
+def test_tool_result_is_error_preserves_result_content() -> None:
+    """A tool_result block with is_error=True forwards its content to the span.
+
+    Regression test for the case where `_update_tool_spans_from_messages`
+    discarded the tool's own error output and passed a hardcoded
+    "Tool execution error" string to `end_tool_span_with_error`.
+    """
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    captured: dict[str, Any] = {}
+
+    class _RecordingTracker(wrappers._ToolSpanTrackerBase):
+        def start_tool_span(
+            self, tool_name: Any, tool_input: Any, tool_use_id: Any, parent_tool_use_id: Any = None
+        ) -> None:
+            return None
+
+        def end_tool_span(self, tool_use_id: Any, tool_response: Any) -> None:
+            return None
+
+        def end_tool_span_with_error(self, tool_use_id: Any, error: Any) -> None:
+            captured["tool_use_id"] = tool_use_id
+            captured["error"] = error
+
+        def end_all_in_flight(self) -> None:
+            return None
+
+    message = {
+        "type": "user",
+        "message": {
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_err_1",
+                    "content": [{"type": "text", "text": "real error text"}],
+                    "is_error": True,
+                }
+            ]
+        },
+    }
+    wrappers._update_tool_spans_from_messages(message, _RecordingTracker())
+    assert captured.get("tool_use_id") == "toolu_err_1"
+    assert "real error text" in str(captured.get("error", ""))
+
+    # When result_content is empty/missing, the existing generic message is kept.
+    captured.clear()
+    message_empty = {
+        "type": "user",
+        "message": {
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_err_2",
+                    "is_error": True,
+                }
+            ]
+        },
+    }
+    wrappers._update_tool_spans_from_messages(message_empty, _RecordingTracker())
+    assert captured.get("error") == "Tool execution error"
+
+
 def test_merge_hooks_preserves_user_hooks(monkeypatch: pytest.MonkeyPatch) -> None:
     """User hooks should be preserved when instrumentation merges hooks."""
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
