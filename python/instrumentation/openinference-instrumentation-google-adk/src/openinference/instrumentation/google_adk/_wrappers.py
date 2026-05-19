@@ -106,7 +106,9 @@ class _RunnerRunAsync(_WithTracer):
 
         if (user_id := kwargs.get("user_id")) is not None:
             attributes[SpanAttributes.USER_ID] = user_id
-        if (session_id := kwargs.get("session_id")) is not None:
+
+        existing_session_id = attributes.get(SpanAttributes.SESSION_ID)
+        if (session_id := kwargs.get("session_id")) is not None and existing_session_id is None:
             attributes[SpanAttributes.SESSION_ID] = session_id
 
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
