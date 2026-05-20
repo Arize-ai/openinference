@@ -14,11 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Extract version from tag
         id: version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="$RELEASE_TAG"
           VERSION="${TAG#python-openinference-instrumentation-v}"
           # The startsWith filter above also matches sub-package tags whose
           # name starts with 'v' (e.g. python-openinference-instrumentation-vertexai-v0.1.14).
@@ -27,12 +31,13 @@ jobs:
             echo "::notice::Tag $TAG is not a core openinference-instrumentation release (extracted '$VERSION'); skipping."
             exit 0
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Update pyproject.toml files
         if: steps.version.outputs.version
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          NEW_VERSION="${{ steps.version.outputs.version }}"
           # Match the quoted dependency string exactly to avoid touching
           # similarly-prefixed packages (e.g. openinference-instrumentation-openai)
           find python/instrumentation -name 'pyproject.toml' -exec \

@@ -150,8 +150,10 @@ Normalize and convert data across other instrumentation libraries by adding span
 | --- | --- | --- |
 | [`openinference-semantic-conventions`](./go/openinference-semantic-conventions) | Semantic conventions for tracing of LLM Apps. | `go get github.com/Arize-ai/openinference/go/openinference-semantic-conventions` |
 | [`openinference-instrumentation`](./go/openinference-instrumentation) | Suppression, context attribute propagation, and `TraceConfig` masking. Honors `OPENINFERENCE_HIDE_*` env vars. | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation` |
+| [`openinference-instrumentation-anthropic-sdk-go`](./go/openinference-instrumentation-anthropic-sdk-go) | OpenInference Instrumentation for the Anthropic Go SDK (`anthropics/anthropic-sdk-go`). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-anthropic-sdk-go` |
+| [`openinference-instrumentation-openai-go`](./go/openinference-instrumentation-openai-go) | OpenInference Instrumentation for the official OpenAI Go SDK ([`openai/openai-go`](https://github.com/openai/openai-go)). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-openai-go` |
 
-Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to Arize AX, or wire up any OTel exporter (e.g. Phoenix at `http://localhost:6006/v1/traces`). Per-provider instrumentor packages (`openinference-instrumentation-anthropic`, `openinference-instrumentation-openai`) ship in follow-on PRs.
+Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to Arize AX, or wire up any OTel exporter (e.g. Phoenix at `http://localhost:6006/v1/traces`).
 
 ## Supported Destinations
 

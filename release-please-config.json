@@ -203,7 +203,9 @@
             "release-type": "go",
             "tag-separator": "/",
             "include-component-in-tag": true,
-            "release-as": "0.1.0"
+            "exclude-paths": [
+                "go/openinference-semantic-conventions/README.md"
+            ]
         },
         "go/openinference-instrumentation": {
             "package-name": "openinference-instrumentation-go",
@@ -211,7 +213,23 @@
             "release-type": "go",
             "tag-separator": "/",
             "include-component-in-tag": true,
-            "release-as": "0.1.0"
+            "exclude-paths": [
+                "go/openinference-instrumentation/README.md"
+            ]
+        },
+        "go/openinference-instrumentation-anthropic-sdk-go": {
+            "package-name": "openinference-instrumentation-anthropic-sdk-go",
+            "component": "go/openinference-instrumentation-anthropic-sdk-go",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true
+        },
+        "go/openinference-instrumentation-openai-go": {
+            "package-name": "openinference-instrumentation-openai-go",
+            "component": "go/openinference-instrumentation-openai-go",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true
         }
     }
 }

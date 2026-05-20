@@ -188,11 +188,17 @@ def test_handler_basic_retrieval(
             if not is_stream:
                 assert query_attributes.pop(OUTPUT_VALUE, None) == answer
             else:
-                assert query_attributes.pop(OUTPUT_VALUE, None) is not None
-                assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
+                query_output_value = query_attributes.pop(OUTPUT_VALUE)
+                assert isinstance(query_output_value, str)
+                assert query_attributes.pop(OUTPUT_MIME_TYPE) == JSON
         elif is_stream:
-            assert query_attributes.pop(OUTPUT_VALUE, None) is not None
-            assert query_attributes.pop(OUTPUT_MIME_TYPE, None)
+            if LLAMA_INDEX_VERSION >= (0, 14, 22):
+                assert OUTPUT_VALUE not in query_attributes
+                assert OUTPUT_MIME_TYPE not in query_attributes
+            else:
+                query_output_value = query_attributes.pop(OUTPUT_VALUE)
+                assert isinstance(query_output_value, str)
+                assert query_attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
         if is_async:
             assert (
@@ -259,11 +265,17 @@ def test_handler_basic_retrieval(
             if not is_stream:
                 assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
             else:
-                assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
-                assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
+                synthesize_output_value = synthesize_attributes.pop(OUTPUT_VALUE)
+                assert isinstance(synthesize_output_value, str)
+                assert synthesize_attributes.pop(OUTPUT_MIME_TYPE) == JSON
         elif is_stream:
-            assert synthesize_attributes.pop(OUTPUT_VALUE, None) is not None
-            assert synthesize_attributes.pop(OUTPUT_MIME_TYPE, None)
+            if LLAMA_INDEX_VERSION >= (0, 14, 22):
+                assert OUTPUT_VALUE not in synthesize_attributes
+                assert OUTPUT_MIME_TYPE not in synthesize_attributes
+            else:
+                synthesize_output_value = synthesize_attributes.pop(OUTPUT_VALUE)
+                assert isinstance(synthesize_output_value, str)
+                assert synthesize_attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
         if use_context_attributes:
             _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
