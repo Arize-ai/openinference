@@ -90,7 +90,8 @@ class _RunnerRunAsync(_WithTracer):
 
         tracer = self._tracer
         name = f"invocation [{instance.app_name}]"
-        attributes = dict(get_attributes_from_context())
+        ambient_attributes = dict(get_attributes_from_context())
+        attributes = dict(ambient_attributes)
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.CHAIN.value
 
         arguments = bind_args_kwargs(wrapped, *args, **kwargs)
@@ -109,7 +110,6 @@ class _RunnerRunAsync(_WithTracer):
 
         # Read ambient OTel context directly before we copy it into attributes
         # so we can distinguish "already inside a real session" from "no session yet".
-        ambient_attributes = get_attributes_from_context()
         session_id = kwargs.get("session_id")
         if SpanAttributes.SESSION_ID in ambient_attributes:
             # For sub-agent invocation, inherit the top-level session ID
