@@ -24,7 +24,6 @@ async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    # Build a sub-agent exposed as an AgentTool to the root agent
     sub_agent_name = "Sub_Agent"
     sub_agent = Agent(
         name=sub_agent_name,
@@ -42,7 +41,6 @@ async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
         tools=[AgentTool(agent=sub_agent)],
     )
 
-    # Wire up runner with a known session ID
     app_name = token_hex(4)
     user_id = token_hex(4)
     session_id = token_hex(4)
@@ -65,7 +63,6 @@ async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
     ):
         ...
 
-    # Collect and index spans
     spans = sorted(
         in_memory_span_exporter.get_finished_spans(),
         key=lambda s: s.start_time or 0,
@@ -74,10 +71,10 @@ async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
     for span in spans:
         spans_by_name[span.name].append(span)
 
-    # Only one top-level invocation span should exist.
     invocation_spans = spans_by_name[f"invocation [{app_name}]"]
     assert len(invocation_spans) >= 1
 
+    # Root invocation has no parent and carries the correct session/user IDs.
     root_invocation = next(s for s in invocation_spans if not s.parent)
     assert root_invocation.status.is_ok
     root_attrs = dict(root_invocation.attributes or {})
@@ -85,7 +82,7 @@ async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
     assert root_attrs.get(SpanAttributes.USER_ID) == user_id
     assert root_attrs.get("openinference.span.kind") == "CHAIN"
 
-    # Root agent_run span is a child of the root invocation
+    # Root agent_run is a direct child of the root invocation.
     root_agent_run_spans = spans_by_name[f"agent_run [{root_agent_name}]"]
     assert len(root_agent_run_spans) == 1
     root_agent_run = root_agent_run_spans[0]
@@ -97,7 +94,7 @@ async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
     assert root_agent_run_attrs.get("openinference.span.kind") == "AGENT"
     assert root_agent_run_attrs.get("agent.name") == root_agent_name
 
-    # Check execute_tool span for the AgentTool call
+    # execute_tool span is produced when the root agent invokes the AgentTool.
     tool_spans = spans_by_name[f"execute_tool {sub_agent_name}"]
     assert len(tool_spans) == 1
     tool_span = tool_spans[0]
@@ -107,16 +104,16 @@ async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
     assert tool_attrs.get(SpanAttributes.USER_ID) == user_id
     assert tool_attrs.get("openinference.span.kind") == "TOOL"
 
-    # Check sub-agent invocation span carries the correct session ID.
+    # Sub-agent invocation must carry the top-level session_id, not the ADK-internal UUID.
     sub_invocation_spans = [s for s in invocation_spans if s.parent is not None]
-    assert len(sub_invocation_spans) >= 1, "Expected at least one sub-agent invocation span"
+    assert len(sub_invocation_spans) >= 1
     for sub_inv in sub_invocation_spans:
         sub_inv_attrs = dict(sub_inv.attributes or {})
         assert sub_inv_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
             "Sub-agent invocation span carries wrong session.id value."
         )
 
-    # Check sub-agent agent_run span carries the correct session ID.
+    # Sub-agent agent_run must carry the top-level session_id, not the ADK-internal UUID.
     sub_agent_run_spans = spans_by_name[f"agent_run [{sub_agent_name}]"]
     assert len(sub_agent_run_spans) == 1
     sub_agent_run = sub_agent_run_spans[0]
@@ -129,7 +126,7 @@ async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
     assert sub_agent_run_attrs.get("openinference.span.kind") == "AGENT"
     assert sub_agent_run_attrs.get("agent.name") == sub_agent_name
 
-    # Check call_llm spans (from both root and sub-agent) carries the correct session ID.
+    # All call_llm spans from both root and sub-agent must carry the top-level session_id.
     call_llm_spans = spans_by_name["call_llm"]
     assert len(call_llm_spans) >= 2, (
         "Expected at least one call_llm from the root agent and one from the sub-agent"

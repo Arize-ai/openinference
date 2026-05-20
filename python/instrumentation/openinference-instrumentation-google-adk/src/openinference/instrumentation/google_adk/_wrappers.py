@@ -90,6 +90,8 @@ class _RunnerRunAsync(_WithTracer):
 
         tracer = self._tracer
         name = f"invocation [{instance.app_name}]"
+
+        # Materialize ambient context once which is used to detect if we are inside an existing session.
         ambient_attributes = dict(get_attributes_from_context())
         attributes = dict(ambient_attributes)
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.CHAIN.value
@@ -108,15 +110,11 @@ class _RunnerRunAsync(_WithTracer):
         if (user_id := kwargs.get("user_id")) is not None:
             attributes[SpanAttributes.USER_ID] = user_id
 
-        # Read ambient OTel context directly before we copy it into attributes
-        # so we can distinguish "already inside a real session" from "no session yet".
         session_id = kwargs.get("session_id")
         if SpanAttributes.SESSION_ID in ambient_attributes:
-            # For sub-agent invocation, inherit the top-level session ID
-            # and discard the ADK-internal sub-session UUID passed in kwargs.
+            # Inherit the parent session ID to discard the ADK-internal UUID passed by AgentTool.
             attributes[SpanAttributes.SESSION_ID] = ambient_attributes[SpanAttributes.SESSION_ID]
         elif session_id is not None:
-            # For top-level runner, use whatever session ID was provided.
             attributes[SpanAttributes.SESSION_ID] = session_id
 
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
@@ -133,9 +131,7 @@ class _RunnerRunAsync(_WithTracer):
                     if user_id is not None:
                         stack.enter_context(using_user(user_id))
 
-                    # Only push a new session context when there is not one already.
-                    # Without this guard, sub-agent invocation would overwrite the ambient
-                    # session ID with the ADK-internal sub-session UUID for every child span.
+                    # Skip pushing a new session context if one already exists in ambient context.
                     if (
                         session_id is not None
                         and SpanAttributes.SESSION_ID not in ambient_attributes
