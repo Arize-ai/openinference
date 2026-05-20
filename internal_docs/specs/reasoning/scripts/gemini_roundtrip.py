@@ -51,7 +51,7 @@ from openinference.semconv.trace import (
 from opentelemetry.trace import SpanKind
 
 from common import (
-    CONTENT_TYPE_REASONING_SUMMARY,
+    CONTENT_TYPE_REASONING,
     CONTENT_TYPE_TEXT,
     CONTENT_TYPE_TOOL_USE,
     MESSAGE_CONTENT_THOUGHT_SIGNATURE,
@@ -65,7 +65,7 @@ from common import (
     set_input_assistant_echo,
     set_input_tool_result,
     set_input_user_message,
-    set_output_reasoning_summary,
+    set_output_reasoning,
     set_output_role,
     set_output_text,
     set_output_tool_use,
@@ -166,9 +166,9 @@ def record_assistant_turn(attrs: dict[str, Any], response: Any) -> None:
     for part in candidate.content.parts or []:
         signature_b64 = base64_encode(part.thought_signature)
         if part.thought:
-            # Thought-summary parts never carry a signature — they're a
-            # sibling surface to the data part that does.
-            set_output_reasoning_summary(attrs, 0, content_index, text=part.text or "")
+            # Gemini thought-summary part. Never carries a signature — that
+            # rides on the sibling data part instead.
+            set_output_reasoning(attrs, 0, content_index, text=part.text or "")
         elif part.function_call is not None:
             set_output_tool_use(
                 attrs,
@@ -197,7 +197,9 @@ def rebuild_model_content(
             if strip_signature
             else base64_decode(content_block.get(MESSAGE_CONTENT_THOUGHT_SIGNATURE))
         )
-        if block_type == CONTENT_TYPE_REASONING_SUMMARY:
+        if block_type == CONTENT_TYPE_REASONING:
+            # Gemini's only reasoning surface is the thought summary, which
+            # echoes back as a `thought: true` part.
             parts.append(
                 gtypes.Part(
                     text=content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TEXT, ""),

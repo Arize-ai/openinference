@@ -77,7 +77,7 @@ Open design questions for when these conventions get promoted into `openinferenc
 - **Normalized continuity-token alias.** Should we additionally write a single `message_content.continuity_token` (and `message_content.continuity_token.kind` ∈ `{encrypted_content, signature, thought_signature}`) so provider-agnostic consumers don't need to check three field names? Trade-off: aliasing duplicates bytes; tagging-only keeps the wire payload single but adds a discriminator field.
 - **Redaction interaction with `TraceConfig`.** The existing `TraceConfig.hide_llm_output_messages` masks the *visible* `message_content.text`. Does it also need to mask reasoning text and continuity tokens, or should there be a separate `hide_reasoning_content` / `hide_continuity_token` flag? Continuity tokens are opaque bytes but not safe to log indefinitely (they encode state the model trusts).
 - **Anthropic `redacted_thinking` round-trip.** This script captures `redacted_data` as `message_content.redacted_data` but the scenarios never exercise the redacted path — Anthropic only emits it for content their safety classifier flagged. Recommend adding a synthetic injection test (or a recorded fixture) once we have a reproducible trigger.
-- **`hide_*` masking semantics for redacted content.** If a span carries `type: redacted_reasoning` the `data` blob is already vendor-redacted; OpenInference's own masking should be additive, not duplicative. Settle the precedence rule.
+- **`hide_*` masking semantics for redacted content.** A reasoning block carrying `message_content.redacted_data` is already vendor-redacted; OpenInference's own masking should be additive, not duplicative. Settle the precedence rule.
 - **Cost / token accounting.** Reasoning tokens are billed (OpenAI `reasoning_tokens`, Gemini `thoughtsTokenCount`, Anthropic rolled into `output_tokens`). Existing `LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING` covers OpenAI / Gemini cleanly; Anthropic needs documentation that it's not separately attributable.
 - **Streaming.** These scripts use non-streaming responses. Streaming surfaces (OpenAI's typed SSE, Anthropic's `signature_delta`, Gemini's chunked `parts[]`) emit the continuity token only at well-defined points — the instrumentor's stream wrapper has to buffer correctly. Out of scope here but worth a sibling demo before the conventions land.
 
@@ -88,9 +88,9 @@ Open design questions for when these conventions get promoted into `openinferenc
 | OpenAI `encrypted_content` only populated when `include: ["reasoning.encrypted_content"]` is set | `openai_roundtrip.py` request config |
 | OpenAI `reasoning` items carry an `id` that must be echoed | `set_output_reasoning(item_id=...)` |
 | Anthropic `signature` is byte-for-byte HMAC over the `thinking` plaintext | `set_output_reasoning(signature=...)` |
-| Anthropic `redacted_thinking` carries a `data` blob instead of `thinking` text | `set_output_redacted_reasoning(data=...)` |
+| Anthropic `redacted_thinking` carries a `data` blob instead of `thinking` text | `set_output_reasoning(redacted_data=...)` |
 | Gemini `thoughtSignature` is `bytes` on the SDK / base64 on the wire | base64-encoded for storage in `gemini_roundtrip.py`, decoded on echo |
-| Gemini summary parts (`thought: true`) **never** carry a signature; signatures ride on the sibling data part | `set_output_reasoning_summary` vs `thought_signature` on text / tool_use blocks |
+| Gemini summary parts (`thought: true`) **never** carry a signature; signatures ride on the sibling data part | `set_output_reasoning(text=...)` with no token vs `thought_signature` on text / tool_use blocks |
 
 ## Attribute keys used
 
@@ -110,14 +110,14 @@ Proposed (string literals in `common.py`, **not yet** in semconv):
 | Purpose | Attribute suffix |
 |---|---|
 | Reasoning block discriminator | `message_content.type` = `"reasoning"` |
-| Gemini thought-summary block | `message_content.type` = `"reasoning_summary"` |
-| Anthropic redacted-thinking block | `message_content.type` = `"redacted_reasoning"` |
 | Tool-use block discriminator | `message_content.type` = `"tool_use"` |
 | OpenAI reasoning item id | `message_content.id` |
 | OpenAI continuity token | `message_content.encrypted_content` |
 | Anthropic continuity token | `message_content.signature` |
 | Gemini continuity token | `message_content.thought_signature` (sibling of any data part) |
 | Anthropic redacted blob | `message_content.redacted_data` |
+
+A single `message_content.type = "reasoning"` covers every reasoning surface — raw thinking, summarized thinking (Gemini thought parts, OpenAI summaries), and Anthropic redacted thinking. There is no separate `reasoning_summary` or `redacted_reasoning` type: the variant is told apart by which sub-fields are present (`text` vs `redacted_data`) together with `llm.provider`. A redacted block is the one carrying `redacted_data` and no `text`.
 
 Reasoning request config (effort / budget / level / display) is captured as JSON inside the existing `llm.invocation_parameters` attribute — no new top-level keys are proposed for it.
 

@@ -46,11 +46,14 @@ from opentelemetry.trace import SpanContext
 # `MessageContentAttributes.<NAME>` import.
 # ---------------------------------------------------------------------------
 
-# Additional `message_content.type` discriminators.
+# Additional `message_content.type` discriminators. Every reasoning surface —
+# raw thinking, summarized thinking (Gemini thought parts, OpenAI summaries),
+# and Anthropic redacted thinking — uses the single value `"reasoning"`. The
+# variant is told apart by which sub-fields are present (`text` vs
+# `redacted_data`) plus the provider on `llm.provider`, so no extra type is
+# needed.
 CONTENT_TYPE_TEXT = "text"  # parallels the existing MESSAGE_CONTENT_TEXT field
 CONTENT_TYPE_REASONING = "reasoning"
-CONTENT_TYPE_REASONING_SUMMARY = "reasoning_summary"  # Gemini thought-summary parts
-CONTENT_TYPE_REDACTED_REASONING = "redacted_reasoning"  # Anthropic redacted_thinking
 CONTENT_TYPE_TOOL_USE = "tool_use"
 
 # Additional `message_content.*` sub-fields. These carry the per-vendor
@@ -233,9 +236,18 @@ def set_output_reasoning(
     encrypted_content: str | None = None,
     signature: str | None = None,
     thought_signature: str | None = None,
+    redacted_data: str | None = None,
 ) -> None:
-    """Reasoning block. Carries any subset of the three vendor continuity
-    tokens — presence/absence of each field is the discriminator."""
+    """A `type: reasoning` block — covers raw thinking, summarized thinking,
+    and Anthropic redacted thinking. Every field is optional; the caller
+    populates whatever the provider produced:
+
+    - Anthropic thinking:      `text` + `signature`
+    - Anthropic redacted:      `redacted_data` (no `text`, no `signature`)
+    - OpenAI reasoning item:   `text` + `item_id` + `encrypted_content`
+    - Gemini thought summary:  `text` (no continuity token — it rides on the
+      sibling data part)
+    """
     _set_content_block(
         attrs,
         message_index,
@@ -247,44 +259,7 @@ def set_output_reasoning(
             MESSAGE_CONTENT_ENCRYPTED_CONTENT: encrypted_content,
             MESSAGE_CONTENT_SIGNATURE: signature,
             MESSAGE_CONTENT_THOUGHT_SIGNATURE: thought_signature,
-        },
-    )
-
-
-def set_output_reasoning_summary(
-    attrs: dict[str, Any],
-    message_index: int,
-    content_index: int,
-    *,
-    text: str,
-) -> None:
-    """Gemini-only: a `thought: true` summary part. Never carries a signature."""
-    _set_content_block(
-        attrs,
-        message_index,
-        content_index,
-        {
-            MessageContentAttributes.MESSAGE_CONTENT_TYPE: CONTENT_TYPE_REASONING_SUMMARY,
-            MessageContentAttributes.MESSAGE_CONTENT_TEXT: text,
-        },
-    )
-
-
-def set_output_redacted_reasoning(
-    attrs: dict[str, Any],
-    message_index: int,
-    content_index: int,
-    *,
-    data: str,
-) -> None:
-    """Anthropic-only: replaces `thinking` text with an opaque `data` blob."""
-    _set_content_block(
-        attrs,
-        message_index,
-        content_index,
-        {
-            MessageContentAttributes.MESSAGE_CONTENT_TYPE: CONTENT_TYPE_REDACTED_REASONING,
-            MESSAGE_CONTENT_REDACTED_DATA: data,
+            MESSAGE_CONTENT_REDACTED_DATA: redacted_data,
         },
     )
 

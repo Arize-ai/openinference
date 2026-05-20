@@ -47,7 +47,6 @@ from opentelemetry.trace import SpanKind
 
 from common import (
     CONTENT_TYPE_REASONING,
-    CONTENT_TYPE_REDACTED_REASONING,
     CONTENT_TYPE_TEXT,
     CONTENT_TYPE_TOOL_USE,
     MESSAGE_CONTENT_REDACTED_DATA,
@@ -63,7 +62,6 @@ from common import (
     set_input_tool_result,
     set_input_user_message,
     set_output_reasoning,
-    set_output_redacted_reasoning,
     set_output_role,
     set_output_text,
     set_output_tool_use,
@@ -110,7 +108,7 @@ def record_assistant_turn(attrs: dict[str, Any], message: Any) -> None:
                 attrs, 0, content_index, text=block.thinking, signature=block.signature
             )
         elif block_type == "redacted_thinking":
-            set_output_redacted_reasoning(attrs, 0, content_index, data=block.data)
+            set_output_reasoning(attrs, 0, content_index, redacted_data=block.data)
         elif block_type == "text":
             set_output_text(attrs, 0, content_index, block.text)
         elif block_type == "tool_use":
@@ -131,6 +129,12 @@ def rebuild_assistant_content_blocks(
     for content_block in read_output_contents(fetched_attrs, 0):
         block_type = content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE)
         if block_type == CONTENT_TYPE_REASONING:
+            # A `reasoning` block carrying `redacted_data` is Anthropic
+            # redacted thinking; otherwise it's a normal thinking block.
+            redacted_data = content_block.get(MESSAGE_CONTENT_REDACTED_DATA)
+            if redacted_data is not None:
+                rebuilt.append({"type": "redacted_thinking", "data": redacted_data})
+                continue
             thinking_block: dict[str, Any] = {
                 "type": "thinking",
                 "thinking": content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TEXT, ""),
@@ -139,10 +143,6 @@ def rebuild_assistant_content_blocks(
             if signature and not strip_signature:
                 thinking_block["signature"] = signature
             rebuilt.append(thinking_block)
-        elif block_type == CONTENT_TYPE_REDACTED_REASONING:
-            rebuilt.append(
-                {"type": "redacted_thinking", "data": content_block[MESSAGE_CONTENT_REDACTED_DATA]}
-            )
         elif block_type == CONTENT_TYPE_TEXT:
             rebuilt.append(
                 {
