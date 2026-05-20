@@ -56,6 +56,31 @@ Anthropic and Gemini-3 scripts additionally run a **negative assertion** where t
 
 Gemini 2.5 silently drops thinking on signature loss instead of erroring, so its negative assertion is skipped with a warning when the model is not on the Gemini 3 family.
 
+## Continuity-token normalization
+
+Each vendor names its echo-on-next-turn token differently:
+
+| Vendor | API field | Mechanism |
+|---|---|---|
+| OpenAI | `encrypted_content` | opaque ciphertext that **carries** the chain-of-thought state |
+| Anthropic | `signature` | HMAC-like token that **authenticates** the plaintext `thinking` (which rides back too) |
+| Gemini | `thoughtSignature` | opaque encrypted representation that **carries** internal reasoning state |
+
+These scripts normalize them **structurally**: all three live as siblings of `message_content.type` inside the same flat content-block shape, indexed by the same `llm.output_messages.{i}.message.contents.{j}.*` walker. The vendor's field name is preserved as the sub-field (`message_content.encrypted_content`, `message_content.signature`, `message_content.thought_signature`) so consumers can tell which echo discipline applies — but the discovery path, ordering, and round-trip logic are identical across providers. That is what makes `read_output_contents` and `set_input_assistant_echo` provider-agnostic.
+
+A single normalized alias (e.g. `message_content.continuity_token`) is **not** proposed here — see Follow-ups below.
+
+## Follow-ups
+
+Open design questions for when these conventions get promoted into `openinference-semantic-conventions`:
+
+- **Normalized continuity-token alias.** Should we additionally write a single `message_content.continuity_token` (and `message_content.continuity_token.kind` ∈ `{encrypted_content, signature, thought_signature}`) so provider-agnostic consumers don't need to check three field names? Trade-off: aliasing duplicates bytes; tagging-only keeps the wire payload single but adds a discriminator field.
+- **Redaction interaction with `TraceConfig`.** The existing `TraceConfig.hide_llm_output_messages` masks the *visible* `message_content.text`. Does it also need to mask reasoning text and continuity tokens, or should there be a separate `hide_reasoning_content` / `hide_continuity_token` flag? Continuity tokens are opaque bytes but not safe to log indefinitely (they encode state the model trusts).
+- **Anthropic `redacted_thinking` round-trip.** This script captures `redacted_data` as `message_content.redacted_data` but the scenarios never exercise the redacted path — Anthropic only emits it for content their safety classifier flagged. Recommend adding a synthetic injection test (or a recorded fixture) once we have a reproducible trigger.
+- **`hide_*` masking semantics for redacted content.** If a span carries `type: redacted_reasoning` the `data` blob is already vendor-redacted; OpenInference's own masking should be additive, not duplicative. Settle the precedence rule.
+- **Cost / token accounting.** Reasoning tokens are billed (OpenAI `reasoning_tokens`, Gemini `thoughtsTokenCount`, Anthropic rolled into `output_tokens`). Existing `LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING` covers OpenAI / Gemini cleanly; Anthropic needs documentation that it's not separately attributable.
+- **Streaming.** These scripts use non-streaming responses. Streaming surfaces (OpenAI's typed SSE, Anthropic's `signature_delta`, Gemini's chunked `parts[]`) emit the continuity token only at well-defined points — the instrumentor's stream wrapper has to buffer correctly. Out of scope here but worth a sibling demo before the conventions land.
+
 ## Per-provider quirks captured
 
 | Quirk | Where |
