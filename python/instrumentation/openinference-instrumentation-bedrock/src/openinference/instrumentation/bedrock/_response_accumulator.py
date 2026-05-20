@@ -413,6 +413,21 @@ class _ResponseAccumulator:
                         input_attributes.update(attributes.request_attributes)
                         attributes.request_attributes = input_attributes
                         return
+            elif "routingClassifierTrace" in trace_data:
+                routing_data = trace_data["routingClassifierTrace"]
+                if (
+                    "invocationInput" in routing_data
+                    and trace_span.node_type == "agent-collaborator"
+                ):
+                    invocation_input = routing_data["invocationInput"]
+                    attrs = AttributeExtractor.get_attributes_from_invocation_input(
+                        invocation_input
+                    )
+                    if attrs:
+                        input_attributes.update(attrs)
+                        input_attributes.update(attributes.request_attributes)
+                        attributes.request_attributes = input_attributes
+                        return
 
         # Then check spans
         for span in trace_span.spans:
@@ -701,10 +716,18 @@ class _ResponseAccumulator:
                 cls._process_failure_trace(trace_data["failureTrace"], _attributes)
             elif "routingClassifierTrace" in trace_data:
                 routing_data = trace_data["routingClassifierTrace"]
+                if "modelInvocationInput" in routing_data:
+                    cls._process_model_invocation_input(
+                        routing_data["modelInvocationInput"], _attributes
+                    )
                 if "modelInvocationOutput" in routing_data:
                     cls._process_model_invocation_output(
                         routing_data["modelInvocationOutput"], _attributes
                     )
+                if "invocationInput" in routing_data:
+                    cls._process_invocation_input(routing_data["invocationInput"], _attributes)
+                if "observation" in routing_data:
+                    cls._process_observation(routing_data["observation"], _attributes)
         return _attributes
 
     @classmethod
@@ -784,6 +807,27 @@ class _ResponseAccumulator:
                     )
             elif "routingClassifierTrace" in trace_data:
                 routing_data = trace_data["routingClassifierTrace"]
+                if (
+                    trace_node.node_type == "agent-collaborator"
+                    and "invocationInput" in routing_data
+                ):
+                    invocation_input = routing_data["invocationInput"]
+                    if "agentCollaboratorInvocationInput" in invocation_input:
+                        agent_collab_info = invocation_input["agentCollaboratorInvocationInput"]
+                        agent_collaborator_name = (
+                            agent_collab_info["agentCollaboratorName"]
+                            if "agentCollaboratorName" in agent_collab_info
+                            else ""
+                        )
+                        invocation_type = (
+                            invocation_input["invocationType"]
+                            if "invocationType" in invocation_input
+                            else ""
+                        )
+                        if agent_collaborator_name:
+                            attributes.name = (
+                                f"{invocation_type.lower()}[{agent_collaborator_name}]"
+                            )
                 if "modelInvocationOutput" in routing_data:
                     routing_mo = routing_data["modelInvocationOutput"]
                     attributes.metadata.update(
