@@ -40,6 +40,7 @@ from typing import Any
 
 from google import genai
 from google.genai import types as gtypes
+from openinference.instrumentation import get_llm_attributes
 from openinference.semconv.trace import (
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
@@ -55,8 +56,9 @@ from common import (
     CONTENT_TYPE_TOOL_USE,
     MESSAGE_CONTENT_THOUGHT_SIGNATURE,
     TracingCtx,
-    continuity_token_lengths,
-    fetch_span_attributes,
+    find_tool_use_block,
+    flush_and_fetch,
+    print_capture_summary,
     read_input_message_content,
     read_output_contents,
     read_tools,
@@ -104,36 +106,30 @@ def base64_decode(encoded: str | None) -> bytes | None:
 
 def set_request_attributes(attrs: dict[str, Any]) -> None:
     attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
-    attrs[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.GOOGLE.value
-    # OpenInferenceLLMSystemValues has no gemini member yet; use vertexai
-    # (the closest existing value) on llm.system so it parses as a known enum.
+    # `gemini` is not yet a member of OpenInferenceLLMSystemValues; using
+    # `vertexai` would be a lie since the direct Gemini API isn't Vertex.
+    # Keep the raw string and revisit when the enum gains a member.
     attrs[SpanAttributes.LLM_SYSTEM] = "gemini"
-    attrs[SpanAttributes.LLM_MODEL_NAME] = MODEL
-    attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS] = json.dumps(
-        {
-            "generationConfig": {
-                "thinkingConfig": {"thinkingBudget": BUDGET, "includeThoughts": True},
-            }
-        }
+    attrs.update(
+        get_llm_attributes(
+            provider=OpenInferenceLLMProviderValues.GOOGLE,
+            model_name=MODEL,
+            invocation_parameters={
+                "generationConfig": {
+                    "thinkingConfig": {"thinkingBudget": BUDGET, "includeThoughts": True},
+                }
+            },
+        )
     )
 
 
-def thinking_config() -> gtypes.GenerateContentConfig:
+def make_config(*, with_tools: bool) -> gtypes.GenerateContentConfig:
     return gtypes.GenerateContentConfig(
         thinking_config=gtypes.ThinkingConfig(
             thinking_budget=BUDGET,
             include_thoughts=True,
         ),
-        tools=[WEATHER_TOOL],
-    )
-
-
-def text_only_config() -> gtypes.GenerateContentConfig:
-    return gtypes.GenerateContentConfig(
-        thinking_config=gtypes.ThinkingConfig(
-            thinking_budget=BUDGET,
-            include_thoughts=True,
-        ),
+        tools=[WEATHER_TOOL] if with_tools else None,
     )
 
 
@@ -239,18 +235,13 @@ def scenario_text(client: genai.Client, ctx: TracingCtx) -> bool:
         turn1_response = client.models.generate_content(
             model=MODEL,
             contents=user_text,
-            config=text_only_config(),
+            config=make_config(with_tools=False),
         )
         record_assistant_turn(turn1_attrs, turn1_response)
         turn1_span.set_attributes(turn1_attrs)
         turn1_span_context = turn1_span.get_span_context()
 
-    ctx.flush()
-    fetched_attrs = fetch_span_attributes(
-        ctx,
-        trace_id_hex=f"{turn1_span_context.trace_id:032x}",
-        span_id_hex=f"{turn1_span_context.span_id:016x}",
-    )
+    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
     prior_user_text = read_input_message_content(fetched_attrs, 0)
     captured_contents = read_output_contents(fetched_attrs, 0)
     follow_up_text = "Now in one sentence: who proved that property?"
@@ -277,8 +268,7 @@ def scenario_text(client: genai.Client, ctx: TracingCtx) -> bool:
         turn2_span.set_attributes(turn2_attrs)
 
     turn2_text = (turn2_response.text or "")[:120]
-    print(f"  fetched_blocks={len(captured_contents)} "
-          f"token_lens={continuity_token_lengths(captured_contents)}")
+    print_capture_summary(captured_contents)
     print(f"  turn2_text={turn2_text!r}")
     return bool(turn2_text)
 
@@ -298,28 +288,16 @@ def scenario_tool(client: genai.Client, ctx: TracingCtx) -> tuple[bool, bool | N
         turn1_response = client.models.generate_content(
             model=MODEL,
             contents=user_text,
-            config=thinking_config(),
+            config=make_config(with_tools=True),
         )
         record_assistant_turn(turn1_attrs, turn1_response)
         turn1_span.set_attributes(turn1_attrs)
         turn1_span_context = turn1_span.get_span_context()
 
-    ctx.flush()
-    fetched_attrs = fetch_span_attributes(
-        ctx,
-        trace_id_hex=f"{turn1_span_context.trace_id:032x}",
-        span_id_hex=f"{turn1_span_context.span_id:016x}",
-    )
+    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
     prior_user_text = read_input_message_content(fetched_attrs, 0)
     captured_contents = read_output_contents(fetched_attrs, 0)
-    tool_use_block = next(
-        (
-            block
-            for block in captured_contents
-            if block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE) == CONTENT_TYPE_TOOL_USE
-        ),
-        None,
-    )
+    tool_use_block = find_tool_use_block(captured_contents)
     if tool_use_block is None:
         print("  SKIP: model did not call the tool")
         return True, None
@@ -367,8 +345,7 @@ def scenario_tool(client: genai.Client, ctx: TracingCtx) -> tuple[bool, bool | N
         turn2_span.set_attributes(turn2_attrs)
 
     final_text = (turn2_response.text or "")[:120]
-    print(f"  fetched_blocks={len(captured_contents)} "
-          f"token_lens={continuity_token_lengths(captured_contents)}")
+    print_capture_summary(captured_contents)
     print(f"  positive_turn2_text={final_text!r}")
     positive_ok = bool(final_text)
 
@@ -392,7 +369,7 @@ def scenario_tool(client: genai.Client, ctx: TracingCtx) -> tuple[bool, bool | N
                     stripped_model_content,
                     tool_response_user_content,
                 ],
-                config=thinking_config(),
+                config=make_config(with_tools=True),
             )
         except Exception as error:  # noqa: BLE001 — google.genai raises various types
             negative_rejected = True

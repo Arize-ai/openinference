@@ -34,6 +34,7 @@ from typing import Any
 
 import anthropic
 from anthropic import BadRequestError
+from openinference.instrumentation import get_llm_attributes
 from openinference.semconv.trace import (
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
@@ -52,8 +53,9 @@ from common import (
     MESSAGE_CONTENT_REDACTED_DATA,
     MESSAGE_CONTENT_SIGNATURE,
     TracingCtx,
-    continuity_token_lengths,
-    fetch_span_attributes,
+    find_tool_use_block,
+    flush_and_fetch,
+    print_capture_summary,
     read_input_message_content,
     read_output_contents,
     read_tools,
@@ -86,14 +88,16 @@ WEATHER_TOOL = {
 
 def set_request_attributes(attrs: dict[str, Any]) -> None:
     attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
-    attrs[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.ANTHROPIC.value
-    attrs[SpanAttributes.LLM_SYSTEM] = OpenInferenceLLMSystemValues.ANTHROPIC.value
-    attrs[SpanAttributes.LLM_MODEL_NAME] = MODEL
-    attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS] = json.dumps(
-        {
-            "thinking": {"type": "enabled", "budget_tokens": BUDGET},
-            "max_tokens": MAX_TOKENS,
-        }
+    attrs.update(
+        get_llm_attributes(
+            provider=OpenInferenceLLMProviderValues.ANTHROPIC,
+            system=OpenInferenceLLMSystemValues.ANTHROPIC,
+            model_name=MODEL,
+            invocation_parameters={
+                "thinking": {"type": "enabled", "budget_tokens": BUDGET},
+                "max_tokens": MAX_TOKENS,
+            },
+        )
     )
 
 
@@ -202,12 +206,7 @@ def scenario_text(client: anthropic.Anthropic, ctx: TracingCtx) -> bool:
         turn1_span.set_attributes(turn1_attrs)
         turn1_span_context = turn1_span.get_span_context()
 
-    ctx.flush()
-    fetched_attrs = fetch_span_attributes(
-        ctx,
-        trace_id_hex=f"{turn1_span_context.trace_id:032x}",
-        span_id_hex=f"{turn1_span_context.span_id:016x}",
-    )
+    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
     prior_user_text = read_input_message_content(fetched_attrs, 0)
     captured_contents = read_output_contents(fetched_attrs, 0)
     follow_up_text = "Now in one sentence: who proved that property?"
@@ -234,8 +233,7 @@ def scenario_text(client: anthropic.Anthropic, ctx: TracingCtx) -> bool:
         turn2_span.set_attributes(turn2_attrs)
 
     final_text = next((block.text for block in turn2_message.content if block.type == "text"), "")
-    print(f"  fetched_blocks={len(captured_contents)} "
-          f"token_lens={continuity_token_lengths(captured_contents)}")
+    print_capture_summary(captured_contents)
     print(f"  turn2_text={final_text[:120]!r}")
     return bool(final_text)
 
@@ -263,22 +261,10 @@ def scenario_tool(client: anthropic.Anthropic, ctx: TracingCtx) -> tuple[bool, b
         turn1_span.set_attributes(turn1_attrs)
         turn1_span_context = turn1_span.get_span_context()
 
-    ctx.flush()
-    fetched_attrs = fetch_span_attributes(
-        ctx,
-        trace_id_hex=f"{turn1_span_context.trace_id:032x}",
-        span_id_hex=f"{turn1_span_context.span_id:016x}",
-    )
+    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
     prior_user_text = read_input_message_content(fetched_attrs, 0)
     captured_contents = read_output_contents(fetched_attrs, 0)
-    tool_use_block = next(
-        (
-            block
-            for block in captured_contents
-            if block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE) == CONTENT_TYPE_TOOL_USE
-        ),
-        None,
-    )
+    tool_use_block = find_tool_use_block(captured_contents)
     if tool_use_block is None:
         print("  SKIP: model did not call the tool")
         return True, True
@@ -296,6 +282,7 @@ def scenario_tool(client: anthropic.Anthropic, ctx: TracingCtx) -> tuple[bool, b
         ],
     }
 
+    assistant_content_blocks = rebuild_assistant_content_blocks(fetched_attrs)
     with ctx.tracer.start_as_current_span(
         "anthropic.messages.tool.turn2.roundtrip", kind=SpanKind.CLIENT
     ) as turn2_span:
@@ -313,7 +300,7 @@ def scenario_tool(client: anthropic.Anthropic, ctx: TracingCtx) -> tuple[bool, b
             fetched_attrs,
             messages=[
                 {"role": "user", "content": prior_user_text},
-                {"role": "assistant", "content": rebuild_assistant_content_blocks(fetched_attrs)},
+                {"role": "assistant", "content": assistant_content_blocks},
                 tool_result_user_message,
             ],
         )
@@ -321,8 +308,7 @@ def scenario_tool(client: anthropic.Anthropic, ctx: TracingCtx) -> tuple[bool, b
         turn2_span.set_attributes(turn2_attrs)
 
     final_text = next((block.text for block in turn2_message.content if block.type == "text"), "")
-    print(f"  fetched_blocks={len(captured_contents)} "
-          f"token_lens={continuity_token_lengths(captured_contents)}")
+    print_capture_summary(captured_contents)
     print(f"  positive_turn2_text={final_text[:120]!r}")
     positive_ok = bool(final_text)
 

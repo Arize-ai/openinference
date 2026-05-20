@@ -35,6 +35,7 @@ import sys
 from typing import Any
 
 from openai import OpenAI
+from openinference.instrumentation import get_llm_attributes
 from openinference.semconv.trace import (
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
@@ -52,8 +53,9 @@ from common import (
     MESSAGE_CONTENT_ENCRYPTED_CONTENT,
     MESSAGE_CONTENT_ID,
     TracingCtx,
-    continuity_token_lengths,
-    fetch_span_attributes,
+    find_tool_use_block,
+    flush_and_fetch,
+    print_capture_summary,
     read_input_message_content,
     read_output_contents,
     read_tools,
@@ -84,15 +86,17 @@ WEATHER_TOOL = {
 
 def set_request_attributes(attrs: dict[str, Any], *, effort: str, summary: str) -> None:
     attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
-    attrs[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.OPENAI.value
-    attrs[SpanAttributes.LLM_SYSTEM] = OpenInferenceLLMSystemValues.OPENAI.value
-    attrs[SpanAttributes.LLM_MODEL_NAME] = MODEL
-    attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS] = json.dumps(
-        {
-            "reasoning": {"effort": effort, "summary": summary},
-            "store": False,
-            "include": ["reasoning.encrypted_content"],
-        }
+    attrs.update(
+        get_llm_attributes(
+            provider=OpenInferenceLLMProviderValues.OPENAI,
+            system=OpenInferenceLLMSystemValues.OPENAI,
+            model_name=MODEL,
+            invocation_parameters={
+                "reasoning": {"effort": effort, "summary": summary},
+                "store": False,
+                "include": ["reasoning.encrypted_content"],
+            },
+        )
     )
 
 
@@ -224,12 +228,7 @@ def scenario_text(client: OpenAI, ctx: TracingCtx) -> bool:
         turn1_span.set_attributes(turn1_attrs)
         turn1_span_context = turn1_span.get_span_context()
 
-    ctx.flush()
-    fetched_attrs = fetch_span_attributes(
-        ctx,
-        trace_id_hex=f"{turn1_span_context.trace_id:032x}",
-        span_id_hex=f"{turn1_span_context.span_id:016x}",
-    )
+    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
     prior_user_text = read_input_message_content(fetched_attrs, 0)
     captured_contents = read_output_contents(fetched_attrs, 0)
     follow_up_text = "Now in one sentence: who proved that property?"
@@ -252,8 +251,7 @@ def scenario_text(client: OpenAI, ctx: TracingCtx) -> bool:
     turn2_returned_message = any(
         getattr(item, "type", None) == "message" for item in turn2_response.output
     )
-    print(f"  fetched_blocks={len(captured_contents)} "
-          f"token_lens={continuity_token_lengths(captured_contents)}")
+    print_capture_summary(captured_contents)
     print(f"  turn2_ok={turn2_returned_message}  "
           f"turn2_text={(turn2_response.output_text or '')[:80]!r}")
     return turn2_returned_message
@@ -283,23 +281,14 @@ def scenario_tool(client: OpenAI, ctx: TracingCtx) -> bool:
         turn1_span.set_attributes(turn1_attrs)
         turn1_span_context = turn1_span.get_span_context()
 
-    ctx.flush()
-    fetched_attrs = fetch_span_attributes(
-        ctx,
-        trace_id_hex=f"{turn1_span_context.trace_id:032x}",
-        span_id_hex=f"{turn1_span_context.span_id:016x}",
-    )
+    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
     prior_user_text = read_input_message_content(fetched_attrs, 0)
     captured_contents = read_output_contents(fetched_attrs, 0)
-    tool_use_blocks = [
-        block
-        for block in captured_contents
-        if block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE) == CONTENT_TYPE_TOOL_USE
-    ]
-    if not tool_use_blocks:
+    tool_use_block = find_tool_use_block(captured_contents)
+    if tool_use_block is None:
         print("  SKIP: model did not call the tool")
         return True
-    tool_call_id = tool_use_blocks[0][ToolCallAttributes.TOOL_CALL_ID]
+    tool_call_id = tool_use_block[ToolCallAttributes.TOOL_CALL_ID]
 
     turn2_input_items = rebuild_input_items(fetched_attrs, prior_user_text)
     tool_output_json = json.dumps({"temperature_c": 14.5})
@@ -330,8 +319,7 @@ def scenario_tool(client: OpenAI, ctx: TracingCtx) -> bool:
     turn2_returned_message = any(
         getattr(item, "type", None) == "message" for item in turn2_response.output
     )
-    print(f"  fetched_blocks={len(captured_contents)} "
-          f"token_lens={continuity_token_lengths(captured_contents)}")
+    print_capture_summary(captured_contents)
     print(f"  turn2_has_final_message={turn2_returned_message}")
     print(f"  turn2_text={(turn2_response.output_text or '')[:120]!r}")
     return turn2_returned_message

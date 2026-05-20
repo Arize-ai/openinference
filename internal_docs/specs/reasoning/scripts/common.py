@@ -24,6 +24,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from openinference.instrumentation import get_llm_tool_attributes
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -35,6 +36,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace import SpanContext
 
 # ---------------------------------------------------------------------------
 # Proposed (not yet in openinference-semantic-conventions)
@@ -76,9 +78,13 @@ PROPOSED_CONTINUITY_TOKEN_FIELDS: tuple[str, ...] = (
 # ---------------------------------------------------------------------------
 
 
+# Example output: `output_msg_key(0, MessageAttributes.MESSAGE_ROLE)`
+#   → `"llm.output_messages.0.message.role"`.
+# Example output: `output_content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TYPE)`
+#   → `"llm.output_messages.0.message.contents.0.message_content.type"`.
+
+
 def output_msg_key(message_index: int, suffix: str) -> str:
-    """`output_msg_key(0, MessageAttributes.MESSAGE_ROLE)` →
-    `llm.output_messages.0.message.role`."""
     return f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{suffix}"
 
 
@@ -87,8 +93,6 @@ def input_msg_key(message_index: int, suffix: str) -> str:
 
 
 def output_content_key(message_index: int, content_index: int, suffix: str) -> str:
-    """`output_content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TYPE)`
-    → `llm.output_messages.0.message.contents.0.message_content.type`."""
     return (
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}"
         f".{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{suffix}"
@@ -191,7 +195,8 @@ def _set_content_block(
     content_index: int,
     fields_by_suffix: dict[str, Any],
 ) -> None:
-    """Write `{suffix: value}` pairs into one content slot, skipping Nones."""
+    # Nones are skipped so the presence-or-absence of each field stays a
+    # reliable discriminator on the read side.
     for suffix, value in fields_by_suffix.items():
         if value is not None:
             attrs[output_content_key(message_index, content_index, suffix)] = value
@@ -318,34 +323,35 @@ def set_output_tool_use(
 # ---------------------------------------------------------------------------
 # Tool definitions
 #
-# The OpenInference spec has `llm.tools.{i}.tool.json_schema` for the raw
-# JSON schema of each declared tool. We capture each provider's tool spec
-# under that key so turn 2 can rebuild the exact `tools=[...]` argument
-# without referring to the original Python literal.
+# Capture each provider's tool schema under the existing
+# `llm.tools.{i}.tool.json_schema` convention. The writer reuses the upstream
+# `get_llm_tool_attributes` helper directly; only the reader is local because
+# the package doesn't ship an inverse.
 # ---------------------------------------------------------------------------
 
-LLM_TOOL_JSON_SCHEMA_SUFFIX = "tool.json_schema"
+_LLM_TOOL_JSON_SCHEMA_SUFFIX = "tool.json_schema"
 
 
 def set_tools(attrs: dict[str, Any], tool_json_schemas: list[dict[str, Any]]) -> None:
-    for tool_index, schema in enumerate(tool_json_schemas):
-        attrs[f"{SpanAttributes.LLM_TOOLS}.{tool_index}.{LLM_TOOL_JSON_SCHEMA_SUFFIX}"] = json.dumps(
-            schema
+    attrs.update(
+        get_llm_tool_attributes(
+            tools=[{"json_schema": schema} for schema in tool_json_schemas]
         )
+    )
 
 
 def read_tools(attrs: dict[str, Any]) -> list[dict[str, Any]]:
     prefix = f"{SpanAttributes.LLM_TOOLS}."
-    grouped_by_tool_index: dict[int, str] = {}
+    schema_json_by_index: dict[int, str] = {}
     for key, value in attrs.items():
-        if not key.startswith(prefix) or not key.endswith(f".{LLM_TOOL_JSON_SCHEMA_SUFFIX}"):
+        if not key.startswith(prefix) or not key.endswith(f".{_LLM_TOOL_JSON_SCHEMA_SUFFIX}"):
             continue
         tool_index_str = key[len(prefix):].split(".", 1)[0]
         try:
-            grouped_by_tool_index[int(tool_index_str)] = value
+            schema_json_by_index[int(tool_index_str)] = value
         except ValueError:
             continue
-    return [json.loads(grouped_by_tool_index[i]) for i in sorted(grouped_by_tool_index)]
+    return [json.loads(schema_json_by_index[tool_index]) for tool_index in sorted(schema_json_by_index)]
 
 
 # ---------------------------------------------------------------------------
@@ -359,15 +365,14 @@ def read_input_message_content(attrs: dict[str, Any], message_index: int) -> str
 
 
 def read_output_contents(attrs: dict[str, Any], message_index: int) -> list[dict[str, Any]]:
-    """Group `llm.output_messages.{message_index}.message.contents.{j}.*`
-    keys by `j`. Returned dicts map the trailing suffix (e.g.
-    `message_content.type`, `tool_call.id`) to its value — those suffixes
-    are exactly the semconv constant values for each field."""
+    """Group output content-block attributes by index. Returned dicts map the
+    trailing key suffix (e.g. `message_content.type`, `tool_call.id`) to its
+    value — those suffixes are exactly the semconv constant values."""
     prefix = (
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}"
         f".{MessageAttributes.MESSAGE_CONTENTS}."
     )
-    grouped_by_content_index: dict[int, dict[str, Any]] = {}
+    fields_by_content_index: dict[int, dict[str, Any]] = {}
     for key, value in attrs.items():
         if not key.startswith(prefix):
             continue
@@ -376,8 +381,20 @@ def read_output_contents(attrs: dict[str, Any], message_index: int) -> list[dict
             content_index = int(content_index_str)
         except ValueError:
             continue
-        grouped_by_content_index.setdefault(content_index, {})[suffix] = value
-    return [grouped_by_content_index[i] for i in sorted(grouped_by_content_index)]
+        fields_by_content_index.setdefault(content_index, {})[suffix] = value
+    return [fields_by_content_index[content_index] for content_index in sorted(fields_by_content_index)]
+
+
+def find_tool_use_block(contents: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return the first `tool_use` content block, or None if none."""
+    return next(
+        (
+            block
+            for block in contents
+            if block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE) == CONTENT_TYPE_TOOL_USE
+        ),
+        None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -416,6 +433,19 @@ def fetch_span_attributes(
     )
 
 
+def flush_and_fetch(ctx: TracingCtx, span_context: SpanContext) -> dict[str, Any]:
+    """Force-flush OTel and pull the span's attributes back out of Phoenix.
+
+    Centralizes the trace/span-id hex formatting so callers don't repeat it.
+    """
+    ctx.flush()
+    return fetch_span_attributes(
+        ctx,
+        trace_id_hex=f"{span_context.trace_id:032x}",
+        span_id_hex=f"{span_context.span_id:016x}",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Pretty-print helper
 # ---------------------------------------------------------------------------
@@ -433,3 +463,8 @@ def continuity_token_lengths(contents: list[dict[str, Any]]) -> dict[str, int]:
                 short_name = full_suffix.removeprefix("message_content.")
                 lengths[f"block{content_index}.{short_name}"] = len(value)
     return lengths
+
+
+def print_capture_summary(contents: list[dict[str, Any]]) -> None:
+    """One-line summary of captured blocks + continuity-token sizes."""
+    print(f"  fetched_blocks={len(contents)} token_lens={continuity_token_lengths(contents)}")
