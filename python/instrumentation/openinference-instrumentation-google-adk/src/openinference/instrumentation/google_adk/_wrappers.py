@@ -91,7 +91,7 @@ class _RunnerRunAsync(_WithTracer):
         tracer = self._tracer
         name = f"invocation [{instance.app_name}]"
 
-        # Materialize ambient context once which is used to detect if we are inside an existing session.
+        # Materialize ambient context once to detect if we are inside an existing session.
         ambient_attributes = dict(get_attributes_from_context())
         attributes = dict(ambient_attributes)
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.CHAIN.value
