@@ -8,6 +8,14 @@ from collections.abc import Mapping as MappingABC
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Tuple
 
 import opentelemetry.context as context_api
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry import trace as trace_api
 
 from openinference.instrumentation import (
@@ -16,14 +24,6 @@ from openinference.instrumentation import (
     get_output_attributes,
     get_tool_attributes,
     safe_json_dumps,
-)
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolCallAttributes,
 )
 
 if TYPE_CHECKING:
@@ -120,7 +120,25 @@ def _is_system_init_message(msg: Any) -> bool:
 
 def _extract_model_name_from_usage(model_usage: Any) -> str | None:
     if isinstance(model_usage, MappingABC) and model_usage:
-        return str(next(iter(model_usage.keys())))
+        # Pick the model that did the bulk of the generation work rather than
+        # whichever key happens to be iterated first. The claude-agent-sdk emits
+        # `modelUsage` as `{model_name: {outputTokens, inputTokens, costUSD, ...}}`,
+        # and multi-model runs (e.g. main model + a separate router / fast model)
+        # otherwise have a model selected by dict iteration order, which is
+        # neither stable nor meaningful. See #3136.
+        def _output_tokens(name: Any) -> int:
+            entry = model_usage[name]
+            if isinstance(entry, MappingABC):
+                value = entry.get("outputTokens") or entry.get("output_tokens") or 0
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    return 0
+            return 0
+
+        best = max(model_usage.keys(), key=_output_tokens, default=None)
+        if best is not None:
+            return str(best)
     if isinstance(model_usage, (list, tuple)):
         for entry in model_usage:
             name = (
