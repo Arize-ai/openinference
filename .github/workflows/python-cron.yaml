@@ -54,10 +54,14 @@ jobs:
         with:
           version: 0.11.2
           enable-cache: false
-      - run: uvx --with tox-uv tox r -e ${{ matrix.testenv }} -- -ra -x
+      - env:
+          TOX_ENV: ${{ matrix.testenv }}
+        run: uvx --with tox-uv tox r -e "$TOX_ENV" -- -ra -x
         working-directory: python
         timeout-minutes: 15
-      - run: touch ${{ runner.temp }}/${{ matrix.testenv }}
+      - env:
+          FAILURE_MARKER: ${{ runner.temp }}/${{ matrix.testenv }}
+        run: touch "$FAILURE_MARKER"
         if: failure()
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
