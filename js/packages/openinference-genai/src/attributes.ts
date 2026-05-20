@@ -222,6 +222,15 @@ export const convertGenAISpanToOpenInference = (
   options: ConvertGenAISpanOptions = {},
 ): Attributes => {
   const events = span.events ?? [];
+  // The OpenTelemetry GenAI spec exposes prompts/completions through two
+  // overlapping channels: the structured `gen_ai.input.messages` /
+  // `gen_ai.output.messages` attributes and per-message events
+  // (`gen_ai.system.message`, `gen_ai.user.message`, `gen_ai.choice`, ...).
+  // Some emitters (e.g. TanStack AI's OTel middleware) populate both for the
+  // same messages, so we prefer the structured attribute when present and
+  // only fall back to events for directions that have no structured payload.
+  const hasStructuredInputs = hasGenAIMessages(span.attributes[ATTR_GEN_AI_INPUT_MESSAGES]);
+  const hasStructuredOutputs = hasGenAIMessages(span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES]);
   return merge(
     mapProviderAndSystem(span.attributes, options),
     mapModels(span.attributes),
@@ -230,8 +239,8 @@ export const convertGenAISpanToOpenInference = (
     mapInputMessages(span.attributes),
     mapOutputMessages(span.attributes),
     mapGenAIMessageEvents(events, {
-      inputStartIndex: getGenAIMessageCount(span.attributes[ATTR_GEN_AI_INPUT_MESSAGES]),
-      outputStartIndex: getGenAIMessageCount(span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES]),
+      skipInputs: hasStructuredInputs,
+      skipOutputs: hasStructuredOutputs,
     }),
     mapFinishReason(span.attributes, options),
     mapTokenCounts(span.attributes),
@@ -460,8 +469,11 @@ export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
   const genAIInputMessages = safelyParseJSON(spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES]);
 
   if (Array.isArray(genAIInputMessages)) {
-    (genAIInputMessages as unknown[]).forEach((msg, msgIndex) => {
-      if (!isGenAIMessageLike(msg)) return;
+    // Skip malformed entries and pack the surviving ones so indices match
+    // `getGenAIMessageCount`. Without filtering first, a `[valid, invalid,
+    // valid]` input would leave a gap at index 1 that later message sources
+    // could overwrite.
+    (genAIInputMessages as unknown[]).filter(isGenAIMessageLike).forEach((msg, msgIndex) => {
       const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${msgIndex}.`;
       // set the message role
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
@@ -495,9 +507,10 @@ export const mapOutputMessages = (spanAttributes: Attributes): Attributes => {
   const genAIOutputMessages = safelyParseJSON(spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES]);
 
   if (Array.isArray(genAIOutputMessages) && genAIOutputMessages.length > 0) {
-    // recast as unknown[] for safety, as Array.isArray() retypes to any[]
-    (genAIOutputMessages as unknown[]).forEach((msg, msgIndex) => {
-      if (!isGenAIMessageLike(msg)) return;
+    // recast as unknown[] for safety, as Array.isArray() retypes to any[].
+    // Filter malformed entries up front so packed indices match across
+    // structured and event-derived sources (see mapInputMessages comment).
+    (genAIOutputMessages as unknown[]).filter(isGenAIMessageLike).forEach((msg, msgIndex) => {
       const msgPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${msgIndex}.`;
       // set the message role
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
@@ -521,12 +534,12 @@ export const mapOutputMessages = (spanAttributes: Attributes): Attributes => {
   return attrs;
 };
 
-const getGenAIMessageCount = (value: unknown): number => {
+const hasGenAIMessages = (value: unknown): boolean => {
   const messages = safelyParseJSON(value);
   if (!Array.isArray(messages)) {
-    return 0;
+    return false;
   }
-  return messages.filter(isGenAIMessageLike).length;
+  return messages.some(isGenAIMessageLike);
 };
 
 /**
@@ -648,7 +661,22 @@ const setMessageFromEvent = (params: {
 
 export const mapGenAIMessageEvents = (
   events: GenAISpanEvent[],
-  options: { inputStartIndex?: number; outputStartIndex?: number } = {},
+  options: {
+    inputStartIndex?: number;
+    outputStartIndex?: number;
+    /**
+     * When true, skip emitting input-direction messages from events. Use when
+     * the same messages are already present in `gen_ai.input.messages` to
+     * avoid emitting duplicates.
+     */
+    skipInputs?: boolean;
+    /**
+     * When true, skip emitting output-direction messages from events. Use
+     * when the same messages are already present in `gen_ai.output.messages`
+     * to avoid emitting duplicates.
+     */
+    skipOutputs?: boolean;
+  } = {},
 ): Attributes => {
   const attrs: Attributes = {};
   let inputMessageIndex = options.inputStartIndex ?? 0;
@@ -657,6 +685,7 @@ export const mapGenAIMessageEvents = (
   for (const event of events) {
     const inputRole = INPUT_MESSAGE_EVENT_ROLES[event.name];
     if (inputRole != null) {
+      if (options.skipInputs) continue;
       setMessageFromEvent({
         attrs,
         prefix: SemanticConventions.LLM_INPUT_MESSAGES,
@@ -669,6 +698,7 @@ export const mapGenAIMessageEvents = (
     }
 
     if (OUTPUT_MESSAGE_EVENT_NAMES.has(event.name)) {
+      if (options.skipOutputs) continue;
       setMessageFromEvent({
         attrs,
         prefix: SemanticConventions.LLM_OUTPUT_MESSAGES,

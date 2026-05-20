@@ -119,9 +119,30 @@ describe("openInferenceMiddleware e2e", () => {
     ).toBe("system");
     expect(
       llmSpan?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`
+      ],
+    ).toBe("user");
+    expect(
+      llmSpan?.attributes[
         `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`
       ],
     ).toBe("OpenInference makes LLM traces easier to inspect.");
+
+    // TanStack's OTel middleware emits both structured
+    // `gen_ai.input.messages`/`gen_ai.output.messages` attributes and
+    // per-message events for the same messages. The converter should treat
+    // the structured payload as authoritative so messages do not appear
+    // twice on the same span at different indices.
+    const inputMessageIndices = new Set<string>();
+    const outputMessageIndices = new Set<string>();
+    for (const key of Object.keys(llmSpan?.attributes ?? {})) {
+      const inputMatch = key.match(/^llm\.input_messages\.(\d+)\./);
+      if (inputMatch) inputMessageIndices.add(inputMatch[1]);
+      const outputMatch = key.match(/^llm\.output_messages\.(\d+)\./);
+      if (outputMatch) outputMessageIndices.add(outputMatch[1]);
+    }
+    expect([...inputMessageIndices].sort()).toEqual(["0", "1"]);
+    expect([...outputMessageIndices].sort()).toEqual(["0"]);
   });
 
   it("emits agent, llm, and tool spans for a real streaming tool loop", async () => {

@@ -333,6 +333,26 @@ describe("attributes helpers", () => {
       // no llm.input_messages.* keys created
       expect(Object.keys(attrs).some((k) => k.startsWith("llm.input_messages."))).toBe(false);
     });
+
+    it("packs indices when malformed entries are present", () => {
+      // Malformed entries are filtered out so the surviving valid messages
+      // get contiguous indices. This keeps event-derived messages from
+      // overwriting structured ones when both sources are present.
+      const attrs = mapInputMessages({
+        "gen_ai.input.messages": JSON.stringify([
+          { role: "user", parts: [{ type: "text", content: "first" }] },
+          // missing role - should be skipped
+          { parts: [{ type: "text", content: "skipped" }] },
+          { role: "assistant", parts: [{ type: "text", content: "second" }] },
+        ]),
+      });
+
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("first");
+      expect(attrs["llm.input_messages.1.message.role"]).toBe("assistant");
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe("second");
+      expect(attrs["llm.input_messages.2.message.role"]).toBeUndefined();
+    });
   });
 
   describe("mapOutputMessagesAndOutputValue", () => {
@@ -515,6 +535,34 @@ describe("attributes helpers", () => {
       expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
       expect(attrs["llm.input_messages.1.message.content"]).toBe("Hi");
     });
+
+    it("skips input events when skipInputs is true", () => {
+      const attrs = mapGenAIMessageEvents(
+        [
+          { name: "gen_ai.user.message", attributes: { content: "Hi" } },
+          { name: "gen_ai.choice", attributes: { content: "Hello" } },
+        ],
+        { skipInputs: true },
+      );
+
+      expect(attrs["llm.input_messages.0.message.role"]).toBeUndefined();
+      expect(attrs["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(attrs["llm.output_messages.0.message.content"]).toBe("Hello");
+    });
+
+    it("skips output events when skipOutputs is true", () => {
+      const attrs = mapGenAIMessageEvents(
+        [
+          { name: "gen_ai.user.message", attributes: { content: "Hi" } },
+          { name: "gen_ai.choice", attributes: { content: "Hello" } },
+        ],
+        { skipOutputs: true },
+      );
+
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.0.message.content"]).toBe("Hi");
+      expect(attrs["llm.output_messages.0.message.role"]).toBeUndefined();
+    });
   });
 
   describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
@@ -536,7 +584,11 @@ describe("attributes helpers", () => {
       expect(attrs["openinference.span.kind"]).toBe("AGENT");
     });
 
-    it("appends event messages after structured GenAI messages", () => {
+    it("prefers structured gen_ai.input.messages over per-message events", () => {
+      // When a producer emits both `gen_ai.input.messages` and per-message
+      // events (as TanStack AI's OTel middleware does), the structured
+      // attribute is treated as authoritative for that direction and the
+      // events are skipped to avoid duplicates.
       const attrs = convertGenAISpanToOpenInference({
         attributes: {
           "gen_ai.input.messages": JSON.stringify([
@@ -550,8 +602,29 @@ describe("attributes helpers", () => {
       expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
         "Be concise",
       );
-      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
-      expect(attrs["llm.input_messages.1.message.content"]).toBe("Hi");
+      expect(attrs["llm.input_messages.1.message.role"]).toBeUndefined();
+      expect(attrs["llm.input_messages.1.message.content"]).toBeUndefined();
+    });
+
+    it("falls back to events when structured messages are absent for a direction", () => {
+      // If only one direction has structured messages, events still populate
+      // the other direction.
+      const attrs = convertGenAISpanToOpenInference({
+        attributes: {
+          "gen_ai.input.messages": JSON.stringify([
+            { role: "user", parts: [{ type: "text", content: "Hi" }] },
+          ]),
+        },
+        events: [
+          { name: "gen_ai.user.message", attributes: { content: "ignored" } },
+          { name: "gen_ai.choice", attributes: { content: "Hello" } },
+        ],
+      });
+
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe("Hi");
+      expect(attrs["llm.input_messages.1.message.role"]).toBeUndefined();
+      expect(attrs["llm.output_messages.0.message.role"]).toBe("assistant");
+      expect(attrs["llm.output_messages.0.message.content"]).toBe("Hello");
     });
   });
 
