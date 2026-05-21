@@ -7,13 +7,144 @@ from typing import Any, cast
 import pytest
 from google.adk import Agent, __version__
 from google.adk.runners import InMemoryRunner
+from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool as load_artifacts
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.semconv.trace import SpanAttributes
+
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 17, 0),
+    reason=(
+        "AgentTool uses the wrapped agent name as the child runner app before "
+        "google-adk v1.17.0 release. This regression asserts the newer parent-app "
+        "sub-agent invocation shape."
+    ),
+)
+@pytest.mark.vcr
+async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    sub_agent_name = "Sub_Agent"
+    sub_agent = Agent(
+        name=sub_agent_name,
+        model="gemini-2.0-flash",
+        description="A sub-agent that retrieves weather information.",
+        instruction="Return the weather for the city the user asks about.",
+    )
+
+    root_agent_name = "Root_Agent"
+    root_agent = Agent(
+        name=root_agent_name,
+        model="gemini-2.0-flash",
+        description="Root agent that delegates to sub-agents.",
+        instruction="Delegate weather questions to the weather sub-agent.",
+        tools=[AgentTool(agent=sub_agent)],
+    )
+
+    app_name = token_hex(4)
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+
+    runner = InMemoryRunner(agent=root_agent, app_name=app_name)
+    session_service = runner.session_service
+    await session_service.create_session(
+        app_name=app_name,
+        user_id=user_id,
+        session_id=session_id,
+    )
+
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[types.Part(text="What is the weather in Tokyo?")],
+        ),
+    ):
+        ...
+
+    spans = sorted(
+        in_memory_span_exporter.get_finished_spans(),
+        key=lambda s: s.start_time or 0,
+    )
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    invocation_spans = spans_by_name[f"invocation [{app_name}]"]
+    assert len(invocation_spans) >= 1
+
+    # Root invocation has no parent and carries the correct session/user IDs.
+    root_invocation = next(s for s in invocation_spans if not s.parent)
+    assert root_invocation.status.is_ok
+    root_attrs = dict(root_invocation.attributes or {})
+    assert root_attrs.get(SpanAttributes.SESSION_ID) == session_id
+    assert root_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert root_attrs.get("openinference.span.kind") == "CHAIN"
+
+    # Root agent_run is a direct child of the root invocation.
+    root_agent_run_spans = spans_by_name[f"agent_run [{root_agent_name}]"]
+    assert len(root_agent_run_spans) == 1
+    root_agent_run = root_agent_run_spans[0]
+    assert root_agent_run.status.is_ok
+    assert root_agent_run.parent is root_invocation.get_span_context()
+    root_agent_run_attrs = dict(root_agent_run.attributes or {})
+    assert root_agent_run_attrs.get(SpanAttributes.SESSION_ID) == session_id
+    assert root_agent_run_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert root_agent_run_attrs.get("openinference.span.kind") == "AGENT"
+    assert root_agent_run_attrs.get("agent.name") == root_agent_name
+
+    # execute_tool span is produced when the root agent invokes the AgentTool.
+    tool_spans = spans_by_name[f"execute_tool {sub_agent_name}"]
+    assert len(tool_spans) == 1
+    tool_span = tool_spans[0]
+    assert tool_span.status.is_ok
+    tool_attrs = dict(tool_span.attributes or {})
+    assert tool_attrs.get(SpanAttributes.SESSION_ID) == session_id
+    assert tool_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert tool_attrs.get("openinference.span.kind") == "TOOL"
+
+    # Sub-agent invocation must carry the top-level session_id, not the ADK-internal UUID.
+    sub_invocation_spans = [s for s in invocation_spans if s.parent is not None]
+    assert len(sub_invocation_spans) >= 1
+    for sub_inv in sub_invocation_spans:
+        sub_inv_attrs = dict(sub_inv.attributes or {})
+        assert sub_inv_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
+            "Sub-agent invocation span carries wrong session.id value."
+        )
+
+    # Sub-agent agent_run must carry the top-level session_id, not the ADK-internal UUID.
+    sub_agent_run_spans = spans_by_name[f"agent_run [{sub_agent_name}]"]
+    assert len(sub_agent_run_spans) == 1
+    sub_agent_run = sub_agent_run_spans[0]
+    assert sub_agent_run.status.is_ok
+    sub_agent_run_attrs = dict(sub_agent_run.attributes or {})
+    assert sub_agent_run_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
+        "Sub-agent agent_run span carries wrong session.id value."
+    )
+    assert sub_agent_run_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert sub_agent_run_attrs.get("openinference.span.kind") == "AGENT"
+    assert sub_agent_run_attrs.get("agent.name") == sub_agent_name
+
+    # All call_llm spans from both root and sub-agent must carry the top-level session_id.
+    call_llm_spans = spans_by_name["call_llm"]
+    assert len(call_llm_spans) >= 2, (
+        "Expected at least one call_llm from the root agent and one from the sub-agent"
+    )
+    for llm_span in call_llm_spans:
+        llm_attrs = dict(llm_span.attributes or {})
+        assert llm_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
+            f"call_llm span (parent={llm_span.parent}) carries wrong session.id value."
+        )
+        assert llm_attrs.get("openinference.span.kind") == "LLM"
 
 
 @pytest.mark.vcr
