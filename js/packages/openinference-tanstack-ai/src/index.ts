@@ -46,6 +46,10 @@ export type OpenInferenceTanStackAIMiddlewareOptions = Omit<
 };
 
 class OpenInferenceConvertingSpan implements Span {
+  private readonly name: string;
+  private readonly span: Span;
+  private readonly traceConfig: TraceConfig;
+  private readonly convertOptions: ConvertGenAISpanOptions;
   private readonly attributes: Attributes;
   private readonly events: GenAISpanEvent[] = [];
   private ended = false;
@@ -74,11 +78,6 @@ class OpenInferenceConvertingSpan implements Span {
       this.span.setAttributes(withoutUndefinedValues(contextAttributes));
     }
   }
-
-  private readonly name: string;
-  private readonly span: Span;
-  private readonly traceConfig: TraceConfig;
-  private readonly convertOptions: ConvertGenAISpanOptions;
 
   setAttribute(key: string, value: AttributeValue): this {
     this.attributes[key] = value;
@@ -230,7 +229,7 @@ const createOpenInferenceTracer = ({
       contextAttributes: getAttributesFromContext(spanContext),
     });
 
-  return {
+  const wrappedTracer: Tracer = {
     startSpan(name: string, options?: SpanOptions, ctx?: Context): Span {
       const spanContext = ctx ?? context.active();
       return wrapSpan({
@@ -285,8 +284,13 @@ const createOpenInferenceTracer = ({
           ),
         );
       }
+
+      throw new TypeError(
+        "startActiveSpan requires a callback function as one of its arguments",
+      );
     },
-  } as Tracer;
+  };
+  return wrappedTracer;
 };
 
 const shouldCaptureContent = (options: OpenInferenceTanStackAIMiddlewareOptions): boolean => {
