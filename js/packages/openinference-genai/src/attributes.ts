@@ -128,6 +128,32 @@ const normalizeToolDefinition = (toolDefinition: unknown): unknown => {
   };
 };
 
+const getSystemInstructionParts = (spanAttributes: Attributes): GenAIInputMessagePart[] | null => {
+  const systemInstructions = getString(spanAttributes[ATTR_GEN_AI_SYSTEM_INSTRUCTIONS]);
+  if (systemInstructions == null) {
+    return null;
+  }
+
+  const parsedInstructions = safelyParseJSON(systemInstructions);
+  if (Array.isArray(parsedInstructions)) {
+    const parts = parsedInstructions.flatMap((part): GenAIInputMessagePart[] => {
+      if (
+        typeof part === "object" &&
+        part !== null &&
+        "type" in part &&
+        part.type === "text" &&
+        "content" in part
+      ) {
+        return [{ type: "text", content: toStringContent(part.content) }];
+      }
+      return [];
+    });
+    return parts.length > 0 ? parts : null;
+  }
+
+  return [{ type: "text", content: systemInstructions }];
+};
+
 /**
  * Process genai message parts into openinference attributes
  *
@@ -410,6 +436,10 @@ export const mapSystemInstructions = (spanAttributes: Attributes): Attributes =>
   const systemInstructions = getString(spanAttributes[ATTR_GEN_AI_SYSTEM_INSTRUCTIONS]);
   if (systemInstructions) {
     set(attrs, `${SemanticConventions.METADATA}.gen_ai.system_instructions`, systemInstructions);
+
+    const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0.`;
+    set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, "system");
+    processMessageParts({ attrs, msgPrefix, parts: getSystemInstructionParts(spanAttributes) ?? [] });
   }
   return attrs;
 };
@@ -445,7 +475,7 @@ export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
   const genAIInputMessages = safelyParseJSON(spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES]);
 
   if (Array.isArray(genAIInputMessages)) {
-    let msgIndex = 0;
+    let msgIndex = getSystemInstructionParts(spanAttributes) != null ? 1 : 0;
     (genAIInputMessages as unknown[]).forEach((msg) => {
       if (!isGenAIChatMessage(msg)) return;
 

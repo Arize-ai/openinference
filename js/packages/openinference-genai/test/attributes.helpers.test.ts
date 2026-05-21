@@ -10,6 +10,7 @@ import {
   mapOutputValue,
   mapProviderAndSystem,
   mapSpanKind,
+  mapSystemInstructions,
   mapTokenCounts,
   mapToolExecution,
 } from "../src/attributes.js";
@@ -175,7 +176,54 @@ describe("attributes helpers", () => {
     });
   });
 
+  describe("mapSystemInstructions", () => {
+    it("maps system instructions to metadata and a system input message", () => {
+      const systemInstructions = JSON.stringify([
+        { type: "text", content: "You are a helpful assistant." },
+      ]);
+      const attrs = mapSystemInstructions({
+        "gen_ai.system_instructions": systemInstructions,
+      });
+
+      expect(attrs[`${SemanticConventions.METADATA}.gen_ai.system_instructions`]).toBe(
+        systemInstructions,
+      );
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.type"]).toBe("text");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "You are a helpful assistant.",
+      );
+    });
+  });
+
   describe("mapInputMessagesAndInputValue", () => {
+    it("starts input messages after system instructions when both are present", () => {
+      const attrs = {
+        ...mapSystemInstructions({
+          "gen_ai.system_instructions": JSON.stringify([
+            { type: "text", content: "You are concise." },
+          ]),
+        }),
+        ...mapInputMessages({
+          "gen_ai.system_instructions": JSON.stringify([
+            { type: "text", content: "You are concise." },
+          ]),
+          "gen_ai.input.messages": JSON.stringify([
+            { role: "user", parts: [{ type: "text", content: "Hello" }] },
+          ]),
+        }),
+      };
+
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "You are concise.",
+      );
+      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe(
+        "Hello",
+      );
+    });
+
     it("maps structured input messages and forwards input.value", () => {
       const input = [
         {

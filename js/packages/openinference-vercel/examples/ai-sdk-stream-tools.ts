@@ -3,7 +3,7 @@
 import "./instrumentation";
 
 import { openai } from "@ai-sdk/openai";
-import { stepCountIs, streamText, tool } from "ai";
+import { isStepCount, streamText, tool } from "ai";
 import { z } from "zod";
 
 const weatherTool = tool({
@@ -28,7 +28,7 @@ async function main() {
       weather: weatherTool,
     },
     // Allow the model to call a tool and then produce a final answer.
-    stopWhen: stepCountIs(3),
+    stopWhen: isStepCount(3),
     prompt:
       "What's the weather in Boston? Use the weather tool and then answer in one short sentence.",
     runtimeContext: {

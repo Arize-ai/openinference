@@ -3,7 +3,7 @@
 import "./instrumentation";
 
 import { openai } from "@ai-sdk/openai";
-import { stepCountIs, tool, ToolLoopAgent } from "ai";
+import { isStepCount, tool, ToolLoopAgent } from "ai";
 import { z } from "zod";
 
 const weatherTool = tool({
@@ -47,7 +47,7 @@ const agent = new ToolLoopAgent({
     weather: weatherTool,
     calculator: calculatorTool,
   },
-  stopWhen: stepCountIs(6),
+  stopWhen: isStepCount(6),
   runtimeContext: {
     example: "ai-sdk-v7",
     primitive: "ToolLoopAgent",

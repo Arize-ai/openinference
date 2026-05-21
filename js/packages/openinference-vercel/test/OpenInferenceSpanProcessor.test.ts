@@ -153,6 +153,9 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
         "gen_ai.operation.name": "chat",
         "gen_ai.provider.name": "openai",
         "gen_ai.request.model": "gpt-4o-mini",
+        "gen_ai.system_instructions": JSON.stringify([
+          { type: "text", content: "You are a helpful assistant." },
+        ]),
         "gen_ai.input.messages": JSON.stringify([
           { role: "user", parts: [{ type: "text", content: "Hello" }] },
         ]),
@@ -180,7 +183,11 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
           { role: "assistant", finish_reason: "stop", parts: [{ type: "text", content: "Hi" }] },
         ]),
         [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]: "user",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+          "system",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+          "You are a helpful assistant.",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]: "user",
         [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
           "assistant",
         [`${SemanticConventions.LLM_TOOLS}.0.${SemanticConventions.TOOL_JSON_SCHEMA}`]:
