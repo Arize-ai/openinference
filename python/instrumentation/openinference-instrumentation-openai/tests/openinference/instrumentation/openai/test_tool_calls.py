@@ -196,11 +196,19 @@ def test_cached_tokens(
             },
         ],
     )
-    spans = get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
+    spans = tuple(
+        span
+        for span in get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
+        if random_1024_token_prefix
+        in str((span.attributes or {}).get(SpanAttributes.INPUT_VALUE, ""))
+    )
     assert len(spans) == 2
-    span = spans[1]
-    attributes = dict(span.attributes or {})
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 1280
+    cache_reads = []
+    for span in spans:
+        cache_read = dict(span.attributes or {}).get("llm.token_count.prompt_details.cache_read")
+        assert isinstance(cache_read, int)
+        cache_reads.append(cache_read)
+    assert sorted(cache_reads) == [0, 1280]
 
 
 def _openai_version() -> Tuple[int, int, int]:

@@ -229,7 +229,7 @@ class _InvokeModelWithResponseStream(_WithTracer):
 
     @override
     def _wrap_sync(self, wrapped: Callable[..., Any]) -> Any:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def _impl(
             wrapped_fn: Callable[..., Any],
             instance: Any,
@@ -242,7 +242,7 @@ class _InvokeModelWithResponseStream(_WithTracer):
 
     @override
     def _wrap_async(self, wrapped: Callable[..., Any]) -> Any:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def _impl(
             wrapped_fn: Callable[..., Any],
             instance: Any,
@@ -337,7 +337,7 @@ class _ConverseStream(_WithTracer):
 
     @override
     def _wrap_sync(self, wrapped: Callable[..., Any]) -> Any:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def _impl(
             wrapped_fn: Callable[..., Any],
             instance: Any,
@@ -350,7 +350,7 @@ class _ConverseStream(_WithTracer):
 
     @override
     def _wrap_async(self, wrapped: Callable[..., Any]) -> Any:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def _impl(
             wrapped_fn: Callable[..., Any],
             instance: Any,
@@ -425,7 +425,7 @@ class _InvokeAgentWithResponseStream(_WithTracer):
 
     @override
     def _wrap_sync(self, wrapped: Callable[..., Any]) -> Any:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def _impl(
             wrapped_fn: Callable[..., Any],
             instance: Any,
@@ -438,7 +438,7 @@ class _InvokeAgentWithResponseStream(_WithTracer):
 
     @override
     def _wrap_async(self, wrapped: Callable[..., Any]) -> Any:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def _impl(
             wrapped_fn: Callable[..., Any],
             instance: Any,
@@ -513,7 +513,7 @@ class _RetrieveAndGenerateStream(_WithTracer):
 
     @override
     def _wrap_sync(self, wrapped: Callable[..., Any]) -> Any:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def _impl(
             wrapped_fn: Callable[..., Any],
             instance: Any,
@@ -526,7 +526,7 @@ class _RetrieveAndGenerateStream(_WithTracer):
 
     @override
     def _wrap_async(self, wrapped: Callable[..., Any]) -> Any:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def _impl(
             wrapped_fn: Callable[..., Any],
             instance: Any,

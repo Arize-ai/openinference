@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.50...python-openinference-instrumentation-v0.1.51) (2026-05-14)
+
+
+### Features
+
+* **genai:** Add optional OITracer GenAI semconv export ([#3024](https://github.com/Arize-ai/openinference/issues/3024)) ([584cb4a](https://github.com/Arize-ai/openinference/commit/584cb4ad764ebe2848cb32c7cc56a68015338929))
+
+## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.49...python-openinference-instrumentation-v0.1.50) (2026-05-11)
+
+
+### Features
+
+* add hide_llm_tools config to mask LLM tool definitions ([#3082](https://github.com/Arize-ai/openinference/issues/3082)) ([cfb128c](https://github.com/Arize-ai/openinference/commit/cfb128cf08e178fae7b20e5f44d6d83eae0015e3))
+
+## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.48...python-openinference-instrumentation-v0.1.49) (2026-05-06)
+
+
+### Features
+
+* Centralize host-to-provider & model-to-system Resolution Helpers ([#2919](https://github.com/Arize-ai/openinference/issues/2919)) ([e58e90c](https://github.com/Arize-ai/openinference/commit/e58e90c217f40e7da5455dd1e71ba36d51a6c2e0))
+
 ## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.47...python-openinference-instrumentation-v0.1.48) (2026-04-29)
 
 

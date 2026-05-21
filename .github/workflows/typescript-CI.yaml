@@ -7,6 +7,10 @@ on:
     # Allows you to run this workflow manually from the Actions tab
     workflow_dispatch:
 
+# Least-privilege GITHUB_TOKEN: this workflow only needs to read the repo.
+permissions:
+    contents: read
+
 concurrency:
     group: test-typescript-${{ github.head_ref }}
     cancel-in-progress: true
@@ -19,6 +23,8 @@ jobs:
             diff: ${{ steps.filter.outputs.diff }}
         steps:
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              with:
+                  persist-credentials: false
             - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
               id: filter
               with:
@@ -46,6 +52,8 @@ jobs:
         steps:
             - name: Checkout Repository
               uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              with:
+                  persist-credentials: false
             - name: Set up Nodejs
               uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:

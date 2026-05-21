@@ -10,11 +10,17 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.util.types import AttributeValue
 
 import openinference.instrumentation as oi
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    infer_llm_provider_from_host,
+    infer_llm_system_from_model_name,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -237,6 +243,9 @@ def _finalize_step_span(
     - Sets status to OK if no error is present.
     - Captures & logs any errors that occur.
     """
+    if not span.is_recording():
+        return
+
     observations = getattr(step_log, "observations", None)
     if observations is not None:
         span.set_attribute(OUTPUT_VALUE, str(observations))
@@ -322,13 +331,60 @@ class _StepWrapper:
                     _finalize_step_span(span, step_log)
 
 
-def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    def process_message(idx: int, role: str, content: str) -> Iterator[Tuple[str, Any]]:
-        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", role
-        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENT}", content
+def _image_content_to_url(element: dict[str, Any]) -> Optional[str]:
+    content_type = element.get("type")
+    if content_type == "image_url":
+        image_url = element.get("image_url", {})
+        return image_url.get("url") if isinstance(image_url, dict) else None
+    if content_type == "image":
+        image = element.get("image")
+        # TODO: detect actual image MIME type instead of hardcoding image/png.
+        # `encode_image_base64` may return JPEG/WebP/etc.; consumers will see the wrong MIME.
+        if isinstance(image, str):
+            return f"data:image/png;base64,{image}"
+        if image is not None:
+            try:
+                from smolagents.utils import encode_image_base64  # type: ignore[import-untyped]
 
+                return f"data:image/png;base64,{encode_image_base64(image)}"
+            except Exception:
+                # TODO: log a warning here — currently failures are silent and hard to debug.
+                pass
+    return None
+
+
+def _parse_content_list(idx: int, role: str, content: list[Any]) -> Iterator[Tuple[str, Any]]:
+    content_idx = 0
+    yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", role
+    for element in content:
+        if not isinstance(element, dict):
+            continue
+        if element.get("type") == "text" and (text := element.get("text")):
+            yield (
+                f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENTS}.{content_idx}.{MESSAGE_CONTENT_TYPE}",
+                "text",
+            )
+            yield (
+                f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENTS}.{content_idx}.{MESSAGE_CONTENT_TEXT}",
+                text,
+            )
+            content_idx += 1
+        elif url := _image_content_to_url(element):
+            yield (
+                f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENTS}.{content_idx}.{MESSAGE_CONTENT_TYPE}",
+                "image",
+            )
+            yield (
+                f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENTS}.{content_idx}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+                url,
+            )
+            content_idx += 1
+
+
+def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     if isinstance(prompt := arguments.get("prompt"), str):
-        yield from process_message(0, "user", prompt)
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
     elif isinstance(messages := arguments.get("messages"), list):
         for i, message in enumerate(messages):
             if isinstance(message, dict):
@@ -340,11 +396,10 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
             if not role:
                 continue
             if isinstance(content, str):
-                yield from process_message(i, role, content)
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
             elif isinstance(content, list):
-                for subcontent in content:
-                    if isinstance(subcontent, dict) and (text := subcontent.get("text")):
-                        yield from process_message(i, role, text)
+                yield from _parse_content_list(i, role, content)
 
 
 def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
@@ -353,7 +408,18 @@ def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
     if (_role := getattr(output_message, "role", None)) is not None:
         oi_message["role"] = _role.value if isinstance(_role, Enum) else _role
     if (content := getattr(output_message, "content", None)) is not None:
-        oi_message_contents.append(oi.TextMessageContent(type="text", text=content))
+        if isinstance(content, str):
+            oi_message_contents.append(oi.TextMessageContent(type="text", text=content))
+        elif isinstance(content, list):
+            for element in content:
+                if not isinstance(element, dict):
+                    continue
+                if element.get("type") == "text" and (text := element.get("text")):
+                    oi_message_contents.append(oi.TextMessageContent(type="text", text=text))
+                elif url := _image_content_to_url(element):
+                    oi_message_contents.append(
+                        oi.ImageMessageContent(type="image", image=oi.Image(url=url))
+                    )
 
     # Add the reasoning_content if available in raw.choices[0].message structure
     if (raw := getattr(output_message, "raw", None)) is not None:
@@ -485,14 +551,12 @@ class _ModelWrapper:
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
             span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total_tokens)
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
-            if provider := (
-                infer_llm_provider_from_class_name(instance)
-                or infer_llm_provider_from_endpoint(
-                    extract_llm_endpoint_from_sdk_instance(instance)
-                )
-            ):
+            provider = infer_llm_provider_from_class_name(instance)
+            if provider is None and (host := extract_llm_endpoint_from_sdk_instance(instance)):
+                provider = infer_llm_provider_from_host(host)
+            if provider:
                 span.set_attribute(LLM_PROVIDER, provider.value)
-            if system := infer_llm_system_from_model(model.model_id):
+            if system := infer_llm_system_from_model_name(model.model_id):
                 span.set_attribute(LLM_SYSTEM, system.value)
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
@@ -619,90 +683,10 @@ def extract_llm_endpoint_from_sdk_instance(
     )
 
     if not isinstance(endpoint, str) and endpoint is not None:
-        return str(endpoint)
+        endpoint = str(endpoint)
 
-    return endpoint
-
-
-def infer_llm_provider_from_endpoint(
-    endpoint: Optional[str] = None,
-) -> Optional[OpenInferenceLLMProviderValues]:
-    """Infer the LLM provider from an SDK instance using the API endpoint when possible."""
-    if not isinstance(endpoint, str):
-        return None
-
-    hostname = urlparse(endpoint).hostname
-    if hostname is None:
-        return None
-
-    host = hostname.lower()
-    if host.endswith("api.openai.com"):
-        return OpenInferenceLLMProviderValues.OPENAI
-
-    if "openai.azure.com" in host:
-        return OpenInferenceLLMProviderValues.AZURE
-
-    if host.endswith("googleapis.com"):
-        return OpenInferenceLLMProviderValues.GOOGLE
-
-    if host.endswith("anthropic.com"):
-        return OpenInferenceLLMProviderValues.ANTHROPIC
-
-    if "bedrock" in host or host.endswith("amazonaws.com"):
-        return OpenInferenceLLMProviderValues.AWS
-
-    if host.endswith("cohere.ai"):
-        return OpenInferenceLLMProviderValues.COHERE
-
-    if host.endswith("mistral.ai"):
-        return OpenInferenceLLMProviderValues.MISTRALAI
-
-    if host.endswith("x.ai"):
-        return OpenInferenceLLMProviderValues.XAI
-
-    if host.endswith("deepseek.com"):
-        return OpenInferenceLLMProviderValues.DEEPSEEK
-
-    return None
-
-
-def infer_llm_system_from_model(
-    model_name: Optional[str] = None,
-) -> Optional[OpenInferenceLLMSystemValues]:
-    """Infer the LLM system from a model identifier when possible."""
-    if not isinstance(model_name, str):
-        return None
-
-    model = model_name.lower()
-
-    if model.startswith(
-        (
-            "gpt",
-            "o1",
-            "o3",
-            "o4",
-            "text-embedding",
-            "davinci",
-            "curie",
-            "babbage",
-            "ada",
-            "azure",
-            "openai",
-        )
-    ):
-        return OpenInferenceLLMSystemValues.OPENAI
-
-    if model.startswith(("anthropic", "claude", "google_anthropic_vertex")):
-        return OpenInferenceLLMSystemValues.ANTHROPIC
-
-    if model.startswith(("cohere", "command")):
-        return OpenInferenceLLMSystemValues.COHERE
-
-    if model.startswith(("mistral", "mixtral", "pixtral")):
-        return OpenInferenceLLMSystemValues.MISTRALAI
-
-    if model.startswith(("vertex", "gemini", "google")):
-        return OpenInferenceLLMSystemValues.VERTEXAI
+    if isinstance(endpoint, str):
+        return urlparse(endpoint).hostname
 
     return None
 
@@ -730,11 +714,20 @@ TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+
+# message content attributes
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+
+# image attributes
+IMAGE_URL = ImageAttributes.IMAGE_URL
 
 # mime types
 JSON = OpenInferenceMimeTypeValues.JSON.value

@@ -196,6 +196,40 @@
                     "path": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties"
                 }
             ]
+        },
+        "go/openinference-semantic-conventions": {
+            "package-name": "openinference-semantic-conventions-go",
+            "component": "go/openinference-semantic-conventions",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true,
+            "exclude-paths": [
+                "go/openinference-semantic-conventions/README.md"
+            ]
+        },
+        "go/openinference-instrumentation": {
+            "package-name": "openinference-instrumentation-go",
+            "component": "go/openinference-instrumentation",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true,
+            "exclude-paths": [
+                "go/openinference-instrumentation/README.md"
+            ]
+        },
+        "go/openinference-instrumentation-anthropic-sdk-go": {
+            "package-name": "openinference-instrumentation-anthropic-sdk-go",
+            "component": "go/openinference-instrumentation-anthropic-sdk-go",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true
+        },
+        "go/openinference-instrumentation-openai-go": {
+            "package-name": "openinference-instrumentation-openai-go",
+            "component": "go/openinference-instrumentation-openai-go",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true
         }
     }
 }

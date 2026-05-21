@@ -118,6 +118,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`@arizeai/openinference-instrumentation-anthropic`](./js/packages/openinference-instrumentation-anthropic)                         | OpenInference Instrumentation for the Anthropic SDK.                | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-anthropic)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-anthropic)                         |
 | [`@arizeai/openinference-instrumentation-claude-agent-sdk`](./js/packages/openinference-instrumentation-claude-agent-sdk)           | OpenInference Instrumentation for Claude Agent SDK.                 | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-claude-agent-sdk)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-claude-agent-sdk)           |
 | [`@arizeai/openinference-vercel`](./js/packages/openinference-vercel)                                                               | OpenInference Support for Vercel AI SDK.                            | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-vercel)](https://www.npmjs.com/package/@arizeai/openinference-vercel)                                                               |
+| [`@arizeai/openinference-tanstack-ai`](./js/packages/openinference-tanstack-ai)                                                     | OpenInference middleware for TanStack AI.                           | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-tanstack-ai)](https://www.npmjs.com/package/@arizeai/openinference-tanstack-ai)                                                     |
 | [`@arizeai/openinference-genai`](./js/packages/openinference-genai)                                                                 | OpenInference Support for GenAI conventions                         | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-genai)](https://www.npmjs.com/package/@arizeai/openinference-genai)                                                                 |
 
 ## Java
@@ -140,6 +141,19 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [Spring AI Example](java/examples/spring-ai-example)     | Spring AI example with OpenAI and tool calling | Beginner         |
 | [Annotation Example](java/examples/annotation-example) | Annotation-based tracing with `@Chain`, `@LLM`, `@Tool`, `@Agent` | Beginner         |
 | [Programmatic Example](java/examples/programmatic-example) | Manual tracing with typed span classes (`LLMSpan`, `AgentSpan`, etc.) | Beginner         |
+
+## Go
+
+### Libraries
+
+| Package | Description | Version |
+| --- | --- | --- |
+| [`openinference-semantic-conventions`](./go/openinference-semantic-conventions) | Semantic conventions for tracing of LLM Apps. | `go get github.com/Arize-ai/openinference/go/openinference-semantic-conventions` |
+| [`openinference-instrumentation`](./go/openinference-instrumentation) | Suppression, context attribute propagation, and `TraceConfig` masking. Honors `OPENINFERENCE_HIDE_*` env vars. | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation` |
+| [`openinference-instrumentation-anthropic-sdk-go`](./go/openinference-instrumentation-anthropic-sdk-go) | OpenInference Instrumentation for the Anthropic Go SDK (`anthropics/anthropic-sdk-go`). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-anthropic-sdk-go` |
+| [`openinference-instrumentation-openai-go`](./go/openinference-instrumentation-openai-go) | OpenInference Instrumentation for the official OpenAI Go SDK ([`openai/openai-go`](https://github.com/openai/openai-go)). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-openai-go` |
+
+Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to Arize AX, or wire up any OTel exporter (e.g. Phoenix at `http://localhost:6006/v1/traces`).
 
 ## Supported Destinations
 

@@ -1,0 +1,68 @@
+name: Weekly skills update
+
+on:
+  schedule:
+    - cron: "0 15 * * 1"  # Mondays at 15:00 UTC (9am America/Denver MDT)
+  workflow_dispatch:
+
+concurrency:
+  group: skills-update
+  cancel-in-progress: false
+
+# Least-privilege default; the update job opts into what it needs.
+permissions:
+  contents: read
+
+jobs:
+  update-skills:
+    name: Update agent skills
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write       # push the auto-update branch
+      pull-requests: write  # open the auto-update PR
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ secrets.MY_RELEASE_PLEASE }}
+          persist-credentials: true
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      - name: Run skills update
+        run: npx --yes skills@1.5.6
+
+      - name: Check for changes
+        id: verify-changed-files
+        run: |
+          git add -- .agents/skills skills-lock.json
+          if git diff --quiet --cached -- .agents/skills skills-lock.json; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate timestamp
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        id: timestamp
+        run: echo "timestamp=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        with:
+          token: ${{ secrets.MY_RELEASE_PLEASE }}
+          add-paths: |
+            .agents/skills
+            skills-lock.json
+          commit-message: "chore: weekly skills update"
+          title: "chore: weekly skills update"
+          body: |
+            Automated weekly skills update from the `skills-update` workflow.
+
+            Updated files in `.agents/skills/` and `skills-lock.json` via `npx skills`.
+          branch: chore/weekly-skills-update-${{ steps.timestamp.outputs.timestamp }}
+          base: main
+          delete-branch: true

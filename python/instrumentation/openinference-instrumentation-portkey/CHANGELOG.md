@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.10...python-openinference-instrumentation-portkey-v0.1.11) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.9...python-openinference-instrumentation-portkey-v0.1.10) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.8...python-openinference-instrumentation-portkey-v0.1.9) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.7...python-openinference-instrumentation-portkey-v0.1.8) (2026-04-21)
 
 

@@ -74,7 +74,8 @@ to redact or remove specific data.
 
 | Option | Type | Default | Effect |
 |--------|------|---------|--------|
-| `hideInputs` | boolean | false | Redacts `input.value` to `"__REDACTED__"`, removes `input.mime_type`, removes all `llm.input_messages.*` |
+| `hideLLMTools` | boolean | false | Removes the tool definitions advertised to the LLM (`llm.tools.*`) |
+| `hideInputs` | boolean | false | Redacts `input.value` to `"__REDACTED__"`, removes `input.mime_type`, removes all `llm.input_messages.*`, removes all `llm.tools.*` |
 | `hideOutputs` | boolean | false | Redacts `output.value` to `"__REDACTED__"`, removes `output.mime_type`, removes all `llm.output_messages.*` |
 | `hideInputMessages` | boolean | false | Removes all `llm.input_messages.*` attributes |
 | `hideOutputMessages` | boolean | false | Removes all `llm.output_messages.*` attributes |
@@ -93,7 +94,7 @@ Some rules **redact** the value (replace with `"__REDACTED__"`), while others
 | Behavior | Options |
 |----------|---------|
 | **Redacts** value to `"__REDACTED__"` | `hideInputs` (input.value), `hideOutputs` (output.value), `hideInputText`, `hideOutputText`, `hidePrompts`, `base64ImageMaxLength` |
-| **Removes** attribute entirely | `hideInputs` (messages, mime_type), `hideOutputs` (messages, mime_type), `hideInputMessages`, `hideOutputMessages`, `hideInputImages`, `hideEmbeddingVectors` |
+| **Removes** attribute entirely | `hideInputs` (messages, mime_type, tools), `hideOutputs` (messages, mime_type), `hideInputMessages`, `hideOutputMessages`, `hideInputImages`, `hideEmbeddingVectors`, `hideLLMTools` |
 
 ## Environment Variables
 
@@ -112,6 +113,7 @@ string `"true"`/`"false"` for booleans and numeric strings for numbers.
 | `OPENINFERENCE_HIDE_EMBEDDING_VECTORS` | `hideEmbeddingVectors` | boolean |
 | `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` | `base64ImageMaxLength` | number |
 | `OPENINFERENCE_HIDE_PROMPTS` | `hidePrompts` | boolean |
+| `OPENINFERENCE_HIDE_LLM_TOOLS` | `hideLLMTools` | boolean |
 
 ### Precedence
 

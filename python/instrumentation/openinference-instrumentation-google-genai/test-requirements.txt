@@ -1,4 +1,4 @@
-google-genai==1.57.0
+google-genai==2.0.1
 opentelemetry-sdk
 pytest-asyncio
 pytest-recording

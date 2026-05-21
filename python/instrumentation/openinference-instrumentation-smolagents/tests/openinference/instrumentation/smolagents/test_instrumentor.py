@@ -1,10 +1,12 @@
 import json
-from typing import Any, Optional
-from unittest.mock import MagicMock
+from contextlib import contextmanager
+from typing import Any, Iterator, Optional
+from unittest.mock import MagicMock, patch
 
 import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from opentelemetry.util._importlib_metadata import entry_points
 from smolagents import LiteLLMModel, OpenAIServerModel, Tool, tool
 from smolagents.agents import (  # type: ignore[import-untyped]
@@ -21,13 +23,13 @@ from smolagents.models import (  # type: ignore[import-untyped]
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from openinference.instrumentation.smolagents._wrappers import (
+    _finalize_step_span,
     _llm_input_messages,
     _llm_output_messages,
     infer_llm_provider_from_class_name,
-    infer_llm_provider_from_endpoint,
-    infer_llm_system_from_model,
 )
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
@@ -38,6 +40,86 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+
+def make_non_recording_span() -> NonRecordingSpan:
+    """Helper to construct a dropped/invalid span as OTEL would produce."""
+    return NonRecordingSpan(
+        SpanContext(
+            trace_id=0,
+            span_id=0,
+            is_remote=False,
+            trace_flags=TraceFlags(0),
+        )
+    )
+
+
+@contextmanager
+def assert_no_attribute_error() -> Iterator[None]:
+    """Helper to fail the test if an AttributeError sneaks through."""
+    try:
+        yield
+    except AttributeError as e:
+        pytest.fail(f"Unexpected AttributeError: {e}")
+
+
+class TestFinalizeStepSpanWithDroppedSpan:
+    """Guards against AttributeError when OTEL drops or misconfigures a span."""
+
+    def test_with_observations_and_no_error_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock()
+        step_log.observations = "Test observations from Agent."
+        step_log.error = None
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_with_error_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock()
+        step_log.observations = None
+        step_log.error = RuntimeError("Something went wrong.")
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_with_expected_tool_error_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+
+        tool_error = MagicMock()
+        tool_error.__class__.__name__ = "AgentToolExecutionError"
+        tool_error.dict.return_value = {"message": "Tool does not work."}
+
+        step_log = MagicMock()
+        step_log.observations = None
+        step_log.error = tool_error
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_with_no_observations_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock(spec=[])
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_early_return_means_no_side_effects(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock()
+        step_log.observations = "Test observations from Agent."
+        step_log.error = None
+
+        with (
+            patch.object(span, "set_attribute", wraps=span.set_attribute) as mock_set_attr,
+            patch.object(span, "set_status", wraps=span.set_status) as mock_set_status,
+        ):
+            with assert_no_attribute_error():
+                _finalize_step_span(span, step_log)
+
+            mock_set_attr.assert_not_called()
+            mock_set_status.assert_not_called()
 
 
 class TestInstrumentor:
@@ -99,7 +181,14 @@ class TestModels:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -107,6 +196,80 @@ class TestModels:
         assert (
             attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
             == output_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert not attributes
+
+    @pytest.mark.vcr
+    def test_openai_server_model_with_chatmessage_image_url_has_expected_attributes(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        model = OpenAIServerModel(
+            model_id="gpt-4o",
+            api_key=openai_api_key,
+            api_base="https://api.openai.com/v1",
+        )
+        text_content = "What breed is this dog?"
+        image_url = "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U"
+
+        output_message = model(
+            messages=[
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[
+                        {"type": "text", "text": text_content},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                )
+            ]
+        )
+        assert output_message is not None
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "OpenAIModel.generate"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(INPUT_VALUE), str)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
+        assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == text_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+            == "image"
+        )
+        assert (
+            attributes.pop(
+                f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
+            )
+            == image_url
+        )
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert isinstance(
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"),
+            str,
         )
         assert (
             attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
@@ -177,7 +340,14 @@ class TestModels:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
         assert isinstance(
             tool_json_schema := attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str
         )
@@ -268,7 +438,14 @@ class TestModels:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == model_params
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -290,6 +467,118 @@ class TestModels:
             == "text"
         )
         assert not attributes
+
+
+class TestAgents:
+    @pytest.mark.vcr
+    def test_tool_calling_agent_with_image_has_expected_attributes(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        import pathlib
+
+        from PIL import Image
+
+        model = OpenAIServerModel(
+            model_id="gpt-4o",
+            api_key=openai_api_key,
+            api_base="https://api.openai.com/v1",
+        )
+        image_path = pathlib.Path(__file__).parent / "fixtures" / "img.png"
+        pil_image = Image.open(image_path)
+
+        agent = ToolCallingAgent(
+            tools=[],
+            model=model,
+            max_steps=3,
+        )
+        agent.run(
+            "Describe what you see in this image briefly.",
+            images=[pil_image],
+        )
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 4
+        llm_span = spans[0]
+        assert llm_span.name == "OpenAIModel.generate"
+        assert llm_span.status.is_ok
+
+        llm_attrs = dict(llm_span.attributes or {})
+        assert llm_attrs.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert llm_attrs.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(llm_attrs.pop(INPUT_VALUE), str)
+        assert llm_attrs.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(llm_attrs.pop(OUTPUT_VALUE), str)
+        assert llm_attrs.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert llm_attrs.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert llm_attrs.pop(LLM_SYSTEM) == OpenInferenceLLMSystemValues.OPENAI.value
+        assert isinstance(llm_attrs.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert llm_attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 1102
+        assert llm_attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 44
+        assert llm_attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 1146
+
+        assert llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+        assert (
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert isinstance(
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"),
+            str,
+        )
+        assert llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+        assert (
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert (
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == "New task:\nDescribe what you see in this image briefly."
+        )
+        assert (
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+            == "image"
+        )
+        image_url_value = llm_attrs.pop(
+            f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
+        )
+        assert str(image_url_value).startswith("data:image/png;base64,")
+
+        assert llm_attrs.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert (
+            llm_attrs.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
+            == "call_UemzWkeWxboyk7wCbBNRfUZp"
+        )
+        assert (
+            llm_attrs.pop(
+                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}"
+            )
+            == "final_answer"
+        )
+        assert isinstance(
+            llm_attrs.pop(
+                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+            ),
+            str,
+        )
+        assert isinstance(llm_attrs.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str)
+        assert not llm_attrs
+
+        agent_span = spans[3]
+        assert agent_span.name == "ToolCallingAgent.run"
+        assert agent_span.status.is_ok
+
+        agent_attrs = dict(agent_span.attributes or {})
+        assert agent_attrs.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
+        assert isinstance(agent_attrs.pop(INPUT_VALUE), str)
+        assert isinstance(agent_attrs.pop(OUTPUT_VALUE), str)
+        assert agent_attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 1102
+        assert agent_attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 44
+        assert agent_attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 1146
+        assert agent_attrs.pop("smolagents.max_steps") == 3
+        assert "final_answer" in str(agent_attrs.pop("smolagents.tools_names"))
+        assert not agent_attrs
 
 
 class TestRuns:
@@ -849,142 +1138,6 @@ class TestInferLLMProviderFromClassName:
         assert result is None
 
 
-class TestInferLLMProviderFromEndpoint:
-    @pytest.mark.parametrize(
-        "endpoint",
-        [None, ""],
-    )
-    def test_returns_none_for_invalid_input(self, endpoint: Optional[str]) -> None:
-        result = infer_llm_provider_from_endpoint(endpoint)
-        assert result is None
-
-    @pytest.mark.parametrize(
-        "endpoint_url, expected",
-        [
-            ("https://api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
-            ("https://subdomain.api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
-            (
-                "https://my-resource.openai.azure.com/openai/deployments",
-                OpenInferenceLLMProviderValues.AZURE,
-            ),
-            (
-                "https://different-resource.openai.azure.com/v1",
-                OpenInferenceLLMProviderValues.AZURE,
-            ),
-            (
-                "https://generativelanguage.googleapis.com/v1",
-                OpenInferenceLLMProviderValues.GOOGLE,
-            ),
-            ("https://api.anthropic.com/v1", OpenInferenceLLMProviderValues.ANTHROPIC),
-            (
-                "https://bedrock-runtime.us-east-1.amazonaws.com",
-                OpenInferenceLLMProviderValues.AWS,
-            ),
-            ("https://someservice.us-west-2.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
-            ("https://api.cohere.ai/v1", OpenInferenceLLMProviderValues.COHERE),
-            ("https://api.mistral.ai/v1", OpenInferenceLLMProviderValues.MISTRALAI),
-            ("https://api.x.ai/v1", OpenInferenceLLMProviderValues.XAI),
-            ("https://api.deepseek.com/v1", OpenInferenceLLMProviderValues.DEEPSEEK),
-        ],
-    )
-    def test_known_endpoints_return_expected_provider(
-        self, endpoint_url: str, expected: OpenInferenceLLMProviderValues
-    ) -> None:
-        result = infer_llm_provider_from_endpoint(endpoint_url)
-        assert result == expected
-
-    @pytest.mark.parametrize(
-        "endpoint",
-        [
-            "https://unknown-provider-xyz.com/v1",
-            "https://custom-llm-provider.com/v1",
-            "https://my-provider-custom.com/v1",
-        ],
-    )
-    def test_unknown_endpoints_return_none(self, endpoint: str) -> None:
-        result = infer_llm_provider_from_endpoint(endpoint)
-        assert result is None
-
-    def test_case_insensitive_matching(self) -> None:
-        result = infer_llm_provider_from_endpoint("https://API.OPENAI.COM/v1")
-        assert result == OpenInferenceLLMProviderValues.OPENAI
-
-
-class TestInferLLMSystemFromModel:
-    @pytest.mark.parametrize(
-        "model_name",
-        [None, ""],
-    )
-    def test_returns_none_for_invalid_input(self, model_name: Optional[str]) -> None:
-        result = infer_llm_system_from_model(model_name)
-        assert result is None
-
-    @pytest.mark.parametrize(
-        "model_name, expected",
-        [
-            # OpenAI
-            ("gpt-4", OpenInferenceLLMSystemValues.OPENAI),
-            ("gpt-4-turbo-preview", OpenInferenceLLMSystemValues.OPENAI),
-            ("gpt.3.5.turbo", OpenInferenceLLMSystemValues.OPENAI),
-            ("o1-preview", OpenInferenceLLMSystemValues.OPENAI),
-            ("o3-mini", OpenInferenceLLMSystemValues.OPENAI),
-            ("o4-turbo", OpenInferenceLLMSystemValues.OPENAI),
-            ("text-embedding-ada-002", OpenInferenceLLMSystemValues.OPENAI),
-            ("davinci-002", OpenInferenceLLMSystemValues.OPENAI),
-            ("curie", OpenInferenceLLMSystemValues.OPENAI),
-            ("babbage", OpenInferenceLLMSystemValues.OPENAI),
-            ("ada", OpenInferenceLLMSystemValues.OPENAI),
-            ("azure_openai/gpt-4", OpenInferenceLLMSystemValues.OPENAI),
-            ("azure_ai/some-model", OpenInferenceLLMSystemValues.OPENAI),
-            ("azure/deployment-name", OpenInferenceLLMSystemValues.OPENAI),
-            # Anthropic
-            ("anthropic.claude-v2", OpenInferenceLLMSystemValues.ANTHROPIC),
-            ("anthropic/claude-3-opus", OpenInferenceLLMSystemValues.ANTHROPIC),
-            ("claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC),
-            ("claude-3-opus-20240229", OpenInferenceLLMSystemValues.ANTHROPIC),
-            ("google_anthropic_vertex/claude-3", OpenInferenceLLMSystemValues.ANTHROPIC),
-            # Cohere
-            ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE),
-            ("command-r-plus", OpenInferenceLLMSystemValues.COHERE),
-            ("cohere/embed-english-v3", OpenInferenceLLMSystemValues.COHERE),
-            # Mistral
-            ("mistralai/mistral-large", OpenInferenceLLMSystemValues.MISTRALAI),
-            ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI),
-            ("mistral-small", OpenInferenceLLMSystemValues.MISTRALAI),
-            ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI),
-            # VertexAI
-            ("google_vertexai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("google_genai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("vertexai/gemini-ultra", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("vertex_ai/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("vertex/bison", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("google/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
-        ],
-    )
-    def test_known_model_names_return_expected_system(
-        self, model_name: str, expected: OpenInferenceLLMSystemValues
-    ) -> None:
-        result = infer_llm_system_from_model(model_name)
-        assert result == expected
-
-    @pytest.mark.parametrize(
-        "model_name",
-        [
-            "unknown-model-xyz",
-            "custom-llm-v1",
-            "my-gpt-4-custom",
-        ],
-    )
-    def test_unknown_model_names_return_none(self, model_name: str) -> None:
-        result = infer_llm_system_from_model(model_name)
-        assert result is None
-
-    def test_case_insensitive_matching(self) -> None:
-        result = infer_llm_system_from_model("GPT-4-Turbo")
-        assert result == OpenInferenceLLMSystemValues.OPENAI
-
-
 class TestLlmInputMessages:
     def test_dict_messages_with_list_content(self) -> None:
         arguments = {
@@ -999,7 +1152,11 @@ class TestLlmInputMessages:
             == "user"
         )
         assert (
-            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            result[
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+                f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+                f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+            ]
             == "Hello"
         )
         assert (
@@ -1007,7 +1164,11 @@ class TestLlmInputMessages:
             == "assistant"
         )
         assert (
-            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"]
+            result[
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.1."
+                f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+                f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+            ]
             == "Hi there"
         )
 
@@ -1039,8 +1200,7 @@ class TestLlmInputMessages:
             == "Hi there"
         )
 
-    def test_chatmessage_objects_with_list_content(self) -> None:
-        """ChatMessage objects with list content (multimodal format) should be handled correctly."""
+    def test_chatmessage_objects_with_list_text_content(self) -> None:
         arguments = {
             "messages": [
                 ChatMessage(
@@ -1057,10 +1217,68 @@ class TestLlmInputMessages:
         assert isinstance(
             result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"], str
         )
-        assert (
-            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
-            == "Describe this image"
+        text_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
         )
+        assert result[text_key] == "Describe this image"
+        type_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        assert result[type_key] == "text"
+
+    def test_chatmessage_with_image_url_content(self) -> None:
+        image_url = "data:image/png;base64,abc123"
+        arguments = {
+            "messages": [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[
+                        {"type": "text", "text": "What is in this image?"},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                ),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        text_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "What is in this image?"
+        image_url_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        assert result[image_url_key] == image_url
+        image_type_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        assert result[image_type_key] == "image"
+
+    def test_chatmessage_with_base64_image_content(self) -> None:
+        arguments = {
+            "messages": [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[{"type": "image", "image": "iVBORw0KGgo="}],
+                ),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        image_url_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        assert result[image_url_key] == "data:image/png;base64,iVBORw0KGgo="
 
 
 class TestLlmOutputMessages:
@@ -1080,6 +1298,42 @@ class TestLlmOutputMessages:
             f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
         )
         assert result[text_key] == "Hello world"
+
+    def test_chatmessage_with_list_text_content(self) -> None:
+        output = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=[{"type": "text", "text": "Here is the result"}],
+        )
+        result = dict(_llm_output_messages(output))
+        text_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Here is the result"
+
+    def test_chatmessage_with_list_image_url_content(self) -> None:
+        image_url = "data:image/png;base64,abc123"
+        output = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=[
+                {"type": "text", "text": "Here is the image"},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        )
+        result = dict(_llm_output_messages(output))
+        text_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Here is the image"
+        image_url_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        assert result[image_url_key] == image_url
 
     def test_chatmessage_with_tool_calls(self) -> None:
         output = ChatMessage(
@@ -1110,6 +1364,7 @@ class TestLlmOutputMessages:
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
@@ -1117,6 +1372,9 @@ MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+
+# image attributes
+IMAGE_URL = ImageAttributes.IMAGE_URL
 
 # mime types
 JSON = OpenInferenceMimeTypeValues.JSON.value

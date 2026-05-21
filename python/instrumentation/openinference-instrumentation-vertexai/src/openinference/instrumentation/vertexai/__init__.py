@@ -3,7 +3,7 @@ from typing import Any, Collection
 
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import get_tracer, get_tracer_provider
-from wrapt import wrap_function_wrapper
+from wrapt.patches import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.vertexai import _instrumentation_status
@@ -41,10 +41,10 @@ class VertexAIInstrumentor(BaseInstrumentor):  # type: ignore
         from openinference.instrumentation.vertexai._wrapper import _Wrapper
 
         for method in (gapic.method.wrap_method, gapic.method_async.wrap_method):
-            wrap_function_wrapper(
+            wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 method.__module__,
                 method.__name__,
-                lambda f, _, args, kwargs: _Wrapper(tracer)(f(*args, **kwargs)),
+                lambda f, _, args, kwargs: _Wrapper(tracer)(f(*args, **kwargs)),  # type: ignore[arg-type]
             )
 
     def _uninstrument(self, **kwargs: Any) -> None:

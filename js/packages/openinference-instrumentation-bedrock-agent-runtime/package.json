@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-bedrock-agent-runtime",
-  "version": "1.1.11",
+  "version": "1.1.12",
   "private": false,
   "description": "OpenInference instrumentation for AWS Bedrock Agent Runtime",
   "keywords": [
@@ -52,7 +52,7 @@
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-bedrock-agent-runtime": "3.918.0",
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.1042.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.46.0",
     "@opentelemetry/instrumentation": "^0.46.0",
     "@opentelemetry/resources": "^1.25.1",

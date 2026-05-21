@@ -1,0 +1,3 @@
+# Compiled example binaries (Go builds these next to main.go).
+auto-instrumentation/auto-instrumentation
+manual-instrumentation/manual-instrumentation

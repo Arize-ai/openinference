@@ -85,8 +85,8 @@ def _test_openai_agent_and_llm_spans(
         instructions=["Use the weather tool", "Use the calculator tool"],
         system_prompt="You are a weather assistant",
         output_type=LocationModel,
-        instrument=instrumentation,
     )
+    agent.instrument = instrumentation
 
     # Run the agent
     result = agent.run_sync("The windy city in the US of A.")
@@ -222,7 +222,8 @@ def _test_openai_agent_and_llm_spans_message_history(
     # Create the model and agent
     api_key = os.getenv("OPENAI_API_KEY", "sk-test")
     model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
-    agent = Agent(model, output_type=LocationModel, instrument=instrumentation)
+    agent = Agent(model, output_type=LocationModel)
+    agent.instrument = instrumentation
 
     # Create message history with multiple messages
     message_history: List[Union[ModelRequest, ModelResponse]] = [
