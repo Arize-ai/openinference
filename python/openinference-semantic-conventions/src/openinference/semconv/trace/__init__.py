@@ -268,6 +268,31 @@ class SpanAttributes:
     A vendor-specific url used to locate the prompt.
     """
 
+    INPUT_AUDIO_URL = "input.audio.url"
+    """
+    A URL or data URI for the input audio.
+    """
+    INPUT_AUDIO_MIME_TYPE = "input.audio.mime_type"
+    """
+    The MIME type of the input audio.
+    """
+    INPUT_AUDIO_TRANSCRIPT = "input.audio.transcript"
+    """
+    The transcript of the input audio.
+    """
+    OUTPUT_AUDIO_URL = "output.audio.url"
+    """
+    A URL or data URI for the output audio.
+    """
+    OUTPUT_AUDIO_MIME_TYPE = "output.audio.mime_type"
+    """
+    The MIME type of the output audio.
+    """
+    OUTPUT_AUDIO_TRANSCRIPT = "output.audio.transcript"
+    """
+    The transcript of the output audio.
+    """
+
 
 class MessageAttributes:
     """
@@ -497,6 +522,8 @@ class OpenInferenceSpanKindValues(Enum):
     GUARDRAIL = "GUARDRAIL"
     EVALUATOR = "EVALUATOR"
     PROMPT = "PROMPT"
+    AUDIO = "AUDIO"
+    USER = "USER"
 
 
 class OpenInferenceMimeTypeValues(Enum):
