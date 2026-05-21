@@ -10,6 +10,7 @@ class TestOpenInferenceSpanKindValues:
     def test_values(self) -> None:
         assert {e: e.value for e in OpenInferenceSpanKindValues} == {
             OpenInferenceSpanKindValues.AGENT: "AGENT",
+            OpenInferenceSpanKindValues.AUDIO: "AUDIO",
             OpenInferenceSpanKindValues.CHAIN: "CHAIN",
             OpenInferenceSpanKindValues.EMBEDDING: "EMBEDDING",
             OpenInferenceSpanKindValues.EVALUATOR: "EVALUATOR",
@@ -20,6 +21,7 @@ class TestOpenInferenceSpanKindValues:
             OpenInferenceSpanKindValues.RETRIEVER: "RETRIEVER",
             OpenInferenceSpanKindValues.TOOL: "TOOL",
             OpenInferenceSpanKindValues.UNKNOWN: "UNKNOWN",
+            OpenInferenceSpanKindValues.USER: "USER",
         }
 
 
