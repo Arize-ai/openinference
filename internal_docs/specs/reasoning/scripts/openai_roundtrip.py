@@ -1,76 +1,61 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#     "openai>=2.0",
-#     "opentelemetry-api",
-#     "opentelemetry-sdk",
-#     "opentelemetry-exporter-otlp-proto-http",
-#     "openinference-semantic-conventions",
-#     "arize-phoenix-client",
+#     "openai==2.37.0",
+#     "opentelemetry-api==1.42.1",
+#     "opentelemetry-sdk==1.42.1",
+#     "opentelemetry-exporter-otlp-proto-http==1.42.1",
+#     "openinference-semantic-conventions==0.1.29",
+#     "openinference-instrumentation-openai==0.1.49",
 # ]
 # ///
 """OpenAI Responses-API reasoning round-trip.
 
-Proves that the OpenAI reasoning surface (`encrypted_content` + reasoning
-item id + summary parts + any following `function_call`) can be captured as
-flat string-valued span attributes, fetched back out of Phoenix, and used to
-rebuild an `input=[...]` list that the Responses API accepts on a stateless
-follow-up turn.
-
-Two scenarios:
-  A. text:  reasoning -> output_text
-  B. tool:  reasoning -> function_call -> tool result -> final answer
-            (asserts turn 2 returns a `message`, not another `function_call`,
-            which would mean the prior chain-of-thought wasn't rehydrated).
-
-Env vars: OPENAI_API_KEY, PHOENIX_COLLECTOR_ENDPOINT (default localhost:6006),
-          OPENAI_MODEL (default `gpt-5`).
+Uses the real OpenAI instrumentor as the baseline span writer. The captured
+finished span is augmented with proposed reasoning item fields, then re-exported
+to Phoenix and used to reconstruct a stateless follow-up input list.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
 from typing import Any
 
 from openai import OpenAI
-from openinference.instrumentation import get_llm_attributes
+from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
+    MessageAttributes,
     MessageContentAttributes,
-    OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceSpanKindValues,
     SpanAttributes,
-    ToolCallAttributes,
 )
-from opentelemetry.trace import SpanKind
+from openinference.semconv.trace import ToolCallAttributes
 
 from common import (
     CONTENT_TYPE_REASONING,
-    CONTENT_TYPE_TEXT,
-    CONTENT_TYPE_TOOL_USE,
-    MESSAGE_CONTENT_ENCRYPTED_CONTENT,
+    FACTORIZE_FOLLOW_UP_PROMPT,
+    FACTORIZE_USER_PROMPT,
+    InstrumentedTracingCtx,
     MESSAGE_CONTENT_ID,
-    TracingCtx,
-    find_tool_use_block,
-    flush_and_fetch,
+    MESSAGE_CONTENT_SIGNATURE,
+    TOOL_FOLLOW_UP_PROMPT,
+    TOOL_RESULT_PAYLOAD,
+    TOOL_USER_PROMPT,
+    debug_print,
+    export_augmented_span,
+    export_original_span,
+    mutate_span_attributes,
+    output_content_key,
+    print_attribute_keys,
     print_capture_summary,
-    read_input_message_content,
-    read_output_contents,
+    read_input_message_text,
     read_tools,
-    set_input_assistant_echo,
-    set_input_tool_result,
-    set_input_user_message,
-    set_output_reasoning,
-    set_output_role,
-    set_output_text,
-    set_output_tool_use,
-    set_tools,
-    setup_tracing,
+    setup_instrumented_tracing,
 )
 
-MODEL = os.environ.get("OPENAI_MODEL", "gpt-5")
+MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")
 
 WEATHER_TOOL = {
     "type": "function",
@@ -84,82 +69,201 @@ WEATHER_TOOL = {
 }
 
 
-def set_request_attributes(attrs: dict[str, Any], *, effort: str, summary: str) -> None:
-    attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
-    attrs.update(
-        get_llm_attributes(
-            provider=OpenInferenceLLMProviderValues.OPENAI,
-            system=OpenInferenceLLMSystemValues.OPENAI,
-            model_name=MODEL,
-            invocation_parameters={
-                "reasoning": {"effort": effort, "summary": summary},
-                "store": False,
-                "include": ["reasoning.encrypted_content"],
-            },
-        )
+def user_text_item(text: str) -> dict[str, Any]:
+    return {"role": "user", "content": [{"type": "input_text", "text": text}]}
+
+
+def build_responses_create_request(
+    *,
+    model: str,
+    input: Any,
+    tools: list[dict[str, Any]] | None = None,
+    effort: str = "medium",
+    summary: str | None = "detailed",
+) -> dict[str, Any]:
+    reasoning: dict[str, str] = {"effort": effort}
+    if summary is not None:
+        reasoning["summary"] = summary
+    request: dict[str, Any] = {
+        "model": model,
+        "input": input,
+        "reasoning": reasoning,
+        "store": False,
+        "include": ["reasoning.encrypted_content"],
+    }
+    if tools:
+        request["tools"] = tools
+    return request
+
+
+def simulate_openai_output_walk(response: Any) -> dict[str, Any]:
+    attrs: dict[str, Any] = {}
+    for output_index, item in enumerate(response.output or []):
+        item_type = getattr(item, "type", None)
+        if item_type != "reasoning":
+            continue
+
+        # OpenAI's current instrumentor already emits each reasoning summary
+        # part as an indexed text content block. The future shape should
+        # reclassify those blocks as reasoning, not concatenate duplicate text
+        # into content block 0.
+        for summary_index, summary_part in enumerate(item.summary or []):
+            attrs[
+                output_content_key(
+                    output_index,
+                    summary_index,
+                    MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+                )
+            ] = CONTENT_TYPE_REASONING
+            if text := getattr(summary_part, "text", ""):
+                attrs[
+                    output_content_key(
+                        output_index,
+                        summary_index,
+                        MessageContentAttributes.MESSAGE_CONTENT_TEXT,
+                    )
+                ] = text
+
+        token_content_index = 0
+        attrs[
+            output_content_key(output_index, token_content_index, MESSAGE_CONTENT_ID)
+        ] = item.id
+        encrypted = getattr(item, "encrypted_content", None)
+        if encrypted:
+            attrs[
+                output_content_key(
+                    output_index, token_content_index, MESSAGE_CONTENT_SIGNATURE
+                )
+            ] = encrypted
+    return attrs
+
+
+def print_openai_output_slots(response: Any) -> None:
+    debug_print("\n[openai response.output slots]")
+    for index, item in enumerate(response.output or []):
+        debug_print(f"  output[{index}].type={getattr(item, 'type', None)}")
+
+
+def augment_openai_span_from_response(span: Any, response: Any) -> None:
+    baseline = dict(span.attributes or {})
+    additions = simulate_openai_output_walk(response)
+    print_openai_output_slots(response)
+    print_attribute_keys(f"{span.name} baseline", baseline)
+    mutate_span_attributes(span, additions)
+    print_attribute_keys(f"{span.name} augmented", dict(span.attributes or {}))
+
+
+def call_and_export_augmented(
+    ctx: InstrumentedTracingCtx,
+    client: OpenAI,
+    request: dict[str, Any],
+    *,
+    root_name: str,
+) -> tuple[Any, dict[str, Any]]:
+    before_count = ctx.span_count()
+    with ctx.tracer.start_as_current_span(root_name) as root_span:
+        root_context = root_span.get_span_context()
+        response = client.responses.create(**request)
+        span = ctx.latest_span_since(before_count)
+    ctx.export(ctx.span_by_id(root_context.span_id))
+    export_original_span(ctx, span)
+    augment_openai_span_from_response(span, response)
+    fetched_attrs = export_augmented_span(ctx, span)
+    return response, fetched_attrs
+
+
+def output_message_indices(attrs: dict[str, Any]) -> list[int]:
+    prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}."
+    indices: set[int] = set()
+    for key in attrs:
+        if not key.startswith(prefix):
+            continue
+        index_str = key[len(prefix) :].split(".", 1)[0]
+        try:
+            indices.add(int(index_str))
+        except ValueError:
+            continue
+    return sorted(indices)
+
+
+def read_content_block(
+    attrs: dict[str, Any], message_index: int, content_index: int
+) -> dict[str, Any]:
+    prefix = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}."
+        f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
     )
+    block: dict[str, Any] = {}
+    for key, value in attrs.items():
+        if key.startswith(prefix):
+            block[key[len(prefix) :]] = value
+    return block
 
 
-def record_assistant_turn(attrs: dict[str, Any], response: Any) -> None:
-    """Walk `response.output[]` and write each item into `attrs` as flat
-    output-message attributes."""
-    set_output_role(attrs, 0, "assistant")
+def read_all_output_content_blocks(attrs: dict[str, Any]) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    for message_index in output_message_indices(attrs):
+        block = read_content_block(attrs, message_index, 0)
+        if block:
+            blocks.append(block)
+    return blocks
+
+
+def read_content_blocks_for_message(
+    attrs: dict[str, Any], message_index: int
+) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
     content_index = 0
-    for output_item in response.output:
-        item_type = getattr(output_item, "type", None)
-        if item_type == "reasoning":
-            summary_text = "\n".join(
-                getattr(summary_part, "text", "") for summary_part in (output_item.summary or [])
-            )
-            set_output_reasoning(
-                attrs,
-                0,
-                content_index,
-                text=summary_text or None,
-                item_id=output_item.id,
-                encrypted_content=getattr(output_item, "encrypted_content", None),
-            )
-            content_index += 1
-        elif item_type == "message":
-            for message_part in output_item.content or []:
-                if getattr(message_part, "type", None) == "output_text":
-                    set_output_text(attrs, 0, content_index, message_part.text)
-                    content_index += 1
-        elif item_type == "function_call":
-            set_output_tool_use(
-                attrs,
-                0,
-                content_index,
-                tool_call_id=output_item.call_id,
-                name=output_item.name,
-                arguments_json=output_item.arguments,
-            )
-            content_index += 1
+    while True:
+        block = read_content_block(attrs, message_index, content_index)
+        if not block:
+            break
+        blocks.append(block)
+        content_index += 1
+    return blocks
+
+
+def read_tool_call(attrs: dict[str, Any], message_index: int) -> dict[str, Any]:
+    prefix = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}."
+        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+    )
+    result: dict[str, Any] = {}
+    for key, value in attrs.items():
+        if key.startswith(prefix):
+            result[key[len(prefix) :]] = value
+    return result
 
 
 def rebuild_input_items(
     fetched_attrs: dict[str, Any], prior_user_text: str
 ) -> list[dict[str, Any]]:
-    """Turn the fetched assistant turn back into a Responses-API
-    `input=[...]` list."""
-    items: list[dict[str, Any]] = [{"role": "user", "content": prior_user_text}]
-    for content_block in read_output_contents(fetched_attrs, 0):
-        block_type = content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE)
-        if block_type == CONTENT_TYPE_REASONING:
+    items: list[dict[str, Any]] = [user_text_item(prior_user_text)]
+    for message_index in output_message_indices(fetched_attrs):
+        role = fetched_attrs.get(
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{MessageAttributes.MESSAGE_ROLE}"
+        )
+        content_blocks = read_content_blocks_for_message(fetched_attrs, message_index)
+        if content_blocks and all(
+            block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE)
+            == CONTENT_TYPE_REASONING
+            for block in content_blocks
+        ):
             summary_parts: list[dict[str, str]] = []
-            visible_text = content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TEXT)
-            if visible_text:
-                summary_parts.append({"type": "summary_text", "text": visible_text})
-            reasoning_item: dict[str, Any] = {
+            for block in content_blocks:
+                if text := block.get(MessageContentAttributes.MESSAGE_CONTENT_TEXT):
+                    summary_parts.append({"type": "summary_text", "text": text})
+            token_block = content_blocks[0]
+            reasoning_item = {
                 "type": "reasoning",
-                "id": content_block[MESSAGE_CONTENT_ID],
+                "id": token_block[MESSAGE_CONTENT_ID],
                 "summary": summary_parts,
             }
-            encrypted = content_block.get(MESSAGE_CONTENT_ENCRYPTED_CONTENT)
-            if encrypted:
+            if encrypted := token_block.get(MESSAGE_CONTENT_SIGNATURE):
                 reasoning_item["encrypted_content"] = encrypted
             items.append(reasoning_item)
-        elif block_type == CONTENT_TYPE_TEXT:
+            continue
+        if role == "assistant" and content_blocks:
             items.append(
                 {
                     "type": "message",
@@ -167,155 +271,137 @@ def rebuild_input_items(
                     "content": [
                         {
                             "type": "output_text",
-                            "text": content_block[MessageContentAttributes.MESSAGE_CONTENT_TEXT],
+                            "text": block[
+                                MessageContentAttributes.MESSAGE_CONTENT_TEXT
+                            ],
                         }
+                        for block in content_blocks
+                        if block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE)
+                        == "text"
                     ],
                 }
             )
-        elif block_type == CONTENT_TYPE_TOOL_USE:
+            continue
+        tool_call = read_tool_call(fetched_attrs, message_index)
+        if tool_call:
             items.append(
                 {
                     "type": "function_call",
-                    "call_id": content_block[ToolCallAttributes.TOOL_CALL_ID],
-                    "name": content_block[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME],
-                    "arguments": content_block[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON],
+                    "call_id": tool_call[ToolCallAttributes.TOOL_CALL_ID],
+                    "name": tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME],
+                    "arguments": tool_call[
+                        ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+                    ],
                 }
             )
     return items
 
 
-def replay_turn2(
-    client: OpenAI,
+def build_request_from_fetched(
     fetched_attrs: dict[str, Any],
     turn2_input_items: list[dict[str, Any]],
-) -> Any:
-    """Issue the follow-up call using ONLY values fetched out of Phoenix.
-
-    The Python-side inputs allowed here are turn 2's new conversational
-    state (the `input` list, which the demo built from fetched attributes
-    plus the genuinely-new follow-up user / tool result). Everything else —
-    model, tools, reasoning config, store, include — is decoded from the
-    Phoenix-fetched attribute dict.
-    """
-    invocation_parameters = json.loads(fetched_attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])
-    return client.responses.create(
-        model=fetched_attrs[SpanAttributes.LLM_MODEL_NAME],
-        input=turn2_input_items,
-        tools=read_tools(fetched_attrs) or None,
-        **invocation_parameters,
+) -> dict[str, Any]:
+    invocation_parameters = json.loads(
+        fetched_attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]
     )
+    tools = read_tools(fetched_attrs) or None
+    return {
+        "model": fetched_attrs[SpanAttributes.LLM_MODEL_NAME],
+        "input": turn2_input_items,
+        "tools": tools,
+        **invocation_parameters,
+    }
 
 
-def scenario_text(client: OpenAI, ctx: TracingCtx) -> bool:
+def read_openai_user_input_text(attrs: dict[str, Any]) -> str:
+    role_suffix = f".{MessageAttributes.MESSAGE_ROLE}"
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}."
+    user_message_indices: list[int] = []
+    for key, value in attrs.items():
+        if not key.startswith(prefix) or not key.endswith(role_suffix):
+            continue
+        if value != "user":
+            continue
+        index_str = key[len(prefix) :].split(".", 1)[0]
+        try:
+            user_message_indices.append(int(index_str))
+        except ValueError:
+            continue
+    if user_message_indices:
+        return read_input_message_text(attrs, min(user_message_indices))
+    return read_input_message_text(attrs, 0)
+
+
+def scenario_text(
+    client: OpenAI, ctx: InstrumentedTracingCtx, *, summary: str | None
+) -> bool:
     print("\n[openai] scenario A: text round-trip")
-    user_text = "In one short sentence, what's special about the number 1729?"
-
-    with ctx.tracer.start_as_current_span(
-        "openai.responses.text.turn1.original", kind=SpanKind.CLIENT
-    ) as turn1_span:
-        turn1_attrs: dict[str, Any] = {}
-        set_request_attributes(turn1_attrs, effort="medium", summary="auto")
-        set_input_user_message(turn1_attrs, 0, user_text)
-
-        turn1_response = client.responses.create(
-            model=MODEL,
-            input=user_text,
-            reasoning={"effort": "medium", "summary": "auto"},
-            store=False,
-            include=["reasoning.encrypted_content"],
-        )
-        record_assistant_turn(turn1_attrs, turn1_response)
-        turn1_span.set_attributes(turn1_attrs)
-        turn1_span_context = turn1_span.get_span_context()
-
-    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
-    prior_user_text = read_input_message_content(fetched_attrs, 0)
-    captured_contents = read_output_contents(fetched_attrs, 0)
-    follow_up_text = "Now in one sentence: who proved that property?"
+    user_text = FACTORIZE_USER_PROMPT
+    turn1_request = build_responses_create_request(
+        model=MODEL, input=[user_text_item(user_text)], summary=summary
+    )
+    turn1_response, fetched_attrs = call_and_export_augmented(
+        ctx, client, turn1_request, root_name="openai text turn1"
+    )
+    prior_user_text = read_openai_user_input_text(fetched_attrs)
+    captured_contents = read_all_output_content_blocks(fetched_attrs)
     turn2_input_items = rebuild_input_items(fetched_attrs, prior_user_text)
-    turn2_input_items.append({"role": "user", "content": follow_up_text})
+    turn2_input_items.append(user_text_item(FACTORIZE_FOLLOW_UP_PROMPT))
 
-    with ctx.tracer.start_as_current_span(
-        "openai.responses.text.turn2.roundtrip", kind=SpanKind.CLIENT
-    ) as turn2_span:
-        turn2_attrs: dict[str, Any] = {}
-        set_request_attributes(turn2_attrs, effort="medium", summary="auto")
-        set_input_user_message(turn2_attrs, 0, prior_user_text)
-        set_input_assistant_echo(turn2_attrs, 1, captured_contents)
-        set_input_user_message(turn2_attrs, 2, follow_up_text)
-
-        turn2_response = replay_turn2(client, fetched_attrs, turn2_input_items)
-        record_assistant_turn(turn2_attrs, turn2_response)
-        turn2_span.set_attributes(turn2_attrs)
-
+    turn2_request = build_request_from_fetched(fetched_attrs, turn2_input_items)
+    turn2_response, _ = call_and_export_augmented(
+        ctx, client, turn2_request, root_name="openai text turn2"
+    )
     turn2_returned_message = any(
         getattr(item, "type", None) == "message" for item in turn2_response.output
     )
     print_capture_summary(captured_contents)
-    print(f"  turn2_ok={turn2_returned_message}  "
-          f"turn2_text={(turn2_response.output_text or '')[:80]!r}")
+    print(
+        f"  turn2_ok={turn2_returned_message}  "
+        f"turn2_text={(turn2_response.output_text or '')[:120]!r}"
+    )
     return turn2_returned_message
 
 
-def scenario_tool(client: OpenAI, ctx: TracingCtx) -> bool:
-    print("\n[openai] scenario B: reasoning → function_call round-trip")
-    user_text = "What's the weather in Paris right now? Use the tool."
-
-    with ctx.tracer.start_as_current_span(
-        "openai.responses.tool.turn1.original", kind=SpanKind.CLIENT
-    ) as turn1_span:
-        turn1_attrs: dict[str, Any] = {}
-        set_request_attributes(turn1_attrs, effort="medium", summary="auto")
-        set_tools(turn1_attrs, [WEATHER_TOOL])
-        set_input_user_message(turn1_attrs, 0, user_text)
-
-        turn1_response = client.responses.create(
-            model=MODEL,
-            input=user_text,
-            tools=[WEATHER_TOOL],
-            reasoning={"effort": "medium", "summary": "auto"},
-            store=False,
-            include=["reasoning.encrypted_content"],
-        )
-        record_assistant_turn(turn1_attrs, turn1_response)
-        turn1_span.set_attributes(turn1_attrs)
-        turn1_span_context = turn1_span.get_span_context()
-
-    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
-    prior_user_text = read_input_message_content(fetched_attrs, 0)
-    captured_contents = read_output_contents(fetched_attrs, 0)
-    tool_use_block = find_tool_use_block(captured_contents)
-    if tool_use_block is None:
+def scenario_tool(
+    client: OpenAI, ctx: InstrumentedTracingCtx, *, summary: str | None
+) -> bool:
+    print("\n[openai] scenario B: reasoning -> function_call round-trip")
+    user_text = TOOL_USER_PROMPT
+    turn1_request = build_responses_create_request(
+        model=MODEL,
+        input=[user_text_item(user_text)],
+        tools=[WEATHER_TOOL],
+        effort="high",
+        summary=summary,
+    )
+    _, fetched_attrs = call_and_export_augmented(
+        ctx, client, turn1_request, root_name="openai tool turn1"
+    )
+    prior_user_text = read_openai_user_input_text(fetched_attrs)
+    captured_contents = read_all_output_content_blocks(fetched_attrs)
+    turn2_input_items = rebuild_input_items(fetched_attrs, prior_user_text)
+    function_call = next(
+        (item for item in turn2_input_items if item.get("type") == "function_call"),
+        None,
+    )
+    if function_call is None:
         print("  SKIP: model did not call the tool")
         return True
-    tool_call_id = tool_use_block[ToolCallAttributes.TOOL_CALL_ID]
-
-    turn2_input_items = rebuild_input_items(fetched_attrs, prior_user_text)
-    tool_output_json = json.dumps({"temperature_c": 14.5})
+    tool_output_json = json.dumps(TOOL_RESULT_PAYLOAD)
     turn2_input_items.append(
         {
             "type": "function_call_output",
-            "call_id": tool_call_id,
+            "call_id": function_call["call_id"],
             "output": tool_output_json,
         }
     )
+    turn2_input_items.append(user_text_item(TOOL_FOLLOW_UP_PROMPT))
 
-    with ctx.tracer.start_as_current_span(
-        "openai.responses.tool.turn2.roundtrip", kind=SpanKind.CLIENT
-    ) as turn2_span:
-        turn2_attrs: dict[str, Any] = {}
-        set_request_attributes(turn2_attrs, effort="medium", summary="auto")
-        set_tools(turn2_attrs, [WEATHER_TOOL])
-        set_input_user_message(turn2_attrs, 0, prior_user_text)
-        set_input_assistant_echo(turn2_attrs, 1, captured_contents)
-        set_input_tool_result(
-            turn2_attrs, 2, tool_call_id=tool_call_id, content_text=tool_output_json
-        )
-
-        turn2_response = replay_turn2(client, fetched_attrs, turn2_input_items)
-        record_assistant_turn(turn2_attrs, turn2_response)
-        turn2_span.set_attributes(turn2_attrs)
-
+    turn2_request = build_request_from_fetched(fetched_attrs, turn2_input_items)
+    turn2_response, _ = call_and_export_augmented(
+        ctx, client, turn2_request, root_name="openai tool turn2"
+    )
     turn2_returned_message = any(
         getattr(item, "type", None) == "message" for item in turn2_response.output
     )
@@ -325,13 +411,37 @@ def scenario_tool(client: OpenAI, ctx: TracingCtx) -> bool:
     return turn2_returned_message
 
 
+def parse_reasoning_summary() -> str | None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--reasoning-summary",
+        choices=["auto", "concise", "detailed", "off"],
+        default=os.environ.get("OPENAI_REASONING_SUMMARY", "detailed"),
+        help=(
+            "Set OpenAI reasoning.summary. Use 'off' to omit the summary field "
+            "from requests."
+        ),
+    )
+    args = parser.parse_args()
+    if args.reasoning_summary == "off":
+        return None
+    return args.reasoning_summary
+
+
 def main() -> int:
-    ctx = setup_tracing("reasoning-roundtrip-openai")
-    client = OpenAI()
-    text_ok = scenario_text(client, ctx)
-    tool_ok = scenario_tool(client, ctx)
-    print(f"\n[openai] PASS={text_ok and tool_ok}  text={text_ok}  tool={tool_ok}")
-    return 0 if (text_ok and tool_ok) else 1
+    summary = parse_reasoning_summary()
+    ctx = setup_instrumented_tracing("openai-reasoning-roundtrip")
+    instrumentor = OpenAIInstrumentor()
+    instrumentor.instrument(tracer_provider=ctx.provider)
+    try:
+        client = OpenAI()
+        text_ok = scenario_text(client, ctx, summary=summary)
+        tool_ok = scenario_tool(client, ctx, summary=summary)
+        print(f"\n[openai] PASS={text_ok and tool_ok}  text={text_ok}  tool={tool_ok}")
+        return 0 if (text_ok and tool_ok) else 1
+    finally:
+        instrumentor.uninstrument()
+        ctx.shutdown()
 
 
 if __name__ == "__main__":

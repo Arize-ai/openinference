@@ -1,37 +1,24 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#     "google-genai>=1.0",
-#     "opentelemetry-api",
-#     "opentelemetry-sdk",
-#     "opentelemetry-exporter-otlp-proto-http",
-#     "openinference-semantic-conventions",
-#     "arize-phoenix-client",
+#     "google-genai==2.5.0",
+#     "opentelemetry-api==1.42.1",
+#     "opentelemetry-sdk==1.42.1",
+#     "opentelemetry-exporter-otlp-proto-http==1.42.1",
+#     "openinference-semantic-conventions==0.1.29",
+#     "openinference-instrumentation-google-genai==1.0.2",
 # ]
 # ///
 """Google Gemini thinking-surface round-trip.
 
-Captures `parts[]` — thought-summary parts (`thought: true`) and data parts
-(text / functionCall) along with their `thoughtSignature` — as flat span
-attributes, fetches them back out of Phoenix, and rebuilds `contents=[...]`
-for the next turn.
-
-`thought_signature` is `bytes` on the SDK type but base64-encoded on the
-wire. We base64 it for storage (OTel attribute values must be primitive)
-and decode back to bytes when echoing.
-
-Two scenarios:
-  A. text:  thought summary + (optionally thought-signed) answer
-  B. tool:  thought summary + signed functionCall → functionResponse → final
-  Optional negative (Gemini 3 only): drop the signature on functionCall and
-  expect HTTP 400 ("Function call ... is missing a thought_signature.").
-
-Env vars: GOOGLE_API_KEY, PHOENIX_COLLECTOR_ENDPOINT,
-          GEMINI_MODEL (default `gemini-2.5-pro`).
+Uses the real Google GenAI instrumentor as the baseline span writer. Captured
+finished spans are augmented with proposed thought-summary/signature fields and
+re-exported to Phoenix before replay.
 """
 
 from __future__ import annotations
 
+import argparse
 import base64
 import json
 import os
@@ -40,40 +27,40 @@ from typing import Any
 
 from google import genai
 from google.genai import types as gtypes
-from openinference.instrumentation import get_llm_attributes
+from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from openinference.semconv.trace import (
+    MessageAttributes,
     MessageContentAttributes,
-    OpenInferenceLLMProviderValues,
-    OpenInferenceSpanKindValues,
     SpanAttributes,
-    ToolCallAttributes,
 )
-from opentelemetry.trace import SpanKind
+from openinference.semconv.trace import ToolCallAttributes
 
 from common import (
     CONTENT_TYPE_REASONING,
     CONTENT_TYPE_TEXT,
     CONTENT_TYPE_TOOL_USE,
-    MESSAGE_CONTENT_THOUGHT_SIGNATURE,
-    TracingCtx,
-    find_tool_use_block,
-    flush_and_fetch,
+    FACTORIZE_FOLLOW_UP_PROMPT,
+    FACTORIZE_USER_PROMPT,
+    InstrumentedTracingCtx,
+    MESSAGE_CONTENT_SIGNATURE,
+    TOOL_FOLLOW_UP_PROMPT,
+    TOOL_RESULT_PAYLOAD,
+    TOOL_USER_PROMPT,
+    TOOL_CALL_SIGNATURE,
+    debug_print,
+    export_augmented_span,
+    export_original_span,
+    input_content_key,
+    mutate_span_attributes,
+    output_content_key,
+    print_attribute_keys,
     print_capture_summary,
-    read_input_message_content,
-    read_output_contents,
+    read_input_message_text,
     read_tools,
-    set_input_assistant_echo,
-    set_input_tool_result,
-    set_input_user_message,
-    set_output_reasoning,
-    set_output_role,
-    set_output_text,
-    set_output_tool_use,
-    set_tools,
-    setup_tracing,
+    setup_instrumented_tracing,
 )
 
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-pro")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 BUDGET = int(os.environ.get("GEMINI_THINKING_BUDGET", "4000"))
 
 WEATHER_TOOL = gtypes.Tool(
@@ -92,6 +79,10 @@ WEATHER_TOOL = gtypes.Tool(
 WEATHER_TOOL_SCHEMA = WEATHER_TOOL.model_dump(exclude_none=True, by_alias=True)
 
 
+def user_text_content(text: str) -> gtypes.Content:
+    return gtypes.Content(role="user", parts=[gtypes.Part(text=text)])
+
+
 def base64_encode(raw_bytes: bytes | None) -> str | None:
     if raw_bytes is None:
         return None
@@ -104,109 +95,399 @@ def base64_decode(encoded: str | None) -> bytes | None:
     return base64.b64decode(encoded)
 
 
-def set_request_attributes(attrs: dict[str, Any]) -> None:
-    attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
-    # `gemini` is not yet a member of OpenInferenceLLMSystemValues; using
-    # `vertexai` would be a lie since the direct Gemini API isn't Vertex.
-    # Keep the raw string and revisit when the enum gains a member.
-    attrs[SpanAttributes.LLM_SYSTEM] = "gemini"
-    attrs.update(
-        get_llm_attributes(
-            provider=OpenInferenceLLMProviderValues.GOOGLE,
-            model_name=MODEL,
-            invocation_parameters={
-                "generationConfig": {
-                    "thinkingConfig": {"thinkingBudget": BUDGET, "includeThoughts": True},
-                }
-            },
-        )
-    )
-
-
-def make_config(*, with_tools: bool) -> gtypes.GenerateContentConfig:
+def make_config(
+    *, with_tools: bool, include_thoughts: bool
+) -> gtypes.GenerateContentConfig:
     return gtypes.GenerateContentConfig(
         thinking_config=gtypes.ThinkingConfig(
             thinking_budget=BUDGET,
-            include_thoughts=True,
+            include_thoughts=include_thoughts,
         ),
         tools=[WEATHER_TOOL] if with_tools else None,
     )
 
 
+def serialize_gemini_contents(contents: Any) -> Any:
+    if isinstance(contents, str):
+        return contents
+    return [item.model_dump(exclude_none=True, by_alias=True) for item in contents]
+
+
+def build_generate_content_request(
+    *,
+    model: str,
+    contents: Any,
+    config: gtypes.GenerateContentConfig,
+) -> dict[str, Any]:
+    return {
+        "model": model,
+        "contents": serialize_gemini_contents(contents),
+        "config": config.model_dump(exclude_none=True, by_alias=True),
+    }
+
+
 def config_from_fetched(fetched_attrs: dict[str, Any]) -> gtypes.GenerateContentConfig:
-    """Build the request config purely from Phoenix-fetched attributes."""
-    invocation_parameters = json.loads(fetched_attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])
-    thinking = invocation_parameters["generationConfig"]["thinkingConfig"]
-    fetched_tools = read_tools(fetched_attrs)
+    invocation_parameters = json.loads(
+        fetched_attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]
+    )
+    config = invocation_parameters.get("config") or invocation_parameters
+    thinking = (
+        config.get("thinkingConfig")
+        or config.get("thinking_config")
+        or config.get("generationConfig", {}).get("thinkingConfig")
+        or {}
+    )
+    fetched_tools = gemini_tools_from_fetched(fetched_attrs)
     return gtypes.GenerateContentConfig(
         thinking_config=gtypes.ThinkingConfig(
-            thinking_budget=thinking.get("thinkingBudget"),
-            include_thoughts=thinking.get("includeThoughts"),
+            thinking_budget=thinking.get("thinkingBudget")
+            or thinking.get("thinking_budget"),
+            include_thoughts=thinking.get("includeThoughts")
+            or thinking.get("include_thoughts"),
         ),
         tools=fetched_tools or None,
     )
 
 
-def replay_turn2(
-    client: genai.Client,
-    fetched_attrs: dict[str, Any],
-    contents: list[gtypes.Content],
-) -> Any:
-    return client.models.generate_content(
-        model=fetched_attrs[SpanAttributes.LLM_MODEL_NAME],
-        contents=contents,
-        config=config_from_fetched(fetched_attrs),
-    )
-
-
-def record_assistant_turn(attrs: dict[str, Any], response: Any) -> None:
-    set_output_role(attrs, 0, "model")
-    candidate = response.candidates[0]
-    content_index = 0
-    for part in candidate.content.parts or []:
-        signature_b64 = base64_encode(part.thought_signature)
-        if part.thought:
-            # Gemini thought-summary part. Never carries a signature — that
-            # rides on the sibling data part instead.
-            set_output_reasoning(attrs, 0, content_index, text=part.text or "")
-        elif part.function_call is not None:
-            set_output_tool_use(
-                attrs,
-                0,
-                content_index,
-                tool_call_id=part.function_call.id or f"call_{content_index}",
-                name=part.function_call.name or "",
-                arguments_json=json.dumps(dict(part.function_call.args or {})),
-                thought_signature=signature_b64,
+def gemini_tools_from_fetched(fetched_attrs: dict[str, Any]) -> list[gtypes.Tool]:
+    tools: list[gtypes.Tool] = []
+    for schema in read_tools(fetched_attrs):
+        declarations = (
+            schema.get("function_declarations")
+            or schema.get("functionDeclarations")
+            or [schema]
+        )
+        function_declarations: list[gtypes.FunctionDeclaration] = []
+        for declaration in declarations:
+            parameters = (
+                declaration.get("parameters_json_schema")
+                or declaration.get("parametersJsonSchema")
+                or declaration.get("parameters")
             )
+            function_declarations.append(
+                gtypes.FunctionDeclaration(
+                    name=declaration.get("name", ""),
+                    description=declaration.get("description"),
+                    parameters_json_schema=parameters,
+                )
+            )
+        tools.append(gtypes.Tool(function_declarations=function_declarations))
+    return tools
+
+
+def simulate_gemini_content_walk(response: Any) -> dict[str, Any]:
+    attrs: dict[str, Any] = {}
+    candidate = response.candidates[0]
+    tool_call_index = 0
+    for content_index, part in enumerate(candidate.content.parts or []):
+        signature = base64_encode(part.thought_signature)
+        if part.thought:
+            attrs[
+                output_content_key(
+                    0, content_index, MessageContentAttributes.MESSAGE_CONTENT_TYPE
+                )
+            ] = CONTENT_TYPE_REASONING
+            attrs[
+                output_content_key(
+                    0, content_index, MessageContentAttributes.MESSAGE_CONTENT_TEXT
+                )
+            ] = part.text or ""
+        elif part.function_call is not None:
+            attrs[
+                output_content_key(
+                    0, content_index, MessageContentAttributes.MESSAGE_CONTENT_TYPE
+                )
+            ] = CONTENT_TYPE_TOOL_USE
+            if signature:
+                attrs[output_content_key(0, content_index, TOOL_CALL_SIGNATURE)] = (
+                    signature
+                )
+            call = part.function_call
+            call_id = call.id or f"call_{content_index}"
+            attrs[
+                output_content_key(0, content_index, ToolCallAttributes.TOOL_CALL_ID)
+            ] = call_id
+            attrs[
+                output_content_key(
+                    0, content_index, ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+                )
+            ] = call.name or ""
+            attrs[
+                output_content_key(
+                    0,
+                    content_index,
+                    ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+                )
+            ] = json.dumps(dict(call.args or {}))
+            attrs[
+                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+                f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}."
+                f"{ToolCallAttributes.TOOL_CALL_ID}"
+            ] = call_id
+            tool_call_index += 1
         elif part.text is not None:
-            set_output_text(attrs, 0, content_index, part.text, thought_signature=signature_b64)
-        else:
+            attrs[
+                output_content_key(
+                    0, content_index, MessageContentAttributes.MESSAGE_CONTENT_TYPE
+                )
+            ] = CONTENT_TYPE_TEXT
+            attrs[
+                output_content_key(
+                    0, content_index, MessageContentAttributes.MESSAGE_CONTENT_TEXT
+                )
+            ] = part.text
+            if signature:
+                attrs[
+                    output_content_key(0, content_index, MESSAGE_CONTENT_SIGNATURE)
+                ] = signature
+    return attrs
+
+
+def _part_signature(part: dict[str, Any]) -> str | None:
+    signature = part.get("thoughtSignature") or part.get("thought_signature")
+    if isinstance(signature, bytes):
+        return base64_encode(signature)
+    if isinstance(signature, str):
+        return signature
+    return None
+
+
+def _part_function_call(part: dict[str, Any]) -> dict[str, Any] | None:
+    return part.get("functionCall") or part.get("function_call")
+
+
+def simulate_gemini_input_walk(request: dict[str, Any]) -> dict[str, Any]:
+    attrs: dict[str, Any] = {}
+    contents = request.get("contents") or []
+    if isinstance(contents, str):
+        contents = [{"role": "user", "parts": [{"text": contents}]}]
+
+    for message_index, content in enumerate(contents):
+        parts = content.get("parts") or []
+        for content_index, part in enumerate(parts):
+            signature = _part_signature(part)
+            if part.get("thought"):
+                attrs[
+                    input_content_key(
+                        message_index,
+                        content_index,
+                        MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+                    )
+                ] = CONTENT_TYPE_REASONING
+                attrs[
+                    input_content_key(
+                        message_index,
+                        content_index,
+                        MessageContentAttributes.MESSAGE_CONTENT_TEXT,
+                    )
+                ] = part.get("text", "")
+            elif "text" in part:
+                attrs[
+                    input_content_key(
+                        message_index,
+                        content_index,
+                        MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+                    )
+                ] = CONTENT_TYPE_TEXT
+                attrs[
+                    input_content_key(
+                        message_index,
+                        content_index,
+                        MessageContentAttributes.MESSAGE_CONTENT_TEXT,
+                    )
+                ] = part["text"]
+                if signature:
+                    attrs[
+                        input_content_key(
+                            message_index,
+                            content_index,
+                            MESSAGE_CONTENT_SIGNATURE,
+                        )
+                    ] = signature
+            elif function_call := _part_function_call(part):
+                attrs[
+                    input_content_key(
+                        message_index,
+                        content_index,
+                        MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+                    )
+                ] = CONTENT_TYPE_TOOL_USE
+                if signature:
+                    attrs[
+                        input_content_key(
+                            message_index,
+                            content_index,
+                            TOOL_CALL_SIGNATURE,
+                        )
+                    ] = signature
+                attrs[
+                    input_content_key(
+                        message_index, content_index, ToolCallAttributes.TOOL_CALL_ID
+                    )
+                ] = function_call.get("id", f"call_{content_index}")
+                attrs[
+                    input_content_key(
+                        message_index,
+                        content_index,
+                        ToolCallAttributes.TOOL_CALL_FUNCTION_NAME,
+                    )
+                ] = function_call.get("name", "")
+                attrs[
+                    input_content_key(
+                        message_index,
+                        content_index,
+                        ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+                    )
+                ] = json.dumps(function_call.get("args") or {})
+    return attrs
+
+
+def omit_redundant_scalar_input_additions(
+    baseline: dict[str, Any], additions: dict[str, Any]
+) -> dict[str, Any]:
+    """Do not replace existing scalar input text with equivalent text contents."""
+    filtered = dict(additions)
+    input_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}."
+    scalar_suffix = f".{MessageAttributes.MESSAGE_CONTENT}"
+    by_message_index: dict[int, list[str]] = {}
+    for key in additions:
+        if not key.startswith(input_prefix):
             continue
-        content_index += 1
+        index_str, _, remainder = key[len(input_prefix) :].partition(".")
+        if not remainder.startswith(f"{MessageAttributes.MESSAGE_CONTENTS}."):
+            continue
+        try:
+            message_index = int(index_str)
+        except ValueError:
+            continue
+        by_message_index.setdefault(message_index, []).append(key)
+
+    for message_index, keys in by_message_index.items():
+        scalar_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{message_index}{scalar_suffix}"
+        )
+        if scalar_key not in baseline:
+            continue
+        suffixes = {
+            key.split(f"{MessageAttributes.MESSAGE_CONTENTS}.", 1)[1].split(".", 1)[1]
+            for key in keys
+        }
+        content_types = {
+            additions[key]
+            for key in keys
+            if key.endswith(f".{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        }
+        if suffixes <= {
+            MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+            MessageContentAttributes.MESSAGE_CONTENT_TEXT,
+        } and content_types <= {CONTENT_TYPE_TEXT}:
+            for key in keys:
+                filtered.pop(key, None)
+    return filtered
+
+
+def print_gemini_content_slots(response: Any) -> None:
+    debug_print("\n[gemini response.content.parts slots]")
+    for index, part in enumerate(response.candidates[0].content.parts or []):
+        if part.thought:
+            kind = "thought"
+        elif part.function_call is not None:
+            kind = "function_call"
+        elif part.text is not None:
+            kind = "text"
+        else:
+            kind = "unknown"
+        debug_print(f"  parts[{index}].type={kind}")
+
+
+def augment_gemini_span_from_response(
+    span: Any, response: Any, request: dict[str, Any]
+) -> None:
+    baseline = dict(span.attributes or {})
+    output_additions = simulate_gemini_content_walk(response)
+    input_additions = omit_redundant_scalar_input_additions(
+        baseline, simulate_gemini_input_walk(request)
+    )
+    additions = {**input_additions, **output_additions}
+    print_gemini_content_slots(response)
+    print_attribute_keys(f"{span.name} baseline", baseline)
+    mutate_span_attributes(span, additions)
+    print_attribute_keys(f"{span.name} augmented", dict(span.attributes or {}))
+
+
+def call_and_export_augmented(
+    ctx: InstrumentedTracingCtx,
+    client: genai.Client,
+    request: dict[str, Any],
+    *,
+    root_name: str,
+) -> tuple[Any, dict[str, Any]]:
+    before_count = ctx.span_count()
+    with ctx.tracer.start_as_current_span(root_name) as root_span:
+        root_context = root_span.get_span_context()
+        response = client.models.generate_content(**request)
+        span = ctx.latest_span_since(before_count)
+    ctx.export(ctx.span_by_id(root_context.span_id))
+    export_original_span(ctx, span)
+    augment_gemini_span_from_response(span, response, request)
+    fetched_attrs = export_augmented_span(ctx, span)
+    return response, fetched_attrs
+
+
+def read_output_contents(attrs: dict[str, Any]) -> list[dict[str, Any]]:
+    prefix = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}."
+    )
+    by_index: dict[int, dict[str, Any]] = {}
+    for key, value in attrs.items():
+        if not key.startswith(prefix):
+            continue
+        index_str, _, suffix = key[len(prefix) :].partition(".")
+        try:
+            index = int(index_str)
+        except ValueError:
+            continue
+        by_index.setdefault(index, {})[suffix] = value
+    return [by_index[index] for index in sorted(by_index)]
+
+
+def read_output_tool_calls(attrs: dict[str, Any]) -> list[dict[str, Any]]:
+    prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}."
+    by_index: dict[int, dict[str, Any]] = {}
+    for key, value in attrs.items():
+        if not key.startswith(prefix):
+            continue
+        index_str, _, suffix = key[len(prefix) :].partition(".")
+        try:
+            index = int(index_str)
+        except ValueError:
+            continue
+        by_index.setdefault(index, {})[suffix] = value
+    return [by_index[index] for index in sorted(by_index)]
 
 
 def rebuild_model_content(
     fetched_attrs: dict[str, Any], *, strip_signature: bool = False
 ) -> gtypes.Content:
     parts: list[gtypes.Part] = []
-    for content_block in read_output_contents(fetched_attrs, 0):
+    tool_calls = iter(read_output_tool_calls(fetched_attrs))
+    for content_block in read_output_contents(fetched_attrs):
         block_type = content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE)
-        signature = (
-            None
-            if strip_signature
-            else base64_decode(content_block.get(MESSAGE_CONTENT_THOUGHT_SIGNATURE))
-        )
         if block_type == CONTENT_TYPE_REASONING:
-            # Gemini's only reasoning surface is the thought summary, which
-            # echoes back as a `thought: true` part.
             parts.append(
                 gtypes.Part(
-                    text=content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TEXT, ""),
+                    text=content_block.get(
+                        MessageContentAttributes.MESSAGE_CONTENT_TEXT, ""
+                    ),
                     thought=True,
                 )
             )
         elif block_type == CONTENT_TYPE_TEXT:
+            signature = (
+                None
+                if strip_signature
+                else base64_decode(content_block.get(MESSAGE_CONTENT_SIGNATURE))
+            )
             parts.append(
                 gtypes.Part(
                     text=content_block[MessageContentAttributes.MESSAGE_CONTENT_TEXT],
@@ -214,187 +495,174 @@ def rebuild_model_content(
                 )
             )
         elif block_type == CONTENT_TYPE_TOOL_USE:
-            function_call = gtypes.FunctionCall(
-                id=content_block[ToolCallAttributes.TOOL_CALL_ID],
-                name=content_block[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME],
-                args=json.loads(content_block[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]),
+            signature = (
+                None
+                if strip_signature
+                else base64_decode(content_block.get(TOOL_CALL_SIGNATURE))
             )
-            parts.append(gtypes.Part(function_call=function_call, thought_signature=signature))
+            tool_call = next(tool_calls, {})
+            function_call = gtypes.FunctionCall(
+                id=tool_call.get(ToolCallAttributes.TOOL_CALL_ID),
+                name=tool_call.get(ToolCallAttributes.TOOL_CALL_FUNCTION_NAME),
+                args=json.loads(
+                    tool_call.get(
+                        ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON, "{}"
+                    )
+                ),
+            )
+            parts.append(
+                gtypes.Part(function_call=function_call, thought_signature=signature)
+            )
     return gtypes.Content(role="model", parts=parts)
 
 
-def scenario_text(client: genai.Client, ctx: TracingCtx) -> bool:
+def build_request_from_fetched(
+    fetched_attrs: dict[str, Any], contents: list[gtypes.Content]
+) -> dict[str, Any]:
+    return build_generate_content_request(
+        model=fetched_attrs[SpanAttributes.LLM_MODEL_NAME],
+        contents=contents,
+        config=config_from_fetched(fetched_attrs),
+    )
+
+
+def scenario_text(
+    client: genai.Client, ctx: InstrumentedTracingCtx, *, include_thoughts: bool
+) -> bool:
     print("\n[gemini] scenario A: text round-trip")
-    user_text = "In one short sentence, what's special about the number 1729?"
-
-    with ctx.tracer.start_as_current_span(
-        "gemini.generate_content.text.turn1.original", kind=SpanKind.CLIENT
-    ) as turn1_span:
-        turn1_attrs: dict[str, Any] = {}
-        set_request_attributes(turn1_attrs)
-        set_input_user_message(turn1_attrs, 0, user_text)
-
-        turn1_response = client.models.generate_content(
-            model=MODEL,
-            contents=user_text,
-            config=make_config(with_tools=False),
-        )
-        record_assistant_turn(turn1_attrs, turn1_response)
-        turn1_span.set_attributes(turn1_attrs)
-        turn1_span_context = turn1_span.get_span_context()
-
-    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
-    prior_user_text = read_input_message_content(fetched_attrs, 0)
-    captured_contents = read_output_contents(fetched_attrs, 0)
-    follow_up_text = "Now in one sentence: who proved that property?"
-
-    with ctx.tracer.start_as_current_span(
-        "gemini.generate_content.text.turn2.roundtrip", kind=SpanKind.CLIENT
-    ) as turn2_span:
-        turn2_attrs: dict[str, Any] = {}
-        set_request_attributes(turn2_attrs)
-        set_input_user_message(turn2_attrs, 0, prior_user_text)
-        set_input_assistant_echo(turn2_attrs, 1, captured_contents, role="model")
-        set_input_user_message(turn2_attrs, 2, follow_up_text)
-
-        turn2_response = replay_turn2(
-            client,
-            fetched_attrs,
-            contents=[
-                gtypes.Content(role="user", parts=[gtypes.Part(text=prior_user_text)]),
-                rebuild_model_content(fetched_attrs),
-                gtypes.Content(role="user", parts=[gtypes.Part(text=follow_up_text)]),
-            ],
-        )
-        record_assistant_turn(turn2_attrs, turn2_response)
-        turn2_span.set_attributes(turn2_attrs)
-
+    user_text = FACTORIZE_USER_PROMPT
+    turn1_request = build_generate_content_request(
+        model=MODEL,
+        contents=[user_text_content(user_text)],
+        config=make_config(with_tools=False, include_thoughts=include_thoughts),
+    )
+    _, fetched_attrs = call_and_export_augmented(
+        ctx, client, turn1_request, root_name="gemini text turn1"
+    )
+    prior_user_text = read_input_message_text(fetched_attrs, 0)
+    turn2_contents = [
+        user_text_content(prior_user_text),
+        rebuild_model_content(fetched_attrs),
+        user_text_content(FACTORIZE_FOLLOW_UP_PROMPT),
+    ]
+    turn2_response, _ = call_and_export_augmented(
+        ctx,
+        client,
+        build_request_from_fetched(fetched_attrs, turn2_contents),
+        root_name="gemini text turn2",
+    )
     turn2_text = (turn2_response.text or "")[:120]
-    print_capture_summary(captured_contents)
+    print_capture_summary(read_output_contents(fetched_attrs))
     print(f"  turn2_text={turn2_text!r}")
     return bool(turn2_text)
 
 
-def scenario_tool(client: genai.Client, ctx: TracingCtx) -> tuple[bool, bool | None]:
-    print("\n[gemini] scenario B: thinking → functionCall round-trip (+ optional negative)")
-    user_text = "What's the weather in Paris? Use the tool."
-
-    with ctx.tracer.start_as_current_span(
-        "gemini.generate_content.tool.turn1.original", kind=SpanKind.CLIENT
-    ) as turn1_span:
-        turn1_attrs: dict[str, Any] = {}
-        set_request_attributes(turn1_attrs)
-        set_tools(turn1_attrs, [WEATHER_TOOL_SCHEMA])
-        set_input_user_message(turn1_attrs, 0, user_text)
-
-        turn1_response = client.models.generate_content(
-            model=MODEL,
-            contents=user_text,
-            config=make_config(with_tools=True),
-        )
-        record_assistant_turn(turn1_attrs, turn1_response)
-        turn1_span.set_attributes(turn1_attrs)
-        turn1_span_context = turn1_span.get_span_context()
-
-    fetched_attrs = flush_and_fetch(ctx, turn1_span_context)
-    prior_user_text = read_input_message_content(fetched_attrs, 0)
-    captured_contents = read_output_contents(fetched_attrs, 0)
-    tool_use_block = find_tool_use_block(captured_contents)
-    if tool_use_block is None:
+def scenario_tool(
+    client: genai.Client, ctx: InstrumentedTracingCtx, *, include_thoughts: bool
+) -> tuple[bool, bool | None]:
+    print(
+        "\n[gemini] scenario B: thinking -> functionCall round-trip (+ optional negative)"
+    )
+    user_text = TOOL_USER_PROMPT
+    turn1_request = build_generate_content_request(
+        model=MODEL,
+        contents=[user_text_content(user_text)],
+        config=make_config(with_tools=True, include_thoughts=include_thoughts),
+    )
+    _, fetched_attrs = call_and_export_augmented(
+        ctx, client, turn1_request, root_name="gemini tool turn1"
+    )
+    prior_user_text = read_input_message_text(fetched_attrs, 0)
+    tool_calls = read_output_tool_calls(fetched_attrs)
+    if not tool_calls:
         print("  SKIP: model did not call the tool")
         return True, None
-
-    tool_response_payload = {"temperature_c": 14.5}
+    tool_response_payload = dict(TOOL_RESULT_PAYLOAD)
     tool_response_user_content = gtypes.Content(
         role="user",
         parts=[
             gtypes.Part(
                 function_response=gtypes.FunctionResponse(
-                    id=tool_use_block[ToolCallAttributes.TOOL_CALL_ID],
-                    name=tool_use_block[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME],
+                    id=tool_calls[0].get(ToolCallAttributes.TOOL_CALL_ID),
+                    name=tool_calls[0][ToolCallAttributes.TOOL_CALL_FUNCTION_NAME],
                     response=tool_response_payload,
                 )
             )
         ],
     )
-
-    rebuilt_model_content = rebuild_model_content(fetched_attrs)
-    with ctx.tracer.start_as_current_span(
-        "gemini.generate_content.tool.turn2.roundtrip", kind=SpanKind.CLIENT
-    ) as turn2_span:
-        turn2_attrs: dict[str, Any] = {}
-        set_request_attributes(turn2_attrs)
-        set_tools(turn2_attrs, [WEATHER_TOOL_SCHEMA])
-        set_input_user_message(turn2_attrs, 0, prior_user_text)
-        set_input_assistant_echo(turn2_attrs, 1, captured_contents, role="model")
-        set_input_tool_result(
-            turn2_attrs,
-            2,
-            tool_call_id=tool_use_block[ToolCallAttributes.TOOL_CALL_ID],
-            content_text=json.dumps(tool_response_payload),
-        )
-
-        turn2_response = replay_turn2(
-            client,
-            fetched_attrs,
-            contents=[
-                gtypes.Content(role="user", parts=[gtypes.Part(text=prior_user_text)]),
-                rebuilt_model_content,
-                tool_response_user_content,
-            ],
-        )
-        record_assistant_turn(turn2_attrs, turn2_response)
-        turn2_span.set_attributes(turn2_attrs)
-
+    turn2_contents = [
+        user_text_content(prior_user_text),
+        rebuild_model_content(fetched_attrs),
+        tool_response_user_content,
+        user_text_content(TOOL_FOLLOW_UP_PROMPT),
+    ]
+    turn2_response, _ = call_and_export_augmented(
+        ctx,
+        client,
+        build_request_from_fetched(fetched_attrs, turn2_contents),
+        root_name="gemini tool turn2",
+    )
     final_text = (turn2_response.text or "")[:120]
-    print_capture_summary(captured_contents)
+    print_capture_summary(read_output_contents(fetched_attrs))
     print(f"  positive_turn2_text={final_text!r}")
     positive_ok = bool(final_text)
 
     if not MODEL.startswith("gemini-3"):
-        print(
-            "  negative skipped (Gemini 2.5: stripping signature is a "
-            "silent quality loss, not a 400)"
-        )
+        print("  negative skipped (Gemini 2.5: stripping signature is not a 400)")
         return positive_ok, None
+    try:
+        negative_contents = [
+            user_text_content(user_text),
+            rebuild_model_content(fetched_attrs, strip_signature=True),
+            tool_response_user_content,
+            user_text_content(TOOL_FOLLOW_UP_PROMPT),
+        ]
+        call_and_export_augmented(
+            ctx,
+            client,
+            build_request_from_fetched(fetched_attrs, negative_contents),
+            root_name="gemini tool negative",
+        )
+    except Exception as error:  # noqa: BLE001
+        print(f"  negative correctly rejected: {str(error)[:120]!r}")
+        return positive_ok, True
+    print("  negative FAILED: stripped-signature request was accepted on Gemini 3")
+    return positive_ok, False
 
-    stripped_model_content = rebuild_model_content(fetched_attrs, strip_signature=True)
-    negative_rejected = False
-    with ctx.tracer.start_as_current_span(
-        "gemini.generate_content.tool.turn2.roundtrip.negative", kind=SpanKind.CLIENT
-    ) as negative_span:
-        try:
-            client.models.generate_content(
-                model=MODEL,
-                contents=[
-                    gtypes.Content(role="user", parts=[gtypes.Part(text=user_text)]),
-                    stripped_model_content,
-                    tool_response_user_content,
-                ],
-                config=make_config(with_tools=True),
-            )
-        except Exception as error:  # noqa: BLE001 — google.genai raises various types
-            negative_rejected = True
-            negative_span.set_attribute("error.expected", True)
-            negative_span.set_attribute("error.message", str(error)[:200])
-            print(f"  negative correctly rejected: {str(error)[:120]!r}")
-    if not negative_rejected:
-        print("  negative FAILED: stripped-signature request was accepted on Gemini 3")
-    return positive_ok, negative_rejected
+
+def parse_include_thoughts() -> bool:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--include-thoughts",
+        choices=["on", "off", "true", "false"],
+        default=os.environ.get("GEMINI_INCLUDE_THOUGHTS", "on").lower(),
+        help="Set Gemini thinkingConfig.includeThoughts.",
+    )
+    args = parser.parse_args()
+    return args.include_thoughts in {"on", "true"}
 
 
 def main() -> int:
-    ctx = setup_tracing("reasoning-roundtrip-gemini")
-    client = genai.Client()
-    text_ok = scenario_text(client, ctx)
-    tool_positive_ok, tool_negative_ok = scenario_tool(client, ctx)
-    overall_ok = text_ok and tool_positive_ok and (tool_negative_ok is not False)
-    print(
-        f"\n[gemini] text={text_ok}  "
-        f"tool_positive={tool_positive_ok}  tool_negative={tool_negative_ok}  "
-        f"PASS={overall_ok}"
-    )
-    return 0 if overall_ok else 1
+    include_thoughts = parse_include_thoughts()
+    ctx = setup_instrumented_tracing("gemini-reasoning-roundtrip")
+    instrumentor = GoogleGenAIInstrumentor()
+    instrumentor.instrument(tracer_provider=ctx.provider)
+    try:
+        client = genai.Client()
+        text_ok = scenario_text(client, ctx, include_thoughts=include_thoughts)
+        tool_positive_ok, tool_negative_ok = scenario_tool(
+            client, ctx, include_thoughts=include_thoughts
+        )
+        overall_ok = text_ok and tool_positive_ok and (tool_negative_ok is not False)
+        print(
+            f"\n[gemini] text={text_ok}  "
+            f"tool_positive={tool_positive_ok}  tool_negative={tool_negative_ok}  "
+            f"PASS={overall_ok}"
+        )
+        return 0 if overall_ok else 1
+    finally:
+        instrumentor.uninstrument()
+        ctx.shutdown()
 
 
 if __name__ == "__main__":
