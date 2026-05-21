@@ -398,7 +398,7 @@ class AttributeExtractor:
         )
         tool_calls = [ToolCall(id="default", function=tool_call_function)]
         messages = [Message(tool_call_id="default", role="tool", tool_calls=tool_calls)]
-        description = ""
+        description = str(action_input.get("description") or "")
         parameters = json.dumps(action_input["parameters"] if "parameters" in action_input else [])
         llm_invocation_parameters = {
             "invocation_type": "action_group_invocation",
@@ -955,6 +955,25 @@ class AttributeExtractor:
         """
         if "rawResponse" in output_params and (raw_response := output_params["rawResponse"]):
             if "content" in raw_response and (output_text := raw_response["content"]):
+                try:
+                    data = json.loads(str(output_text))
+                    output = data.get("output", {})
+                    message = output.get("message", {})
+                    content = message.get("content")
+                    if isinstance(content, list):
+                        # Iterate to find first non-null text item.
+                        # Reasoning content (text=null) may appear before the actual text item.
+                        for item in content:
+                            if isinstance(item, dict):
+                                text = item.get("text")
+                                if text is not None:
+                                    return str(text)
+                    elif isinstance(content, dict):
+                        text = content.get("text")
+                        if text is not None:
+                            return str(text)
+                except Exception:
+                    pass
                 return str(output_text)
 
         parsed_response = (
