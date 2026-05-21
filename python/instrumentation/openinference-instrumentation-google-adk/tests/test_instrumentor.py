@@ -19,6 +19,14 @@ from openinference.semconv.trace import SpanAttributes
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
 
+@pytest.mark.skipif(
+    _VERSION < (1, 17, 0),
+    reason=(
+        "AgentTool uses the wrapped agent name as the child runner app before "
+        "google-adk v1.17.0 release. This regression asserts the newer parent-app "
+        "sub-agent invocation shape."
+    ),
+)
 @pytest.mark.vcr
 async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
     instrument: Any,
