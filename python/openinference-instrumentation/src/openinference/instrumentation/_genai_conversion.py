@@ -194,9 +194,12 @@ def get_genai_tool_attributes(
     if tool_call_id:
         genai_attributes[GenAIAttributes.GEN_AI_TOOL_CALL_ID] = tool_call_id
 
-    if tool_arguments := _get_tool_call_arguments(attributes):
+    tool_arguments = _get_tool_call_arguments(attributes)
+    if tool_arguments is not None:
         genai_attributes[GenAIAttributes.GEN_AI_TOOL_CALL_ARGUMENTS] = tool_arguments
-    if tool_result := _get_tool_call_result(attributes):
+
+    tool_result = _get_tool_call_result(attributes)
+    if tool_result is not None:
         genai_attributes[GenAIAttributes.GEN_AI_TOOL_CALL_RESULT] = tool_result
 
     return genai_attributes
