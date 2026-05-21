@@ -16,6 +16,14 @@ const (
 	OutputValue    = "output.value"
 	OutputMimeType = "output.mime_type"
 
+	InputAudioURL        = "input.audio.url"
+	InputAudioMimeType   = "input.audio.mime_type"
+	InputAudioTranscript = "input.audio.transcript"
+
+	OutputAudioURL        = "output.audio.url"
+	OutputAudioMimeType   = "output.audio.mime_type"
+	OutputAudioTranscript = "output.audio.transcript"
+
 	// Metadata is a JSON-encoded map of user-defined key-value pairs.
 	Metadata = "metadata"
 

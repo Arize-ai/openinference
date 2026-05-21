@@ -18,6 +18,8 @@ const (
 	SpanKindGuardrail = "GUARDRAIL"
 	SpanKindEvaluator = "EVALUATOR"
 	SpanKindPrompt    = "PROMPT"
+	SpanKindAudio     = "AUDIO"
+	SpanKindUser      = "USER"
 	SpanKindUnknown   = "UNKNOWN"
 )
 
