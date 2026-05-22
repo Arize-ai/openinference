@@ -90,6 +90,9 @@ export const MessageContentsAttributePostfixes = {
   type: "type",
   text: "text",
   image: "image",
+  signature: "signature",
+  data: "data",
+  encripted_content: "encripted_content",
 } as const;
 
 export const ImageAttributesPostfixes = {
@@ -413,6 +416,21 @@ export const MESSAGE_CONTENT_TEXT =
 export const MESSAGE_CONTENT_IMAGE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.image}` as const;
 /**
+ * Opaque vendor-issued signature captured verbatim
+ */
+export const MESSAGE_CONTENT_SIGNATURE =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.signature}` as const;
+/**
+ * Opaque vendor-issued data captured verbatim
+ */
+export const MESSAGE_CONTENT_DATA =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.data}` as const;
+/**
+ * OpenAI encrypted content captured verbatim
+ */
+export const MESSAGE_CONTENT_ENCRIPTED_CONTENT =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.encripted_content}` as const;
+/**
  * The http or base64 link to the image
  */
 export const IMAGE_URL =
@@ -679,6 +697,9 @@ export const SemanticConventions = {
   MESSAGE_CONTENT,
   MESSAGE_CONTENTS,
   MESSAGE_CONTENT_IMAGE,
+  MESSAGE_CONTENT_SIGNATURE,
+  MESSAGE_CONTENT_DATA,
+  MESSAGE_CONTENT_ENCRIPTED_CONTENT,
   MESSAGE_CONTENT_TEXT,
   MESSAGE_CONTENT_TYPE,
   DOCUMENT_ID,

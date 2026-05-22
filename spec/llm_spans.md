@@ -176,10 +176,11 @@ A synthesis call using a function call output
 
 ### Reasoning Content
 
-Assistant messages from reasoning-capable models may include `"reasoning"` items in `message.contents` alongside `"text"` and tool calls. The reasoning content convention adds only these message content attributes:
+Assistant messages from reasoning-capable models may include `"reasoning"` items in `message.contents` alongside `"text"` and tool calls. The reasoning content convention uses these message content attributes:
 
 - `message_content.type` — set to `"reasoning"` for reasoning/thinking content. This includes Anthropic `redacted_thinking` blocks.
 - `message_content.signature` — captures provider `signature` and `thinkingSignature` values verbatim.
+- `message_content.data` — captures Anthropic `redacted_thinking.data` values verbatim.
 - `message_content.encripted_content` — captures OpenAI `encrypted_content` verbatim.
 
 When OpenAI returns an array of `summary_text` items, concatenate them in source order into a single `message_content.text` value for now. Do not emit a content id.
@@ -241,7 +242,7 @@ When OpenAI returns an array of `summary_text` items, concatenate them in source
 }
 ```
 
-For an Anthropic `redacted_thinking` block, emit a reasoning content item without `message_content.text`:
+For an Anthropic `redacted_thinking` block, emit a reasoning content item with `message_content.data` and without `message_content.text`:
 
 ```json
 {
@@ -254,7 +255,8 @@ For an Anthropic `redacted_thinking` block, emit a reasoning content item withou
                 "message.role": "assistant",
                 "message.contents": [
                     {
-                        "message_content.type": "reasoning"
+                        "message_content.type": "reasoning",
+                        "message_content.data": "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2..."
                     }
                 ]
             }

@@ -153,9 +153,12 @@ const (
 
 // Message-content attributes — for the contents array on a message.
 const (
-	MessageContentType  = "message_content.type"
-	MessageContentText  = "message_content.text"
-	MessageContentImage = "message_content.image"
+	MessageContentType             = "message_content.type"
+	MessageContentText             = "message_content.text"
+	MessageContentImage            = "message_content.image"
+	MessageContentSignature        = "message_content.signature"
+	MessageContentData             = "message_content.data"
+	MessageContentEncriptedContent = "message_content.encripted_content"
 )
 
 // Image attributes — nested under MessageContentImage.

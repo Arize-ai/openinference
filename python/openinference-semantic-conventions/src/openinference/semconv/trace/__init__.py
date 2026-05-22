@@ -333,6 +333,18 @@ class MessageContentAttributes:
     the image or by passing the base64 encoded image directly in the
     request.
     """
+    MESSAGE_CONTENT_SIGNATURE = "message_content.signature"
+    """
+    Opaque vendor-issued signature captured verbatim.
+    """
+    MESSAGE_CONTENT_DATA = "message_content.data"
+    """
+    Opaque vendor-issued data captured verbatim.
+    """
+    MESSAGE_CONTENT_ENCRIPTED_CONTENT = "message_content.encripted_content"
+    """
+    OpenAI encrypted content captured verbatim.
+    """
 
 
 class ImageAttributes:

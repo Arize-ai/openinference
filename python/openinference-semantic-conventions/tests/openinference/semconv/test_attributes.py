@@ -218,7 +218,10 @@ class TestMessageContentAttributes:
         attributes = _get_attributes(MessageContentAttributes)
         assert _nested_dict(attributes) == {
             "message_content": {
+                "data": MessageContentAttributes.MESSAGE_CONTENT_DATA,
+                "encripted_content": MessageContentAttributes.MESSAGE_CONTENT_ENCRIPTED_CONTENT,
                 "image": MessageContentAttributes.MESSAGE_CONTENT_IMAGE,
+                "signature": MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE,
                 "text": MessageContentAttributes.MESSAGE_CONTENT_TEXT,
                 "type": MessageContentAttributes.MESSAGE_CONTENT_TYPE,
             }
