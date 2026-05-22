@@ -49,7 +49,7 @@ async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
         tools=[AgentTool(agent=sub_agent)],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
 
@@ -178,7 +178,7 @@ async def test_google_adk_instrumentor(
         tools=[get_weather],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=agent, app_name=app_name)
@@ -446,7 +446,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
         tools=[get_weather],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=agent, app_name=app_name)
@@ -887,7 +887,7 @@ async def test_google_adk_instrumentor_multi_agent(
         sub_agents=[addition_agent, weather_agent],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=root_agent, app_name=app_name)
@@ -1389,7 +1389,7 @@ async def test_google_adk_instrumentor_image_artifacts(
         tools=[load_remote_image, load_artifacts],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
 
@@ -1709,7 +1709,7 @@ async def test_google_adk_instrumentor_parallel_tool_calls(
         tools=[get_weather],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=agent, app_name=app_name)
