@@ -54,10 +54,14 @@ jobs:
         with:
           version: 0.11.2
           enable-cache: false
-      - run: uvx --with tox-uv tox r -e ${{ matrix.testenv }} -- -ra -x
+      - env:
+          TOX_ENV: ${{ matrix.testenv }}
+        run: uvx --with tox-uv tox r -e "$TOX_ENV" -- -ra -x
         working-directory: python
         timeout-minutes: 15
-      - run: touch ${{ runner.temp }}/${{ matrix.testenv }}
+      - env:
+          FAILURE_MARKER: ${{ runner.temp }}/${{ matrix.testenv }}
+        run: touch "$FAILURE_MARKER"
         if: failure()
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
@@ -126,7 +130,9 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: anthropics/claude-code-action@88c168b39e7e64da0286d812b6e9fbebb6708185 # v1
+        with:
+          persist-credentials: false
+      - uses: anthropics/claude-code-action@88c168b39e7e64da0286d812b6e9fbebb6708185 # v1.0.82
         id: auto-fix
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -647,10 +647,8 @@ def _assert_routing_classifier_trace(events: list[Any], spans: Sequence[Any]) ->
         "[{text=Here is a list of agents for handling user's requests:",
     )
     assert routing_classifier_attributes.pop("openinference.span.kind") == "CHAIN"
-    assert routing_classifier_attributes.pop("output.mime_type") == "application/json"
-    assert starts_with(
-        routing_classifier_attributes.pop("output.value"), '[{"text": "<a>undecidable</a>"'
-    )
+    assert routing_classifier_attributes.pop("output.mime_type") == "text/plain"
+    assert routing_classifier_attributes.pop("output.value") == "<a>undecidable</a>"
     routing_metadata = routing_classifier_attributes.pop("metadata")
     assert routing_metadata is not None
     assert isinstance(routing_metadata, str)
@@ -1409,6 +1407,133 @@ async def test_async_routing_classifier_trace(
                 events.append(event)
     spans = in_memory_span_exporter.get_finished_spans()
     _assert_routing_classifier_trace(events, spans)
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_routing_classifier_with_reasoning(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    agent_id = "NMYOUF8KVT"
+    agent_alias_id = "0XYKVBNBYK"
+    session_id = "test-rc-reasoning-cassette"
+
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+
+    response = client.invoke_agent(
+        agentId=agent_id,
+        agentAliasId=agent_alias_id,
+        sessionId=session_id,
+        inputText="Find all prime numbers between 10 and 50",
+        enableTrace=True,
+    )
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response["completion"]]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(events) == 15
+    assert len(spans) == 8
+    span_names = [s.name for s in spans]
+    assert span_names == [
+        "LLM",
+        "LLM",
+        "action_group",
+        "LLM",
+        "orchestrationTrace",
+        "agent_collaborator[MathAgent]",
+        "routingClassifierTrace",
+        "bedrock_agent.invoke_agent",
+    ]
+
+    # routing classifier LLM span
+    routing_llm_span = spans[0]
+    assert routing_llm_span.name == "LLM"
+    routing_llm_attrs = dict(routing_llm_span.attributes or {})
+
+    assert routing_llm_attrs.pop("input.mime_type") == "text/plain"
+    assert starts_with(
+        routing_llm_attrs.pop("input.value"),
+        '{"system":"","messages":[{"content":"[{text=Here is a list of agents',
+    )
+    assert starts_with(
+        routing_llm_attrs.pop("llm.input_messages.0.message.content"),
+        "[{text=Here is a list of agents for handling user's requests:",
+    )
+    assert routing_llm_attrs.pop("llm.input_messages.0.message.role") == "user"
+    assert routing_llm_attrs.pop("llm.model_name") == "openai.gpt-oss-20b-1:0"
+    assert routing_llm_attrs.pop("llm.provider") == "aws"
+    assert routing_llm_attrs.pop("llm.token_count.completion") == 86
+    assert routing_llm_attrs.pop("llm.token_count.prompt") == 338
+    assert routing_llm_attrs.pop("llm.token_count.total") == 424
+    assert starts_with(routing_llm_attrs.pop("metadata"), '{"clientRequestId": "c1f28574-')
+    assert routing_llm_attrs.pop("openinference.span.kind") == "LLM"
+    # The key assertion: output must be the extracted routing decision, not the full JSON blob.
+    assert routing_llm_attrs.pop("output.mime_type") == "text/plain"
+    assert routing_llm_attrs.pop("output.value") == "<a>MathAgent</a>"
+    assert not routing_llm_attrs
+
+    # action_group tool span
+    action_group_span = [s for s in spans if s.name == "action_group"][0]
+    ag_attrs = dict(action_group_span.attributes or {})
+    assert ag_attrs.pop("llm.input_messages.0.message.role") == "tool"
+    assert ag_attrs.pop("llm.input_messages.0.message.tool_call_id") == "default"
+    assert (
+        ag_attrs.pop("llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments")
+        == '[{"name": "n1", "type": "number", "value": "10"},'
+        ' {"name": "n2", "type": "number", "value": "50"}]'
+    )
+    assert (
+        ag_attrs.pop("llm.input_messages.0.message.tool_calls.0.tool_call.function.name")
+        == "prime_numbers_between_n1_and_n2"
+    )
+    assert ag_attrs.pop("llm.input_messages.0.message.tool_calls.0.tool_call.id") == "default"
+    assert starts_with(ag_attrs.pop("metadata"), '{"clientRequestId": "95e332e7-')
+    assert ag_attrs.pop("openinference.span.kind") == "TOOL"
+    assert ag_attrs.pop("output.mime_type") == "text/plain"
+    assert ag_attrs.pop("output.value") == "[2,3,5,7]"
+    assert ag_attrs.pop("tool.description") == ""
+    assert ag_attrs.pop("tool.name") == "prime_numbers_between_n1_and_n2"
+    assert starts_with(
+        ag_attrs.pop("tool.parameters"),
+        '[{"name": "n1", "type": "number", "value": "10"}',
+    )
+    assert not ag_attrs
+
+    # agent_collaborator[MathAgent] span
+    collab_span = [s for s in spans if s.name == "agent_collaborator[MathAgent]"][0]
+    collab_attrs = dict(collab_span.attributes or {})
+    assert collab_attrs.pop("input.mime_type") == "text/plain"
+    assert collab_attrs.pop("input.value") == "Find all prime numbers between 10 and 50"
+    assert (
+        collab_attrs.pop("llm.input_messages.0.message.content")
+        == "Find all prime numbers between 10 and 50"
+    )
+    assert collab_attrs.pop("llm.input_messages.0.message.role") == "assistant"
+    assert starts_with(
+        collab_attrs.pop("llm.output_messages.0.message.content"),
+        "The tool `",
+    )
+    assert collab_attrs.pop("llm.output_messages.0.message.role") == "assistant"
+    assert starts_with(collab_attrs.pop("metadata"), '{"clientRequestId": "2663576e-')
+    assert collab_attrs.pop("openinference.span.kind") == "AGENT"
+    assert collab_attrs.pop("output.mime_type") == "text/plain"
+    assert starts_with(collab_attrs.pop("output.value"), "The tool `")
+    assert not collab_attrs
+
+    # bedrock_agent.invoke_agent root span
+    root_span = [s for s in spans if s.name == "bedrock_agent.invoke_agent"][0]
+    root_attrs = dict(root_span.attributes or {})
+    assert root_attrs.pop("input.value") == "Find all prime numbers between 10 and 50"
+    assert root_attrs.pop("llm.provider") == "aws"
+    assert root_attrs.pop("openinference.span.kind") == "AGENT"
+    assert root_attrs.pop("output.mime_type") == "text/plain"
+    assert starts_with(root_attrs.pop("output.value"), "The tool `")
+    assert not root_attrs
 
 
 @pytest.mark.vcr(

@@ -14,17 +14,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Extract version from tag
         id: version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="$RELEASE_TAG"
           VERSION="${TAG#python-openinference-semantic-conventions-v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Update pyproject.toml files
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          NEW_VERSION="${{ steps.version.outputs.version }}"
           # Update openinference-instrumentation (core package)
           sed -i 's/"openinference-semantic-conventions>=.*"/"openinference-semantic-conventions>='"$NEW_VERSION"'"/' \
             python/openinference-instrumentation/pyproject.toml

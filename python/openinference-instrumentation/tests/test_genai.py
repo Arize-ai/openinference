@@ -284,6 +284,29 @@ def test_get_genai_attributes_maps_tool_span_attributes() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("output_value", "expected_result"),
+    [
+        ("", ""),
+        (0, "0"),
+        (False, "false"),
+    ],
+)
+def test_get_genai_attributes_preserves_falsy_tool_results(
+    output_value: Any,
+    expected_result: str,
+) -> None:
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL.value,
+        SpanAttributes.TOOL_NAME: "lookup_weather",
+        SpanAttributes.OUTPUT_VALUE: output_value,
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert genai_attributes[GenAIAttributes.GEN_AI_TOOL_CALL_RESULT] == expected_result
+
+
 def test_get_genai_attributes_maps_retrieval_attributes() -> None:
     openinference_attributes = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.RETRIEVER.value,
