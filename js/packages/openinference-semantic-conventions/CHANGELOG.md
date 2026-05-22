@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.4.0
+
+### Minor Changes
+
+- 81b8bdb: Add semantic convention constants for reasoning message content metadata and tool call signatures.
+
 ## 2.3.0
 
 ### Minor Changes
