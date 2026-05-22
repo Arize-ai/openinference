@@ -645,3 +645,44 @@ def test_execute_core_span_name_with_none_attributes() -> None:
     instance.name = "research-task"
     result = _get_execute_core_span_name(instance, wrapped, agent)
     assert result == "Research Analyst.research-task._execute_core"
+
+
+def test_flow_with_suppress_flow_events_emits_no_flow_spans(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Regression test: Flows with suppress_flow_events=True must not emit spans.
+
+    CrewAI's internal AgentExecutor subclasses Flow and sets
+    suppress_flow_events=True to opt out of CrewAI's own event emission.
+    The instrumentor must honor the same signal so it doesn't emit dozens of
+    internal-node CHAIN spans per task. Inverting the guard (e.g. dropping the
+    `getattr(...) is True` check) would cause this test to fail.
+    """
+
+    class InternalFlow(Flow[Any]):  # type: ignore[misc, unused-ignore]
+        @start()  # type: ignore[misc, unused-ignore]
+        def step(self) -> str:
+            return "done"
+
+    class UserFlow(Flow[Any]):  # type: ignore[misc, unused-ignore]
+        @start()  # type: ignore[misc, unused-ignore]
+        def step(self) -> str:
+            return "done"
+
+    # Pass suppress_flow_events via the constructor so this works on both the
+    # current pinned crewai (where it's an __init__ kwarg) and on newer versions
+    # (where it's a Pydantic Field on Flow).
+    InternalFlow(suppress_flow_events=True).kickoff()
+    internal_spans = list(in_memory_span_exporter.get_finished_spans())
+    assert internal_spans == [], (
+        "Expected no spans for a Flow with suppress_flow_events=True, "
+        f"got: {[s.name for s in internal_spans]}"
+    )
+
+    # Sanity check: a normal Flow on the same instrumentor still produces spans,
+    # so the guard isn't suppressing everything.
+    in_memory_span_exporter.clear()
+    UserFlow().kickoff()
+    user_spans = list(in_memory_span_exporter.get_finished_spans())
+    assert any(s.name.endswith(".kickoff") for s in user_spans)
+    assert any(s.name.endswith(".step") for s in user_spans)
