@@ -220,6 +220,7 @@ class TestMessageContentAttributes:
             "message_content": {
                 "data": MessageContentAttributes.MESSAGE_CONTENT_DATA,
                 "encrypted_content": MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT,
+                "id": MessageContentAttributes.MESSAGE_CONTENT_ID,
                 "image": MessageContentAttributes.MESSAGE_CONTENT_IMAGE,
                 "signature": MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE,
                 "text": MessageContentAttributes.MESSAGE_CONTENT_TEXT,
@@ -317,7 +318,7 @@ class TestToolCallAttributes:
                     "name": ToolCallAttributes.TOOL_CALL_FUNCTION_NAME,
                 },
                 "id": ToolCallAttributes.TOOL_CALL_ID,
-                "signature": ToolCallAttributes.TOOL_CALL_SIGNATURE,
+                "reasoning_signature": ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE,
             },
         }
 

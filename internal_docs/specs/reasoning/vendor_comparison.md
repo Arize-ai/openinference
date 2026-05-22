@@ -328,6 +328,17 @@ Gemini echo (note `thoughtSignature` on the functionCall part):
 
 Whatever came out of the prior assistant turn's reasoning container goes back into the next request **verbatim** — same ordering, same bytes, same continuity tokens. The common bug across all three vendors is identical: a tool-runner that rebuilds the next turn from just the tool-call + tool-result, dropping the reasoning block that preceded them.
 
+### OpenInference attribute mapping
+
+| Provider field | OpenInference attribute | Notes |
+|---|---|---|
+| OpenAI `ResponseReasoningItem.id` | `message_content.id` | Provider id for the reasoning item; preserve for stateless replay. |
+| OpenAI `encrypted_content` | `message_content.encrypted_content` | Opaque continuity token; populated only when `include: ["reasoning.encrypted_content"]` is requested. |
+| Anthropic `thinking.signature` | `message_content.signature` | Authenticates the accompanying `thinking` text; echo both together. |
+| Anthropic `redacted_thinking.data` | `message_content.data` | Redacted continuity payload; emit without `message_content.text`. |
+| Gemini `thoughtSignature` on a text part | `message_content.signature` | Signature belongs to the non-tool content part. |
+| Gemini `thoughtSignature` on a `functionCall` part | `tool_call.reasoning_signature` | Signature belongs to the tool call, not to the reasoning summary. |
+
 ---
 
 ## 4. Quick reference: capturing for telemetry

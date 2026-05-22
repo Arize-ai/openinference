@@ -176,16 +176,17 @@ A synthesis call using a function call output
 
 ### Reasoning Content
 
-Assistant messages from reasoning-capable models may include `"reasoning"` items in `message.contents` alongside `"text"` and tool calls. The reasoning content convention uses these message content attributes:
+Assistant messages from reasoning-capable models may include `"reasoning"` items in `message.contents` alongside `"text"` and tool calls. Use `message.contents` when the provider returns ordered parts that must be replayed in order, such as reasoning followed by a tool call. The reasoning content convention uses these message content attributes:
 
 - `message_content.type` — set to `"reasoning"` for reasoning/thinking content. This includes Anthropic `redacted_thinking` blocks.
-- `message_content.signature` — captures provider `signature` and `thinkingSignature` values verbatim.
+- `message_content.id` — captures provider-assigned content identifiers when they are needed for replay, such as OpenAI `ResponseReasoningItem.id`.
+- `message_content.signature` — captures provider `signature` values verbatim, and captures Gemini `thoughtSignature` values when they are attached to a non-tool content part such as text.
 - `message_content.data` — captures Anthropic `redacted_thinking.data` values verbatim.
 - `message_content.encrypted_content` — captures OpenAI `encrypted_content` verbatim.
 
-When a provider attaches the reasoning echo token to a tool call instead of a message content item, use `tool_call.signature`. Gemini uses this for `thoughtSignature` on `functionCall` parts.
+When a provider attaches the reasoning echo token to a tool call instead of a message content item, use `tool_call.reasoning_signature`. Gemini uses this for `thoughtSignature` on `functionCall` parts. If a tool call must remain ordered relative to reasoning or text content, emit a `message.contents` item with `message_content.type = "tool_use"` and the same `tool_call.*` fields used by `message.tool_calls`.
 
-When OpenAI returns an array of `summary_text` items, concatenate them in source order into a single `message_content.text` value for now. Do not emit a content id.
+When OpenAI returns an array of `summary_text` items, concatenate them in source order into a single `message_content.text` value for now. Emit `message_content.id` when the `ResponseReasoningItem.id` is present, because stateless replay needs the reasoning item id as well as its `encrypted_content`.
 
 #### OpenAI Responses
 
@@ -201,6 +202,7 @@ When OpenAI returns an array of `summary_text` items, concatenate them in source
                 "message.contents": [
                     {
                         "message_content.type": "reasoning",
+                        "message_content.id": "rs_abc123",
                         "message_content.text": "User asked for the capital of France...\nThe answer is Paris.",
                         "message_content.encrypted_content": "gAAAAA...=="
                     },
@@ -269,7 +271,7 @@ For an Anthropic `redacted_thinking` block, emit a reasoning content item with `
 
 #### Gemini Function Calling
 
-Gemini attaches `thoughtSignature` to content parts such as `functionCall`. When the signature is on a function call, capture it on the corresponding tool call as `tool_call.signature`:
+Gemini attaches `thoughtSignature` to content parts such as `functionCall` and sometimes `text`. When the signature is on a non-tool content part, capture it on that content item as `message_content.signature`. When the signature is on a function call, capture it on the corresponding tool call as `tool_call.reasoning_signature`:
 
 ```json
 {
@@ -284,7 +286,7 @@ Gemini attaches `thoughtSignature` to content parts such as `functionCall`. When
                     {
                         "tool_call.function.name": "get_current_temperature",
                         "tool_call.function.arguments": "{\"location\":\"Paris\"}",
-                        "tool_call.signature": "CiQB..."
+                        "tool_call.reasoning_signature": "CiQB..."
                     }
                 ]
             }

@@ -152,10 +152,17 @@ const (
 )
 
 // Message-content attributes — for the contents array on a message.
+//
+// MessageContentType values include "text", "image", "audio", "reasoning",
+// and "tool_use". MessageContentID captures provider-assigned content ids such
+// as OpenAI ResponseReasoningItem.id. MessageContentSignature, MessageContentData,
+// and MessageContentEncryptedContent capture opaque provider reasoning-continuity
+// fields verbatim.
 const (
 	MessageContentType             = "message_content.type"
 	MessageContentText             = "message_content.text"
 	MessageContentImage            = "message_content.image"
+	MessageContentID               = "message_content.id"
 	MessageContentSignature        = "message_content.signature"
 	MessageContentData             = "message_content.data"
 	MessageContentEncryptedContent = "message_content.encrypted_content"
@@ -181,12 +188,15 @@ const (
 	DocumentMetadata = "document.metadata"
 )
 
-// Tool-call attributes — nested under MessageToolCalls.{i}.
+// Tool-call attributes — nested under MessageToolCalls.{i}; also used under
+// MessageContents.{i} when MessageContentType is "tool_use" and ordering matters.
+// ToolCallReasoningSignature captures opaque reasoning-continuity tokens attached
+// to a tool call, such as Gemini thoughtSignature on functionCall parts.
 const (
 	ToolCallID                    = "tool_call.id"
 	ToolCallFunctionName          = "tool_call.function.name"
 	ToolCallFunctionArgumentsJSON = "tool_call.function.arguments"
-	ToolCallSignature             = "tool_call.signature"
+	ToolCallReasoningSignature    = "tool_call.reasoning_signature"
 )
 
 // Completions-API attributes — nested under LLMPrompts.{i} and LLMChoices.{i}.

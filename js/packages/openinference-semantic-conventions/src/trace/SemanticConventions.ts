@@ -90,6 +90,7 @@ export const MessageContentsAttributePostfixes = {
   type: "type",
   text: "text",
   image: "image",
+  id: "id",
   signature: "signature",
   data: "data",
   encrypted_content: "encrypted_content",
@@ -103,7 +104,7 @@ export const ToolCallAttributePostfixes = {
   function_name: "function.name",
   function_arguments_json: "function.arguments",
   id: "id",
-  signature: "signature",
+  reasoning_signature: "reasoning_signature",
 } as const;
 
 export const DocumentAttributePostfixes = {
@@ -380,10 +381,11 @@ export const TOOL_CALL_ID =
   `${SemanticAttributePrefixes.tool_call}.${ToolCallAttributePostfixes.id}` as const;
 
 /**
- * Opaque vendor-issued echo token attached to a tool call
+ * Opaque vendor-issued reasoning echo token attached to a tool call. Maps to
+ * Gemini thoughtSignature when it is attached to a functionCall part
  */
-export const TOOL_CALL_SIGNATURE =
-  `${SemanticAttributePrefixes.tool_call}.${ToolCallAttributePostfixes.signature}` as const;
+export const TOOL_CALL_REASONING_SIGNATURE =
+  `${SemanticAttributePrefixes.tool_call}.${ToolCallAttributePostfixes.reasoning_signature}` as const;
 
 /**
  * The LLM function call function name
@@ -408,7 +410,8 @@ export const MESSAGE_CONTENT =
 export const MESSAGE_CONTENTS =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.contents}` as const;
 /**
- * The type of content sent to the LLM
+ * The type of content sent to the LLM, such as "text", "image", "audio",
+ * "reasoning", or "tool_use"
  */
 export const MESSAGE_CONTENT_TYPE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.type}` as const;
@@ -423,17 +426,27 @@ export const MESSAGE_CONTENT_TEXT =
 export const MESSAGE_CONTENT_IMAGE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.image}` as const;
 /**
- * Opaque vendor-issued signature captured verbatim
+ * Provider-assigned identifier for this message content item. For OpenAI
+ * Responses reasoning items, this maps to ResponseReasoningItem.id and should
+ * be preserved for stateless replay
+ */
+export const MESSAGE_CONTENT_ID =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.id}` as const;
+/**
+ * Opaque vendor-issued signature captured verbatim. Maps to provider signature
+ * fields and to Gemini thoughtSignature fields when the signature is attached
+ * to a non-tool content part
  */
 export const MESSAGE_CONTENT_SIGNATURE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.signature}` as const;
 /**
- * Opaque vendor-issued data captured verbatim
+ * Opaque vendor-issued data captured verbatim. Maps to Anthropic
+ * redacted_thinking.data
  */
 export const MESSAGE_CONTENT_DATA =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.data}` as const;
 /**
- * OpenAI encrypted content captured verbatim
+ * OpenAI encrypted_content captured verbatim
  */
 export const MESSAGE_CONTENT_ENCRYPTED_CONTENT =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.encrypted_content}` as const;
@@ -697,7 +710,7 @@ export const SemanticConventions = {
   MESSAGE_TOOL_CALLS,
   MESSAGE_TOOL_CALL_ID,
   TOOL_CALL_ID,
-  TOOL_CALL_SIGNATURE,
+  TOOL_CALL_REASONING_SIGNATURE,
   TOOL_CALL_FUNCTION_NAME,
   TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
   MESSAGE_FUNCTION_CALL_NAME,
@@ -705,6 +718,7 @@ export const SemanticConventions = {
   MESSAGE_CONTENT,
   MESSAGE_CONTENTS,
   MESSAGE_CONTENT_IMAGE,
+  MESSAGE_CONTENT_ID,
   MESSAGE_CONTENT_SIGNATURE,
   MESSAGE_CONTENT_DATA,
   MESSAGE_CONTENT_ENCRYPTED_CONTENT,

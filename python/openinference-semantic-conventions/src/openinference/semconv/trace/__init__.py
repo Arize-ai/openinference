@@ -320,11 +320,12 @@ class MessageContentAttributes:
 
     MESSAGE_CONTENT_TYPE = "message_content.type"
     """
-    The type of the content, such as "text" or "image".
+    The type of the content, such as "text", "image", "audio",
+    "reasoning", or "tool_use".
     """
     MESSAGE_CONTENT_TEXT = "message_content.text"
     """
-    The text content of the message, if the type is "text".
+    The text content of the message, if the type is "text" or "reasoning".
     """
     MESSAGE_CONTENT_IMAGE = "message_content.image"
     """
@@ -333,17 +334,26 @@ class MessageContentAttributes:
     the image or by passing the base64 encoded image directly in the
     request.
     """
+    MESSAGE_CONTENT_ID = "message_content.id"
+    """
+    Provider-assigned identifier for this message content item.
+    For OpenAI Responses reasoning items, this maps to
+    ResponseReasoningItem.id and should be preserved for stateless replay.
+    """
     MESSAGE_CONTENT_SIGNATURE = "message_content.signature"
     """
-    Opaque vendor-issued signature captured verbatim.
+    Opaque vendor-issued signature captured verbatim. Maps to provider
+    signature fields and to Gemini thoughtSignature fields when the signature
+    is attached to a non-tool content part.
     """
     MESSAGE_CONTENT_DATA = "message_content.data"
     """
-    Opaque vendor-issued data captured verbatim.
+    Opaque vendor-issued data captured verbatim. Maps to Anthropic
+    redacted_thinking.data.
     """
     MESSAGE_CONTENT_ENCRYPTED_CONTENT = "message_content.encrypted_content"
     """
-    OpenAI encrypted content captured verbatim.
+    OpenAI encrypted_content captured verbatim.
     """
 
 
@@ -461,9 +471,10 @@ class ToolCallAttributes:
     The JSON string representing the arguments passed to the function
     during a tool call.
     """
-    TOOL_CALL_SIGNATURE = "tool_call.signature"
+    TOOL_CALL_REASONING_SIGNATURE = "tool_call.reasoning_signature"
     """
-    Opaque vendor-issued echo token attached to a tool call.
+    Opaque vendor-issued reasoning echo token attached to a tool call.
+    Maps to Gemini thoughtSignature when it is attached to a functionCall part.
     """
 
 

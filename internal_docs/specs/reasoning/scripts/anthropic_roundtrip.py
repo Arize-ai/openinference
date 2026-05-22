@@ -40,6 +40,7 @@ from common import (
     FACTORIZE_FOLLOW_UP_PROMPT,
     FACTORIZE_USER_PROMPT,
     InstrumentedTracingCtx,
+    MESSAGE_CONTENT_DATA,
     MESSAGE_CONTENT_SIGNATURE,
     TOOL_FOLLOW_UP_PROMPT,
     TOOL_RESULT_PAYLOAD,
@@ -151,7 +152,7 @@ def simulate_anthropic_content_walk(message: Any) -> dict[str, Any]:
                     0, content_index, MessageContentAttributes.MESSAGE_CONTENT_TYPE
                 )
             ] = CONTENT_TYPE_REASONING
-            attrs[output_content_key(0, content_index, MESSAGE_CONTENT_SIGNATURE)] = (
+            attrs[output_content_key(0, content_index, MESSAGE_CONTENT_DATA)] = (
                 block.data
             )
         elif block.type == "text":
@@ -214,6 +215,8 @@ def proposed_additions_from_simulation(
         elif key.endswith(f".{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"):
             additions[key] = value
         elif key.endswith(f".{MESSAGE_CONTENT_SIGNATURE}"):
+            additions[key] = value
+        elif key.endswith(f".{MESSAGE_CONTENT_DATA}"):
             additions[key] = value
         elif f".{MessageAttributes.MESSAGE_TOOL_CALLS}." in key and key.endswith(
             f".{ToolCallAttributes.TOOL_CALL_ID}"
@@ -315,7 +318,7 @@ def augment_anthropic_input_span_from_request(
                 ] = CONTENT_TYPE_REASONING
                 additions[
                     input_content_key(
-                        message_index, content_index, MESSAGE_CONTENT_SIGNATURE
+                        message_index, content_index, MESSAGE_CONTENT_DATA
                     )
                 ] = block.get("data", "")
             elif block_type == "text":
@@ -435,9 +438,10 @@ def rebuild_assistant_content_blocks(
             continue
 
         signature = content_block.get(MESSAGE_CONTENT_SIGNATURE)
+        redacted_data = content_block.get(MESSAGE_CONTENT_DATA)
         text = content_block.get(MessageContentAttributes.MESSAGE_CONTENT_TEXT)
-        if text is None and signature:
-            rebuilt.append({"type": "redacted_thinking", "data": signature})
+        if text is None and redacted_data is not None:
+            rebuilt.append({"type": "redacted_thinking", "data": redacted_data})
             continue
         thinking_block: dict[str, Any] = {
             "type": "thinking",

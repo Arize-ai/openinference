@@ -46,7 +46,7 @@ from common import (
     TOOL_FOLLOW_UP_PROMPT,
     TOOL_RESULT_PAYLOAD,
     TOOL_USER_PROMPT,
-    TOOL_CALL_SIGNATURE,
+    TOOL_CALL_REASONING_SIGNATURE,
     debug_print,
     export_augmented_span,
     export_original_span,
@@ -199,9 +199,9 @@ def simulate_gemini_content_walk(response: Any) -> dict[str, Any]:
                 )
             ] = CONTENT_TYPE_TOOL_USE
             if signature:
-                attrs[output_content_key(0, content_index, TOOL_CALL_SIGNATURE)] = (
-                    signature
-                )
+                attrs[
+                    output_content_key(0, content_index, TOOL_CALL_REASONING_SIGNATURE)
+                ] = signature
             call = part.function_call
             call_id = call.id or f"call_{content_index}"
             attrs[
@@ -317,7 +317,7 @@ def simulate_gemini_input_walk(request: dict[str, Any]) -> dict[str, Any]:
                         input_content_key(
                             message_index,
                             content_index,
-                            TOOL_CALL_SIGNATURE,
+                            TOOL_CALL_REASONING_SIGNATURE,
                         )
                     ] = signature
                 attrs[
@@ -498,7 +498,7 @@ def rebuild_model_content(
             signature = (
                 None
                 if strip_signature
-                else base64_decode(content_block.get(TOOL_CALL_SIGNATURE))
+                else base64_decode(content_block.get(TOOL_CALL_REASONING_SIGNATURE))
             )
             tool_call = next(tool_calls, {})
             function_call = gtypes.FunctionCall(

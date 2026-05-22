@@ -10,9 +10,9 @@ Each per-provider script:
   4. Rebuilds the prior assistant turn from the augmented future span attributes.
   6. Sends turn 2 with the reconstructed history; asserts the server accepted it.
 
-Established attribute keys come from `openinference.semconv.trace`. The
-"Proposed" block below holds keys this PR is exploring that are not yet in
-`openinference-semantic-conventions`.
+Established attribute keys come from `openinference.semconv.trace`. The local
+string-literal block below holds keys this script needs while it pins released
+semantic-convention packages that may not expose the newest constants yet.
 """
 
 from __future__ import annotations
@@ -42,11 +42,10 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import SpanContext
 
 # ---------------------------------------------------------------------------
-# Proposed (not yet in openinference-semantic-conventions)
+# Local semconv suffixes not available in every pinned released package.
 #
-# These string literals are what the PR is exploring. If/when they land in
-# the semantic-conventions packages, every reference below becomes a normal
-# `MessageContentAttributes.<NAME>` import.
+# These become normal `MessageContentAttributes.<NAME>` /
+# `ToolCallAttributes.<NAME>` imports once the script dependencies are bumped.
 # ---------------------------------------------------------------------------
 
 # Additional `message_content.type` discriminators. Every reasoning surface —
@@ -60,11 +59,15 @@ CONTENT_TYPE_TOOL_USE = "tool_use"
 # must echo verbatim to keep reasoning alive.
 MESSAGE_CONTENT_ID = "message_content.id"  # OpenAI reasoning item id
 MESSAGE_CONTENT_SIGNATURE = "message_content.signature"
-TOOL_CALL_SIGNATURE = "tool_call.signature"
+MESSAGE_CONTENT_DATA = "message_content.data"
+MESSAGE_CONTENT_ENCRYPTED_CONTENT = "message_content.encrypted_content"
+TOOL_CALL_REASONING_SIGNATURE = "tool_call.reasoning_signature"
 
 PROPOSED_CONTINUITY_TOKEN_FIELDS: tuple[str, ...] = (
     MESSAGE_CONTENT_SIGNATURE,
-    TOOL_CALL_SIGNATURE,
+    MESSAGE_CONTENT_DATA,
+    MESSAGE_CONTENT_ENCRYPTED_CONTENT,
+    TOOL_CALL_REASONING_SIGNATURE,
 )
 
 # Scenario A (text) prompts — shared across provider round-trip scripts.
@@ -450,8 +453,8 @@ def set_output_reasoning(
     populates whatever the provider produced:
 
     - Anthropic thinking:      `text` + `signature`
-    - Anthropic redacted:      `signature` containing redacted data (no `text`)
-    - OpenAI reasoning item:   `text` + `item_id` + `signature`
+    - Anthropic redacted:      `redacted_data` (no `text`)
+    - OpenAI reasoning item:   `text` + `item_id` + `encrypted_content`
     - Gemini thought summary:  `text` (no continuity token — it rides on the
       sibling data part)
     """
@@ -463,10 +466,9 @@ def set_output_reasoning(
             MessageContentAttributes.MESSAGE_CONTENT_TYPE: CONTENT_TYPE_REASONING,
             MessageContentAttributes.MESSAGE_CONTENT_TEXT: text,
             MESSAGE_CONTENT_ID: item_id,
-            MESSAGE_CONTENT_SIGNATURE: signature
-            or encrypted_content
-            or thought_signature
-            or redacted_data,
+            MESSAGE_CONTENT_SIGNATURE: signature or thought_signature,
+            MESSAGE_CONTENT_DATA: redacted_data,
+            MESSAGE_CONTENT_ENCRYPTED_CONTENT: encrypted_content,
         },
     )
 
@@ -497,7 +499,7 @@ def set_output_tool_use(
             ToolCallAttributes.TOOL_CALL_FUNCTION_NAME: name,
             ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON: arguments_json,
             MessageContentAttributes.MESSAGE_CONTENT_TEXT: text,
-            TOOL_CALL_SIGNATURE: thought_signature,
+            TOOL_CALL_REASONING_SIGNATURE: thought_signature,
         },
     )
 

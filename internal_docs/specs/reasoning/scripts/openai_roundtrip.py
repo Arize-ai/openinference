@@ -38,8 +38,8 @@ from common import (
     FACTORIZE_FOLLOW_UP_PROMPT,
     FACTORIZE_USER_PROMPT,
     InstrumentedTracingCtx,
+    MESSAGE_CONTENT_ENCRYPTED_CONTENT,
     MESSAGE_CONTENT_ID,
-    MESSAGE_CONTENT_SIGNATURE,
     TOOL_FOLLOW_UP_PROMPT,
     TOOL_RESULT_PAYLOAD,
     TOOL_USER_PROMPT,
@@ -126,13 +126,20 @@ def simulate_openai_output_walk(response: Any) -> dict[str, Any]:
 
         token_content_index = 0
         attrs[
+            output_content_key(
+                output_index,
+                token_content_index,
+                MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+            )
+        ] = CONTENT_TYPE_REASONING
+        attrs[
             output_content_key(output_index, token_content_index, MESSAGE_CONTENT_ID)
         ] = item.id
         encrypted = getattr(item, "encrypted_content", None)
         if encrypted:
             attrs[
                 output_content_key(
-                    output_index, token_content_index, MESSAGE_CONTENT_SIGNATURE
+                    output_index, token_content_index, MESSAGE_CONTENT_ENCRYPTED_CONTENT
                 )
             ] = encrypted
     return attrs
@@ -259,7 +266,7 @@ def rebuild_input_items(
                 "id": token_block[MESSAGE_CONTENT_ID],
                 "summary": summary_parts,
             }
-            if encrypted := token_block.get(MESSAGE_CONTENT_SIGNATURE):
+            if encrypted := token_block.get(MESSAGE_CONTENT_ENCRYPTED_CONTENT):
                 reasoning_item["encrypted_content"] = encrypted
             items.append(reasoning_item)
             continue
