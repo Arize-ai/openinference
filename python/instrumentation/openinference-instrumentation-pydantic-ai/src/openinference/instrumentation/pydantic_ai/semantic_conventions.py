@@ -825,6 +825,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                             f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_CONTENT}",
                                             part[GenAIMessagePartFields.CONTENT],
                                         )
+                                        output_value = part[GenAIMessagePartFields.CONTENT]
                                     elif (
                                         part.get(GenAIMessagePartFields.TYPE)
                                         == GenAIMessagePartTypes.TOOL_CALL
