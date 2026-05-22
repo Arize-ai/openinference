@@ -1,0 +1,68 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the weather in New York?"}],
+      "role": "user"}], "systemInstruction": {"parts": [{"text": "You must use the
+      available tools to find an answer.\n\nYou are an agent. Your internal name is
+      \"_d700067a\". The description about you is \"Agent to answer questions using
+      tools.\"."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Retrieves the current weather report for a specified city.\n\nArgs:\n    city
+      (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict:
+      status and result or error msg.", "name": "_get_weather", "parameters_json_schema":
+      {"properties": {"city": {"title": "City", "type": "string"}}, "required": ["city"],
+      "title": "_get_weatherParams", "type": "object"}}]}], "generationConfig": {}}'
+    headers: {}
+    method: post
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"functionCall\": {\n              \"name\": \"_get_weather\",\n
+        \             \"args\": {\n                \"city\": \"New York\"\n              }\n
+        \           }\n          }\n        ],\n        \"role\": \"model\"\n      },\n
+        \     \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -8.1851779084120476e-06\n
+        \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 103,\n    \"candidatesTokenCount\":
+        7,\n    \"totalTokenCount\": 110,\n    \"promptTokensDetails\": [\n      {\n
+        \       \"modality\": \"TEXT\",\n        \"tokenCount\": 103\n      }\n    ],\n
+        \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 7\n      }\n    ],\n    \"serviceTier\": \"standard\"\n
+        \ },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\": \"F7sQauDwHLCf1MkPltGR6Q8\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the weather in New York?"}],
+      "role": "user"}, {"parts": [{"functionCall": {"args": {"city": "New York"},
+      "name": "_get_weather"}}], "role": "model"}, {"parts": [{"functionResponse":
+      {"name": "_get_weather", "response": {"status": "success", "report": "The weather
+      in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}}}],
+      "role": "user"}], "systemInstruction": {"parts": [{"text": "You must use the
+      available tools to find an answer.\n\nYou are an agent. Your internal name is
+      \"_d700067a\". The description about you is \"Agent to answer questions using
+      tools.\"."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Retrieves the current weather report for a specified city.\n\nArgs:\n    city
+      (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict:
+      status and result or error msg.", "name": "_get_weather", "parameters_json_schema":
+      {"properties": {"city": {"title": "City", "type": "string"}}, "required": ["city"],
+      "title": "_get_weatherParams", "type": "object"}}]}], "generationConfig": {}}'
+    headers: {}
+    method: post
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"OK. The weather in New York is sunny
+        with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\"\n          }\n
+        \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"avgLogprobs\": -1.3035863958066329e-05\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 139,\n    \"candidatesTokenCount\": 24,\n    \"totalTokenCount\":
+        163,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 139\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 24\n
+        \     }\n    ],\n    \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\":
+        \"gemini-2.0-flash\",\n  \"responseId\": \"GLsQatvLCt6xjMcP0PmHqQk\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
