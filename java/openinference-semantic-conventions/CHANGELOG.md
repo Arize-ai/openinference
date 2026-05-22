@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.12...java-openinference-semantic-conventions-v0.1.13) (2026-05-22)
+
+
+### Features
+
+* specify reasoning semantic conventions ([#3112](https://github.com/Arize-ai/openinference/issues/3112)) ([81b8bdb](https://github.com/Arize-ai/openinference/commit/81b8bdbbb108aa98c89e25e8301cc5ab2bf734ba))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.11...java-openinference-semantic-conventions-v0.1.12) (2026-04-21)
 
 

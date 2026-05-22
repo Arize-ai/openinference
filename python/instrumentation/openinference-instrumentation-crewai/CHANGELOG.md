@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.7...python-openinference-instrumentation-crewai-v1.1.8) (2026-05-22)
+
+
+### Bug Fixes
+
+* **crewai:** skip flow spans for internal AgentExecutor ([#3154](https://github.com/Arize-ai/openinference/issues/3154)) ([fc7af5f](https://github.com/Arize-ai/openinference/commit/fc7af5f0169067eeb391c6771c70663f0e6282a9))
+
 ## [1.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.6...python-openinference-instrumentation-crewai-v1.1.7) (2026-05-18)
 
 

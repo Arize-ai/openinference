@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.31...python-openinference-instrumentation-smolagents-v0.1.32) (2026-05-22)
+
+
+### Bug Fixes
+
+* **smolagents:** Handle Crash On Dropped OTEL Span ([#3113](https://github.com/Arize-ai/openinference/issues/3113)) ([be3e8c8](https://github.com/Arize-ai/openinference/commit/be3e8c8ebc29db0695d2c0c5aba1c27c5f16c2ed))
+
 ## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.30...python-openinference-instrumentation-smolagents-v0.1.31) (2026-05-18)
 
 
