@@ -103,6 +103,7 @@ export const ToolCallAttributePostfixes = {
   function_name: "function.name",
   function_arguments_json: "function.arguments",
   id: "id",
+  signature: "signature",
 } as const;
 
 export const DocumentAttributePostfixes = {
@@ -377,6 +378,12 @@ export const TOOL_CALL_FUNCTION_ARGUMENTS_JSON =
  */
 export const TOOL_CALL_ID =
   `${SemanticAttributePrefixes.tool_call}.${ToolCallAttributePostfixes.id}` as const;
+
+/**
+ * Opaque vendor-issued echo token attached to a tool call
+ */
+export const TOOL_CALL_SIGNATURE =
+  `${SemanticAttributePrefixes.tool_call}.${ToolCallAttributePostfixes.signature}` as const;
 
 /**
  * The LLM function call function name
@@ -690,6 +697,7 @@ export const SemanticConventions = {
   MESSAGE_TOOL_CALLS,
   MESSAGE_TOOL_CALL_ID,
   TOOL_CALL_ID,
+  TOOL_CALL_SIGNATURE,
   TOOL_CALL_FUNCTION_NAME,
   TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
   MESSAGE_FUNCTION_CALL_NAME,

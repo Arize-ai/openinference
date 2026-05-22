@@ -114,6 +114,7 @@ func TestAttributeKeys(t *testing.T) {
 		{ToolCallID, "tool_call.id"},
 		{ToolCallFunctionName, "tool_call.function.name"},
 		{ToolCallFunctionArgumentsJSON, "tool_call.function.arguments"},
+		{ToolCallSignature, "tool_call.signature"},
 
 		{PromptText, "prompt.text"},
 		{CompletionText, "completion.text"},

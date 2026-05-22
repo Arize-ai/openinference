@@ -186,6 +186,7 @@ const (
 	ToolCallID                    = "tool_call.id"
 	ToolCallFunctionName          = "tool_call.function.name"
 	ToolCallFunctionArgumentsJSON = "tool_call.function.arguments"
+	ToolCallSignature             = "tool_call.signature"
 )
 
 // Completions-API attributes — nested under LLMPrompts.{i} and LLMChoices.{i}.

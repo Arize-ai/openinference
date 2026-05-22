@@ -183,6 +183,8 @@ Assistant messages from reasoning-capable models may include `"reasoning"` items
 - `message_content.data` — captures Anthropic `redacted_thinking.data` values verbatim.
 - `message_content.encripted_content` — captures OpenAI `encrypted_content` verbatim.
 
+When a provider attaches the reasoning echo token to a tool call instead of a message content item, use `tool_call.signature`. Gemini uses this for `thoughtSignature` on `functionCall` parts.
+
 When OpenAI returns an array of `summary_text` items, concatenate them in source order into a single `message_content.text` value for now. Do not emit a content id.
 
 #### OpenAI Responses
@@ -261,6 +263,33 @@ For an Anthropic `redacted_thinking` block, emit a reasoning content item with `
                 ]
             }
         ]
+    }
+}
+```
+
+#### Gemini Function Calling
+
+Gemini attaches `thoughtSignature` to content parts such as `functionCall`. When the signature is on a function call, capture it on the corresponding tool call as `tool_call.signature`:
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "google",
+        "llm.model_name": "gemini-3-pro",
+        "llm.output_messages": [
+            {
+                "message.role": "model",
+                "message.tool_calls": [
+                    {
+                        "tool_call.function.name": "get_current_temperature",
+                        "tool_call.function.arguments": "{\"location\":\"Paris\"}",
+                        "tool_call.signature": "CiQB..."
+                    }
+                ]
+            }
+        ],
+        "llm.token_count.completion_details.reasoning": 318
     }
 }
 ```

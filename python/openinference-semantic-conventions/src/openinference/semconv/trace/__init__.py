@@ -461,6 +461,10 @@ class ToolCallAttributes:
     The JSON string representing the arguments passed to the function
     during a tool call.
     """
+    TOOL_CALL_SIGNATURE = "tool_call.signature"
+    """
+    Opaque vendor-issued echo token attached to a tool call.
+    """
 
 
 class PromptAttributes:

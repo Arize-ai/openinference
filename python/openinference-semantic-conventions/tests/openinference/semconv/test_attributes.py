@@ -317,6 +317,7 @@ class TestToolCallAttributes:
                     "name": ToolCallAttributes.TOOL_CALL_FUNCTION_NAME,
                 },
                 "id": ToolCallAttributes.TOOL_CALL_ID,
+                "signature": ToolCallAttributes.TOOL_CALL_SIGNATURE,
             },
         }
 

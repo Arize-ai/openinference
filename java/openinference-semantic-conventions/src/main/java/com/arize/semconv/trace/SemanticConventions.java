@@ -117,6 +117,7 @@ public class SemanticConventions {
         public static final String FUNCTION_NAME = "function.name";
         public static final String FUNCTION_ARGUMENTS = "function.arguments";
         public static final String ID = "id";
+        public static final String SIGNATURE = "signature";
     }
 
     @UtilityClass
@@ -402,6 +403,12 @@ public class SemanticConventions {
      * The id of the tool call
      */
     public static final String TOOL_CALL_ID = SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.ID;
+
+    /**
+     * Opaque vendor-issued echo token attached to a tool call
+     */
+    public static final String TOOL_CALL_SIGNATURE =
+            SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.SIGNATURE;
 
     /**
      * The LLM function call function name
