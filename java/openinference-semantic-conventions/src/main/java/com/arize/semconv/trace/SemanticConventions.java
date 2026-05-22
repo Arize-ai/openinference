@@ -104,7 +104,7 @@ public class SemanticConventions {
         public static final String IMAGE = "image";
         public static final String SIGNATURE = "signature";
         public static final String DATA = "data";
-        public static final String ENCRIPTED_CONTENT = "encripted_content";
+        public static final String ENCRYPTED_CONTENT = "encrypted_content";
     }
 
     @UtilityClass
@@ -462,8 +462,8 @@ public class SemanticConventions {
     /**
      * OpenAI encrypted content captured verbatim
      */
-    public static final String MESSAGE_CONTENT_ENCRIPTED_CONTENT =
-            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.ENCRIPTED_CONTENT;
+    public static final String MESSAGE_CONTENT_ENCRYPTED_CONTENT =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.ENCRYPTED_CONTENT;
 
     /**
      * The http or base64 link to the image

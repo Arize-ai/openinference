@@ -98,7 +98,7 @@ func TestAttributeKeys(t *testing.T) {
 		{MessageContentImage, "message_content.image"},
 		{MessageContentSignature, "message_content.signature"},
 		{MessageContentData, "message_content.data"},
-		{MessageContentEncriptedContent, "message_content.encripted_content"},
+		{MessageContentEncryptedContent, "message_content.encrypted_content"},
 
 		{ImageURL, "image.url"},
 

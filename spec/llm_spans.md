@@ -181,7 +181,7 @@ Assistant messages from reasoning-capable models may include `"reasoning"` items
 - `message_content.type` — set to `"reasoning"` for reasoning/thinking content. This includes Anthropic `redacted_thinking` blocks.
 - `message_content.signature` — captures provider `signature` and `thinkingSignature` values verbatim.
 - `message_content.data` — captures Anthropic `redacted_thinking.data` values verbatim.
-- `message_content.encripted_content` — captures OpenAI `encrypted_content` verbatim.
+- `message_content.encrypted_content` — captures OpenAI `encrypted_content` verbatim.
 
 When a provider attaches the reasoning echo token to a tool call instead of a message content item, use `tool_call.signature`. Gemini uses this for `thoughtSignature` on `functionCall` parts.
 
@@ -202,7 +202,7 @@ When OpenAI returns an array of `summary_text` items, concatenate them in source
                     {
                         "message_content.type": "reasoning",
                         "message_content.text": "User asked for the capital of France...\nThe answer is Paris.",
-                        "message_content.encripted_content": "gAAAAA...=="
+                        "message_content.encrypted_content": "gAAAAA...=="
                     },
                     {
                         "message_content.type": "text",

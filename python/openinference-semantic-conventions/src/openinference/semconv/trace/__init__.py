@@ -341,7 +341,7 @@ class MessageContentAttributes:
     """
     Opaque vendor-issued data captured verbatim.
     """
-    MESSAGE_CONTENT_ENCRIPTED_CONTENT = "message_content.encripted_content"
+    MESSAGE_CONTENT_ENCRYPTED_CONTENT = "message_content.encrypted_content"
     """
     OpenAI encrypted content captured verbatim.
     """
