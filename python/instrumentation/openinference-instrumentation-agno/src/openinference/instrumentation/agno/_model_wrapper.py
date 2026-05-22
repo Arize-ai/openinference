@@ -241,32 +241,56 @@ def _parse_model_output(output: Any) -> str:
 
 
 def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
-    # Accumulate all content and tool calls across chunks
     accumulated_content = ""
-    all_tool_calls: list[Dict[str, Any]] = []
+    indexed_tool_calls: Dict[int, Dict[str, Any]] = {}
+    non_indexed_tool_calls: list[Dict[str, Any]] = []
 
     for chunk in output:
-        # Accumulate content from this chunk
         if chunk.content:
             accumulated_content += chunk.content
 
-        # Collect tool calls from this chunk
         if chunk.tool_calls:
             for tool_call in chunk.tool_calls:
-                if _get_attr(tool_call, "id"):
-                    tool_call_dict = {
-                        "id": _get_attr(tool_call, "id"),
-                        "type": _get_attr(tool_call, "type"),
-                    }
+                index = _get_attr(tool_call, "index")
+
+                if index is not None:
+                    # OpenAI sends args as fragments keyed by index
+                    if index not in indexed_tool_calls:
+                        indexed_tool_calls[index] = {
+                            "id": None,
+                            "type": None,
+                            "function": {"name": None, "arguments": ""},
+                        }
+                    entry = indexed_tool_calls[index]
+                    if _get_attr(tool_call, "id"):
+                        entry["id"] = _get_attr(tool_call, "id")
+                    if _get_attr(tool_call, "type"):
+                        entry["type"] = _get_attr(tool_call, "type")
                     function_obj = _get_attr(tool_call, "function")
                     if function_obj:
-                        tool_call_dict["function"] = {
-                            "name": _get_attr(function_obj, "name"),
-                            "arguments": _get_attr(function_obj, "arguments"),
+                        if _get_attr(function_obj, "name"):
+                            entry["function"]["name"] = _get_attr(function_obj, "name")
+                        entry["function"]["arguments"] += _get_attr(function_obj, "arguments") or ""
+                else:
+                    # Anthropic / Gemini send complete tool call in one chunk
+                    if _get_attr(tool_call, "id"):
+                        tool_call_dict: Dict[str, Any] = {
+                            "id": _get_attr(tool_call, "id"),
+                            "type": _get_attr(tool_call, "type"),
                         }
-                    all_tool_calls.append(tool_call_dict)
+                        function_obj = _get_attr(tool_call, "function")
+                        if function_obj:
+                            tool_call_dict["function"] = {
+                                "name": _get_attr(function_obj, "name"),
+                                "arguments": _get_attr(function_obj, "arguments"),
+                            }
+                        non_indexed_tool_calls.append(tool_call_dict)
 
-    # Create single message with accumulated content and all tool calls
+    all_tool_calls: list[Dict[str, Any]] = [
+        indexed_tool_calls[i] for i in sorted(indexed_tool_calls)
+    ]
+    all_tool_calls.extend(non_indexed_tool_calls)
+
     messages: list[Dict[str, Any]] = []
     if accumulated_content or all_tool_calls:
         result_dict: Dict[str, Any] = {"role": "assistant"}
