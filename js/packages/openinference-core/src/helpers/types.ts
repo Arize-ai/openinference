@@ -349,6 +349,13 @@ export interface ImageMessageContent {
 export interface ReasoningMessageContent {
   type: "reasoning";
   /**
+   * Human-readable reasoning text emitted by the model (e.g. Anthropic
+   * `thinking` blocks, OpenAI Responses reasoning summary text). Emitted as
+   * `message_content.text` and therefore subject to `hideInputText` /
+   * `hideOutputText` masking.
+   */
+  text?: string;
+  /**
    * Opaque vendor-issued signature captured verbatim. Maps to provider
    * signature fields and to Gemini `thoughtSignature` when the signature is
    * attached to a non-tool content part.

@@ -461,6 +461,7 @@ describe("attributeHelpers", () => {
             contents: [
               {
                 type: "reasoning",
+                text: "let me think...",
                 signature: "sig-abc",
                 data: "redacted-data",
                 encryptedContent: "enc-xyz",
@@ -474,6 +475,8 @@ describe("attributeHelpers", () => {
           "assistant",
         [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
           "reasoning",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+          "let me think...",
         [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`]:
           "sig-abc",
         [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_DATA}`]:

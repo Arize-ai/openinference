@@ -533,6 +533,11 @@ export function getLLMAttributes(options: {
             ] = content.image.url;
           }
           if (content.type === "reasoning") {
+            if (content.text != null) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+              ] = content.text;
+            }
             if (content.signature != null) {
               attributes[
                 `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`
@@ -618,6 +623,11 @@ export function getLLMAttributes(options: {
             ] = content.image.url;
           }
           if (content.type === "reasoning") {
+            if (content.text != null) {
+              attributes[
+                `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+              ] = content.text;
+            }
             if (content.signature != null) {
               attributes[
                 `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`

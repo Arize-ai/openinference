@@ -179,6 +179,26 @@ describe("mask reasoning content fields", () => {
     },
   );
 
+  test("reasoning text is redacted by hideInputText (it is emitted as message_content.text)", () => {
+    expect(
+      mask({
+        config: { ...DefaultTraceConfig, hideInputText: true },
+        key: "llm.input_messages.0.message.contents.0.message_content.text",
+        value: "let me think...",
+      }),
+    ).toBe(REDACTED_VALUE);
+  });
+
+  test("reasoning text is redacted by hideOutputText (it is emitted as message_content.text)", () => {
+    expect(
+      mask({
+        config: { ...DefaultTraceConfig, hideOutputText: true },
+        key: "llm.output_messages.0.message.contents.0.message_content.text",
+        value: "let me think...",
+      }),
+    ).toBe(REDACTED_VALUE);
+  });
+
   test.each(opaqueInputKeys)("%s is dropped when hideInputMessages is true", (key) => {
     expect(
       mask({ config: { ...DefaultTraceConfig, hideInputMessages: true }, key, value: "token" }),
