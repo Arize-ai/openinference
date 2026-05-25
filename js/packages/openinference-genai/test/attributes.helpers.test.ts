@@ -2,6 +2,7 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 
 import {
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
+  mapAgentAttributes,
   mapInputMessages,
   mapInputValue,
   mapInvocationParameters,
@@ -84,6 +85,29 @@ describe("attributes helpers", () => {
     it("remains LLM for unrelated attributes (malformed)", () => {
       const attrs = mapSpanKind({ any: "thing" });
       expect(attrs["openinference.span.kind"]).toBe("LLM");
+    });
+
+    it("maps plan operations to AGENT without requiring agent markers", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "plan",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("AGENT");
+    });
+  });
+
+  describe("mapAgentAttributes", () => {
+    it("maps agent name", () => {
+      const attrs = mapAgentAttributes({
+        "gen_ai.agent.name": "research_planner",
+      });
+      expect(attrs["agent.name"]).toBe("research_planner");
+    });
+
+    it("ignores non-string agent name", () => {
+      const attrs = mapAgentAttributes({
+        "gen_ai.agent.name": 42,
+      });
+      expect(attrs).toEqual({});
     });
   });
 
@@ -404,6 +428,17 @@ describe("attributes helpers", () => {
     it("returns minimal defaults for empty attributes (span kind only)", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({});
       expect(attrs).toEqual({ "openinference.span.kind": "LLM" });
+    });
+
+    it("converts plan operation attributes to an agent span", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        "gen_ai.operation.name": "plan",
+        "gen_ai.agent.name": "research_planner",
+      });
+      expect(attrs).toEqual({
+        "agent.name": "research_planner",
+        "openinference.span.kind": "AGENT",
+      });
     });
   });
 });

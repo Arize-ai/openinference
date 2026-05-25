@@ -45,6 +45,7 @@ _GENAI_SCHEMA_VALIDATORS: Dict[str, Draft202012Validator] = {
         json.loads((_SCHEMA_DIR / "gen-ai-output-messages.json").read_text())
     ),
 }
+_GENAI_PLAN_OPERATION = "plan"
 
 
 def _load_json_attribute(attributes: Mapping[str, Any], key: str) -> Any:
@@ -362,6 +363,19 @@ def test_get_genai_attributes_maps_embedding_attributes() -> None:
     assert genai_attributes[GenAIAttributes.GEN_AI_EMBEDDINGS_DIMENSION_COUNT] == 3
 
 
+def test_get_genai_attributes_preserves_plan_operation_and_agent_name() -> None:
+    openinference_attributes = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+        SpanAttributes.AGENT_NAME: "research_planner",
+        GenAIAttributes.GEN_AI_OPERATION_NAME: _GENAI_PLAN_OPERATION,
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    assert genai_attributes[GenAIAttributes.GEN_AI_OPERATION_NAME] == _GENAI_PLAN_OPERATION
+    assert genai_attributes[GenAIAttributes.GEN_AI_AGENT_NAME] == "research_planner"
+
+
 def test_oi_tracer_emits_genai_semconv_when_enabled(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -448,6 +462,30 @@ def test_oi_tracer_preserves_user_defined_genai_attributes(
     exported_span = in_memory_span_exporter.get_finished_spans()[0]
     attributes = dict(exported_span.attributes or {})
     assert attributes[GenAIAttributes.GEN_AI_REQUEST_MODEL] == "custom-model"
+
+
+def test_oi_tracer_preserves_user_defined_plan_operation(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__),
+        TraceConfig(enable_genai_semconv=True),
+    )
+
+    tracer.start_span(
+        "plan research_planner",
+        openinference_span_kind="agent",
+        attributes={
+            SpanAttributes.AGENT_NAME: "research_planner",
+            GenAIAttributes.GEN_AI_OPERATION_NAME: _GENAI_PLAN_OPERATION,
+        },
+    ).end()
+
+    exported_span = in_memory_span_exporter.get_finished_spans()[0]
+    attributes = dict(exported_span.attributes or {})
+    assert attributes[GenAIAttributes.GEN_AI_OPERATION_NAME] == _GENAI_PLAN_OPERATION
+    assert attributes[GenAIAttributes.GEN_AI_AGENT_NAME] == "research_planner"
 
 
 def test_oi_tracer_derives_genai_from_masked_attributes(

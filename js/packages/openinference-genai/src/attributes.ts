@@ -59,6 +59,10 @@ const AGENT_KIND_PREFIXES = [
   ATTR_GEN_AI_AGENT_DESCRIPTION,
 ] as const;
 
+const ATTR_GEN_AI_OPERATION_NAME = "gen_ai.operation.name";
+// Not exported by the currently supported @opentelemetry/semantic-conventions range.
+const GEN_AI_OPERATION_PLAN = "plan";
+
 const TOOL_EXECUTION_PREFIXES = [
   ATTR_GEN_AI_TOOL_NAME,
   ATTR_GEN_AI_TOOL_DESCRIPTION,
@@ -172,6 +176,7 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
 ): Attributes => {
   return merge(
     mapProviderAndSystem(spanAttributes),
+    mapAgentAttributes(spanAttributes),
     mapModels(spanAttributes),
     mapSpanKind(spanAttributes),
     mapInvocationParameters(spanAttributes),
@@ -198,6 +203,18 @@ export const mapProviderAndSystem = (spanAttributes: Attributes): Attributes => 
 };
 
 /**
+ * Map GenAI agent attributes to OpenInference agent attributes.
+ * @param spanAttributes - The span attributes containing agent attributes to map
+ * @returns The mapped agent attributes
+ */
+export const mapAgentAttributes = (spanAttributes: Attributes): Attributes => {
+  const attrs: Attributes = {};
+  const agentName = getString(spanAttributes[ATTR_GEN_AI_AGENT_NAME]);
+  set(attrs, SemanticConventions.AGENT_NAME, agentName);
+  return attrs;
+};
+
+/**
  * Map model name to openinference attributes
  * @param spanAttributes - The span attributes containing model name to map
  * @returns The mapped model name attributes
@@ -220,8 +237,12 @@ export const mapSpanKind = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
   // default to LLM for now
   let spanKind = OpenInferenceSpanKind.LLM;
+  const operationName = getString(spanAttributes[ATTR_GEN_AI_OPERATION_NAME]);
   // detect agent kind
-  if (AGENT_KIND_PREFIXES.some((prefix) => spanAttributes[prefix])) {
+  if (
+    operationName === GEN_AI_OPERATION_PLAN ||
+    AGENT_KIND_PREFIXES.some((prefix) => spanAttributes[prefix])
+  ) {
     spanKind = OpenInferenceSpanKind.AGENT;
   }
   // detect tool execution kind

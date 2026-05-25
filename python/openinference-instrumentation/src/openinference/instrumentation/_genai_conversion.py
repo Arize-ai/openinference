@@ -46,6 +46,7 @@ def get_genai_attributes(
     output_messages = _get_output_messages(attributes)
     return {
         **get_genai_base_attributes(attributes),
+        **get_genai_agent_attributes(attributes),
         **get_genai_request_attributes(attributes),
         **get_genai_usage_attributes(attributes),
         **get_genai_message_attributes(attributes, _output_messages=output_messages),
@@ -66,6 +67,15 @@ def get_genai_base_attributes(
         genai_attributes[GenAIAttributes.GEN_AI_PROVIDER_NAME] = provider_name
     if conversation_id := _as_optional_str(attributes.get(SpanAttributes.SESSION_ID)):
         genai_attributes[GenAIAttributes.GEN_AI_CONVERSATION_ID] = conversation_id
+    return genai_attributes
+
+
+def get_genai_agent_attributes(
+    attributes: Mapping[str, AttributeValue],
+) -> Dict[str, AttributeValue]:
+    genai_attributes: Dict[str, AttributeValue] = {}
+    if agent_name := _as_optional_str(attributes.get(SpanAttributes.AGENT_NAME)):
+        genai_attributes[GenAIAttributes.GEN_AI_AGENT_NAME] = agent_name
     return genai_attributes
 
 
@@ -243,6 +253,9 @@ def _get_oi_span_kind(attributes: Mapping[str, AttributeValue]) -> Optional[str]
 
 
 def _get_genai_operation_name(attributes: Mapping[str, AttributeValue]) -> Optional[str]:
+    if operation_name := _as_optional_str(attributes.get(GenAIAttributes.GEN_AI_OPERATION_NAME)):
+        return operation_name
+
     span_kind = _get_oi_span_kind(attributes)
     if span_kind == OpenInferenceSpanKindValues.TOOL.value:
         return GenAIOperationNameValues.EXECUTE_TOOL.value
