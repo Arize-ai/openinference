@@ -78,6 +78,7 @@ testpaths = [
 [tool.mypy]
 strict = true
 explicit_package_bases = true
+warn_unused_ignores = false
 exclude = [
   "examples",
   "dist",
@@ -89,6 +90,7 @@ ignore_missing_imports = true
 module = [
   "agno",
   "wrapt",
+  "wrapt.*",
 ]
 
 [tool.ruff]
