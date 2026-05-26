@@ -4,7 +4,7 @@ from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt.patches import wrap_function_wrapper
+from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.instructor.version import __version__
@@ -44,7 +44,7 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
 
         self._original_patch = getattr(import_module("instructor"), "patch", None)
         patch_wrapper = _PatchWrapper(tracer=self._tracer)  # type: ignore[arg-type]
-        wrap_function_wrapper("instructor", "patch", patch_wrapper)  # type: ignore[no-untyped-call]
+        wrap_function_wrapper("instructor", "patch", patch_wrapper)
         self._patch_module = "instructor.core.patch"
         try:
             self._original_handle_response_model = getattr(
@@ -65,7 +65,7 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
                 )
                 self._original_handle_response_model = None
         process_resp_wrapper = _HandleResponseWrapper(tracer=self._tracer)  # type: ignore[arg-type]
-        wrap_function_wrapper(self._patch_module, "handle_response_model", process_resp_wrapper)  # type: ignore[no-untyped-call]
+        wrap_function_wrapper(self._patch_module, "handle_response_model", process_resp_wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_patch is not None:

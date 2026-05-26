@@ -23,8 +23,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import StatusCode
 from opentelemetry.util.types import AttributeValue
-from wrapt import BoundFunctionWrapper, FunctionWrapper
-from wrapt.patches import apply_patch, resolve_path, wrap_object
+from wrapt import BoundFunctionWrapper, FunctionWrapper, apply_patch, resolve_path, wrap_object
 
 from openinference.instrumentation import (
     OITracer,
@@ -62,9 +61,9 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         name: str,
         factory: Callable[..., Any],
         args: Tuple[Any, ...] = (),
-        kwargs: Optional[Mapping[str, Any]] = None,
+        kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
-        wrap_object(  # type: ignore[no-untyped-call,call-arg,unused-ignore]
+        wrap_object(
             module,
             name,
             factory,
@@ -1132,7 +1131,7 @@ def unwrap_object(module: Any, name: str) -> Optional[Any]:
     Returns:
         The restored original attribute, or None if not wrapped.
     """
-    parent, attribute_name, wrapped = resolve_path(module, name)  # type: ignore[no-untyped-call]
+    parent, attribute_name, wrapped = resolve_path(module, name)
 
     if wrapped is None:
         logger.warning(f"{module}.{name} not found")
@@ -1145,7 +1144,7 @@ def unwrap_object(module: Any, name: str) -> Optional[Any]:
     while original is not None and hasattr(original, "__wrapped__"):
         original = getattr(original, "__wrapped__", None)
     if original is not None:
-        apply_patch(parent, attribute_name, original)  # type: ignore[no-untyped-call]
+        apply_patch(parent, attribute_name, original)
     else:
         logger.warning(f"module: {module}, method: {name} not wrapped")
     return original

@@ -77,8 +77,8 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
-  "smolagents",
   "wrapt",
+  "smolagents",
 ]
 
 [tool.ruff]
