@@ -782,7 +782,6 @@ async def test_client_real_agent_span(
 
 
 class TestExtractModelNameFromUsage:
-
     def test_single_model_returns_only_key(self) -> None:
         result = _extract_model_name_from_usage(
             {"claude-sonnet-4-5": {"input_tokens": 100, "output_tokens": 50}}
