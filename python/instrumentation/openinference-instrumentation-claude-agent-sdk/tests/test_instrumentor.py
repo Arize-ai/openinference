@@ -18,6 +18,7 @@ from opentelemetry.trace import StatusCode
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
+from openinference.instrumentation.claude_agent_sdk._wrappers import _extract_model_name_from_usage
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMSystemValues,
@@ -778,3 +779,78 @@ async def test_client_real_agent_span(
     )
     assert output_msg_role == "assistant"
     assert not attrs
+
+
+class TestExtractModelNameFromUsage:
+
+    def test_single_model_returns_only_key(self) -> None:
+        result = _extract_model_name_from_usage(
+            {"claude-sonnet-4-5": {"input_tokens": 100, "output_tokens": 50}}
+        )
+        assert result == "claude-sonnet-4-5"
+
+    def test_picks_model_with_most_output_tokens(self) -> None:
+        model_usage = {
+            "claude-haiku-3": {"input_tokens": 200, "output_tokens": 10},
+            "claude-sonnet-4-5": {"input_tokens": 300, "output_tokens": 400},
+        }
+        result = _extract_model_name_from_usage(model_usage)
+        assert result == "claude-sonnet-4-5"
+
+    def test_picks_model_with_most_output_tokens_regardless_of_insertion_order(
+        self,
+    ) -> None:
+        model_usage = {
+            "claude-haiku-3": {"input_tokens": 500, "output_tokens": 5},
+            "claude-opus-4-5": {"input_tokens": 100, "output_tokens": 800},
+        }
+        result = _extract_model_name_from_usage(model_usage)
+        assert result == "claude-opus-4-5"
+
+    def test_tiebreak_on_total_tokens_when_output_equal(self) -> None:
+        model_usage = {
+            "model-a": {"input_tokens": 50, "output_tokens": 100},
+            "model-b": {"input_tokens": 200, "output_tokens": 100},
+        }
+        result = _extract_model_name_from_usage(model_usage)
+        assert result == "model-b"
+
+    def test_tiebreak_on_input_tokens_when_total_equal(self) -> None:
+        model_usage = {
+            "model-x": {"input_tokens": 100, "output_tokens": 100},
+            "model-y": {"input_tokens": 150, "output_tokens": 50},
+        }
+        result = _extract_model_name_from_usage(model_usage)
+        assert result == "model-x"
+
+    def test_three_models_picks_highest_output(self) -> None:
+        model_usage = {
+            "router": {"input_tokens": 10, "output_tokens": 2},
+            "main": {"input_tokens": 400, "output_tokens": 900},
+            "summariser": {"input_tokens": 50, "output_tokens": 30},
+        }
+        result = _extract_model_name_from_usage(model_usage)
+        assert result == "main"
+
+    def test_zero_tokens_falls_back_to_first_key(self) -> None:
+        model_usage = {
+            "model-a": {"input_tokens": 0, "output_tokens": 0},
+            "model-b": {"input_tokens": 0, "output_tokens": 0},
+        }
+        result = _extract_model_name_from_usage(model_usage)
+        assert result is not None
+        assert result in ("model-a", "model-b")
+
+    def test_missing_token_fields_treated_as_zero(self) -> None:
+        model_usage = {
+            "sparse-model": {},
+            "rich-model": {"input_tokens": 100, "output_tokens": 200},
+        }
+        result = _extract_model_name_from_usage(model_usage)
+        assert result == "rich-model"
+
+    def test_none_returns_none(self) -> None:
+        assert _extract_model_name_from_usage(None) is None
+
+    def test_empty_mapping_returns_none(self) -> None:
+        assert _extract_model_name_from_usage({}) is None
