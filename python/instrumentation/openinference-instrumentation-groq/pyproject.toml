@@ -78,10 +78,10 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "wrapt",
     "groq.*",
     "datasets",
     "openinference.instrumentation.groq.*",
-    "wrapt",
 ]
 
 [tool.ruff]

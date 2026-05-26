@@ -78,9 +78,9 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "wrapt",
     "anthropic.*",
     "openinference.instrumentation.anthropic.*",
-    "wrapt",
 ]
 
 [tool.ruff]
