@@ -120,7 +120,21 @@ def _is_system_init_message(msg: Any) -> bool:
 
 def _extract_model_name_from_usage(model_usage: Any) -> str | None:
     if isinstance(model_usage, MappingABC) and model_usage:
-        return str(next(iter(model_usage.keys())))
+        if len(model_usage) == 1:
+            return str(next(iter(model_usage.keys())))
+        # Pick the primary/main model that did the most work by token usage in multi-model runs.
+        best_key = None
+        best_score: tuple[int, int, int] = (-1, -1, -1)
+        for key, value in model_usage.items():
+            usage = _coerce_usage(value)
+            output_tokens = _safe_int(usage.get("output_tokens")) or 0
+            input_tokens = _safe_int(usage.get("input_tokens")) or 0
+            total_tokens = output_tokens + input_tokens
+            score = (output_tokens, total_tokens, input_tokens)
+            if score > best_score:
+                best_score = score
+                best_key = key
+        return str(best_key) if best_key is not None else str(next(iter(model_usage.keys())))
     if isinstance(model_usage, (list, tuple)):
         for entry in model_usage:
             name = (
