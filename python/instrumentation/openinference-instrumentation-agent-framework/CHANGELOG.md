@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.4...python-openinference-instrumentation-agent-framework-v0.1.5) (2026-05-22)
+
+
+### Bug Fixes
+
+* **agent_framework:** bump test pin to agent-framework 1.4.0 ([#3129](https://github.com/Arize-ai/openinference/issues/3129)) ([a380ac0](https://github.com/Arize-ai/openinference/commit/a380ac07a41377ce55ef07d77fb59a2a18150280))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.3...python-openinference-instrumentation-agent-framework-v0.1.4) (2026-04-09)
 
 

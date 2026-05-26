@@ -174,6 +174,128 @@ A synthesis call using a function call output
 }
 ```
 
+### Reasoning Content
+
+Assistant messages from reasoning-capable models may include `"reasoning"` items in `message.contents` alongside `"text"` and tool calls. Use `message.contents` when the provider returns ordered parts that must be replayed in order, such as reasoning followed by a tool call. The reasoning content convention uses these message content attributes:
+
+- `message_content.type` — set to `"reasoning"` for reasoning/thinking content. This includes Anthropic `redacted_thinking` blocks.
+- `message_content.id` — captures provider-assigned content identifiers when they are needed for replay, such as OpenAI `ResponseReasoningItem.id`.
+- `message_content.signature` — captures provider `signature` values verbatim, and captures Gemini `thoughtSignature` values when they are attached to a non-tool content part such as text.
+- `message_content.data` — captures Anthropic `redacted_thinking.data` values verbatim.
+- `message_content.encrypted_content` — captures OpenAI `encrypted_content` verbatim.
+
+When a provider attaches the reasoning echo token to a tool call instead of a message content item, use `tool_call.reasoning_signature`. Gemini uses this for `thoughtSignature` on `functionCall` parts. If a tool call must remain ordered relative to reasoning or text content, emit a `message.contents` item with `message_content.type = "tool_use"` and the same `tool_call.*` fields used by `message.tool_calls`.
+
+When OpenAI returns an array of `summary_text` items, concatenate them in source order into a single `message_content.text` value for now. Emit `message_content.id` when the `ResponseReasoningItem.id` is present, because stateless replay needs the reasoning item id as well as its `encrypted_content`.
+
+#### OpenAI Responses
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "openai",
+        "llm.model_name": "gpt-5",
+        "llm.output_messages": [
+            {
+                "message.role": "assistant",
+                "message.contents": [
+                    {
+                        "message_content.type": "reasoning",
+                        "message_content.id": "rs_abc123",
+                        "message_content.text": "User asked for the capital of France...\nThe answer is Paris.",
+                        "message_content.encrypted_content": "gAAAAA...=="
+                    },
+                    {
+                        "message_content.type": "text",
+                        "message_content.text": "Paris."
+                    }
+                ]
+            }
+        ],
+        "llm.token_count.completion_details.reasoning": 482
+    }
+}
+```
+
+#### Anthropic Messages
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "anthropic",
+        "llm.model_name": "claude-opus-4-6",
+        "llm.output_messages": [
+            {
+                "message.role": "assistant",
+                "message.contents": [
+                    {
+                        "message_content.type": "reasoning",
+                        "message_content.text": "Let me work through this. The capital of France is...",
+                        "message_content.signature": "EuYBCkQYAiJA..."
+                    },
+                    {
+                        "message_content.type": "text",
+                        "message_content.text": "Paris."
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+For an Anthropic `redacted_thinking` block, emit a reasoning content item with `message_content.data` and without `message_content.text`:
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "anthropic",
+        "llm.model_name": "claude-opus-4-6",
+        "llm.output_messages": [
+            {
+                "message.role": "assistant",
+                "message.contents": [
+                    {
+                        "message_content.type": "reasoning",
+                        "message_content.data": "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2..."
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+#### Gemini Function Calling
+
+Gemini attaches `thoughtSignature` to content parts such as `functionCall` and sometimes `text`. When the signature is on a non-tool content part, capture it on that content item as `message_content.signature`. When the signature is on a function call, capture it on the corresponding tool call as `tool_call.reasoning_signature`:
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "google",
+        "llm.model_name": "gemini-3-pro",
+        "llm.output_messages": [
+            {
+                "message.role": "model",
+                "message.tool_calls": [
+                    {
+                        "tool_call.function.name": "get_current_temperature",
+                        "tool_call.function.arguments": "{\"location\":\"Paris\"}",
+                        "tool_call.reasoning_signature": "CiQB..."
+                    }
+                ]
+            }
+        ],
+        "llm.token_count.completion_details.reasoning": 318
+    }
+}
+```
+
 ### Completions
 
 A span for a simple completion (shown in logical JSON format for clarity)

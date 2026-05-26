@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.29...python-openinference-semantic-conventions-v0.1.30) (2026-05-22)
+
+
+### Features
+
+* specify reasoning semantic conventions ([#3112](https://github.com/Arize-ai/openinference/issues/3112)) ([81b8bdb](https://github.com/Arize-ai/openinference/commit/81b8bdbbb108aa98c89e25e8301cc5ab2bf734ba))
+
 ## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.28...python-openinference-semantic-conventions-v0.1.29) (2026-04-21)
 
 

@@ -141,3 +141,73 @@ describe("mask", () => {
     expect(mask({ config, key, value: initialValue })).toEqual(expected);
   });
 });
+
+describe("mask reasoning content fields", () => {
+  // Opaque vendor-issued echo tokens (reasoning signature/data/encrypted_content
+  // and tool_call.reasoning_signature) are not user-visible text. They should
+  // pass through hideInputText/hideOutputText (which target message_content.text
+  // only) but be removed by hideInputMessages/hideOutputMessages, since the
+  // entire message tree is suppressed in that case.
+  const opaqueInputKeys = [
+    "llm.input_messages.0.message.contents.0.message_content.signature",
+    "llm.input_messages.0.message.contents.0.message_content.data",
+    "llm.input_messages.0.message.contents.0.message_content.encrypted_content",
+    "llm.input_messages.0.message.tool_calls.0.tool_call.reasoning_signature",
+  ];
+  const opaqueOutputKeys = [
+    "llm.output_messages.0.message.contents.0.message_content.signature",
+    "llm.output_messages.0.message.contents.0.message_content.data",
+    "llm.output_messages.0.message.contents.0.message_content.encrypted_content",
+    "llm.output_messages.0.message.tool_calls.0.tool_call.reasoning_signature",
+  ];
+
+  test.each(opaqueInputKeys)(
+    "%s is preserved when hideInputText is true (opaque echo token, not text)",
+    (key) => {
+      expect(
+        mask({ config: { ...DefaultTraceConfig, hideInputText: true }, key, value: "token" }),
+      ).toBe("token");
+    },
+  );
+
+  test.each(opaqueOutputKeys)(
+    "%s is preserved when hideOutputText is true (opaque echo token, not text)",
+    (key) => {
+      expect(
+        mask({ config: { ...DefaultTraceConfig, hideOutputText: true }, key, value: "token" }),
+      ).toBe("token");
+    },
+  );
+
+  test("reasoning text is redacted by hideInputText (it is emitted as message_content.text)", () => {
+    expect(
+      mask({
+        config: { ...DefaultTraceConfig, hideInputText: true },
+        key: "llm.input_messages.0.message.contents.0.message_content.text",
+        value: "let me think...",
+      }),
+    ).toBe(REDACTED_VALUE);
+  });
+
+  test("reasoning text is redacted by hideOutputText (it is emitted as message_content.text)", () => {
+    expect(
+      mask({
+        config: { ...DefaultTraceConfig, hideOutputText: true },
+        key: "llm.output_messages.0.message.contents.0.message_content.text",
+        value: "let me think...",
+      }),
+    ).toBe(REDACTED_VALUE);
+  });
+
+  test.each(opaqueInputKeys)("%s is dropped when hideInputMessages is true", (key) => {
+    expect(
+      mask({ config: { ...DefaultTraceConfig, hideInputMessages: true }, key, value: "token" }),
+    ).toBeUndefined();
+  });
+
+  test.each(opaqueOutputKeys)("%s is dropped when hideOutputMessages is true", (key) => {
+    expect(
+      mask({ config: { ...DefaultTraceConfig, hideOutputMessages: true }, key, value: "token" }),
+    ).toBeUndefined();
+  });
+});

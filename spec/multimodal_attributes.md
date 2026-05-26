@@ -1,6 +1,6 @@
 # Multimodal Attributes
 
-This document describes how multimodal content (text, images, audio) is represented in OpenInference spans.
+This document describes how message content arrays represent multimodal content (text, images, audio) in OpenInference spans. The same `message.contents` structure is also used for reasoning and provider-native tool-use parts when item ordering must be preserved.
 
 ## Message Content Arrays
 
@@ -21,6 +21,10 @@ Each content item has a `type` attribute that identifies its kind:
 - `"text"` - Text content
 - `"image"` - Image content (URL or base64)
 - `"audio"` - Audio content (URL or base64)
+- `"reasoning"` - Reasoning or thinking content, including visible summaries and Anthropic `redacted_thinking`
+- `"tool_use"` - Provider-native tool-use part when a tool call must remain ordered relative to adjacent content items
+
+Reasoning-specific fields such as `message_content.id`, `message_content.signature`, `message_content.data`, and `message_content.encrypted_content` are defined in [LLM Spans](./llm_spans.md#reasoning-content).
 
 ### Text Content
 

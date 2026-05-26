@@ -7,13 +7,198 @@ from typing import Any, cast
 import pytest
 from google.adk import Agent, __version__
 from google.adk.runners import InMemoryRunner
+from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool as load_artifacts
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation import (
+    REDACTED_VALUE,
+    TraceConfig,
+    safe_json_dumps,
+    suppress_tracing,
+    using_attributes,
+)
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+from openinference.semconv.trace import SpanAttributes
+
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
+
+_WEATHER_QUESTION = "What is the weather in New York?"
+
+
+def _get_weather(city: str) -> dict[str, str]:
+    """Retrieves the current weather report for a specified city.
+
+    Args:
+        city (str): The name of the city for which to retrieve the weather report.
+
+    Returns:
+        dict: status and result or error msg.
+    """
+    return {
+        "status": "success",
+        "report": (
+            f"The weather in {city} is sunny with a temperature of 25 degrees"
+            " Celsius (77 degrees Fahrenheit)."
+        ),
+    }
+
+
+def _build_weather_runner() -> tuple[InMemoryRunner, str, str]:
+    """Build a single-tool weather agent runner. Returns (runner, user_id, session_id)."""
+    agent = Agent(
+        name=f"_{token_hex(4)}",
+        model="gemini-2.0-flash",
+        description="Agent to answer questions using tools.",
+        instruction="You must use the available tools to find an answer.",
+        tools=[_get_weather],
+    )
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    return runner, token_hex(4), token_hex(4)
+
+
+async def _run_weather_query(runner: InMemoryRunner, user_id: str, session_id: str) -> None:
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(role="user", parts=[types.Part(text=_WEATHER_QUESTION)]),
+    ):
+        ...
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 17, 0),
+    reason=(
+        "AgentTool uses the wrapped agent name as the child runner app before "
+        "google-adk v1.17.0 release. This regression asserts the newer parent-app "
+        "sub-agent invocation shape."
+    ),
+)
+@pytest.mark.vcr
+async def test_sub_agent_session_id_not_overwritten_by_adk_internal_uuid(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    sub_agent_name = "Sub_Agent"
+    sub_agent = Agent(
+        name=sub_agent_name,
+        model="gemini-2.0-flash",
+        description="A sub-agent that retrieves weather information.",
+        instruction="Return the weather for the city the user asks about.",
+    )
+
+    root_agent_name = "Root_Agent"
+    root_agent = Agent(
+        name=root_agent_name,
+        model="gemini-2.0-flash",
+        description="Root agent that delegates to sub-agents.",
+        instruction="Delegate weather questions to the weather sub-agent.",
+        tools=[AgentTool(agent=sub_agent)],
+    )
+
+    app_name = f"app{token_hex(4)}"
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+
+    runner = InMemoryRunner(agent=root_agent, app_name=app_name)
+    session_service = runner.session_service
+    await session_service.create_session(
+        app_name=app_name,
+        user_id=user_id,
+        session_id=session_id,
+    )
+
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[types.Part(text="What is the weather in Tokyo?")],
+        ),
+    ):
+        ...
+
+    spans = sorted(
+        in_memory_span_exporter.get_finished_spans(),
+        key=lambda s: s.start_time or 0,
+    )
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    invocation_spans = spans_by_name[f"invocation [{app_name}]"]
+    assert len(invocation_spans) >= 1
+
+    # Root invocation has no parent and carries the correct session/user IDs.
+    root_invocation = next(s for s in invocation_spans if not s.parent)
+    assert root_invocation.status.is_ok
+    root_attrs = dict(root_invocation.attributes or {})
+    assert root_attrs.get(SpanAttributes.SESSION_ID) == session_id
+    assert root_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert root_attrs.get("openinference.span.kind") == "CHAIN"
+
+    # Root agent_run is a direct child of the root invocation.
+    root_agent_run_spans = spans_by_name[f"agent_run [{root_agent_name}]"]
+    assert len(root_agent_run_spans) == 1
+    root_agent_run = root_agent_run_spans[0]
+    assert root_agent_run.status.is_ok
+    assert root_agent_run.parent is root_invocation.get_span_context()
+    root_agent_run_attrs = dict(root_agent_run.attributes or {})
+    assert root_agent_run_attrs.get(SpanAttributes.SESSION_ID) == session_id
+    assert root_agent_run_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert root_agent_run_attrs.get("openinference.span.kind") == "AGENT"
+    assert root_agent_run_attrs.get("agent.name") == root_agent_name
+
+    # execute_tool span is produced when the root agent invokes the AgentTool.
+    tool_spans = spans_by_name[f"execute_tool {sub_agent_name}"]
+    assert len(tool_spans) == 1
+    tool_span = tool_spans[0]
+    assert tool_span.status.is_ok
+    tool_attrs = dict(tool_span.attributes or {})
+    assert tool_attrs.get(SpanAttributes.SESSION_ID) == session_id
+    assert tool_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert tool_attrs.get("openinference.span.kind") == "TOOL"
+
+    # Sub-agent invocation must carry the top-level session_id, not the ADK-internal UUID.
+    sub_invocation_spans = [s for s in invocation_spans if s.parent is not None]
+    assert len(sub_invocation_spans) >= 1
+    for sub_inv in sub_invocation_spans:
+        sub_inv_attrs = dict(sub_inv.attributes or {})
+        assert sub_inv_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
+            "Sub-agent invocation span carries wrong session.id value."
+        )
+
+    # Sub-agent agent_run must carry the top-level session_id, not the ADK-internal UUID.
+    sub_agent_run_spans = spans_by_name[f"agent_run [{sub_agent_name}]"]
+    assert len(sub_agent_run_spans) == 1
+    sub_agent_run = sub_agent_run_spans[0]
+    assert sub_agent_run.status.is_ok
+    sub_agent_run_attrs = dict(sub_agent_run.attributes or {})
+    assert sub_agent_run_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
+        "Sub-agent agent_run span carries wrong session.id value."
+    )
+    assert sub_agent_run_attrs.get(SpanAttributes.USER_ID) == user_id
+    assert sub_agent_run_attrs.get("openinference.span.kind") == "AGENT"
+    assert sub_agent_run_attrs.get("agent.name") == sub_agent_name
+
+    # All call_llm spans from both root and sub-agent must carry the top-level session_id.
+    call_llm_spans = spans_by_name["call_llm"]
+    assert len(call_llm_spans) >= 2, (
+        "Expected at least one call_llm from the root agent and one from the sub-agent"
+    )
+    for llm_span in call_llm_spans:
+        llm_attrs = dict(llm_span.attributes or {})
+        assert llm_attrs.get(SpanAttributes.SESSION_ID) == session_id, (
+            f"call_llm span (parent={llm_span.parent}) carries wrong session.id value."
+        )
+        assert llm_attrs.get("openinference.span.kind") == "LLM"
 
 
 @pytest.mark.vcr
@@ -47,7 +232,7 @@ async def test_google_adk_instrumentor(
         tools=[get_weather],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=agent, app_name=app_name)
@@ -315,7 +500,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
         tools=[get_weather],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=agent, app_name=app_name)
@@ -756,7 +941,7 @@ async def test_google_adk_instrumentor_multi_agent(
         sub_agents=[addition_agent, weather_agent],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=root_agent, app_name=app_name)
@@ -801,8 +986,17 @@ async def test_google_adk_instrumentor_multi_agent(
     assert root_agent_run_attributes.pop("session.id", None) == session_id
     assert root_agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
     assert root_agent_run_attributes.pop("agent.name", None) == root_agent_name
-    assert root_agent_run_attributes.pop("output.mime_type", None) == "application/json"
-    assert root_agent_run_attributes.pop("output.value", None)
+    if _VERSION >= (2, 0, 0):
+        # google-adk 2.0 runs a transferred sub-agent at the invocation level
+        # instead of nesting it inside the routing agent. The routing agent's
+        # run_async generator therefore no longer yields the sub-agent's
+        # final-response event, so the routing agent span carries no output of
+        # its own (the overall output is still captured on the invocation span).
+        assert "output.mime_type" not in root_agent_run_attributes
+        assert "output.value" not in root_agent_run_attributes
+    else:
+        assert root_agent_run_attributes.pop("output.mime_type", None) == "application/json"
+        assert root_agent_run_attributes.pop("output.value", None)
     # GenAI attributes set by google-adk library
     root_agent_run_attributes.pop("gen_ai.agent.description", None)
     root_agent_run_attributes.pop("gen_ai.agent.name", None)
@@ -917,7 +1111,12 @@ async def test_google_adk_instrumentor_multi_agent(
     weather_agent_run_span = spans_by_name[f"agent_run [{weather_agent_name}]"][0]
     assert weather_agent_run_span.status.is_ok
     assert weather_agent_run_span.parent
-    assert weather_agent_run_span.parent is call_llm_span0.get_span_context()
+    if _VERSION >= (2, 0, 0):
+        # google-adk 2.0 runs the transferred sub-agent directly under the
+        # invocation rather than nested under the routing agent's call_llm span.
+        assert weather_agent_run_span.parent is invocation_span.get_span_context()
+    else:
+        assert weather_agent_run_span.parent is call_llm_span0.get_span_context()
     weather_agent_run_attributes = dict(weather_agent_run_span.attributes or {})
     assert weather_agent_run_attributes.pop("user.id", None) == user_id
     assert weather_agent_run_attributes.pop("session.id", None) == session_id
@@ -1258,7 +1457,7 @@ async def test_google_adk_instrumentor_image_artifacts(
         tools=[load_remote_image, load_artifacts],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
 
@@ -1578,7 +1777,7 @@ async def test_google_adk_instrumentor_parallel_tool_calls(
         tools=[get_weather],
     )
 
-    app_name = token_hex(4)
+    app_name = f"app{token_hex(4)}"
     user_id = token_hex(4)
     session_id = token_hex(4)
     runner = InMemoryRunner(agent=agent, app_name=app_name)
@@ -1612,3 +1811,67 @@ async def test_google_adk_instrumentor_parallel_tool_calls(
     merged_span = merged_spans[0]
     assert merged_span.instrumentation_scope is not None
     assert merged_span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_suppresses_tracing(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Running inside ``suppress_tracing()`` must not emit any spans."""
+    runner, user_id, session_id = _build_weather_runner()
+    with suppress_tracing():
+        await _run_weather_query(runner, user_id, session_id)
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_propagates_context_attributes(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Context attributes set via ``using_attributes`` propagate to every span."""
+    runner, user_id, session_id = _build_weather_runner()
+    metadata = {"environment": "test"}
+    tags = ["alpha", "beta"]
+    with using_attributes(metadata=metadata, tags=tags):
+        await _run_weather_query(runner, user_id, session_id)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert spans
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.get(SpanAttributes.METADATA) == safe_json_dumps(metadata)
+        assert attributes.get(SpanAttributes.TAG_TAGS) == tuple(tags)
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_trace_config_hides_inputs(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """``TraceConfig(hide_inputs=True)`` masks input values and input messages."""
+    GoogleADKInstrumentor().instrument(
+        tracer_provider=tracer_provider, config=TraceConfig(hide_inputs=True)
+    )
+    try:
+        runner, user_id, session_id = _build_weather_runner()
+        await _run_weather_query(runner, user_id, session_id)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert spans
+    saw_redacted_input = False
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        if SpanAttributes.INPUT_VALUE in attributes:
+            assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+            saw_redacted_input = True
+        # Input mime type and input messages are dropped entirely when masked.
+        assert SpanAttributes.INPUT_MIME_TYPE not in attributes
+        assert not any(key.startswith(SpanAttributes.LLM_INPUT_MESSAGES) for key in attributes)
+        # Outputs remain visible.
+        if span.name.startswith("call_llm"):
+            assert attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert saw_redacted_input

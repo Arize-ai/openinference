@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.39...python-openinference-instrumentation-bedrock-v0.1.40) (2026-05-22)
+
+
+### Bug Fixes
+
+* **bedrock:** set clean text from routing classifier output and set action group tool description ([#3125](https://github.com/Arize-ai/openinference/issues/3125)) ([0fd6f6c](https://github.com/Arize-ai/openinference/commit/0fd6f6c57fa26f055ab96fb3120a90b99a5b6ff3))
+
 ## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.38...python-openinference-instrumentation-bedrock-v0.1.39) (2026-05-18)
 
 
