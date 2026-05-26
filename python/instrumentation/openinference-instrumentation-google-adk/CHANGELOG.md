@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.14...python-openinference-instrumentation-google-adk-v0.1.15) (2026-05-22)
+
+
+### Bug Fixes
+
+* **google_adk:** Handle Session ID For Sub-Agent Spans ([#3124](https://github.com/Arize-ai/openinference/issues/3124)) ([463cb75](https://github.com/Arize-ai/openinference/commit/463cb751daece76d3bfb549e3e88a0d8d55702e6))
+* **google-adk:** support google-adk 2.0 in canary tests ([#3156](https://github.com/Arize-ai/openinference/issues/3156)) ([b66f319](https://github.com/Arize-ai/openinference/commit/b66f319ed1f697a2d4b5e56c194b745041c1919e))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.13...python-openinference-instrumentation-google-adk-v0.1.14) (2026-05-18)
 
 

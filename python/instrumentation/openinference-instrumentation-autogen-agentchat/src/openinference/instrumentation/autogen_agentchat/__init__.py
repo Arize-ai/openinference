@@ -5,7 +5,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
     BaseInstrumentor,
 )
-from wrapt.patches import resolve_path, wrap_function_wrapper
+from wrapt import resolve_path, wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.autogen_agentchat.version import __version__
@@ -63,8 +63,8 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
 
         for method, wrapper in method_wrappers.items():
             module, name = method.__module__, method.__qualname__
-            self._originals.append(resolve_path(module, name))  # type: ignore[no-untyped-call]
-            wrap_function_wrapper(module, name, wrapper)  # type: ignore[no-untyped-call]
+            self._originals.append(resolve_path(module, name))
+            wrap_function_wrapper(module, name, wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         for parent, attribute, original in getattr(self, "_originals", ()):

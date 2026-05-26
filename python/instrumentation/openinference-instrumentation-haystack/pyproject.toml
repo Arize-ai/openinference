@@ -78,10 +78,10 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "wrapt",
     "haystack.*",
     "datasets",
     "openinference.instrumentation.haystack.*",
-    "wrapt",
 ]
 
 [tool.ruff]

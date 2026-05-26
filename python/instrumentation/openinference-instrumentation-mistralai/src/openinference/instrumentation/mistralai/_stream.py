@@ -14,7 +14,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
+from wrapt import ObjectProxy
 
 from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
@@ -87,7 +87,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             return chunk
 
     def __aiter__(self) -> AsyncIterator[Any]:
-        return self  # type: ignore[return-value]
+        return self
 
     def _process_chunk(self, chunk: Any) -> None:
         if not self._self_iteration_count:

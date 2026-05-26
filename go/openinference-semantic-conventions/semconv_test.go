@@ -96,6 +96,10 @@ func TestAttributeKeys(t *testing.T) {
 		{MessageContentType, "message_content.type"},
 		{MessageContentText, "message_content.text"},
 		{MessageContentImage, "message_content.image"},
+		{MessageContentID, "message_content.id"},
+		{MessageContentSignature, "message_content.signature"},
+		{MessageContentData, "message_content.data"},
+		{MessageContentEncryptedContent, "message_content.encrypted_content"},
 
 		{ImageURL, "image.url"},
 
@@ -111,6 +115,7 @@ func TestAttributeKeys(t *testing.T) {
 		{ToolCallID, "tool_call.id"},
 		{ToolCallFunctionName, "tool_call.function.name"},
 		{ToolCallFunctionArgumentsJSON, "tool_call.function.arguments"},
+		{ToolCallReasoningSignature, "tool_call.reasoning_signature"},
 
 		{PromptText, "prompt.text"},
 		{CompletionText, "completion.text"},

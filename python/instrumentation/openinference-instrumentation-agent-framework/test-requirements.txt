@@ -1,4 +1,5 @@
-agent-framework==1.4.0
+agent-framework-core==1.0.0
+agent-framework-openai==1.0.0
 opentelemetry-semantic-conventions-ai==0.4.13
 pytest
 pytest-asyncio
