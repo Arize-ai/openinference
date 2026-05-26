@@ -59,7 +59,7 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Status, StatusCode, Tracer
 from opentelemetry.util.types import AttributeValue
-from wrapt.patches import wrap_function_wrapper
+from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import (
     OITracer,
@@ -612,7 +612,7 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         boto = import_module(_MODULE)
         botocore = import_module(_BASE_MODULE)
         self._original_client_creator = boto.ClientCreator.create_client
-        wrap_function_wrapper(  # type: ignore[no-untyped-call]
+        wrap_function_wrapper(
             _MODULE,
             "ClientCreator.create_client",
             _sync_client_creation_wrapper(
@@ -624,7 +624,7 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         try:
             aioboto = import_module(_AIO_MODULE)
             self._original_aio_client_creator = aioboto.AioClientCreator.create_client
-            wrap_function_wrapper(  # type: ignore[no-untyped-call]
+            wrap_function_wrapper(
                 _AIO_MODULE,
                 "AioClientCreator.create_client",
                 _async_client_creation_wrapper(

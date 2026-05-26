@@ -318,6 +318,9 @@ def _get_attributes_from_input(
         elif item["type"] == "tool_search_output":
             # TODO: Handle tool search output response
             continue
+        elif item["type"] == "compaction_trigger":
+            # TODO: Handle compaction trigger response
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
 
