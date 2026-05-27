@@ -206,6 +206,7 @@ def test_realtime_spans_inherit_session_context_from_session_creation(
     state.on_session_close()
 
     for span in in_memory_span_exporter.get_finished_spans():
+        assert span.attributes is not None
         assert span.attributes[SpanAttributes.SESSION_ID] == "realtime-session-1"
 
 
@@ -232,6 +233,7 @@ def test_realtime_spans_use_provider_session_id_when_context_has_none(
     state.on_session_close()
 
     for span in in_memory_span_exporter.get_finished_spans():
+        assert span.attributes is not None
         assert span.attributes[SpanAttributes.SESSION_ID] == "sess_provider_1"
 
 
@@ -259,6 +261,7 @@ def test_realtime_context_session_id_takes_precedence_over_provider_session_id(
     state.on_session_close()
 
     for span in in_memory_span_exporter.get_finished_spans():
+        assert span.attributes is not None
         assert span.attributes[SpanAttributes.SESSION_ID] == "user-session-1"
 
 

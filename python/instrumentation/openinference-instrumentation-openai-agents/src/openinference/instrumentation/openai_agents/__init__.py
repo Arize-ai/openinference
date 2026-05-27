@@ -4,7 +4,7 @@ from typing import Any, Collection, cast
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Tracer
-from wrapt.patches import wrap_function_wrapper
+from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.openai_agents.package import _instruments
@@ -65,22 +65,22 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
 
         if _load_realtime_events():
             try:
-                from agents.realtime.session import RealtimeSession  # type: ignore[import]
+                from agents.realtime.session import RealtimeSession
 
                 self._original_put_event = RealtimeSession._put_event
-                wrap_function_wrapper(  # type: ignore[no-untyped-call]
+                wrap_function_wrapper(
                     _REALTIME_MODULE,
                     _REALTIME_PUT_EVENT_ATTR,
                     make_realtime_wrapper(tracer, config),
                 )
                 self._original_send_audio = RealtimeSession.send_audio
-                wrap_function_wrapper(  # type: ignore[no-untyped-call]
+                wrap_function_wrapper(
                     _REALTIME_MODULE,
                     _REALTIME_SEND_AUDIO_ATTR,
                     make_send_audio_wrapper(),
                 )
                 self._original_close = RealtimeSession.close
-                wrap_function_wrapper(  # type: ignore[no-untyped-call]
+                wrap_function_wrapper(
                     _REALTIME_MODULE,
                     _REALTIME_CLOSE_ATTR,
                     make_close_wrapper(),
@@ -99,21 +99,18 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _uninstrument(self, **kwargs: Any) -> None:
         try:
-            from agents.realtime.session import RealtimeSession  # type: ignore[import]
+            from agents.realtime.session import RealtimeSession
 
             original = getattr(self, "_original_put_event", None)
             if original is not None:
-                RealtimeSession._put_event = original
-                self._original_put_event = None
+                RealtimeSession._put_event = original  # type: ignore[method-assign]
 
             original = getattr(self, "_original_send_audio", None)
             if original is not None:
-                RealtimeSession.send_audio = original
-                self._original_send_audio = None
+                RealtimeSession.send_audio = original  # type: ignore[method-assign]
 
             original = getattr(self, "_original_close", None)
             if original is not None:
-                RealtimeSession.close = original
-                self._original_close = None
+                RealtimeSession.close = original  # type: ignore[method-assign]
         except Exception:
             logger.debug("realtime uninstrument failed", exc_info=True)

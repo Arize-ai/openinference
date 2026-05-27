@@ -160,13 +160,12 @@ def _load_realtime_events() -> bool:
     global _RealtimeToolEnd
     global _RealtimeInputAudioTimeoutTriggered
     try:
-        from agents.realtime.events import (  # type: ignore[import]
+        from agents.realtime.events import (
             RealtimeAgentEndEvent,
             RealtimeAgentStartEvent,
             RealtimeAudio,
             RealtimeAudioInterrupted,
             RealtimeError,
-            RealtimeInputAudioTimeoutTriggered,
             RealtimeRawModelEvent,
             RealtimeToolEnd,
             RealtimeToolStart,
@@ -180,7 +179,15 @@ def _load_realtime_events() -> bool:
         _RealtimeRawModelEvent = RealtimeRawModelEvent
         _RealtimeToolStart = RealtimeToolStart
         _RealtimeToolEnd = RealtimeToolEnd
-        _RealtimeInputAudioTimeoutTriggered = RealtimeInputAudioTimeoutTriggered
+        # Added in a later openai-agents release; absent on older pinned versions.
+        try:
+            from agents.realtime.events import (  # type: ignore[attr-defined,unused-ignore]
+                RealtimeInputAudioTimeoutTriggered,
+            )
+
+            _RealtimeInputAudioTimeoutTriggered = RealtimeInputAudioTimeoutTriggered
+        except ImportError:
+            pass
         return True
     except ImportError:
         logger.debug("agents.realtime.events not available — realtime instrumentation disabled")
