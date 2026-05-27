@@ -873,16 +873,23 @@ def _finalize_user(
 
 
 def _set_turn_io_attributes(turn: _TurnState, config: TraceConfig) -> None:
-    # Mirror child-span gating: the parent AUDIO span aggregates user/assistant
-    # text from the same source fields the children read, so the same flags must
-    # suppress it here too. Without this, hide_inputs/hide_outputs (and the audio
-    # env vars) leak transcripts onto the parent even when the child is clean.
-    if not (config.hide_inputs or _hide_input_audio(config)):
-        input_values = [
-            text for user in turn.users for text in (user.user_text, user.user_transcript) if text
-        ]
-        if input_values:
-            turn.turn_span.set_attribute(_INPUT_VALUE, "\n".join(input_values))
+    # The parent AUDIO span aggregates input text from two sources with different
+    # gating flags — mirror _finalize_user's per-source split:
+    #   user.user_text       → gated by hide_inputs / hide_input_text  (typed input)
+    #   user.user_transcript → gated by hide_inputs / hide_input_audio (audio-derived)
+    # A single combined gate would leak typed text when only hide_input_text is set.
+    hide_text_in = config.hide_inputs or config.hide_input_text
+    hide_audio_in = config.hide_inputs or _hide_input_audio(config)
+    input_values: list[str] = []
+    for user in turn.users:
+        if not hide_text_in and user.user_text:
+            input_values.append(user.user_text)
+        if not hide_audio_in and user.user_transcript:
+            input_values.append(user.user_transcript)
+    if input_values:
+        turn.turn_span.set_attribute(_INPUT_VALUE, "\n".join(input_values))
+
+    # Output side has only one source (audio transcript) — gate by hide_output_audio.
     if not (config.hide_outputs or _hide_output_audio(config)):
         output_values = [
             response.asst_transcript

@@ -1798,6 +1798,48 @@ def test_hide_output_audio_env_drops_output_value_on_audio_parent(
     assert audio_attrs.get(SpanAttributes.INPUT_VALUE) == "Hi."
 
 
+def test_hide_input_text_drops_typed_text_but_keeps_transcript_on_audio_parent(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """TraceConfig(hide_input_text=True) must suppress typed user text without
+    suppressing the audio-derived transcript. The parent AUDIO span aggregates
+    both sources and must filter each by its own flag."""
+    state = _state(tracer_provider, config=TraceConfig(hide_input_text=True))
+
+    # Typed text + spoken audio in the same turn.
+    _dispatch_raw(
+        state,
+        _raw_event(
+            {
+                "type": "conversation.item.added",
+                "item": {
+                    "id": "item_text_001",
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "typed query"}],
+                },
+            }
+        ),
+    )
+    state.on_speech_started("item-audio-1")
+    state.on_send_audio(b"\x00\x01" * 64)
+    state.on_user_audio_committed("item-audio-1")
+    state.on_user_transcript_completed("item-audio-1", "spoken query")
+    state.on_response_created("response-1", "gpt-realtime")
+    state.on_asst_transcript_done("response-1", "answer")
+    state.on_response_done("response-1", None, "gpt-realtime")
+    state.on_session_close()
+
+    audio_attrs = _spans_by_kind(in_memory_span_exporter)[_AUDIO_KIND][0].attributes
+    assert audio_attrs is not None
+    # Typed text MUST NOT leak; transcript MUST survive.
+    input_value = audio_attrs.get(SpanAttributes.INPUT_VALUE)
+    assert input_value is not None
+    assert "typed query" not in input_value
+    assert "spoken query" in input_value
+
+
 # ----------------------------------------------------------------------
 # Suppress tracing
 # ----------------------------------------------------------------------
