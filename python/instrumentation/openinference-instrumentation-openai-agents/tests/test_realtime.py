@@ -6,7 +6,15 @@ from typing import Any
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.instrumentation import OITracer, TraceConfig, suppress_tracing, using_session
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    suppress_tracing,
+    using_metadata,
+    using_session,
+    using_tags,
+    using_user,
+)
 from openinference.instrumentation.openai_agents import _realtime
 from openinference.instrumentation.openai_agents._realtime import (
     _AUDIO_KIND,
@@ -263,6 +271,66 @@ def test_realtime_context_session_id_takes_precedence_over_provider_session_id(
     for span in in_memory_span_exporter.get_finished_spans():
         assert span.attributes is not None
         assert span.attributes[SpanAttributes.SESSION_ID] == "user-session-1"
+
+
+def _drive_minimal_turn(state: _RealtimeSessionState) -> None:
+    state.on_speech_started("item-1")
+    state.on_user_transcript_completed("item-1", "Hello.")
+    state.on_response_created("response-1", None)
+    state.on_asst_transcript_done("response-1", "Hi.")
+    state.on_response_done("response-1", None, None)
+    state.on_session_close()
+
+
+def test_realtime_spans_propagate_user_id_from_context(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """user.id set via using_user() at session-state creation must land on every span."""
+    with using_user("u-test"):
+        state = _state(tracer_provider)
+    _drive_minimal_turn(state)
+
+    for span in in_memory_span_exporter.get_finished_spans():
+        assert span.attributes is not None
+        assert span.attributes[SpanAttributes.USER_ID] == "u-test"
+
+
+def test_realtime_spans_propagate_metadata_from_context(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """metadata set via using_metadata() must land on every span as a JSON string."""
+    import json
+
+    metadata = {"env": "prod", "tier": "free"}
+    with using_metadata(metadata):
+        state = _state(tracer_provider)
+    _drive_minimal_turn(state)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert spans
+    for span in spans:
+        assert span.attributes is not None
+        raw = span.attributes[SpanAttributes.METADATA]
+        assert json.loads(raw) == metadata  # type: ignore[arg-type]
+
+
+def test_realtime_spans_propagate_tags_from_context(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """tag.tags set via using_tags() must land on every span."""
+    with using_tags(["voice", "barge-in"]):
+        state = _state(tracer_provider)
+    _drive_minimal_turn(state)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert spans
+    for span in spans:
+        assert span.attributes is not None
+        tags = span.attributes[SpanAttributes.TAG_TAGS]
+        assert tags == ("voice", "barge-in") or tags == ["voice", "barge-in"]
 
 
 def test_session_config_captured_on_turn_invocation_parameters(
@@ -1849,8 +1917,9 @@ def test_no_spans_when_tracing_suppressed(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    """Inside suppress_tracing(), both wrappers must skip instrumentation entirely:
-    no session state is created, no spans are produced."""
+    """Inside suppress_tracing() (which sets _SUPPRESS_INSTRUMENTATION_KEY on the
+    OTel context), both wrappers must skip instrumentation entirely: no session
+    state is created, no spans are produced."""
     tracer = OITracer(
         trace_api.get_tracer(__name__, tracer_provider=tracer_provider),
         config=TraceConfig(),
