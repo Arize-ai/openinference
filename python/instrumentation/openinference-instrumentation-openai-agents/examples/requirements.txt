@@ -1,0 +1,5 @@
+openai-agents>=0.2.6
+openinference-instrumentation-openai-agents
+opentelemetry-exporter-otlp-proto-http
+sounddevice>=0.4.7
+numpy>=1.24
