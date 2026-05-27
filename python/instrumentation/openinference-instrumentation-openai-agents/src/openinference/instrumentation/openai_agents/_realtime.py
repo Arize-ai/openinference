@@ -160,38 +160,24 @@ def _load_realtime_events() -> bool:
     global _RealtimeToolEnd
     global _RealtimeInputAudioTimeoutTriggered
     try:
-        from agents.realtime.events import (
-            RealtimeAgentEndEvent,
-            RealtimeAgentStartEvent,
-            RealtimeAudio,
-            RealtimeAudioInterrupted,
-            RealtimeError,
-            RealtimeRawModelEvent,
-            RealtimeToolEnd,
-            RealtimeToolStart,
-        )
-
-        _RealtimeAgentStartEvent = RealtimeAgentStartEvent
-        _RealtimeAgentEndEvent = RealtimeAgentEndEvent
-        _RealtimeAudio = RealtimeAudio
-        _RealtimeAudioInterrupted = RealtimeAudioInterrupted
-        _RealtimeError = RealtimeError
-        _RealtimeRawModelEvent = RealtimeRawModelEvent
-        _RealtimeToolStart = RealtimeToolStart
-        _RealtimeToolEnd = RealtimeToolEnd
-        # Added in a later openai-agents release; absent on older pinned versions.
-        try:
-            from agents.realtime.events import (  # type: ignore[attr-defined,unused-ignore]
-                RealtimeInputAudioTimeoutTriggered,
-            )
-
-            _RealtimeInputAudioTimeoutTriggered = RealtimeInputAudioTimeoutTriggered
-        except ImportError:
-            pass
-        return True
+        import agents.realtime.events as realtime_events
     except ImportError:
         logger.debug("agents.realtime.events not available — realtime instrumentation disabled")
         return False
+
+    _RealtimeAgentStartEvent = realtime_events.RealtimeAgentStartEvent
+    _RealtimeAgentEndEvent = realtime_events.RealtimeAgentEndEvent
+    _RealtimeAudio = realtime_events.RealtimeAudio
+    _RealtimeAudioInterrupted = realtime_events.RealtimeAudioInterrupted
+    _RealtimeError = realtime_events.RealtimeError
+    _RealtimeRawModelEvent = realtime_events.RealtimeRawModelEvent
+    _RealtimeToolStart = realtime_events.RealtimeToolStart
+    _RealtimeToolEnd = realtime_events.RealtimeToolEnd
+    # Added in a later openai-agents release; absent on older pinned versions (e.g., 0.2.6).
+    _RealtimeInputAudioTimeoutTriggered = getattr(
+        realtime_events, "RealtimeInputAudioTimeoutTriggered", None
+    )
+    return True
 
 
 # Per-session state, keyed weakly so we don't keep dead sessions alive.
@@ -605,6 +591,8 @@ class _RealtimeSessionState:
         for turn in self._open_turns():
             _set_end_reason(turn, _END_REASON_SESSION_CLOSED)
             _finalize_turn(turn, self._config, status=status)
+        self._turn_awaiting_followup = None
+        self._tool_spans_by_call_id.clear()
 
     def on_session_close(self) -> None:
         # Finalize every open turn. _turn_awaiting_followup may differ from _latest_turn
@@ -627,6 +615,10 @@ class _RealtimeSessionState:
                 len(turn.responses),
             )
             _finalize_turn(turn, self._config)
+        # All turns are closed; clear stale session-level references so a late
+        # event can't resurface them.
+        self._turn_awaiting_followup = None
+        self._tool_spans_by_call_id.clear()
 
     def _open_turns(self) -> list[_TurnState]:
         """Open turns in finalization order. Deduplicates if _latest_turn and
