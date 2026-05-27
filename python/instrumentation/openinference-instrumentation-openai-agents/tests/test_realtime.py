@@ -1425,6 +1425,43 @@ def test_close_wrapper_finalizes_open_turn(
     assert len(spans[_USER_KIND]) == 1
 
 
+def test_session_close_finalizes_awaiting_followup_turn(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """A barge-in mid-tool-round-trip stashes the originating turn as
+    _turn_awaiting_followup while _latest_turn becomes the barge-in turn. If the
+    session closes before the follow-up response arrives, both turns must be
+    finalized — leaving the awaiting turn open would leak its spans."""
+    state = _state(tracer_provider)
+
+    # Turn 1: question that triggers a tool call (response.done declares function_call).
+    state.on_speech_started("item-1")
+    state.on_user_transcript_completed("item-1", "What's the time in Tokyo?")
+    state.on_response_created("response-1a", "gpt-realtime")
+    state.on_response_done(
+        "response-1a",
+        None,
+        "gpt-realtime",
+        output=[{"type": "function_call", "call_id": "call-1", "name": "get_time"}],
+    )
+    # Turn 1 is now awaiting follow-up. User barges in — opens Turn 2 alongside.
+    state.on_speech_started("item-2")
+    state.on_user_transcript_completed("item-2", "Never mind.")
+
+    # Session closes before the tool follow-up arrives.
+    state.on_session_close()
+
+    spans = _spans_by_kind(in_memory_span_exporter)
+    audio_spans = spans[_AUDIO_KIND]
+    assert len(audio_spans) == 2, (
+        f"Both Turn 1 (awaiting follow-up) and Turn 2 (barge-in) must be finalized; "
+        f"got {len(audio_spans)} AUDIO span(s)"
+    )
+    input_values = {span.attributes[SpanAttributes.INPUT_VALUE] for span in audio_spans}
+    assert input_values == {"What's the time in Tokyo?", "Never mind."}
+
+
 # ----------------------------------------------------------------------
 # Audio redaction + truncation
 # ----------------------------------------------------------------------

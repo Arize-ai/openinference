@@ -598,32 +598,46 @@ class _RealtimeSessionState:
                 _finalize_turn(turn, self._config)
 
     def on_error(self, error_message: str) -> None:
-        # RealtimeError has no response_id field, so errors land on the latest turn.
-        turn = self._latest_turn
-        if not turn or turn.closed:
-            return
-        _set_end_reason(turn, _END_REASON_SESSION_CLOSED)
+        # RealtimeError has no response_id field, so errors land on every open turn.
+        # Both _latest_turn and _turn_awaiting_followup may be open (the latter holds the
+        # originating turn of a tool round-trip when a barge-in opened a newer turn).
         status = Status(StatusCode.ERROR, description=error_message)
-        _finalize_turn(turn, self._config, status=status)
+        for turn in self._open_turns():
+            _set_end_reason(turn, _END_REASON_SESSION_CLOSED)
+            _finalize_turn(turn, self._config, status=status)
 
     def on_session_close(self) -> None:
-        if self._latest_turn and not self._latest_turn.closed:
-            responses = self._latest_turn.responses.values()
-            if not self._latest_turn.responses or any(
-                not response.closed for response in responses
-            ):
-                _set_end_reason(self._latest_turn, _END_REASON_SESSION_CLOSED)
-            logger.debug(
-                "realtime: on_session_close — finalizing turn with %d user(s), %d response(s)",
-                len(self._latest_turn.users),
-                len(self._latest_turn.responses),
-            )
-            _finalize_turn(self._latest_turn, self._config)
-        else:
+        # Finalize every open turn. _turn_awaiting_followup may differ from _latest_turn
+        # if a barge-in opened a new turn during a tool round-trip — leaving it unfinalized
+        # would leak that turn's AUDIO/USER/LLM/TOOL spans.
+        open_turns = self._open_turns()
+        if not open_turns:
             logger.debug(
                 "realtime: on_session_close — no open turn to finalize (latest_turn=%s)",
                 "closed" if self._latest_turn else "None",
             )
+            return
+        for turn in open_turns:
+            responses = turn.responses.values()
+            if not turn.responses or any(not response.closed for response in responses):
+                _set_end_reason(turn, _END_REASON_SESSION_CLOSED)
+            logger.debug(
+                "realtime: on_session_close — finalizing turn with %d user(s), %d response(s)",
+                len(turn.users),
+                len(turn.responses),
+            )
+            _finalize_turn(turn, self._config)
+
+    def _open_turns(self) -> list[_TurnState]:
+        """Open turns in finalization order. Deduplicates if _latest_turn and
+        _turn_awaiting_followup point at the same turn."""
+        seen: set[int] = set()
+        out: list[_TurnState] = []
+        for turn in (self._turn_awaiting_followup, self._latest_turn):
+            if turn and not turn.closed and id(turn) not in seen:
+                seen.add(id(turn))
+                out.append(turn)
+        return out
 
     # ------------------------------------------------------------------
     # Helpers
