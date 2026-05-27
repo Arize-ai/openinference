@@ -743,7 +743,7 @@ def _finalize_turn(
     # --- AUDIO turn parent ---
     _set_end_reason(turn, _END_REASON_COMPLETE)
     turn_span = turn.turn_span
-    _set_turn_io_attributes(turn)
+    _set_turn_io_attributes(turn, config)
     turn_span.set_attribute(_END_REASON, turn.end_reason or _END_REASON_COMPLETE)
     turn_span.set_status(status)
     turn_span.end()
@@ -851,19 +851,25 @@ def _finalize_user(
     user.closed = True
 
 
-def _set_turn_io_attributes(turn: _TurnState) -> None:
-    input_values = [
-        text for user in turn.users for text in (user.user_text, user.user_transcript) if text
-    ]
-    output_values = [
-        response.asst_transcript
-        for response_id in turn.response_order
-        if (response := turn.responses.get(response_id)) and response.asst_transcript
-    ]
-    if input_values:
-        turn.turn_span.set_attribute(_INPUT_VALUE, "\n".join(input_values))
-    if output_values:
-        turn.turn_span.set_attribute(_OUTPUT_VALUE, "\n".join(output_values))
+def _set_turn_io_attributes(turn: _TurnState, config: TraceConfig) -> None:
+    # Mirror child-span gating: the parent AUDIO span aggregates user/assistant
+    # text from the same source fields the children read, so the same flags must
+    # suppress it here too. Without this, hide_inputs/hide_outputs (and the audio
+    # env vars) leak transcripts onto the parent even when the child is clean.
+    if not (config.hide_inputs or _hide_input_audio(config)):
+        input_values = [
+            text for user in turn.users for text in (user.user_text, user.user_transcript) if text
+        ]
+        if input_values:
+            turn.turn_span.set_attribute(_INPUT_VALUE, "\n".join(input_values))
+    if not (config.hide_outputs or _hide_output_audio(config)):
+        output_values = [
+            response.asst_transcript
+            for response_id in turn.response_order
+            if (response := turn.responses.get(response_id)) and response.asst_transcript
+        ]
+        if output_values:
+            turn.turn_span.set_attribute(_OUTPUT_VALUE, "\n".join(output_values))
 
 
 def _set_end_reason(turn: _TurnState, reason: str) -> None:

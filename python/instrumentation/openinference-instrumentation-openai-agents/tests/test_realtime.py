@@ -1688,3 +1688,69 @@ def test_attribute_keys_snapshot_on_full_turn(
         "output.audio.transcript",
         "time_to_first_token_ms",
     }
+
+
+# ----------------------------------------------------------------------
+# Parent AUDIO span respects redaction flags
+# ----------------------------------------------------------------------
+
+
+def test_hide_inputs_drops_input_value_on_audio_parent(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """TraceConfig(hide_inputs=True) must also suppress input.value on the parent."""
+    state = _state(tracer_provider, config=TraceConfig(hide_inputs=True))
+    _drive_audio_turn(state)
+
+    audio_attrs = _spans_by_kind(in_memory_span_exporter)[_AUDIO_KIND][0].attributes
+    assert audio_attrs is not None
+    assert SpanAttributes.INPUT_VALUE not in audio_attrs
+    # Output side unaffected.
+    assert audio_attrs.get(SpanAttributes.OUTPUT_VALUE) == "Hello!"
+
+
+def test_hide_outputs_drops_output_value_on_audio_parent(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """TraceConfig(hide_outputs=True) must also suppress output.value on the parent."""
+    state = _state(tracer_provider, config=TraceConfig(hide_outputs=True))
+    _drive_audio_turn(state)
+
+    audio_attrs = _spans_by_kind(in_memory_span_exporter)[_AUDIO_KIND][0].attributes
+    assert audio_attrs is not None
+    assert SpanAttributes.OUTPUT_VALUE not in audio_attrs
+    assert audio_attrs.get(SpanAttributes.INPUT_VALUE) == "Hi."
+
+
+def test_hide_input_audio_env_drops_input_value_on_audio_parent(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: Any,
+) -> None:
+    """OPENINFERENCE_HIDE_INPUT_AUDIO must suppress input.value on the parent too."""
+    monkeypatch.setenv("OPENINFERENCE_HIDE_INPUT_AUDIO", "true")
+    state = _state(tracer_provider)
+    _drive_audio_turn(state)
+
+    audio_attrs = _spans_by_kind(in_memory_span_exporter)[_AUDIO_KIND][0].attributes
+    assert audio_attrs is not None
+    assert SpanAttributes.INPUT_VALUE not in audio_attrs
+    assert audio_attrs.get(SpanAttributes.OUTPUT_VALUE) == "Hello!"
+
+
+def test_hide_output_audio_env_drops_output_value_on_audio_parent(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: Any,
+) -> None:
+    """OPENINFERENCE_HIDE_OUTPUT_AUDIO must suppress output.value on the parent too."""
+    monkeypatch.setenv("OPENINFERENCE_HIDE_OUTPUT_AUDIO", "true")
+    state = _state(tracer_provider)
+    _drive_audio_turn(state)
+
+    audio_attrs = _spans_by_kind(in_memory_span_exporter)[_AUDIO_KIND][0].attributes
+    assert audio_attrs is not None
+    assert SpanAttributes.OUTPUT_VALUE not in audio_attrs
+    assert audio_attrs.get(SpanAttributes.INPUT_VALUE) == "Hi."
