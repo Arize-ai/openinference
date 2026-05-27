@@ -6,7 +6,7 @@ from typing import Any
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.instrumentation import OITracer, TraceConfig, using_session
+from openinference.instrumentation import OITracer, TraceConfig, suppress_tracing, using_session
 from openinference.instrumentation.openai_agents import _realtime
 from openinference.instrumentation.openai_agents._realtime import (
     _AUDIO_KIND,
@@ -16,6 +16,8 @@ from openinference.instrumentation.openai_agents._realtime import (
     _RealtimeSessionState,
     _session_states,
     make_close_wrapper,
+    make_realtime_wrapper,
+    make_send_audio_wrapper,
     pcm16_to_wav_data_uri,
     truncate_audio_data_uri,
 )
@@ -1754,3 +1756,42 @@ def test_hide_output_audio_env_drops_output_value_on_audio_parent(
     assert audio_attrs is not None
     assert SpanAttributes.OUTPUT_VALUE not in audio_attrs
     assert audio_attrs.get(SpanAttributes.INPUT_VALUE) == "Hi."
+
+
+# ----------------------------------------------------------------------
+# Suppress tracing
+# ----------------------------------------------------------------------
+
+
+def test_no_spans_when_tracing_suppressed(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Inside suppress_tracing(), both wrappers must skip instrumentation entirely:
+    no session state is created, no spans are produced."""
+    tracer = OITracer(
+        trace_api.get_tracer(__name__, tracer_provider=tracer_provider),
+        config=TraceConfig(),
+    )
+    put_wrapper = make_realtime_wrapper(tracer, TraceConfig())
+    audio_wrapper = make_send_audio_wrapper()
+
+    class _FakeSession:
+        pass
+
+    session: Any = _FakeSession()
+
+    async def _orig_put(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    async def _orig_send(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    fake_event = object()
+
+    with suppress_tracing():
+        asyncio.run(put_wrapper(_orig_put, session, (fake_event,), {}))
+        asyncio.run(audio_wrapper(_orig_send, session, (b"\x00\x01" * 64,), {}))
+
+    assert in_memory_span_exporter.get_finished_spans() == ()
+    assert session not in _session_states
