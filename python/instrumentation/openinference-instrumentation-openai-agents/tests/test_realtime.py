@@ -1499,21 +1499,52 @@ def test_session_close_finalizes_awaiting_followup_turn(
 ) -> None:
     """A barge-in mid-tool-round-trip stashes the originating turn as
     _turn_awaiting_followup while _latest_turn becomes the barge-in turn. If the
-    session closes before the follow-up response arrives, both turns must be
-    finalized — leaving the awaiting turn open would leak its spans."""
+    session closes before the follow-up response arrives:
+      - both AUDIO turn spans must be finalized (leaving _turn_awaiting_followup
+        open would leak Turn 1's spans), AND
+      - any open TOOL span (the tool that never returned) must close with ERROR.
+    """
     state = _state(tracer_provider)
 
-    # Turn 1: question that triggers a tool call (response.done declares function_call).
+    # Turn 1: question that triggers a tool call.
     state.on_speech_started("item-1")
     state.on_user_transcript_completed("item-1", "What's the time in Tokyo?")
     state.on_response_created("response-1a", "gpt-realtime")
+    # Server announces the function_call item — this opens the TOOL span.
+    _dispatch_raw(
+        state,
+        _raw_event(
+            {
+                "type": "response.output_item.added",
+                "response_id": "response-1a",
+                "item": {
+                    "type": "function_call",
+                    "id": "fc_item_1",
+                    "call_id": "call-1",
+                    "name": "get_time",
+                },
+            }
+        ),
+    )
+    _dispatch_raw(
+        state,
+        _raw_event(
+            {
+                "type": "response.function_call_arguments.done",
+                "response_id": "response-1a",
+                "call_id": "call-1",
+                "arguments": '{"timezone": "Asia/Tokyo"}',
+            }
+        ),
+    )
     state.on_response_done(
         "response-1a",
         None,
         "gpt-realtime",
         output=[{"type": "function_call", "call_id": "call-1", "name": "get_time"}],
     )
-    # Turn 1 is now awaiting follow-up. User barges in — opens Turn 2 alongside.
+    # Turn 1 is now awaiting follow-up; TOOL span is open waiting for
+    # function_call_output. User barges in — opens Turn 2 alongside.
     state.on_speech_started("item-2")
     state.on_user_transcript_completed("item-2", "Never mind.")
 
@@ -1528,6 +1559,13 @@ def test_session_close_finalizes_awaiting_followup_turn(
     )
     input_values = {span.attributes[SpanAttributes.INPUT_VALUE] for span in audio_spans}
     assert input_values == {"What's the time in Tokyo?", "Never mind."}
+
+    # The orphan TOOL span (function_call_output never arrived) must close with ERROR.
+    tool_spans = spans[OpenInferenceSpanKindValues.TOOL.value]
+    assert len(tool_spans) == 1
+    tool = tool_spans[0]
+    assert tool.status.status_code == trace_api.StatusCode.ERROR
+    assert tool.status.description == "tool did not return before turn ended"
 
 
 # ----------------------------------------------------------------------
