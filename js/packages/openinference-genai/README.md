@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-genai.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-genai)
 
-This package provides a set of utilities to convert [OpenTelemetry GenAI](https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation/opentelemetry-instrumentation-genai) span attributes to OpenInference span attributes.
+This package provides utilities to convert OpenTelemetry GenAI span attributes and events to OpenInference span attributes.
 
 > [!WARNING]
 > The OpenTelemetry GenAI conventions are still incubating, and may include breaking changes at any time.
@@ -22,23 +22,68 @@ or in conjunction with a SpanProcessor in order to automatically convert OpenTel
 
 ### Standalone
 
-You can mutate the span attributes in place by using the standalone helper functions.
+You can convert either a full span-like object or just its attributes.
 
 > [!IMPORTANT]
 > Span mutation is not supported by the OpenTelemetry SDK, so ensure that you are
 > performing mutations in the last-mile of the span's lifetime (i.e. just before exporting the span in a SpanProcessor).
 
 ```ts
-import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from `@arizeai/openinference-genai`
+import { convertGenAISpanToOpenInference } from "@arizeai/openinference-genai";
 
 // obtain a span with OpenTelemetry GenAI attributes from your tracing system
-const span: ReadableSpan = {/* ... */}
+const span: ReadableSpan = {
+  /* ... */
+};
 
-// convert the span attributes to OpenInference attributes
-const openinferenceAttributes = convertGenAISpanAttributesToOpenInferenceSpanAttributes(span.attributes)
+// convert attributes and GenAI message events to OpenInference attributes
+const openinferenceAttributes = convertGenAISpanToOpenInference({
+  name: span.name,
+  kind: span.kind,
+  attributes: span.attributes,
+  events: span.events,
+});
 
 // add the OpenInference attributes to the span
-span.attributes = {...span.attributes, ...openinferenceAttributes}
+span.attributes = { ...span.attributes, ...openinferenceAttributes };
+```
+
+If you only have attributes, use the compatibility helper:
+
+```ts
+import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "@arizeai/openinference-genai";
+
+const openinferenceAttributes = convertGenAISpanAttributesToOpenInferenceSpanAttributes(
+  span.attributes,
+);
+```
+
+To mutate a span-like object in place, use `addOpenInferenceAttributesToSpan`:
+
+```ts
+import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-genai";
+
+addOpenInferenceAttributesToSpan(span, {
+  spanKindResolver: ({ defaultKind }) => defaultKind,
+});
+```
+
+### Span Kind Detection
+
+The converter infers OpenInference span kind from standard GenAI attributes such as `gen_ai.operation.name` and `gen_ai.tool.*`. Consumers can customize detection without adding framework-specific behavior to this package:
+
+```ts
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import { convertGenAISpanToOpenInference } from "@arizeai/openinference-genai";
+
+const attributes = convertGenAISpanToOpenInference(span, {
+  spanKindResolver: ({ attributes, defaultKind }) => {
+    if (attributes["my_framework.workflow.root"] === true) {
+      return OpenInferenceSpanKind.AGENT;
+    }
+    return defaultKind;
+  },
+});
 ```
 
 ### SpanProcessor
@@ -61,15 +106,18 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import type { ExportResult } from "@opentelemetry/core";
 
-import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "@arizeai/openinference-genai";
+import { convertGenAISpanToOpenInference } from "@arizeai/openinference-genai";
 import type { Mutable } from "@arizeai/openinference-genai/types";
 
 class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
   export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void) {
     const processedSpans = spans.map((span) => {
-      const processedAttributes = convertGenAISpanAttributesToOpenInferenceSpanAttributes(
-        span.attributes,
-      );
+      const processedAttributes = convertGenAISpanToOpenInference({
+        name: span.name,
+        kind: span.kind,
+        attributes: span.attributes,
+        events: span.events,
+      });
       // optionally you can replace the entire attributes object with the
       // processed attributes if you want _only_ the OpenInference attributes
       (span as Mutable<ReadableSpan>).attributes = {

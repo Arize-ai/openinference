@@ -1,10 +1,12 @@
-import type { Attributes } from "@opentelemetry/api";
+import type { AttributeValue, Attributes } from "@opentelemetry/api";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import {
   ATTR_GEN_AI_AGENT_DESCRIPTION,
   ATTR_GEN_AI_AGENT_ID,
   ATTR_GEN_AI_AGENT_NAME,
   ATTR_GEN_AI_COMPLETION,
   ATTR_GEN_AI_INPUT_MESSAGES,
+  ATTR_GEN_AI_OPERATION_NAME,
   ATTR_GEN_AI_OUTPUT_MESSAGES,
   ATTR_GEN_AI_PROMPT,
   ATTR_GEN_AI_PROVIDER_NAME,
@@ -17,7 +19,9 @@ import {
   ATTR_GEN_AI_REQUEST_TEMPERATURE,
   ATTR_GEN_AI_REQUEST_TOP_K,
   ATTR_GEN_AI_REQUEST_TOP_P,
+  ATTR_GEN_AI_RESPONSE_FINISH_REASONS,
   ATTR_GEN_AI_RESPONSE_MODEL,
+  ATTR_GEN_AI_SYSTEM,
   ATTR_GEN_AI_TOOL_CALL_ID,
   ATTR_GEN_AI_TOOL_DESCRIPTION,
   ATTR_GEN_AI_TOOL_NAME,
@@ -53,6 +57,36 @@ export type GenAIOutputMessage = OutputMessage & {
 };
 export type GenAIOutputMessagePart = OutputMessage["parts"][number];
 
+export type GenAISpanEvent = Pick<ReadableSpan["events"][number], "name"> &
+  Partial<Pick<ReadableSpan["events"][number], "attributes">>;
+
+export type GenAISpanLike = Pick<ReadableSpan, "attributes"> &
+  Partial<Pick<ReadableSpan, "name" | "kind">> & {
+    events?: GenAISpanEvent[];
+  };
+
+export type MutableGenAISpanLike = GenAISpanLike & {
+  attributes: Attributes;
+};
+
+export type FinishReasonStrategy = "first" | "join" | "preserve-array-as-json";
+
+export type ProviderMapping = "strict" | "system-as-provider-fallback";
+
+export type SpanKindResolver = (input: {
+  name?: string;
+  kind?: ReadableSpan["kind"];
+  attributes: Attributes;
+  events: GenAISpanEvent[];
+  defaultKind?: OpenInferenceSpanKind;
+}) => OpenInferenceSpanKind | undefined;
+
+export type ConvertGenAISpanOptions = {
+  spanKindResolver?: SpanKindResolver;
+  finishReasonStrategy?: FinishReasonStrategy;
+  providerMapping?: ProviderMapping;
+};
+
 const AGENT_KIND_PREFIXES = [
   ATTR_GEN_AI_AGENT_ID,
   ATTR_GEN_AI_AGENT_NAME,
@@ -66,20 +100,24 @@ const TOOL_EXECUTION_PREFIXES = [
   ATTR_GEN_AI_TOOL_TYPE,
 ] as const;
 
+const INPUT_MESSAGE_EVENT_ROLES: Record<string, string> = {
+  "gen_ai.system.message": "system",
+  "gen_ai.user.message": "user",
+  "gen_ai.assistant.message": "assistant",
+  "gen_ai.tool.message": "tool",
+};
+
+const OUTPUT_MESSAGE_EVENT_NAMES = new Set(["gen_ai.choice"]);
+
 // Shared part parsing
 type AnyPart = GenAIInputMessagePart | GenAIOutputMessagePart;
 
-/**
- * Type guard for a GenAI chat message
- * @param value - The value to check
- * @returns True if the value is a chat message, false otherwise
- */
-const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
-  if (typeof value !== "object" || value === null) return false;
-  if (!("role" in value) || !("parts" in value)) return false;
-  if (typeof value.role !== "string" || !Array.isArray(value.parts)) return false;
-  if (!value.parts || !Array.isArray(value.parts)) return false;
-  return true;
+const isGenAIMessageLike = (
+  value: unknown,
+): value is { role: string; parts?: AnyPart[]; content?: unknown } => {
+  return (
+    typeof value === "object" && value !== null && "role" in value && typeof value.role === "string"
+  );
 };
 
 /**
@@ -170,18 +208,56 @@ const processMessageParts = ({
 export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
   spanAttributes: Attributes,
 ): Attributes => {
+  return convertGenAISpanToOpenInference({ attributes: spanAttributes });
+};
+
+/**
+ * Convert a GenAI span to OpenInference span attributes.
+ * @param span - Span-like input containing GenAI attributes and optional events
+ * @param options - Conversion options for span kind and provider handling
+ * @returns The converted OpenInference attributes
+ */
+export const convertGenAISpanToOpenInference = (
+  span: GenAISpanLike,
+  options: ConvertGenAISpanOptions = {},
+): Attributes => {
+  const events = span.events ?? [];
+  // The OpenTelemetry GenAI spec exposes prompts/completions through two
+  // overlapping channels: the structured `gen_ai.input.messages` /
+  // `gen_ai.output.messages` attributes and per-message events
+  // (`gen_ai.system.message`, `gen_ai.user.message`, `gen_ai.choice`, ...).
+  // Some emitters (e.g. TanStack AI's OTel middleware) populate both for the
+  // same messages, so we prefer the structured attribute when present and
+  // only fall back to events for directions that have no structured payload.
+  const hasStructuredInputs = hasGenAIMessages(span.attributes[ATTR_GEN_AI_INPUT_MESSAGES]);
+  const hasStructuredOutputs = hasGenAIMessages(span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES]);
   return merge(
-    mapProviderAndSystem(spanAttributes),
-    mapModels(spanAttributes),
-    mapSpanKind(spanAttributes),
-    mapInvocationParameters(spanAttributes),
-    mapInputMessages(spanAttributes),
-    mapOutputMessages(spanAttributes),
-    mapTokenCounts(spanAttributes),
-    mapToolExecution(spanAttributes),
-    mapInputValue(spanAttributes),
-    mapOutputValue(spanAttributes),
+    mapProviderAndSystem(span.attributes, options),
+    mapModels(span.attributes),
+    mapSpanKind(span, options),
+    mapInvocationParameters(span.attributes),
+    mapInputMessages(span.attributes),
+    mapOutputMessages(span.attributes),
+    mapGenAIMessageEvents(events, {
+      skipInputs: hasStructuredInputs,
+      skipOutputs: hasStructuredOutputs,
+    }),
+    mapFinishReason(span.attributes, options),
+    mapTokenCounts(span.attributes),
+    mapToolExecution(span.attributes),
+    mapInputValue(span.attributes),
+    mapOutputValue(span.attributes),
   );
+};
+
+export const addOpenInferenceAttributesToSpan = (
+  span: MutableGenAISpanLike,
+  options: ConvertGenAISpanOptions = {},
+): void => {
+  const attributes = convertGenAISpanToOpenInference(span, options);
+  Object.entries(attributes).forEach(([key, value]) => {
+    span.attributes[key] = value;
+  });
 };
 
 /**
@@ -190,10 +266,18 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
  * @param spanAttributes - The span attributes containing provider and system to map
  * @returns The mapped provider and system attributes
  */
-export const mapProviderAndSystem = (spanAttributes: Attributes): Attributes => {
+export const mapProviderAndSystem = (
+  spanAttributes: Attributes,
+  options: Pick<ConvertGenAISpanOptions, "providerMapping"> = {},
+): Attributes => {
   const attrs: Attributes = {};
+  const system = getString(spanAttributes[ATTR_GEN_AI_SYSTEM]);
   const provider = getString(spanAttributes[ATTR_GEN_AI_PROVIDER_NAME]);
+  set(attrs, SemanticConventions.LLM_SYSTEM, system);
   set(attrs, SemanticConventions.LLM_PROVIDER, provider);
+  if (provider == null && options.providerMapping === "system-as-provider-fallback") {
+    set(attrs, SemanticConventions.LLM_PROVIDER, system);
+  }
   return attrs;
 };
 
@@ -216,22 +300,85 @@ export const mapModels = (spanAttributes: Attributes): Attributes => {
  * @param spanAttributes - The span attributes containing span kind to map
  * @returns The mapped span kind attributes
  */
-export const mapSpanKind = (spanAttributes: Attributes): Attributes => {
-  const attrs: Attributes = {};
-  // default to LLM for now
-  let spanKind = OpenInferenceSpanKind.LLM;
-  // detect agent kind
+export const inferOpenInferenceSpanKindFromGenAI = (
+  spanAttributes: Attributes,
+): OpenInferenceSpanKind | undefined => {
+  const operationName = getString(spanAttributes[ATTR_GEN_AI_OPERATION_NAME]);
+
+  if (operationName === "execute_tool") {
+    return OpenInferenceSpanKind.TOOL;
+  }
+  if (operationName === "embeddings") {
+    return OpenInferenceSpanKind.EMBEDDING;
+  }
+  if (operationName === "create_agent" || operationName === "invoke_agent") {
+    return OpenInferenceSpanKind.AGENT;
+  }
   if (AGENT_KIND_PREFIXES.some((prefix) => spanAttributes[prefix])) {
-    spanKind = OpenInferenceSpanKind.AGENT;
+    return OpenInferenceSpanKind.AGENT;
   }
-  // detect tool execution kind
   if (TOOL_EXECUTION_PREFIXES.some((prefix) => spanAttributes[prefix])) {
-    spanKind = OpenInferenceSpanKind.TOOL;
+    return OpenInferenceSpanKind.TOOL;
   }
+  if (operationName === "chat" || operationName === "generate_content") {
+    return OpenInferenceSpanKind.LLM;
+  }
+  if (operationName === "text_completion") {
+    return OpenInferenceSpanKind.LLM;
+  }
+
+  if (Object.keys(spanAttributes).some((key) => key.startsWith("gen_ai."))) {
+    return OpenInferenceSpanKind.LLM;
+  }
+
+  return undefined;
+};
+
+export const mapSpanKind = (
+  span: GenAISpanLike | Attributes,
+  options: Pick<ConvertGenAISpanOptions, "spanKindResolver"> = {},
+): Attributes => {
+  const attrs: Attributes = {};
+  const spanInput = isGenAISpanLike(span) ? span : { attributes: span };
+  const events = spanInput.events ?? [];
+  const defaultKind = inferOpenInferenceSpanKindFromGenAI(spanInput.attributes);
+  const spanKind =
+    options.spanKindResolver?.({
+      name: spanInput.name,
+      kind: spanInput.kind,
+      attributes: spanInput.attributes,
+      events,
+      defaultKind,
+    }) ?? defaultKind;
 
   set(attrs, SemanticConventions.OPENINFERENCE_SPAN_KIND, spanKind);
 
   return attrs;
+};
+
+export const mapFinishReason = (
+  spanAttributes: Attributes,
+  options: Pick<ConvertGenAISpanOptions, "finishReasonStrategy"> = {},
+): Attributes => {
+  const attrs: Attributes = {};
+  const finishReasons = getStringArray(spanAttributes[ATTR_GEN_AI_RESPONSE_FINISH_REASONS]);
+  if (finishReasons == null || finishReasons.length === 0) {
+    return attrs;
+  }
+
+  const strategy = options.finishReasonStrategy ?? "first";
+  const finishReason =
+    strategy === "join"
+      ? finishReasons.join(",")
+      : strategy === "preserve-array-as-json"
+        ? safelyJSONStringify(finishReasons)
+        : finishReasons[0];
+  set(attrs, "llm.finish_reason", finishReason);
+  return attrs;
+};
+
+const isGenAISpanLike = (value: GenAISpanLike | Attributes): value is GenAISpanLike => {
+  return typeof value.attributes === "object" && value.attributes != null;
 };
 
 /**
@@ -322,13 +469,28 @@ export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
   const genAIInputMessages = safelyParseJSON(spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES]);
 
   if (Array.isArray(genAIInputMessages)) {
-    (genAIInputMessages as unknown[]).forEach((msg, msgIndex) => {
-      if (!isGenAIChatMessage(msg)) return;
+    // Skip malformed entries and pack the surviving ones so indices match
+    // `getGenAIMessageCount`. Without filtering first, a `[valid, invalid,
+    // valid]` input would leave a gap at index 1 that later message sources
+    // could overwrite.
+    (genAIInputMessages as unknown[]).filter(isGenAIMessageLike).forEach((msg, msgIndex) => {
       const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${msgIndex}.`;
       // set the message role
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
       // process and set the rest of the message parts
       processMessageParts({ attrs, msgPrefix, parts: msg.parts });
+      if (msg.content != null && !msg.parts?.length) {
+        set(
+          attrs,
+          `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
+          toStringContent(msg.content),
+        );
+        processMessageParts({
+          attrs,
+          msgPrefix,
+          parts: [{ type: "text", content: msg.content } as AnyPart],
+        });
+      }
     });
   }
 
@@ -345,18 +507,39 @@ export const mapOutputMessages = (spanAttributes: Attributes): Attributes => {
   const genAIOutputMessages = safelyParseJSON(spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES]);
 
   if (Array.isArray(genAIOutputMessages) && genAIOutputMessages.length > 0) {
-    // recast as unknown[] for safety, as Array.isArray() retypes to any[]
-    (genAIOutputMessages as unknown[]).forEach((msg, msgIndex) => {
-      if (!isGenAIChatMessage(msg)) return;
+    // recast as unknown[] for safety, as Array.isArray() retypes to any[].
+    // Filter malformed entries up front so packed indices match across
+    // structured and event-derived sources (see mapInputMessages comment).
+    (genAIOutputMessages as unknown[]).filter(isGenAIMessageLike).forEach((msg, msgIndex) => {
       const msgPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${msgIndex}.`;
       // set the message role
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
       // process and set the rest of the message parts
       processMessageParts({ attrs, msgPrefix, parts: msg.parts });
+      if (msg.content != null && !msg.parts?.length) {
+        set(
+          attrs,
+          `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
+          toStringContent(msg.content),
+        );
+        processMessageParts({
+          attrs,
+          msgPrefix,
+          parts: [{ type: "text", content: msg.content } as AnyPart],
+        });
+      }
     });
   }
 
   return attrs;
+};
+
+const hasGenAIMessages = (value: unknown): boolean => {
+  const messages = safelyParseJSON(value);
+  if (!Array.isArray(messages)) {
+    return false;
+  }
+  return messages.some(isGenAIMessageLike);
 };
 
 /**
@@ -395,7 +578,137 @@ export const mapToolExecution = (spanAttributes: Attributes): Attributes => {
   // note: while openinference can track parameters, gen_ai does not provide this information
   set(attrs, SemanticConventions.TOOL_NAME, toolName);
   set(attrs, SemanticConventions.TOOL_DESCRIPTION, toolDescription);
-  set(attrs, SemanticConventions.TOOL_CALL_ID, toolCallId);
+  set(attrs, SemanticConventions.TOOL_ID, toolCallId);
+
+  return attrs;
+};
+
+const getEventAttribute = (
+  attributes: Attributes | undefined,
+  keys: string[],
+): AttributeValue | undefined => {
+  if (attributes == null) return undefined;
+  for (const key of keys) {
+    const value = attributes[key];
+    if (value != null) return value;
+  }
+  return undefined;
+};
+
+const setMessageContent = (attrs: Attributes, msgPrefix: string, content: unknown) => {
+  const text = toStringContent(content);
+  set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`, text);
+  const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.0.`;
+  set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "text");
+  set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`, text);
+};
+
+const setMessageToolCalls = (attrs: Attributes, msgPrefix: string, toolCalls: unknown) => {
+  const calls = Array.isArray(toolCalls) ? toolCalls : toolCalls == null ? [] : [toolCalls];
+  calls.forEach((call, toolIndex) => {
+    if (typeof call !== "object" || call == null) return;
+    const callRecord = call as Record<string, unknown>;
+    const functionRecord =
+      typeof callRecord.function === "object" && callRecord.function != null
+        ? (callRecord.function as Record<string, unknown>)
+        : undefined;
+    const id = getString(callRecord.id) ?? getString(callRecord.tool_call_id);
+    const name =
+      getString(callRecord.name) ??
+      getString(callRecord.tool_name) ??
+      getString(functionRecord?.name);
+    const args =
+      callRecord.arguments ?? callRecord.args ?? functionRecord?.arguments ?? functionRecord?.args;
+    const toolPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
+    set(attrs, `${toolPrefix}${SemanticConventions.TOOL_CALL_ID}`, id);
+    set(attrs, `${toolPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`, name);
+    set(
+      attrs,
+      `${toolPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+      typeof args === "string" ? args : safelyJSONStringify(args),
+    );
+  });
+};
+
+const setMessageFromEvent = (params: {
+  attrs: Attributes;
+  prefix: string;
+  index: number;
+  role: string;
+  event: GenAISpanEvent;
+}) => {
+  const { attrs, prefix, index, role, event } = params;
+  const msgPrefix = `${prefix}.${index}.`;
+  const eventAttributes = event.attributes;
+  set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, role);
+  set(
+    attrs,
+    `${msgPrefix}${SemanticConventions.MESSAGE_NAME}`,
+    getString(getEventAttribute(eventAttributes, ["name", "gen_ai.message.name", "tool.name"])),
+  );
+  set(
+    attrs,
+    `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`,
+    getString(getEventAttribute(eventAttributes, ["tool_call_id", "gen_ai.tool.call.id"])),
+  );
+
+  const content = getEventAttribute(eventAttributes, ["content", "message", "text"]);
+  if (content != null) {
+    setMessageContent(attrs, msgPrefix, content);
+  }
+  setMessageToolCalls(attrs, msgPrefix, getEventAttribute(eventAttributes, ["tool_calls"]));
+};
+
+export const mapGenAIMessageEvents = (
+  events: GenAISpanEvent[],
+  options: {
+    inputStartIndex?: number;
+    outputStartIndex?: number;
+    /**
+     * When true, skip emitting input-direction messages from events. Use when
+     * the same messages are already present in `gen_ai.input.messages` to
+     * avoid emitting duplicates.
+     */
+    skipInputs?: boolean;
+    /**
+     * When true, skip emitting output-direction messages from events. Use
+     * when the same messages are already present in `gen_ai.output.messages`
+     * to avoid emitting duplicates.
+     */
+    skipOutputs?: boolean;
+  } = {},
+): Attributes => {
+  const attrs: Attributes = {};
+  let inputMessageIndex = options.inputStartIndex ?? 0;
+  let outputMessageIndex = options.outputStartIndex ?? 0;
+
+  for (const event of events) {
+    const inputRole = INPUT_MESSAGE_EVENT_ROLES[event.name];
+    if (inputRole != null) {
+      if (options.skipInputs) continue;
+      setMessageFromEvent({
+        attrs,
+        prefix: SemanticConventions.LLM_INPUT_MESSAGES,
+        index: inputMessageIndex,
+        role: inputRole,
+        event,
+      });
+      inputMessageIndex += 1;
+      continue;
+    }
+
+    if (OUTPUT_MESSAGE_EVENT_NAMES.has(event.name)) {
+      if (options.skipOutputs) continue;
+      setMessageFromEvent({
+        attrs,
+        prefix: SemanticConventions.LLM_OUTPUT_MESSAGES,
+        index: outputMessageIndex,
+        role: "assistant",
+        event,
+      });
+      outputMessageIndex += 1;
+    }
+  }
 
   return attrs;
 };

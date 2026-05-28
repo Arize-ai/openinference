@@ -2,7 +2,7 @@ import type { ExportResult } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
-import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "../src/index.js";
+import { convertGenAISpanToOpenInference } from "../src/index.js";
 import { Mutable } from "../src/types.js";
 
 export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
@@ -11,10 +11,12 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     resultCallback: (result: ExportResult) => void,
   ) {
     const processedSpans = spans.map((span) => {
-      const processedAttributes =
-        convertGenAISpanAttributesToOpenInferenceSpanAttributes(
-          span.attributes,
-        );
+      const processedAttributes = convertGenAISpanToOpenInference({
+        name: span.name,
+        kind: span.kind,
+        attributes: span.attributes,
+        events: span.events,
+      });
       // null will be returned in the case of an unexpected error, so we skip the span
       if (!processedAttributes) return span;
       // now we merge the processed attributes with the span attributes

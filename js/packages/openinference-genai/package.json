@@ -42,7 +42,8 @@
     },
     "./types": {
       "types": "./dist/esm/types.d.ts",
-      "require": "./dist/commonjs/types.d.ts"
+      "import": "./dist/esm/types.js",
+      "require": "./dist/commonjs/types.js"
     }
   },
   "scripts": {
