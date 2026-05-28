@@ -3,13 +3,19 @@
 Local mic/speaker setup with two function tools (get_weather, get_current_time).
 Tool calls produce TOOL child spans nested under the LLM span in the trace.
 
+Traces are sent to Arize AX if ARIZE_SPACE_ID and ARIZE_API_KEY are set in the
+environment; otherwise they go to a locally running Phoenix instance.
+
 Requirements: see examples/requirements.txt
 Usage:
     export OPENAI_API_KEY=sk-...
+    # Optional, for Arize AX:
+    #   export ARIZE_SPACE_ID=...
+    #   export ARIZE_API_KEY=...
     python realtime_with_tools.py
     # Try: "What's the weather in London?" or "What time is it in Tokyo?"
 
-    # With verbose instrumentation/exporter logging:
+    # With verbose instrumentation logging:
     python realtime_with_tools.py --debug
 """
 
@@ -32,9 +38,6 @@ from agents.realtime.events import (  # type: ignore[import]
     RealtimeAudio,
     RealtimeAudioInterrupted,
 )
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 
 from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
 
@@ -46,39 +49,25 @@ CHANNELS = 1
 MIC_CHUNK_FRAMES = 1_200
 
 
-class _LoggingSpanExporter(SpanExporter):
-    """Wraps another exporter and logs each batch — to diagnose export issues."""
+def setup_tracer_provider():  # type: ignore[no-untyped-def]
+    """Register a tracer provider — Arize AX when the credentials env vars are
+    set, Phoenix otherwise."""
+    project_name = os.getenv("PROJECT_NAME", "realtime-with-tools")
+    space_id = os.getenv("ARIZE_SPACE_ID")
+    api_key = os.getenv("ARIZE_API_KEY")
+    if space_id and api_key:
+        from arize.otel import register as register_arize
 
-    def __init__(self, inner: SpanExporter) -> None:
-        self._inner = inner
+        print(f"Traces → Arize AX (project={project_name})")
+        return register_arize(
+            space_id=space_id,
+            api_key=api_key,
+            project_name=project_name,
+        )
+    from phoenix.otel import register as register_phoenix
 
-    def export(self, spans):  # type: ignore[override]
-        names = [s.name for s in spans]
-        logger.info("exporter: exporting %d span(s): %s", len(spans), names)
-        result = self._inner.export(spans)
-        logger.info("exporter: result=%s", result)
-        return result
-
-    def shutdown(self) -> None:
-        logger.info("exporter: shutdown")
-        self._inner.shutdown()
-
-    def force_flush(self, timeout_millis: int = 30000) -> bool:  # type: ignore[override]
-        flush = getattr(self._inner, "force_flush", None)
-        return bool(flush(timeout_millis)) if flush else True
-
-
-def _setup_tracing(debug: bool = False) -> TracerProvider:
-    provider = TracerProvider()
-    endpoint = "http://127.0.0.1:6006/v1/traces"
-    project = os.environ.get("PHOENIX_PROJECT_NAME", "realtime-with-tools")
-    exporter: SpanExporter = OTLPSpanExporter(endpoint, headers={"project_name": project})
-    print(f"Traces → Phoenix ({endpoint}, project={project})")
-    if debug:
-        exporter = _LoggingSpanExporter(exporter)
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    OpenAIAgentsInstrumentor().instrument(tracer_provider=provider)
-    return provider
+    print(f"Traces → Phoenix (local, project={project_name})")
+    return register_phoenix(project_name=project_name)
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +135,8 @@ async def run(args: argparse.Namespace) -> None:
         logging.getLogger("openinference.instrumentation.openai_agents").setLevel(logging.DEBUG)
         logger.setLevel(logging.DEBUG)
         print("Debug logging enabled (instrumentation + exporter)")
-    provider = _setup_tracing(debug=args.debug)
+    provider = setup_tracer_provider()
+    OpenAIAgentsInstrumentor().instrument(tracer_provider=provider)
     loop = asyncio.get_running_loop()
 
     mic_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=100)
