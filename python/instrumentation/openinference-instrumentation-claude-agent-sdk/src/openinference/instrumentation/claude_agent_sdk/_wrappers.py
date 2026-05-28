@@ -8,14 +8,6 @@ from collections.abc import Mapping as MappingABC
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Tuple
 
 import opentelemetry.context as context_api
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry import trace as trace_api
 
 from openinference.instrumentation import (
@@ -24,6 +16,14 @@ from openinference.instrumentation import (
     get_output_attributes,
     get_tool_attributes,
     safe_json_dumps,
+)
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
 )
 
 if TYPE_CHECKING:
