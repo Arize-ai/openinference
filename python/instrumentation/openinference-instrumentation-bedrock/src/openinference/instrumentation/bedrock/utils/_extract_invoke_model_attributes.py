@@ -341,9 +341,25 @@ def _build_nova_output_messages(response_body: Dict[str, Any]) -> List[Message]:
 
 
 def _set_nova_body_token_attributes(span: Span, response_body: Dict[str, Any]) -> None:
+    """Set token count attributes from the Nova invoke_model response body usage field.
+
+    Nova responses include usage in the JSON body in addition to HTTP headers.
+    The body is the authoritative source for usage token fields.
+    """
     usage = response_body.get("usage", {})
     if not isinstance(usage, dict):
         return
+    input_tokens = usage.get("inputTokens")
+    output_tokens = usage.get("outputTokens")
+    if input_tokens is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, int(input_tokens))
+    if output_tokens is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, int(output_tokens))
+    total = usage.get("totalTokens")
+    if total is None and input_tokens is not None and output_tokens is not None:
+        total = int(input_tokens) + int(output_tokens)
+    if total is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, int(total))
     if (v := usage.get("cacheReadInputTokenCount")) is not None:
         _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, int(v))
     if (v := usage.get("cacheWriteInputTokenCount")) is not None:
