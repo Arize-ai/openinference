@@ -5,9 +5,7 @@ from typing import Any, AsyncGenerator, Callable, Collection, Tuple
 from opentelemetry import context, propagate
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.instrumentation.utils import unwrap
-from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
-from wrapt.importer import register_post_import_hook
-from wrapt.patches import wrap_function_wrapper
+from wrapt import ObjectProxy, register_post_import_hook, wrap_function_wrapper
 
 from openinference.instrumentation.mcp.package import _instruments
 
@@ -22,7 +20,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _instrument(self, **kwargs: Any) -> None:
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
+            lambda _: wrap_function_wrapper(
                 "mcp.client.streamable_http",
                 "streamable_http_client",
                 self._wrap_transport_with_callback,
@@ -31,7 +29,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
+            lambda _: wrap_function_wrapper(
                 "mcp.server.streamable_http",
                 "StreamableHTTPServerTransport.connect",
                 self._wrap_plain_transport,
@@ -40,25 +38,25 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
+            lambda _: wrap_function_wrapper(
                 "mcp.client.sse", "sse_client", self._wrap_plain_transport
             ),
             "mcp.client.sse",
         )
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
+            lambda _: wrap_function_wrapper(
                 "mcp.server.sse", "SseServerTransport.connect_sse", self._wrap_plain_transport
             ),
             "mcp.server.sse",
         )
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
+            lambda _: wrap_function_wrapper(
                 "mcp.client.stdio", "stdio_client", self._wrap_plain_transport
             ),
             "mcp.client.stdio",
         )
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
+            lambda _: wrap_function_wrapper(
                 "mcp.server.stdio", "stdio_server", self._wrap_plain_transport
             ),
             "mcp.server.stdio",
@@ -72,7 +70,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         # may be a reasonable generic instrumentation for anyio itself to allow its streams to
         # propagate context broadly.
         register_post_import_hook(
-            lambda _: wrap_function_wrapper(  # type: ignore[no-untyped-call]
+            lambda _: wrap_function_wrapper(
                 "mcp.server.session", "ServerSession.__init__", self._base_session_init_wrapper
             ),
             "mcp.server.session",

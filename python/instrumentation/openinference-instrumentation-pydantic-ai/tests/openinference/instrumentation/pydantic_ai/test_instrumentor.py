@@ -29,6 +29,59 @@ from openinference.semconv.trace import (
 
 
 @pytest.mark.vcr
+def test_openai_agent_plain_text_output_v1(
+    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
+) -> None:
+    _test_openai_agent_plain_text_output(
+        in_memory_span_exporter,
+        tracer_provider,
+        InstrumentationSettings(version=1, event_mode="attributes"),
+    )
+
+
+@pytest.mark.vcr
+def test_openai_agent_plain_text_output_v2(
+    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
+) -> None:
+    _test_openai_agent_plain_text_output(
+        in_memory_span_exporter,
+        tracer_provider,
+        InstrumentationSettings(version=2),
+    )
+
+
+def _test_openai_agent_plain_text_output(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    instrumentation: InstrumentationSettings,
+) -> None:
+    """Test that output.value is set for plain text (str) agent responses."""
+    trace.set_tracer_provider(tracer_provider)
+
+    api_key = os.getenv("OPENAI_API_KEY", "sk-test")
+    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    agent = Agent(model, output_type=str)
+    agent.instrument = instrumentation
+
+    result = agent.run_sync("Say hello.")
+    assert result is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
+    attributes = dict(cast(Mapping[str, AttributeValue], llm_span.attributes))
+
+    message_content = attributes.get(
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+    )
+    assert message_content is not None
+    assert isinstance(message_content, str)
+
+    output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert output_value is not None, "output.value must be set for plain-text agent responses."
+    assert output_value == message_content
+
+
+@pytest.mark.vcr
 def test_openai_agent_and_llm_spans_v1(
     in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
 ) -> None:

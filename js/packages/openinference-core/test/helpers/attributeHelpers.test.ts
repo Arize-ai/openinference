@@ -453,6 +453,127 @@ describe("attributeHelpers", () => {
       });
     });
 
+    it("should generate attributes with reasoning content on input messages", () => {
+      const result = getLLMAttributes({
+        inputMessages: [
+          {
+            role: "assistant",
+            contents: [
+              {
+                type: "reasoning",
+                text: "let me think...",
+                signature: "sig-abc",
+                data: "redacted-data",
+                encryptedContent: "enc-xyz",
+              },
+            ],
+          },
+        ],
+      });
+      expect(result).toEqual({
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+          "assistant",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+          "reasoning",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+          "let me think...",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`]:
+          "sig-abc",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_DATA}`]:
+          "redacted-data",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_ENCRYPTED_CONTENT}`]:
+          "enc-xyz",
+      });
+    });
+
+    it("should generate attributes with reasoning content on output messages alongside text", () => {
+      const result = getLLMAttributes({
+        outputMessages: [
+          {
+            role: "assistant",
+            contents: [
+              { type: "reasoning", signature: "thought-sig" },
+              { type: "text", text: "final answer" },
+            ],
+          },
+        ],
+      });
+      expect(result).toEqual({
+        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+          "assistant",
+        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+          "reasoning",
+        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`]:
+          "thought-sig",
+        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.1.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+          "text",
+        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.1.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+          "final answer",
+      });
+    });
+
+    it("should omit reasoning subfields that are not provided and never emit message_content.id", () => {
+      const result = getLLMAttributes({
+        outputMessages: [
+          {
+            role: "assistant",
+            contents: [{ type: "reasoning", signature: "only-sig" }],
+          },
+        ],
+      });
+      expect(result).toEqual({
+        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+          "assistant",
+        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+          "reasoning",
+        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`]:
+          "only-sig",
+      });
+      const keys = Object.keys(result);
+      expect(keys.some((k) => k.endsWith(`.${SemanticConventions.MESSAGE_CONTENT_ID}`))).toBe(
+        false,
+      );
+    });
+
+    it("should emit tool_call.reasoning_signature on input and output tool calls", () => {
+      const result = getLLMAttributes({
+        inputMessages: [
+          {
+            role: "assistant",
+            toolCalls: [
+              {
+                id: "call_in",
+                function: { name: "search", arguments: { q: "x" } },
+                reasoningSignature: "in-sig",
+              },
+            ],
+          },
+        ],
+        outputMessages: [
+          {
+            role: "assistant",
+            toolCalls: [
+              {
+                id: "call_out",
+                function: { name: "search", arguments: { q: "y" } },
+                reasoningSignature: "out-sig",
+              },
+            ],
+          },
+        ],
+      });
+      expect(
+        result[
+          `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_REASONING_SIGNATURE}`
+        ],
+      ).toBe("in-sig");
+      expect(
+        result[
+          `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_REASONING_SIGNATURE}`
+        ],
+      ).toBe("out-sig");
+    });
+
     it("should generate attributes with token count", () => {
       const options = {
         tokenCount: {

@@ -513,6 +513,12 @@ class _FlowKickoffWrapper:
             return wrapped(*args, **kwargs)
         if _agent_kickoff_active.get():
             return wrapped(*args, **kwargs)
+        # CrewAI 1.x AgentExecutor subclasses Flow internally to drive task
+        # execution; it sets suppress_flow_events=True to opt out of CrewAI's
+        # own event emission. Use the same signal to skip our spans so we don't
+        # emit dozens of internal node CHAIN spans per task.
+        if getattr(instance, "suppress_flow_events", False):
+            return wrapped(*args, **kwargs)
         flow_name = _get_flow_name(instance)
         span_name = f"{flow_name}.kickoff"
         with self._tracer.start_as_current_span(
@@ -571,6 +577,8 @@ class _FlowKickoffAsyncWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
         if _agent_kickoff_active.get():
+            return await wrapped(*args, **kwargs)
+        if getattr(instance, "suppress_flow_events", False):
             return await wrapped(*args, **kwargs)
         # When called from the sync Flow.kickoff() wrapper via asyncio.run(),
         # the FLOW span was already created in the calling thread's context and
@@ -639,6 +647,8 @@ class _FlowExecuteMethodWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
         if _agent_kickoff_active.get():
+            return await wrapped(*args, **kwargs)
+        if getattr(instance, "suppress_flow_events", False):
             return await wrapped(*args, **kwargs)
 
         # args = (method_name, method, *original_method_args)

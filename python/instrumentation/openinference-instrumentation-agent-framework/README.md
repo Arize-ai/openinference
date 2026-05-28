@@ -2,7 +2,7 @@
 
 OpenInference span processor for Microsoft Agent Framework that transforms native OpenTelemetry spans to OpenInference format for compatibility with OpenInference-compliant backends like [Arize Phoenix](https://github.com/Arize-ai/phoenix).
 
-**Tested with agent-framework `1.0.0`**
+**Tested with Agent Framework core/OpenAI packages `1.0.0`**
 
 ## Installation
 
@@ -10,7 +10,7 @@ OpenInference span processor for Microsoft Agent Framework that transforms nativ
 pip install openinference-instrumentation-agent-framework
 ```
 
-Install with agent-framework:
+Install with Microsoft Agent Framework core and OpenAI support:
 ```bash
 pip install openinference-instrumentation-agent-framework[instruments]
 ```
@@ -149,18 +149,19 @@ processor = AgentFrameworkToOpenInferenceProcessor(debug=True)
 - opentelemetry-api >= 1.39.0
 - opentelemetry-sdk >= 1.39.0
 - openinference-semantic-conventions >= 0.1.25
-- agent-framework >= 1.0.0 (optional, install with `[instruments]` extra)
+- agent-framework-core >= 1.0.0 (optional, install with `[instruments]` extra)
+- agent-framework-openai >= 1.0.0 (optional, install with `[instruments]` extra)
 
 ## Important Notes
 
 ### Agent Framework API Stability
 
 Microsoft Agent Framework's stable OpenAI client changed meaningfully at `1.0.0`:
-- This instrumentation is tested against `agent-framework==1.0.0`
+- This instrumentation is tested against `agent-framework-core==1.0.0` and `agent-framework-openai==1.0.0`
 - The `-latest` test variant tracks breaking changes in new releases
 - If you encounter API compatibility issues, pin to the tested stable version:
   ```bash
-  pip install agent-framework==1.0.0
+  pip install agent-framework-core==1.0.0 agent-framework-openai==1.0.0
   ```
 
 If you have existing VCR cassettes from the `1.0.0rc1` line, re-record them after upgrading. The stable `OpenAIChatClient` uses the OpenAI Responses API rather than the older Chat Completions path.

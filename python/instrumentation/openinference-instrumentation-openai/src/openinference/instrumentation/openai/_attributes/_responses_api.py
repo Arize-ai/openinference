@@ -467,6 +467,9 @@ class _ResponsesApiAttributes:
         elif obj["type"] == "tool_search_output":
             # TODO: Handle tool search output response
             pass
+        elif obj["type"] == "compaction_trigger":
+            # TODO: Handle compaction trigger response
+            pass
         elif TYPE_CHECKING and obj["type"] is not None:
             assert_never(obj["type"])
 

@@ -69,6 +69,37 @@ if __name__ == "__main__":
     print(response.choices[0].message.content)
 ```
 
+## Bazel and `rules_python`
+
+The `openinference-instrumentation` core package and every
+`openinference-instrumentation-<name>` instrumentor share the
+`openinference.instrumentation` namespace (a [PEP 420 implicit namespace
+package](https://peps.python.org/pep-0420/)). With pip this works transparently,
+but Bazel's `rules_python` defaults to treating every wheel as a regular
+package, which causes only one of the sibling packages to be importable at a
+time (e.g. `from openinference.instrumentation.openai import OpenAIInstrumentor`
+fails even though the wheel is present).
+
+To consume these packages from Bazel, enable implicit namespace package support
+when parsing the wheel repository:
+
+```starlark
+pip.parse(
+    ...
+    enable_implicit_namespace_pkgs = True,
+)
+```
+
+The equivalent flag on the legacy `pip_parse` repository rule is also called
+`enable_implicit_namespace_pkgs = True`. This setting complements the namespace
+path extension in
+`python/openinference-instrumentation/src/openinference/instrumentation/__init__.py`
+and is required whenever you depend on the core package alongside one or more
+instrumentors in the same `py_binary` / `py_library`.
+
+See [`python/DEVELOPMENT.md`](./DEVELOPMENT.md#bazel-and-rules_python) for more
+details.
+
 ## Phoenix Collector
 
 Phoenix runs locally on your machine and does not send data over the internet.

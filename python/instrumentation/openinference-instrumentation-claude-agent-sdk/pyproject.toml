@@ -78,9 +78,9 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "wrapt",
     "claude_agent_sdk.*",
     "openinference.instrumentation.claude_agent_sdk.*",
-    "wrapt",
 ]
 
 [tool.ruff]

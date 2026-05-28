@@ -102,6 +102,10 @@ public class SemanticConventions {
         public static final String TYPE = "type";
         public static final String TEXT = "text";
         public static final String IMAGE = "image";
+        public static final String ID = "id";
+        public static final String SIGNATURE = "signature";
+        public static final String DATA = "data";
+        public static final String ENCRYPTED_CONTENT = "encrypted_content";
     }
 
     @UtilityClass
@@ -114,6 +118,7 @@ public class SemanticConventions {
         public static final String FUNCTION_NAME = "function.name";
         public static final String FUNCTION_ARGUMENTS = "function.arguments";
         public static final String ID = "id";
+        public static final String REASONING_SIGNATURE = "reasoning_signature";
     }
 
     @UtilityClass
@@ -401,6 +406,13 @@ public class SemanticConventions {
     public static final String TOOL_CALL_ID = SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.ID;
 
     /**
+     * Opaque vendor-issued reasoning echo token attached to a tool call. Maps to
+     * Gemini thoughtSignature when it is attached to a functionCall part
+     */
+    public static final String TOOL_CALL_REASONING_SIGNATURE =
+            SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.REASONING_SIGNATURE;
+
+    /**
      * The LLM function call function name
      */
     public static final String MESSAGE_FUNCTION_CALL_NAME =
@@ -420,7 +432,8 @@ public class SemanticConventions {
             SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.CONTENTS;
 
     /**
-     * The type of content sent to the LLM
+     * The type of content sent to the LLM, such as "text", "image", "audio",
+     * "reasoning", or "tool_use"
      */
     public static final String MESSAGE_CONTENT_TYPE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.TYPE;
@@ -436,6 +449,35 @@ public class SemanticConventions {
      */
     public static final String MESSAGE_CONTENT_IMAGE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.IMAGE;
+
+    /**
+     * Provider-assigned identifier for this message content item. For OpenAI
+     * Responses reasoning items, this maps to ResponseReasoningItem.id and should
+     * be preserved for stateless replay
+     */
+    public static final String MESSAGE_CONTENT_ID =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.ID;
+
+    /**
+     * Opaque vendor-issued signature captured verbatim. Maps to provider signature
+     * fields and to Gemini thoughtSignature fields when the signature is attached
+     * to a non-tool content part
+     */
+    public static final String MESSAGE_CONTENT_SIGNATURE =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.SIGNATURE;
+
+    /**
+     * Opaque vendor-issued data captured verbatim. Maps to Anthropic
+     * redacted_thinking.data
+     */
+    public static final String MESSAGE_CONTENT_DATA =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.DATA;
+
+    /**
+     * OpenAI encrypted_content captured verbatim
+     */
+    public static final String MESSAGE_CONTENT_ENCRYPTED_CONTENT =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.ENCRYPTED_CONTENT;
 
     /**
      * The http or base64 link to the image

@@ -532,6 +532,28 @@ export function getLLMAttributes(options: {
               `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
             ] = content.image.url;
           }
+          if (content.type === "reasoning") {
+            if (content.text != null) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+              ] = content.text;
+            }
+            if (content.signature != null) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`
+              ] = content.signature;
+            }
+            if (content.data != null) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_DATA}`
+              ] = content.data;
+            }
+            if (content.encryptedContent != null) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_ENCRYPTED_CONTENT}`
+              ] = content.encryptedContent;
+            }
+          }
         });
       }
       if (message.toolCallId != null) {
@@ -559,6 +581,11 @@ export function getLLMAttributes(options: {
             attributes[
               `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
             ] = argsJson;
+          }
+          if (toolCall.reasoningSignature != null) {
+            attributes[
+              `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_REASONING_SIGNATURE}`
+            ] = toolCall.reasoningSignature;
           }
         });
       }
@@ -595,6 +622,28 @@ export function getLLMAttributes(options: {
               `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
             ] = content.image.url;
           }
+          if (content.type === "reasoning") {
+            if (content.text != null) {
+              attributes[
+                `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+              ] = content.text;
+            }
+            if (content.signature != null) {
+              attributes[
+                `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`
+              ] = content.signature;
+            }
+            if (content.data != null) {
+              attributes[
+                `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_DATA}`
+              ] = content.data;
+            }
+            if (content.encryptedContent != null) {
+              attributes[
+                `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_ENCRYPTED_CONTENT}`
+              ] = content.encryptedContent;
+            }
+          }
         });
       }
       if (message.toolCallId != null) {
@@ -622,6 +671,11 @@ export function getLLMAttributes(options: {
             attributes[
               `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
             ] = argsJson;
+          }
+          if (toolCall.reasoningSignature != null) {
+            attributes[
+              `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_REASONING_SIGNATURE}`
+            ] = toolCall.reasoningSignature;
           }
         });
       }

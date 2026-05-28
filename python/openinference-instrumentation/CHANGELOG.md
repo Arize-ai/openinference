@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.52](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.51...python-openinference-instrumentation-v0.1.52) (2026-05-22)
+
+
+### Bug Fixes
+
+* **python:** preserve falsy GenAI tool results ([#3116](https://github.com/Arize-ai/openinference/issues/3116)) ([84af0b6](https://github.com/Arize-ai/openinference/commit/84af0b6dce5366cf468126a8a9baa5eeb303b524))
+
 ## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.50...python-openinference-instrumentation-v0.1.51) (2026-05-14)
 
 

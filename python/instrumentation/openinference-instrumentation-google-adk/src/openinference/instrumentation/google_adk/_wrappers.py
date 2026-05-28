@@ -90,7 +90,10 @@ class _RunnerRunAsync(_WithTracer):
 
         tracer = self._tracer
         name = f"invocation [{instance.app_name}]"
-        attributes = dict(get_attributes_from_context())
+
+        # Materialize ambient context once to detect if we are inside an existing session.
+        ambient_attributes = dict(get_attributes_from_context())
+        attributes = dict(ambient_attributes)
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.CHAIN.value
 
         arguments = bind_args_kwargs(wrapped, *args, **kwargs)
@@ -106,7 +109,12 @@ class _RunnerRunAsync(_WithTracer):
 
         if (user_id := kwargs.get("user_id")) is not None:
             attributes[SpanAttributes.USER_ID] = user_id
-        if (session_id := kwargs.get("session_id")) is not None:
+
+        session_id = kwargs.get("session_id")
+        if SpanAttributes.SESSION_ID in ambient_attributes:
+            # Inherit the parent session ID to discard the ADK-internal UUID passed by AgentTool.
+            attributes[SpanAttributes.SESSION_ID] = ambient_attributes[SpanAttributes.SESSION_ID]
+        elif session_id is not None:
             attributes[SpanAttributes.SESSION_ID] = session_id
 
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
@@ -122,8 +130,14 @@ class _RunnerRunAsync(_WithTracer):
                     )
                     if user_id is not None:
                         stack.enter_context(using_user(user_id))
-                    if session_id is not None:
+
+                    # Skip pushing a new session context if one already exists in ambient context.
+                    if (
+                        session_id is not None
+                        and SpanAttributes.SESSION_ID not in ambient_attributes
+                    ):
                         stack.enter_context(using_session(session_id))
+
                     async for event in self.__wrapped__:
                         if event.is_final_response():
                             try:

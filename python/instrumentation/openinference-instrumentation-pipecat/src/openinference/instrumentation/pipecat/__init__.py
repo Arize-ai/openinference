@@ -5,7 +5,7 @@ from typing import Any, Callable, Collection, Dict, Optional, Tuple
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt.patches import wrap_function_wrapper
+from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 
@@ -85,7 +85,7 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_task_init = PipelineTask.__init__
 
             # Wrap PipelineTask.__init__ to inject our observer
-            wrap_function_wrapper(  # type: ignore[no-untyped-call]
+            wrap_function_wrapper(
                 "pipecat.pipeline.task",
                 "PipelineTask.__init__",
                 _TaskInitWrapper(

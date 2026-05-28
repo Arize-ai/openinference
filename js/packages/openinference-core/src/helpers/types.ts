@@ -338,12 +338,47 @@ export interface ImageMessageContent {
 }
 
 /**
+ * Reasoning-based message content.
+ *
+ * Represents an opaque reasoning entry produced by an LLM. The fields are
+ * vendor-issued echo tokens that should be preserved verbatim for stateless
+ * replay (e.g. Gemini `thoughtSignature`, Anthropic `redacted_thinking.data`,
+ * OpenAI Responses `encrypted_content`). No `id` is emitted for reasoning
+ * content — providers either omit it or it is captured separately.
+ */
+export interface ReasoningMessageContent {
+  type: "reasoning";
+  /**
+   * Human-readable reasoning text emitted by the model (e.g. Anthropic
+   * `thinking` blocks, OpenAI Responses reasoning summary text). Emitted as
+   * `message_content.text` and therefore subject to `hideInputText` /
+   * `hideOutputText` masking.
+   */
+  text?: string;
+  /**
+   * Opaque vendor-issued signature captured verbatim. Maps to provider
+   * signature fields and to Gemini `thoughtSignature` when the signature is
+   * attached to a non-tool content part.
+   */
+  signature?: string;
+  /**
+   * Opaque vendor-issued data captured verbatim. Maps to Anthropic
+   * `redacted_thinking.data`.
+   */
+  data?: string;
+  /**
+   * OpenAI `encrypted_content` captured verbatim.
+   */
+  encryptedContent?: string;
+}
+
+/**
  * Union type for different types of message content.
  *
- * Supports both text and image content types for multimodal
+ * Supports text, image, and reasoning content types for multimodal
  * LLM applications that can handle various input formats.
  */
-export type MessageContent = TextMessageContent | ImageMessageContent;
+export type MessageContent = TextMessageContent | ImageMessageContent | ReasoningMessageContent;
 
 /**
  * Function call details for tool invocations.
@@ -365,6 +400,12 @@ export interface ToolCallFunction {
 export interface ToolCall {
   id?: string;
   function?: ToolCallFunction;
+  /**
+   * Opaque vendor-issued reasoning echo token attached to a tool call. Maps to
+   * Gemini `thoughtSignature` when it is attached to a `functionCall` part.
+   * The value is preserved verbatim for stateless replay.
+   */
+  reasoningSignature?: string;
 }
 
 /**
