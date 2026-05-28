@@ -1,6 +1,4 @@
 from agno.agent import Agent
-from agno.models.anthropic import Claude
-from agno.models.google import Gemini
 from agno.models.openai import OpenAIChat
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -23,23 +21,5 @@ def get_weather(city: str) -> str:
 if __name__ == "__main__":
     for event in Agent(
         name="OpenAI Agent", model=OpenAIChat(id="gpt-4o-mini"), tools=[get_weather]
-    ).run("What is the weather in Paris and New Delhi?", stream=True):
-        print(event)
-
-    # print(
-    #     Agent(name="OpenAI Agent", model=OpenAIChat(id="gpt-4o-mini"), tools=[get_weather]).run(
-    #         "What is the weather in Paris and New Delhi?", stream=False
-    #     )
-    # )
-
-    print("\n=== Anthropic ===")
-    for event in Agent(
-        name="Anthropic Agent", model=Claude(id="claude-haiku-4-5-20251001"), tools=[get_weather]
-    ).run("What is the weather in Paris and New Delhi?", stream=True):
-        print(event)
-
-    print("\n=== Gemini ===")
-    for event in Agent(
-        name="Gemini Agent", model=Gemini(id="gemini-2.0-flash"), tools=[get_weather]
     ).run("What is the weather in Paris and New Delhi?", stream=True):
         print(event)
