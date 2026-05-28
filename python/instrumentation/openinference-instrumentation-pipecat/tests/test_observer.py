@@ -1,13 +1,18 @@
 """Tests for OpenInferenceObserver."""
 
+import asyncio
 import os
 import tempfile
 import time
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pipecat.frames.frames import (
+    BotStartedSpeakingFrame,
+    BotStoppedSpeakingFrame,
+    EndFrame,
     FunctionCallResultFrame,
     LLMContextFrame,
     LLMFullResponseEndFrame,
@@ -15,6 +20,9 @@ from pipecat.frames.frames import (
     MetricsFrame,
     TranscriptionFrame,
     TTSStartedFrame,
+    TTSTextFrame,
+    UserStartedSpeakingFrame,
+    UserStoppedSpeakingFrame,
     VADUserStartedSpeakingFrame,
     VADUserStoppedSpeakingFrame,
 )
@@ -25,6 +33,7 @@ from pipecat.metrics.metrics import (
 )
 from pipecat.observers.base_observer import FramePushed
 from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.transports.base_output import BaseOutputTransport
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
@@ -40,6 +49,30 @@ def create_frame_pushed(source, destination, frame, direction="down"):
         direction=direction,
         timestamp=time.time(),
     )
+
+
+def _make_transport_tts_frame(text: str) -> TTSTextFrame:
+    """Build a transport-source TTSTextFrame routed as bot speech."""
+    frame = TTSTextFrame(text=text, aggregated_by="x")
+    # skip_tts is set by the transport layer in production; the observer
+    # only counts the frame as bot speech when it's False.
+    frame.skip_tts = False
+    return frame
+
+
+def _fast_observer(tracer: OITracer, config: TraceConfig, **kwargs: Any) -> OpenInferenceObserver:
+    """Observer pre-configured with short timeouts for timer-driven tests."""
+    return OpenInferenceObserver(
+        tracer=tracer,
+        config=config,
+        turn_end_timeout_secs=kwargs.pop("turn_end_timeout_secs", 0.05),
+        no_responder_timeout_secs=kwargs.pop("no_responder_timeout_secs", 0.1),
+        **kwargs,
+    )
+
+
+def _get_turn_spans(exporter: InMemorySpanExporter):
+    return [s for s in exporter.get_finished_spans() if s.name == "pipecat.conversation.turn"]
 
 
 class TestObserverInitialization:
@@ -112,18 +145,22 @@ class TestTurnTracking:
         in_memory_span_exporter: InMemorySpanExporter,
         mock_stt_service: Mock,
     ) -> None:
-        """Test that starting a turn creates a turn span."""
-        # Create a frame that starts a turn
-        frame = VADUserStartedSpeakingFrame()
-        data = create_frame_pushed(mock_stt_service, None, frame)
+        """User speech opens a user-initiated turn."""
+        # Pipecat's natural sequence: UserStartedSpeakingFrame followed by
+        # the VAD-confirmed VADUserStartedSpeakingFrame. Either is a valid
+        # user-started edge, and both arriving back-to-back must not double-
+        # open the turn.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
 
-        # Process frame to start turn
-        await observer.on_push_frame(data)
-
-        # Verify turn span was created (but not ended yet)
         assert observer._is_turn_active
         assert observer._turn_span is not None
         assert observer._turn_count == 1
+        assert observer._turn_initiator == "user"
 
     async def test_turn_span_attributes(
         self,
@@ -138,27 +175,20 @@ class TestTurnTracking:
             tracer=tracer, config=config, conversation_id=conversation_id
         )
 
-        # Start turn
-        frame = VADUserStartedSpeakingFrame()
-        data = create_frame_pushed(
-            source=mock_stt_service, destination=None, frame=frame, direction="down"
-        )
-        await observer.on_push_frame(data)
-
-        # End turn (simulate bot stopped speaking)
-        end_frame = VADUserStoppedSpeakingFrame()
-        end_data = create_frame_pushed(
-            source=mock_stt_service, destination=None, frame=end_frame, direction="down"
+        # Open the turn by pushing a user-started edge.
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service,
+                destination=None,
+                frame=VADUserStartedSpeakingFrame(),
+                direction="down",
+            )
         )
 
-        # Need to trigger _end_turn manually or via timeout
-        # For simplicity, call _end_turn directly
-        await observer._end_turn(end_data, was_interrupted=False)
+        await observer._close_turn(end_reason="completed")
 
-        # Get finished spans
         spans = in_memory_span_exporter.get_finished_spans()
 
-        # Find turn span
         turn_spans = [s for s in spans if s.name == "pipecat.conversation.turn"]
         assert len(turn_spans) == 1
 
@@ -173,6 +203,7 @@ class TestTurnTracking:
         assert attributes[SpanAttributes.SESSION_ID] == conversation_id
         assert attributes["conversation.end_reason"] == "completed"
         assert attributes["conversation.was_interrupted"] is False
+        assert attributes["conversation.initiator"] == "user"
 
 
 @pytest.mark.asyncio
@@ -200,13 +231,6 @@ class TestServiceSpanCreation:
         )
         await observer.on_push_frame(trans_data)
 
-        # End STT
-        stop_frame = VADUserStoppedSpeakingFrame()
-        stop_data = create_frame_pushed(
-            source=mock_stt_service, destination=None, frame=stop_frame, direction="down"
-        )
-        await observer.on_push_frame(stop_data)
-
         # Verify STT span was created and is active
         service_id = id(mock_stt_service)
         assert service_id in observer._active_spans
@@ -217,9 +241,20 @@ class TestServiceSpanCreation:
         self,
         observer: OpenInferenceObserver,
         in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
         mock_llm_service: Mock,
     ) -> None:
         """Test LLM service span creation."""
+        # Open a turn first so the LLM span has a parent.
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service,
+                destination=None,
+                frame=VADUserStartedSpeakingFrame(),
+                direction="down",
+            )
+        )
+
         # Start LLM with context
         context = LLMContext()
         context._messages = [{"role": "user", "content": "Hello"}]
@@ -247,9 +282,20 @@ class TestServiceSpanCreation:
         self,
         observer: OpenInferenceObserver,
         in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
         mock_tts_service: Mock,
     ) -> None:
         """Test TTS service span creation."""
+        # Open a turn first so the TTS span has a parent.
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service,
+                destination=None,
+                frame=VADUserStartedSpeakingFrame(),
+                direction="down",
+            )
+        )
+
         # Start TTS
         tts_start = TTSStartedFrame()
         start_data = create_frame_pushed(
@@ -270,9 +316,20 @@ class TestTextAccumulation:
         self,
         observer: OpenInferenceObserver,
         in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
         mock_llm_service: Mock,
     ) -> None:
         """Test LLM output text accumulation."""
+        # Open a turn so the LLM span can be parented.
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service,
+                destination=None,
+                frame=VADUserStartedSpeakingFrame(),
+                direction="down",
+            )
+        )
+
         # Start LLM
         context = LLMContext()
         context_frame = LLMContextFrame(context=context)
@@ -340,9 +397,20 @@ class TestMetricsHandling:
     async def test_metrics_frame_handling(
         self,
         observer: OpenInferenceObserver,
+        mock_stt_service: Mock,
         mock_llm_service: Mock,
     ) -> None:
         """Test metrics extraction and setting on spans."""
+        # Open a turn so the LLM span can be parented.
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service,
+                destination=None,
+                frame=VADUserStartedSpeakingFrame(),
+                direction="down",
+            )
+        )
+
         # Start LLM
         context = LLMContext()
         context_frame = LLMContextFrame(context=context)
@@ -501,15 +569,7 @@ class TestEdgeCases:
         assert observer._active_tts_service_id == id(mock_tts_service)
 
         # End turn to flush all spans
-        await observer._end_turn(
-            create_frame_pushed(
-                source=mock_stt_service,
-                destination=None,
-                frame=VADUserStartedSpeakingFrame(),
-                direction="down",
-            ),
-            was_interrupted=False,
-        )
+        await observer._close_turn(end_reason="completed")
 
         # Verify all three service spans were created during the turn
         spans = in_memory_span_exporter.get_finished_spans()
@@ -520,9 +580,20 @@ class TestEdgeCases:
     async def test_inter_frame_spaces_handling(
         self,
         observer: OpenInferenceObserver,
+        mock_stt_service: Mock,
         mock_llm_service: Mock,
     ) -> None:
         """Test handling of includes_inter_frame_spaces flag."""
+        # Open a turn so the LLM span can be parented.
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service,
+                destination=None,
+                frame=VADUserStartedSpeakingFrame(),
+                direction="down",
+            )
+        )
+
         # Start LLM
         context = LLMContext()
         await observer.on_push_frame(
@@ -590,12 +661,7 @@ class TestToolCallTracking:
         assert tool_call_id in observer._completed_tool_calls
 
         # End turn to flush spans
-        await observer._end_turn(
-            create_frame_pushed(
-                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
-            ),
-            was_interrupted=False,
-        )
+        await observer._close_turn(end_reason="completed")
 
         # Check finished spans
         spans = in_memory_span_exporter.get_finished_spans()
@@ -643,12 +709,7 @@ class TestToolCallTracking:
         assert tool_call_id not in observer._active_spans
 
         # End turn to flush spans
-        await observer._end_turn(
-            create_frame_pushed(
-                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
-            ),
-            was_interrupted=False,
-        )
+        await observer._close_turn(end_reason="completed")
 
         # Check finished spans
         spans = in_memory_span_exporter.get_finished_spans()
@@ -699,12 +760,7 @@ class TestToolCallTracking:
         assert tool_call_id not in observer._active_spans
 
         # End turn to flush spans
-        await observer._end_turn(
-            create_frame_pushed(
-                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
-            ),
-            was_interrupted=False,
-        )
+        await observer._close_turn(end_reason="completed")
 
         # Check finished spans
         spans = in_memory_span_exporter.get_finished_spans()
@@ -760,12 +816,7 @@ class TestToolCallTracking:
         )
 
         # End turn
-        await observer._end_turn(
-            create_frame_pushed(
-                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
-            ),
-            was_interrupted=False,
-        )
+        await observer._close_turn(end_reason="completed")
 
         # Check that both tool spans were created
         spans = in_memory_span_exporter.get_finished_spans()
@@ -847,14 +898,604 @@ class TestToolCallTracking:
             )
 
         # End turn
-        await observer._end_turn(
-            create_frame_pushed(
-                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
-            ),
-            was_interrupted=False,
-        )
+        await observer._close_turn(end_reason="completed")
 
         # Should only have one tool span despite two result frames
         spans = in_memory_span_exporter.get_finished_spans()
         tool_spans = [s for s in spans if "pipecat.tool" in s.name]
         assert len(tool_spans) == 1
+
+
+@pytest.mark.asyncio
+class TestBidirectionalTurns:
+    """Cover the bidirectional turn state machine end-to-end.
+
+    These tests exercise the explicit state machine that replaces the
+    bot-gated logic inherited from ``TurnTrackingObserver``: either party may
+    initiate a turn, the close timer fires even when the responder never
+    speaks, and the STT span finishes on the user-stop edge.
+    """
+
+    async def test_bot_first_greeting_round_trip(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """Bot greeting + user reply = one bot-initiated turn; the next user-
+        initiated utterance opens turn 2."""
+        observer = _fast_observer(tracer, config)
+        transport = Mock(spec=BaseOutputTransport)
+
+        greeting = "Hello, how can I help?"
+        user_reply_text = "I need help with my bill"
+
+        # Bot greets — opens turn 1 (initiator=bot).
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStartedSpeakingFrame())
+        )
+        # Transport-source TTSTextFrame counts as bot speech and supplies output.
+        await observer.on_push_frame(
+            create_frame_pushed(transport, None, _make_transport_tts_frame(greeting))
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStoppedSpeakingFrame())
+        )
+
+        # User replies — continues turn 1.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                mock_stt_service,
+                None,
+                TranscriptionFrame(text=user_reply_text, user_id="u", timestamp="0"),
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStoppedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStoppedSpeakingFrame())
+        )
+
+        # Both have spoken; close timer (turn_end_timeout_secs) closes turn 1.
+        await asyncio.sleep(0.2)
+
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        turn_1_attrs = dict(turn_spans[0].attributes or {})
+        assert turn_1_attrs["conversation.initiator"] == "bot"
+        assert turn_1_attrs[SpanAttributes.OUTPUT_VALUE] == greeting
+        assert turn_1_attrs[SpanAttributes.INPUT_VALUE] == user_reply_text
+        assert turn_1_attrs["conversation.end_reason"] == "completed"
+
+        # User now starts a fresh exchange — turn 2 opens with initiator=user.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+
+        assert observer._turn_count == 2
+        assert observer._turn_initiator == "user"
+
+    async def test_human_first_basic(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """User opens, bot answers; user replies, bot answers — two
+        user-initiated turns, each exported promptly after the bot stops."""
+        observer = _fast_observer(tracer, config)
+        transport = Mock(spec=BaseOutputTransport)
+
+        async def _user_then_bot(user_text: str, bot_text: str) -> None:
+            await observer.on_push_frame(
+                create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+            )
+            await observer.on_push_frame(
+                create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+            )
+            await observer.on_push_frame(
+                create_frame_pushed(
+                    mock_stt_service,
+                    None,
+                    TranscriptionFrame(text=user_text, user_id="u", timestamp="0"),
+                )
+            )
+            await observer.on_push_frame(
+                create_frame_pushed(mock_stt_service, None, UserStoppedSpeakingFrame())
+            )
+            await observer.on_push_frame(
+                create_frame_pushed(mock_stt_service, None, VADUserStoppedSpeakingFrame())
+            )
+            await observer.on_push_frame(
+                create_frame_pushed(None, None, BotStartedSpeakingFrame())
+            )
+            await observer.on_push_frame(
+                create_frame_pushed(transport, None, _make_transport_tts_frame(bot_text))
+            )
+            await observer.on_push_frame(
+                create_frame_pushed(None, None, BotStoppedSpeakingFrame())
+            )
+            # Both have spoken; close timer (turn_end_timeout) elapses.
+            await asyncio.sleep(0.2)
+
+        await _user_then_bot("First question", "First answer")
+        await _user_then_bot("Second question", "Second answer")
+
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 2
+
+        for span in turn_spans:
+            attrs = dict(span.attributes or {})
+            assert attrs["conversation.initiator"] == "user"
+            assert attrs["conversation.end_reason"] == "completed"
+
+    async def test_human_first_slow_bot(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+        mock_llm_service: Mock,
+    ) -> None:
+        """LLMContextFrame after the user stops suppresses the close timer
+        — turn isn't split even if the bot's response is slow."""
+        observer = _fast_observer(tracer, config)
+        transport = Mock(spec=BaseOutputTransport)
+
+        # User speaks and stops.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                mock_stt_service,
+                None,
+                TranscriptionFrame(text="What's the weather?", user_id="u", timestamp="0"),
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStoppedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStoppedSpeakingFrame())
+        )
+
+        # LLM is invoked, gating the close timer via _bot_response_pending.
+        context = LLMContext()
+        await observer.on_push_frame(
+            create_frame_pushed(
+                None, mock_llm_service, LLMContextFrame(context=context)
+            )
+        )
+
+        # Wait LONGER than turn_end_timeout_secs (0.05) — the timer must stay
+        # gated because the bot's response is pending.
+        await asyncio.sleep(0.15)
+        assert not _get_turn_spans(in_memory_span_exporter)
+        assert observer._turn_count == 1
+
+        # Bot finally speaks.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_llm_service, None, LLMFullResponseEndFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(transport, None, _make_transport_tts_frame("Sunny."))
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStoppedSpeakingFrame())
+        )
+        await asyncio.sleep(0.2)
+
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        attrs = dict(turn_spans[0].attributes or {})
+        assert attrs["conversation.initiator"] == "user"
+        assert attrs["conversation.end_reason"] == "completed"
+
+    async def test_no_responder_timeout(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """User opens, bot never responds — turn closes with
+        ``no_responder_timeout`` after ``no_responder_timeout_secs``."""
+        observer = _fast_observer(tracer, config)
+
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                mock_stt_service,
+                None,
+                TranscriptionFrame(text="Anyone there?", user_id="u", timestamp="0"),
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStoppedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStoppedSpeakingFrame())
+        )
+
+        # Wait past no_responder_timeout_secs (0.1).
+        await asyncio.sleep(0.2)
+
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        attrs = dict(turn_spans[0].attributes or {})
+        assert attrs["conversation.initiator"] == "user"
+        assert attrs["conversation.end_reason"] == "no_responder_timeout"
+        assert attrs[SpanAttributes.INPUT_VALUE] == "Anyone there?"
+        assert SpanAttributes.OUTPUT_VALUE not in attrs
+
+    async def test_consecutive_user_utterances_merge(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """Two consecutive user utterances (before any bot response) end up
+        in the same turn's ``input.value``."""
+        observer = _fast_observer(tracer, config)
+
+        # First utterance.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                mock_stt_service,
+                None,
+                TranscriptionFrame(text="First part", user_id="u", timestamp="0"),
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStoppedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStoppedSpeakingFrame())
+        )
+
+        # Second utterance — bot has not spoken, so the turn must not roll.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                mock_stt_service,
+                None,
+                TranscriptionFrame(text="second part", user_id="u", timestamp="0"),
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStoppedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStoppedSpeakingFrame())
+        )
+
+        await asyncio.sleep(0.2)
+
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        attrs = dict(turn_spans[0].attributes or {})
+        assert attrs["conversation.initiator"] == "user"
+        input_value = attrs[SpanAttributes.INPUT_VALUE]
+        assert "First part" in input_value
+        assert "second part" in input_value
+
+    async def test_consecutive_bot_utterances_merge(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Two consecutive bot utterances (before any user reply) end up in
+        the same turn's ``output.value``."""
+        observer = _fast_observer(tracer, config)
+        transport = Mock(spec=BaseOutputTransport)
+
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(transport, None, _make_transport_tts_frame("Hello."))
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStoppedSpeakingFrame())
+        )
+
+        # Bot speaks again — user has not spoken, no roll.
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(transport, None, _make_transport_tts_frame("How are you?"))
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStoppedSpeakingFrame())
+        )
+
+        await asyncio.sleep(0.2)
+
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        attrs = dict(turn_spans[0].attributes or {})
+        assert attrs["conversation.initiator"] == "bot"
+        output_value = attrs[SpanAttributes.OUTPUT_VALUE]
+        assert "Hello." in output_value
+        assert "How are you?" in output_value
+
+    async def test_user_interrupts_bot(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """User starts while the bot is still speaking — current turn ends
+        interrupted; new turn opens with initiator=user."""
+        observer = _fast_observer(tracer, config)
+        transport = Mock(spec=BaseOutputTransport)
+
+        # Bot begins speaking.
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(transport, None, _make_transport_tts_frame("Long answer..."))
+        )
+        # User interrupts before the bot stops.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+
+        # Turn 1 should have closed as interrupted.
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        attrs = dict(turn_spans[0].attributes or {})
+        assert attrs["conversation.was_interrupted"] is True
+        assert attrs["conversation.end_reason"] == "interrupted"
+        assert attrs["conversation.initiator"] == "bot"
+
+        # Turn 2 is now active with the user as initiator.
+        assert observer._turn_count == 2
+        assert observer._turn_initiator == "user"
+
+    async def test_stt_span_finishes_on_user_stop(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """The STT span finishes on ``VADUserStoppedSpeakingFrame`` so it
+        exports even before any LLM activity."""
+        observer = _fast_observer(tracer, config)
+
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                mock_stt_service,
+                None,
+                TranscriptionFrame(text="Hello there", user_id="u", timestamp="0"),
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStoppedSpeakingFrame())
+        )
+
+        # No LLM activity yet — but the STT span must already be exported.
+        stt_spans = [
+            s for s in in_memory_span_exporter.get_finished_spans() if s.name == "pipecat.stt"
+        ]
+        assert len(stt_spans) == 1
+        assert observer._active_stt_service_id is None
+
+    async def test_endframe_flush(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """``EndFrame`` flushes the active turn marked as interrupted."""
+        observer = _fast_observer(tracer, config)
+
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                mock_stt_service,
+                None,
+                TranscriptionFrame(text="Mid sentence", user_id="u", timestamp="0"),
+            )
+        )
+
+        # Connection drops — EndFrame arrives without a clean turn close.
+        await observer.on_push_frame(create_frame_pushed(None, None, EndFrame()))
+
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        attrs = dict(turn_spans[0].attributes or {})
+        assert attrs["conversation.was_interrupted"] is True
+        assert attrs["conversation.end_reason"] == "interrupted"
+        assert observer._turn_span is None
+
+    async def test_pending_bot_response_suppresses_timer(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+        mock_llm_service: Mock,
+    ) -> None:
+        """While ``_bot_response_pending`` is set, neither the
+        ``turn_end_timeout`` nor the ``no_responder_timeout`` closes the
+        turn. Once the LLM stream ends and the bot speaks then stops, the
+        turn closes normally with ``end_reason='completed'``."""
+        observer = _fast_observer(tracer, config)
+        transport = Mock(spec=BaseOutputTransport)
+
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                mock_stt_service,
+                None,
+                TranscriptionFrame(text="Slow bot test", user_id="u", timestamp="0"),
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStoppedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStoppedSpeakingFrame())
+        )
+
+        # Mark a bot response as pending.
+        context = LLMContext()
+        await observer.on_push_frame(
+            create_frame_pushed(
+                None, mock_llm_service, LLMContextFrame(context=context)
+            )
+        )
+        assert observer._bot_response_pending is True
+
+        # Wait past BOTH turn_end_timeout_secs (0.05) and
+        # no_responder_timeout_secs (0.1) — turn must remain open.
+        await asyncio.sleep(0.25)
+        assert not _get_turn_spans(in_memory_span_exporter)
+        assert observer._turn_span is not None
+
+        # LLM stream ends, then the bot finally speaks.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_llm_service, None, LLMFullResponseEndFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(transport, None, _make_transport_tts_frame("Here you go."))
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStoppedSpeakingFrame())
+        )
+        await asyncio.sleep(0.2)
+
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        attrs = dict(turn_spans[0].attributes or {})
+        assert attrs["conversation.end_reason"] == "completed"
+        assert attrs["conversation.initiator"] == "user"
+
+
+@pytest.mark.asyncio
+class TestStateMachineEdgeCases:
+    """Defensive behaviour around degenerate or out-of-order frame sequences."""
+
+    async def test_consecutive_user_started_is_idempotent(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        mock_stt_service: Mock,
+    ) -> None:
+        """Two back-to-back user-started frames must not double-open the
+        turn or double-flip ``_user_speaking``."""
+        observer = _fast_observer(tracer, config)
+
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+
+        assert observer._turn_count == 1
+        assert observer._user_speaking is True
+        assert observer._user_spoken_this_turn is True
+
+    async def test_bot_stopped_without_started_is_noop(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """A stray ``BotStoppedSpeakingFrame`` with no matching
+        ``BotStartedSpeakingFrame`` must not crash or schedule a timer."""
+        observer = _fast_observer(tracer, config)
+
+        # No exception, no turn opened, no timer scheduled.
+        await observer.on_push_frame(
+            create_frame_pushed(None, None, BotStoppedSpeakingFrame())
+        )
+
+        assert observer._turn_span is None
+        assert observer._bot_speaking is False
+        assert observer._end_turn_timer is None
+        assert not _get_turn_spans(in_memory_span_exporter)
+
+    async def test_llm_context_frame_without_turn_does_not_crash(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        mock_llm_service: Mock,
+    ) -> None:
+        """``LLMContextFrame`` heading into an LLM with no active turn must
+        be handled without crashing. Either the bot turn opens lazily or
+        ``_bot_response_pending`` is set — both are acceptable."""
+        observer = _fast_observer(tracer, config)
+
+        context = LLMContext()
+        # Should not raise.
+        await observer.on_push_frame(
+            create_frame_pushed(
+                None, mock_llm_service, LLMContextFrame(context=context)
+            )
+        )
+
+        # The current implementation opens a bot turn lazily AND marks the
+        # response pending. The spec permits either outcome; the contract
+        # being tested is "no crash".
+        assert observer._bot_response_pending is True
