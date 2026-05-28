@@ -59,15 +59,20 @@ def setup_tracer_provider():  # type: ignore[no-untyped-def]
     if space_id and api_key:
         from arize.otel import register as register_arize
 
+        endpoint = os.getenv("ARIZE_ENDPOINT")
+        kwargs: dict = {
+            "space_id": space_id,
+            "api_key": api_key,
+            "project_name": project_name,
+        }
+        if endpoint:
+            kwargs["endpoint"] = endpoint
         print(f"Traces → Arize AX (project={project_name})")
-        return register_arize(
-            space_id=space_id,
-            api_key=api_key,
-            project_name=project_name,
-        )
+        return register_arize(**kwargs)
+    # phoenix.otel.register reads PHOENIX_COLLECTOR_ENDPOINT from the environment.
     from phoenix.otel import register as register_phoenix
 
-    print(f"Traces → Phoenix (local, project={project_name})")
+    print(f"Traces → Phoenix (project={project_name})")
     return register_phoenix(project_name=project_name)
 
 
