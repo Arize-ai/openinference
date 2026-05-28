@@ -158,6 +158,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._bot_spoken_this_turn: bool = False
         self._bot_response_pending: bool = False
         self._last_speaker: Optional[str] = None
+        # VAD-stop edge. Non-streaming STT (e.g. Whisper) emits the final
+        # TranscriptionFrame AFTER VADUserStoppedSpeakingFrame, so we cannot
+        # finish the STT span on the VAD-stop edge or we lose the transcript.
+        # Instead, mark that we've seen the stop and finish on the next
+        # TranscriptionFrame (which has the final transcript).
+        self._seen_vad_user_stopped_speaking_frame: bool = False
 
         # Close timer (replaces base class's bot-gated timer)
         self._end_turn_timer: Optional[asyncio.TimerHandle] = None
@@ -206,13 +212,19 @@ class OpenInferenceObserver(TurnTrackingObserver):
         bot speech, which fails any user-initiated session where the bot never
         responds.
         """
-        # Frame dedup (mirror base class behaviour)
-        if data.frame.id in self._processed_frames:
-            return
-        self._processed_frames.add(data.frame.id)
-        self._frame_history.append(data.frame.id)
-        if len(self._processed_frames) > len(self._frame_history):
-            self._processed_frames = set(self._frame_history)
+        # Frame dedup applies ONLY to Stage 1 (turn-state events that must
+        # fire once per logical frame). The same frame is observed on every
+        # push between processors; Stage 1.5 (lazy bot-turn open) and Stage 2
+        # (service span dispatch) need to see every push because they branch
+        # on ``dst`` / ``src`` being a specific service. Returning early here
+        # would drop those observations entirely in any pipeline where the
+        # frame originates above the relevant service.
+        frame_already_seen = data.frame.id in self._processed_frames
+        if not frame_already_seen:
+            self._processed_frames.add(data.frame.id)
+            self._frame_history.append(data.frame.id)
+            if len(self._processed_frames) > len(self._frame_history):
+                self._processed_frames = set(self._frame_history)
 
         await self._latency_observer.on_push_frame(data)
 
@@ -226,8 +238,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
             if self._verbose:
                 self._log_debug(f"FRAME: {frame_type} from {source_name}")
 
-            # === Stage 1: turn state machine ===
-            if isinstance(frame, StartFrame):
+            # === Stage 1: turn state machine === (dedup'd: once per frame.id)
+            if frame_already_seen:
+                pass
+            elif isinstance(frame, StartFrame):
                 if self._turn_count == 0:
                     self._log_debug("  StartFrame seen — first turn opens lazily on first speech")
             elif isinstance(frame, (UserStartedSpeakingFrame, VADUserStartedSpeakingFrame)):
@@ -236,10 +250,29 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 await self._on_user_stopped(data)
             elif isinstance(frame, VADUserStoppedSpeakingFrame):
                 await self._on_user_stopped(data)
-                # Explicitly finish the STT span on the VAD stop edge so the
-                # span exports even when the bot never speaks afterwards.
+                # STT close strategy depends on STT style:
+                #  - Streaming STT (e.g. Deepgram): transcripts have already
+                #    arrived during speech, so the active STT span has
+                #    accumulated_input. Close it now — no more transcripts
+                #    expected for this utterance.
+                #  - Non-streaming STT (e.g. OpenAI Whisper): the final
+                #    TranscriptionFrame arrives AFTER this VAD-stop frame.
+                #    Closing now would drop the transcript both from the
+                #    STT span's accumulated_input AND from _turn_user_text
+                #    (collection is gated on an active STT span). Defer by
+                #    flagging; the next TranscriptionFrame finishes the
+                #    span after collecting its text.
+                # Safety nets (non-STT span starting, turn close) still
+                # apply in either path.
+                self._seen_vad_user_stopped_speaking_frame = True
                 if self._active_stt_service_id is not None:
-                    self._finish_stt_span(self._active_stt_service_id)
+                    span_info = self._active_spans.get(self._active_stt_service_id)
+                    has_transcript = bool(
+                        span_info and span_info.get("accumulated_input", "").strip()
+                    )
+                    if has_transcript:
+                        self._seen_vad_user_stopped_speaking_frame = False
+                        self._finish_stt_span(self._active_stt_service_id)
             elif isinstance(frame, BotStartedSpeakingFrame):
                 await self._on_bot_started(data)
             elif isinstance(frame, BotStoppedSpeakingFrame):
@@ -412,6 +445,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._bot_spoken_this_turn = False
         self._last_speaker = None
         self._bot_response_pending = False
+        self._seen_vad_user_stopped_speaking_frame = False
         self._turn_user_text = []
         self._turn_bot_text = []
         self._active_spans = {}
@@ -433,7 +467,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._turn_span = self._tracer.start_span(
             name="pipecat.conversation.turn",
             context=Context(),  # Root span — each turn is its own trace
-            attributes=span_attributes,  # type: ignore[arg-type]
+            attributes=span_attributes,
         )
 
         if self._conversation_id:
@@ -497,6 +531,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._user_spoken_this_turn = False
         self._bot_spoken_this_turn = False
         self._bot_response_pending = False
+        self._seen_vad_user_stopped_speaking_frame = False
         self._turn_user_text = []
         self._turn_bot_text = []
         self._active_spans = {}
@@ -505,9 +540,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._completed_tool_calls.clear()
         self._llm_span_awaiting_tool_calls = None
 
-        await self._call_event_handler(
-            "on_turn_ended", finished_turn, duration_secs, interrupted
-        )
+        await self._call_event_handler("on_turn_ended", finished_turn, duration_secs, interrupted)
 
     # ------------------------------------------------------------------
     # Close timer
@@ -541,9 +574,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         handle_ref: List[Optional[asyncio.TimerHandle]] = [None]
 
         def _fire(reason: str = pending_end_reason) -> None:
-            asyncio.create_task(
-                self._on_close_timer_fired(reason, handle_ref[0])
-            )
+            asyncio.create_task(self._on_close_timer_fired(reason, handle_ref[0]))
 
         handle = loop.call_later(timeout, _fire)
         handle_ref[0] = handle
@@ -567,11 +598,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
             self._end_turn_timer = None
         if self._turn_span is None:
             return
-        if (
-            not self._user_speaking
-            and not self._bot_speaking
-            and not self._bot_response_pending
-        ):
+        if not self._user_speaking and not self._bot_speaking and not self._bot_response_pending:
             await self._close_turn(end_reason=end_reason)
         else:
             self._schedule_close_timer()
@@ -584,18 +611,17 @@ class OpenInferenceObserver(TurnTrackingObserver):
         """
         Finish an STT span, stamping the time-to-last-transcription duration.
 
-        Note: with the explicit VAD-stop close path, "time to last
-        transcription" now measures span-start to VAD-stop (i.e. the entire
-        span of time the user was speaking), not span-start to the final
-        TranscriptionFrame. The attribute name is retained for backwards
-        compatibility with existing dashboards.
+        Called when one of:
+          - the final TranscriptionFrame arrives after a VAD-stop edge
+            (normal path; the duration covers span-start to final transcript);
+          - a non-STT service span starts while an STT span is still active
+            (safety net for missing/late transcripts);
+          - the turn closes (terminal fallback).
         """
         span_info = self._active_spans.get(service_id)
         if span_info is not None:
             duration = (time.time_ns() - span_info["start_time_ns"]) / 1_000_000_000
-            span_info["span"].set_attribute(
-                "stt.time_to_last_transcription_seconds", duration
-            )
+            span_info["span"].set_attribute("stt.time_to_last_transcription_seconds", duration)
         self._finish_span(service_id)
         # _finish_span already clears _active_stt_service_id when applicable,
         # but be explicit in case the span was never registered.
@@ -696,6 +722,19 @@ class OpenInferenceObserver(TurnTrackingObserver):
                         # state machine even without a BotStartedSpeakingFrame.
                         self._bot_spoken_this_turn = True
 
+                # Defensive: TranscriptionFrame whose STT span has already
+                # been closed (e.g. by an early non-STT span starting).
+                # Still capture the text in the turn so the user message is
+                # never dropped from input.value. Also clear the VAD-stop
+                # flag so it doesn't leak into a later turn.
+                elif isinstance(frame, TranscriptionFrame):
+                    if self._is_turn_active and frame.text:
+                        self._turn_user_text.append(frame.text)
+                        self._log_debug(
+                            f"  Collected user text (STT span closed): {frame.text[:50]}..."
+                        )
+                    self._seen_vad_user_stopped_speaking_frame = False
+
             else:
                 # Update existing span
                 frame_attrs = extract_attributes_from_frame(frame)
@@ -715,6 +754,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     span_info["accumulated_input"] += frame.text
                     if not self._stt_includes_inter_frame_spaces:
                         span_info["accumulated_input"] += " "
+
+                    # If this transcript completes a VAD-stop edge, close the
+                    # STT span now that we have the final text.
+                    if self._seen_vad_user_stopped_speaking_frame:
+                        self._seen_vad_user_stopped_speaking_frame = False
+                        self._finish_stt_span(service_id)
 
                 # LLM
                 elif isinstance(frame, LLMFullResponseEndFrame):
