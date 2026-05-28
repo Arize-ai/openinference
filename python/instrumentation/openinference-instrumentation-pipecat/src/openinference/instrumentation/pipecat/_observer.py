@@ -1,10 +1,11 @@
 """OpenInference observer for Pipecat pipelines."""
 
+import asyncio
+import collections
 import logging
 import time
-from contextvars import Token
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, TextIO
+from typing import Any, Deque, Dict, List, Optional, Set, TextIO
 
 from opentelemetry import trace as trace_api
 from opentelemetry.context import Context
@@ -17,6 +18,10 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 from pipecat.frames.frames import (
+    BotStartedSpeakingFrame,
+    BotStoppedSpeakingFrame,
+    CancelFrame,
+    EndFrame,
     Frame,
     FunctionCallResultFrame,
     LLMContextFrame,
@@ -29,6 +34,8 @@ from pipecat.frames.frames import (
     TranscriptionFrame,
     TTSStartedFrame,
     TTSTextFrame,
+    UserStartedSpeakingFrame,
+    UserStoppedSpeakingFrame,
     VADUserStartedSpeakingFrame,
     VADUserStoppedSpeakingFrame,
 )
@@ -60,8 +67,9 @@ class OpenInferenceObserver(TurnTrackingObserver):
     """
     Observer that creates OpenInference spans for Pipecat frame processing.
 
-    Observes frame flow through pipeline and creates spans for LLM, TTS, and STT services.
-    Implements proper span hierarchy with session ID propagation.
+    Implements an explicit bidirectional turn state machine: either party can
+    initiate a turn, interruptions roll cleanly to a new turn, and the close
+    timer fires even when the responding side never speaks.
     """
 
     def __init__(
@@ -73,6 +81,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         debug_log_filename: Optional[str] = None,
         max_frames: int = 100,
         turn_end_timeout_secs: float = 2.5,
+        no_responder_timeout_secs: float = 10.0,
         verbose: bool = False,
         **kwargs: Any,
     ):
@@ -86,8 +95,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
             conversation_id: Optional conversation/session ID to link all spans
             debug_log_filename: Optional filename for debug logging
             max_frames: Maximum number of frame IDs to keep in history for duplicate detection
-            turn_end_timeout_secs: Timeout in seconds after bot stops speaking before automatically
-                ending the turn
+            turn_end_timeout_secs: Timeout in seconds after both parties have spoken and gone
+                silent before automatically closing the turn.
+            no_responder_timeout_secs: Timeout in seconds after only the initiator has spoken
+                and gone silent (the responder never spoke) before closing the turn.
             verbose: Optional verbose logging
             kwargs: Additional keyword arguments to pass to the base class
         """
@@ -96,6 +107,8 @@ class OpenInferenceObserver(TurnTrackingObserver):
             turn_end_timeout_secs=turn_end_timeout_secs,
             **kwargs,
         )
+        self._no_responder_timeout_secs: float = no_responder_timeout_secs
+
         self._latency_observer: UserBotLatencyObserver = UserBotLatencyObserver()  # type: ignore[no-untyped-call]
         self._last_user_to_bot_latency: Optional[float] = None
 
@@ -116,7 +129,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._debug_log_file: Optional[TextIO] = None
         self._verbose: bool = verbose
         if debug_log_filename:
-            # Write log to current working directory (where the script is running)
             try:
                 self._debug_log_file = open(debug_log_filename, "w")
                 self._log_debug(f"=== Observer initialized for conversation {conversation_id} ===")
@@ -129,16 +141,34 @@ class OpenInferenceObserver(TurnTrackingObserver):
         # Track the last frame seen from each service to detect completion
         self._last_frames: Dict[int, Frame] = {}
 
-        # Turn tracking state
+        # Turn span + initiator
         self._turn_span: Optional[Span] = None
-        self._turn_context_token: Optional[Token[Context]] = None
+        self._turn_initiator: Optional[str] = None
+        self._turn_start_time: int = 0
         self._turn_user_text: List[str] = []
         self._turn_bot_text: List[str] = []
 
         self._stt_includes_inter_frame_spaces: bool = False
         self._llm_includes_inter_frame_spaces: bool = False
         self._tts_includes_inter_frame_spaces: bool = False
-        self._seen_vad_user_stopped_speaking_frame: bool = False
+
+        # Bidirectional state machine — current activity (survives turn boundaries)
+        self._user_speaking: bool = False
+        self._bot_speaking: bool = False
+
+        # Bidirectional state machine — per-turn flags (reset on _open_turn)
+        self._user_spoken_this_turn: bool = False
+        self._bot_spoken_this_turn: bool = False
+        self._bot_response_pending: bool = False
+        self._last_speaker: Optional[str] = None
+
+        # Close timer (replaces base class's bot-gated timer)
+        self._end_turn_timer: Optional[asyncio.TimerHandle] = None
+
+        # Frame dedup (mirror base class behaviour because we no longer
+        # delegate to ``super().on_push_frame``)
+        self._processed_frames: Set[int] = set()
+        self._frame_history: Deque[int] = collections.deque(maxlen=max_frames)
 
         # Track completed tool calls to avoid duplicate spans
         self._completed_tool_calls: Set[str] = set()
@@ -147,12 +177,8 @@ class OpenInferenceObserver(TurnTrackingObserver):
         # This stores (service_id, span_info) for LLM spans awaiting tool call completion
         self._llm_span_awaiting_tool_calls: Optional[Dict[str, Any]] = None
 
-        # Track active TTS span service_id for efficient lookup
-        # Used to finish TTS span when non-TTS operations start
+        # Track active TTS / STT span service_id for efficient lookup
         self._active_tts_service_id: Optional[int] = None
-
-        # Track active STT span service_id for efficient lookup
-        # Used to finish STT span when non-STT operations start
         self._active_stt_service_id: Optional[int] = None
 
     def _log_debug(self, message: str) -> None:
@@ -177,13 +203,20 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
     async def on_push_frame(self, data: FramePushed) -> None:
         """
-        Called when a frame is pushed between processors.
-
-        Args:
-            data: FramePushed event data with source, destination, frame, direction
+        Dispatch frames through (a) the bidirectional turn state machine and
+        (b) the service-span builders. We deliberately do NOT call
+        ``super().on_push_frame``: the base class's turn logic gates close on
+        bot speech, which fails any user-initiated session where the bot never
+        responds.
         """
-        await super().on_push_frame(data)
-        # ensure UserBotLatencyLogObserver is using self._user_bot_latency_processed_frames !
+        # Frame dedup (mirror base class behaviour)
+        if data.frame.id in self._processed_frames:
+            return
+        self._processed_frames.add(data.frame.id)
+        self._frame_history.append(data.frame.id)
+        if len(self._processed_frames) > len(self._frame_history):
+            self._processed_frames = set(self._frame_history)
+
         await self._latency_observer.on_push_frame(data)
 
         try:
@@ -191,25 +224,61 @@ class OpenInferenceObserver(TurnTrackingObserver):
             dst = data.destination
             frame = data.frame
             frame_type = frame.__class__.__name__
-            source_name = data.source.__class__.__name__ if data.source else "Unknown"
+            source_name = src.__class__.__name__ if src else "Unknown"
 
             if self._verbose:
-                # Log every frame if verbose
                 self._log_debug(f"FRAME: {frame_type} from {source_name}")
 
+            # === Stage 1: turn state machine ===
             if isinstance(frame, StartFrame):
                 if self._turn_count == 0:
-                    self._log_debug("  Starting first turn via StartFrame")
+                    self._log_debug("  StartFrame seen — first turn opens lazily on first speech")
+            elif isinstance(frame, (UserStartedSpeakingFrame, VADUserStartedSpeakingFrame)):
+                await self._on_user_started(data)
+            elif isinstance(frame, UserStoppedSpeakingFrame):
+                await self._on_user_stopped(data)
+            elif isinstance(frame, VADUserStoppedSpeakingFrame):
+                await self._on_user_stopped(data)
+                # Explicitly finish the STT span on the VAD stop edge so the
+                # span exports even when the bot never speaks afterwards.
+                if self._active_stt_service_id is not None:
+                    span_info = self._active_spans.get(self._active_stt_service_id)
+                    if span_info is not None:
+                        duration = (
+                            time.time_ns() - span_info["start_time_ns"]
+                        ) / 1_000_000_000
+                        span_info["span"].set_attribute(
+                            "stt.time_to_last_transcription_seconds", duration
+                        )
+                    self._finish_span(self._active_stt_service_id)
+                    self._active_stt_service_id = None
+            elif isinstance(frame, BotStartedSpeakingFrame):
+                await self._on_bot_started(data)
+            elif isinstance(frame, BotStoppedSpeakingFrame):
+                await self._on_bot_stopped(data)
+            elif isinstance(frame, (EndFrame, CancelFrame)):
+                if self._turn_span is not None:
+                    await self._close_turn(end_reason="interrupted", interrupted=True)
+                self._cancel_close_timer()
 
-            # _end_turn is called by super(); no need to handle
-            # elif isinstance(frame, (EndFrame, CancelFrame)):
-            #     await self._handle_service_frame(data)
+            # === Stage 1b: bot-response-pending tracking ===
+            # LLMContextFrame heading into an LLMService means a response is on
+            # the way; LLMFullResponseEndFrame from an LLMService means the
+            # response stream finished. These do NOT count as bot speech for
+            # turn semantics (only BotStartedSpeakingFrame or transport-source
+            # TTSTextFrame do); they just gate the close timer.
+            if isinstance(frame, LLMContextFrame) and isinstance(dst, LLMService):
+                self._bot_response_pending = True
+                self._cancel_close_timer()
+            elif isinstance(frame, LLMFullResponseEndFrame) and isinstance(src, LLMService):
+                self._bot_response_pending = False
+                if not self._user_speaking and not self._bot_speaking:
+                    self._schedule_close_timer()
 
-            # STT
-            elif isinstance(src, STTService):
+            # === Stage 2: service span dispatch ===
+            if isinstance(src, STTService):
                 if isinstance(frame, STTMuteFrame):
                     if frame.mute and self._active_stt_service_id is not None:
-                        # STT muted — finish the active STT span
                         self._log_debug(
                             f"  STTMuteFrame (mute=True) - "
                             f"finishing active STT span {self._active_stt_service_id}"
@@ -217,7 +286,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
                         self._finish_span(self._active_stt_service_id)
                         self._active_stt_service_id = None
                     elif not frame.mute:
-                        # STT unmuted — start a new STT span
                         self._log_debug("  STTMuteFrame (mute=False) - starting new STT span")
                         await self._handle_service_frame(data)
                 elif isinstance(
@@ -225,13 +293,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     (
                         TranscriptionFrame,
                         VADUserStartedSpeakingFrame,
-                        VADUserStoppedSpeakingFrame,
                         MetricsFrame,
                     ),
                 ):
                     await self._handle_service_frame(data)
-
-            # LLM (source)
             elif isinstance(src, LLMService):
                 if isinstance(
                     frame,
@@ -243,26 +308,256 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     ),
                 ):
                     await self._handle_service_frame(data)
-
                 elif isinstance(frame, FunctionCallResultFrame):
                     await self._handle_tool_frame(data)
-
-            # LLM (destination)
             elif isinstance(dst, LLMService):
                 if isinstance(frame, LLMContextFrame):
                     await self._handle_service_frame(data, override_service=dst)
-
-            # TTS
             elif isinstance(src, TTSService):
                 if isinstance(frame, (TTSTextFrame, TTSStartedFrame, MetricsFrame)):
                     await self._handle_service_frame(data)
-
             elif isinstance(src, BaseOutputTransport):
-                if isinstance(frame, (TTSTextFrame)):
+                if isinstance(frame, TTSTextFrame):
                     await self._handle_service_frame(data)
 
         except Exception as e:
             logger.debug(f"Error in observer on_push_frame: {e}")
+
+    # ------------------------------------------------------------------
+    # State machine — speaker edges
+    # ------------------------------------------------------------------
+
+    async def _on_user_started(self, data: FramePushed) -> None:
+        """Handle a user-started-speaking edge."""
+        if self._turn_span is None:
+            await self._open_turn(initiator="user")
+        elif self._bot_speaking:
+            # Interruption: user starts while bot is still speaking.
+            await self._close_turn(end_reason="interrupted", interrupted=True)
+            await self._open_turn(initiator="user")
+        elif (
+            self._user_spoken_this_turn
+            and self._bot_spoken_this_turn
+            and not self._user_speaking
+            and not self._bot_speaking
+        ):
+            # Roll: both have spoken in the current turn and neither is
+            # currently speaking — start a fresh turn for the new utterance.
+            await self._close_turn(end_reason="completed")
+            await self._open_turn(initiator="user")
+        # else: continue the current turn
+
+        if not self._user_speaking:
+            self._user_speaking = True
+            self._user_spoken_this_turn = True
+        self._last_speaker = "user"
+        self._cancel_close_timer()
+
+    async def _on_user_stopped(self, data: FramePushed) -> None:
+        """Handle a user-stopped-speaking edge."""
+        if not self._user_speaking:
+            return
+        self._user_speaking = False
+        self._schedule_close_timer()
+
+    async def _on_bot_started(self, data: FramePushed) -> None:
+        """Handle a bot-started-speaking edge."""
+        if self._turn_span is None:
+            await self._open_turn(initiator="bot")
+        elif self._user_speaking:
+            await self._close_turn(end_reason="interrupted", interrupted=True)
+            await self._open_turn(initiator="bot")
+        elif (
+            self._user_spoken_this_turn
+            and self._bot_spoken_this_turn
+            and not self._user_speaking
+            and not self._bot_speaking
+        ):
+            await self._close_turn(end_reason="completed")
+            await self._open_turn(initiator="bot")
+        # else: continue the current turn
+
+        if not self._bot_speaking:
+            self._bot_speaking = True
+            self._bot_spoken_this_turn = True
+        self._last_speaker = "bot"
+        self._cancel_close_timer()
+
+    async def _on_bot_stopped(self, data: FramePushed) -> None:
+        """Handle a bot-stopped-speaking edge."""
+        if not self._bot_speaking:
+            return
+        self._bot_speaking = False
+        self._schedule_close_timer()
+
+    # ------------------------------------------------------------------
+    # Turn lifecycle
+    # ------------------------------------------------------------------
+
+    async def _open_turn(self, initiator: str) -> None:
+        """Open a new conversation turn span with the given initiator."""
+        self._turn_count += 1
+        self._turn_start_time = time.time_ns()
+
+        self._log_debug(f"\n{'=' * 60}")
+        self._log_debug(f">>> STARTING TURN #{self._turn_count} (initiator={initiator})")
+        self._log_debug(f"  Conversation ID: {self._conversation_id}")
+
+        span_attributes: Dict[str, Any] = {
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            "conversation.turn_number": self._turn_count,
+            "conversation.initiator": initiator,
+        }
+        if self._additional_span_attributes:
+            span_attributes.update(self._additional_span_attributes)
+
+        self._turn_span = self._tracer.start_span(
+            name="pipecat.conversation.turn",
+            context=Context(),  # Root span — each turn is its own trace
+            attributes=span_attributes,  # type: ignore[arg-type]
+        )
+
+        if self._conversation_id:
+            self._turn_span.set_attribute(SpanAttributes.SESSION_ID, self._conversation_id)
+            self._log_debug(f"  Set session.id attribute: {self._conversation_id}")
+
+        self._turn_initiator = initiator
+        self._is_turn_active = True
+
+        # Reset per-turn state
+        self._user_spoken_this_turn = False
+        self._bot_spoken_this_turn = False
+        self._last_speaker = None
+        self._bot_response_pending = False
+        self._turn_user_text = []
+        self._turn_bot_text = []
+        self._active_spans = {}
+        self._active_stt_service_id = None
+        self._active_tts_service_id = None
+        self._completed_tool_calls.clear()
+        self._llm_span_awaiting_tool_calls = None
+
+        await self._call_event_handler("on_turn_started", self._turn_count)
+
+    async def _close_turn(self, end_reason: str, *, interrupted: bool = False) -> None:
+        """Close the active conversation turn span."""
+        if self._turn_span is None:
+            return
+
+        self._cancel_close_timer()
+
+        # Finalise any in-flight service spans before ending the parent span.
+        for service_id in list(self._active_spans.keys()):
+            self._finish_span(service_id)
+
+        current_time_ns = time.time_ns()
+        duration_secs = (current_time_ns - self._turn_start_time) / 1_000_000_000
+
+        self._log_debug(
+            f"\n{'=' * 60}\n"
+            f">>> FINISHING TURN #{self._turn_count} "
+            f"(end_reason={end_reason}, interrupted={interrupted}, "
+            f"duration={duration_secs:.2f}s)"
+        )
+
+        if self._turn_user_text:
+            user_input = " ".join(self._turn_user_text)
+            self._turn_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
+        if self._turn_bot_text:
+            join_space = "" if self._tts_includes_inter_frame_spaces else " "
+            bot_output = join_space.join(self._turn_bot_text)
+            self._turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, bot_output)
+
+        self._turn_span.set_attribute("conversation.end_reason", end_reason)
+        self._turn_span.set_attribute("conversation.was_interrupted", interrupted)
+        self._turn_span.set_attribute("conversation.turn_duration_seconds", duration_secs)
+
+        if self._last_user_to_bot_latency is not None:
+            self._turn_span.set_attribute(
+                "conversation.user_to_bot_latency",
+                self._last_user_to_bot_latency,
+            )
+
+        self._turn_span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+        self._turn_span.end(end_time=int(current_time_ns))
+
+        finished_turn = self._turn_count
+
+        # Clear turn state. Do NOT clear ``_user_speaking`` / ``_bot_speaking``
+        # — those reflect current physical activity and survive turn
+        # boundaries (e.g. during an interruption the bot may still be
+        # producing audio for a brief overlap window).
+        self._turn_span = None
+        self._turn_initiator = None
+        self._is_turn_active = False
+        self._last_speaker = None
+        self._user_spoken_this_turn = False
+        self._bot_spoken_this_turn = False
+        self._bot_response_pending = False
+        self._turn_user_text = []
+        self._turn_bot_text = []
+        self._active_spans = {}
+        self._active_stt_service_id = None
+        self._active_tts_service_id = None
+        self._completed_tool_calls.clear()
+        self._llm_span_awaiting_tool_calls = None
+
+        await self._call_event_handler(
+            "on_turn_ended", finished_turn, duration_secs, interrupted
+        )
+
+    # ------------------------------------------------------------------
+    # Close timer
+    # ------------------------------------------------------------------
+
+    def _schedule_close_timer(self) -> None:
+        """(Re-)arm the close timer based on current responder state."""
+        if self._bot_response_pending:
+            return
+        self._cancel_close_timer()
+
+        if self._user_spoken_this_turn != self._bot_spoken_this_turn:
+            # Only the initiator has spoken — wait the no-responder window.
+            timeout = self._no_responder_timeout_secs
+            pending_end_reason = "no_responder_timeout"
+        else:
+            # Both have spoken (or neither has — degenerate, but harmless).
+            timeout = self._turn_end_timeout_secs
+            pending_end_reason = "completed"
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop — cannot schedule. Caller has no recourse.
+            return
+
+        self._end_turn_timer = loop.call_later(
+            timeout,
+            lambda: asyncio.create_task(self._on_close_timer_fired(pending_end_reason)),
+        )
+
+    def _cancel_close_timer(self) -> None:
+        if self._end_turn_timer is not None:
+            self._end_turn_timer.cancel()
+            self._end_turn_timer = None
+
+    async def _on_close_timer_fired(self, end_reason: str) -> None:
+        """Close timer callback — close the turn or re-arm if state changed."""
+        self._end_turn_timer = None
+        if self._turn_span is None:
+            return
+        if (
+            not self._user_speaking
+            and not self._bot_speaking
+            and not self._bot_response_pending
+        ):
+            await self._close_turn(end_reason=end_reason)
+        elif self._turn_span is not None:
+            self._schedule_close_timer()
+
+    # ------------------------------------------------------------------
+    # Service / tool span handling
+    # ------------------------------------------------------------------
 
     async def _handle_service_frame(
         self, data: FramePushed, override_service: Optional[AIService] = None
@@ -288,7 +583,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
             ## TTSStartedFrame (TTS)
             ## VADUserStartedSpeakingFrame (STT)
 
-            # New Span (or add to self._turn_bot_text)
             if service_id not in self._active_spans:
                 if isinstance(
                     frame,
@@ -296,8 +590,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 ):
                     # For TTS: consecutive TTS operations are merged into one span.
                     # When a NEW non-TTS span starts (LLM/STT), finish any active TTS span first.
-                    # This groups TTS that's part of the same response while separating
-                    # TTS that comes before/after other operations.
                     if service_type != "tts" and self._active_tts_service_id is not None:
                         self._log_debug(
                             f"  Non-TTS span ({service_type}) starting - "
@@ -306,8 +598,9 @@ class OpenInferenceObserver(TurnTrackingObserver):
                         self._finish_span(self._active_tts_service_id)
                         self._active_tts_service_id = None
 
-                    # For STT: consecutive STT operations are merged into one span.
-                    # When a NEW non-STT span starts (LLM/TTS), finish any active STT span first.
+                    # Safety net: a non-STT span starting finishes any lingering
+                    # STT span. Normally the explicit VADUserStoppedSpeakingFrame
+                    # handler already closed it.
                     if service_type != "stt" and self._active_stt_service_id is not None:
                         self._log_debug(
                             f"  Non-STT span ({service_type}) starting - "
@@ -317,34 +610,32 @@ class OpenInferenceObserver(TurnTrackingObserver):
                         self._active_stt_service_id = None
 
                     self._log_debug(f"  {service_type.upper()} response STARTED. ({frame})")
-                    self._log_debug(f"   >>>>  {service_type.upper()} response STARTED. ({frame})")
 
-                    # If no turn is active yet, start one automatically
-                    # This ensures we capture initialization frames with proper context
+                    # Service frames must arrive inside an active turn. The
+                    # state machine opens a turn on the first speech edge —
+                    # if we ever see a service frame outside that window, log
+                    # and skip rather than silently creating an orphan span.
                     if not self._is_turn_active or self._turn_span is None:
                         self._log_debug(
-                            f"  No active turn - auto-starting turn for {service_id} initialization"
+                            f"  No active turn - skipping {service_type} span "
+                            f"creation for service {service_id}"
                         )
-                        await self._start_turn(data)
+                        return
 
-                    # Create new span directly under turn (no nesting logic)
-                    # All service spans are siblings under the turn span
                     self._log_debug(f"  CREATING new SPAN for {service_type}: {service_id}")
                     span = self._create_service_span(service, service_type)
                     self._active_spans[service_id] = {
                         "span": span,
-                        "service_type": service_type,  # Track service type for later use
+                        "service_type": service_type,
                         "frame_count": 0,
-                        "accumulated_input": "",  # Deduplicated accumulated input text
-                        "accumulated_output": "",  # Deduplicated accumulated output text
-                        "start_time_ns": time.time_ns(),  # Store start time in nanoseconds
-                        "processing_time_seconds": None,  # Will be set from metrics
+                        "accumulated_input": "",
+                        "accumulated_output": "",
+                        "start_time_ns": time.time_ns(),
+                        "processing_time_seconds": None,
                     }
-                    # Increment frame count for this service
                     span_info = self._active_spans[service_id]
                     span_info["frame_count"] += 1
 
-                    # Track active TTS/STT span for efficient lookup
                     if service_type == "tts":
                         self._active_tts_service_id = service_id
                     elif service_type == "stt":
@@ -353,27 +644,24 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     if isinstance(frame, LLMContextFrame):
                         span.set_attributes(extract_attributes_from_frame(frame))
 
-                # BaseOutputTransport's service_id isn't in self._active_spans but that's ok;
-                # just collect text for the turn, not the span
+                # Transport-source TTSTextFrame: bot text without its own span.
                 elif isinstance(frame, TTSTextFrame) and isinstance(
                     data.source, BaseOutputTransport
                 ):
-                    # Collect bot text from transport output for conversation turn
                     if frame.text and not frame.skip_tts:
                         self._turn_bot_text.append(frame.text)
+                        # Transport-source TTS counts as bot speech for the
+                        # state machine even without a BotStartedSpeakingFrame.
+                        self._bot_spoken_this_turn = True
 
-            # Update Existing Span
             else:
-                # Extract and add attributes from this frame to the span
+                # Update existing span
                 frame_attrs = extract_attributes_from_frame(frame)
                 active_span = self._active_spans[service_id]["span"]
                 span_info = self._active_spans[service_id]
 
                 # STT
-                if isinstance(frame, VADUserStoppedSpeakingFrame):
-                    self._seen_vad_user_stopped_speaking_frame = True
-
-                elif isinstance(frame, TranscriptionFrame):
+                if isinstance(frame, TranscriptionFrame):
                     self._stt_includes_inter_frame_spaces = frame.includes_inter_frame_spaces
 
                     # Collect user text from STT output for conversation turn
@@ -386,23 +674,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     if not self._stt_includes_inter_frame_spaces:
                         span_info["accumulated_input"] += " "
 
-                    if self._seen_vad_user_stopped_speaking_frame:
-                        duration = 0.0
-                        current_time_ns = time.time_ns()
-                        duration = (current_time_ns - span_info["start_time_ns"]) / 1_000_000_000
-                        active_span.set_attribute(
-                            "stt.time_to_last_transcription_seconds", duration
-                        )
-                        ### let _end_turn finish STT Span
-                        # # Finish STT Span
-                        # self._finish_span(service_id)
-
                 # LLM
                 elif isinstance(frame, LLMFullResponseEndFrame):
                     accumulated_output = span_info.get("accumulated_output", "").strip()
                     if not accumulated_output:
-                        # No text output means this LLM call likely triggered tool calls
-                        # Store a reference to this span so tool calls can be parented under it
+                        # No text output means this LLM call likely triggered tool calls.
+                        # Store a reference so tool spans can be parented under it.
                         self._log_debug(
                             f"  LLM response ended with no text output - "
                             f"storing span {service_id} as potential tool call parent"
@@ -418,28 +695,19 @@ class OpenInferenceObserver(TurnTrackingObserver):
                             "  LLM response ended with output - clearing tool call parent"
                         )
                     self._log_debug(f"  LLM response ended  Finish span for service {service_id}")
-                    # Finish LLM Span
                     self._finish_span(service_id)
 
                 elif isinstance(frame, LLMTextFrame):
                     self._llm_includes_inter_frame_spaces = frame.includes_inter_frame_spaces
-
-                    # Collect user text from LLM output for LLM span
                     span_info["accumulated_output"] += frame.text
                     if not self._llm_includes_inter_frame_spaces:
                         span_info["accumulated_output"] += " "
 
                 # TTS
-                ### let _end_turn finish TTS Span
-                # elif isinstance(frame, BotStoppedSpeakingFrame):
-                #     # Finish TTS Span
-                #     self._finish_span(service_id)
-
                 elif isinstance(frame, TTSTextFrame):
                     self._tts_includes_inter_frame_spaces = frame.includes_inter_frame_spaces
 
                     if isinstance(data.source, TTSService):
-                        # Collect full bot text from TTS output for TTS span
                         span_info["accumulated_output"] += frame.text
                         if not self._tts_includes_inter_frame_spaces:
                             span_info["accumulated_output"] += " "
@@ -458,7 +726,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
                         self._log_debug(f"setting span attribute - {key} : {value}")
 
                         if key == "service.processing_time_seconds":
-                            # Store processing time for use in _finish_span to calculate end_time
                             span_info["processing_time_seconds"] = value
                         active_span.set_attribute(key, value)
 
@@ -468,9 +735,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
         Creates TOOL spans only from FunctionCallResultFrame to avoid duplicate spans
         from multiple FunctionCallInProgressFrame events.
-
-        Args:
-            data: FramePushed event data
         """
         frame = data.frame
         tool_call_id = getattr(frame, "tool_call_id", None)
@@ -481,10 +745,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
         self._log_debug(f"TOOL FRAME: {frame.__class__.__name__}, tool_call_id: {tool_call_id}")
 
-        # Only create tool spans from FunctionCallResultFrame
-        # This ensures one span per completed tool call with all relevant info
         if isinstance(frame, FunctionCallResultFrame):
-            # Check if we've already processed this tool call
             if tool_call_id in self._completed_tool_calls:
                 self._log_debug(f"  Tool call {tool_call_id} already processed, skipping")
                 return
@@ -493,21 +754,17 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 self._log_debug(f"  Tool span already exists for {tool_call_id}, skipping")
                 return
 
-            # If no turn is active yet, start one automatically
             if not self._is_turn_active or self._turn_span is None:
                 self._log_debug(
-                    f"  No active turn - auto-starting turn for tool call {tool_call_id}"
+                    f"  No active turn - skipping tool span creation for {tool_call_id}"
                 )
-                await self._start_turn(data)
+                return
 
-            # Create new TOOL span
             self._log_debug(f"  CREATING new TOOL SPAN for: {tool_call_id}")
             span = self._create_tool_span(frame)
 
-            # Extract attributes from the frame
             frame_attrs = extract_attributes_from_frame(frame)
 
-            # Get arguments and result directly from frame
             arguments = getattr(frame, "arguments", None)
             result = getattr(frame, "result", None)
 
@@ -526,14 +783,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 "processing_time_seconds": None,
             }
 
-            # Set attributes on span
             for key, value in frame_attrs.items():
                 span.set_attribute(key, value)
 
             self._log_debug(f"  Tool call completed, finishing span for {tool_call_id}")
             self._finish_tool_span(tool_call_id)
 
-            # Mark this tool call as completed to prevent duplicate spans
             self._completed_tool_calls.add(tool_call_id)
 
     def _create_tool_span(self, frame: Frame) -> Span:
@@ -542,18 +797,11 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
         Tool spans are created as children of the LLM span that triggered them
         (if available), otherwise as children of the turn span.
-
-        Args:
-            frame: The function call frame
-
-        Returns:
-            The created span
         """
         function_name = getattr(frame, "function_name", "unknown_tool")
         span_name = f"pipecat.tool.{function_name}"
         self._log_debug(f">>> Creating tool span: {span_name}")
 
-        # Prefer to create tool span under the LLM span that triggered it
         if self._llm_span_awaiting_tool_calls:
             parent_span = self._llm_span_awaiting_tool_calls["span"]
             parent_context = trace_api.set_span_in_context(parent_span)
@@ -566,7 +814,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 f"{self._llm_span_awaiting_tool_calls['service_id']}"
             )
         elif self._turn_span and self._is_turn_active:
-            # Fall back to turn span if no LLM span is awaiting tool calls
             turn_context = trace_api.set_span_in_context(self._turn_span)
             span = self._tracer.start_span(
                 name=span_name,
@@ -577,7 +824,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
             self._log_debug("  WARNING: No active turn! Creating root span for tool")
             span = self._tracer.start_span(name=span_name)
 
-        # Set OpenInference span kind to TOOL
         span.set_attribute(
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.TOOL.value,
@@ -587,12 +833,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         return span
 
     def _finish_tool_span(self, tool_call_id: str) -> None:
-        """
-        Finish a tool span.
-
-        Args:
-            tool_call_id: The tool call ID identifying the span
-        """
+        """Finish a tool span."""
         if tool_call_id not in self._active_spans:
             return
 
@@ -602,21 +843,18 @@ class OpenInferenceObserver(TurnTrackingObserver):
         span: Span = span_info["span"]
         start_time_ns = span_info["start_time_ns"]
 
-        # Calculate end time
         processing_time_seconds = span_info.get("processing_time_seconds")
         if processing_time_seconds is not None:
             end_time_ns = start_time_ns + int(processing_time_seconds * 1_000_000_000)
         else:
             end_time_ns = time.time_ns()
 
-        # Set accumulated input/output
         accumulated_input = span_info.get("accumulated_input", "")
         accumulated_output = span_info.get("accumulated_output", "")
         service_type = span_info.get("service_type", "")
 
         if accumulated_input:
             span.set_attribute(SpanAttributes.INPUT_VALUE, accumulated_input)
-            # For tool spans, also set tool.parameters for Phoenix/Arize UI
             if service_type == "tool":
                 span.set_attribute(SpanAttributes.TOOL_PARAMETERS, accumulated_input)
 
@@ -634,19 +872,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
         """
         Create a span for a service with type-specific attributes.
         All service spans are created as children of the turn span.
-
-        Args:
-            service: The service instance (FrameProcessor)
-            service_type: Service type (llm, tts, stt, image_gen, vision, mcp, websocket)
-
-        Returns:
-            The created span
         """
         span_name = f"pipecat.{service_type}"
         self._log_debug(f">>> Creating {service_type} span")
 
-        # Create span under the turn context
-        # Explicitly set the turn span as parent to avoid context issues in async code
         if self._turn_span and self._is_turn_active:
             turn_context = trace_api.set_span_in_context(self._turn_span)
             span = self._tracer.start_span(
@@ -655,16 +884,13 @@ class OpenInferenceObserver(TurnTrackingObserver):
             )
             self._log_debug(f"  Created service span under turn #{self._turn_count}")
         else:
-            # No active turn, create as root span (will be in new trace)
             self._log_debug(f"  WARNING: No active turn! Creating root span for {service_type}")
             span = self._tracer.start_span(
                 name=span_name,
             )
 
-        # Set service.name to the actual service class name for uniqueness
         span.set_attribute("service.name", service.__class__.__name__)
 
-        # Extract and apply service-specific attributes
         service_attrs = extract_service_attributes(service)
         span.set_attributes(service_attrs)
         self._log_debug(f"  Set attributes: {service_attrs}")
@@ -672,12 +898,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         return span
 
     def _finish_span(self, service_id: int | str) -> None:
-        """
-        Finish a span for a service.
-
-        Args:
-            service_id: The id() of the service instance, or tool_call_id for tool spans
-        """
+        """Finish a span for a service."""
         if service_id not in self._active_spans:
             return
 
@@ -694,15 +915,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
         elif service_type == "stt" and self._active_stt_service_id == service_id:
             self._active_stt_service_id = None
 
-        # Calculate end time (use processing time if available, otherwise use current time)
         processing_time_seconds = span_info.get("processing_time_seconds")
         if processing_time_seconds is not None:
             end_time_ns = start_time_ns + int(processing_time_seconds * 1_000_000_000)
         else:
             end_time_ns = time.time_ns()
 
-        # Set accumulated input/output text values from streaming chunks
-        # These were deduplicated during accumulation
         accumulated_input = span_info.get("accumulated_input", "")
         accumulated_output = span_info.get("accumulated_output", "")
 
@@ -718,132 +936,15 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 f"  Set output.value from accumulated chunks: {len(accumulated_output)} chars"
             )
 
-            # For LLM spans, also set flattened output messages format
             if service_type == "llm":
                 span.set_attribute("llm.output_messages.0.message.role", "assistant")
                 span.set_attribute("llm.output_messages.0.message.content", accumulated_output)
 
-        # For STT spans, minutes used is entirety of the turn, because it is always "listening"
+        # For STT spans, minutes used is entirety of the turn (always listening)
         if service_type == "stt":
-            duration = 0.0
             current_time_ns = time.time_ns()
-            duration = (
-                (current_time_ns - self._turn_start_time) / 1_000_000_000 / 60
-            )  # Convert to minutes
-            span.set_attribute("stt.minutes", duration)
+            duration_minutes = (current_time_ns - self._turn_start_time) / 1_000_000_000 / 60
+            span.set_attribute("stt.minutes", duration_minutes)
 
-        span.set_status(trace_api.Status(trace_api.StatusCode.OK))  #
+        span.set_status(trace_api.Status(trace_api.StatusCode.OK))
         span.end(end_time=int(end_time_ns))
-        return
-
-    async def _start_turn(self, data: FramePushed) -> None:
-        """Start a new conversation turn and set it as parent context."""
-
-        await super()._start_turn(data)
-
-        self._turn_start_time = time.time_ns()  # Use our own clock for consistency
-
-        self._log_debug(f"\n{'=' * 60}")
-        self._log_debug(f">>> STARTING TURN #{self._turn_count}")
-        self._log_debug(f"  Conversation ID: {self._conversation_id}")
-
-        # Create turn span as root (no parent)
-        # Each turn will be a separate trace automatically
-        # Use an empty context to ensure no ambient parent span is picked up
-        span_attributes = {
-            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-            "conversation.turn_number": self._turn_count,
-        }
-
-        if self._additional_span_attributes:
-            span_attributes.update(self._additional_span_attributes)
-        self._turn_span = self._tracer.start_span(
-            name="pipecat.conversation.turn",
-            context=Context(),  # Empty context ensures this is a true root span
-            attributes=span_attributes,  # type: ignore
-        )
-
-        if self._conversation_id:
-            self._turn_span.set_attribute(  #
-                SpanAttributes.SESSION_ID, self._conversation_id
-            )
-            self._log_debug(f"  Set session.id attribute: {self._conversation_id}")
-
-        self._turn_user_text = []
-        self._turn_bot_text = []
-        return
-
-    async def _end_turn(self, data: FramePushed, was_interrupted: bool = False) -> None:
-        """
-        Finish the current conversation turn and detach context.
-
-        Args:
-            was_interrupted: Whether the turn was interrupted
-        """
-        await super()._end_turn(data, was_interrupted)
-
-        if not self._turn_span:
-            self._log_debug("  Skipping finish_turn - no active turn")
-            return
-
-        # Calculate turn duration
-        duration = 0.0
-        current_time_ns = time.time_ns()
-        duration = (current_time_ns - self._turn_start_time) / 1_000_000_000  # Convert to seconds
-        # reset _seen_vad_user_stopped_speaking_frame
-        self._seen_vad_user_stopped_speaking_frame = False
-
-        self._log_debug(
-            f"\n{'=' * 60}\n"
-            + f">>> FINISHING TURN #{self._turn_count}\n"
-            + f" (interrupted={was_interrupted}, duration={duration:.2f}s)\n"
-            + f"  Active service spans: {len(self._active_spans)}\n"
-        )
-
-        # Set input/output attributes
-        if self._turn_user_text:
-            user_input = " ".join(self._turn_user_text)
-            self._turn_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
-        if self._turn_bot_text:
-            if self._tts_includes_inter_frame_spaces:
-                join_space = ""
-            else:
-                join_space = " "
-            bot_output = join_space.join(self._turn_bot_text)
-            self._turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, bot_output)
-
-        if self._last_user_to_bot_latency is not None:
-            self._turn_span.set_attribute(
-                "conversation.user_to_bot_latency",
-                self._last_user_to_bot_latency,
-            )
-            self._log_debug(
-                f"  Set user_to_bot_latency attribute: {self._last_user_to_bot_latency}"
-            )
-        # Finish all active service spans BEFORE ending the turn span
-        # This ensures child spans are ended before the parent
-        service_ids_to_finish = list(self._active_spans.keys())
-        if len(service_ids_to_finish):
-            self._log_debug(f"__ service_ids_to_finish: {service_ids_to_finish}")
-        for service_id in service_ids_to_finish:
-            self._finish_span(service_id)
-
-        # Set turn metadata
-        end_reason = "interrupted" if was_interrupted else "completed"
-        self._turn_span.set_attribute("conversation.end_reason", end_reason)  #
-        self._turn_span.set_attribute("conversation.turn_duration_seconds", duration)
-        self._turn_span.set_attribute("conversation.was_interrupted", was_interrupted)
-
-        # Finish turn span (parent) last
-        self._turn_span.set_status(trace_api.Status(trace_api.StatusCode.OK))  #
-        self._turn_span.end(end_time=int(current_time_ns))  #
-
-        # Clear turn state
-        self._log_debug("  Clearing turn state")
-        # self._is_turn_active = False # let super handle this
-        self._turn_span = None
-        self._turn_context_token = None
-        self._completed_tool_calls.clear()
-        self._llm_span_awaiting_tool_calls = None
-        self._active_tts_service_id = None
-        self._active_stt_service_id = None
