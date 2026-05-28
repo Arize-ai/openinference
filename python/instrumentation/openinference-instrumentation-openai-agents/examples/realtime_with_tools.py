@@ -6,12 +6,10 @@ Tool calls produce TOOL child spans nested under the LLM span in the trace.
 Traces are sent to Arize AX if ARIZE_SPACE_ID and ARIZE_API_KEY are set in the
 environment; otherwise they go to a locally running Phoenix instance.
 
+Configuration: copy example.env to .env and fill in your keys.
+
 Requirements: see examples/requirements.txt
 Usage:
-    export OPENAI_API_KEY=sk-...
-    # Optional, for Arize AX:
-    #   export ARIZE_SPACE_ID=...
-    #   export ARIZE_API_KEY=...
     python realtime_with_tools.py
     # Try: "What's the weather in London?" or "What time is it in Tokyo?"
 
@@ -38,8 +36,11 @@ from agents.realtime.events import (  # type: ignore[import]
     RealtimeAudio,
     RealtimeAudioInterrupted,
 )
+from dotenv import load_dotenv
 
 from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
+
+load_dotenv(override=True)
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
