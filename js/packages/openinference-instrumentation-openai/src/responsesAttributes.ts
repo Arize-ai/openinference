@@ -51,15 +51,22 @@ function getResponseItemAttributes(
     }
     case "reasoning": {
       attributes[`${prefix}${SemanticConventions.MESSAGE_ROLE}`] = "assistant";
-      item.summary.forEach((summaryItem, index) => {
-        const summaryItemPrefix = `${prefix}${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
-        if (summaryItem.type === "summary_text") {
-          attributes[`${summaryItemPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-            "summary_text";
-          attributes[`${summaryItemPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-            summaryItem.text;
-        }
-      });
+      const contentPrefix = `${prefix}${SemanticConventions.MESSAGE_CONTENTS}.0.`;
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+      if (item.id) {
+        attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_ID}`] = item.id;
+      }
+      const texts = item.summary
+        .filter((s) => s.type === "summary_text")
+        .map((s) => s.text);
+      if (texts.length > 0) {
+        attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          texts.join("\n");
+      }
+      if (item.encrypted_content && item.encrypted_content.length > 0) {
+        attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_ENCRYPTED_CONTENT}`] =
+          item.encrypted_content;
+      }
       break;
     }
     case "item_reference": {

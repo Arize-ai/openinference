@@ -608,6 +608,227 @@ describe("OpenAIInstrumentation - Responses", () => {
 `);
   });
 
+  it("should capture reasoning blocks in non-streaming output", async () => {
+    const response = {
+      ...responseBase,
+      id: "resp-reasoning-1",
+      model: "o4-mini",
+      output: [
+        {
+          id: "rs_abc",
+          type: "reasoning" as const,
+          summary: [
+            { type: "summary_text" as const, text: "First thought" },
+            { type: "summary_text" as const, text: "Second thought" },
+          ],
+          encrypted_content: null,
+          status: "completed" as const,
+        },
+        {
+          id: "msg_xyz",
+          type: "message" as const,
+          status: "completed" as const,
+          content: [{ type: "output_text" as const, annotations: [], text: "Answer." }],
+          role: "assistant" as const,
+        },
+      ],
+      output_text: "Answer.",
+    } satisfies ResponseType;
+
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        new Promise((resolve) => {
+          resolve({
+            response: new Response(),
+            // @ts-expect-error the response type is not correct - this is just for testing
+            options: {},
+            controller: new AbortController(),
+          });
+        }),
+        () => response,
+      );
+    });
+    await openai.responses.create({ input: "Think then answer.", model: "o4-mini" });
+    const spans = memoryExporter.getFinishedSpans();
+    const span = spans[0];
+    expect(span.attributes).toMatchObject({
+      "llm.output_messages.0.message.role": "assistant",
+      "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+      "llm.output_messages.0.message.contents.0.message_content.id": "rs_abc",
+      "llm.output_messages.0.message.contents.0.message_content.text": "First thought\nSecond thought",
+      "llm.output_messages.1.message.role": "assistant",
+      "llm.output_messages.1.message.contents.0.message_content.type": "output_text",
+      "llm.output_messages.1.message.contents.0.message_content.text": "Answer.",
+    });
+    // message_content.id must NOT be auto-generated for non-reasoning output messages
+    expect(span.attributes["llm.output_messages.1.message.contents.0.message_content.id"]).toBeUndefined();
+  });
+
+  it("should capture reasoning blocks with encrypted_content", async () => {
+    const response = {
+      ...responseBase,
+      id: "resp-reasoning-enc",
+      model: "o4-mini",
+      output: [
+        {
+          id: "rs_enc",
+          type: "reasoning" as const,
+          summary: [{ type: "summary_text" as const, text: "Encrypted reasoning" }],
+          encrypted_content: "gAAAAA==",
+          status: "completed" as const,
+        },
+      ],
+      output_text: "",
+    } satisfies ResponseType;
+
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        new Promise((resolve) => {
+          resolve({
+            response: new Response(),
+            // @ts-expect-error the response type is not correct - this is just for testing
+            options: {},
+            controller: new AbortController(),
+          });
+        }),
+        () => response,
+      );
+    });
+    await openai.responses.create({ input: "Think.", model: "o4-mini" });
+    const spans = memoryExporter.getFinishedSpans();
+    const span = spans[0];
+    expect(span.attributes).toMatchObject({
+      "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+      "llm.output_messages.0.message.contents.0.message_content.id": "rs_enc",
+      "llm.output_messages.0.message.contents.0.message_content.text": "Encrypted reasoning",
+      "llm.output_messages.0.message.contents.0.message_content.encrypted_content": "gAAAAA==",
+    });
+  });
+
+  it("should capture reasoning blocks in streaming output", async () => {
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error the response type is not correct - this is just for testing
+      (): Promise<unknown> => {
+        const iterator = () =>
+          (async function* () {
+            yield {
+              type: "response.output_text.delta",
+              delta: "Answer.",
+            };
+            yield {
+              type: "response.completed",
+              response: {
+                ...responseBase,
+                id: "resp-reasoning-stream",
+                model: "o4-mini",
+                output: [
+                  {
+                    id: "rs_stream",
+                    type: "reasoning" as const,
+                    summary: [
+                      { type: "summary_text" as const, text: "Stream thought A" },
+                      { type: "summary_text" as const, text: "Stream thought B" },
+                    ],
+                    encrypted_content: null,
+                    status: "completed" as const,
+                  },
+                  {
+                    id: "msg_stream",
+                    type: "message" as const,
+                    status: "completed" as const,
+                    content: [{ type: "output_text" as const, annotations: [], text: "Answer." }],
+                    role: "assistant" as const,
+                  },
+                ],
+                output_text: "Answer.",
+              },
+            };
+          })();
+        const controller = new AbortController();
+        const stream = new Stream(iterator, controller);
+        return new APIPromise(
+          new OpenAI({ apiKey: "fake-api-key" }),
+          // @ts-expect-error the response type is not correct - this is just for testing
+          Promise.resolve({ response: new Response(), options: {}, controller }),
+          () => stream,
+        );
+      },
+    );
+
+    const stream = await openai.responses.create({
+      input: "Think then stream.",
+      model: "o4-mini",
+      stream: true,
+    });
+    for await (const _ of stream) { /* consume */ }
+    await new Promise((resolve) => setTimeout(resolve));
+    const spans = memoryExporter.getFinishedSpans();
+    const span = spans[0];
+    expect(span.attributes).toMatchObject({
+      "llm.output_messages.0.message.role": "assistant",
+      "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+      "llm.output_messages.0.message.contents.0.message_content.id": "rs_stream",
+      "llm.output_messages.0.message.contents.0.message_content.text": "Stream thought A\nStream thought B",
+    });
+  });
+
+  it("should capture reasoning blocks passed as input (prior turn)", async () => {
+    const response = {
+      ...responseBase,
+      id: "resp-reasoning-input",
+      model: "o4-mini",
+      output: [
+        {
+          id: "msg_follow",
+          type: "message" as const,
+          status: "completed" as const,
+          content: [{ type: "output_text" as const, annotations: [], text: "Follow-up answer." }],
+          role: "assistant" as const,
+        },
+      ],
+      output_text: "Follow-up answer.",
+    } satisfies ResponseType;
+
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        new Promise((resolve) => {
+          resolve({
+            response: new Response(),
+            // @ts-expect-error the response type is not correct - this is just for testing
+            options: {},
+            controller: new AbortController(),
+          });
+        }),
+        () => response,
+      );
+    });
+    await openai.responses.create({
+      model: "o4-mini",
+      input: [
+        { role: "user", content: "Think first.", type: "message" },
+        {
+          type: "reasoning",
+          id: "rs_input",
+          summary: [{ type: "summary_text", text: "Prior reasoning" }],
+        },
+        { role: "user", content: "Now answer.", type: "message" },
+      ],
+    });
+    const spans = memoryExporter.getFinishedSpans();
+    const span = spans[0];
+    expect(span.attributes).toMatchObject({
+      "llm.input_messages.0.message.role": "user",
+      "llm.input_messages.1.message.role": "assistant",
+      "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
+      "llm.input_messages.1.message.contents.0.message_content.id": "rs_input",
+      "llm.input_messages.1.message.contents.0.message_content.text": "Prior reasoning",
+      "llm.input_messages.2.message.role": "user",
+    });
+  });
+
   it("should handle structured outputs", async () => {
     const response = {
       id: "resp-890",
