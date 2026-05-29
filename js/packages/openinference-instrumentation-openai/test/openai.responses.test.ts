@@ -656,13 +656,16 @@ describe("OpenAIInstrumentation - Responses", () => {
       "llm.output_messages.0.message.role": "assistant",
       "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
       "llm.output_messages.0.message.contents.0.message_content.id": "rs_abc",
-      "llm.output_messages.0.message.contents.0.message_content.text": "First thought\nSecond thought",
+      "llm.output_messages.0.message.contents.0.message_content.text":
+        "First thought\nSecond thought",
       "llm.output_messages.1.message.role": "assistant",
       "llm.output_messages.1.message.contents.0.message_content.type": "output_text",
       "llm.output_messages.1.message.contents.0.message_content.text": "Answer.",
     });
     // message_content.id must NOT be auto-generated for non-reasoning output messages
-    expect(span.attributes["llm.output_messages.1.message.contents.0.message_content.id"]).toBeUndefined();
+    expect(
+      span.attributes["llm.output_messages.1.message.contents.0.message_content.id"],
+    ).toBeUndefined();
   });
 
   it("should capture reasoning blocks with encrypted_content", async () => {
@@ -762,7 +765,9 @@ describe("OpenAIInstrumentation - Responses", () => {
       model: "o4-mini",
       stream: true,
     });
-    for await (const _ of stream) { /* consume */ }
+    for await (const _ of stream) {
+      /* consume */
+    }
     await new Promise((resolve) => setTimeout(resolve));
     const spans = memoryExporter.getFinishedSpans();
     const span = spans[0];
@@ -770,7 +775,8 @@ describe("OpenAIInstrumentation - Responses", () => {
       "llm.output_messages.0.message.role": "assistant",
       "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
       "llm.output_messages.0.message.contents.0.message_content.id": "rs_stream",
-      "llm.output_messages.0.message.contents.0.message_content.text": "Stream thought A\nStream thought B",
+      "llm.output_messages.0.message.contents.0.message_content.text":
+        "Stream thought A\nStream thought B",
     });
   });
 

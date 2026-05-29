@@ -56,9 +56,7 @@ function getResponseItemAttributes(
       if (item.id) {
         attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_ID}`] = item.id;
       }
-      const texts = item.summary
-        .filter((s) => s.type === "summary_text")
-        .map((s) => s.text);
+      const texts = item.summary.filter((s) => s.type === "summary_text").map((s) => s.text);
       if (texts.length > 0) {
         attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
           texts.join("\n");
