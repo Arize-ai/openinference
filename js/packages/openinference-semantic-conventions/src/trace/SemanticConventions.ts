@@ -771,6 +771,7 @@ export enum OpenInferenceSpanKind {
   AGENT = "AGENT",
   GUARDRAIL = "GUARDRAIL",
   EVALUATOR = "EVALUATOR",
+  PROMPT = "PROMPT",
 }
 
 /**
