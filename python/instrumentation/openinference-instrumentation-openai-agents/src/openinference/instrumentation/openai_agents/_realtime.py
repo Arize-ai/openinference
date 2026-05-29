@@ -1125,6 +1125,9 @@ def make_close_wrapper() -> Any:
     """
 
     async def _close_wrapper(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
         state = _session_states.get(instance)
         logger.debug(
             "realtime close(): instance=%s state=%s",

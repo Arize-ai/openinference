@@ -1956,31 +1956,46 @@ def test_no_spans_when_tracing_suppressed(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     """Inside suppress_tracing() (which sets _SUPPRESS_INSTRUMENTATION_KEY on the
-    OTel context), both wrappers must skip instrumentation entirely: no session
-    state is created, no spans are produced."""
+    OTel context), all three wrappers must skip instrumentation entirely: no
+    session state is created, and any close() of a pre-existing session must
+    not finalize/export its spans."""
     tracer = OITracer(
         trace_api.get_tracer(__name__, tracer_provider=tracer_provider),
         config=TraceConfig(),
     )
     put_wrapper = make_realtime_wrapper(tracer, TraceConfig())
     audio_wrapper = make_send_audio_wrapper()
+    close_wrapper = make_close_wrapper()
 
     class _FakeSession:
         pass
 
-    session: Any = _FakeSession()
+    # Session A: no session-state exists; put/audio wrappers must not create one.
+    session_a: Any = _FakeSession()
 
-    async def _orig_put(*args: Any, **kwargs: Any) -> None:
-        return None
-
-    async def _orig_send(*args: Any, **kwargs: Any) -> None:
+    async def _orig(*args: Any, **kwargs: Any) -> None:
         return None
 
     fake_event = object()
 
     with suppress_tracing():
-        asyncio.run(put_wrapper(_orig_put, session, (fake_event,), {}))
-        asyncio.run(audio_wrapper(_orig_send, session, (b"\x00\x01" * 64,), {}))
+        asyncio.run(put_wrapper(_orig, session_a, (fake_event,), {}))
+        asyncio.run(audio_wrapper(_orig, session_a, (b"\x00\x01" * 64,), {}))
 
     assert in_memory_span_exporter.get_finished_spans() == ()
-    assert session not in _session_states
+    assert session_a not in _session_states
+
+    # Session B: state pre-exists with an open turn (set up outside the suppress
+    # block, simulating mid-session suppression). close() inside suppress_tracing
+    # must NOT finalize the turn.
+    session_b: Any = _FakeSession()
+    state = _state(tracer_provider)
+    state.on_speech_started("item-1")
+    state.on_user_transcript_completed("item-1", "Hello.")
+    _session_states[session_b] = state
+
+    with suppress_tracing():
+        asyncio.run(close_wrapper(_orig, session_b, (), {}))
+
+    # No spans should have been exported (the AUDIO/USER spans remain open).
+    assert in_memory_span_exporter.get_finished_spans() == ()
