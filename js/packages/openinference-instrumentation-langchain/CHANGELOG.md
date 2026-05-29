@@ -1,5 +1,15 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 4.0.12
+
+### Patch Changes
+
+- 0f0242c: Add `PROMPT` to the `OpenInferenceSpanKind` enum, aligning the JS package with the OpenInference spec and the Python semantic conventions. LangChain prompt template spans now correctly report `openinference.span.kind = "PROMPT"` instead of falling through to `"CHAIN"`.
+- Updated dependencies [0f0242c]
+- Updated dependencies [26733d8]
+  - @arizeai/openinference-semantic-conventions@2.5.0
+  - @arizeai/openinference-core@2.2.0
+
 ## 4.0.11
 
 ### Patch Changes

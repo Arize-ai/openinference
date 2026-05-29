@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.34...python-openinference-instrumentation-agno-v0.1.35) (2026-05-29)
+
+
+### Bug Fixes
+
+* **agno:** agno streaming tool call fix ([#3155](https://github.com/Arize-ai/openinference/issues/3155)) ([8fd49ac](https://github.com/Arize-ai/openinference/commit/8fd49ac66406e2544cd9b9e13336056c694bc499))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.33...python-openinference-instrumentation-agno-v0.1.34) (2026-05-18)
 
 
