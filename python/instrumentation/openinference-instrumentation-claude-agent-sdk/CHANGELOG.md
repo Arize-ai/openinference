@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.4...python-openinference-instrumentation-claude-agent-sdk-v0.1.5) (2026-05-29)
+
+
+### Bug Fixes
+
+* **claude_agent_sdk:** pick max-output-tokens model from modelUsage ([#3140](https://github.com/Arize-ai/openinference/issues/3140)) ([5ed6344](https://github.com/Arize-ai/openinference/commit/5ed6344a516bc434338a19b385576ebce0cdf130))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.3...python-openinference-instrumentation-claude-agent-sdk-v0.1.4) (2026-05-18)
 
 
