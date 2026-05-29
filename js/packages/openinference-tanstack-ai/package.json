@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-tanstack-ai",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": false,
   "description": "OpenInference middleware for TanStack AI",
   "keywords": [
