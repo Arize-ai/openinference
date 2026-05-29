@@ -1568,6 +1568,71 @@ def test_session_close_finalizes_awaiting_followup_turn(
     assert tool.status.description == "tool did not return before turn ended"
 
 
+def test_finalize_releases_user_audio_buf_and_item_id_dict(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Long-lived sessions must not pin per-turn _UserInputState objects in
+    memory after their span is exported:
+      - user.user_audio_buf must be released (it's already on the span as WAV)
+      - the entry in _user_states_by_item_id must be removed
+    """
+    state = _state(tracer_provider)
+
+    state.on_speech_started("item-1")
+    state.on_send_audio(b"\x00\x01" * 512)  # ~1 KB of audio
+    state.on_user_audio_committed("item-1")
+    state.on_user_transcript_completed("item-1", "Hello.")
+    user_state = state._user_states_by_item_id["item-1"]
+    assert len(user_state.user_audio_buf) > 0  # populated pre-finalize
+
+    state.on_response_created("response-1", "gpt-realtime")
+    state.on_asst_transcript_done("response-1", "Hi.")
+    state.on_response_done("response-1", None, "gpt-realtime")
+    state.on_session_close()
+
+    # After finalize: buffer released, dict entry gone.
+    assert user_state.user_audio_buf == bytearray()
+    assert "item-1" not in state._user_states_by_item_id
+
+
+def test_text_item_dedup_survives_user_state_release(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Duplicate `conversation.item.added` / `.done` for the same text item_id
+    must still dedupe even after the originating USER span has been finalized
+    and removed from _user_states_by_item_id."""
+    state = _state(tracer_provider)
+
+    added_event = _raw_event(
+        {
+            "type": "conversation.item.added",
+            "item": {
+                "id": "item_text_001",
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "Hi."}],
+            },
+        }
+    )
+    _dispatch_raw(state, added_event)
+    state.on_response_created("response-1", None)
+    state.on_asst_transcript_done("response-1", "Hello.")
+    state.on_response_done("response-1", None, None)
+    state.on_session_close()
+    # Turn 1 finalized — text USER is gone from the dict, but seen-set keeps the id.
+    assert "item_text_001" not in state._user_states_by_item_id
+    assert "item_text_001" in state._seen_text_item_ids
+
+    # The SDK's late `.done` for the same item_id (or a buggy replay) must NOT
+    # create a second USER.
+    _dispatch_raw(state, added_event)
+
+    user_spans = _spans_by_kind(in_memory_span_exporter)[_USER_KIND]
+    assert len(user_spans) == 1
+
+
 # ----------------------------------------------------------------------
 # Audio redaction + truncation
 # ----------------------------------------------------------------------

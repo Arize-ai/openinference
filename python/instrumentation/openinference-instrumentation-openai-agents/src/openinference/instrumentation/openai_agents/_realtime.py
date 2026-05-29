@@ -14,7 +14,7 @@ import time
 import wave
 from dataclasses import dataclass, field
 from io import BytesIO
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 from weakref import WeakKeyDictionary
 
 from opentelemetry import context as context_api
@@ -199,6 +199,10 @@ class _UserInputState:
     # speech window, so mic audio and transcripts must not route to them.
     text_only: bool = False
     closed: bool = False
+    # Conversation item_id that registered this state in _user_states_by_item_id.
+    # Used to release the dict entry on finalize so long sessions don't accumulate
+    # state. None for states that were never keyed.
+    item_id: Optional[str] = None
 
 
 @dataclass
@@ -296,11 +300,17 @@ class _RealtimeSessionState:
         # `conversation.item.created` (function_call_output) can find the span
         # without needing a response_id.
         self._tool_spans_by_call_id: Dict[str, Span] = {}
-        # Session-level lookup for USER input states by item_id. Used to (a)
-        # dedupe duplicate conversation.item.added/.done events for the same
-        # text item, and (b) route transcript_completed / audio_committed events
-        # to the right USER even when other USER spans have become "active".
+        # Session-level lookup for currently-open USER input states by item_id.
+        # Used to route transcript_completed / audio_committed events to the right
+        # USER even when other USER spans have become "active". Entries are
+        # removed on finalize so long sessions don't pin closed-span references
+        # and (more importantly) leak the user_audio_buf bytearrays.
         self._user_states_by_item_id: Dict[str, _UserInputState] = {}
+        # Permanent set of item_ids we've already opened a USER span for. Used to
+        # dedupe duplicate conversation.item.added/.done events for the same text
+        # item even after the originating USER has been finalized and removed
+        # from _user_states_by_item_id.
+        self._seen_text_item_ids: Set[str] = set()
 
     # ------------------------------------------------------------------
     # User-side events
@@ -330,7 +340,7 @@ class _RealtimeSessionState:
             context=user_ctx,
             attributes={_OPENINFERENCE_SPAN_KIND: _USER_KIND},
         )
-        user = _UserInputState(user_span=user_span)
+        user = _UserInputState(user_span=user_span, item_id=item_id)
         # Flush pre-speech buffer into the turn so the beginning of the utterance is captured.
         if self._prespeech_audio:
             user.user_audio_buf.extend(self._prespeech_audio)
@@ -378,7 +388,9 @@ class _RealtimeSessionState:
             return
         # Dedupe: server emits both `conversation.item.added` AND `.done` for the
         # same client-sent text item (same item.id). Only the first creates a span.
-        if item_id and item_id in self._user_states_by_item_id:
+        # Check the permanent seen-set, not _user_states_by_item_id — the originating
+        # USER may have already finalized and been removed.
+        if item_id and item_id in self._seen_text_item_ids:
             return
         turn = self._turn_for_new_user_input()
         user_ctx = set_span_in_context(turn.turn_span)
@@ -387,11 +399,12 @@ class _RealtimeSessionState:
             context=user_ctx,
             attributes={_OPENINFERENCE_SPAN_KIND: _USER_KIND},
         )
-        user = _UserInputState(user_span=user_span, user_text=text, text_only=True)
+        user = _UserInputState(user_span=user_span, user_text=text, text_only=True, item_id=item_id)
         turn.users.append(user)
         turn.active_user = user
         if item_id:
             self._user_states_by_item_id[item_id] = user
+            self._seen_text_item_ids.add(item_id)
 
     # ------------------------------------------------------------------
     # Response lifecycle
@@ -582,6 +595,7 @@ class _RealtimeSessionState:
                 self._turn_awaiting_followup = None
             if turn is not self._latest_turn:
                 _finalize_turn(turn, self._config)
+                self._release_user_state(turn)
 
     def on_error(self, error_message: str) -> None:
         # RealtimeError has no response_id field, so errors land on every open turn.
@@ -591,6 +605,7 @@ class _RealtimeSessionState:
         for turn in self._open_turns():
             _set_end_reason(turn, _END_REASON_SESSION_CLOSED)
             _finalize_turn(turn, self._config, status=status)
+            self._release_user_state(turn)
         self._turn_awaiting_followup = None
         self._tool_spans_by_call_id.clear()
 
@@ -615,6 +630,7 @@ class _RealtimeSessionState:
                 len(turn.responses),
             )
             _finalize_turn(turn, self._config)
+            self._release_user_state(turn)
         # All turns are closed; clear stale session-level references so a late
         # event can't resurface them.
         self._turn_awaiting_followup = None
@@ -630,6 +646,14 @@ class _RealtimeSessionState:
                 seen.add(id(turn))
                 out.append(turn)
         return out
+
+    def _release_user_state(self, turn: _TurnState) -> None:
+        """Remove this turn's USER entries from the session-level item_id index.
+        Call after _finalize_turn so long sessions don't accumulate closed
+        _UserInputState references."""
+        for user in turn.users:
+            if user.item_id:
+                self._user_states_by_item_id.pop(user.item_id, None)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -680,6 +704,7 @@ class _RealtimeSessionState:
             if any(not response.closed for response in turn.responses.values()):
                 _set_end_reason(turn, _END_REASON_INTERRUPTED)
             _finalize_turn(turn, self._config)
+            self._release_user_state(turn)
             return self._start_turn()
         return turn
 
@@ -862,6 +887,10 @@ def _finalize_user(
     user_span.set_status(status)
     user_span.end()
     user.closed = True
+    # Release the audio buffer — the WAV is already on the span. For 24 kHz PCM16
+    # mono this can be hundreds of KB per turn; clearing avoids monotonic memory
+    # growth across long realtime sessions.
+    user.user_audio_buf = bytearray()
 
 
 def _set_turn_io_attributes(turn: _TurnState, config: TraceConfig) -> None:
