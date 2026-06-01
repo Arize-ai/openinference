@@ -73,9 +73,7 @@ class _NovaStreamCallback:
         self._span = span
         # Track per-content-block state so streamed tool_use input fragments can be
         # reassembled in arrival order and not interleaved with text deltas.
-        self._text_chunks: list[str] = []
-        self._tool_uses: Dict[int, Dict[str, Any]] = {}
-        self._tool_use_order: list[int] = []
+        self._content_blocks: Dict[int, Dict[str, Any]] = {}
         body = request.get("body", {})
         span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
         span.set_attribute(LLM_PROVIDER, AWS)
@@ -109,30 +107,33 @@ class _NovaStreamCallback:
             _finish(span, obj, {})
         return obj
 
+    def _content_block(self, index: int) -> Dict[str, Any]:
+        return self._content_blocks.setdefault(index, {})
+
     def _process_payload(self, payload: Mapping[str, Any]) -> None:
         span = self._span
         if (start_event := payload.get("contentBlockStart")) and isinstance(start_event, dict):
             index = start_event.get("contentBlockIndex")
             tool_use = (start_event.get("start") or {}).get("toolUse")
             if isinstance(index, int) and isinstance(tool_use, dict):
-                self._tool_uses[index] = {
-                    "id": tool_use.get("toolUseId", ""),
+                self._content_block(index)["toolUse"] = {
+                    "toolUseId": tool_use.get("toolUseId", ""),
                     "name": tool_use.get("name", ""),
                     "input": "",
                 }
-                self._tool_use_order.append(index)
         if (delta_event := payload.get("contentBlockDelta")) and isinstance(delta_event, dict):
+            index = delta_event.get("contentBlockIndex")
             delta = delta_event.get("delta") or {}
-            if text := delta.get("text"):
-                self._text_chunks.append(text)
-            elif isinstance(tool_use_delta := delta.get("toolUse"), dict):
-                index = delta_event.get("contentBlockIndex")
-                if isinstance(index, int):
-                    entry = self._tool_uses.setdefault(index, {"id": "", "name": "", "input": ""})
-                    if index not in self._tool_use_order:
-                        self._tool_use_order.append(index)
+            if isinstance(index, int):
+                block = self._content_block(index)
+                if text := delta.get("text"):
+                    block["text"] = f"{block.get('text', '')}{text}"
+                elif isinstance(tool_use_delta := delta.get("toolUse"), dict):
+                    tool_use = block.setdefault(
+                        "toolUse", {"toolUseId": "", "name": "", "input": ""}
+                    )
                     if (fragment := tool_use_delta.get("input")) is not None:
-                        entry["input"] += fragment if isinstance(fragment, str) else str(fragment)
+                        tool_use["input"] += fragment if isinstance(fragment, str) else str(fragment)
         if metadata := payload.get("metadata"):
             usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
             input_tokens = usage.get("inputTokens") if isinstance(usage, dict) else None
@@ -156,28 +157,28 @@ class _NovaStreamCallback:
 
     def _finalize_output(self) -> None:
         span = self._span
-        text_output = "".join(self._text_chunks)
         content_blocks: list[dict[str, Any]] = []
-        if text_output:
-            content_blocks.append({"text": text_output})
-        for idx in self._tool_use_order:
-            entry = self._tool_uses[idx]
-            raw_input = entry.get("input", "")
-            tool_input: Any = raw_input
-            if isinstance(raw_input, str) and raw_input:
-                try:
-                    tool_input = json.loads(raw_input)
-                except Exception:
-                    tool_input = raw_input
-            content_blocks.append(
-                {
-                    "toolUse": {
-                        "toolUseId": entry.get("id", ""),
-                        "name": entry.get("name", ""),
-                        "input": tool_input,
+        for idx in sorted(self._content_blocks):
+            block = self._content_blocks[idx]
+            if text_output := block.get("text"):
+                content_blocks.append({"text": text_output})
+            if tool_use := block.get("toolUse"):
+                raw_input = tool_use.get("input", "")
+                tool_input: Any = raw_input
+                if isinstance(raw_input, str) and raw_input:
+                    try:
+                        tool_input = json.loads(raw_input)
+                    except Exception:
+                        tool_input = raw_input
+                content_blocks.append(
+                    {
+                        "toolUse": {
+                            "toolUseId": tool_use.get("toolUseId", ""),
+                            "name": tool_use.get("name", ""),
+                            "input": tool_input,
+                        }
                     }
-                }
-            )
+                )
 
         if not content_blocks:
             return
