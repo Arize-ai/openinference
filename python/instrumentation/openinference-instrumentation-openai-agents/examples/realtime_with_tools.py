@@ -3,10 +3,9 @@
 Local mic/speaker setup with two function tools (get_weather, get_current_time).
 Tool calls produce TOOL child spans nested under the LLM span in the trace.
 
-Traces are sent to Arize AX if ARIZE_SPACE_ID and ARIZE_API_KEY are set in the
-environment; otherwise they go to a locally running Phoenix instance.
-
-Configuration: copy example.env to .env and fill in your keys.
+Traces are sent to Arize AX. Set OPENAI_API_KEY, ARIZE_SPACE_ID, and
+ARIZE_API_KEY in the environment (or replace the placeholders below) before
+running.
 
 Requirements: see examples/requirements.txt
 Usage:
@@ -36,11 +35,14 @@ from agents.realtime.events import (  # type: ignore[import]
     RealtimeAudio,
     RealtimeAudioInterrupted,
 )
-from dotenv import load_dotenv
+from arize.otel import register as register_arize
 
 from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
 
-load_dotenv(override=True)
+# Set these before running (export them or replace the placeholders).
+os.environ.setdefault("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY")
+os.environ.setdefault("ARIZE_SPACE_ID", "YOUR_ARIZE_SPACE_ID")
+os.environ.setdefault("ARIZE_API_KEY", "YOUR_ARIZE_API_KEY")
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -51,29 +53,18 @@ MIC_CHUNK_FRAMES = 1_200
 
 
 def setup_tracer_provider():  # type: ignore[no-untyped-def]
-    """Register a tracer provider — Arize AX when the credentials env vars are
-    set, Phoenix otherwise."""
+    """Register an Arize AX tracer provider."""
     project_name = os.getenv("PROJECT_NAME", "realtime-with-tools")
-    space_id = os.getenv("ARIZE_SPACE_ID")
-    api_key = os.getenv("ARIZE_API_KEY")
-    if space_id and api_key:
-        from arize.otel import register as register_arize
-
-        endpoint = os.getenv("ARIZE_ENDPOINT")
-        kwargs: dict = {
-            "space_id": space_id,
-            "api_key": api_key,
-            "project_name": project_name,
-        }
-        if endpoint:
-            kwargs["endpoint"] = endpoint
-        print(f"Traces → Arize AX (project={project_name})")
-        return register_arize(**kwargs)
-    # phoenix.otel.register reads PHOENIX_COLLECTOR_ENDPOINT from the environment.
-    from phoenix.otel import register as register_phoenix
-
-    print(f"Traces → Phoenix (project={project_name})")
-    return register_phoenix(project_name=project_name)
+    kwargs: dict = {
+        "space_id": os.environ["ARIZE_SPACE_ID"],
+        "api_key": os.environ["ARIZE_API_KEY"],
+        "project_name": project_name,
+    }
+    endpoint = os.getenv("ARIZE_ENDPOINT")
+    if endpoint:
+        kwargs["endpoint"] = endpoint
+    print(f"Traces → Arize AX (project={project_name})")
+    return register_arize(**kwargs)
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,5 @@
 openai-agents>=0.2.6
 openinference-instrumentation-openai-agents
-arize-phoenix
 arize-otel
-python-dotenv>=1.0.0,<2.0.0
 sounddevice>=0.4.7
 numpy>=1.24
