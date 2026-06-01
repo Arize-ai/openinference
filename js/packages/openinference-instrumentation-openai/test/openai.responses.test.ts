@@ -655,14 +655,15 @@ describe("OpenAIInstrumentation - Responses", () => {
     expect(span.attributes).toMatchObject({
       "llm.output_messages.0.message.role": "assistant",
       "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
-      "llm.output_messages.0.message.contents.0.message_content.id": "rs_abc",
       "llm.output_messages.0.message.contents.0.message_content.text":
         "First thought\nSecond thought",
       "llm.output_messages.1.message.role": "assistant",
       "llm.output_messages.1.message.contents.0.message_content.type": "output_text",
       "llm.output_messages.1.message.contents.0.message_content.text": "Answer.",
     });
-    // message_content.id must NOT be auto-generated for non-reasoning output messages
+    expect(
+      span.attributes["llm.output_messages.0.message.contents.0.message_content.id"],
+    ).toBeUndefined();
     expect(
       span.attributes["llm.output_messages.1.message.contents.0.message_content.id"],
     ).toBeUndefined();
@@ -704,7 +705,6 @@ describe("OpenAIInstrumentation - Responses", () => {
     const span = spans[0];
     expect(span.attributes).toMatchObject({
       "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
-      "llm.output_messages.0.message.contents.0.message_content.id": "rs_enc",
       "llm.output_messages.0.message.contents.0.message_content.text": "Encrypted reasoning",
       "llm.output_messages.0.message.contents.0.message_content.encrypted_content": "gAAAAA==",
     });
@@ -774,7 +774,6 @@ describe("OpenAIInstrumentation - Responses", () => {
     expect(span.attributes).toMatchObject({
       "llm.output_messages.0.message.role": "assistant",
       "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
-      "llm.output_messages.0.message.contents.0.message_content.id": "rs_stream",
       "llm.output_messages.0.message.contents.0.message_content.text":
         "Stream thought A\nStream thought B",
     });
@@ -829,7 +828,6 @@ describe("OpenAIInstrumentation - Responses", () => {
       "llm.input_messages.0.message.role": "user",
       "llm.input_messages.1.message.role": "assistant",
       "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
-      "llm.input_messages.1.message.contents.0.message_content.id": "rs_input",
       "llm.input_messages.1.message.contents.0.message_content.text": "Prior reasoning",
       "llm.input_messages.2.message.role": "user",
     });

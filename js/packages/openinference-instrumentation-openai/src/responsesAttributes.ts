@@ -53,9 +53,6 @@ function getResponseItemAttributes(
       attributes[`${prefix}${SemanticConventions.MESSAGE_ROLE}`] = "assistant";
       const contentPrefix = `${prefix}${SemanticConventions.MESSAGE_CONTENTS}.0.`;
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
-      if (item.id) {
-        attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_ID}`] = item.id;
-      }
       const texts = item.summary.filter((s) => s.type === "summary_text").map((s) => s.text);
       if (texts.length > 0) {
         attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
