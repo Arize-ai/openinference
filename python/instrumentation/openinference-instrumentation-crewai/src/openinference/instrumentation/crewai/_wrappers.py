@@ -125,6 +125,16 @@ def _serialize_agent_input(agent: Any) -> Dict[str, Any]:
                 Dict[str, Any],
                 model_dump(mode="json", exclude=_AGENT_MODEL_DUMP_EXCLUDE),
             )
+            # Pydantic's exclude may not strip these from tool items in newer
+            # crewai versions (e.g. 1.14+) where BaseTool serializes args_schema
+            # as an instance field rather than a ClassVar. Post-process to ensure
+            # non-JSON-safe and noisy fields are always removed.
+            tools = serialized_agent.get("tools")
+            if isinstance(tools, list):
+                for tool in tools:
+                    if isinstance(tool, dict):
+                        tool.pop("args_schema", None)
+                        tool.pop("cache_function", None)
             # `key` is useful for debugging span payloads, but is not guaranteed to be
             # part of CrewAI's dumped schema across versions, so attach it explicitly.
             agent_key = getattr(agent, "key", None)
