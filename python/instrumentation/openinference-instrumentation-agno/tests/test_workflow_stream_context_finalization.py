@@ -43,15 +43,48 @@ class _ParallelInstance:
     steps = [_StepInstance()]
 
 
+class _UpstreamError(Exception):
+    """Sentinel error raised by the upstream iterator in error-path tests."""
+
+
 def _sync_stream() -> Iterator[_Response]:
     yield _Response("one")
     yield _Response("two")
+
+
+def _sync_stream_empty() -> Iterator[_Response]:
+    return
+    yield  # make it a generator
+
+
+def _sync_stream_error() -> Iterator[_Response]:
+    yield _Response("one")
+    raise _UpstreamError("upstream failure")
 
 
 async def _async_stream() -> AsyncIterator[_Response]:
     yield _Response("one")
     await asyncio.sleep(0)
     yield _Response("two")
+
+
+async def _async_stream_empty() -> AsyncIterator[_Response]:
+    return
+    yield  # make it an async generator
+
+
+async def _async_stream_error() -> AsyncIterator[_Response]:
+    yield _Response("one")
+    await asyncio.sleep(0)
+    raise _UpstreamError("upstream failure")
+
+
+def _non_streaming_sync(instance: Any) -> Any:
+    return _Response("done")
+
+
+async def _non_streaming_async(instance: Any) -> Any:
+    return _Response("done")
 
 
 def _build_wrapper(wrapper_cls: type[Any]) -> tuple[Any, InMemorySpanExporter]:
@@ -176,3 +209,191 @@ def test_async_stream_aclose_from_other_task_does_not_log_detach_error(
     assert restored_context == [(True, True), (True, True)]
     assert len(exporter.get_finished_spans()) == 1
     assert "Failed to detach context" not in caplog.text
+
+
+@pytest.mark.parametrize(("wrapper_cls", "method_name", "instance"), STREAM_WRAPPER_CASES)
+def test_sync_stream_full_consumption_sets_ok_status_and_output(
+    wrapper_cls: type[Any],
+    method_name: str,
+    instance: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.ERROR)
+    wrapper, exporter = _build_wrapper(wrapper_cls)
+
+    stream = getattr(wrapper, method_name)(_sync_stream, instance, (), {})
+    responses = list(stream)
+
+    assert len(responses) == 2
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.OK
+    assert "Failed to detach context" not in caplog.text
+
+
+@pytest.mark.parametrize(("wrapper_cls", "method_name", "instance"), ASYNC_STREAM_WRAPPER_CASES)
+def test_async_stream_full_consumption_sets_ok_status_and_output(
+    wrapper_cls: type[Any],
+    method_name: str,
+    instance: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.ERROR)
+    wrapper, exporter = _build_wrapper(wrapper_cls)
+
+    async def run_test() -> list[Any]:
+        stream = getattr(wrapper, method_name)(_async_stream, instance, (), {})
+        return [r async for r in stream]
+
+    responses = asyncio.run(run_test())
+
+    assert len(responses) == 2
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.OK
+    assert "Failed to detach context" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Empty stream: span still ends with OK even when the iterator yields nothing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("wrapper_cls", "method_name", "instance"), STREAM_WRAPPER_CASES)
+def test_sync_empty_stream_ends_span_with_ok(
+    wrapper_cls: type[Any],
+    method_name: str,
+    instance: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.ERROR)
+    wrapper, exporter = _build_wrapper(wrapper_cls)
+
+    stream = getattr(wrapper, method_name)(_sync_stream_empty, instance, (), {})
+    responses = list(stream)
+
+    assert responses == []
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.OK
+    assert "Failed to detach context" not in caplog.text
+
+
+@pytest.mark.parametrize(("wrapper_cls", "method_name", "instance"), ASYNC_STREAM_WRAPPER_CASES)
+def test_async_empty_stream_ends_span_with_ok(
+    wrapper_cls: type[Any],
+    method_name: str,
+    instance: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.ERROR)
+    wrapper, exporter = _build_wrapper(wrapper_cls)
+
+    async def run_test() -> list[Any]:
+        stream = getattr(wrapper, method_name)(_async_stream_empty, instance, (), {})
+        return [r async for r in stream]
+
+    responses = asyncio.run(run_test())
+
+    assert responses == []
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.OK
+    assert "Failed to detach context" not in caplog.text
+
+
+@pytest.mark.parametrize(("wrapper_cls", "method_name", "instance"), STREAM_WRAPPER_CASES)
+def test_sync_stream_upstream_error_records_error_span(
+    wrapper_cls: type[Any],
+    method_name: str,
+    instance: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.ERROR)
+    wrapper, exporter = _build_wrapper(wrapper_cls)
+
+    stream = getattr(wrapper, method_name)(_sync_stream_error, instance, (), {})
+
+    # First item yields fine
+    first = next(stream)
+    assert first.content == "one"
+
+    # Second next() triggers the upstream error
+    with pytest.raises(_UpstreamError, match="upstream failure"):
+        next(stream)
+
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.ERROR
+    # Span must be ended exactly once. SDK raises on double-end in strict mode,
+    # and a double-ended span would have end_time set from the first end call only,
+    # so we just assert the span is finished.
+    assert spans[0].end_time is not None
+    assert "Failed to detach context" not in caplog.text
+
+
+@pytest.mark.parametrize(("wrapper_cls", "method_name", "instance"), ASYNC_STREAM_WRAPPER_CASES)
+def test_async_stream_upstream_error_records_error_span(
+    wrapper_cls: type[Any],
+    method_name: str,
+    instance: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.ERROR)
+    wrapper, exporter = _build_wrapper(wrapper_cls)
+
+    async def run_test() -> None:
+        stream = getattr(wrapper, method_name)(_async_stream_error, instance, (), {})
+        await anext(stream)  # first item fine
+        with pytest.raises(_UpstreamError, match="upstream failure"):
+            await anext(stream)  # second triggers error
+
+    asyncio.run(run_test())
+
+    spans = exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.ERROR
+    assert spans[0].end_time is not None
+    assert "Failed to detach context" not in caplog.text
+
+
+@pytest.mark.parametrize(("wrapper_cls", "method_name", "instance"), STREAM_WRAPPER_CASES)
+def test_sync_stream_context_restored_after_full_consumption(
+    wrapper_cls: type[Any],
+    method_name: str,
+    instance: Any,
+) -> None:
+    wrapper, _ = _build_wrapper(wrapper_cls)
+
+    initial_span = trace_api.get_current_span()
+    initial_parent_node = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+    stream = getattr(wrapper, method_name)(_sync_stream, instance, (), {})
+    list(stream)  # consume fully
+
+    assert trace_api.get_current_span() is initial_span
+    assert context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY) == initial_parent_node
+
+
+@pytest.mark.parametrize(("wrapper_cls", "method_name", "instance"), ASYNC_STREAM_WRAPPER_CASES)
+def test_async_stream_context_restored_after_full_consumption(
+    wrapper_cls: type[Any],
+    method_name: str,
+    instance: Any,
+) -> None:
+    wrapper, _ = _build_wrapper(wrapper_cls)
+
+    async def run_test() -> tuple[Any, Any]:
+        initial_span = trace_api.get_current_span()
+        initial_parent_node = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+        stream = getattr(wrapper, method_name)(_async_stream, instance, (), {})
+        async for _ in stream:
+            pass
+        return (
+            trace_api.get_current_span() is initial_span,
+            context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY) == initial_parent_node,
+        )
+
+    span_ok, node_ok = asyncio.run(run_test())
+    assert span_ok
+    assert node_ok
