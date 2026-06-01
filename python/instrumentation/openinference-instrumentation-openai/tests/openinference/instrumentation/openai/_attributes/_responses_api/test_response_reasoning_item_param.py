@@ -21,7 +21,6 @@ class TestResponseReasoningItemParam:
                 {
                     "message.role": "assistant",
                     "message.contents.0.message_content.type": "reasoning",
-                    "message.contents.0.message_content.id": "reason_456",
                     "message.contents.0.message_content.text": "First\nSecond",
                 },
                 id="multiple_summary_entries_concatenated",
@@ -38,7 +37,6 @@ class TestResponseReasoningItemParam:
                 {
                     "message.role": "assistant",
                     "message.contents.0.message_content.type": "reasoning",
-                    "message.contents.0.message_content.id": "reason_789",
                     "message.contents.0.message_content.text": "Single summary",
                     "message.contents.0.message_content.encrypted_content": "gAAAAA==",
                 },
@@ -54,7 +52,6 @@ class TestResponseReasoningItemParam:
                 {
                     "message.role": "assistant",
                     "message.contents.0.message_content.type": "reasoning",
-                    "message.contents.0.message_content.id": "reason_000",
                     "message.contents.0.message_content.encrypted_content": "gAAAAA==",
                 },
                 id="empty_summary_with_encrypted_content",

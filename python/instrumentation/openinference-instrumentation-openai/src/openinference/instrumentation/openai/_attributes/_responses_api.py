@@ -696,8 +696,6 @@ class _ResponsesApiAttributes:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         content_prefix = f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.0."
         yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
-        if obj.id:
-            yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_ID}", obj.id
         if isinstance(obj.summary, Iterable):
             texts = [item.text for item in obj.summary]
             if texts:
@@ -721,8 +719,6 @@ class _ResponsesApiAttributes:
         yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
         content_prefix = f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.0."
         yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
-        if (item_id := obj.get("id")) is not None:
-            yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_ID}", item_id
         if isinstance((summary := obj.get("summary")), Iterable):
             texts = [
                 item["text"]

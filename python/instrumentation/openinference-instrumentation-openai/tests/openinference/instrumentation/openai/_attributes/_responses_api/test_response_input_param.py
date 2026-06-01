@@ -351,7 +351,6 @@ class TestResponseInputItemParam:
                 {
                     "message.role": "assistant",
                     "message.contents.0.message_content.type": "reasoning",
-                    "message.contents.0.message_content.id": "reason_123",
                     "message.contents.0.message_content.text": "This is a reasoning step",
                 },
                 id="basic_reasoning_item",
@@ -374,7 +373,6 @@ class TestResponseInputItemParam:
                 {
                     "message.role": "assistant",
                     "message.contents.0.message_content.type": "reasoning",
-                    "message.contents.0.message_content.id": "reason_456",
                     "message.contents.0.message_content.text": "First reasoning step\nSecond"
                     " reasoning step",
                 },
