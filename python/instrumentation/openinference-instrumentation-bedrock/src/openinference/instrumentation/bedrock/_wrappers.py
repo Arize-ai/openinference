@@ -133,7 +133,9 @@ class _NovaStreamCallback:
                         "toolUse", {"toolUseId": "", "name": "", "input": ""}
                     )
                     if (fragment := tool_use_delta.get("input")) is not None:
-                        tool_use["input"] += fragment if isinstance(fragment, str) else str(fragment)
+                        tool_use["input"] += (
+                            fragment if isinstance(fragment, str) else str(fragment)
+                        )
         if metadata := payload.get("metadata"):
             usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
             input_tokens = usage.get("inputTokens") if isinstance(usage, dict) else None
