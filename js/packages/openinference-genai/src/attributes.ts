@@ -5,6 +5,7 @@ import {
   ATTR_GEN_AI_AGENT_NAME,
   ATTR_GEN_AI_COMPLETION,
   ATTR_GEN_AI_INPUT_MESSAGES,
+  ATTR_GEN_AI_OPERATION_NAME,
   ATTR_GEN_AI_OUTPUT_MESSAGES,
   ATTR_GEN_AI_PROMPT,
   ATTR_GEN_AI_PROVIDER_NAME,
@@ -24,6 +25,15 @@ import {
   ATTR_GEN_AI_TOOL_TYPE,
   ATTR_GEN_AI_USAGE_INPUT_TOKENS,
   ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
+  GEN_AI_OPERATION_NAME_VALUE_CHAT,
+  GEN_AI_OPERATION_NAME_VALUE_CREATE_AGENT,
+  GEN_AI_OPERATION_NAME_VALUE_EMBEDDINGS,
+  GEN_AI_OPERATION_NAME_VALUE_EXECUTE_TOOL,
+  GEN_AI_OPERATION_NAME_VALUE_GENERATE_CONTENT,
+  GEN_AI_OPERATION_NAME_VALUE_INVOKE_AGENT,
+  GEN_AI_OPERATION_NAME_VALUE_INVOKE_WORKFLOW,
+  GEN_AI_OPERATION_NAME_VALUE_RETRIEVAL,
+  GEN_AI_OPERATION_NAME_VALUE_TEXT_COMPLETION,
 } from "@opentelemetry/semantic-conventions/incubating";
 
 import {
@@ -59,9 +69,42 @@ const AGENT_KIND_PREFIXES = [
   ATTR_GEN_AI_AGENT_DESCRIPTION,
 ] as const;
 
-const ATTR_GEN_AI_OPERATION_NAME = "gen_ai.operation.name";
-// Not exported by the currently supported @opentelemetry/semantic-conventions range.
-const GEN_AI_OPERATION_PLAN = "plan";
+// "plan" was added to the OTel GenAI semantic conventions
+// (open-telemetry/semantic-conventions-genai#97, merged 2026-05-11) but is not yet released,
+// so @opentelemetry/semantic-conventions exports no constant for it — hence the literal.
+const GEN_AI_OPERATION_NAME_VALUE_PLAN = "plan";
+
+// gen_ai.operation.name values that classify a span by OpenInference span kind. Mirrors
+// AGENT_KIND_PREFIXES / TOOL_EXECUTION_PREFIXES. These operations are recognized by value
+// because the conversion target — OpenInferenceSpanKind — is a closed enum with no per-
+// operation member, so each operation must be mapped into our vocabulary; the original
+// operation name is not preserved on the OI span.
+const AGENT_OPERATIONS: ReadonlySet<string> = new Set([
+  GEN_AI_OPERATION_NAME_VALUE_CREATE_AGENT,
+  GEN_AI_OPERATION_NAME_VALUE_INVOKE_AGENT,
+  GEN_AI_OPERATION_NAME_VALUE_PLAN,
+]);
+
+// "invoke_workflow" maps to CHAIN rather than AGENT: a workflow is a fixed orchestration of
+// steps (a chain), whereas AGENT is reserved for autonomous, LLM-driven control flow. An
+// explicit agent identity (agent.* attribute) still takes precedence and yields AGENT; see
+// mapSpanKind.
+const CHAIN_OPERATIONS: ReadonlySet<string> = new Set([
+  GEN_AI_OPERATION_NAME_VALUE_INVOKE_WORKFLOW,
+]);
+
+// Terminal operations describe a single concrete model/data call (a leaf in the span tree),
+// each with a direct OpenInference span kind. operation.name is authoritative for these — an
+// agent.* identity on them is context (which agent owns the call), not a signal to upgrade
+// the span to AGENT (see mapSpanKind).
+const TERMINAL_OPERATION_SPAN_KINDS: ReadonlyMap<string, OpenInferenceSpanKind> = new Map([
+  [GEN_AI_OPERATION_NAME_VALUE_CHAT, OpenInferenceSpanKind.LLM],
+  [GEN_AI_OPERATION_NAME_VALUE_TEXT_COMPLETION, OpenInferenceSpanKind.LLM],
+  [GEN_AI_OPERATION_NAME_VALUE_GENERATE_CONTENT, OpenInferenceSpanKind.LLM],
+  [GEN_AI_OPERATION_NAME_VALUE_EMBEDDINGS, OpenInferenceSpanKind.EMBEDDING],
+  [GEN_AI_OPERATION_NAME_VALUE_RETRIEVAL, OpenInferenceSpanKind.RETRIEVER],
+  [GEN_AI_OPERATION_NAME_VALUE_EXECUTE_TOOL, OpenInferenceSpanKind.TOOL],
+]);
 
 const TOOL_EXECUTION_PREFIXES = [
   ATTR_GEN_AI_TOOL_NAME,
@@ -204,8 +247,13 @@ export const mapProviderAndSystem = (spanAttributes: Attributes): Attributes => 
 
 /**
  * Map GenAI agent attributes to OpenInference agent attributes.
- * @param spanAttributes - The span attributes containing agent attributes to map
- * @returns The mapped agent attributes
+ *
+ * Currently only gen_ai.agent.name -> agent.name. gen_ai.agent.id and
+ * gen_ai.agent.description (which also drive AGENT span-kind detection in mapSpanKind) are
+ * intentionally not mapped, as OpenInference has no corresponding agent attributes for them.
+ *
+ * @param spanAttributes - The GenAI span attributes to read agent attributes from
+ * @returns The mapped OpenInference agent attributes
  */
 export const mapAgentAttributes = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
@@ -238,14 +286,27 @@ export const mapSpanKind = (spanAttributes: Attributes): Attributes => {
   // default to LLM for now
   let spanKind = OpenInferenceSpanKind.LLM;
   const operationName = getString(spanAttributes[ATTR_GEN_AI_OPERATION_NAME]);
-  // detect agent kind
-  if (
-    operationName === GEN_AI_OPERATION_PLAN ||
-    AGENT_KIND_PREFIXES.some((prefix) => spanAttributes[prefix])
+  const terminalSpanKind =
+    operationName !== undefined ? TERMINAL_OPERATION_SPAN_KINDS.get(operationName) : undefined;
+  const hasAgentAttributes = AGENT_KIND_PREFIXES.some((prefix) => spanAttributes[prefix]);
+  if (terminalSpanKind !== undefined) {
+    // Concrete leaf operation (chat/text_completion/generate_content/embeddings/retrieval/
+    // execute_tool): authoritative. An agent.* identity here is just context (which agent
+    // owns the call) and does not upgrade it to AGENT.
+    spanKind = terminalSpanKind;
+  } else if (
+    hasAgentAttributes ||
+    (operationName !== undefined && AGENT_OPERATIONS.has(operationName))
   ) {
+    // Control-flow span: an agent.* identity, or an agent-class operation, makes it AGENT —
+    // even over a CHAIN-class operation like invoke_workflow.
     spanKind = OpenInferenceSpanKind.AGENT;
+  } else if (operationName !== undefined && CHAIN_OPERATIONS.has(operationName)) {
+    // CHAIN-class operation, only reached when no agent identity is present.
+    spanKind = OpenInferenceSpanKind.CHAIN;
   }
-  // detect tool execution kind
+  // Tool attributes force TOOL even when the operation says otherwise — covers tool-execution
+  // spans not labeled with operation.name = execute_tool.
   if (TOOL_EXECUTION_PREFIXES.some((prefix) => spanAttributes[prefix])) {
     spanKind = OpenInferenceSpanKind.TOOL;
   }

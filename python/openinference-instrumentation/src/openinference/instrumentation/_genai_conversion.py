@@ -253,6 +253,19 @@ def _get_oi_span_kind(attributes: Mapping[str, AttributeValue]) -> Optional[str]
 
 
 def _get_genai_operation_name(attributes: Mapping[str, AttributeValue]) -> Optional[str]:
+    """Resolve gen_ai.operation.name for the dual-written GenAI span.
+
+    Prefer an operation name the producer set explicitly on the OpenInference span. This
+    passthrough is value-agnostic on purpose: gen_ai.operation.name is an open enum, so a
+    producer may carry a value the OpenInference span kind cannot express (e.g. "plan", which
+    has no OpenInference span kind and would otherwise be flattened to "invoke_agent" by the
+    AGENT branch below). There is no "plan"-specific handling here - any explicit value wins.
+
+    Otherwise, derive the operation from the OpenInference span kind. Note this derivation is
+    lossy in the inverse direction: several operations (invoke_agent, create_agent, plan, ...)
+    all map to the AGENT span kind, so AGENT can only be derived back to "invoke_agent".
+    """
+    # An explicitly set operation name wins and short-circuits the span-kind derivation below.
     if operation_name := _as_optional_str(attributes.get(GenAIAttributes.GEN_AI_OPERATION_NAME)):
         return operation_name
 
