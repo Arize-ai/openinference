@@ -62,13 +62,13 @@
     "@opentelemetry/resources": "^2.1.0",
     "@opentelemetry/sdk-trace-base": "^2.1.0",
     "@opentelemetry/sdk-trace-node": "^2.1.0",
-    "@opentelemetry/semantic-conventions": "^1.37.0",
+    "@opentelemetry/semantic-conventions": "^1.41.1",
     "@types/node": "^20.14.11",
     "typescript": "^5.8.3",
     "vitest": "^4.0.3"
   },
   "peerDependencies": {
     "@opentelemetry/api": ">=1.9.0",
-    "@opentelemetry/semantic-conventions": ">=1.37.0"
+    "@opentelemetry/semantic-conventions": ">=1.41.1"
   }
 }
