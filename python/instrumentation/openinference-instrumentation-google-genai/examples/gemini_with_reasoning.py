@@ -18,7 +18,7 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 # Make sure to set the GEMINI_API_KEY environment variable
 
-MODEL = "gemini-2.5-flash-preview-05-20"
+MODEL = "gemini-2.5-flash"
 
 
 def generate_with_reasoning() -> None:
@@ -26,9 +26,9 @@ def generate_with_reasoning() -> None:
 
     response = client.models.generate_content(
         model=MODEL,
-        contents="What is the capital of France? Show your reasoning.",
+        contents="Tell bed storey for 5 years old boy",
         config=types.GenerateContentConfig(
-            thinking_config=types.ThinkingConfig(thinking_budget=1024),
+            thinking_config=types.ThinkingConfig(thinking_budget=512, include_thoughts=True),
         ),
     )
     print(response.text)
@@ -44,20 +44,16 @@ def generate_with_reasoning() -> None:
             contents=[
                 types.Content(
                     role="user",
-                    parts=[
-                        types.Part(
-                            text="What is the capital of France? Show your reasoning."
-                        )
-                    ],
+                    parts=[types.Part(text="Tell bed storey for 5 years old boy")],
                 ),
                 types.Content(role="model", parts=prior_parts),
                 types.Content(
                     role="user",
-                    parts=[types.Part(text="And what country is Paris in?")],
+                    parts=[types.Part(text="What is the moral of the storey?")],
                 ),
             ],
             config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_budget=512),
+                thinking_config=types.ThinkingConfig(thinking_budget=512, include_thoughts=True),
             ),
         )
         print(follow_up.text)

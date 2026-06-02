@@ -133,7 +133,17 @@ class _RequestAttributesExtractor:
                         )
                     increment_content_index = True
             elif (text := part.text) is not None:
-                if len(parts) == 1:
+                if thought_signature is not None:
+                    # Force indexed format so we can attach the signature
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                    yield (f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text")
+                    yield (f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text)
+                    yield (
+                        f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                        base64.b64encode(thought_signature).decode(),
+                    )
+                    increment_content_index = True
+                elif len(parts) == 1:
                     yield (MessageAttributes.MESSAGE_CONTENT, text)
                 else:
                     prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"

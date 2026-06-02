@@ -111,7 +111,19 @@ class _ResponseAttributesExtractor:
                         )
                     increment_content_index = True
             elif text := getattr(part, "text", None):
-                yield from _get_attributes_from_content_text(text, content_index, is_single_part)
+                if thought_signature is not None:
+                    # Force indexed format so we can attach the signature
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
+                    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+                    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+                    yield (
+                        f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                        base64.b64encode(thought_signature).decode(),
+                    )
+                else:
+                    yield from _get_attributes_from_content_text(
+                        text, content_index, is_single_part
+                    )
                 increment_content_index = True
             elif function_call := getattr(part, "function_call", None):
                 yield from self._get_attributes_from_function_call(

@@ -98,6 +98,22 @@ def _content_key(msg_index: int, content_index: int, attr: str, output: bool = T
             },
             id="thought_followed_by_text",
         ),
+        pytest.param(
+            [
+                types.Part(thought=True, text="Thinking..."),
+                types.Part(text="Paris.", thought_signature=b"SigOnTextPart"),
+            ],
+            {
+                _content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TYPE): "reasoning",
+                _content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TEXT): "Thinking...",
+                _content_key(0, 1, MessageContentAttributes.MESSAGE_CONTENT_TYPE): "text",
+                _content_key(0, 1, MessageContentAttributes.MESSAGE_CONTENT_TEXT): "Paris.",
+                _content_key(
+                    0, 1, MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
+                ): base64.b64encode(b"SigOnTextPart").decode(),
+            },
+            id="thought_signature_on_text_part",
+        ),
     ],
 )
 def test_response_thought_parts(
@@ -269,6 +285,45 @@ def test_response_function_call_without_thought_signature() -> None:
                 ): "What is the capital of France?",
             },
             id="request_thought_followed_by_text",
+        ),
+        pytest.param(
+            [
+                types.Part(thought=True, text="Thinking..."),
+                types.Part(text="Paris.", thought_signature=b"SigOnTextPart"),
+            ],
+            {
+                _im(
+                    0,
+                    MessageAttributes.MESSAGE_CONTENTS,
+                    "0",
+                    MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+                ): "reasoning",
+                _im(
+                    0,
+                    MessageAttributes.MESSAGE_CONTENTS,
+                    "0",
+                    MessageContentAttributes.MESSAGE_CONTENT_TEXT,
+                ): "Thinking...",
+                _im(
+                    0,
+                    MessageAttributes.MESSAGE_CONTENTS,
+                    "1",
+                    MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+                ): "text",
+                _im(
+                    0,
+                    MessageAttributes.MESSAGE_CONTENTS,
+                    "1",
+                    MessageContentAttributes.MESSAGE_CONTENT_TEXT,
+                ): "Paris.",
+                _im(
+                    0,
+                    MessageAttributes.MESSAGE_CONTENTS,
+                    "1",
+                    MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE,
+                ): base64.b64encode(b"SigOnTextPart").decode(),
+            },
+            id="request_thought_signature_on_text_part",
         ),
     ],
 )
