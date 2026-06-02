@@ -254,7 +254,7 @@ def test_tool_result_is_error_preserves_result_content() -> None:
             ]
         },
     }
-    wrappers._update_tool_spans_from_messages(message, _RecordingTracker())
+    wrappers._update_tool_spans_from_messages(message, _RecordingTracker())  # type: ignore[arg-type]
     assert captured.get("tool_use_id") == "toolu_err_1"
     assert "real error text" in str(captured.get("error", ""))
 
@@ -272,7 +272,7 @@ def test_tool_result_is_error_preserves_result_content() -> None:
             ]
         },
     }
-    wrappers._update_tool_spans_from_messages(message_empty, _RecordingTracker())
+    wrappers._update_tool_spans_from_messages(message_empty, _RecordingTracker())  # type: ignore[arg-type]
     assert captured.get("error") == "Tool execution error"
 
 
