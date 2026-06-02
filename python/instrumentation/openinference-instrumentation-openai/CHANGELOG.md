@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.49...python-openinference-instrumentation-openai-v0.1.50) (2026-06-02)
+
+
+### Features
+
+* support OTel GenAI plan operation ([#3165](https://github.com/Arize-ai/openinference/issues/3165)) ([52f368d](https://github.com/Arize-ai/openinference/commit/52f368d6d37ec4aaf6b38c796995d576fe37ca49))
+
 ## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.48...python-openinference-instrumentation-openai-v0.1.49) (2026-05-18)
 
 
