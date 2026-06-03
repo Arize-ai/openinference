@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.5.1...python-openinference-instrumentation-openai-agents-v1.6.0) (2026-06-03)
+
+
+### Features
+
+* **openai-agents:** Add realtime audio tracing ([#3173](https://github.com/Arize-ai/openinference/issues/3173)) ([cfb1e86](https://github.com/Arize-ai/openinference/commit/cfb1e866ff6c15a797d45aee002d90367545eff0))
+
 ## [1.5.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.5.0...python-openinference-instrumentation-openai-agents-v1.5.1) (2026-05-18)
 
 
