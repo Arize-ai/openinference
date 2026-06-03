@@ -600,7 +600,7 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
         self._tool_names.pop(tool_use_key, None)
         if span is None:
             return
-        error_msg = str(error) if error is not None else "Tool execution error"
+        error_msg = safe_json_dumps(error) if error is not None else "Tool execution error"
         span.record_exception(Exception(error_msg))
         span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, error_msg))
         span.end()
@@ -727,14 +727,7 @@ def _update_tool_spans_from_messages(
                 tool_use_id = _get_field(block, "tool_use_id", "")
                 result_content = _get_field(block, "content")
                 if _get_field(block, "is_error"):
-                    # Preserve the tool's own error output instead of dropping
-                    # it for a generic message.
-                    error_text = (
-                        safe_json_dumps(result_content)
-                        if result_content
-                        else "Tool execution error"
-                    )
-                    tool_tracker.end_tool_span_with_error(tool_use_id, error_text)
+                    tool_tracker.end_tool_span_with_error(tool_use_id, result_content)
                 else:
                     tool_tracker.end_tool_span(tool_use_id, result_content)
     except Exception:
