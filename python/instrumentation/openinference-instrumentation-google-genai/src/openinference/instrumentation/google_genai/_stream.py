@@ -154,12 +154,7 @@ class _ResponseAccumulator:
             candidates=_IndexedAccumulator(
                 lambda: _ValuesAccumulator(
                     content=_ValuesAccumulator(
-                        parts=_IndexedAccumulator(
-                            lambda: _ValuesAccumulator(
-                                text=_StringAccumulator(),
-                                function_call=_DictReplace(),
-                            ),
-                        ),
+                        parts=_PartsAccumulator(),
                         role=_SimpleStringReplace(),
                     ),
                     finish_reason=_SimpleStringReplace(),
@@ -421,6 +416,44 @@ class _IndexedAccumulator:
             if v and hasattr(v, "get"):
                 item_index = v.get("index")
                 self._indexed[index if item_index is None else item_index] += v
+        return self
+
+
+class _PartsAccumulator(_IndexedAccumulator):
+    """Accumulates streaming parts with phase-aware slot management.
+
+    Gemini sends both thought content and answer content as consecutive parts[0]
+    chunks. A new slot is allocated whenever the thought flag transitions from
+    True to False, keeping reasoning and answer text in separate content items.
+    """
+
+    __slots__ = ("_next_slot", "_last_was_thought")
+
+    def __init__(self) -> None:
+        super().__init__(
+            lambda: _ValuesAccumulator(
+                text=_StringAccumulator(),
+                function_call=_DictReplace(),
+            )
+        )
+        self._next_slot: int = 0
+        self._last_was_thought: Optional[bool] = None
+
+    def __iadd__(
+        self, values: Optional[Union[Mapping[str, Any], list[Any]]]
+    ) -> "_PartsAccumulator":
+        if not values:
+            return self
+        if isinstance(values, Mapping):
+            values = [values]
+        for part in values:
+            if not part or not hasattr(part, "get"):
+                continue
+            is_thought = bool(part.get("thought"))
+            if self._last_was_thought is True and not is_thought:
+                self._next_slot += 1
+            self._last_was_thought = is_thought
+            self._indexed[self._next_slot] += part
         return self
 
 
