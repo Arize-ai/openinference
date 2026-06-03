@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.40...python-openinference-instrumentation-bedrock-v0.1.41) (2026-06-03)
+
+
+### Features
+
+* **bedrock:** add Amazon Nova model support for invoke_model ([#3039](https://github.com/Arize-ai/openinference/issues/3039)) ([4f5e1f4](https://github.com/Arize-ai/openinference/commit/4f5e1f45dd399d6b295f16bdcbf00a762b953384))
+
 ## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.39...python-openinference-instrumentation-bedrock-v0.1.40) (2026-05-22)
 
 
