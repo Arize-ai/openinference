@@ -303,7 +303,7 @@ async def test_tool_error_records_real_content(
         f"Expected real error in exception.message, got: {exception_msg!r}"
     )
 
-    # The real error content must NOT be set as output.value which is reserved for successful results.
+    # The real error content must NOT be set as output attributes.
     attrs = dict(bash_span.attributes or {})
     assert SpanAttributes.OUTPUT_VALUE not in attrs, (
         "output.value must not be set on a failed tool span"
