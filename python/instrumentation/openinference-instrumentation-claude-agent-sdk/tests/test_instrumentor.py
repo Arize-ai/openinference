@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import pytest
+from opentelemetry.sdk.trace import SpanProcessor as _BaseSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
@@ -778,3 +779,91 @@ async def test_client_real_agent_span(
     )
     assert output_msg_role == "assistant"
     assert not attrs
+
+
+# ---------------------------------------------------------------------------
+# Regression test for https://github.com/Arize-ai/openinference/issues/3198
+# ---------------------------------------------------------------------------
+
+
+class _BaggageSessionProcessor(_BaseSpanProcessor):
+    """
+    Simulates the Langfuse v4 SpanProcessor that reads session.id from OTel
+    baggage on span start. The bug: if ClaudeAgentSDKInstrumentor later calls
+    span.set_attribute(SESSION_ID, message.session_id) mid-stream, it overwrites
+    the application session with the Claude CLI's internal UUID.
+    """
+
+    def on_start(self, span: Any, parent_context: Any = None) -> None:
+        from opentelemetry import baggage
+        from opentelemetry import context as otel_context
+
+        ctx = parent_context if parent_context is not None else otel_context.get_current()
+        app_session = baggage.get_baggage("session.id", ctx)
+        if app_session:
+            span.set_attribute(SpanAttributes.SESSION_ID, app_session)
+
+    def on_end(self, span: Any) -> None:
+        pass
+
+    def shutdown(self) -> None:
+        pass
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return True
+
+
+@pytest.mark.asyncio
+async def test_session_id_not_overwritten_by_claude_internal_uuid(
+    cassette_transport: Any,
+) -> None:
+    """
+    Regression: when a Langfuse-style SpanProcessor propagates session.id from
+    OTel baggage on span start, the Claude instrumentor must not overwrite it
+    with the Claude CLI's internal session UUID during message processing.
+
+    Reuses the existing test_client_real_agent_span cassette — no API key needed.
+    """
+    from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
+    from opentelemetry import baggage
+    from opentelemetry import context as otel_context
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+    # Build a TracerProvider with the Langfuse-style processor FIRST, then a
+    # SimpleSpanProcessor to capture exported spans.
+    app_session_id = "dedf7759-99ee-46ad-a5fc-3837892a0d78"
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(_BaggageSessionProcessor())
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+
+    ClaudeAgentSDKInstrumentor().instrument(tracer_provider=provider)
+    try:
+        # Set the application session in OTel baggage — what
+        # `propagate_attributes(session_id=..., as_baggage=True)` does in Langfuse.
+        ctx = baggage.set_baggage("session.id", app_session_id)
+        token = otel_context.attach(ctx)
+        try:
+            options = ClaudeAgentOptions(allowed_tools=["Bash"])
+            async with ClaudeSDKClient(options=options, transport=cassette_transport) as client:
+                await client.query("Reply with exactly the word: ok")
+                async for _ in client.receive_response():
+                    pass
+        finally:
+            otel_context.detach(token)
+    finally:
+        ClaudeAgentSDKInstrumentor().uninstrument()
+
+    spans = exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.ClaudeSDKClient.receive_response")
+    attrs = dict(agent_span.attributes or {})
+
+    actual_session = attrs.get(SpanAttributes.SESSION_ID)
+    assert actual_session == app_session_id, (
+        f"session.id was overwritten by Claude's internal UUID.\n"
+        f"  Expected (application session): {app_session_id!r}\n"
+        f"  Got (Claude internal UUID):     {actual_session!r}\n"
+        f"This breaks Langfuse trace correlation when session.id is propagated "
+        f"via OTel baggage alongside the ClaudeAgentSDKInstrumentor."
+    )
