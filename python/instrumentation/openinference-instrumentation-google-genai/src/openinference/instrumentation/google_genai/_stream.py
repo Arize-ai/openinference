@@ -328,7 +328,7 @@ class _ValuesAccumulator:
             elif isinstance(value, _StringAccumulator):
                 if str_value := str(value):
                     yield key, str_value
-            elif isinstance(value, _IndexedAccumulator):
+            elif isinstance(value, (_IndexedAccumulator, _PartsAccumulator)):
                 yield key, list(value)
             elif isinstance(value, _DictReplace):
                 if dict_value := dict(value):
@@ -352,7 +352,7 @@ class _ValuesAccumulator:
             elif isinstance(self_value, _SimpleStringReplace):
                 if isinstance(value, str):
                     self_value += value
-            elif isinstance(self_value, _IndexedAccumulator):
+            elif isinstance(self_value, (_IndexedAccumulator, _PartsAccumulator)):
                 self_value += value
             elif isinstance(self_value, _DictReplace):
                 if isinstance(value, Mapping):
@@ -368,6 +368,96 @@ class _ValuesAccumulator:
             if isinstance(value, Mapping):
                 value = _ValuesAccumulator(**value)
             self._values[key] = value  # new entry
+        return self
+
+
+_PART_KIND_FIELDS = (
+    "function_call",
+    "function_response",
+    "inline_data",
+    "file_data",
+    "executable_code",
+    "code_execution_result",
+)
+
+_STREAMING_KINDS = frozenset(("text", "reasoning"))
+
+
+def _part_kind(part: Mapping[str, Any]) -> str:
+    for field in _PART_KIND_FIELDS:
+        if field in part:
+            return field
+    return "reasoning" if part.get("thought") else "text"
+
+
+def _starts_new_slot(part: Mapping[str, Any], kind: str, last_kind: Optional[str]) -> bool:
+    if last_kind is None:
+        return True
+    if kind != last_kind:
+        return True
+    if kind in _STREAMING_KINDS:
+        return False
+    if kind == "function_call":
+        function_call = part.get("function_call") or {}
+        return "name" in function_call
+    return True
+
+
+class _PartsAccumulator:
+    __slots__ = ("_indexed", "_last_kind", "_last_slot", "_next_slot", "_position_state")
+
+    def __init__(self) -> None:
+        self._indexed: defaultdict[int, _ValuesAccumulator] = defaultdict(
+            lambda: _ValuesAccumulator(
+                text=_StringAccumulator(),
+                function_call=_DictReplace(),
+                function_response=_DictReplace(),
+                inline_data=_DictReplace(),
+                file_data=_DictReplace(),
+                executable_code=_DictReplace(),
+                code_execution_result=_DictReplace(),
+            )
+        )
+        self._last_kind: Optional[str] = None
+        self._last_slot: Optional[int] = None
+        self._next_slot = 0
+        self._position_state: dict[int, tuple[int, str]] = {}
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        for _, values in sorted(self._indexed.items()):
+            yield dict(values)
+
+    def __iadd__(
+        self, values: Optional[Union[Mapping[str, Any], list[Any]]]
+    ) -> "_PartsAccumulator":
+        if not values:
+            return self
+        if isinstance(values, Mapping):
+            values = [values]
+        for position, part in enumerate(values):
+            if not part or not hasattr(part, "get"):
+                continue
+            kind = _part_kind(part)
+            explicit_index = part.get("index")
+            if explicit_index is not None:
+                slot = explicit_index
+            elif (
+                kind in _STREAMING_KINDS and self._last_slot is not None and kind == self._last_kind
+            ):
+                slot = self._last_slot
+            elif position in self._position_state and not _starts_new_slot(
+                part, kind, self._position_state[position][1]
+            ):
+                slot = self._position_state[position][0]
+            else:
+                slot = self._next_slot
+                self._next_slot += 1
+            self._indexed[slot] += part
+            self._position_state[position] = (slot, kind)
+            self._last_slot = slot
+            self._last_kind = kind
+            if slot >= self._next_slot:
+                self._next_slot = slot + 1
         return self
 
 
@@ -416,44 +506,6 @@ class _IndexedAccumulator:
             if v and hasattr(v, "get"):
                 item_index = v.get("index")
                 self._indexed[index if item_index is None else item_index] += v
-        return self
-
-
-class _PartsAccumulator(_IndexedAccumulator):
-    """Accumulates streaming parts with phase-aware slot management.
-
-    Gemini sends both thought content and answer content as consecutive parts[0]
-    chunks. A new slot is allocated whenever the thought flag transitions from
-    True to False, keeping reasoning and answer text in separate content items.
-    """
-
-    __slots__ = ("_next_slot", "_last_was_thought")
-
-    def __init__(self) -> None:
-        super().__init__(
-            lambda: _ValuesAccumulator(
-                text=_StringAccumulator(),
-                function_call=_DictReplace(),
-            )
-        )
-        self._next_slot: int = 0
-        self._last_was_thought: Optional[bool] = None
-
-    def __iadd__(
-        self, values: Optional[Union[Mapping[str, Any], list[Any]]]
-    ) -> "_PartsAccumulator":
-        if not values:
-            return self
-        if isinstance(values, Mapping):
-            values = [values]
-        for part in values:
-            if not part or not hasattr(part, "get"):
-                continue
-            is_thought = bool(part.get("thought"))
-            if self._last_was_thought is True and not is_thought:
-                self._next_slot += 1
-            self._last_was_thought = is_thought
-            self._indexed[self._next_slot] += part
         return self
 
 

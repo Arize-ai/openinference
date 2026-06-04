@@ -384,6 +384,7 @@ def _stream_attrs(chunks: list["types.GenerateContentResponse"]) -> dict[str, An
             id="stream_thought_then_text_with_signature",
         ),
         pytest.param(
+            # Thought text streamed across two chunks → accumulate at same index 0
             [
                 _make_stream_chunk([{"thought": True, "text": "Thinking..."}]),
                 _make_stream_chunk([{"thought": True, "text": " more thinking."}]),
@@ -411,6 +412,42 @@ def _stream_attrs(chunks: list["types.GenerateContentResponse"]) -> dict[str, An
             },
             id="stream_thought_signature_only",
         ),
+        pytest.param(
+            # Real-world: thought chunks then answer chunk, all at parts[0].
+            # Phase transition detected → answer routed to a separate accumulator slot.
+            [
+                _make_stream_chunk([{"thought": True, "text": "Thinking..."}]),
+                _make_stream_chunk([{"text": "Paris.", "thought_signature": b"SigBytes"}]),
+            ],
+            {
+                _content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TYPE): "reasoning",
+                _content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TEXT): "Thinking...",
+                _content_key(0, 1, MessageContentAttributes.MESSAGE_CONTENT_TYPE): "text",
+                _content_key(0, 1, MessageContentAttributes.MESSAGE_CONTENT_TEXT): "Paris.",
+                _content_key(
+                    0, 1, MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
+                ): base64.b64encode(b"SigBytes").decode(),
+            },
+            id="stream_separate_chunks_thought_then_text",
+        ),
+        pytest.param(
+            # Multiple answer chunks after thought, signature arrives in the last chunk
+            [
+                _make_stream_chunk([{"thought": True, "text": "Thinking..."}]),
+                _make_stream_chunk([{"text": "Par"}]),
+                _make_stream_chunk([{"text": "is.", "thought_signature": b"SigBytes"}]),
+            ],
+            {
+                _content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TYPE): "reasoning",
+                _content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TEXT): "Thinking...",
+                _content_key(0, 1, MessageContentAttributes.MESSAGE_CONTENT_TYPE): "text",
+                _content_key(0, 1, MessageContentAttributes.MESSAGE_CONTENT_TEXT): "Paris.",
+                _content_key(
+                    0, 1, MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
+                ): base64.b64encode(b"SigBytes").decode(),
+            },
+            id="stream_separate_chunks_multi_answer_then_signature",
+        ),
     ],
 )
 def test_stream_reasoning_content(
@@ -421,6 +458,52 @@ def test_stream_reasoning_content(
     role_key = _om(0, MessageAttributes.MESSAGE_ROLE)
     attrs.pop(role_key, None)
     assert attrs == expected
+
+
+def test_stream_two_function_calls_separate_chunks() -> None:
+    """Two complete function calls arriving in separate chunks at parts[0] each."""
+    chunks = [
+        _make_stream_chunk(
+            [{"function_call": types.FunctionCall(name="get_weather", args={"location": "France"})}]
+        ),
+        _make_stream_chunk(
+            [{"function_call": types.FunctionCall(name="get_weather", args={"location": "India"})}]
+        ),
+    ]
+    attrs = _stream_attrs(chunks)
+    tc0 = f"{_OM}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    tc1 = f"{_OM}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1"
+    assert attrs[f"{tc0}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_weather"
+    assert '"France"' in attrs[f"{tc0}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
+    assert attrs[f"{tc1}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_weather"
+    assert '"India"' in attrs[f"{tc1}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
+
+
+def test_stream_two_function_calls_same_chunk() -> None:
+    """Two function calls in the same chunk at positions 0 and 1."""
+    chunks = [
+        _make_stream_chunk(
+            [
+                {
+                    "function_call": types.FunctionCall(
+                        name="get_weather", args={"location": "France"}
+                    )
+                },
+                {
+                    "function_call": types.FunctionCall(
+                        name="get_weather", args={"location": "India"}
+                    )
+                },
+            ]
+        ),
+    ]
+    attrs = _stream_attrs(chunks)
+    tc0 = f"{_OM}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    tc1 = f"{_OM}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1"
+    assert attrs[f"{tc0}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_weather"
+    assert '"France"' in attrs[f"{tc0}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
+    assert attrs[f"{tc1}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_weather"
+    assert '"India"' in attrs[f"{tc1}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
 
 
 def test_stream_function_call_with_thought_signature() -> None:

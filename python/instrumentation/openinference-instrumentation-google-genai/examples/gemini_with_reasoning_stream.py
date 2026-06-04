@@ -2,7 +2,6 @@ import os
 
 from google import genai
 from google.genai import types
-from google.genai.types import ThinkingLevel
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -19,7 +18,7 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 # Make sure to set the GEMINI_API_KEY environment variable
 
-MODEL = "gemini-3.5-flash"
+MODEL = "gemini-2.5-flash"
 
 
 def generate_with_reasoning_stream() -> None:
@@ -27,19 +26,18 @@ def generate_with_reasoning_stream() -> None:
 
     stream = client.models.generate_content_stream(
         model=MODEL,
-        contents="What is the capital of France? Show your reasoning.",
+        contents="Tell bed storey for 5 years old boy.",
         config=types.GenerateContentConfig(
             thinking_config=types.ThinkingConfig(
                 include_thoughts=True,
-                thinking_level=ThinkingLevel.LOW,
+                thinking_budget=512,
+                # thinking_level=ThinkingLevel.LOW,
             ),
         ),
     )
 
     for chunk in stream:
-        if chunk.text:
-            print(chunk.text, end="", flush=True)
-    print()
+        print(chunk)
 
 
 if __name__ == "__main__":
