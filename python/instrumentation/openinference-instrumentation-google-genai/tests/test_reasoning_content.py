@@ -551,3 +551,16 @@ def test_request_function_call_with_thought_signature() -> None:
         attrs[f"{tc_prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}"]
         == base64.b64encode(sig).decode()
     )
+
+
+def test_stream_two_text_parts_same_chunk_not_merged() -> None:
+    chunks = [_make_stream_chunk([{"text": "A"}, {"text": "B"}])]
+    attrs = _stream_attrs(chunks)
+    attrs.pop(_om(0, MessageAttributes.MESSAGE_ROLE), None)
+
+    assert attrs == {
+        _content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TYPE): "text",
+        _content_key(0, 0, MessageContentAttributes.MESSAGE_CONTENT_TEXT): "A",
+        _content_key(0, 1, MessageContentAttributes.MESSAGE_CONTENT_TYPE): "text",
+        _content_key(0, 1, MessageContentAttributes.MESSAGE_CONTENT_TEXT): "B",
+    }

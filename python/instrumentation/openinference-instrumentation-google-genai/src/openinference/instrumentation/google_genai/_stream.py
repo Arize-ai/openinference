@@ -406,7 +406,7 @@ def _starts_new_slot(part: Mapping[str, Any], kind: str, last_kind: Optional[str
 
 
 class _PartsAccumulator:
-    __slots__ = ("_indexed", "_last_kind", "_last_slot", "_next_slot", "_position_state")
+    __slots__ = ("_indexed", "_next_slot", "_position_state")
 
     def __init__(self) -> None:
         self._indexed: defaultdict[int, _ValuesAccumulator] = defaultdict(
@@ -420,8 +420,6 @@ class _PartsAccumulator:
                 code_execution_result=_DictReplace(),
             )
         )
-        self._last_kind: Optional[str] = None
-        self._last_slot: Optional[int] = None
         self._next_slot = 0
         self._position_state: dict[int, tuple[int, str]] = {}
 
@@ -444,10 +442,6 @@ class _PartsAccumulator:
             explicit_index = part.get("index")
             if explicit_index is not None:
                 slot = explicit_index
-            elif (
-                kind in _STREAMING_KINDS and self._last_slot is not None and kind == self._last_kind
-            ):
-                slot = self._last_slot
             elif position in self._position_state and not _starts_new_slot(
                 part, kind, self._position_state[position][1]
             ):
@@ -457,8 +451,6 @@ class _PartsAccumulator:
                 self._next_slot += 1
             self._indexed[slot] += part
             self._position_state[position] = (slot, kind)
-            self._last_slot = slot
-            self._last_kind = kind
             if slot >= self._next_slot:
                 self._next_slot = slot + 1
         return self
