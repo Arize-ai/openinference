@@ -23,8 +23,10 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
     """
     An instrumentor for Pipecat pipelines.
 
-    Automatically instruments PipelineTask to observe frame flow and create
-    OpenInference-compliant spans for LLM, TTS, and STT services.
+    Automatically instruments PipelineWorker to observe frame flow and create
+    OpenInference-compliant spans for LLM, TTS, and STT services. The
+    deprecated ``PipelineTask`` alias (a thin subclass of ``PipelineWorker``)
+    is covered transparently because its ``__init__`` calls ``super().__init__``.
     """
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -52,7 +54,7 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _instrument(self, **kwargs: Any) -> None:
         """
-        Instrument Pipecat by wrapping PipelineTask.__init__ to inject observer.
+        Instrument Pipecat by wrapping PipelineWorker.__init__ to inject observer.
 
         Args:
             tracer_provider: OpenTelemetry TracerProvider
@@ -79,16 +81,20 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
         self._debug_log_filename = kwargs.get("debug_log_filename")
 
         try:
-            from pipecat.pipeline.task import PipelineTask
+            from pipecat.pipeline.worker import PipelineWorker
 
             # Store original __init__
-            self._original_task_init = PipelineTask.__init__
+            self._original_worker_init = PipelineWorker.__init__
 
-            # Wrap PipelineTask.__init__ to inject our observer
+            # Wrap PipelineWorker.__init__ to inject our observer. PipelineTask
+            # (the deprecated alias) is a thin subclass of PipelineWorker whose
+            # __init__ delegates via super().__init__, so it is covered by the
+            # same wrap — instantiating PipelineTask still fires the wrapper
+            # exactly once.
             wrap_function_wrapper(
-                "pipecat.pipeline.task",
-                "PipelineTask.__init__",
-                _TaskInitWrapper(
+                "pipecat.pipeline.worker",
+                "PipelineWorker.__init__",
+                _PipelineInitWrapper(
                     tracer=tracer,
                     config=config,
                     default_debug_log_filename=self._debug_log_filename,
@@ -102,20 +108,20 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _uninstrument(self, **kwargs: Any) -> None:
         """
-        Uninstrument Pipecat by restoring original PipelineTask.__init__.
+        Uninstrument Pipecat by restoring original PipelineWorker.__init__.
         """
         try:
-            from pipecat.pipeline.task import PipelineTask
+            from pipecat.pipeline.worker import PipelineWorker
 
-            if hasattr(self, "_original_task_init"):
-                PipelineTask.__init__ = self._original_task_init  # type: ignore
+            if hasattr(self, "_original_worker_init"):
+                PipelineWorker.__init__ = self._original_worker_init  # type: ignore
                 logger.info("Pipecat instrumentation disabled")
         except (ImportError, AttributeError):
             pass
 
 
-class _TaskInitWrapper:
-    """Wrapper for PipelineTask.__init__ to inject OpenInferenceObserver."""
+class _PipelineInitWrapper:
+    """Wrapper for PipelineWorker.__init__ to inject OpenInferenceObserver."""
 
     def __init__(
         self,
@@ -142,8 +148,8 @@ class _TaskInitWrapper:
         # Call original __init__
         wrapped(*args, **kwargs)
 
-        # Extract conversation_id from PipelineTask if available
-        # PipelineTask stores it as _conversation_id (private attribute)
+        # Extract conversation_id from PipelineWorker if available
+        # PipelineWorker stores it as _conversation_id (private attribute)
         conversation_id = getattr(instance, "_conversation_id", None)
         additional_span_attributes = getattr(instance, "_additional_span_attributes", None)
 
@@ -165,7 +171,9 @@ class _TaskInitWrapper:
         # Inject observer into task
         instance.add_observer(observer)
 
-        logger.info(f"Injected OpenInferenceObserver into PipelineTask {id(instance)} ")
+        logger.info(
+            f"Injected OpenInferenceObserver into {type(instance).__name__} {id(instance)} "
+        )
         if additional_span_attributes:
             logger.info(f"Additional span attributes: {str(additional_span_attributes)}")
         if conversation_id:
