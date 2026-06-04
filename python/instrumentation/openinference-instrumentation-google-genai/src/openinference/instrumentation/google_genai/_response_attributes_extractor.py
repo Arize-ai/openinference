@@ -110,21 +110,25 @@ class _ResponseAttributesExtractor:
                             base64.b64encode(thought_signature).decode(),
                         )
                     increment_content_index = True
-            elif text := getattr(part, "text", None):
+            elif (text := getattr(part, "text", None)) is not None:
                 if thought_signature is not None:
-                    # Force indexed format so we can attach the signature
+                    # Force indexed format so we can attach the signature.
+                    # Guard against empty text (Gemini emits Part(text="", thought_signature=...)
+                    # as the final chunk carrying only the signature).
                     prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
                     yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-                    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+                    if text:
+                        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
                     yield (
                         f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
                         base64.b64encode(thought_signature).decode(),
                     )
-                else:
+                    increment_content_index = True
+                elif text:
                     yield from _get_attributes_from_content_text(
                         text, content_index, is_single_part
                     )
-                increment_content_index = True
+                    increment_content_index = True
             elif function_call := getattr(part, "function_call", None):
                 yield from self._get_attributes_from_function_call(
                     function_call, tool_call_index, thought_signature

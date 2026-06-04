@@ -249,7 +249,7 @@ class _ResponseExtractor:
                                             sig_str,
                                         )
                                     increment_content_index = True
-                            elif text := part.get("text"):
+                            elif (text := part.get("text")) is not None:
                                 cp = (
                                     f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
                                 )
@@ -258,20 +258,22 @@ class _ResponseExtractor:
                                         f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
                                         "text",
                                     )
-                                    yield (
-                                        f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
-                                        text,
-                                    )
+                                    if text:
+                                        yield (
+                                            f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                                            text,
+                                        )
                                     yield (
                                         f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
                                         sig_str,
                                     )
-                                else:
+                                    increment_content_index = True
+                                elif text:
                                     for key, value in _get_attributes_from_content_text(
                                         text, content_index, is_single_part
                                     ):
                                         yield f"{prefix}.{key}", value
-                                increment_content_index = True
+                                    increment_content_index = True
                             elif function_call := part.get("function_call"):
                                 tc = (
                                     f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}."
@@ -425,7 +427,8 @@ class _PartsAccumulator:
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
         for _, values in sorted(self._indexed.items()):
-            yield dict(values)
+            if d := dict(values):
+                yield d
 
     def __iadd__(
         self, values: Optional[Union[Mapping[str, Any], list[Any]]]
