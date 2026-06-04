@@ -19,6 +19,7 @@ from openinference.instrumentation import (
 )
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -50,6 +51,11 @@ LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
 TOOL_ID = SpanAttributes.TOOL_ID
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
+MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
@@ -780,6 +786,17 @@ def _is_text_block(block: Any) -> bool:
     )
 
 
+def _is_thinking_block(block: Any) -> bool:
+    block_type = _get_field(block, "type")
+    if block_type:
+        return str(block_type) in ("thinking", "redacted_thinking")
+    # Duck-typing fallback
+    return (
+        _get_field(block, "thinking") is not None
+        or _get_field(block, "data") is not None
+    ) and _get_field(block, "id") is None and _get_field(block, "tool_use_id") is None
+
+
 def _get_output_message_attributes(message: Any, message_index: int) -> dict[str, Any]:
     """Extract llm.output_messages.* attributes from an assistant message."""
     attrs: dict[str, Any] = {}
@@ -789,6 +806,7 @@ def _get_output_message_attributes(message: Any, message_index: int) -> dict[str
             return attrs
         tool_index = 0
         text_index = 0
+        thinking_index = 0
         has_content = False
         for block in content:
             if _is_tool_use_block(block):
@@ -809,6 +827,20 @@ def _get_output_message_attributes(message: Any, message_index: int) -> dict[str
                         f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}.{text_index}"
                     ] = str(text)
                     text_index += 1
+            elif _is_thinking_block(block):
+                has_content = True
+                block_type = str(_get_field(block, "type") or "thinking")
+                prefix = f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{thinking_index}"
+                attrs[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] = "reasoning"
+                if block_type == "thinking":
+                    if text := _get_field(block, "thinking"):
+                        attrs[f"{prefix}.{MESSAGE_CONTENT_TEXT}"] = str(text)
+                    if sig := _get_field(block, "signature"):
+                        attrs[f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}"] = str(sig)
+                elif block_type == "redacted_thinking":
+                    if data := _get_field(block, "data"):
+                        attrs[f"{prefix}.{MESSAGE_CONTENT_DATA}"] = str(data)
+                thinking_index += 1
         if has_content:
             role = _get_field(message, "role") or "assistant"
             attrs[f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}"] = str(role)
