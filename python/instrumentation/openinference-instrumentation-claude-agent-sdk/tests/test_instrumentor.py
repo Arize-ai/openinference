@@ -778,3 +778,109 @@ async def test_client_real_agent_span(
     )
     assert output_msg_role == "assistant"
     assert not attrs
+
+
+@pytest.mark.asyncio
+async def test_thinking_blocks_captured_in_output_message_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """ThinkingBlock & RedactedThinkingBlock content is captured as reasoning message content."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import MessageContentAttributes
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-thinking",
+            "model": "claude-sonnet-4-6",
+        },
+        {
+            "type": "assistant",
+            "role": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "thinking",
+                        "thinking": "Let me reason through this carefully.",
+                        "signature": "sig_abc123",
+                    },
+                    {
+                        "type": "redacted_thinking",
+                        "data": "redacted_blob_xyz",
+                    },
+                    {
+                        "type": "text",
+                        "text": "The answer is 42.",
+                    },
+                ],
+            },
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "The answer is 42.",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "total_cost_usd": 0.01,
+            "session_id": "sess-thinking",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "Think step by step"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(span.attributes or {})
+
+    msg_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+
+    # Role should be set
+    assert attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+
+    # ThinkingBlock -> reasoning content block
+    thinking_prefix = f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENTS}.0"
+    assert (
+        attrs.get(f"{thinking_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    )
+    assert (
+        attrs.get(f"{thinking_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "Let me reason through this carefully."
+    )
+    assert (
+        attrs.get(f"{thinking_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}")
+        == "sig_abc123"
+    )
+    # id must NOT be emitted for thinking blocks
+    assert f"{thinking_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_ID}" not in attrs
+
+    # RedactedThinkingBlock -> reasoning content block with data, no text/signature
+    redacted_prefix = f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENTS}.1"
+    assert (
+        attrs.get(f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    )
+    assert (
+        attrs.get(f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_DATA}")
+        == "redacted_blob_xyz"
+    )
+    assert f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}" not in attrs
+    assert f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}" not in attrs
+    assert f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_ID}" not in attrs
+
+    # Text block still captured normally alongside thinking blocks
+    assert isinstance(attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENT}.0"), str)
+    assert attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENT}.0") == "The answer is 42."

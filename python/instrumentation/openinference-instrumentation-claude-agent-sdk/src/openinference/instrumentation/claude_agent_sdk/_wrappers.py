@@ -792,9 +792,10 @@ def _is_thinking_block(block: Any) -> bool:
         return str(block_type) in ("thinking", "redacted_thinking")
     # Duck-typing fallback
     return (
-        _get_field(block, "thinking") is not None
-        or _get_field(block, "data") is not None
-    ) and _get_field(block, "id") is None and _get_field(block, "tool_use_id") is None
+        (_get_field(block, "thinking") is not None or _get_field(block, "data") is not None)
+        and _get_field(block, "id") is None
+        and _get_field(block, "tool_use_id") is None
+    )
 
 
 def _get_output_message_attributes(message: Any, message_index: int) -> dict[str, Any]:
@@ -830,7 +831,9 @@ def _get_output_message_attributes(message: Any, message_index: int) -> dict[str
             elif _is_thinking_block(block):
                 has_content = True
                 block_type = str(_get_field(block, "type") or "thinking")
-                prefix = f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{thinking_index}"
+                prefix = (
+                    f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{thinking_index}"
+                )
                 attrs[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] = "reasoning"
                 if block_type == "thinking":
                     if text := _get_field(block, "thinking"):
