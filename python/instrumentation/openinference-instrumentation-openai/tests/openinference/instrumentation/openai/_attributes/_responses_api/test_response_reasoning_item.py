@@ -14,23 +14,67 @@ class TestResponseReasoningItem:
                     type="reasoning",
                     id="reason_456",
                     summary=[
-                        Summary(
-                            type="summary_text",
-                            text="First",
-                        ),
-                        Summary(
-                            type="summary_text",
-                            text="Second",
-                        ),
+                        Summary(type="summary_text", text="First"),
+                        Summary(type="summary_text", text="Second"),
                     ],
                 ),
                 {
-                    "message.contents.0.message_content.type": "text",
-                    "message.contents.0.message_content.text": "First",
-                    "message.contents.1.message_content.type": "text",
-                    "message.contents.1.message_content.text": "Second",
+                    "message.contents.0.message_content.type": "reasoning",
+                    "message.contents.0.message_content.text": "First\n\nSecond",
                 },
-                id="reasoning_item_with_multiple_steps",
+                id="multiple_summary_entries_concatenated",
+            ),
+            pytest.param(
+                ResponseReasoningItem(
+                    type="reasoning",
+                    id="reason_789",
+                    summary=[
+                        Summary(type="summary_text", text="Only summary"),
+                    ],
+                ),
+                {
+                    "message.contents.0.message_content.type": "reasoning",
+                    "message.contents.0.message_content.text": "Only summary",
+                },
+                id="single_summary_entry",
+            ),
+            pytest.param(
+                ResponseReasoningItem(
+                    type="reasoning",
+                    id="reason_encrypted",
+                    summary=[],
+                    encrypted_content="enc_abc123",
+                ),
+                {
+                    "message.contents.0.message_content.type": "reasoning",
+                    "message.contents.0.message_content.encrypted_content": "enc_abc123",
+                },
+                id="encrypted_content_without_summary",
+            ),
+            pytest.param(
+                ResponseReasoningItem(
+                    type="reasoning",
+                    id="reason_both",
+                    summary=[
+                        Summary(type="summary_text", text="Reasoning text"),
+                    ],
+                    encrypted_content="enc_xyz789",
+                ),
+                {
+                    "message.contents.0.message_content.type": "reasoning",
+                    "message.contents.0.message_content.text": "Reasoning text",
+                    "message.contents.0.message_content.encrypted_content": "enc_xyz789",
+                },
+                id="summary_and_encrypted_content",
+            ),
+            pytest.param(
+                ResponseReasoningItem(
+                    type="reasoning",
+                    id="reason_no_content",
+                    summary=[],
+                ),
+                {},
+                id="empty_summary_no_encrypted_content",
             ),
         ],
     )
@@ -41,3 +85,12 @@ class TestResponseReasoningItem:
     ) -> None:
         actual = dict(_ResponsesApiAttributes._get_attributes_from_response_reasoning_item(obj))
         assert actual == expected
+
+    def test_id_not_emitted(self) -> None:
+        obj = ResponseReasoningItem(
+            type="reasoning",
+            id="should_not_appear",
+            summary=[Summary(type="summary_text", text="text")],
+        )
+        actual = dict(_ResponsesApiAttributes._get_attributes_from_response_reasoning_item(obj))
+        assert not any("id" in key for key in actual)

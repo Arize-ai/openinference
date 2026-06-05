@@ -694,12 +694,21 @@ class _ResponsesApiAttributes:
         obj: responses.response_reasoning_item.ResponseReasoningItem,
         prefix: str = "",
     ) -> Iterator[Tuple[str, AttributeValue]]:
+        content_prefix = f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.0."
+        has_content = False
         if isinstance(obj.summary, Iterable):
-            for i, item in enumerate(obj.summary):
-                yield from cls._get_attributes_from_response_reasoning_item_summary(
-                    item,
-                    f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.{i}.",
-                )
+            texts = [item.text for item in obj.summary if getattr(item, "text", None)]
+            if texts:
+                has_content = True
+                yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+                yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", "\n\n".join(texts)
+        if (encrypted_content := getattr(obj, "encrypted_content", None)) is not None:
+            if not has_content:
+                yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+            yield (
+                f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT}",
+                encrypted_content,
+            )
 
     @classmethod
     @stop_on_exception
@@ -709,38 +718,28 @@ class _ResponsesApiAttributes:
         prefix: str = "",
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+        content_prefix = f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.0."
+        has_content = False
         if isinstance((summary := obj.get("summary")), Iterable):
-            for i, item in enumerate(summary):
-                if "type" not in item:
-                    continue
-                if item["type"] == "summary_text":
-                    yield from cls._get_attributes_from_response_reasoning_item_param_summary(
-                        item,
-                        f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.{i}.",
-                    )
-                elif TYPE_CHECKING:
-                    assert_never(item["type"])
-
-    @classmethod
-    @stop_on_exception
-    def _get_attributes_from_response_reasoning_item_param_summary(
-        cls,
-        obj: responses.response_reasoning_item_param.Summary,
-        prefix: str = "",
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        if (text := obj.get("text")) is not None:
-            yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
-            yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-
-    @classmethod
-    @stop_on_exception
-    def _get_attributes_from_response_reasoning_item_summary(
-        cls,
-        obj: responses.response_reasoning_item.Summary,
-        prefix: str = "",
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", obj.text
+            texts = [
+                item["text"]
+                for item in summary
+                if item.get("type") == "summary_text" and item.get("text")
+            ]
+            if texts:
+                has_content = True
+                yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+                yield (
+                    f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                    "\n\n".join(texts),
+                )
+        if (encrypted_content := obj.get("encrypted_content")) is not None:
+            if not has_content:
+                yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+            yield (
+                f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT}",
+                encrypted_content,
+            )
 
     @classmethod
     @stop_on_exception
