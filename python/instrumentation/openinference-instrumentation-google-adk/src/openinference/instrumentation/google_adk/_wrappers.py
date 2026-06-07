@@ -26,6 +26,17 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.base_tool import BaseTool
 from google.genai import types
 from google.genai.types import Blob
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -38,17 +49,6 @@ from openinference.instrumentation import (
     safe_json_dumps,
     using_session,
     using_user,
-)
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceLLMProviderValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
 )
 
 logger = logging.getLogger(__name__)
@@ -138,8 +138,13 @@ class _RunnerRunAsync(_WithTracer):
                     ):
                         stack.enter_context(using_session(session_id))
 
+                    has_output_with_content = False
                     async for event in self.__wrapped__:
                         if event.is_final_response():
+                            event_has_content = _event_has_content(event)
+                            if has_output_with_content and not event_has_content:
+                                yield event
+                                continue
                             try:
                                 span.set_attribute(
                                     SpanAttributes.OUTPUT_VALUE,
@@ -152,6 +157,10 @@ class _RunnerRunAsync(_WithTracer):
                             except Exception:
                                 logger.exception(
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                )
+                            else:
+                                has_output_with_content = (
+                                    has_output_with_content or event_has_content
                                 )
                         yield event
                     span.set_status(StatusCode.OK)
@@ -185,8 +194,13 @@ class _BaseAgentRunAsync(_WithTracer):
                     name=name,
                     attributes=attributes,
                 ) as span:
+                    has_output_with_content = False
                     async for event in self.__wrapped__:
                         if event.is_final_response():
+                            event_has_content = _event_has_content(event)
+                            if has_output_with_content and not event_has_content:
+                                yield event
+                                continue
                             try:
                                 span.set_attribute(
                                     SpanAttributes.OUTPUT_VALUE,
@@ -199,6 +213,10 @@ class _BaseAgentRunAsync(_WithTracer):
                             except Exception:
                                 logger.exception(
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                )
+                            else:
+                                has_output_with_content = (
+                                    has_output_with_content or event_has_content
                                 )
                         yield event
                     span.set_status(StatusCode.OK)
@@ -583,6 +601,13 @@ def bind_args_kwargs(func: Any, *args: Any, **kwargs: Any) -> OrderedDict[str, A
     bound = sig.bind(*args, **kwargs)
     bound.apply_defaults()
     return bound.arguments
+
+
+def _event_has_content(event: Event) -> bool:
+    content = getattr(event, "content", None)
+    if content is None:
+        return False
+    return bool(getattr(content, "parts", None))
 
 
 def _default(obj: Any) -> Any:
