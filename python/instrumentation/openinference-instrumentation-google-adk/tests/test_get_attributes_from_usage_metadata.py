@@ -27,12 +27,27 @@ from openinference.instrumentation.google_adk._wrappers import _get_attributes_f
             {
                 "llm.token_count.total": 110,
                 "llm.token_count.prompt": 10,
-                "llm.token_count.completion": 100,
+                "llm.token_count.completion": 80,
                 "llm.token_count.completion_details.reasoning": 20,
                 "llm.token_count.prompt_details.audio": 7,
                 "llm.token_count.completion_details.audio": 11,
             },
             id="all_fields",
+        ),
+        pytest.param(
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=3703,
+                prompt_token_count=341,
+                candidates_token_count=3362,
+                thoughts_token_count=3347,
+            ),
+            {
+                "llm.token_count.total": 3703,
+                "llm.token_count.prompt": 341,
+                "llm.token_count.completion": 3362,
+                "llm.token_count.completion_details.reasoning": 3347,
+            },
+            id="thoughts_not_double_counted",
         ),
     ],
 )

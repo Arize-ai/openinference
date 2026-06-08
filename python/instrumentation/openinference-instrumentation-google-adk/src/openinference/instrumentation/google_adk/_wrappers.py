@@ -434,7 +434,6 @@ def _get_attributes_from_usage_metadata(
         completion += candidates
     if thoughts := obj.thoughts_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
-        completion += thoughts
     if completion:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion
 
