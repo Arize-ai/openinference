@@ -470,6 +470,9 @@ class _ResponsesApiAttributes:
         elif obj["type"] == "compaction_trigger":
             # TODO: Handle compaction trigger response
             pass
+        elif obj["type"] == "additional_tools":
+            # TODO: Handle additional tools
+            pass
         elif TYPE_CHECKING and obj["type"] is not None:
             assert_never(obj["type"])
 
@@ -631,6 +634,9 @@ class _ResponsesApiAttributes:
             pass
         elif obj.type == "custom_tool_call_output":
             # TODO: Handle custom tool call output
+            pass
+        elif obj.type == "additional_tools":
+            # TODO: Handle additional tools
             pass
         elif TYPE_CHECKING:
             assert_never(obj.type)
