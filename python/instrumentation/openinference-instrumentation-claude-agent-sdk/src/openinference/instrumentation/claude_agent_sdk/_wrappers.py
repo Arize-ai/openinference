@@ -88,6 +88,17 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
+def _span_has_session_id(span: trace_api.Span) -> bool:
+    """Return True if SESSION_ID was already set on the span (e.g. via baggage propagation)."""
+    try:
+        attrs = getattr(span, "attributes", None)
+        if isinstance(attrs, MappingABC):
+            return SESSION_ID in attrs
+    except Exception:
+        pass
+    return False
+
+
 def _coerce_usage(usage: Any) -> Mapping[str, Any]:
     if isinstance(usage, MappingABC):
         return usage
@@ -258,8 +269,6 @@ def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
         attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cache_write_tokens
     if (cost := _safe_float(_get_field(msg, "total_cost_usd"))) is not None:
         attributes[LLM_COST_TOTAL] = cost
-    if session_id := _get_field(msg, "session_id"):
-        attributes[SESSION_ID] = session_id
     return attributes
 
 
@@ -283,13 +292,26 @@ def _extract_result_error_attributes(msg: Any) -> dict[str, Any]:
 def _process_message(msg: Any, span: trace_api.Span) -> bool:
     _maybe_set_model(span, msg)
     if _is_system_init_message(msg):
-        span.set_attributes(_extract_init_attributes(msg))
+        attrs = _extract_init_attributes(msg)
+        if _span_has_session_id(span):
+            attrs.pop(SESSION_ID, None)
+        span.set_attributes(attrs)
         return False
     if _is_result_success_message(msg):
-        span.set_attributes(_extract_result_success_attributes(msg))
+        attrs = _extract_result_success_attributes(msg)
+        # Merge session_id only if not already propagated
+        if not _span_has_session_id(span):
+            if session_id := _get_field(msg, "session_id"):
+                attrs[SESSION_ID] = session_id
+        span.set_attributes(attrs)
         return False
     if _is_result_error_message(msg):
-        span.set_attributes(_extract_result_error_attributes(msg))
+        attrs = _extract_result_error_attributes(msg)
+        # Merge session_id only if not already propagated
+        if not _span_has_session_id(span):
+            if session_id := _get_field(msg, "session_id"):
+                attrs[SESSION_ID] = session_id
+        span.set_attributes(attrs)
         subtype = _get_field(msg, "subtype")
         span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, f"Result error: {subtype}"))
         return True
