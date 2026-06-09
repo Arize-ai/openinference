@@ -58,6 +58,26 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 
 
+def _baggage_has_session_id() -> bool:
+    """Return True when session.id is already propagated via OTel baggage.
+
+    When a caller sets session.id through OTel baggage (e.g. Langfuse's
+    ``propagate_attributes(session_id=..., as_baggage=True)``), a SpanProcessor
+    may write that value to the span on ``on_start``.  The Claude CLI also
+    emits an internal session UUID on every message, and without this guard
+    ``_extract_init_attributes`` / ``_extract_usage_and_cost_attributes`` would
+    unconditionally overwrite the application session with the internal UUID,
+    breaking trace correlation in Langfuse and similar backends.
+
+    By checking baggage first we only skip the write when the application has
+    explicitly propagated its own session; in all other cases the Claude UUID
+    is recorded as before.
+    """
+    from opentelemetry import baggage
+
+    return bool(baggage.get_baggage(SESSION_ID))
+
+
 def _get_field(obj: Any, key: str, default: Any = None) -> Any:
     if isinstance(obj, MappingABC):
         return obj.get(key, default)
@@ -199,7 +219,7 @@ def _extract_init_attributes(msg: Any) -> dict[str, Any]:
         session_id = _get_field(_get_field(msg, "data", {}), "session_id")
     model = _extract_model_name(msg)
     attributes: dict[str, Any] = {}
-    if session_id:
+    if session_id and not _baggage_has_session_id():
         attributes[SESSION_ID] = session_id
     if model:
         attributes[LLM_MODEL_NAME] = model
@@ -258,7 +278,7 @@ def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
         attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cache_write_tokens
     if (cost := _safe_float(_get_field(msg, "total_cost_usd"))) is not None:
         attributes[LLM_COST_TOTAL] = cost
-    if session_id := _get_field(msg, "session_id"):
+    if (session_id := _get_field(msg, "session_id")) and not _baggage_has_session_id():
         attributes[SESSION_ID] = session_id
     return attributes
 
