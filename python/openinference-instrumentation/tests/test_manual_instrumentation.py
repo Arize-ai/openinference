@@ -41,6 +41,7 @@ from openinference.instrumentation import (
     Message,
     OITracer,
     PromptDetails,
+    ReasoningMessageContent,
     TextMessageContent,
     TokenCount,
     Tool,
@@ -2222,8 +2223,16 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
             role="user",
             content="Hello",
             contents=[
-                TextMessageContent(type="text", text="Hello"),
+                TextMessageContent(type="text", text="Hello", signature="text-sig-abc"),
                 ImageMessageContent(type="image", image=Image(url="https://example.com/image.jpg")),
+                ReasoningMessageContent(
+                    type="reasoning",
+                    text="Thinking it through...",
+                    id="rs_1",
+                    signature="thought-sig-456",
+                    data="redacted-thinking-data",
+                    encrypted_content="enc-content-xyz",
+                ),
             ],
             tool_call_id="call-123",
             tool_calls=[
@@ -2233,6 +2242,7 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
                         name="search",
                         arguments='{"query": "test"}',
                     ),
+                    reasoning_signature="tool-call-thought-sig-789",
                 ),
                 ToolCall(
                     id="call-789",
@@ -2295,6 +2305,10 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         == "Hello"
     )
     assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}")
+        == "text-sig-abc"
+    )
+    assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
         == "image"
     )
@@ -2304,10 +2318,42 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         )
         == "https://example.com/image.jpg"
     )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TEXT}")
+        == "Thinking it through..."
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_ID}")
+        == "rs_1"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_SIGNATURE}")
+        == "thought-sig-456"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_DATA}")
+        == "redacted-thinking-data"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}"
+        )
+        == "enc-content-xyz"
+    )
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALL_ID}") == "call-123"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
         == "call-456"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}"
+        )
+        == "tool-call-thought-sig-789"
     )
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
@@ -2717,7 +2763,11 @@ MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 
 # Message content attributes
+MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
+MESSAGE_CONTENT_ENCRYPTED_CONTENT = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
+MESSAGE_CONTENT_ID = MessageContentAttributes.MESSAGE_CONTENT_ID
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 
@@ -2753,6 +2803,7 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+TOOL_CALL_REASONING_SIGNATURE = ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE
 
 # Mime types
 TEXT = OpenInferenceMimeTypeValues.TEXT.value

@@ -524,6 +524,26 @@ def _llm_messages_attributes(
                             f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
                             url,
                         )
+                if isinstance(content_id := content_block.get("id"), str):
+                    yield (
+                        f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_ID}",
+                        content_id,
+                    )
+                if isinstance(signature := content_block.get("signature"), str):
+                    yield (
+                        f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_SIGNATURE}",
+                        signature,
+                    )
+                if isinstance(data := content_block.get("data"), str):
+                    yield (
+                        f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_DATA}",
+                        data,
+                    )
+                if isinstance(encrypted_content := content_block.get("encrypted_content"), str):
+                    yield (
+                        f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}",
+                        encrypted_content,
+                    )
         if isinstance(tool_call_id := message.get("tool_call_id"), str):
             yield f"{base_key}.{message_index}.{MESSAGE_TOOL_CALL_ID}", tool_call_id
         if isinstance(tool_calls := message.get("tool_calls"), Sequence):
@@ -534,6 +554,11 @@ def _llm_messages_attributes(
                     yield (
                         f"{base_key}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_ID}",
                         tool_call_id,
+                    )
+                if isinstance(reasoning_signature := tool_call.get("reasoning_signature"), str):
+                    yield (
+                        f"{base_key}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_REASONING_SIGNATURE}",
+                        reasoning_signature,
                     )
                 if (function := tool_call.get("function")) is not None:
                     if isinstance(function, dict):
@@ -615,7 +640,11 @@ MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 
 # message content attributes
+MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
+MESSAGE_CONTENT_ENCRYPTED_CONTENT = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
+MESSAGE_CONTENT_ID = MessageContentAttributes.MESSAGE_CONTENT_ID
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 
@@ -665,3 +694,4 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+TOOL_CALL_REASONING_SIGNATURE = ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE
