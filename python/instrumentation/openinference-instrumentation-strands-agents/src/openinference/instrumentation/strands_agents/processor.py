@@ -36,6 +36,13 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 
+# Known Strands span name patterns used to identify Strands-emitted spans.
+_STRANDS_EXACT_NAMES: frozenset = frozenset({"chat", "execute_event_loop_cycle"})
+_STRANDS_PREFIXES: tuple = ("execute_tool ", "invoke_agent", "Tool:")
+_STRANDS_SUBSTRINGS: tuple = ("Model invoke", "Cycle")
+# Strands-specific attributes present on at least one span type.
+_STRANDS_ATTRS: tuple = (GenAIAttributes.AGENT_NAME, "agent.name", "event_loop.cycle_id")
+
 
 class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
     """
@@ -65,11 +72,25 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         """Called when a span is started."""
         pass
 
+    def _is_strands_span(self, span: ReadableSpan) -> bool:
+        """Return True only if this span was emitted by the Strands Agents SDK."""
+        name = span.name
+        if name in _STRANDS_EXACT_NAMES:
+            return True
+        if any(name.startswith(p) for p in _STRANDS_PREFIXES):
+            return True
+        if any(s in name for s in _STRANDS_SUBSTRINGS):
+            return True
+        attrs = getattr(span, "_attributes", None) or {}
+        return any(attrs.get(attr) for attr in _STRANDS_ATTRS)
+
     def on_end(self, span: ReadableSpan) -> None:
         """
         Called when a span ends. Transform the span attributes from Strands format
         to OpenInference format.
         """
+        if not self._is_strands_span(span):
+            return
         if not hasattr(span, "_attributes") or not span._attributes:
             return
 
