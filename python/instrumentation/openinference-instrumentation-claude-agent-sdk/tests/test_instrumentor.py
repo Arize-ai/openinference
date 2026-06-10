@@ -314,12 +314,22 @@ async def test_subagent_span_not_given_parent_session_id(
     tracer = tracer_provider.get_tracer(__name__)
 
     messages = [
-        {"type": "system", "subtype": "init", "session_id": ROOT_CLI_SESSION, "model": "claude-test"},
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": ROOT_CLI_SESSION,
+            "model": "claude-test",
+        },
         {
             "type": "assistant",
             "message": {
                 "content": [
-                    {"type": "tool_use", "id": "toolu_sub_1", "name": "Task", "input": {"objective": "subtask"}},
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_sub_1",
+                        "name": "Task",
+                        "input": {"objective": "subtask"},
+                    },
                 ]
             },
         },
@@ -343,7 +353,12 @@ async def test_subagent_span_not_given_parent_session_id(
             "type": "user",
             "message": {
                 "content": [
-                    {"type": "tool_result", "tool_use_id": "toolu_sub_1", "content": "sub done", "is_error": False},
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_sub_1",
+                        "content": "sub done",
+                        "is_error": False,
+                    },
                 ]
             },
         },

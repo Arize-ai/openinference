@@ -89,7 +89,7 @@ def _safe_float(value: Any) -> float | None:
 
 
 def _span_has_session_id(span: trace_api.Span) -> bool:
-    """Return True if SESSION_ID was already set on the span (e.g. via baggage propagation)."""
+    """Return True if SESSION_ID was already set on the span."""
     try:
         attrs = getattr(span, "attributes", None)
         if isinstance(attrs, MappingABC):
