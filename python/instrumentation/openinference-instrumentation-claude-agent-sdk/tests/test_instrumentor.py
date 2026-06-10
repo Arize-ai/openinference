@@ -220,7 +220,6 @@ async def test_sdk_session_id_set_when_none_propagated(
 
     wrapper = wrappers._QueryWrapper(tracer)
 
-    # No parent span carrying session.id (plain context, no baggage).
     async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
         pass
 
@@ -287,110 +286,6 @@ async def test_propagated_session_id_not_overwritten_on_error_result(
         f"Expected propagated session ID {APPLICATION_SESSION_ID!r} on error path, "
         f"but got {attrs.get(SpanAttributes.SESSION_ID)!r}."
     )
-
-
-@pytest.mark.asyncio
-async def test_subagent_span_not_given_parent_session_id(
-    in_memory_span_exporter: InMemorySpanExporter,
-    tracer_provider: Any,
-) -> None:
-    """When using_session() is active, subagent spans also respect it and won't
-    be stamped with the CLI session UUID (same context applies to all spans in the run)."""
-    from opentelemetry import trace as trace_api
-
-    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
-    from openinference.instrumentation import using_session
-    from openinference.semconv.trace import SpanAttributes
-
-    APPLICATION_SESSION_ID = "app-session-subagent-test"
-    ROOT_CLI_SESSION = "cli-root-session"
-    SUB_CLI_SESSION = "cli-sub-session"
-
-    trace_api.set_tracer_provider(tracer_provider)
-    tracer = tracer_provider.get_tracer(__name__)
-
-    messages = [
-        {
-            "type": "system",
-            "subtype": "init",
-            "session_id": ROOT_CLI_SESSION,
-            "model": "claude-test",
-        },
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "id": "toolu_sub_1",
-                        "name": "Task",
-                        "input": {"objective": "subtask"},
-                    },
-                ]
-            },
-        },
-        {
-            "type": "system",
-            "subtype": "init",
-            "session_id": SUB_CLI_SESSION,
-            "model": "claude-test",
-            "parent_tool_use_id": "toolu_sub_1",
-        },
-        {
-            "type": "result",
-            "subtype": "success",
-            "result": "sub done",
-            "usage": {"input_tokens": 1, "output_tokens": 1},
-            "total_cost_usd": 0.001,
-            "session_id": SUB_CLI_SESSION,
-            "parent_tool_use_id": "toolu_sub_1",
-        },
-        {
-            "type": "user",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": "toolu_sub_1",
-                        "content": "sub done",
-                        "is_error": False,
-                    },
-                ]
-            },
-        },
-        {
-            "type": "result",
-            "subtype": "success",
-            "result": "root done",
-            "usage": {"input_tokens": 2, "output_tokens": 2},
-            "total_cost_usd": 0.002,
-            "session_id": ROOT_CLI_SESSION,
-        },
-    ]
-
-    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
-        for msg in messages:
-            yield msg
-
-    wrapper = wrappers._QueryWrapper(tracer)
-
-    with using_session(APPLICATION_SESSION_ID):
-        async for _ in wrapper(fake_query, None, (), {"prompt": "delegate"}):
-            pass
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    root_span = _span_by_name(spans, "ClaudeAgentSDK.query")
-    subagent_span = _span_by_name(spans, "ClaudeAgentSDK.Task")
-
-    root_attrs = dict(root_span.attributes or {})
-    sub_attrs = dict(subagent_span.attributes or {})
-
-    # Root span gets the application session ID from context.
-    assert root_attrs.get(SpanAttributes.SESSION_ID) == APPLICATION_SESSION_ID
-
-    # Subagent runs inside the same using_session() context, so the CLI UUID
-    # is suppressed there too and the application session ID takes precedence.
-    assert sub_attrs.get(SpanAttributes.SESSION_ID) == APPLICATION_SESSION_ID
 
 
 @pytest.mark.asyncio

@@ -90,8 +90,8 @@ def _safe_float(value: Any) -> float | None:
 
 def _context_has_session_id() -> bool:
     """Return True if SESSION_ID is already propagated via OTel context/baggage."""
-    ambient = dict(get_attributes_from_context())
-    return SESSION_ID in ambient
+    ambient_attributes = dict(get_attributes_from_context())
+    return SESSION_ID in ambient_attributes
 
 
 def _coerce_usage(usage: Any) -> Mapping[str, Any]:
