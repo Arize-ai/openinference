@@ -88,6 +88,16 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
+def _format_tool_error(error: Any) -> str:
+    if error is None:
+        return "Tool execution error"
+    if isinstance(error, str):
+        return error
+    if isinstance(error, BaseException):
+        return str(error)
+    return safe_json_dumps(error)
+
+
 def _coerce_usage(usage: Any) -> Mapping[str, Any]:
     if isinstance(usage, MappingABC):
         return usage
@@ -618,7 +628,7 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
         self._tool_names.pop(tool_use_key, None)
         if span is None:
             return
-        error_msg = str(error) if error is not None else "Tool execution error"
+        error_msg = _format_tool_error(error)
         span.record_exception(Exception(error_msg))
         span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, error_msg))
         span.end()
@@ -745,7 +755,7 @@ def _update_tool_spans_from_messages(
                 tool_use_id = _get_field(block, "tool_use_id", "")
                 result_content = _get_field(block, "content")
                 if _get_field(block, "is_error"):
-                    tool_tracker.end_tool_span_with_error(tool_use_id, "Tool execution error")
+                    tool_tracker.end_tool_span_with_error(tool_use_id, result_content)
                 else:
                     tool_tracker.end_tool_span(tool_use_id, result_content)
     except Exception:

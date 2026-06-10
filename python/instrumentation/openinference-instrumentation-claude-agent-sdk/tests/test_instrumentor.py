@@ -214,6 +214,136 @@ async def test_query_exception_sets_error_status(
     assert "Simulated failure" in str(span.status.description)
 
 
+@pytest.mark.asyncio
+async def test_tool_error_records_real_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Tool result blocks with is_error=True record the real content, not a hardcoded string."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    real_error_text = "Permission denied: /etc/shadow"
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-tool-err",
+            "model": "claude-test",
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_err_1",
+                        "name": "Bash",
+                        "input": {"command": "cat /etc/shadow"},
+                    }
+                ]
+            },
+        },
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_err_1",
+                        "content": [{"type": "text", "text": real_error_text}],
+                        "is_error": True,
+                    }
+                ]
+            },
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "I could not complete the task due to a tool error.",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "total_cost_usd": 0.001,
+            "session_id": "sess-tool-err",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "read the shadow file"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    tool_spans = _tool_spans(spans)
+    bash_spans = [s for s in tool_spans if s.name == "Bash"]
+    assert bash_spans, "Expected a Bash tool span"
+
+    bash_span = bash_spans[0]
+    assert bash_span.status.status_code == StatusCode.ERROR
+
+    # The real error content must appear in the status description, not a hardcoded string.
+    assert real_error_text in bash_span.status.description, (
+        f"Expected real error text in status description, got: {bash_span.status.description!r}"
+    )
+    assert "Tool execution error" not in bash_span.status.description, (
+        "Hardcoded generic string must not appear when real content is available"
+    )
+
+    # The real error content must also appear in the recorded exception.
+    error_events = [e for e in bash_span.events if e.name == "exception"]
+    assert error_events, "Expected an exception event on the tool span"
+    exception_msg = error_events[0].attributes.get("exception.message", "")
+    assert real_error_text in exception_msg, (
+        f"Expected real error in exception.message, got: {exception_msg!r}"
+    )
+
+    # The real error content must NOT be set as output attributes.
+    attrs = dict(bash_span.attributes or {})
+    assert SpanAttributes.OUTPUT_VALUE not in attrs, (
+        "output.value must not be set on a failed tool span"
+    )
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attrs, (
+        "output.mime_type must not be set on a failed tool span"
+    )
+
+
+def test_tool_error_string_remains_unquoted(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Hook-based string errors should remain human-readable, not JSON-quoted."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+    tracker = wrappers._ToolSpanTracker(tracer, None)
+
+    tracker.start_tool_span(
+        tool_name="Bash",
+        tool_input={"command": "cat /etc/shadow"},
+        tool_use_id="toolu_err_2",
+    )
+    tracker.end_tool_span_with_error("toolu_err_2", "permission denied")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    bash_span = _span_by_name(spans, "Bash")
+
+    assert bash_span.status.status_code == StatusCode.ERROR
+    assert bash_span.status.description == "permission denied"
+
+    error_events = [e for e in bash_span.events if e.name == "exception"]
+    assert error_events, "Expected an exception event on the tool span"
+    assert error_events[0].attributes.get("exception.message") == "permission denied"
+
+
 def test_merge_hooks_preserves_user_hooks(monkeypatch: pytest.MonkeyPatch) -> None:
     """User hooks should be preserved when instrumentation merges hooks."""
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
