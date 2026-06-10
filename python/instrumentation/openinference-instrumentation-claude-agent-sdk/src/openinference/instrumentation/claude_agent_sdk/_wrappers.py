@@ -88,15 +88,9 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
-def _span_has_session_id(span: trace_api.Span) -> bool:
-    """Return True if SESSION_ID was already set on the span."""
-    try:
-        attrs = getattr(span, "attributes", None)
-        if isinstance(attrs, MappingABC):
-            return SESSION_ID in attrs
-    except Exception:
-        pass
-    return False
+def _context_has_session_id() -> bool:
+    """Return True if SESSION_ID was propagated via OTel context."""
+    return any(k == SESSION_ID for k, _ in get_attributes_from_context())
 
 
 def _coerce_usage(usage: Any) -> Mapping[str, Any]:
@@ -293,22 +287,20 @@ def _process_message(msg: Any, span: trace_api.Span) -> bool:
     _maybe_set_model(span, msg)
     if _is_system_init_message(msg):
         attrs = _extract_init_attributes(msg)
-        if _span_has_session_id(span):
+        if _context_has_session_id():
             attrs.pop(SESSION_ID, None)
         span.set_attributes(attrs)
         return False
     if _is_result_success_message(msg):
         attrs = _extract_result_success_attributes(msg)
-        # Merge session_id only if not already propagated
-        if not _span_has_session_id(span):
+        if not _context_has_session_id():
             if session_id := _get_field(msg, "session_id"):
                 attrs[SESSION_ID] = session_id
         span.set_attributes(attrs)
         return False
     if _is_result_error_message(msg):
         attrs = _extract_result_error_attributes(msg)
-        # Merge session_id only if not already propagated
-        if not _span_has_session_id(span):
+        if not _context_has_session_id():
             if session_id := _get_field(msg, "session_id"):
                 attrs[SESSION_ID] = session_id
         span.set_attributes(attrs)
