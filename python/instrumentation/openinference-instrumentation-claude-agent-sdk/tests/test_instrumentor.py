@@ -28,6 +28,7 @@ from openinference.semconv.trace import (
 
 TOOL_KIND = OpenInferenceSpanKindValues.TOOL.value
 AGENT_KIND = OpenInferenceSpanKindValues.AGENT.value
+SESSION_ID = SpanAttributes.SESSION_ID
 
 
 def _span_by_name(spans: Sequence[Any], name: str) -> Any:
@@ -120,6 +121,243 @@ def test_oitracer(tracer_provider: Any) -> None:
 
 
 # ---- Unit tests (mocked query / client, no HTTP) ----
+
+
+@pytest.mark.asyncio
+async def test_propagated_session_id_not_overwritten_by_sdk_session(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Session ID set via using_session() must not be overwritten by the internal
+    Claude CLI session UUID emitted in init/result messages."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.instrumentation import using_session
+    from openinference.semconv.trace import SpanAttributes
+
+    APPLICATION_SESSION_ID = "dedf7759-99ee-46ad-a5fc-3837892a0d78"
+    CLI_SESSION_ID = "4e00c355-0cb1-4a44-a7ec-50739f9aabcd"
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": CLI_SESSION_ID,
+            "model": "claude-test",
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "done",
+            "usage": {"input_tokens": 5, "output_tokens": 3},
+            "total_cost_usd": 0.01,
+            "session_id": CLI_SESSION_ID,
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+
+    with using_session(APPLICATION_SESSION_ID):
+        async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(agent_span.attributes or {})
+
+    assert attrs.get(SpanAttributes.SESSION_ID) == APPLICATION_SESSION_ID, (
+        f"Expected propagated session ID {APPLICATION_SESSION_ID!r} to be preserved, "
+        f"but got {attrs.get(SpanAttributes.SESSION_ID)!r}. "
+        "The instrumentor is overwriting application session IDs with internal CLI UUIDs."
+    )
+
+
+@pytest.mark.asyncio
+async def test_sdk_session_id_set_when_none_propagated(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """When no session ID is propagated via OTel context, the SDK session UUID
+    should still be written to the span."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
+
+    CLI_SESSION_ID = "4e00c355-0cb1-4a44-a7ec-50739f9aabcd"
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": CLI_SESSION_ID,
+            "model": "claude-test",
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "done",
+            "usage": {"input_tokens": 5, "output_tokens": 3},
+            "total_cost_usd": 0.01,
+            "session_id": CLI_SESSION_ID,
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+
+    async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(agent_span.attributes or {})
+
+    assert attrs.get(SpanAttributes.SESSION_ID) == CLI_SESSION_ID, (
+        f"Expected SDK session ID {CLI_SESSION_ID!r} to be set when none was propagated, "
+        f"but got {attrs.get(SpanAttributes.SESSION_ID)!r}."
+    )
+
+
+@pytest.mark.asyncio
+async def test_propagated_session_id_not_overwritten_on_error_result(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Propagated session ID must be preserved even when the result message is an error."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.instrumentation import using_session
+    from openinference.semconv.trace import SpanAttributes
+
+    APPLICATION_SESSION_ID = "app-session-error-path"
+    CLI_SESSION_ID = "cli-session-error-path"
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": CLI_SESSION_ID,
+            "model": "claude-test",
+        },
+        {
+            "type": "result",
+            "subtype": "error:tool",
+            "errors": [{"code": "tool_error", "message": "boom"}],
+            "usage": {"input_tokens": 2, "output_tokens": 1},
+            "total_cost_usd": 0.005,
+            "session_id": CLI_SESSION_ID,
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+
+    with using_session(APPLICATION_SESSION_ID):
+        async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(agent_span.attributes or {})
+
+    assert attrs.get(SpanAttributes.SESSION_ID) == APPLICATION_SESSION_ID, (
+        f"Expected propagated session ID {APPLICATION_SESSION_ID!r} on error path, "
+        f"but got {attrs.get(SpanAttributes.SESSION_ID)!r}."
+    )
+
+
+@pytest.mark.asyncio
+async def test_receive_response_preserves_session_id_set_by_span_processor(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Span processors can set session.id on span start; SDK session IDs must not clobber it."""
+    from opentelemetry.sdk.trace import SpanProcessor
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
+
+    APPLICATION_SESSION_ID = "dedf7759-99ee-46ad-a5fc-3837892a0d78"
+    CLI_SESSION_ID = "4e00c355-0cb1-4a44-a7ec-50739f9aabcd"
+
+    class SessionOnStart(SpanProcessor):
+        def on_start(self, span: Any, parent_context: Any = None) -> None:
+            del parent_context
+            span.set_attribute(SpanAttributes.SESSION_ID, APPLICATION_SESSION_ID)
+
+        def on_end(self, span: Any) -> None:
+            del span
+
+        def shutdown(self) -> None:
+            pass
+
+        def force_flush(self, timeout_millis: int = 30000) -> bool:
+            del timeout_millis
+            return True
+
+    class Client:
+        pass
+
+    tracer_provider.add_span_processor(SessionOnStart())
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": CLI_SESSION_ID,
+            "model": "claude-test",
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "done",
+            "usage": {"input_tokens": 5, "output_tokens": 3},
+            "total_cost_usd": 0.01,
+            "session_id": CLI_SESSION_ID,
+        },
+    ]
+
+    async def fake_receive_response(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._ClientReceiveResponseWrapper(tracer)
+
+    async for _ in wrapper(fake_receive_response, Client(), (), {}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.ClaudeSDKClient.receive_response")
+    attrs = dict(agent_span.attributes or {})
+
+    assert attrs.get(SpanAttributes.SESSION_ID) == APPLICATION_SESSION_ID, (
+        f"Expected span-processor session ID {APPLICATION_SESSION_ID!r} to be preserved, "
+        f"but got {attrs.get(SpanAttributes.SESSION_ID)!r}."
+    )
 
 
 @pytest.mark.asyncio
