@@ -1,5 +1,6 @@
 # ruff: noqa: E501
 import base64
+import json
 from collections import defaultdict
 from secrets import token_hex
 from typing import Any, cast
@@ -28,6 +29,51 @@ from openinference.semconv.trace import SpanAttributes
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
 _WEATHER_QUESTION = "What is the weather in New York?"
+
+
+def _span_attributes(span: ReadableSpan) -> dict[str, Any]:
+    return dict(span.attributes or {})
+
+
+def _json_input(span: ReadableSpan) -> dict[str, Any]:
+    input_value = _span_attributes(span).get(SpanAttributes.INPUT_VALUE)
+    assert isinstance(input_value, str)
+    parsed = json.loads(input_value)
+    assert isinstance(parsed, dict)
+    return parsed
+
+
+def _assert_curated_agent_run_input(agent_run_span: ReadableSpan) -> dict[str, Any]:
+    attributes = _span_attributes(agent_run_span)
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    agent_run_input = _json_input(agent_run_span)
+    assert set(agent_run_input).issubset({"system_instruction", "contents", "tools"})
+    return agent_run_input
+
+
+def _assert_agent_run_input_matches_first_call_llm(
+    agent_run_span: ReadableSpan,
+    first_call_llm_span: ReadableSpan,
+) -> None:
+    agent_run_input = _assert_curated_agent_run_input(agent_run_span)
+    first_call_llm_input = _json_input(first_call_llm_span)
+    config = first_call_llm_input.get("config") or {}
+    if system_instruction := config.get("system_instruction"):
+        assert agent_run_input.get("system_instruction") == system_instruction
+    assert agent_run_input.get("contents") == first_call_llm_input.get("contents")
+    if config.get("tools"):
+        assert agent_run_input.get("tools")
+
+
+def _assert_agent_run_inputs_are_distinct(
+    first_agent_run_span: ReadableSpan,
+    second_agent_run_span: ReadableSpan,
+) -> None:
+    first_input = _span_attributes(first_agent_run_span).get(SpanAttributes.INPUT_VALUE)
+    second_input = _span_attributes(second_agent_run_span).get(SpanAttributes.INPUT_VALUE)
+    assert first_input
+    assert second_input
+    assert first_input != second_input
 
 
 def _get_weather(city: str) -> dict[str, str]:
@@ -277,6 +323,8 @@ async def test_google_adk_instrumentor(
     assert agent_run_attributes.pop("agent.name", None) == agent_name
     assert agent_run_attributes.pop("output.mime_type", None) == "application/json"
     assert agent_run_attributes.pop("output.value", None)
+    assert agent_run_attributes.pop("input.mime_type", None) == "application/json"
+    assert agent_run_attributes.pop("input.value", None)
     # GenAI attributes set by google-adk library
     agent_run_attributes.pop("gen_ai.agent.description", None)
     agent_run_attributes.pop("gen_ai.agent.name", None)
@@ -289,6 +337,7 @@ async def test_google_adk_instrumentor(
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
     assert call_llm_span0.parent is agent_run_span.get_span_context()
+    _assert_agent_run_input_matches_first_call_llm(agent_run_span, call_llm_span0)
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
@@ -545,6 +594,8 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert agent_run_attributes.pop("agent.name", None) == agent_name
     assert agent_run_attributes.pop("output.mime_type", None) == "application/json"
     assert agent_run_attributes.pop("output.value", None)
+    assert agent_run_attributes.pop("input.mime_type", None) == "application/json"
+    assert agent_run_attributes.pop("input.value", None)
     # GenAI attributes set by google-adk library
     agent_run_attributes.pop("gen_ai.agent.description", None)
     agent_run_attributes.pop("gen_ai.agent.name", None)
@@ -619,6 +670,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     call_llm_attributes0.pop("gen_ai.operation.name", None)
     call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
+    _assert_agent_run_input_matches_first_call_llm(agent_run_span, call_llm_span0)
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
     assert tool_span.status.is_ok
@@ -997,6 +1049,8 @@ async def test_google_adk_instrumentor_multi_agent(
     else:
         assert root_agent_run_attributes.pop("output.mime_type", None) == "application/json"
         assert root_agent_run_attributes.pop("output.value", None)
+    assert root_agent_run_attributes.pop("input.mime_type", None) == "application/json"
+    assert root_agent_run_attributes.pop("input.value", None)
     # GenAI attributes set by google-adk library
     root_agent_run_attributes.pop("gen_ai.agent.description", None)
     root_agent_run_attributes.pop("gen_ai.agent.name", None)
@@ -1010,6 +1064,7 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
     assert call_llm_span0.parent is root_agent_run_span.get_span_context()
+    _assert_agent_run_input_matches_first_call_llm(root_agent_run_span, call_llm_span0)
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
@@ -1124,6 +1179,8 @@ async def test_google_adk_instrumentor_multi_agent(
     assert weather_agent_run_attributes.pop("agent.name", None) == weather_agent_name
     assert weather_agent_run_attributes.pop("output.mime_type", None) == "application/json"
     assert weather_agent_run_attributes.pop("output.value", None)
+    assert weather_agent_run_attributes.pop("input.mime_type", None) == "application/json"
+    assert weather_agent_run_attributes.pop("input.value", None)
     # GenAI attributes set by google-adk library
     weather_agent_run_attributes.pop("gen_ai.agent.description", None)
     weather_agent_run_attributes.pop("gen_ai.agent.name", None)
@@ -1137,6 +1194,8 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
     assert call_llm_span1.parent is weather_agent_run_span.get_span_context()
+    _assert_agent_run_input_matches_first_call_llm(weather_agent_run_span, call_llm_span1)
+    _assert_agent_run_inputs_are_distinct(root_agent_run_span, weather_agent_run_span)
     call_llm_attributes1 = dict(call_llm_span1.attributes or {})
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
@@ -1503,6 +1562,8 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert agent_run_attributes.pop("agent.name", None) == agent_name
     assert agent_run_attributes.pop("output.mime_type", None) == "application/json"
     assert agent_run_attributes.pop("output.value", None)
+    assert agent_run_attributes.pop("input.mime_type", None) == "application/json"
+    assert agent_run_attributes.pop("input.value", None)
     # GenAI attributes set by google-adk library
     agent_run_attributes.pop("gen_ai.agent.description", None)
     agent_run_attributes.pop("gen_ai.agent.name", None)
@@ -1510,6 +1571,9 @@ async def test_google_adk_instrumentor_image_artifacts(
     agent_run_attributes.pop("gen_ai.operation.name", None)
     agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
+
+    first_call_llm_span = spans_by_name["call_llm"][0]
+    _assert_agent_run_input_matches_first_call_llm(agent_run_span, first_call_llm_span)
 
     call_llm_span = spans_by_name["call_llm"][-1]
     assert call_llm_span.status.is_ok
@@ -1863,6 +1927,8 @@ async def test_google_adk_instrumentor_trace_config_hides_inputs(
     spans = in_memory_span_exporter.get_finished_spans()
     assert spans
     saw_redacted_input = False
+    agent_run_spans = [span for span in spans if span.name.startswith("agent_run [")]
+    assert agent_run_spans
     for span in spans:
         attributes = dict(span.attributes or {})
         if SpanAttributes.INPUT_VALUE in attributes:
@@ -1874,4 +1940,8 @@ async def test_google_adk_instrumentor_trace_config_hides_inputs(
         # Outputs remain visible.
         if span.name.startswith("call_llm"):
             assert attributes.get(SpanAttributes.OUTPUT_VALUE)
+    for span in agent_run_spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.get(SpanAttributes.INPUT_VALUE) == REDACTED_VALUE
+        assert SpanAttributes.INPUT_MIME_TYPE not in attributes
     assert saw_redacted_input
