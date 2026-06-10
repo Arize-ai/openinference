@@ -28,6 +28,7 @@ from openinference.semconv.trace import (
 
 TOOL_KIND = OpenInferenceSpanKindValues.TOOL.value
 AGENT_KIND = OpenInferenceSpanKindValues.AGENT.value
+SESSION_ID = SpanAttributes.SESSION_ID
 
 
 def _span_by_name(spans: Sequence[Any], name: str) -> Any:
@@ -130,6 +131,8 @@ async def test_propagated_session_id_not_overwritten_by_sdk_session(
     """Session ID propagated via OTel context must not be overwritten by
     the internal Claude CLI session UUID emitted in init/result messages.
     """
+    from opentelemetry import baggage as otel_baggage
+    from opentelemetry import context as otel_context
     from opentelemetry import trace as trace_api
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
@@ -164,13 +167,13 @@ async def test_propagated_session_id_not_overwritten_by_sdk_session(
 
     wrapper = wrappers._QueryWrapper(tracer)
 
-    # Set session.id on the span before any message processing via a parent span with attribute.
-    with tracer.start_as_current_span(
-        "application-root",
-        attributes={SpanAttributes.SESSION_ID: APPLICATION_SESSION_ID},
-    ):
+    ctx = otel_baggage.set_baggage(SESSION_ID, APPLICATION_SESSION_ID)
+    token = otel_context.attach(ctx)
+    try:
         async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
             pass
+    finally:
+        otel_context.detach(token)
 
     spans = in_memory_span_exporter.get_finished_spans()
     agent_span = _span_by_name(spans, "ClaudeAgentSDK.query")
@@ -244,6 +247,8 @@ async def test_propagated_session_id_not_overwritten_on_error_result(
     tracer_provider: Any,
 ) -> None:
     """Propagated session ID must be preserved even when the result message is an error."""
+    from opentelemetry import baggage as otel_baggage
+    from opentelemetry import context as otel_context
     from opentelemetry import trace as trace_api
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
@@ -278,12 +283,13 @@ async def test_propagated_session_id_not_overwritten_on_error_result(
 
     wrapper = wrappers._QueryWrapper(tracer)
 
-    with tracer.start_as_current_span(
-        "application-root",
-        attributes={SpanAttributes.SESSION_ID: APPLICATION_SESSION_ID},
-    ):
+    ctx = otel_baggage.set_baggage(SESSION_ID, APPLICATION_SESSION_ID)
+    token = otel_context.attach(ctx)
+    try:
         async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
             pass
+    finally:
+        otel_context.detach(token)
 
     spans = in_memory_span_exporter.get_finished_spans()
     agent_span = _span_by_name(spans, "ClaudeAgentSDK.query")
@@ -301,6 +307,8 @@ async def test_subagent_span_not_given_parent_session_id(
     tracer_provider: Any,
 ) -> None:
     """Subagent spans should receive their own session ID, not the parent's propagated one."""
+    from opentelemetry import baggage as otel_baggage
+    from opentelemetry import context as otel_context
     from opentelemetry import trace as trace_api
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
@@ -378,12 +386,16 @@ async def test_subagent_span_not_given_parent_session_id(
 
     wrapper = wrappers._QueryWrapper(tracer)
 
-    with tracer.start_as_current_span(
-        "application-root",
-        attributes={SpanAttributes.SESSION_ID: APPLICATION_SESSION_ID},
-    ):
+    # Propagate application session via baggage because subagent spans are started
+    # inside a different OTel context (under the tool span), so they won't see
+    # this baggage and should fall back to their own CLI session UUID.
+    ctx = otel_baggage.set_baggage(SESSION_ID, APPLICATION_SESSION_ID)
+    token = otel_context.attach(ctx)
+    try:
         async for _ in wrapper(fake_query, None, (), {"prompt": "delegate"}):
             pass
+    finally:
+        otel_context.detach(token)
 
     spans = in_memory_span_exporter.get_finished_spans()
     root_span = _span_by_name(spans, "ClaudeAgentSDK.query")
@@ -392,10 +404,7 @@ async def test_subagent_span_not_given_parent_session_id(
     root_attrs = dict(root_span.attributes or {})
     sub_attrs = dict(subagent_span.attributes or {})
 
-    # Root span inherits the propagated application session ID.
     assert root_attrs.get(SpanAttributes.SESSION_ID) == APPLICATION_SESSION_ID
-
-    # Subagent span starts fresh (no propagated session), so it should get its own CLI UUID.
     assert sub_attrs.get(SpanAttributes.SESSION_ID) == SUB_CLI_SESSION, (
         f"Expected subagent span to carry its own CLI session {SUB_CLI_SESSION!r}, "
         f"but got {sub_attrs.get(SpanAttributes.SESSION_ID)!r}."
