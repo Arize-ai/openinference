@@ -589,3 +589,50 @@ class TestWorkflowRunId:
         )
         assert workflow_span is not None
         assert workflow_span.get("agno.run.id") == "RUN-ASYNC-STREAM-1"
+
+
+class TestExtractOutputPydanticContent:
+    """Regression tests for issue #3235: ``_extract_output`` must JSON-serialize
+    pydantic ``content`` instead of stringifying the model."""
+
+    def test_pydantic_content_serialized_to_json(self) -> None:
+        from pydantic import BaseModel
+
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        class _Answer(BaseModel):
+            answer: str
+
+        class _Response:
+            def __init__(self, content: Any) -> None:
+                self.content = content
+
+        response = _Response(content=_Answer(answer="done"))
+        # Before the fix this returned ``str(_Answer(...))`` -> ``answer='done'``.
+        assert _extract_output(response) == '{"answer":"done"}'
+
+    def test_plain_string_content_unchanged(self) -> None:
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        class _Response:
+            def __init__(self, content: Any) -> None:
+                self.content = content
+
+        assert _extract_output(_Response(content="ok")) == "ok"
+
+    def test_unserializable_content_falls_back_to_str(self) -> None:
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        class _Boom:
+            def model_dump_json(self) -> str:
+                raise ValueError("cannot serialize")
+
+            def __str__(self) -> str:
+                return "boom-repr"
+
+        class _Response:
+            def __init__(self, content: Any) -> None:
+                self.content = content
+
+        # ``model_dump_json`` raising must degrade to ``str(content)``, not propagate.
+        assert _extract_output(_Response(content=_Boom())) == "boom-repr"
