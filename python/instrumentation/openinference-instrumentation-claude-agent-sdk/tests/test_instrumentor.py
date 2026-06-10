@@ -313,6 +313,37 @@ async def test_tool_error_records_real_content(
     )
 
 
+def test_tool_error_string_remains_unquoted(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Hook-based string errors should remain human-readable, not JSON-quoted."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+    tracker = wrappers._ToolSpanTracker(tracer, None)
+
+    tracker.start_tool_span(
+        tool_name="Bash",
+        tool_input={"command": "cat /etc/shadow"},
+        tool_use_id="toolu_err_2",
+    )
+    tracker.end_tool_span_with_error("toolu_err_2", "permission denied")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    bash_span = _span_by_name(spans, "Bash")
+
+    assert bash_span.status.status_code == StatusCode.ERROR
+    assert bash_span.status.description == "permission denied"
+
+    error_events = [e for e in bash_span.events if e.name == "exception"]
+    assert error_events, "Expected an exception event on the tool span"
+    assert error_events[0].attributes.get("exception.message") == "permission denied"
+
+
 def test_merge_hooks_preserves_user_hooks(monkeypatch: pytest.MonkeyPatch) -> None:
     """User hooks should be preserved when instrumentation merges hooks."""
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
