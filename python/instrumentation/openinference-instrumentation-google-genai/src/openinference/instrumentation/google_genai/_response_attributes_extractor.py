@@ -1,5 +1,6 @@
+import base64
 import logging
-from typing import Any, Iterable, Iterator, Mapping
+from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from google.genai import types
 from opentelemetry.util.types import AttributeValue
@@ -13,7 +14,12 @@ from openinference.instrumentation.google_genai._utils import (
     _get_token_count_attributes_from_usage_metadata,
     _io_value_and_type,
 )
-from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 __all__ = ("_ResponseAttributesExtractor",)
 
@@ -89,12 +95,44 @@ class _ResponseAttributesExtractor:
         is_single_part = len(parts) == 1
         for part in parts:
             increment_content_index = False
-            if text := getattr(part, "text", None):
-                yield from _get_attributes_from_content_text(text, content_index, is_single_part)
-                increment_content_index = True
+            thought: Optional[bool] = getattr(part, "thought", None)
+            thought_signature: Optional[bytes] = getattr(part, "thought_signature", None)
+            if thought:
+                text = getattr(part, "text", None)
+                if text or thought_signature is not None:
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
+                    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+                    if text:
+                        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+                    if thought_signature is not None:
+                        yield (
+                            f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                            base64.b64encode(thought_signature).decode(),
+                        )
+                    increment_content_index = True
+            elif (text := getattr(part, "text", None)) is not None:
+                if thought_signature is not None:
+                    # Force indexed format so we can attach the signature.
+                    # Guard against empty text (Gemini emits Part(text="", thought_signature=...)
+                    # as the final chunk carrying only the signature).
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
+                    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+                    if text:
+                        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+                    yield (
+                        f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                        base64.b64encode(thought_signature).decode(),
+                    )
+                    increment_content_index = True
+                elif text:
+                    yield from _get_attributes_from_content_text(
+                        text, content_index, is_single_part
+                    )
+                    increment_content_index = True
             elif function_call := getattr(part, "function_call", None):
-                # Handle tool/function calls
-                yield from self._get_attributes_from_function_call(function_call, tool_call_index)
+                yield from self._get_attributes_from_function_call(
+                    function_call, tool_call_index, thought_signature
+                )
                 tool_call_index += 1
             if inline_data := getattr(part, "inline_data", None):
                 yield from _get_attributes_from_inline_data(inline_data, content_index)
@@ -109,27 +147,32 @@ class _ResponseAttributesExtractor:
         self,
         function_call: object,
         tool_call_index: int,
+        thought_signature: Optional[bytes] = None,
     ) -> Iterator[tuple[str, AttributeValue]]:
         """Extract attributes from a function call in the response."""
         try:
+            tc_prefix = f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}"
             if function_name := getattr(function_call, "name", None):
                 yield (
-                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                    f"{tc_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                     function_name,
                 )
-
             if function_args := getattr(function_call, "args", None):
-                # Serialize the function arguments
                 try:
                     args_json = safe_json_dumps(function_args)
                     yield (
-                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        f"{tc_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                         args_json,
                     )
                 except Exception:
                     logger.warning(
                         f"Failed to serialize function call args for tool call {tool_call_index}"
                     )
+            if thought_signature is not None:
+                yield (
+                    f"{tc_prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                    base64.b64encode(thought_signature).decode(),
+                )
         except Exception:
             logger.warning(
                 f"Failed to extract function call attributes for tool call {tool_call_index}"
@@ -162,8 +205,10 @@ class _ResponseAttributesExtractor:
                 parts = getattr(content_entry, "parts", [])
                 for part in parts:
                     if function_call := getattr(part, "function_call", None):
-                        # Extract function call details for the span
+                        thought_signature: Optional[bytes] = getattr(
+                            part, "thought_signature", None
+                        )
                         yield from self._get_attributes_from_function_call(
-                            function_call, tool_call_index
+                            function_call, tool_call_index, thought_signature
                         )
                         tool_call_index += 1

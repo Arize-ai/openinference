@@ -32,6 +32,8 @@ __all__ = [
     "GEN_AI_REQUEST_MAX_TOKENS",
     "GEN_AI_REQUEST_TEMPERATURE",
     "GEN_AI_REQUEST_TOP_P",
+    "GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS",
+    "GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS",
     "GenAIAttributes",
     "GenAIEventNames",
     "safe_json_dumps",
@@ -42,6 +44,10 @@ __all__ = [
 GEN_AI_REQUEST_MAX_TOKENS = "gen_ai.request.max_tokens"
 GEN_AI_REQUEST_TEMPERATURE = "gen_ai.request.temperature"
 GEN_AI_REQUEST_TOP_P = "gen_ai.request.top_p"
+
+# Prompt-cache usage attribute keys emitted by the Strands tracer
+GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read_input_tokens"
+GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write_input_tokens"
 
 
 class GenAIAttributes:
