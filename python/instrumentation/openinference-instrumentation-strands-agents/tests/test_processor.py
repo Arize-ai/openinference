@@ -183,6 +183,34 @@ class TestStrandsAgentsToOpenInferenceProcessor:
         # Should not raise an exception
         processor.on_end(span)  # type: ignore[arg-type]
 
+    def test_processor_leaves_non_strands_spans_unchanged(self) -> None:
+        """Non-Strands spans must not have their attributes modified."""
+        processor = StrandsAgentsToOpenInferenceProcessor()
+        original_attrs = {
+            "http.method": "GET",
+            "http.url": "https://example.com/api",
+            "http.status_code": 200,
+        }
+        span = MockReadableSpan(name="http.request", attributes=dict(original_attrs))
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        assert span._attributes == original_attrs
+
+    def test_processor_leaves_non_strands_span_with_openai_attrs_unchanged(self) -> None:
+        """A span from another GenAI SDK (e.g. OpenAI) must not be touched."""
+        processor = StrandsAgentsToOpenInferenceProcessor()
+        original_attrs = {
+            "gen_ai.system": "openai",
+            "gen_ai.request.model": "gpt-4o",
+            "gen_ai.usage.input_tokens": 42,
+        }
+        span = MockReadableSpan(name="openai.chat", attributes=dict(original_attrs))
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        assert span._attributes == original_attrs
+
     def test_processor_debug_mode(self) -> None:
         """Test that debug mode works."""
         processor = StrandsAgentsToOpenInferenceProcessor(debug=True)
