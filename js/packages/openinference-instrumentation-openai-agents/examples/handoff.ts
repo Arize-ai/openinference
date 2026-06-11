@@ -11,7 +11,7 @@
  *     making the multi-agent flow visualisable as a graph.
  */
 /* eslint-disable no-console */
-import "./instrumentation";
+import { tracerProvider } from "./instrumentation";
 
 import { Agent, run } from "@openai/agents";
 
@@ -33,4 +33,9 @@ async function main() {
   console.log("\nFinal output:\n" + result.finalOutput);
 }
 
-main().catch(console.error);
+main()
+  .catch(console.error)
+  .finally(async () => {
+    await tracerProvider.forceFlush();
+    await tracerProvider.shutdown();
+  });

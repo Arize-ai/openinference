@@ -1,10 +1,11 @@
 /**
- * Single-agent example with a tool call.
+ * Streaming example with a tool call.
  *
  * Run with:
- *   OPENAI_API_KEY=sk-... npx tsx examples/chat.ts
+ *   OPENAI_API_KEY=sk-... npx tsx examples/streaming.ts
  *
- * Demonstrates the basic AGENT -> LLM -> TOOL -> LLM flow.
+ * Demonstrates that AGENT, LLM, and TOOL spans are exported after a streamed
+ * run is fully consumed.
  */
 /* eslint-disable no-console */
 import { tracerProvider } from "./instrumentation";
@@ -23,7 +24,7 @@ const getWeather = tool({
 });
 
 const agent = new Agent({
-  name: "WeatherAssistant",
+  name: "StreamingWeatherAssistant",
   instructions:
     "You are a helpful assistant that provides weather information. " +
     "Use the get_weather tool when asked about weather.",
@@ -31,8 +32,15 @@ const agent = new Agent({
 });
 
 async function main() {
-  const result = await run(agent, "What is the weather in Tokyo?");
-  console.log("\nFinal output:\n" + result.finalOutput);
+  const result = await run(agent, "What is the weather in Tokyo?", { stream: true });
+
+  console.log("\nStreamed output:");
+  for await (const chunk of result.toTextStream({ compatibleWithNodeStreams: true })) {
+    process.stdout.write(String(chunk));
+  }
+
+  await result.completed;
+  console.log("\n\nFinal output:\n" + result.finalOutput);
 }
 
 main()

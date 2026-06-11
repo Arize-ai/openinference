@@ -14,6 +14,7 @@ import type {
 } from "@openai/agents";
 import type { Attributes, HrTime, Span as OtelSpan, TracerProvider } from "@opentelemetry/api";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
+import { isTracingSuppressed } from "@opentelemetry/core";
 
 import type { TraceConfigOptions } from "@arizeai/openinference-core";
 import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
@@ -69,6 +70,17 @@ const OPENINFERENCE_SPAN_KIND = SemanticConventions.OPENINFERENCE_SPAN_KIND;
  */
 const MAX_HANDOFFS_IN_FLIGHT = 1000;
 
+/**
+ * Maximum number of root trace spans kept in memory by default.
+ */
+const DEFAULT_MAX_ROOT_SPANS_IN_FLIGHT = 1000;
+
+export type OpenInferenceTracingProcessorOptions = {
+  tracerProvider?: TracerProvider;
+  traceConfig?: TraceConfigOptions;
+  maxRootSpansInFlight?: number;
+};
+
 // ─── Type guards ─────────────────────────────────────────────────────────────
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -81,6 +93,13 @@ function isString(value: unknown): value is string {
 
 function isNumber(value: unknown): value is number {
   return typeof value === "number";
+}
+
+function normalizeMaxRootSpansInFlight(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) {
+    return DEFAULT_MAX_ROOT_SPANS_IN_FLIGHT;
+  }
+  return Math.max(1, Math.floor(value));
 }
 
 // ─── Time helpers ────────────────────────────────────────────────────────────
@@ -172,14 +191,50 @@ function getSpanKind(data: SpanData): OpenInferenceSpanKind {
  * (or per-content-part attributes for multipart messages), and any
  * `tool_calls` entries.
  */
-function extractMessageList(messages: ReadonlyArray<unknown>, prefix: string): Attributes {
+function extractMessageList(
+  messages: ReadonlyArray<unknown>,
+  prefix: string,
+  startIndex = 0,
+): Attributes {
   const attrs: Attributes = {};
-  let toolCallIdx = 0;
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
     if (!isRecord(msg)) continue;
-    const msgPrefix = `${prefix}.${i}`;
+    const msgPrefix = `${prefix}.${startIndex + i}`;
+
+    if (msg.type === "function_call") {
+      attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = "assistant";
+      const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.0`;
+      const callId = isString(msg.callId) ? msg.callId : msg.call_id;
+      if (isString(callId)) {
+        attrs[`${tcPrefix}.${TOOL_CALL_ID}`] = callId;
+      }
+      if (isString(msg.name)) {
+        attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = msg.name;
+      }
+      if (isString(msg.arguments) && msg.arguments !== "{}") {
+        attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = msg.arguments;
+      }
+      continue;
+    }
+
+    if (msg.type === "function_call_result") {
+      attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = "tool";
+      const callId = isString(msg.callId) ? msg.callId : msg.call_id;
+      if (isString(callId)) {
+        attrs[`${msgPrefix}.${MESSAGE_TOOL_CALL_ID}`] = callId;
+      }
+      if (isRecord(msg.output) && isString(msg.output.text)) {
+        attrs[`${msgPrefix}.${MESSAGE_CONTENT}`] = msg.output.text;
+      } else if (isString(msg.output)) {
+        attrs[`${msgPrefix}.${MESSAGE_CONTENT}`] = msg.output;
+      } else if (msg.output != null) {
+        attrs[`${msgPrefix}.${MESSAGE_CONTENT}`] =
+          safelyJSONStringify(msg.output) ?? String(msg.output);
+      }
+      continue;
+    }
 
     if (isString(msg.role)) {
       attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = msg.role;
@@ -205,6 +260,7 @@ function extractMessageList(messages: ReadonlyArray<unknown>, prefix: string): A
     }
 
     if (Array.isArray(msg.tool_calls)) {
+      let toolCallIdx = 0;
       for (const tc of msg.tool_calls) {
         if (!isRecord(tc)) continue;
         const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIdx}`;
@@ -300,12 +356,13 @@ function getGenerationAttributes(data: GenerationSpanData): Attributes {
 function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): Attributes {
   const attrs: Attributes = {};
   let msgIdx = 0;
-  let tcIdx = 0;
   let totalPrompt = 0;
   let totalCompletion = 0;
+  let totalTokens = 0;
   let totalCacheRead = 0;
   let totalReasoning = 0;
   let hasUsage = false;
+  let hasTotalTokens = false;
 
   for (const resp of responses) {
     if (!isRecord(resp)) continue;
@@ -314,8 +371,19 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
     if (isRecord(resp.usage)) {
       hasUsage = true;
       const usage = resp.usage;
-      if (isNumber(usage.prompt_tokens)) totalPrompt += usage.prompt_tokens;
-      if (isNumber(usage.completion_tokens)) totalCompletion += usage.completion_tokens;
+      const promptTokens = isNumber(usage.prompt_tokens) ? usage.prompt_tokens : undefined;
+      const completionTokens = isNumber(usage.completion_tokens)
+        ? usage.completion_tokens
+        : undefined;
+      if (promptTokens !== undefined) totalPrompt += promptTokens;
+      if (completionTokens !== undefined) totalCompletion += completionTokens;
+      if (isNumber(usage.total_tokens)) {
+        totalTokens += usage.total_tokens;
+        hasTotalTokens = true;
+      } else if (promptTokens !== undefined || completionTokens !== undefined) {
+        totalTokens += (promptTokens ?? 0) + (completionTokens ?? 0);
+        hasTotalTokens = true;
+      }
       // OpenAI / DeepSeek prompt_tokens_details.cached_tokens
       if (
         isRecord(usage.prompt_tokens_details) &&
@@ -359,9 +427,10 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
       }
 
       if (Array.isArray(message.tool_calls)) {
+        let toolCallIdx = 0;
         for (const tc of message.tool_calls) {
           if (!isRecord(tc)) continue;
-          const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${tcIdx}`;
+          const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIdx}`;
           if (isString(tc.id)) {
             attrs[`${tcPrefix}.${TOOL_CALL_ID}`] = tc.id;
           }
@@ -373,7 +442,7 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
               attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = tc.function.arguments;
             }
           }
-          tcIdx++;
+          toolCallIdx++;
         }
       }
 
@@ -384,8 +453,8 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
   if (hasUsage) {
     if (totalPrompt > 0) attrs[LLM_TOKEN_COUNT_PROMPT] = totalPrompt;
     if (totalCompletion > 0) attrs[LLM_TOKEN_COUNT_COMPLETION] = totalCompletion;
-    if (totalPrompt + totalCompletion > 0) {
-      attrs[LLM_TOKEN_COUNT_TOTAL] = totalPrompt + totalCompletion;
+    if (hasTotalTokens && totalTokens > 0) {
+      attrs[LLM_TOKEN_COUNT_TOTAL] = totalTokens;
     }
     if (totalCacheRead > 0) {
       attrs[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totalCacheRead;
@@ -452,6 +521,29 @@ function getFunctionAttributes(data: FunctionSpanData): Attributes {
   return attrs;
 }
 
+// ─── Handoff span ────────────────────────────────────────────────────────────
+
+/**
+ * Extracts attributes from {@link HandoffSpanData} so handoff TOOL spans are
+ * meaningful in backends that primarily render tool name and I/O fields.
+ */
+function getHandoffAttributes(data: HandoffSpanData): Attributes {
+  const attrs: Attributes = {};
+
+  if (isString(data.to_agent)) {
+    attrs[TOOL_NAME] = `handoff_to_${data.to_agent}`;
+    attrs[OUTPUT_VALUE] = safelyJSONStringify({ to_agent: data.to_agent }) ?? "";
+    attrs[OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  if (isString(data.from_agent)) {
+    attrs[INPUT_VALUE] = safelyJSONStringify({ from_agent: data.from_agent }) ?? "";
+    attrs[INPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  return attrs;
+}
+
 // ─── Response span (Responses API) ───────────────────────────────────────────
 
 /**
@@ -460,7 +552,6 @@ function getFunctionAttributes(data: FunctionSpanData): Attributes {
 function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
   const attrs: Attributes = {};
   let msgIdx = 0;
-  let tcIdx = 0;
 
   for (const item of output) {
     if (!isRecord(item)) continue;
@@ -488,7 +579,7 @@ function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
     } else if (item.type === "function_call") {
       const msgPrefix = `${LLM_OUTPUT_MESSAGES}.${msgIdx}`;
       attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = "assistant";
-      const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${tcIdx}`;
+      const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.0`;
       if (isString(item.call_id)) {
         attrs[`${tcPrefix}.${TOOL_CALL_ID}`] = item.call_id;
       }
@@ -498,7 +589,7 @@ function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
       if (isString(item.arguments) && item.arguments !== "{}") {
         attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = item.arguments;
       }
-      tcIdx++;
+      msgIdx++;
     }
     // Other item types (file_search_call, web_search_call, computer_call, ...)
     // are not yet supported, matching the Python instrumentation's TODOs.
@@ -518,15 +609,31 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
   const attrs: Attributes = {};
 
   // Input
+  const hasSystemInstruction =
+    isRecord(data._response) &&
+    isString(data._response.instructions) &&
+    data._response.instructions.length > 0;
   if (data._input != null) {
     if (isString(data._input)) {
       attrs[INPUT_VALUE] = data._input;
+      Object.assign(
+        attrs,
+        extractMessageList(
+          [{ role: "user", content: data._input }],
+          LLM_INPUT_MESSAGES,
+          hasSystemInstruction ? 1 : 0,
+        ),
+      );
     } else if (Array.isArray(data._input)) {
       const json = safelyJSONStringify(data._input);
       if (json) {
         attrs[INPUT_VALUE] = json;
         attrs[INPUT_MIME_TYPE] = MimeType.JSON;
       }
+      Object.assign(
+        attrs,
+        extractMessageList(data._input, LLM_INPUT_MESSAGES, hasSystemInstruction ? 1 : 0),
+      );
     }
   }
 
@@ -665,7 +772,9 @@ function setSpanStatus(otelSpan: OtelSpan, span: Span<SpanData>): void {
  * @see https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md
  */
 export class OpenInferenceTracingProcessor implements TracingProcessor {
+  private enabled = true;
   private readonly oiTracer: OITracer;
+  private readonly maxRootSpansInFlight: number;
 
   /** trace_id → root OTel span */
   private readonly rootSpans = new Map<string, OtelSpan>();
@@ -682,19 +791,29 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    * handoff spans never get a follow-up agent span.
    */
   private readonly reverseHandoffs = new Map<string, string>();
+  /** trace_id values whose trace start happened under suppressed tracing. */
+  private readonly suppressedTraceIds = new Set<string>();
+  /** span_id values skipped at start, so their end event can be ignored safely. */
+  private readonly suppressedSpanIds = new Set<string>();
 
   constructor({
     tracerProvider,
     traceConfig,
-  }: {
-    tracerProvider?: TracerProvider;
-    traceConfig?: TraceConfigOptions;
-  } = {}) {
+    maxRootSpansInFlight,
+  }: OpenInferenceTracingProcessorOptions = {}) {
     const baseTracer = (tracerProvider ?? trace).getTracer(INSTRUMENTATION_NAME, VERSION);
     this.oiTracer = new OITracer({ tracer: baseTracer, traceConfig });
+    this.maxRootSpansInFlight = normalizeMaxRootSpansInFlight(maxRootSpansInFlight);
   }
 
   async onTraceStart(agentTrace: Trace): Promise<void> {
+    if (!this.enabled) return;
+
+    if (isTracingSuppressed(context.active())) {
+      this.suppressedTraceIds.add(agentTrace.traceId);
+      return;
+    }
+
     const rootSpan = this.oiTracer.startSpan(agentTrace.name, {
       attributes: {
         [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
@@ -702,9 +821,11 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
       },
     });
     this.rootSpans.set(agentTrace.traceId, rootSpan);
+    this.evictOldestRootSpans();
   }
 
   async onTraceEnd(agentTrace: Trace): Promise<void> {
+    this.suppressedTraceIds.delete(agentTrace.traceId);
     const rootSpan = this.rootSpans.get(agentTrace.traceId);
     if (!rootSpan) return;
     rootSpan.setStatus({ code: SpanStatusCode.OK });
@@ -714,6 +835,12 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
 
   async onSpanStart(span: Span<SpanData>): Promise<void> {
     if (!span.startedAt) return;
+    if (!this.enabled) return;
+
+    if (this.shouldSuppressSpan(span)) {
+      this.suppressedSpanIds.add(span.spanId);
+      return;
+    }
 
     const parentSpan = span.parentId
       ? this.otelSpans.get(span.parentId)
@@ -739,6 +866,8 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
   }
 
   async onSpanEnd(span: Span<SpanData>): Promise<void> {
+    if (this.suppressedSpanIds.delete(span.spanId)) return;
+
     const otelSpan = this.otelSpans.get(span.spanId);
     if (!otelSpan) return;
     this.otelSpans.delete(span.spanId);
@@ -766,6 +895,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
         attrs = getCustomAttributes(data);
         break;
       case "handoff":
+        attrs = getHandoffAttributes(data);
         this.recordHandoff(data, span.traceId);
         break;
       case "agent":
@@ -788,6 +918,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
 
     const endTime = span.endedAt ? isoToHrTime(span.endedAt) : undefined;
     otelSpan.end(endTime);
+    this.endDanglingRootSpanOnTopLevelAgentError(span, endTime);
   }
 
   async shutdown(_timeout?: number): Promise<void> {
@@ -798,7 +929,66 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     // The OTel TracerProvider owns flushing — nothing to do here.
   }
 
+  enable(): void {
+    this.enabled = true;
+  }
+
+  disable(): void {
+    this.enabled = false;
+    for (const span of this.otelSpans.values()) {
+      span.setStatus({ code: SpanStatusCode.OK });
+      span.end();
+    }
+    for (const span of this.rootSpans.values()) {
+      span.setStatus({ code: SpanStatusCode.OK });
+      span.end();
+    }
+    this.otelSpans.clear();
+    this.rootSpans.clear();
+    this.suppressedSpanIds.clear();
+    this.suppressedTraceIds.clear();
+    this.reverseHandoffs.clear();
+  }
+
   // ─── Private helpers ───────────────────────────────────────────────────────
+
+  private evictOldestRootSpans(): void {
+    while (this.rootSpans.size > this.maxRootSpansInFlight) {
+      const oldestTraceId = this.rootSpans.keys().next().value;
+      if (oldestTraceId === undefined) break;
+
+      const rootSpan = this.rootSpans.get(oldestTraceId);
+      rootSpan?.setStatus({ code: SpanStatusCode.OK });
+      rootSpan?.end();
+      this.rootSpans.delete(oldestTraceId);
+      this.suppressedTraceIds.delete(oldestTraceId);
+    }
+  }
+
+  private endDanglingRootSpanOnTopLevelAgentError(
+    span: Span<SpanData>,
+    endTime: HrTime | undefined,
+  ): void {
+    if (!span.error || span.spanData.type !== "agent") return;
+
+    const rootSpan = this.rootSpans.get(span.traceId);
+    if (!rootSpan) return;
+
+    const rootSpanId = rootSpan.spanContext().spanId;
+    if (span.parentId != null && span.parentId !== rootSpanId) return;
+
+    setSpanStatus(rootSpan, span);
+    rootSpan.end(endTime);
+    this.rootSpans.delete(span.traceId);
+  }
+
+  private shouldSuppressSpan(span: Span<SpanData>): boolean {
+    return (
+      isTracingSuppressed(context.active()) ||
+      this.suppressedTraceIds.has(span.traceId) ||
+      (span.parentId != null && this.suppressedSpanIds.has(span.parentId))
+    );
+  }
 
   /**
    * Records a handoff so that the destination agent's span can later be

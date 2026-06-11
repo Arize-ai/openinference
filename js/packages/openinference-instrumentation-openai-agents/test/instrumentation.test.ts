@@ -1,8 +1,12 @@
 import type { Span as OASpan, Trace } from "@openai/agents";
+import type * as AgentsModule from "@openai/agents";
+import { context } from "@opentelemetry/api";
+import { suppressTracing } from "@opentelemetry/core";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { REDACTED_VALUE, setSession } from "@arizeai/openinference-core";
 import {
   GRAPH_NODE_ID,
   GRAPH_NODE_PARENT_ID,
@@ -18,6 +22,7 @@ import {
   LLM_TOKEN_COUNT_TOTAL,
   OUTPUT_VALUE,
   SemanticConventions,
+  SESSION_ID,
   TOOL_NAME,
 } from "@arizeai/openinference-semantic-conventions";
 
@@ -87,11 +92,13 @@ describe("OpenInferenceTracingProcessor", () => {
     provider = new NodeTracerProvider({
       spanProcessors: [new SimpleSpanProcessor(exporter)],
     });
+    provider.register();
     processor = new OpenInferenceTracingProcessor({ tracerProvider: provider });
   });
 
   afterEach(() => {
     exporter.reset();
+    context.disable();
   });
 
   // ─── Trace lifecycle ───────────────────────────────────────────────────────
@@ -115,6 +122,119 @@ describe("OpenInferenceTracingProcessor", () => {
     const [rootSpan] = exporter.getFinishedSpans();
     // SpanStatusCode.OK = 1
     expect(rootSpan.status.code).toBe(1);
+  });
+
+  it("bounds in-flight root spans by evicting the oldest root span", async () => {
+    processor = new OpenInferenceTracingProcessor({
+      tracerProvider: provider,
+      maxRootSpansInFlight: 1,
+    });
+
+    const firstTrace = makeTrace({ traceId: "trace-1", name: "First Workflow" });
+    const secondTrace = makeTrace({ traceId: "trace-2", name: "Second Workflow" });
+
+    await processor.onTraceStart(firstTrace);
+    await processor.onTraceStart(secondTrace);
+
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["First Workflow"]);
+
+    await processor.onTraceEnd(firstTrace);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["First Workflow"]);
+
+    await processor.onTraceEnd(secondTrace);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual([
+      "First Workflow",
+      "Second Workflow",
+    ]);
+  });
+
+  it("does not create spans when the trace starts under suppressed tracing", async () => {
+    const trace = makeTrace();
+    const span = makeSpan("span-suppressed", "trace-1", {
+      type: "function" as const,
+      name: "hidden_tool",
+      input: "{}",
+      output: "hidden",
+    });
+
+    await context.with(suppressTracing(context.active()), async () => {
+      await processor.onTraceStart(trace);
+      await processor.onSpanStart(span);
+    });
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    expect(exporter.getFinishedSpans()).toHaveLength(0);
+  });
+
+  it("does not create a span when only that span starts under suppressed tracing", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const span = makeSpan("span-suppressed", "trace-1", {
+      type: "function" as const,
+      name: "hidden_tool",
+      input: "{}",
+      output: "hidden",
+    });
+    await context.with(suppressTracing(context.active()), async () => {
+      await processor.onSpanStart(span);
+    });
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("Test Workflow");
+  });
+
+  it("propagates OpenInference context attributes to created spans", async () => {
+    const trace = makeTrace();
+    const span = makeSpan("span-context", "trace-1", {
+      type: "function" as const,
+      name: "context_tool",
+      input: "{}",
+      output: "ok",
+    });
+
+    await context.with(setSession(context.active(), { sessionId: "session-123" }), async () => {
+      await processor.onTraceStart(trace);
+      await processor.onSpanStart(span);
+    });
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans.find((s) => s.name === "Test Workflow")!.attributes[SESSION_ID]).toBe(
+      "session-123",
+    );
+    expect(spans.find((s) => s.name === "context_tool")!.attributes[SESSION_ID]).toBe(
+      "session-123",
+    );
+  });
+
+  it("applies TraceConfig masking to span attributes", async () => {
+    processor = new OpenInferenceTracingProcessor({
+      tracerProvider: provider,
+      traceConfig: { hideInputs: true, hideOutputs: true },
+    });
+
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const span = makeSpan("span-masked", "trace-1", {
+      type: "function" as const,
+      name: "masked_tool",
+      input: '{"secret":"input"}',
+      output: '{"secret":"output"}',
+    });
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const toolSpan = exporter.getFinishedSpans().find((s) => s.name === "masked_tool");
+    expect(toolSpan!.attributes[INPUT_VALUE]).toBe(REDACTED_VALUE);
+    expect(toolSpan!.attributes[OUTPUT_VALUE]).toBe(REDACTED_VALUE);
   });
 
   // ─── Agent span ────────────────────────────────────────────────────────────
@@ -247,6 +367,13 @@ describe("OpenInferenceTracingProcessor", () => {
     await processor.onTraceEnd(trace);
 
     const spans = exporter.getFinishedSpans();
+    const handoffOtel = spans.find((s) => s.name === "handoff to AgentB");
+    expect(handoffOtel).toBeDefined();
+    expect(handoffOtel!.attributes[OPENINFERENCE_SPAN_KIND]).toBe("TOOL");
+    expect(handoffOtel!.attributes[TOOL_NAME]).toBe("handoff_to_AgentB");
+    expect(handoffOtel!.attributes[INPUT_VALUE]).toBe(JSON.stringify({ from_agent: "AgentA" }));
+    expect(handoffOtel!.attributes[OUTPUT_VALUE]).toBe(JSON.stringify({ to_agent: "AgentB" }));
+
     const agentBOtel = spans.find((s) => s.name === "AgentB");
     expect(agentBOtel).toBeDefined();
     expect(agentBOtel!.attributes[GRAPH_NODE_PARENT_ID]).toBe("AgentA");
@@ -296,6 +423,29 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(errSpan!.status.message).toContain("Tool failed");
   });
 
+  it("ends a dangling root span when a top-level agent errors before trace end", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const span = makeSpan(
+      "span-agent-error",
+      "trace-1",
+      {
+        type: "agent" as const,
+        name: "GuardrailAssistant",
+      },
+      { error: { message: "InputGuardrailTripwireTriggered" } },
+    );
+
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+
+    const rootSpan = exporter.getFinishedSpans().find((s) => s.name === "Test Workflow");
+    expect(rootSpan).toBeDefined();
+    expect(rootSpan!.status.code).toBe(2);
+    expect(rootSpan!.status.message).toContain("InputGuardrailTripwireTriggered");
+  });
+
   // ─── Parent-child relationship ─────────────────────────────────────────────
 
   it("nests child spans under their parent using parentId", async () => {
@@ -334,6 +484,25 @@ describe("OpenInferenceTracingProcessor", () => {
   it("shutdown and forceFlush resolve without error", async () => {
     await expect(processor.shutdown()).resolves.toBeUndefined();
     await expect(processor.forceFlush()).resolves.toBeUndefined();
+  });
+
+  it("does not create spans after the processor is disabled", async () => {
+    processor.disable();
+
+    const trace = makeTrace();
+    const span = makeSpan("span-disabled", "trace-1", {
+      type: "function" as const,
+      name: "disabled_tool",
+      input: "{}",
+      output: "hidden",
+    });
+
+    await processor.onTraceStart(trace);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    expect(exporter.getFinishedSpans()).toHaveLength(0);
   });
 
   // ─── Chat Completions format token extraction ──────────────────────────────
@@ -420,6 +589,45 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.0.message.content`]).toBe("Hello there!");
   });
 
+  it("indexes tool calls from each message starting at zero", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const generationData = {
+      type: "generation" as const,
+      model: "gpt-4o",
+      model_config: {},
+      input: [],
+      output: [
+        {
+          role: "assistant",
+          tool_calls: [{ id: "call_a", function: { name: "tool_a", arguments: '{"a":1}' } }],
+        },
+        {
+          role: "assistant",
+          tool_calls: [{ id: "call_b", function: { name: "tool_b", arguments: '{"b":2}' } }],
+        },
+      ],
+      usage: undefined,
+    };
+
+    const span = makeSpan("span-msg-tool-calls", "trace-1", generationData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const llmSpan = exporter.getFinishedSpans().find((s) => s.name === "generation");
+    expect(llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.0.message.tool_calls.0.tool_call.id`]).toBe(
+      "call_a",
+    );
+    expect(llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.1.message.tool_calls.0.tool_call.id`]).toBe(
+      "call_b",
+    );
+    expect(
+      llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.1.message.tool_calls.1.tool_call.id`],
+    ).toBeUndefined();
+  });
+
   it("extracts tool_calls from chat completion choices", async () => {
     const trace = makeTrace();
     await processor.onTraceStart(trace);
@@ -496,7 +704,7 @@ describe("OpenInferenceTracingProcessor", () => {
               finish_reason: "length",
             },
           ],
-          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 20 },
         },
         {
           id: "resp-2",
@@ -504,7 +712,7 @@ describe("OpenInferenceTracingProcessor", () => {
           choices: [
             { index: 0, message: { role: "assistant", content: "Part 2" }, finish_reason: "stop" },
           ],
-          usage: { prompt_tokens: 8, completion_tokens: 6, total_tokens: 14 },
+          usage: { prompt_tokens: 8, completion_tokens: 6, total_tokens: 30 },
         },
       ],
       usage: undefined,
@@ -518,7 +726,7 @@ describe("OpenInferenceTracingProcessor", () => {
     const llmSpan = exporter.getFinishedSpans().find((s) => s.name === "generation");
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT]).toBe(18); // 10 + 8
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(11); // 5 + 6
-    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(29); // 15 + 14
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(50); // 20 + 30
   });
 
   it("extracts reasoning token count from completion_tokens_details", async () => {
@@ -613,6 +821,9 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.content`]).toBe(
       "You are a calculator.",
     );
+    // User input follows system instructions in structured message attributes.
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.1.message.role`]).toBe("user");
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.1.message.content`]).toBe("What's 2+2?");
     // Output messages from response.output[].content
     expect(respSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.0.message.role`]).toBe("assistant");
     expect(
@@ -620,6 +831,90 @@ describe("OpenInferenceTracingProcessor", () => {
     ).toBe("4");
     // Tools schema
     expect(respSpan!.attributes["llm.tools.0.tool.json_schema"]).toContain("calculate");
+  });
+
+  it("extracts string ResponseSpanData input as a structured user message", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _input: "What is 42 * 17?",
+      _response: {
+        model: "gpt-4o",
+        output: [],
+      },
+    };
+
+    const span = makeSpan("span-resp-string-input", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[INPUT_VALUE]).toBe("What is 42 * 17?");
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.role`]).toBe("user");
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.content`]).toBe(
+      "What is 42 * 17?",
+    );
+  });
+
+  it("extracts ResponseSpanData function call history as structured input messages", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _input: [
+        { type: "message", role: "user", content: "What is the weather in Tokyo?" },
+        {
+          type: "function_call",
+          callId: "call_weather",
+          name: "get_weather",
+          arguments: '{"city":"Tokyo"}',
+        },
+        {
+          type: "function_call_result",
+          callId: "call_weather",
+          output: { type: "text", text: '{"temperature":22}' },
+        },
+      ],
+      _response: {
+        instructions: "Use tools when needed.",
+        output: [],
+      },
+    };
+
+    const span = makeSpan("span-resp-history", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.role`]).toBe("system");
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.1.message.role`]).toBe("user");
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.1.message.content`]).toBe(
+      "What is the weather in Tokyo?",
+    );
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.2.message.role`]).toBe("assistant");
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.2.message.tool_calls.0.tool_call.id`]).toBe(
+      "call_weather",
+    );
+    expect(
+      respSpan!.attributes[`${LLM_INPUT_MESSAGES}.2.message.tool_calls.0.tool_call.function.name`],
+    ).toBe("get_weather");
+    expect(
+      respSpan!.attributes[
+        `${LLM_INPUT_MESSAGES}.2.message.tool_calls.0.tool_call.function.arguments`
+      ],
+    ).toBe('{"city":"Tokyo"}');
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.3.message.role`]).toBe("tool");
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.3.message.tool_call_id`]).toBe(
+      "call_weather",
+    );
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.3.message.content`]).toBe(
+      '{"temperature":22}',
+    );
   });
 
   it("extracts function_call from Responses API output", async () => {
@@ -635,6 +930,11 @@ describe("OpenInferenceTracingProcessor", () => {
             call_id: "call_xyz",
             name: "lookup",
             arguments: '{"q":"hi"}',
+          },
+          {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: "done" }],
           },
         ],
       },
@@ -658,6 +958,10 @@ describe("OpenInferenceTracingProcessor", () => {
         `${LLM_OUTPUT_MESSAGES}.0.message.tool_calls.0.tool_call.function.arguments`
       ],
     ).toBe('{"q":"hi"}');
+    expect(respSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.1.message.role`]).toBe("assistant");
+    expect(
+      respSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.1.message.contents.0.message_content.text`],
+    ).toBe("done");
   });
 
   // ─── Custom span ────────────────────────────────────────────────────────────
@@ -757,6 +1061,24 @@ describe("OpenInferenceTracingProcessor", () => {
 // ─── OpenAIAgentsInstrumentation wrapper ─────────────────────────────────────
 
 describe("OpenAIAgentsInstrumentation", () => {
+  function makeAgentsModule() {
+    const setTraceProcessors = vi.fn();
+    const addTraceProcessor = vi.fn();
+    const module = {
+      setTraceProcessors,
+      addTraceProcessor,
+    } as unknown as typeof AgentsModule & { openInferencePatched?: boolean };
+    return { addTraceProcessor, module, setTraceProcessors };
+  }
+
+  function setModuleExports(
+    instrumentation: unknown,
+    module: typeof AgentsModule & { openInferencePatched?: boolean },
+  ) {
+    const state = instrumentation as { _modules: Array<{ moduleExports?: typeof AgentsModule }> };
+    state._modules[0].moduleExports = module;
+  }
+
   it("constructs without arguments", async () => {
     const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
     expect(() => new OpenAIAgentsInstrumentation()).not.toThrow();
@@ -795,5 +1117,86 @@ describe("OpenAIAgentsInstrumentation", () => {
     const provider = new NodeTracerProvider();
     const instrumentation = new OpenAIAgentsInstrumentation({ tracerProvider: provider });
     expect(() => instrumentation.manuallyInstrument(agents)).not.toThrow();
+    instrumentation.uninstrument();
+  });
+
+  it("instrument registers the processor exclusively by default", async () => {
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
+    const provider = new NodeTracerProvider();
+    const instrumentation = new OpenAIAgentsInstrumentation({ tracerProvider: provider });
+    const agents = makeAgentsModule();
+    setModuleExports(instrumentation, agents.module);
+
+    instrumentation.instrument();
+
+    expect(agents.setTraceProcessors).toHaveBeenCalledWith([
+      expect.any(OpenInferenceTracingProcessor),
+    ]);
+    expect(agents.addTraceProcessor).not.toHaveBeenCalled();
+    instrumentation.uninstrument();
+  });
+
+  it("passes maxRootSpansInFlight to the registered processor", async () => {
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
+    const exporter = new InMemorySpanExporter();
+    const provider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
+    const instrumentation = new OpenAIAgentsInstrumentation({
+      tracerProvider: provider,
+      maxRootSpansInFlight: 1,
+    });
+    const agents = makeAgentsModule();
+    setModuleExports(instrumentation, agents.module);
+
+    instrumentation.instrument();
+
+    const registeredProcessors = agents.setTraceProcessors.mock.calls[0][0];
+    const registeredProcessor = registeredProcessors[0] as OpenInferenceTracingProcessor;
+    await registeredProcessor.onTraceStart(
+      makeTrace({ traceId: "trace-1", name: "First Workflow" }),
+    );
+    await registeredProcessor.onTraceStart(
+      makeTrace({ traceId: "trace-2", name: "Second Workflow" }),
+    );
+
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toEqual(["First Workflow"]);
+    instrumentation.uninstrument();
+  });
+
+  it("instrument supports additive processor registration", async () => {
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
+    const provider = new NodeTracerProvider();
+    const instrumentation = new OpenAIAgentsInstrumentation({ tracerProvider: provider });
+    const agents = makeAgentsModule();
+    setModuleExports(instrumentation, agents.module);
+
+    instrumentation.instrument({ exclusiveProcessor: false });
+
+    expect(agents.addTraceProcessor).toHaveBeenCalledWith(
+      expect.any(OpenInferenceTracingProcessor),
+    );
+    expect(agents.setTraceProcessors).not.toHaveBeenCalled();
+    agents.setTraceProcessors.mockClear();
+
+    instrumentation.uninstrument();
+
+    expect(agents.setTraceProcessors).not.toHaveBeenCalled();
+    expect(agents.module.openInferencePatched).toBe(false);
+  });
+
+  it("manuallyInstrument supports additive processor registration", async () => {
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
+    const provider = new NodeTracerProvider();
+    const instrumentation = new OpenAIAgentsInstrumentation({ tracerProvider: provider });
+    const agents = makeAgentsModule();
+
+    instrumentation.manuallyInstrument(agents.module, { exclusiveProcessor: false });
+
+    expect(agents.addTraceProcessor).toHaveBeenCalledWith(
+      expect.any(OpenInferenceTracingProcessor),
+    );
+    expect(agents.setTraceProcessors).not.toHaveBeenCalled();
+    instrumentation.uninstrument();
   });
 });
