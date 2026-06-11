@@ -118,6 +118,12 @@ function isNumber(value: unknown): value is number {
   return typeof value === "number";
 }
 
+function isMessageTextPart(part: Record<string, unknown>): part is Record<string, unknown> & {
+  text: string;
+} {
+  return (part.type === "text" || part.type === "input_text") && isString(part.text);
+}
+
 function normalizeMaxRootSpansInFlight(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) {
     return DEFAULT_MAX_ROOT_SPANS_IN_FLIGHT;
@@ -222,6 +228,25 @@ function getSpanKind(data: SpanData): OpenInferenceSpanKind {
 
 // ─── Message extraction ──────────────────────────────────────────────────────
 
+function assignToolCallAttributes(
+  attrs: Attributes,
+  toolCallPrefix: string,
+  toolCall: Record<string, unknown>,
+): void {
+  if (isString(toolCall.id)) {
+    attrs[`${toolCallPrefix}.${TOOL_CALL_ID}`] = toolCall.id;
+  }
+  if (!isRecord(toolCall.function)) {
+    return;
+  }
+  if (isString(toolCall.function.name)) {
+    attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = toolCall.function.name;
+  }
+  if (isString(toolCall.function.arguments)) {
+    attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = toolCall.function.arguments;
+  }
+}
+
 /**
  * Extracts indexed message attributes from a list of chat-style messages.
  *
@@ -243,16 +268,16 @@ function extractMessageList(
 
     if (msg.type === "function_call") {
       attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = "assistant";
-      const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.0`;
+      const toolCallPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.0`;
       const callId = isString(msg.callId) ? msg.callId : msg.call_id;
       if (isString(callId)) {
-        attrs[`${tcPrefix}.${TOOL_CALL_ID}`] = callId;
+        attrs[`${toolCallPrefix}.${TOOL_CALL_ID}`] = callId;
       }
       if (isString(msg.name)) {
-        attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = msg.name;
+        attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = msg.name;
       }
       if (isString(msg.arguments)) {
-        attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = msg.arguments;
+        attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = msg.arguments;
       }
       continue;
     }
@@ -286,7 +311,7 @@ function extractMessageList(
         const part = content[j];
         if (!isRecord(part)) continue;
         const partPrefix = `${msgPrefix}.${MESSAGE_CONTENTS}.${j}`;
-        if (part.type === "text" && isString(part.text)) {
+        if (isMessageTextPart(part)) {
           attrs[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
           attrs[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
         }
@@ -298,22 +323,15 @@ function extractMessageList(
     }
 
     if (Array.isArray(msg.tool_calls)) {
-      let toolCallIdx = 0;
-      for (const tc of msg.tool_calls) {
-        if (!isRecord(tc)) continue;
-        const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIdx}`;
-        if (isString(tc.id)) {
-          attrs[`${tcPrefix}.${TOOL_CALL_ID}`] = tc.id;
-        }
-        if (isRecord(tc.function)) {
-          if (isString(tc.function.name)) {
-            attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = tc.function.name;
-          }
-          if (isString(tc.function.arguments)) {
-            attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = tc.function.arguments;
-          }
-        }
-        toolCallIdx++;
+      let toolCallIndex = 0;
+      for (const toolCall of msg.tool_calls) {
+        if (!isRecord(toolCall)) continue;
+        assignToolCallAttributes(
+          attrs,
+          `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
+          toolCall,
+        );
+        toolCallIndex++;
       }
     }
   }
@@ -475,22 +493,15 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
       }
 
       if (Array.isArray(message.tool_calls)) {
-        let toolCallIdx = 0;
-        for (const tc of message.tool_calls) {
-          if (!isRecord(tc)) continue;
-          const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIdx}`;
-          if (isString(tc.id)) {
-            attrs[`${tcPrefix}.${TOOL_CALL_ID}`] = tc.id;
-          }
-          if (isRecord(tc.function)) {
-            if (isString(tc.function.name)) {
-              attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = tc.function.name;
-            }
-            if (isString(tc.function.arguments) && tc.function.arguments !== "{}") {
-              attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = tc.function.arguments;
-            }
-          }
-          toolCallIdx++;
+        let toolCallIndex = 0;
+        for (const toolCall of message.tool_calls) {
+          if (!isRecord(toolCall)) continue;
+          assignToolCallAttributes(
+            attrs,
+            `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
+            toolCall,
+          );
+          toolCallIndex++;
         }
       }
 
@@ -620,15 +631,15 @@ function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
     } else if (item.type === "function_call") {
       const msgPrefix = `${LLM_OUTPUT_MESSAGES}.${msgIdx}`;
       attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = "assistant";
-      const tcPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.0`;
+      const toolCallPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.0`;
       if (isString(item.call_id)) {
-        attrs[`${tcPrefix}.${TOOL_CALL_ID}`] = item.call_id;
+        attrs[`${toolCallPrefix}.${TOOL_CALL_ID}`] = item.call_id;
       }
       if (isString(item.name)) {
-        attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = item.name;
+        attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = item.name;
       }
       if (isString(item.arguments)) {
-        attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = item.arguments;
+        attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = item.arguments;
       }
       msgIdx++;
     }
@@ -644,10 +655,13 @@ function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
  *
  * Mirrors the Python instrumentation, which dumps the Response object minus
  * the bulky fields that are already captured by dedicated attributes
- * (output/usage/tools) or carry no invocation semantics.
+ * (input/output messages, output text, usage, tools) or carry no invocation
+ * semantics.
  */
 const RESPONSE_NON_INVOCATION_PARAM_KEYS: ReadonlySet<string> = new Set([
+  "instructions",
   "object",
+  "output_text",
   "tools",
   "usage",
   "output",

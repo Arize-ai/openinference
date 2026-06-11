@@ -861,6 +861,40 @@ describe("OpenInferenceTracingProcessor", () => {
     );
   });
 
+  it("extracts Responses API input_text content parts as structured message contents", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _input: [
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Summarize this trace." }],
+        },
+      ],
+      _response: {
+        model: "gpt-4o",
+        output: [],
+      },
+    };
+
+    const span = makeSpan("span-resp-input-text", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.role`]).toBe("user");
+    expect(
+      respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.contents.0.message_content.type`],
+    ).toBe("text");
+    expect(
+      respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.contents.0.message_content.text`],
+    ).toBe("Summarize this trace.");
+  });
+
   it("extracts ResponseSpanData function call history as structured input messages", async () => {
     const trace = makeTrace();
     await processor.onTraceStart(trace);
@@ -1070,6 +1104,8 @@ describe("OpenInferenceTracingProcessor", () => {
       _input: "hi",
       _response: {
         model: "gpt-4o",
+        instructions: "Do not leak this prompt.",
+        output_text: "Do not leak this output.",
         temperature: 0.5,
         top_p: 0.9,
         max_output_tokens: null,
@@ -1096,8 +1132,46 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(params.output).toBeUndefined();
     expect(params.usage).toBeUndefined();
     expect(params.tools).toBeUndefined();
+    expect(params.instructions).toBeUndefined();
+    expect(params.output_text).toBeUndefined();
     expect(params.status).toBeUndefined();
     expect(params.max_output_tokens).toBeUndefined();
+  });
+
+  it("does not leak response prompts or generated text through invocation parameters", async () => {
+    processor = new OpenInferenceTracingProcessor({
+      tracerProvider: provider,
+      traceConfig: { hideInputs: true, hideOutputs: true },
+    });
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _input: "secret user input",
+      _response: {
+        model: "gpt-4o",
+        instructions: "secret system prompt",
+        output_text: "secret generated text",
+        temperature: 0.25,
+        output: [],
+      },
+    };
+
+    const span = makeSpan("span-resp-redacted-params", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[INPUT_VALUE]).toBe(REDACTED_VALUE);
+    expect(respSpan!.attributes[OUTPUT_VALUE]).toBe(REDACTED_VALUE);
+
+    const params = JSON.parse(respSpan!.attributes[LLM_INVOCATION_PARAMETERS] as string);
+    expect(params.temperature).toBe(0.25);
+    expect(params.instructions).toBeUndefined();
+    expect(params.output_text).toBeUndefined();
+    expect(JSON.stringify(params)).not.toContain("secret");
   });
 
   // ─── Lifted input/output on AGENT spans ──────────────────────────────────────
@@ -1281,8 +1355,25 @@ describe("OpenInferenceTracingProcessor", () => {
       input: [],
       output: [
         {
-          role: "assistant",
-          tool_calls: [{ id: "call_noargs", function: { name: "list_files", arguments: "{}" } }],
+          id: "resp-1",
+          object: "chat.completion",
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: "assistant",
+                content: null,
+                tool_calls: [
+                  {
+                    id: "call_noargs",
+                    type: "function",
+                    function: { name: "list_files", arguments: "{}" },
+                  },
+                ],
+              },
+              finish_reason: "tool_calls",
+            },
+          ],
         },
       ],
       usage: undefined,
