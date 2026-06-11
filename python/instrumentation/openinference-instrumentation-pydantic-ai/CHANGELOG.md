@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.15...python-openinference-instrumentation-pydantic-ai-v0.1.16) (2026-05-29)
+
+
+### Bug Fixes
+
+* **pydantic_ai:** Set OUTPUT_VALUE For Plain Text Agent Responses ([#3153](https://github.com/Arize-ai/openinference/issues/3153)) ([4b7f270](https://github.com/Arize-ai/openinference/commit/4b7f27038b13268a14858694be8124d689ee4e9d))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.14...python-openinference-instrumentation-pydantic-ai-v0.1.15) (2026-05-18)
 
 

@@ -813,6 +813,8 @@ def _get_llm_input_messages(
                         pass
                     elif block["type"] == "container_upload":
                         pass
+                    elif block["type"] == "mid_conv_system":
+                        pass
                     elif TYPE_CHECKING:
                         assert_never(block)
                 else:

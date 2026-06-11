@@ -2,6 +2,7 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 
 import {
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
+  mapAgentAttributes,
   mapInputMessages,
   mapInputValue,
   mapInvocationParameters,
@@ -84,6 +85,73 @@ describe("attributes helpers", () => {
     it("remains LLM for unrelated attributes (malformed)", () => {
       const attrs = mapSpanKind({ any: "thing" });
       expect(attrs["openinference.span.kind"]).toBe("LLM");
+    });
+
+    it.each(["create_agent", "invoke_agent", "plan"])(
+      "maps %s operations to AGENT without requiring agent markers",
+      (operationName) => {
+        const attrs = mapSpanKind({
+          "gen_ai.operation.name": operationName,
+        });
+        expect(attrs["openinference.span.kind"]).toBe("AGENT");
+      },
+    );
+
+    it("maps invoke_workflow operations to CHAIN without agent markers", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "invoke_workflow",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("CHAIN");
+    });
+
+    it("prefers AGENT over CHAIN when invoke_workflow carries agent markers", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "invoke_workflow",
+        "gen_ai.agent.name": "research_agent",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("AGENT");
+    });
+
+    it.each([
+      ["chat", "LLM"],
+      ["text_completion", "LLM"],
+      ["generate_content", "LLM"],
+      ["embeddings", "EMBEDDING"],
+      ["retrieval", "RETRIEVER"],
+      ["execute_tool", "TOOL"],
+    ])(
+      "classifies terminal operation %s by operation name even with agent markers (%s)",
+      (operationName, expected) => {
+        const attrs = mapSpanKind({
+          "gen_ai.operation.name": operationName,
+          "gen_ai.agent.name": "research_agent",
+        });
+        expect(attrs["openinference.span.kind"]).toBe(expected);
+      },
+    );
+
+    it("prefers TOOL over an agent-class operation when tool markers are present", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "plan",
+        "gen_ai.tool.name": "web_search",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("TOOL");
+    });
+  });
+
+  describe("mapAgentAttributes", () => {
+    it("maps agent name", () => {
+      const attrs = mapAgentAttributes({
+        "gen_ai.agent.name": "research_planner",
+      });
+      expect(attrs["agent.name"]).toBe("research_planner");
+    });
+
+    it("ignores non-string agent name", () => {
+      const attrs = mapAgentAttributes({
+        "gen_ai.agent.name": 42,
+      });
+      expect(attrs).toEqual({});
     });
   });
 
@@ -404,6 +472,17 @@ describe("attributes helpers", () => {
     it("returns minimal defaults for empty attributes (span kind only)", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({});
       expect(attrs).toEqual({ "openinference.span.kind": "LLM" });
+    });
+
+    it("converts plan operation attributes to an agent span", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        "gen_ai.operation.name": "plan",
+        "gen_ai.agent.name": "research_planner",
+      });
+      expect(attrs).toEqual({
+        "agent.name": "research_planner",
+        "openinference.span.kind": "AGENT",
+      });
     });
   });
 });

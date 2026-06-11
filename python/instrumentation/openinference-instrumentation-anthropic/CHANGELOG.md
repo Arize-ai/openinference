@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.5...python-openinference-instrumentation-anthropic-v1.0.6) (2026-06-02)
+
+
+### Bug Fixes
+
+* **anthropic:** handle MidConversationSystemBlockParam in input message parsing ([#3191](https://github.com/Arize-ai/openinference/issues/3191)) ([0ee46c6](https://github.com/Arize-ai/openinference/commit/0ee46c6c0d8e95441bd57074c9c372b4afffb3ee))
+
 ## [1.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.4...python-openinference-instrumentation-anthropic-v1.0.5) (2026-05-18)
 
 
