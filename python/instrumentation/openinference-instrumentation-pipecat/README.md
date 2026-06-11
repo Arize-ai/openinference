@@ -22,6 +22,13 @@ pin this instrumentor to `<=0.1.4`:
 pip install 'openinference-instrumentation-pipecat<=0.1.4' 'pipecat-ai<1.0'
 ```
 
+> **Breaking change: turn model.** Beginning with this release, bot-first
+> sessions no longer produce a separate "greeting" turn. The bot greeting and
+> the user's first reply now form a single round-trip turn (turn 1).
+> Dashboards or downstream code that counted turns per session will see one
+> fewer turn per session in bot-first apps. Span schema is otherwise
+> unchanged.
+
 ## Installation
 
 ```shell
@@ -69,6 +76,28 @@ await runner.run(worker)
 ```
 
 After configuring tracing, exchanges in the running application are logged to your project in Phoenix or Arize AX.
+
+
+## Conversation turn model
+
+Each `pipecat.conversation.turn` span represents a single round-trip exchange between a user and the bot. Either party can initiate the turn: a user-initiated turn begins when the user starts speaking, while a bot-initiated turn begins when the bot speaks first. In both directions, the turn closes once the responder finishes — or once the configured timeouts elapse.
+
+The following turn span attributes are relevant to the bidirectional model:
+
+- `conversation.initiator` (new): `"user"` or `"bot"` — identifies which party started the exchange.
+- `conversation.end_reason`: now one of `"completed"`, `"interrupted"`, `"no_responder_timeout"`.
+
+Two timeouts govern when a turn closes. The responder timeout is configurable on `PipelineTask`:
+
+```python
+task = PipelineTask(
+    pipeline,
+    conversation_id=conversation_id,
+    _no_responder_timeout_secs=15.0,  # default 10 — wait this long for the responder
+)
+```
+
+The existing `turn_end_timeout_secs` constructor kwarg on `OpenInferenceObserver` (default `2.5`) still governs the inactivity gap after a completed exchange.
 
 
 ## Example
