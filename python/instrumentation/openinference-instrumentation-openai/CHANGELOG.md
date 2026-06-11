@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.52](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.51...python-openinference-instrumentation-openai-v0.1.52) (2026-06-11)
+
+
+### Features
+
+* **openai:** capture reasonging blocks ([584dff2](https://github.com/Arize-ai/openinference/commit/584dff2c250903bf46e763d215e54557d5b310c8))
+
 ## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.50...python-openinference-instrumentation-openai-v0.1.51) (2026-06-05)
 
 
