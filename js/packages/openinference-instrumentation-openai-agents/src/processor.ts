@@ -161,24 +161,24 @@ function boundIdSet(ids: Set<string>, max: number): void {
  * @example
  * isoToHrTime("2024-01-01T00:00:00.123456Z") → [1704067200, 123456000]
  */
-function isoToHrTime(iso: string): HrTime | undefined {
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return undefined;
+function isoToHrTime(isoTimestamp: string): HrTime | undefined {
+  const epochMilliseconds = Date.parse(isoTimestamp);
+  if (Number.isNaN(epochMilliseconds)) return undefined;
 
-  const seconds = Math.floor(ms / 1000);
+  const seconds = Math.floor(epochMilliseconds / 1000);
   // Date.parse only retains millisecond precision. Recover the full
   // sub-second precision from the ISO fractional-seconds field directly.
-  let nanos = 0;
-  const match = /\.(\d+)/.exec(iso);
-  if (match) {
+  let nanoseconds = 0;
+  const fractionMatch = /\.(\d+)/.exec(isoTimestamp);
+  if (fractionMatch) {
     // Pad to 9 digits (nanosecond precision); truncate any longer fragment.
-    const fracNanos = match[1].slice(0, 9).padEnd(9, "0");
-    nanos = parseInt(fracNanos, 10);
+    const nanosecondDigits = fractionMatch[1].slice(0, 9).padEnd(9, "0");
+    nanoseconds = parseInt(nanosecondDigits, 10);
   } else {
-    // No fractional part: derive nanos from `ms` alone.
-    nanos = (ms % 1000) * 1_000_000;
+    // No fractional part: derive nanoseconds from the epoch milliseconds alone.
+    nanoseconds = (epochMilliseconds % 1000) * 1_000_000;
   }
-  return [seconds, nanos];
+  return [seconds, nanoseconds];
 }
 
 // ─── Span name & kind ────────────────────────────────────────────────────────
@@ -229,28 +229,29 @@ function getSpanKind(data: SpanData): OpenInferenceSpanKind {
 // ─── Message extraction ──────────────────────────────────────────────────────
 
 function assignToolCallAttributes(
-  attrs: Attributes,
+  attributes: Attributes,
   toolCallPrefix: string,
   toolCall: Record<string, unknown>,
 ): void {
   if (isString(toolCall.id)) {
-    attrs[`${toolCallPrefix}.${TOOL_CALL_ID}`] = toolCall.id;
+    attributes[`${toolCallPrefix}.${TOOL_CALL_ID}`] = toolCall.id;
   }
   if (!isRecord(toolCall.function)) {
     return;
   }
   if (isString(toolCall.function.name)) {
-    attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = toolCall.function.name;
+    attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = toolCall.function.name;
   }
   if (isString(toolCall.function.arguments)) {
-    attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = toolCall.function.arguments;
+    attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+      toolCall.function.arguments;
   }
 }
 
 /**
  * Extracts indexed message attributes from a list of chat-style messages.
  *
- * Each message contributes `${prefix}.${i}.message.role`, `.message.content`
+ * Each message contributes `${prefix}.${messageIndex}.message.role`, `.message.content`
  * (or per-content-part attributes for multipart messages), and any
  * `tool_calls` entries.
  */
@@ -259,76 +260,76 @@ function extractMessageList(
   prefix: string,
   startIndex = 0,
 ): Attributes {
-  const attrs: Attributes = {};
+  const attributes: Attributes = {};
 
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    if (!isRecord(msg)) continue;
-    const msgPrefix = `${prefix}.${startIndex + i}`;
+  for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+    const message = messages[messageIndex];
+    if (!isRecord(message)) continue;
+    const messagePrefix = `${prefix}.${startIndex + messageIndex}`;
 
-    if (msg.type === "function_call") {
-      attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = "assistant";
-      const toolCallPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.0`;
-      const callId = isString(msg.callId) ? msg.callId : msg.call_id;
+    if (message.type === "function_call") {
+      attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = "assistant";
+      const toolCallPrefix = `${messagePrefix}.${MESSAGE_TOOL_CALLS}.0`;
+      const callId = isString(message.callId) ? message.callId : message.call_id;
       if (isString(callId)) {
-        attrs[`${toolCallPrefix}.${TOOL_CALL_ID}`] = callId;
+        attributes[`${toolCallPrefix}.${TOOL_CALL_ID}`] = callId;
       }
-      if (isString(msg.name)) {
-        attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = msg.name;
+      if (isString(message.name)) {
+        attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = message.name;
       }
-      if (isString(msg.arguments)) {
-        attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = msg.arguments;
+      if (isString(message.arguments)) {
+        attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = message.arguments;
       }
       continue;
     }
 
-    if (msg.type === "function_call_result") {
-      attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = "tool";
-      const callId = isString(msg.callId) ? msg.callId : msg.call_id;
+    if (message.type === "function_call_result") {
+      attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = "tool";
+      const callId = isString(message.callId) ? message.callId : message.call_id;
       if (isString(callId)) {
-        attrs[`${msgPrefix}.${MESSAGE_TOOL_CALL_ID}`] = callId;
+        attributes[`${messagePrefix}.${MESSAGE_TOOL_CALL_ID}`] = callId;
       }
-      if (isRecord(msg.output) && isString(msg.output.text)) {
-        attrs[`${msgPrefix}.${MESSAGE_CONTENT}`] = msg.output.text;
-      } else if (isString(msg.output)) {
-        attrs[`${msgPrefix}.${MESSAGE_CONTENT}`] = msg.output;
-      } else if (msg.output != null) {
-        attrs[`${msgPrefix}.${MESSAGE_CONTENT}`] =
-          safelyJSONStringify(msg.output) ?? String(msg.output);
+      if (isRecord(message.output) && isString(message.output.text)) {
+        attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = message.output.text;
+      } else if (isString(message.output)) {
+        attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = message.output;
+      } else if (message.output != null) {
+        attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] =
+          safelyJSONStringify(message.output) ?? String(message.output);
       }
       continue;
     }
 
-    if (isString(msg.role)) {
-      attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = msg.role;
+    if (isString(message.role)) {
+      attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = message.role;
     }
 
-    const content = msg.content;
+    const content = message.content;
     if (isString(content)) {
-      attrs[`${msgPrefix}.${MESSAGE_CONTENT}`] = content;
+      attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = content;
     } else if (Array.isArray(content)) {
-      for (let j = 0; j < content.length; j++) {
-        const part = content[j];
+      for (let partIndex = 0; partIndex < content.length; partIndex++) {
+        const part = content[partIndex];
         if (!isRecord(part)) continue;
-        const partPrefix = `${msgPrefix}.${MESSAGE_CONTENTS}.${j}`;
+        const partPrefix = `${messagePrefix}.${MESSAGE_CONTENTS}.${partIndex}`;
         if (isMessageTextPart(part)) {
-          attrs[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
-          attrs[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
+          attributes[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
+          attributes[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
         }
       }
     }
 
-    if (isString(msg.tool_call_id)) {
-      attrs[`${msgPrefix}.${MESSAGE_TOOL_CALL_ID}`] = msg.tool_call_id;
+    if (isString(message.tool_call_id)) {
+      attributes[`${messagePrefix}.${MESSAGE_TOOL_CALL_ID}`] = message.tool_call_id;
     }
 
-    if (Array.isArray(msg.tool_calls)) {
+    if (Array.isArray(message.tool_calls)) {
       let toolCallIndex = 0;
-      for (const toolCall of msg.tool_calls) {
+      for (const toolCall of message.tool_calls) {
         if (!isRecord(toolCall)) continue;
         assignToolCallAttributes(
-          attrs,
-          `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
+          attributes,
+          `${messagePrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
           toolCall,
         );
         toolCallIndex++;
@@ -336,7 +337,7 @@ function extractMessageList(
     }
   }
 
-  return attrs;
+  return attributes;
 }
 
 // ─── Generation span ─────────────────────────────────────────────────────────
@@ -353,53 +354,53 @@ function extractMessageList(
  * which extraction path to take.
  */
 function getGenerationAttributes(data: GenerationSpanData): Attributes {
-  const attrs: Attributes = {};
+  const attributes: Attributes = {};
 
   if (isString(data.model)) {
-    attrs[LLM_MODEL_NAME] = data.model;
+    attributes[LLM_MODEL_NAME] = data.model;
   }
 
   if (isRecord(data.model_config)) {
-    const filtered: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(data.model_config)) {
-      if (v != null) filtered[k] = v;
+    const filteredModelConfig: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data.model_config)) {
+      if (value != null) filteredModelConfig[key] = value;
     }
-    if (Object.keys(filtered).length > 0) {
-      attrs[LLM_INVOCATION_PARAMETERS] = safelyJSONStringify(filtered) ?? "";
+    if (Object.keys(filteredModelConfig).length > 0) {
+      attributes[LLM_INVOCATION_PARAMETERS] = safelyJSONStringify(filteredModelConfig) ?? "";
     }
   }
 
   if (Array.isArray(data.input) && data.input.length > 0) {
     const inputJson = safelyJSONStringify(data.input);
     if (inputJson) {
-      attrs[INPUT_VALUE] = inputJson;
-      attrs[INPUT_MIME_TYPE] = MimeType.JSON;
+      attributes[INPUT_VALUE] = inputJson;
+      attributes[INPUT_MIME_TYPE] = MimeType.JSON;
     }
-    Object.assign(attrs, extractMessageList(data.input, LLM_INPUT_MESSAGES));
+    Object.assign(attributes, extractMessageList(data.input, LLM_INPUT_MESSAGES));
   }
 
   if (Array.isArray(data.output) && data.output.length > 0) {
     const outputJson = safelyJSONStringify(data.output);
     if (outputJson) {
-      attrs[OUTPUT_VALUE] = outputJson;
-      attrs[OUTPUT_MIME_TYPE] = MimeType.JSON;
+      attributes[OUTPUT_VALUE] = outputJson;
+      attributes[OUTPUT_MIME_TYPE] = MimeType.JSON;
     }
 
-    const first = data.output[0];
-    if (isRecord(first) && first.choices !== undefined) {
+    const firstOutputItem = data.output[0];
+    if (isRecord(firstOutputItem) && firstOutputItem.choices !== undefined) {
       // chat_completions transport: output[] are ChatCompletion responses.
-      Object.assign(attrs, extractFromChatCompletionResponses(data.output));
+      Object.assign(attributes, extractFromChatCompletionResponses(data.output));
     } else {
       // Responses API or generic message-list shape.
-      Object.assign(attrs, extractMessageList(data.output, LLM_OUTPUT_MESSAGES));
+      Object.assign(attributes, extractMessageList(data.output, LLM_OUTPUT_MESSAGES));
     }
   }
 
   if (data.usage) {
-    Object.assign(attrs, getGenerationUsageAttributes(data.usage));
+    Object.assign(attributes, getGenerationUsageAttributes(data.usage));
   }
 
-  return attrs;
+  return attributes;
 }
 
 /**
@@ -410,35 +411,35 @@ function getGenerationAttributes(data: GenerationSpanData): Attributes {
  * model calls. Token counts are summed across all responses.
  */
 function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): Attributes {
-  const attrs: Attributes = {};
-  let msgIdx = 0;
-  let totalPrompt = 0;
-  let totalCompletion = 0;
+  const attributes: Attributes = {};
+  let messageIndex = 0;
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
   let totalTokens = 0;
-  let totalCacheRead = 0;
-  let totalReasoning = 0;
+  let totalCacheReadTokens = 0;
+  let totalReasoningTokens = 0;
   let hasPromptTokens = false;
   let hasCompletionTokens = false;
-  let hasCacheRead = false;
-  let hasReasoning = false;
+  let hasCacheReadTokens = false;
+  let hasReasoningTokens = false;
   let hasTotalTokens = false;
 
-  for (const resp of responses) {
-    if (!isRecord(resp)) continue;
+  for (const response of responses) {
+    if (!isRecord(response)) continue;
 
     // Token usage
-    if (isRecord(resp.usage)) {
-      const usage = resp.usage;
+    if (isRecord(response.usage)) {
+      const usage = response.usage;
       const promptTokens = isNumber(usage.prompt_tokens) ? usage.prompt_tokens : undefined;
       const completionTokens = isNumber(usage.completion_tokens)
         ? usage.completion_tokens
         : undefined;
       if (promptTokens !== undefined) {
-        totalPrompt += promptTokens;
+        totalPromptTokens += promptTokens;
         hasPromptTokens = true;
       }
       if (completionTokens !== undefined) {
-        totalCompletion += completionTokens;
+        totalCompletionTokens += completionTokens;
         hasCompletionTokens = true;
       }
       if (isNumber(usage.total_tokens)) {
@@ -453,41 +454,41 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
         isRecord(usage.prompt_tokens_details) &&
         isNumber(usage.prompt_tokens_details.cached_tokens)
       ) {
-        totalCacheRead += usage.prompt_tokens_details.cached_tokens;
-        hasCacheRead = true;
+        totalCacheReadTokens += usage.prompt_tokens_details.cached_tokens;
+        hasCacheReadTokens = true;
       }
       // o-series completion_tokens_details.reasoning_tokens
       if (
         isRecord(usage.completion_tokens_details) &&
         isNumber(usage.completion_tokens_details.reasoning_tokens)
       ) {
-        totalReasoning += usage.completion_tokens_details.reasoning_tokens;
-        hasReasoning = true;
+        totalReasoningTokens += usage.completion_tokens_details.reasoning_tokens;
+        hasReasoningTokens = true;
       }
     }
 
     // Output messages
-    if (!Array.isArray(resp.choices)) continue;
-    for (const choice of resp.choices) {
+    if (!Array.isArray(response.choices)) continue;
+    for (const choice of response.choices) {
       if (!isRecord(choice) || !isRecord(choice.message)) continue;
       const message = choice.message;
-      const msgPrefix = `${LLM_OUTPUT_MESSAGES}.${msgIdx}`;
+      const messagePrefix = `${LLM_OUTPUT_MESSAGES}.${messageIndex}`;
 
       if (isString(message.role)) {
-        attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = message.role;
+        attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = message.role;
       }
 
       const content = message.content;
       if (isString(content)) {
-        attrs[`${msgPrefix}.${MESSAGE_CONTENT}`] = content;
+        attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = content;
       } else if (Array.isArray(content)) {
-        for (let j = 0; j < content.length; j++) {
-          const part = content[j];
+        for (let partIndex = 0; partIndex < content.length; partIndex++) {
+          const part = content[partIndex];
           if (!isRecord(part)) continue;
-          const partPrefix = `${msgPrefix}.${MESSAGE_CONTENTS}.${j}`;
+          const partPrefix = `${messagePrefix}.${MESSAGE_CONTENTS}.${partIndex}`;
           if (part.type === "text" && isString(part.text)) {
-            attrs[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
-            attrs[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
+            attributes[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
+            attributes[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
           }
         }
       }
@@ -497,26 +498,28 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
         for (const toolCall of message.tool_calls) {
           if (!isRecord(toolCall)) continue;
           assignToolCallAttributes(
-            attrs,
-            `${msgPrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
+            attributes,
+            `${messagePrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
             toolCall,
           );
           toolCallIndex++;
         }
       }
 
-      msgIdx++;
+      messageIndex++;
     }
   }
 
   // Record any counts that were actually observed, including legitimate zeros.
-  if (hasPromptTokens) attrs[LLM_TOKEN_COUNT_PROMPT] = totalPrompt;
-  if (hasCompletionTokens) attrs[LLM_TOKEN_COUNT_COMPLETION] = totalCompletion;
-  if (hasTotalTokens) attrs[LLM_TOKEN_COUNT_TOTAL] = totalTokens;
-  if (hasCacheRead) attrs[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totalCacheRead;
-  if (hasReasoning) attrs[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = totalReasoning;
+  if (hasPromptTokens) attributes[LLM_TOKEN_COUNT_PROMPT] = totalPromptTokens;
+  if (hasCompletionTokens) attributes[LLM_TOKEN_COUNT_COMPLETION] = totalCompletionTokens;
+  if (hasTotalTokens) attributes[LLM_TOKEN_COUNT_TOTAL] = totalTokens;
+  if (hasCacheReadTokens)
+    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totalCacheReadTokens;
+  if (hasReasoningTokens)
+    attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = totalReasoningTokens;
 
-  return attrs;
+  return attributes;
 }
 
 /**
@@ -526,25 +529,25 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
  * nests details under a `details` object.
  */
 function getGenerationUsageAttributes(usage: GenerationUsageData): Attributes {
-  const attrs: Attributes = {};
+  const attributes: Attributes = {};
   if (isNumber(usage.input_tokens)) {
-    attrs[LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
+    attributes[LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
   }
   if (isNumber(usage.output_tokens)) {
-    attrs[LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
+    attributes[LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
   }
   if (isNumber(usage.input_tokens) && isNumber(usage.output_tokens)) {
-    attrs[LLM_TOKEN_COUNT_TOTAL] = usage.input_tokens + usage.output_tokens;
+    attributes[LLM_TOKEN_COUNT_TOTAL] = usage.input_tokens + usage.output_tokens;
   }
   if (isRecord(usage.details)) {
     if (isNumber(usage.details.cached_tokens)) {
-      attrs[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = usage.details.cached_tokens;
+      attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = usage.details.cached_tokens;
     }
     if (isNumber(usage.details.reasoning_tokens)) {
-      attrs[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = usage.details.reasoning_tokens;
+      attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = usage.details.reasoning_tokens;
     }
   }
-  return attrs;
+  return attributes;
 }
 
 // ─── Function span ───────────────────────────────────────────────────────────
@@ -553,24 +556,24 @@ function getGenerationUsageAttributes(usage: GenerationUsageData): Attributes {
  * Extracts attributes from {@link FunctionSpanData} (tool / function calls).
  */
 function getFunctionAttributes(data: FunctionSpanData): Attributes {
-  const attrs: Attributes = {};
-  attrs[TOOL_NAME] = data.name;
+  const attributes: Attributes = {};
+  attributes[TOOL_NAME] = data.name;
   if (data.input) {
-    attrs[INPUT_VALUE] = data.input;
-    attrs[INPUT_MIME_TYPE] = MimeType.JSON;
+    attributes[INPUT_VALUE] = data.input;
+    attributes[INPUT_MIME_TYPE] = MimeType.JSON;
   }
   if (data.output != null) {
     if (isString(data.output)) {
-      attrs[OUTPUT_VALUE] = data.output;
+      attributes[OUTPUT_VALUE] = data.output;
       // Heuristic: if the output looks like a JSON object, mark it as JSON.
       if (data.output.length > 1 && data.output.startsWith("{") && data.output.endsWith("}")) {
-        attrs[OUTPUT_MIME_TYPE] = MimeType.JSON;
+        attributes[OUTPUT_MIME_TYPE] = MimeType.JSON;
       }
     } else {
-      attrs[OUTPUT_VALUE] = safelyJSONStringify(data.output) ?? String(data.output);
+      attributes[OUTPUT_VALUE] = safelyJSONStringify(data.output) ?? String(data.output);
     }
   }
-  return attrs;
+  return attributes;
 }
 
 // ─── Handoff span ────────────────────────────────────────────────────────────
@@ -580,20 +583,20 @@ function getFunctionAttributes(data: FunctionSpanData): Attributes {
  * meaningful in backends that primarily render tool name and I/O fields.
  */
 function getHandoffAttributes(data: HandoffSpanData): Attributes {
-  const attrs: Attributes = {};
+  const attributes: Attributes = {};
 
   if (isString(data.to_agent)) {
-    attrs[TOOL_NAME] = `handoff_to_${data.to_agent}`;
-    attrs[OUTPUT_VALUE] = safelyJSONStringify({ to_agent: data.to_agent }) ?? "";
-    attrs[OUTPUT_MIME_TYPE] = MimeType.JSON;
+    attributes[TOOL_NAME] = `handoff_to_${data.to_agent}`;
+    attributes[OUTPUT_VALUE] = safelyJSONStringify({ to_agent: data.to_agent }) ?? "";
+    attributes[OUTPUT_MIME_TYPE] = MimeType.JSON;
   }
 
   if (isString(data.from_agent)) {
-    attrs[INPUT_VALUE] = safelyJSONStringify({ from_agent: data.from_agent }) ?? "";
-    attrs[INPUT_MIME_TYPE] = MimeType.JSON;
+    attributes[INPUT_VALUE] = safelyJSONStringify({ from_agent: data.from_agent }) ?? "";
+    attributes[INPUT_MIME_TYPE] = MimeType.JSON;
   }
 
-  return attrs;
+  return attributes;
 }
 
 // ─── Response span (Responses API) ───────────────────────────────────────────
@@ -602,52 +605,52 @@ function getHandoffAttributes(data: HandoffSpanData): Attributes {
  * Extracts output messages and tool calls from a Responses API output array.
  */
 function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
-  const attrs: Attributes = {};
-  let msgIdx = 0;
+  const attributes: Attributes = {};
+  let messageIndex = 0;
 
   for (const item of output) {
     if (!isRecord(item)) continue;
 
     if (item.type === "message") {
-      const msgPrefix = `${LLM_OUTPUT_MESSAGES}.${msgIdx}`;
+      const messagePrefix = `${LLM_OUTPUT_MESSAGES}.${messageIndex}`;
       if (isString(item.role)) {
-        attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = item.role;
+        attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = item.role;
       }
       if (Array.isArray(item.content)) {
-        for (let j = 0; j < item.content.length; j++) {
-          const part = item.content[j];
+        for (let partIndex = 0; partIndex < item.content.length; partIndex++) {
+          const part = item.content[partIndex];
           if (!isRecord(part)) continue;
-          const partPrefix = `${msgPrefix}.${MESSAGE_CONTENTS}.${j}`;
+          const partPrefix = `${messagePrefix}.${MESSAGE_CONTENTS}.${partIndex}`;
           if ((part.type === "output_text" || part.type === "text") && isString(part.text)) {
-            attrs[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
-            attrs[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
+            attributes[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
+            attributes[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
           } else if (part.type === "refusal" && isString(part.refusal)) {
-            attrs[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
-            attrs[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.refusal;
+            attributes[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
+            attributes[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.refusal;
           }
         }
       }
-      msgIdx++;
+      messageIndex++;
     } else if (item.type === "function_call") {
-      const msgPrefix = `${LLM_OUTPUT_MESSAGES}.${msgIdx}`;
-      attrs[`${msgPrefix}.${MESSAGE_ROLE}`] = "assistant";
-      const toolCallPrefix = `${msgPrefix}.${MESSAGE_TOOL_CALLS}.0`;
+      const messagePrefix = `${LLM_OUTPUT_MESSAGES}.${messageIndex}`;
+      attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = "assistant";
+      const toolCallPrefix = `${messagePrefix}.${MESSAGE_TOOL_CALLS}.0`;
       if (isString(item.call_id)) {
-        attrs[`${toolCallPrefix}.${TOOL_CALL_ID}`] = item.call_id;
+        attributes[`${toolCallPrefix}.${TOOL_CALL_ID}`] = item.call_id;
       }
       if (isString(item.name)) {
-        attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = item.name;
+        attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = item.name;
       }
       if (isString(item.arguments)) {
-        attrs[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = item.arguments;
+        attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = item.arguments;
       }
-      msgIdx++;
+      messageIndex++;
     }
     // Other item types (file_search_call, web_search_call, computer_call, ...)
     // are not yet supported, matching the Python instrumentation's TODOs.
   }
 
-  return attrs;
+  return attributes;
 }
 
 /**
@@ -677,9 +680,9 @@ const RESPONSE_NON_INVOCATION_PARAM_KEYS: ReadonlySet<string> = new Set([
  * out tools, usage, output, instructions and model name from the response.
  */
 function getResponseAttributes(data: ResponseSpanData): Attributes {
-  const attrs: Attributes = {};
+  const attributes: Attributes = {};
   // The Responses API is only served by OpenAI.
-  attrs[LLM_PROVIDER] = LLMProvider.OPENAI;
+  attributes[LLM_PROVIDER] = LLMProvider.OPENAI;
 
   // Input
   const hasSystemInstruction =
@@ -688,9 +691,9 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
     data._response.instructions.length > 0;
   if (data._input != null) {
     if (isString(data._input)) {
-      attrs[INPUT_VALUE] = data._input;
+      attributes[INPUT_VALUE] = data._input;
       Object.assign(
-        attrs,
+        attributes,
         extractMessageList(
           [{ role: "user", content: data._input }],
           LLM_INPUT_MESSAGES,
@@ -698,72 +701,73 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
         ),
       );
     } else if (Array.isArray(data._input)) {
-      const json = safelyJSONStringify(data._input);
-      if (json) {
-        attrs[INPUT_VALUE] = json;
-        attrs[INPUT_MIME_TYPE] = MimeType.JSON;
+      const inputJson = safelyJSONStringify(data._input);
+      if (inputJson) {
+        attributes[INPUT_VALUE] = inputJson;
+        attributes[INPUT_MIME_TYPE] = MimeType.JSON;
       }
       Object.assign(
-        attrs,
+        attributes,
         extractMessageList(data._input, LLM_INPUT_MESSAGES, hasSystemInstruction ? 1 : 0),
       );
     }
   }
 
   // Response
-  if (!isRecord(data._response)) return attrs;
-  const resp = data._response;
+  if (!isRecord(data._response)) return attributes;
+  const response = data._response;
 
-  const respJson = safelyJSONStringify(resp);
-  if (respJson) {
-    attrs[OUTPUT_VALUE] = respJson;
-    attrs[OUTPUT_MIME_TYPE] = MimeType.JSON;
+  const responseJson = safelyJSONStringify(response);
+  if (responseJson) {
+    attributes[OUTPUT_VALUE] = responseJson;
+    attributes[OUTPUT_MIME_TYPE] = MimeType.JSON;
   }
 
-  if (isString(resp.model)) {
-    attrs[LLM_MODEL_NAME] = resp.model;
+  if (isString(response.model)) {
+    attributes[LLM_MODEL_NAME] = response.model;
   }
 
   // Invocation parameters: the Response object minus output/usage/tools,
   // matching the Python instrumentation's model_dump exclusions.
-  const invocationParams: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(resp)) {
-    if (v == null || RESPONSE_NON_INVOCATION_PARAM_KEYS.has(k)) continue;
-    invocationParams[k] = v;
+  const invocationParameters: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(response)) {
+    if (value == null || RESPONSE_NON_INVOCATION_PARAM_KEYS.has(key)) continue;
+    invocationParameters[key] = value;
   }
-  if (Object.keys(invocationParams).length > 0) {
-    const json = safelyJSONStringify(invocationParams);
-    if (json) {
-      attrs[LLM_INVOCATION_PARAMETERS] = json;
+  if (Object.keys(invocationParameters).length > 0) {
+    const invocationParametersJson = safelyJSONStringify(invocationParameters);
+    if (invocationParametersJson) {
+      attributes[LLM_INVOCATION_PARAMETERS] = invocationParametersJson;
     }
   }
 
   // Token usage. The Responses API uses input_tokens/output_tokens/total_tokens
   // and nests cache/reasoning details under *_tokens_details.
-  if (isRecord(resp.usage)) {
-    const usage = resp.usage;
-    if (isNumber(usage.input_tokens)) attrs[LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
-    if (isNumber(usage.output_tokens)) attrs[LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
-    if (isNumber(usage.total_tokens)) attrs[LLM_TOKEN_COUNT_TOTAL] = usage.total_tokens;
+  if (isRecord(response.usage)) {
+    const usage = response.usage;
+    if (isNumber(usage.input_tokens)) attributes[LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
+    if (isNumber(usage.output_tokens)) attributes[LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
+    if (isNumber(usage.total_tokens)) attributes[LLM_TOKEN_COUNT_TOTAL] = usage.total_tokens;
     if (
       isRecord(usage.input_tokens_details) &&
       isNumber(usage.input_tokens_details.cached_tokens)
     ) {
-      attrs[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = usage.input_tokens_details.cached_tokens;
+      attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
+        usage.input_tokens_details.cached_tokens;
     }
     if (
       isRecord(usage.output_tokens_details) &&
       isNumber(usage.output_tokens_details.reasoning_tokens)
     ) {
-      attrs[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] =
+      attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] =
         usage.output_tokens_details.reasoning_tokens;
     }
   }
 
   // Tools
-  if (Array.isArray(resp.tools)) {
-    for (let i = 0; i < resp.tools.length; i++) {
-      const tool = resp.tools[i];
+  if (Array.isArray(response.tools)) {
+    for (let toolIndex = 0; toolIndex < response.tools.length; toolIndex++) {
+      const tool = response.tools[toolIndex];
       if (!isRecord(tool) || tool.type !== "function") continue;
       const schema = safelyJSONStringify({
         type: "function",
@@ -775,24 +779,24 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
         },
       });
       if (schema) {
-        attrs[`${LLM_TOOLS}.${i}.${TOOL_JSON_SCHEMA}`] = schema;
+        attributes[`${LLM_TOOLS}.${toolIndex}.${TOOL_JSON_SCHEMA}`] = schema;
       }
     }
   }
 
   // Output messages and function calls
-  if (Array.isArray(resp.output)) {
-    Object.assign(attrs, extractResponseOutput(resp.output));
+  if (Array.isArray(response.output)) {
+    Object.assign(attributes, extractResponseOutput(response.output));
   }
 
   // System instructions become the first input message (matching the Python
   // instrumentation, which prepends a system message at index 0).
-  if (isString(resp.instructions) && resp.instructions.length > 0) {
-    attrs[`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`] = "system";
-    attrs[`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`] = resp.instructions;
+  if (isString(response.instructions) && response.instructions.length > 0) {
+    attributes[`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`] = "system";
+    attributes[`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`] = response.instructions;
   }
 
-  return attrs;
+  return attributes;
 }
 
 // ─── Lifted input/output for AGENT spans ─────────────────────────────────────
@@ -825,31 +829,31 @@ function mergeLiftedIO(target: LiftedIO, source: LiftedIO): void {
   }
 }
 
-function liftedIOAttributes(io: LiftedIO | undefined): Attributes {
-  const attrs: Attributes = {};
-  if (!io) return attrs;
-  if (io.input !== undefined) {
-    attrs[INPUT_VALUE] = io.input;
-    if (io.inputMimeType) attrs[INPUT_MIME_TYPE] = io.inputMimeType;
+function liftedIOAttributes(liftedIO: LiftedIO | undefined): Attributes {
+  const attributes: Attributes = {};
+  if (!liftedIO) return attributes;
+  if (liftedIO.input !== undefined) {
+    attributes[INPUT_VALUE] = liftedIO.input;
+    if (liftedIO.inputMimeType) attributes[INPUT_MIME_TYPE] = liftedIO.inputMimeType;
   }
-  if (io.output !== undefined) {
-    attrs[OUTPUT_VALUE] = io.output;
-    if (io.outputMimeType) attrs[OUTPUT_MIME_TYPE] = io.outputMimeType;
+  if (liftedIO.output !== undefined) {
+    attributes[OUTPUT_VALUE] = liftedIO.output;
+    if (liftedIO.outputMimeType) attributes[OUTPUT_MIME_TYPE] = liftedIO.outputMimeType;
   }
-  return attrs;
+  return attributes;
 }
 
 /**
  * Extracts the final assistant text from a Responses API `Response` object,
  * preferring the SDK's `output_text` convenience field.
  */
-function getResponseOutputText(resp: Record<string, unknown>): string | undefined {
-  if (isString(resp.output_text) && resp.output_text.length > 0) {
-    return resp.output_text;
+function getResponseOutputText(response: Record<string, unknown>): string | undefined {
+  if (isString(response.output_text) && response.output_text.length > 0) {
+    return response.output_text;
   }
-  if (!Array.isArray(resp.output)) return undefined;
+  if (!Array.isArray(response.output)) return undefined;
   const texts: string[] = [];
-  for (const item of resp.output) {
+  for (const item of response.output) {
     if (!isRecord(item) || item.type !== "message" || !Array.isArray(item.content)) continue;
     for (const part of item.content) {
       if (
@@ -865,29 +869,29 @@ function getResponseOutputText(resp: Record<string, unknown>): string | undefine
 }
 
 function getResponseLiftedIO(data: ResponseSpanData): LiftedIO {
-  const io: LiftedIO = {};
+  const liftedIO: LiftedIO = {};
   if (isString(data._input)) {
-    io.input = data._input;
+    liftedIO.input = data._input;
   } else if (Array.isArray(data._input)) {
-    const json = safelyJSONStringify(data._input);
-    if (json) {
-      io.input = json;
-      io.inputMimeType = MimeType.JSON;
+    const inputJson = safelyJSONStringify(data._input);
+    if (inputJson) {
+      liftedIO.input = inputJson;
+      liftedIO.inputMimeType = MimeType.JSON;
     }
   }
   if (isRecord(data._response)) {
-    io.output = getResponseOutputText(data._response);
+    liftedIO.output = getResponseOutputText(data._response);
   }
-  return io;
+  return liftedIO;
 }
 
 function getGenerationLiftedIO(data: GenerationSpanData): LiftedIO {
-  const io: LiftedIO = {};
+  const liftedIO: LiftedIO = {};
   if (Array.isArray(data.input) && data.input.length > 0) {
-    const json = safelyJSONStringify(data.input);
-    if (json) {
-      io.input = json;
-      io.inputMimeType = MimeType.JSON;
+    const inputJson = safelyJSONStringify(data.input);
+    if (inputJson) {
+      liftedIO.input = inputJson;
+      liftedIO.inputMimeType = MimeType.JSON;
     }
   }
   if (Array.isArray(data.output)) {
@@ -906,10 +910,10 @@ function getGenerationLiftedIO(data: GenerationSpanData): LiftedIO {
       }
     }
     if (texts.length > 0) {
-      io.output = texts.join("");
+      liftedIO.output = texts.join("");
     }
   }
-  return io;
+  return liftedIO;
 }
 
 // ─── MCP list tools span ─────────────────────────────────────────────────────
@@ -918,12 +922,12 @@ function getGenerationLiftedIO(data: GenerationSpanData): LiftedIO {
  * Extracts attributes from {@link MCPListToolsSpanData}.
  */
 function getMCPListToolsAttributes(data: MCPListToolsSpanData): Attributes {
-  const attrs: Attributes = {};
+  const attributes: Attributes = {};
   if (data.result != null) {
-    attrs[OUTPUT_VALUE] = safelyJSONStringify(data.result) ?? "";
-    attrs[OUTPUT_MIME_TYPE] = MimeType.JSON;
+    attributes[OUTPUT_VALUE] = safelyJSONStringify(data.result) ?? "";
+    attributes[OUTPUT_MIME_TYPE] = MimeType.JSON;
   }
-  return attrs;
+  return attributes;
 }
 
 // ─── Custom span ─────────────────────────────────────────────────────────────
@@ -933,15 +937,15 @@ function getMCPListToolsAttributes(data: MCPListToolsSpanData): Attributes {
  * data dict as JSON output.
  */
 function getCustomAttributes(data: CustomSpanData): Attributes {
-  const attrs: Attributes = {};
+  const attributes: Attributes = {};
   if (isRecord(data.data) && Object.keys(data.data).length > 0) {
-    const json = safelyJSONStringify(data.data);
-    if (json) {
-      attrs[OUTPUT_VALUE] = json;
-      attrs[OUTPUT_MIME_TYPE] = MimeType.JSON;
+    const customDataJson = safelyJSONStringify(data.data);
+    if (customDataJson) {
+      attributes[OUTPUT_VALUE] = customDataJson;
+      attributes[OUTPUT_MIME_TYPE] = MimeType.JSON;
     }
   }
-  return attrs;
+  return attributes;
 }
 
 // ─── Status ──────────────────────────────────────────────────────────────────
@@ -950,11 +954,11 @@ function setSpanStatus(otelSpan: OtelSpan, span: Span<SpanData>, eventTime?: HrT
   if (span.error) {
     let description = span.error.message || "Unknown error";
     if (span.error.data) {
-      const dataStr = isString(span.error.data)
+      const errorDataString = isString(span.error.data)
         ? span.error.data
         : (safelyJSONStringify(span.error.data) ?? "");
-      if (dataStr) {
-        description = `${description}: ${dataStr}`;
+      if (errorDataString) {
+        description = `${description}: ${errorDataString}`;
       }
     }
     otelSpan.recordException({ message: description }, eventTime);
@@ -1044,11 +1048,11 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
 
   async onTraceEnd(agentTrace: Trace): Promise<void> {
     this.suppressedTraceIds.delete(agentTrace.traceId);
-    const io = this.traceIO.get(agentTrace.traceId);
+    const liftedIO = this.traceIO.get(agentTrace.traceId);
     this.traceIO.delete(agentTrace.traceId);
     const rootSpan = this.rootSpans.get(agentTrace.traceId);
     if (!rootSpan) return;
-    rootSpan.setAttributes(liftedIOAttributes(io));
+    rootSpan.setAttributes(liftedIOAttributes(liftedIO));
     rootSpan.setStatus({ code: SpanStatusCode.OK });
     rootSpan.end();
     this.rootSpans.delete(agentTrace.traceId);
@@ -1100,33 +1104,33 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     // until the span ends, so refresh it here.
     otelSpan.updateName(getSpanName(span));
 
-    let attrs: Attributes = {};
+    let attributes: Attributes = {};
     const data = span.spanData;
     switch (data.type) {
       case "generation":
-        attrs = getGenerationAttributes(data);
+        attributes = getGenerationAttributes(data);
         this.recordLiftedIO(span, getGenerationLiftedIO(data));
         break;
       case "function":
-        attrs = getFunctionAttributes(data);
+        attributes = getFunctionAttributes(data);
         break;
       case "response":
-        attrs = getResponseAttributes(data);
+        attributes = getResponseAttributes(data);
         this.recordLiftedIO(span, getResponseLiftedIO(data));
         break;
       case "mcp_tools":
-        attrs = getMCPListToolsAttributes(data);
+        attributes = getMCPListToolsAttributes(data);
         break;
       case "custom":
-        attrs = getCustomAttributes(data);
+        attributes = getCustomAttributes(data);
         break;
       case "handoff":
-        attrs = getHandoffAttributes(data);
+        attributes = getHandoffAttributes(data);
         this.recordHandoff(data, span.traceId);
         break;
       case "agent":
         this.applyAgentGraphAttributes(otelSpan, data, span.traceId);
-        attrs = liftedIOAttributes(this.agentIO.get(span.spanId));
+        attributes = liftedIOAttributes(this.agentIO.get(span.spanId));
         this.agentIO.delete(span.spanId);
         break;
       case "guardrail":
@@ -1142,7 +1146,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     }
 
     const endTime = span.endedAt ? isoToHrTime(span.endedAt) : undefined;
-    otelSpan.setAttributes(attrs);
+    otelSpan.setAttributes(attributes);
     setSpanStatus(otelSpan, span, endTime);
 
     otelSpan.end(endTime);
@@ -1187,8 +1191,8 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    * enclosing AGENT spans: the trace's root span and, when the LLM span has a
    * parent (the per-agent span), that parent.
    */
-  private recordLiftedIO(span: Span<SpanData>, io: LiftedIO): void {
-    if (io.input === undefined && io.output === undefined) return;
+  private recordLiftedIO(span: Span<SpanData>, liftedIO: LiftedIO): void {
+    if (liftedIO.input === undefined && liftedIO.output === undefined) return;
 
     if (this.rootSpans.has(span.traceId)) {
       let traceEntry = this.traceIO.get(span.traceId);
@@ -1196,7 +1200,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
         traceEntry = {};
         this.traceIO.set(span.traceId, traceEntry);
       }
-      mergeLiftedIO(traceEntry, io);
+      mergeLiftedIO(traceEntry, liftedIO);
     }
 
     if (span.parentId != null && this.otelSpans.has(span.parentId)) {
@@ -1210,7 +1214,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
           this.agentIO.delete(oldest);
         }
       }
-      mergeLiftedIO(agentEntry, io);
+      mergeLiftedIO(agentEntry, liftedIO);
     }
   }
 
