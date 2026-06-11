@@ -1444,6 +1444,155 @@ def test_response_with_multiple_tool_calls(
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
+def test_streaming_reasoning_with_multiple_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    """Streaming on a thinking-capable model that returns reasoning AND two tool calls.
+
+    Exercises the _PartsAccumulator phase handling end to end: thought parts must be
+    captured as a single reasoning content block, while the two get_weather tool calls
+    must remain separate tool_calls.0 and tool_calls.1 (not merged or dropped).
+    Mirrors examples/multiple_tools_response.py.
+    """
+    client = genai.Client(api_key="dummy-api-key")
+
+    weather_tool = Tool(
+        function_declarations=[
+            FunctionDeclaration(
+                name="get_weather",
+                description="Get current weather information for a given location",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state/country for weather information",
+                        },
+                    },
+                    "required": ["location"],
+                },
+            )
+        ]
+    )
+
+    user_message = "What is the weather like in Boston & new Delhi?"
+    content = Content(role="user", parts=[Part.from_text(text=user_message)])
+    config = GenerateContentConfig(
+        tools=[weather_tool],
+        thinking_config=types.ThinkingConfig(
+            include_thoughts=True,
+            thinking_level=types.ThinkingLevel.LOW,
+        ),
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
+
+    stream = client.models.generate_content_stream(
+        model="gemini-3.5-flash", contents=content, config=config
+    )
+    for _ in stream:
+        ...
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    # The two tool calls must be kept separate (the core _PartsAccumulator guarantee).
+    expected_locations = ["boston", "new delhi"]
+    for i, expected_location in enumerate(expected_locations):
+        name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        assert attributes.get(name_key) == "get_weather", (
+            f"Expected tool_calls.{i} to be get_weather. Keys: {list(attributes.keys())}"
+        )
+        args = json.loads(attributes[args_key])
+        assert expected_location in args["location"].lower(), (
+            f"Tool call {i} location should reference {expected_location}, got {args}"
+        )
+
+    # A third tool call must NOT exist (verifies no over-splitting).
+    third_call_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.2.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    assert third_call_key not in attributes, "Unexpected third tool call (parts over-split)"
+
+    # When the model goes straight to tool calls, reasoning is not surfaced as a
+    # visible text block; it manifests as reasoning tokens plus a thought_signature
+    # carried on the function_call part (-> tool_call.reasoning_signature).
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, 0) > 0
+    reasoning_sig_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}"
+    assert reasoning_sig_key in attributes, (
+        f"Expected reasoning_signature on the first tool call. Keys: {list(attributes.keys())}"
+    )
+    assert attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_streaming_reasoning(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="dummy-api-key")
+    stream = client.models.generate_content_stream(
+        model="gemini-3.5-flash",
+        contents="Tell bed storey for 5 years old boy.",
+        config=types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(
+                include_thoughts=True,
+                thinking_budget=512,
+                # thinking_level=ThinkingLevel.LOW,
+            ),
+        ),
+    )
+
+    for chunk in stream:
+        ...
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    base = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    contents = f"{base}.{MessageAttributes.MESSAGE_CONTENTS}"
+
+    # Gemini streams thought chunks and answer chunks both as parts[0]; the
+    # accumulator must split them into a reasoning block then a text block.
+    assert (
+        attributes.get(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    ), f"contents.0 should be reasoning. Keys: {list(attributes.keys())}"
+    assert attributes.get(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+
+    assert (
+        attributes.get(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    ), "contents.1 should be the answer text block"
+    assert attributes.get(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+
+    # thought_signature rides the answer (text) part for this model.
+    assert attributes.get(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}")
+
+    # Reasoning and answer must not bleed into a third block.
+    assert f"{contents}.2.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}" not in attributes
+
+    # Reasoning text must not leak into the answer block.
+    reasoning_text = attributes[f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"]
+    answer_text = attributes[f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"]
+    assert reasoning_text != answer_text
+    assert reasoning_text not in answer_text
+
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, 0) > 0
+    assert attributes.get(f"{base}.{MessageAttributes.MESSAGE_ROLE}") == "model"
+    assert attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
 def test_chat_session_with_tool(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,

@@ -1,0 +1,41 @@
+interactions:
+- request:
+    body: '{"schemaVersion": "messages-v1", "messages": [{"role": "user", "content":
+      [{"text": "What is the weather in Seattle?"}]}], "toolConfig": {"tools": [{"toolSpec":
+      {"name": "get_weather", "description": "Get the current weather for a location.",
+      "inputSchema": {"json": {"type": "object", "properties": {"location": {"type":
+      "string", "description": "The city and state"}}, "required": ["location"]}}}}]},
+      "inferenceConfig": {"maxTokens": 256, "temperature": 0.1}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.nova-micro-v1%3A0/invoke
+  response:
+    body:
+      string: '{"output":{"message":{"content":[{"text":"<thinking> The User has asked
+        for the current weather in Seattle. To provide this information, I will use
+        the \"get_weather\" tool with the location \"Seattle\". </thinking>\n"},{"toolUse":{"name":"get_weather","toolUseId":"f138f98b-8fa4-46e8-8d0f-6a3da738bb1d","input":{"location":"Seattle"}}}],"role":"assistant"}},"stopReason":"tool_use","usage":{"inputTokens":408,"outputTokens":54,"totalTokens":462,"cacheReadInputTokenCount":0,"cacheWriteInputTokenCount":0}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '506'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 04 May 2026 17:38:05 GMT
+      X-Amzn-Bedrock-Cache-Read-Input-Token-Count:
+      - '0'
+      X-Amzn-Bedrock-Cache-Write-Input-Token-Count:
+      - '0'
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '408'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '448'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '54'
+      x-amzn-RequestId:
+      - aaebf521-b6ed-49bf-bc89-7e9bf3687284
+    status:
+      code: 200
+      message: OK
+version: 1

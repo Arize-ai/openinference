@@ -487,3 +487,105 @@ class TestWorkflowInstrumentation:
         # Validate user_id and session_id
         assert workflow_span.get(SpanAttributes.USER_ID) == "condition_user"
         assert workflow_span.get(SpanAttributes.SESSION_ID) == "condition_session"
+
+
+def _function_step(step_input: Any) -> Any:
+    """Plain-callable step that needs no model — lets the workflow complete in tests."""
+    from agno.workflow.types import StepOutput
+
+    return StepOutput(step_name="fn_step", content="ok", success=True)
+
+
+async def _afunction_step(step_input: Any) -> Any:
+    from agno.workflow.types import StepOutput
+
+    return StepOutput(step_name="fn_step", content="ok", success=True)
+
+
+def _find_workflow_root_span(spans: Any, name_substr: str) -> Any:
+    for span in spans:
+        if name_substr in span.name:
+            return dict(span.attributes or dict())
+    return None
+
+
+class TestWorkflowRunId:
+    """Regression tests for issue #8243: workflow root span must carry agno.run.id."""
+
+    def test_sync_workflow_sets_run_id(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        workflow = Workflow(
+            name="RunIdSyncWorkflow",
+            steps=[Step(name="fn_step", executor=_function_step)],
+        )
+        workflow.run(input="hello", run_id="RUN-SYNC-1")
+
+        workflow_span = _find_workflow_root_span(
+            in_memory_span_exporter.get_finished_spans(),
+            "RunIdSyncWorkflow.run",
+        )
+        assert workflow_span is not None
+        assert workflow_span.get("agno.run.id") == "RUN-SYNC-1"
+
+    def test_sync_streaming_workflow_sets_run_id(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        workflow = Workflow(
+            name="RunIdSyncStreamWorkflow",
+            steps=[Step(name="fn_step", executor=_function_step)],
+        )
+        for _ in workflow.run(input="hello", run_id="RUN-SYNC-STREAM-1", stream=True):
+            pass
+
+        workflow_span = _find_workflow_root_span(
+            in_memory_span_exporter.get_finished_spans(),
+            "RunIdSyncStreamWorkflow.run",
+        )
+        assert workflow_span is not None
+        assert workflow_span.get("agno.run.id") == "RUN-SYNC-STREAM-1"
+
+    async def test_async_workflow_sets_run_id(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        workflow = Workflow(
+            name="RunIdAsyncWorkflow",
+            steps=[Step(name="fn_step", executor=_afunction_step)],
+        )
+        await workflow.arun(input="hello", run_id="RUN-ASYNC-1")
+
+        workflow_span = _find_workflow_root_span(
+            in_memory_span_exporter.get_finished_spans(),
+            "RunIdAsyncWorkflow.arun",
+        )
+        assert workflow_span is not None
+        assert workflow_span.get("agno.run.id") == "RUN-ASYNC-1"
+
+    async def test_async_streaming_workflow_sets_run_id(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        workflow = Workflow(
+            name="RunIdAsyncStreamWorkflow",
+            steps=[Step(name="fn_step", executor=_afunction_step)],
+        )
+        async for _ in workflow.arun(input="hello", run_id="RUN-ASYNC-STREAM-1", stream=True):
+            pass
+
+        workflow_span = _find_workflow_root_span(
+            in_memory_span_exporter.get_finished_spans(),
+            "RunIdAsyncStreamWorkflow.arun",
+        )
+        assert workflow_span is not None
+        assert workflow_span.get("agno.run.id") == "RUN-ASYNC-STREAM-1"

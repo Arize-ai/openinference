@@ -231,6 +231,11 @@ class _WorkflowWrapper:
             if hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
 
+            # Capture the workflow run_id
+            run_id = getattr(result, "run_id", None)
+            if run_id:
+                span.set_attribute("agno.run.id", run_id)
+
             # Check instance user_id
             if hasattr(instance, "user_id") and instance.user_id:
                 span.set_attribute(USER_ID, instance.user_id)
@@ -297,6 +302,11 @@ class _WorkflowWrapper:
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
+
+            # Capture the workflow run_id
+            run_id = getattr(final_response, "run_id", None)
+            if run_id:
+                span.set_attribute("agno.run.id", run_id)
 
             # Capture user_id from instance if available
             if instance and hasattr(instance, "user_id") and instance.user_id:
@@ -396,6 +406,11 @@ class _WorkflowWrapper:
                 if hasattr(instance, "id") and instance.id:
                     span.set_attribute("agno.workflow.id", instance.id)
 
+                # Capture the workflow run_id
+                run_id = getattr(response, "run_id", None)
+                if run_id:
+                    span.set_attribute("agno.run.id", run_id)
+
                 # Capture user_id from instance if available
                 if hasattr(instance, "user_id") and instance.user_id:
                     span.set_attribute(USER_ID, instance.user_id)
@@ -456,6 +471,11 @@ class _WorkflowWrapper:
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
+
+            # Capture the workflow run_id
+            run_id = getattr(final_response, "run_id", None)
+            if run_id:
+                span.set_attribute("agno.run.id", run_id)
 
             # Capture user_id from instance if available
             if instance and hasattr(instance, "user_id") and instance.user_id:
