@@ -1,9 +1,11 @@
+import base64
 import logging
 from enum import Enum
 from typing import (
     Any,
     Iterator,
     Mapping,
+    Optional,
 )
 
 from google.genai._transformers import t_contents
@@ -109,8 +111,39 @@ class _RequestAttributesExtractor:
         tool_call_index = 0
         for part in parts:
             increment_content_index = False
-            if (text := part.text) is not None:
-                if len(parts) == 1:
+            thought: Optional[bool] = part.thought
+            thought_signature: Optional[bytes] = part.thought_signature
+            if thought:
+                text = part.text
+                if text or thought_signature is not None:
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                    yield (
+                        f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                        "reasoning",
+                    )
+                    if text:
+                        yield (
+                            f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                            text,
+                        )
+                    if thought_signature is not None:
+                        yield (
+                            f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                            base64.b64encode(thought_signature).decode(),
+                        )
+                    increment_content_index = True
+            elif (text := part.text) is not None:
+                if thought_signature is not None:
+                    # Force indexed format so we can attach the signature
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                    yield (f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text")
+                    yield (f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text)
+                    yield (
+                        f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                        base64.b64encode(thought_signature).decode(),
+                    )
+                    increment_content_index = True
+                elif len(parts) == 1:
                     yield (MessageAttributes.MESSAGE_CONTENT, text)
                 else:
                     prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
@@ -134,6 +167,11 @@ class _RequestAttributesExtractor:
                     )
                 if id_ := function_call.id:
                     yield (f"{tc}.{ToolCallAttributes.TOOL_CALL_ID}", id_)
+                if thought_signature is not None:
+                    yield (
+                        f"{tc}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                        base64.b64encode(thought_signature).decode(),
+                    )
                 tool_call_index += 1
             elif function_response := part.function_response:
                 if response := function_response.response:
