@@ -79,8 +79,14 @@ def _extract_output(response: Any) -> str:
         return ""
     if isinstance(response, str):
         return response
-    if hasattr(response, "content"):
-        return str(response.content)
+    content = getattr(response, "content", None)
+    if content is not None:
+        if hasattr(content, "model_dump_json"):
+            try:
+                return str(content.model_dump_json())
+            except Exception:
+                pass
+        return str(content)
     if hasattr(response, "model_dump_json"):
         try:
             return str(response.model_dump_json())
