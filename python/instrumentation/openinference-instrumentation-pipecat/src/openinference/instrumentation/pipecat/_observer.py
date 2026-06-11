@@ -362,30 +362,46 @@ class OpenInferenceObserver(TurnTrackingObserver):
     # ------------------------------------------------------------------
 
     async def _on_user_started(self, data: FramePushed) -> None:
-        """Handle a user-started-speaking edge."""
+        """Handle a user-started-speaking edge.
+
+        Pipecat emits both ``UserStartedSpeakingFrame`` and
+        ``VADUserStartedSpeakingFrame`` for the same physical user-start, so
+        this method runs twice per logical event with different ``frame.id``s.
+        Interrupt and roll branches are therefore gated on the falsy→truthy
+        edge of ``_user_speaking`` so the second call falls through to
+        continuation instead of tearing down the just-opened turn.
+        Roll is additionally gated on ``_last_speaker != "user"`` so a
+        multi-part bot response (e.g. ``"Let me check"`` → tool call →
+        actual answer, with a final user utterance pending) doesn't get
+        split when the bot resumes; same-speaker resumption stays inside
+        the current turn.
+        """
+        is_edge = not self._user_speaking
         if self._turn_span is None:
             await self._open_turn(initiator="user")
-        elif self._bot_speaking:
-            # Interruption: user starts while bot is still speaking.
+        elif is_edge and self._bot_speaking:
+            # Real interruption: user starts speaking while bot is still
+            # physically speaking. Only on the speaker edge.
             await self._close_turn(end_reason="interrupted", interrupted=True)
             await self._open_turn(initiator="user")
         elif (
-            self._user_spoken_this_turn
+            is_edge
+            and self._user_spoken_this_turn
             and self._bot_spoken_this_turn
-            and not self._user_speaking
             and not self._bot_speaking
+            and self._last_speaker != "user"
         ):
-            # Roll: both have spoken in the current turn and neither is
-            # currently speaking — start a fresh turn for the new utterance.
+            # Roll: both have spoken, neither is currently speaking, and
+            # the OTHER party spoke last — start a fresh round-trip.
             await self._close_turn(end_reason="completed")
             await self._open_turn(initiator="user")
         # else: continue the current turn
 
-        if not self._user_speaking:
+        if is_edge:
             self._user_speaking = True
             self._user_spoken_this_turn = True
-        self._last_speaker = "user"
-        self._cancel_close_timer()
+            self._last_speaker = "user"
+            self._cancel_close_timer()
 
     async def _on_user_stopped(self, data: FramePushed) -> None:
         """Handle a user-stopped-speaking edge."""
@@ -395,27 +411,36 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._schedule_close_timer()
 
     async def _on_bot_started(self, data: FramePushed) -> None:
-        """Handle a bot-started-speaking edge."""
+        """Handle a bot-started-speaking edge.
+
+        Symmetric to ``_on_user_started``. Interrupt and roll branches are
+        gated on the falsy→truthy edge of ``_bot_speaking``; roll is also
+        gated on ``_last_speaker != "bot"`` so a bot resuming after a tool
+        call or a pause stays inside the same turn instead of opening a
+        new one.
+        """
+        is_edge = not self._bot_speaking
         if self._turn_span is None:
             await self._open_turn(initiator="bot")
-        elif self._user_speaking:
+        elif is_edge and self._user_speaking:
             await self._close_turn(end_reason="interrupted", interrupted=True)
             await self._open_turn(initiator="bot")
         elif (
-            self._user_spoken_this_turn
+            is_edge
+            and self._user_spoken_this_turn
             and self._bot_spoken_this_turn
             and not self._user_speaking
-            and not self._bot_speaking
+            and self._last_speaker != "bot"
         ):
             await self._close_turn(end_reason="completed")
             await self._open_turn(initiator="bot")
         # else: continue the current turn
 
-        if not self._bot_speaking:
+        if is_edge:
             self._bot_speaking = True
             self._bot_spoken_this_turn = True
-        self._last_speaker = "bot"
-        self._cancel_close_timer()
+            self._last_speaker = "bot"
+            self._cancel_close_timer()
 
     async def _on_bot_stopped(self, data: FramePushed) -> None:
         """Handle a bot-stopped-speaking edge."""

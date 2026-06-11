@@ -1266,6 +1266,110 @@ class TestBidirectionalTurns:
         assert observer._turn_count == 2
         assert observer._turn_initiator == "user"
 
+    async def test_duplicate_user_start_frames_do_not_create_empty_turns(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """Pipecat emits ``UserStartedSpeakingFrame`` AND
+        ``VADUserStartedSpeakingFrame`` for the same physical user-start.
+        The interrupt branch must only fire on the falsy→truthy edge of
+        ``_user_speaking`` — otherwise the second frame closes the
+        just-opened user turn (empty) and opens another. Regression test
+        for the cluster of zero-duration interrupted turns seen in
+        live traces.
+        """
+        observer = _fast_observer(tracer, config)
+        transport = Mock(spec=BaseOutputTransport)
+
+        # Bot is speaking when the user interrupts.
+        await observer.on_push_frame(create_frame_pushed(None, None, BotStartedSpeakingFrame()))
+        await observer.on_push_frame(
+            create_frame_pushed(transport, None, _make_transport_tts_frame("Long answer..."))
+        )
+
+        # User interrupts — pipecat fires BOTH frames in quick succession.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, VADUserStartedSpeakingFrame())
+        )
+
+        # Exactly ONE interrupted turn (the bot's), not three.
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        assert observer._turn_count == 2  # the new user turn is still open
+        assert observer._turn_initiator == "user"
+        assert observer._user_speaking is True
+
+    async def test_bot_resumption_after_tool_call_does_not_split_turn(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+        mock_llm_service: Mock,
+    ) -> None:
+        """The 'Let me check on that → tool call → real answer' pattern is
+        ONE logical bot response, not two. ``_on_bot_started`` must NOT
+        roll the turn when the bot resumes after a pause (same-speaker
+        continuation). Regression test for live traces splitting a single
+        bot response into multiple turn spans mid-talking.
+        """
+        observer = _fast_observer(tracer, config)
+        transport = Mock(spec=BaseOutputTransport)
+
+        # User asks a question.
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStartedSpeakingFrame())
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                mock_stt_service,
+                None,
+                TranscriptionFrame(text="What is the weather?", user_id="u", timestamp="0"),
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(mock_stt_service, None, UserStoppedSpeakingFrame())
+        )
+
+        # Bot starts with placeholder, stops, then resumes with the real answer.
+        await observer.on_push_frame(create_frame_pushed(None, None, BotStartedSpeakingFrame()))
+        await observer.on_push_frame(
+            create_frame_pushed(transport, None, _make_transport_tts_frame("Let me check on that."))
+        )
+        await observer.on_push_frame(create_frame_pushed(None, None, BotStoppedSpeakingFrame()))
+
+        # (Silent tool call period.)
+
+        # Bot resumes with the real answer — same speaker, same logical
+        # response. Must NOT roll the turn.
+        await observer.on_push_frame(create_frame_pushed(None, None, BotStartedSpeakingFrame()))
+        await observer.on_push_frame(
+            create_frame_pushed(transport, None, _make_transport_tts_frame("The weather is sunny."))
+        )
+        await observer.on_push_frame(create_frame_pushed(None, None, BotStoppedSpeakingFrame()))
+
+        # Still ONE turn open; both bot utterances merged into output.
+        assert observer._turn_count == 1
+        assert observer._turn_initiator == "user"
+        # No turn has closed yet (the close timer hasn't fired).
+        assert len(_get_turn_spans(in_memory_span_exporter)) == 0
+
+        # Flush by EndFrame and check the single turn span.
+        await observer.on_push_frame(create_frame_pushed(None, None, EndFrame()))
+        turn_spans = _get_turn_spans(in_memory_span_exporter)
+        assert len(turn_spans) == 1
+        attrs = dict(turn_spans[0].attributes or {})
+        assert attrs["conversation.initiator"] == "user"
+        output = str(attrs.get(SpanAttributes.OUTPUT_VALUE, ""))
+        assert "Let me check on that." in output
+        assert "The weather is sunny." in output
+
     async def test_stt_span_finishes_on_user_stop(
         self,
         tracer: OITracer,
