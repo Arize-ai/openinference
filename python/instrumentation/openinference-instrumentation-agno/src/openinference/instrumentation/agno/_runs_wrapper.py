@@ -35,6 +35,7 @@ from openinference.instrumentation.agno.utils import (
     _bind_arguments,
     _flatten,
     _generate_node_id,
+    detach_context_tokens,
 )
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -261,17 +262,6 @@ def _get_team_span_context(agent_or_team: Optional[Union[Agent, Team]]) -> Optio
     return None
 
 
-def detach_context_tokens(
-    initial_thread: Any, current_thread: Any, team_token: Any, ctx_token: Any
-) -> None:
-    """Helper function to detach context token with error handling."""
-    if initial_thread is current_thread:
-        if team_token:
-            context_api.detach(team_token)
-        if ctx_token is not None:
-            context_api.detach(ctx_token)
-
-
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -453,7 +443,7 @@ class _RunWrapper:
             span.record_exception(e)
             raise
         finally:
-            detach_context_tokens(threading.current_thread(), initial_thread, team_token, ctx_token)
+            detach_context_tokens(initial_thread, threading.current_thread(), team_token, ctx_token)
             span.end()
 
     async def arun(
@@ -637,7 +627,7 @@ class _RunWrapper:
             raise
 
         finally:
-            detach_context_tokens(asyncio.current_task(), initial_task, team_token, ctx_token)
+            detach_context_tokens(initial_task, asyncio.current_task(), team_token, ctx_token)
             span.end()
 
 
