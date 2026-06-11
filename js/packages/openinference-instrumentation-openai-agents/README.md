@@ -13,7 +13,7 @@ npm install @arizeai/openinference-instrumentation-openai-agents @arizeai/openin
 ```typescript
 import * as agents from "@openai/agents";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { resourceFromAttributes } from "@opentelemetry/resources";
+import { Resource } from "@opentelemetry/resources";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
@@ -22,7 +22,7 @@ import { OpenAIAgentsInstrumentation } from "@arizeai/openinference-instrumentat
 
 // 1. Configure OpenTelemetry.
 const provider = new NodeTracerProvider({
-  resource: resourceFromAttributes({
+  resource: new Resource({
     [ATTR_SERVICE_NAME]: "my-agent-app",
   }),
   spanProcessors: [
@@ -54,6 +54,8 @@ Unlike most OpenInference instrumentations, this package does **not** monkey-pat
 | Exclusive (default) | `instrument()` (CommonJS) or `manuallyInstrument(agents)` (ESM)                                                             | Replaces every existing trace processor with the OpenInference one. Use when OpenTelemetry is your sole tracing destination.                                                      |
 | Additive            | `instrument({ exclusiveProcessor: false })` (CommonJS) or `manuallyInstrument(agents, { exclusiveProcessor: false })` (ESM) | Adds the OpenInference processor alongside any existing processors (e.g. the SDK's default OpenAI tracing exporter). Use when you want OpenInference _and_ OpenAI native tracing. |
 
+When the module is patched automatically (via `registerInstrumentations` or NodeSDK), choose the mode through the constructor instead: `new OpenAIAgentsInstrumentation({ exclusiveProcessor: false })`.
+
 To stop tracing, call `instrumentation.uninstrument()`. In additive mode, the agents SDK does not expose a single-processor removal API, so `uninstrument()` disables the OpenInference processor in place without clearing other SDK processors.
 
 For ESM-only environments, pass the imported SDK namespace explicitly:
@@ -71,6 +73,11 @@ instrumentation.manuallyInstrument(agents, { exclusiveProcessor: false });
 new OpenAIAgentsInstrumentation({
   // Optional: an OTel TracerProvider. Defaults to the global provider.
   tracerProvider,
+
+  // Optional: processor registration mode (see "How it works" above).
+  // This is the only way to choose additive mode when the module is patched
+  // automatically (registerInstrumentations / NodeSDK). Defaults to true.
+  exclusiveProcessor: true,
 
   // Optional: OpenInference trace configuration for masking/redacting
   // sensitive data on emitted spans.

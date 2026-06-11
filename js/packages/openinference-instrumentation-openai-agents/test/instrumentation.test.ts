@@ -12,8 +12,10 @@ import {
   GRAPH_NODE_PARENT_ID,
   INPUT_VALUE,
   LLM_INPUT_MESSAGES,
+  LLM_INVOCATION_PARAMETERS,
   LLM_MODEL_NAME,
   LLM_OUTPUT_MESSAGES,
+  LLM_PROVIDER,
   LLM_SYSTEM,
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
@@ -1056,6 +1058,248 @@ describe("OpenInferenceTracingProcessor", () => {
     const agentB = exporter.getFinishedSpans().find((s) => s.name === "B");
     expect(agentB!.attributes[GRAPH_NODE_PARENT_ID]).toBe("A");
   });
+
+  // ─── Responses API invocation parameters & provider ─────────────────────────
+
+  it("extracts invocation parameters and provider from ResponseSpanData", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _input: "hi",
+      _response: {
+        model: "gpt-4o",
+        temperature: 0.5,
+        top_p: 0.9,
+        max_output_tokens: null,
+        usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+        output: [],
+        tools: [],
+        status: "completed",
+        error: null,
+        object: "response",
+      },
+    };
+
+    const span = makeSpan("span-resp-params", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[LLM_PROVIDER]).toBe("openai");
+    const params = JSON.parse(respSpan!.attributes[LLM_INVOCATION_PARAMETERS] as string);
+    expect(params.temperature).toBe(0.5);
+    expect(params.top_p).toBe(0.9);
+    // Bulky/duplicated and null-valued fields are excluded.
+    expect(params.output).toBeUndefined();
+    expect(params.usage).toBeUndefined();
+    expect(params.tools).toBeUndefined();
+    expect(params.status).toBeUndefined();
+    expect(params.max_output_tokens).toBeUndefined();
+  });
+
+  // ─── Lifted input/output on AGENT spans ──────────────────────────────────────
+
+  it("lifts LLM input/output onto the enclosing agent span and the root span", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const agentSpan = makeSpan("span-agent", "trace-1", {
+      type: "agent" as const,
+      name: "WeatherAgent",
+    });
+    await processor.onSpanStart(agentSpan);
+
+    const responseData = {
+      type: "response" as const,
+      _input: "What is the weather in Tokyo?",
+      _response: {
+        model: "gpt-4o",
+        output_text: "Tokyo: 22°C, sunny.",
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: "Tokyo: 22°C, sunny." }],
+          },
+        ],
+      },
+    };
+    const responseSpan = makeSpan("span-resp-io", "trace-1", responseData as never, {
+      parentId: "span-agent",
+    });
+    await processor.onSpanStart(responseSpan);
+    await processor.onSpanEnd(responseSpan);
+    await processor.onSpanEnd(agentSpan);
+    await processor.onTraceEnd(trace);
+
+    const spans = exporter.getFinishedSpans();
+    const agent = spans.find((s) => s.name === "WeatherAgent");
+    expect(agent!.attributes[INPUT_VALUE]).toBe("What is the weather in Tokyo?");
+    expect(agent!.attributes[OUTPUT_VALUE]).toBe("Tokyo: 22°C, sunny.");
+    const root = spans.find((s) => s.name === "Test Workflow");
+    expect(root!.attributes[INPUT_VALUE]).toBe("What is the weather in Tokyo?");
+    expect(root!.attributes[OUTPUT_VALUE]).toBe("Tokyo: 22°C, sunny.");
+  });
+
+  it("keeps the first input and last output across multiple LLM spans", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const agentSpan = makeSpan("span-agent-multi", "trace-1", {
+      type: "agent" as const,
+      name: "MultiTurnAgent",
+    });
+    await processor.onSpanStart(agentSpan);
+
+    const firstTurn = makeSpan(
+      "span-turn-1",
+      "trace-1",
+      {
+        type: "response" as const,
+        _input: "What is the weather in Tokyo?",
+        _response: { model: "gpt-4o", output: [] },
+      } as never,
+      { parentId: "span-agent-multi" },
+    );
+    await processor.onSpanStart(firstTurn);
+    await processor.onSpanEnd(firstTurn);
+
+    const secondTurn = makeSpan(
+      "span-turn-2",
+      "trace-1",
+      {
+        type: "response" as const,
+        _input: [{ role: "user", content: "tool result history" }],
+        _response: { model: "gpt-4o", output_text: "Tokyo: 22°C, sunny.", output: [] },
+      } as never,
+      { parentId: "span-agent-multi" },
+    );
+    await processor.onSpanStart(secondTurn);
+    await processor.onSpanEnd(secondTurn);
+    await processor.onSpanEnd(agentSpan);
+    await processor.onTraceEnd(trace);
+
+    const agent = exporter.getFinishedSpans().find((s) => s.name === "MultiTurnAgent");
+    expect(agent!.attributes[INPUT_VALUE]).toBe("What is the weather in Tokyo?");
+    expect(agent!.attributes[OUTPUT_VALUE]).toBe("Tokyo: 22°C, sunny.");
+  });
+
+  // ─── Exception events ────────────────────────────────────────────────────────
+
+  it("records an exception event when a span has an error", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const span = makeSpan(
+      "span-error-event",
+      "trace-1",
+      { type: "agent" as const, name: "FailingAgent" },
+      { error: { message: "Guardrail tripped", data: { reason: "sensitive" } } },
+    );
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const failing = exporter.getFinishedSpans().find((s) => s.name === "FailingAgent");
+    expect(failing!.events).toHaveLength(1);
+    expect(failing!.events[0].name).toBe("exception");
+    expect(failing!.events[0].attributes!["exception.message"]).toContain("Guardrail tripped");
+    expect(failing!.events[0].attributes!["exception.message"]).toContain("sensitive");
+  });
+
+  // ─── Timestamp robustness ────────────────────────────────────────────────────
+
+  it("falls back to the SDK clock for unparseable timestamps", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const before = Date.now();
+    const span = makeSpan(
+      "span-bad-time",
+      "trace-1",
+      { type: "agent" as const, name: "BadClockAgent" },
+      { startedAt: "not-a-timestamp", endedAt: "also-not-a-timestamp" },
+    );
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const badSpan = exporter.getFinishedSpans().find((s) => s.name === "BadClockAgent");
+    const [startSeconds] = badSpan!.startTime;
+    // The span is timestamped "now", not at epoch 0.
+    expect(startSeconds).toBeGreaterThanOrEqual(Math.floor(before / 1000));
+  });
+
+  // ─── Zero token counts ───────────────────────────────────────────────────────
+
+  it("records zero token counts observed in chat completion usage", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const generationData = {
+      type: "generation" as const,
+      model: "gpt-4o",
+      model_config: {},
+      input: [],
+      output: [
+        {
+          id: "resp-1",
+          object: "chat.completion",
+          choices: [
+            { index: 0, message: { role: "assistant", content: "" }, finish_reason: "stop" },
+          ],
+          usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        },
+      ],
+      usage: undefined,
+    };
+
+    const span = makeSpan("span-zero-usage", "trace-1", generationData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const llmSpan = exporter.getFinishedSpans().find((s) => s.name === "generation");
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT]).toBe(0);
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(0);
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(0);
+  });
+
+  // ─── Empty tool call arguments ───────────────────────────────────────────────
+
+  it("records empty-object tool call arguments", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const generationData = {
+      type: "generation" as const,
+      model: "gpt-4o",
+      model_config: {},
+      input: [],
+      output: [
+        {
+          role: "assistant",
+          tool_calls: [{ id: "call_noargs", function: { name: "list_files", arguments: "{}" } }],
+        },
+      ],
+      usage: undefined,
+    };
+
+    const span = makeSpan("span-empty-args", "trace-1", generationData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const llmSpan = exporter.getFinishedSpans().find((s) => s.name === "generation");
+    expect(
+      llmSpan!.attributes[
+        `${LLM_OUTPUT_MESSAGES}.0.message.tool_calls.0.tool_call.function.arguments`
+      ],
+    ).toBe("{}");
+  });
 });
 
 // ─── OpenAIAgentsInstrumentation wrapper ─────────────────────────────────────
@@ -1198,5 +1442,74 @@ describe("OpenAIAgentsInstrumentation", () => {
     );
     expect(agents.setTraceProcessors).not.toHaveBeenCalled();
     instrumentation.uninstrument();
+  });
+
+  it("constructor exclusiveProcessor option controls the registration mode", async () => {
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
+    const provider = new NodeTracerProvider();
+    const instrumentation = new OpenAIAgentsInstrumentation({
+      tracerProvider: provider,
+      exclusiveProcessor: false,
+    });
+    const agents = makeAgentsModule();
+    setModuleExports(instrumentation, agents.module);
+
+    // No per-call option: the constructor value applies, as it would when the
+    // module is patched automatically via registerInstrumentations/NodeSDK.
+    instrumentation.instrument();
+
+    expect(agents.addTraceProcessor).toHaveBeenCalledWith(
+      expect.any(OpenInferenceTracingProcessor),
+    );
+    expect(agents.setTraceProcessors).not.toHaveBeenCalled();
+    instrumentation.uninstrument();
+  });
+
+  it("re-registers the processor with the SDK when the tracer provider changes", async () => {
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
+    const instrumentation = new OpenAIAgentsInstrumentation();
+    const agents = makeAgentsModule();
+    setModuleExports(instrumentation, agents.module);
+
+    instrumentation.instrument();
+    expect(agents.setTraceProcessors).toHaveBeenCalledTimes(1);
+
+    const exporter = new InMemorySpanExporter();
+    const provider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
+    instrumentation.setTracerProvider(provider);
+
+    // A replacement processor bound to the new provider is registered.
+    expect(agents.setTraceProcessors).toHaveBeenCalledTimes(2);
+    const [replacement] = agents.setTraceProcessors.mock.calls[1][0] as [
+      OpenInferenceTracingProcessor,
+    ];
+    expect(replacement).not.toBe(agents.setTraceProcessors.mock.calls[0][0][0]);
+
+    await replacement.onTraceStart(makeTrace({ traceId: "trace-rt", name: "Rewired Workflow" }));
+    await replacement.onTraceEnd(makeTrace({ traceId: "trace-rt", name: "Rewired Workflow" }));
+    expect(exporter.getFinishedSpans().map((s) => s.name)).toEqual(["Rewired Workflow"]);
+    instrumentation.uninstrument();
+  });
+
+  it("uninstrument is a no-op on an instance that did not patch", async () => {
+    const { OpenAIAgentsInstrumentation } = await import("../src/instrumentation");
+    const provider = new NodeTracerProvider();
+    const patcher = new OpenAIAgentsInstrumentation({ tracerProvider: provider });
+    const bystander = new OpenAIAgentsInstrumentation({ tracerProvider: provider });
+    const agents = makeAgentsModule();
+    setModuleExports(patcher, agents.module);
+
+    patcher.instrument();
+    agents.setTraceProcessors.mockClear();
+
+    bystander.uninstrument();
+
+    expect(agents.setTraceProcessors).not.toHaveBeenCalled();
+    expect(agents.module.openInferencePatched).toBe(true);
+
+    patcher.uninstrument();
+    expect(agents.module.openInferencePatched).toBe(false);
   });
 });

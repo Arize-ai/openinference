@@ -89,11 +89,22 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
   private additiveProcessorRegistered = false;
 
   constructor({
+    exclusiveProcessor,
     instrumentationConfig,
     maxRootSpansInFlight,
     traceConfig,
     tracerProvider,
   }: {
+    /**
+     * When true (the default), replace all SDK trace processors with the
+     * OpenInference processor — the SDK's default OpenAI tracing exporter is
+     * removed. When false, add the OpenInference processor alongside existing
+     * processors. This is the only way to choose the mode when the module is
+     * patched automatically (e.g. via `registerInstrumentations` or NodeSDK);
+     * it can also be overridden per-call on {@link instrument} and
+     * {@link manuallyInstrument}.
+     */
+    exclusiveProcessor?: boolean;
     /**
      * Standard OTel instrumentation configuration.
      * @see {@link InstrumentationConfig}
@@ -119,6 +130,7 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
     this.tracerProvider = tracerProvider;
     this.traceConfig = traceConfig;
     this.maxRootSpansInFlight = maxRootSpansInFlight;
+    this.exclusiveProcessor = exclusiveProcessor ?? true;
     this.oiTracer = new OITracer({
       tracer: this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ?? this.tracer,
       traceConfig,
@@ -128,7 +140,7 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
   protected init(): InstrumentationModuleDefinition<typeof AgentsModule> {
     const module = new InstrumentationNodeModuleDefinition<typeof AgentsModule>(
       MODULE_NAME,
-      [">=0.0.3"],
+      [">=0.1.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -147,7 +159,7 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
     options: OpenAIAgentsInstrumentationOptions = {},
   ): void {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
-    this.exclusiveProcessor = options.exclusiveProcessor ?? true;
+    this.exclusiveProcessor = options.exclusiveProcessor ?? this.exclusiveProcessor;
     this.patch(module);
   }
 
@@ -158,7 +170,7 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
    * environments, pass the imported module namespace to {@link manuallyInstrument}.
    */
   instrument(options: OpenAIAgentsInstrumentationOptions = {}): void {
-    this.exclusiveProcessor = options.exclusiveProcessor ?? true;
+    this.exclusiveProcessor = options.exclusiveProcessor ?? this.exclusiveProcessor;
     this.enable();
 
     const module = this.getLoadedModule();
@@ -174,11 +186,14 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
 
   /**
    * Removes the registered OpenInference tracing processor from the agents SDK.
+   *
+   * Only acts on a module this instance patched: an instance that never
+   * patched (e.g. because another instance got there first) is a no-op.
    */
   uninstrument(): void {
-    const module = this.patchedModule ?? this.getLoadedModule();
+    const module = this.patchedModule;
     this.disable();
-    if (module && _isOpenInferencePatched) {
+    if (module) {
       this.unpatch(module);
     }
   }
@@ -197,9 +212,25 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
       tracer: this.tracer,
       traceConfig: this.traceConfig,
     });
-    // Re-create processor with updated tracer if already patched
-    if (this.processor) {
-      this.processor = undefined;
+
+    // A processor created before this call still targets the previous
+    // provider. If it is already registered with the agents SDK, swap in a
+    // replacement built on the new provider so spans don't keep flowing to
+    // the old one.
+    const oldProcessor = this.processor;
+    this.processor = undefined;
+    if (!oldProcessor || !this.patchedModule) {
+      return;
+    }
+    oldProcessor.disable();
+    const newProcessor = this.getOrCreateProcessor();
+    newProcessor.enable();
+    if (this.exclusiveProcessor) {
+      this.patchedModule.setTraceProcessors([newProcessor]);
+    } else {
+      // The SDK has no single-processor removal API: the old (now disabled)
+      // processor stays registered; add the replacement alongside it.
+      this.patchedModule.addTraceProcessor(newProcessor);
     }
   }
 
@@ -207,6 +238,10 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
     diag.debug(`Applying patch for ${MODULE_NAME}@${_moduleVersion ?? "unknown"}`);
 
     if (module?.openInferencePatched || _isOpenInferencePatched) {
+      // Another instrumentation instance (or an earlier call on this one) has
+      // already registered a processor; registering a second would duplicate
+      // spans, so this call is a no-op.
+      diag.debug(`${MODULE_NAME} is already instrumented; skipping`);
       return module;
     }
 
@@ -284,8 +319,18 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
   }
 
   private getInstrumentedModuleExports(): AgentsModuleWithPatchState | undefined {
-    const modules = (this as unknown as { _modules?: InstrumentationModuleState[] })._modules;
-    const moduleExports = modules?.[0]?.moduleExports;
-    return moduleExports as AgentsModuleWithPatchState | undefined;
+    // `_modules` is a private field of InstrumentationBase with no public
+    // accessor; guard defensively so an upstream rename degrades to the
+    // require() fallback instead of throwing.
+    try {
+      const modules = (this as unknown as { _modules?: InstrumentationModuleState[] })._modules;
+      if (!Array.isArray(modules)) {
+        return;
+      }
+      const moduleExports = modules[0]?.moduleExports;
+      return moduleExports as AgentsModuleWithPatchState | undefined;
+    } catch (error) {
+      diag.debug(`Failed to read instrumented module exports for ${MODULE_NAME}`, error);
+    }
   }
 }

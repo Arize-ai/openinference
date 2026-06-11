@@ -59,6 +59,6 @@
     "zod": "^4.0.0"
   },
   "peerDependencies": {
-    "@openai/agents": ">=0.0.3"
+    "@openai/agents": ">=0.1.0"
   }
 }

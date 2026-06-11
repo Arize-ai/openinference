@@ -27,6 +27,7 @@ import {
   LLM_INVOCATION_PARAMETERS,
   LLM_MODEL_NAME,
   LLM_OUTPUT_MESSAGES,
+  LLM_PROVIDER,
   LLM_SYSTEM,
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
@@ -34,6 +35,7 @@ import {
   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
   LLM_TOKEN_COUNT_TOTAL,
   LLM_TOOLS,
+  LLMProvider,
   LLMSystem,
   MESSAGE_CONTENT,
   MESSAGE_CONTENT_TEXT,
@@ -75,6 +77,27 @@ const MAX_HANDOFFS_IN_FLIGHT = 1000;
  */
 const DEFAULT_MAX_ROOT_SPANS_IN_FLIGHT = 1000;
 
+/**
+ * Maximum number of per-agent lifted input/output accumulators kept in
+ * memory. Entries are removed when the owning agent span ends; the cap guards
+ * against leaks when an agent span never ends.
+ */
+const MAX_AGENT_IO_IN_FLIGHT = 1000;
+
+/**
+ * Maximum number of started-but-not-ended child spans kept in memory.
+ * Entries are removed when the matching end event arrives; the cap guards
+ * against leaks when an end event never arrives.
+ */
+const MAX_SPANS_IN_FLIGHT = 5000;
+
+/**
+ * Maximum number of suppressed trace/span ids retained. Entries are removed
+ * on the matching end event; the cap guards against leaks when an end event
+ * never arrives.
+ */
+const MAX_SUPPRESSED_IDS_RETAINED = 5000;
+
 export type OpenInferenceTracingProcessorOptions = {
   tracerProvider?: TracerProvider;
   traceConfig?: TraceConfigOptions;
@@ -102,6 +125,18 @@ function normalizeMaxRootSpansInFlight(value: number | undefined): number {
   return Math.max(1, Math.floor(value));
 }
 
+/**
+ * Evicts the oldest entries of a `Set` used as an insertion-ordered LRU once
+ * it exceeds `max`.
+ */
+function boundIdSet(ids: Set<string>, max: number): void {
+  while (ids.size > max) {
+    const oldest = ids.values().next().value;
+    if (oldest === undefined) break;
+    ids.delete(oldest);
+  }
+}
+
 // ─── Time helpers ────────────────────────────────────────────────────────────
 
 /**
@@ -114,12 +149,15 @@ function normalizeMaxRootSpansInFlight(value: number | undefined): number {
  * timeOrigin heuristic. Returning an `HrTime` tuple is unambiguous and
  * preserves sub-millisecond precision when the ISO string carries it.
  *
+ * Returns `undefined` for unparseable timestamps so callers fall back to the
+ * OTel SDK clock ("now") rather than producing spans dated at epoch 0.
+ *
  * @example
  * isoToHrTime("2024-01-01T00:00:00.123456Z") → [1704067200, 123456000]
  */
-function isoToHrTime(iso: string): HrTime {
+function isoToHrTime(iso: string): HrTime | undefined {
   const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return [0, 0];
+  if (Number.isNaN(ms)) return undefined;
 
   const seconds = Math.floor(ms / 1000);
   // Date.parse only retains millisecond precision. Recover the full
@@ -213,7 +251,7 @@ function extractMessageList(
       if (isString(msg.name)) {
         attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = msg.name;
       }
-      if (isString(msg.arguments) && msg.arguments !== "{}") {
+      if (isString(msg.arguments)) {
         attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = msg.arguments;
       }
       continue;
@@ -271,7 +309,7 @@ function extractMessageList(
           if (isString(tc.function.name)) {
             attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = tc.function.name;
           }
-          if (isString(tc.function.arguments) && tc.function.arguments !== "{}") {
+          if (isString(tc.function.arguments)) {
             attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = tc.function.arguments;
           }
         }
@@ -361,7 +399,10 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
   let totalTokens = 0;
   let totalCacheRead = 0;
   let totalReasoning = 0;
-  let hasUsage = false;
+  let hasPromptTokens = false;
+  let hasCompletionTokens = false;
+  let hasCacheRead = false;
+  let hasReasoning = false;
   let hasTotalTokens = false;
 
   for (const resp of responses) {
@@ -369,14 +410,19 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
 
     // Token usage
     if (isRecord(resp.usage)) {
-      hasUsage = true;
       const usage = resp.usage;
       const promptTokens = isNumber(usage.prompt_tokens) ? usage.prompt_tokens : undefined;
       const completionTokens = isNumber(usage.completion_tokens)
         ? usage.completion_tokens
         : undefined;
-      if (promptTokens !== undefined) totalPrompt += promptTokens;
-      if (completionTokens !== undefined) totalCompletion += completionTokens;
+      if (promptTokens !== undefined) {
+        totalPrompt += promptTokens;
+        hasPromptTokens = true;
+      }
+      if (completionTokens !== undefined) {
+        totalCompletion += completionTokens;
+        hasCompletionTokens = true;
+      }
       if (isNumber(usage.total_tokens)) {
         totalTokens += usage.total_tokens;
         hasTotalTokens = true;
@@ -390,6 +436,7 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
         isNumber(usage.prompt_tokens_details.cached_tokens)
       ) {
         totalCacheRead += usage.prompt_tokens_details.cached_tokens;
+        hasCacheRead = true;
       }
       // o-series completion_tokens_details.reasoning_tokens
       if (
@@ -397,6 +444,7 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
         isNumber(usage.completion_tokens_details.reasoning_tokens)
       ) {
         totalReasoning += usage.completion_tokens_details.reasoning_tokens;
+        hasReasoning = true;
       }
     }
 
@@ -450,19 +498,12 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
     }
   }
 
-  if (hasUsage) {
-    if (totalPrompt > 0) attrs[LLM_TOKEN_COUNT_PROMPT] = totalPrompt;
-    if (totalCompletion > 0) attrs[LLM_TOKEN_COUNT_COMPLETION] = totalCompletion;
-    if (hasTotalTokens && totalTokens > 0) {
-      attrs[LLM_TOKEN_COUNT_TOTAL] = totalTokens;
-    }
-    if (totalCacheRead > 0) {
-      attrs[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totalCacheRead;
-    }
-    if (totalReasoning > 0) {
-      attrs[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = totalReasoning;
-    }
-  }
+  // Record any counts that were actually observed, including legitimate zeros.
+  if (hasPromptTokens) attrs[LLM_TOKEN_COUNT_PROMPT] = totalPrompt;
+  if (hasCompletionTokens) attrs[LLM_TOKEN_COUNT_COMPLETION] = totalCompletion;
+  if (hasTotalTokens) attrs[LLM_TOKEN_COUNT_TOTAL] = totalTokens;
+  if (hasCacheRead) attrs[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totalCacheRead;
+  if (hasReasoning) attrs[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = totalReasoning;
 
   return attrs;
 }
@@ -586,7 +627,7 @@ function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
       if (isString(item.name)) {
         attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = item.name;
       }
-      if (isString(item.arguments) && item.arguments !== "{}") {
+      if (isString(item.arguments)) {
         attrs[`${tcPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = item.arguments;
       }
       msgIdx++;
@@ -599,6 +640,22 @@ function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
 }
 
 /**
+ * Response object keys excluded from `llm.invocation_parameters`.
+ *
+ * Mirrors the Python instrumentation, which dumps the Response object minus
+ * the bulky fields that are already captured by dedicated attributes
+ * (output/usage/tools) or carry no invocation semantics.
+ */
+const RESPONSE_NON_INVOCATION_PARAM_KEYS: ReadonlySet<string> = new Set([
+  "object",
+  "tools",
+  "usage",
+  "output",
+  "error",
+  "status",
+]);
+
+/**
  * Extracts attributes from {@link ResponseSpanData}.
  *
  * The SDK exposes the input as `_input` (string or list of input items) and
@@ -607,6 +664,8 @@ function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
  */
 function getResponseAttributes(data: ResponseSpanData): Attributes {
   const attrs: Attributes = {};
+  // The Responses API is only served by OpenAI.
+  attrs[LLM_PROVIDER] = LLMProvider.OPENAI;
 
   // Input
   const hasSystemInstruction =
@@ -649,6 +708,20 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
 
   if (isString(resp.model)) {
     attrs[LLM_MODEL_NAME] = resp.model;
+  }
+
+  // Invocation parameters: the Response object minus output/usage/tools,
+  // matching the Python instrumentation's model_dump exclusions.
+  const invocationParams: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(resp)) {
+    if (v == null || RESPONSE_NON_INVOCATION_PARAM_KEYS.has(k)) continue;
+    invocationParams[k] = v;
+  }
+  if (Object.keys(invocationParams).length > 0) {
+    const json = safelyJSONStringify(invocationParams);
+    if (json) {
+      attrs[LLM_INVOCATION_PARAMETERS] = json;
+    }
   }
 
   // Token usage. The Responses API uses input_tokens/output_tokens/total_tokens
@@ -708,6 +781,123 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
   return attrs;
 }
 
+// ─── Lifted input/output for AGENT spans ─────────────────────────────────────
+
+/**
+ * Input/output captured from LLM child spans so it can be surfaced on the
+ * enclosing AGENT spans (the per-agent span and the root trace span), which
+ * the SDK gives no input/output of their own.
+ */
+type LiftedIO = {
+  input?: string;
+  inputMimeType?: MimeType;
+  output?: string;
+  outputMimeType?: MimeType;
+};
+
+/**
+ * Merges newly observed LLM-span input/output into an accumulator. The first
+ * observed input wins (the original request); the last observed output wins
+ * (the final answer).
+ */
+function mergeLiftedIO(target: LiftedIO, source: LiftedIO): void {
+  if (target.input === undefined && source.input !== undefined) {
+    target.input = source.input;
+    target.inputMimeType = source.inputMimeType;
+  }
+  if (source.output !== undefined) {
+    target.output = source.output;
+    target.outputMimeType = source.outputMimeType;
+  }
+}
+
+function liftedIOAttributes(io: LiftedIO | undefined): Attributes {
+  const attrs: Attributes = {};
+  if (!io) return attrs;
+  if (io.input !== undefined) {
+    attrs[INPUT_VALUE] = io.input;
+    if (io.inputMimeType) attrs[INPUT_MIME_TYPE] = io.inputMimeType;
+  }
+  if (io.output !== undefined) {
+    attrs[OUTPUT_VALUE] = io.output;
+    if (io.outputMimeType) attrs[OUTPUT_MIME_TYPE] = io.outputMimeType;
+  }
+  return attrs;
+}
+
+/**
+ * Extracts the final assistant text from a Responses API `Response` object,
+ * preferring the SDK's `output_text` convenience field.
+ */
+function getResponseOutputText(resp: Record<string, unknown>): string | undefined {
+  if (isString(resp.output_text) && resp.output_text.length > 0) {
+    return resp.output_text;
+  }
+  if (!Array.isArray(resp.output)) return undefined;
+  const texts: string[] = [];
+  for (const item of resp.output) {
+    if (!isRecord(item) || item.type !== "message" || !Array.isArray(item.content)) continue;
+    for (const part of item.content) {
+      if (
+        isRecord(part) &&
+        (part.type === "output_text" || part.type === "text") &&
+        isString(part.text)
+      ) {
+        texts.push(part.text);
+      }
+    }
+  }
+  return texts.length > 0 ? texts.join("") : undefined;
+}
+
+function getResponseLiftedIO(data: ResponseSpanData): LiftedIO {
+  const io: LiftedIO = {};
+  if (isString(data._input)) {
+    io.input = data._input;
+  } else if (Array.isArray(data._input)) {
+    const json = safelyJSONStringify(data._input);
+    if (json) {
+      io.input = json;
+      io.inputMimeType = MimeType.JSON;
+    }
+  }
+  if (isRecord(data._response)) {
+    io.output = getResponseOutputText(data._response);
+  }
+  return io;
+}
+
+function getGenerationLiftedIO(data: GenerationSpanData): LiftedIO {
+  const io: LiftedIO = {};
+  if (Array.isArray(data.input) && data.input.length > 0) {
+    const json = safelyJSONStringify(data.input);
+    if (json) {
+      io.input = json;
+      io.inputMimeType = MimeType.JSON;
+    }
+  }
+  if (Array.isArray(data.output)) {
+    const texts: string[] = [];
+    for (const item of data.output) {
+      if (!isRecord(item)) continue;
+      if (Array.isArray(item.choices)) {
+        // chat_completions transport: output[] are ChatCompletion responses.
+        for (const choice of item.choices) {
+          if (isRecord(choice) && isRecord(choice.message) && isString(choice.message.content)) {
+            texts.push(choice.message.content);
+          }
+        }
+      } else if (isString(item.content)) {
+        texts.push(item.content);
+      }
+    }
+    if (texts.length > 0) {
+      io.output = texts.join("");
+    }
+  }
+  return io;
+}
+
 // ─── MCP list tools span ─────────────────────────────────────────────────────
 
 /**
@@ -742,7 +932,7 @@ function getCustomAttributes(data: CustomSpanData): Attributes {
 
 // ─── Status ──────────────────────────────────────────────────────────────────
 
-function setSpanStatus(otelSpan: OtelSpan, span: Span<SpanData>): void {
+function setSpanStatus(otelSpan: OtelSpan, span: Span<SpanData>, eventTime?: HrTime): void {
   if (span.error) {
     let description = span.error.message || "Unknown error";
     if (span.error.data) {
@@ -753,6 +943,7 @@ function setSpanStatus(otelSpan: OtelSpan, span: Span<SpanData>): void {
         description = `${description}: ${dataStr}`;
       }
     }
+    otelSpan.recordException({ message: description }, eventTime);
     otelSpan.setStatus({ code: SpanStatusCode.ERROR, message: description });
   } else {
     otelSpan.setStatus({ code: SpanStatusCode.OK });
@@ -791,6 +982,14 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
    * handoff spans never get a follow-up agent span.
    */
   private readonly reverseHandoffs = new Map<string, string>();
+  /** trace_id → input/output lifted from LLM spans for the root span. */
+  private readonly traceIO = new Map<string, LiftedIO>();
+  /**
+   * SDK parent span_id → input/output lifted from child LLM spans, applied to
+   * the parent AGENT span when it ends. `Map` insertion order is used as an
+   * LRU bound by {@link MAX_AGENT_IO_IN_FLIGHT}.
+   */
+  private readonly agentIO = new Map<string, LiftedIO>();
   /** trace_id values whose trace start happened under suppressed tracing. */
   private readonly suppressedTraceIds = new Set<string>();
   /** span_id values skipped at start, so their end event can be ignored safely. */
@@ -811,12 +1010,17 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
 
     if (isTracingSuppressed(context.active())) {
       this.suppressedTraceIds.add(agentTrace.traceId);
+      boundIdSet(this.suppressedTraceIds, MAX_SUPPRESSED_IDS_RETAINED);
       return;
     }
 
     const rootSpan = this.oiTracer.startSpan(agentTrace.name, {
       attributes: {
         [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+        // `llm.system` identifies the agents SDK, which is an OpenAI product.
+        // In chat_completions mode the underlying model may be served by a
+        // non-OpenAI provider (e.g. DeepSeek); `llm.provider` is set per-span
+        // where it can be determined.
         [LLM_SYSTEM]: LLMSystem.OPENAI,
       },
     });
@@ -826,8 +1030,11 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
 
   async onTraceEnd(agentTrace: Trace): Promise<void> {
     this.suppressedTraceIds.delete(agentTrace.traceId);
+    const io = this.traceIO.get(agentTrace.traceId);
+    this.traceIO.delete(agentTrace.traceId);
     const rootSpan = this.rootSpans.get(agentTrace.traceId);
     if (!rootSpan) return;
+    rootSpan.setAttributes(liftedIOAttributes(io));
     rootSpan.setStatus({ code: SpanStatusCode.OK });
     rootSpan.end();
     this.rootSpans.delete(agentTrace.traceId);
@@ -839,6 +1046,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
 
     if (this.shouldSuppressSpan(span)) {
       this.suppressedSpanIds.add(span.spanId);
+      boundIdSet(this.suppressedSpanIds, MAX_SUPPRESSED_IDS_RETAINED);
       return;
     }
 
@@ -856,6 +1064,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
         startTime: isoToHrTime(span.startedAt),
         attributes: {
           [OPENINFERENCE_SPAN_KIND]: getSpanKind(span.spanData),
+          // See onTraceStart: the agents SDK is the "system"; the provider may differ.
           [LLM_SYSTEM]: LLMSystem.OPENAI,
         },
       },
@@ -863,6 +1072,7 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     );
 
     this.otelSpans.set(span.spanId, otelSpan);
+    this.evictOldestOtelSpans();
   }
 
   async onSpanEnd(span: Span<SpanData>): Promise<void> {
@@ -881,12 +1091,14 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     switch (data.type) {
       case "generation":
         attrs = getGenerationAttributes(data);
+        this.recordLiftedIO(span, getGenerationLiftedIO(data));
         break;
       case "function":
         attrs = getFunctionAttributes(data);
         break;
       case "response":
         attrs = getResponseAttributes(data);
+        this.recordLiftedIO(span, getResponseLiftedIO(data));
         break;
       case "mcp_tools":
         attrs = getMCPListToolsAttributes(data);
@@ -900,6 +1112,8 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
         break;
       case "agent":
         this.applyAgentGraphAttributes(otelSpan, data, span.traceId);
+        attrs = liftedIOAttributes(this.agentIO.get(span.spanId));
+        this.agentIO.delete(span.spanId);
         break;
       case "guardrail":
         otelSpan.setAttribute(TOOL_NAME, data.name);
@@ -913,10 +1127,10 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
         break;
     }
 
-    otelSpan.setAttributes(attrs);
-    setSpanStatus(otelSpan, span);
-
     const endTime = span.endedAt ? isoToHrTime(span.endedAt) : undefined;
+    otelSpan.setAttributes(attrs);
+    setSpanStatus(otelSpan, span, endTime);
+
     otelSpan.end(endTime);
     this.endDanglingRootSpanOnTopLevelAgentError(span, endTime);
   }
@@ -948,9 +1162,56 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     this.suppressedSpanIds.clear();
     this.suppressedTraceIds.clear();
     this.reverseHandoffs.clear();
+    this.traceIO.clear();
+    this.agentIO.clear();
   }
 
   // ─── Private helpers ───────────────────────────────────────────────────────
+
+  /**
+   * Accumulates an LLM span's input/output so it can be surfaced on the
+   * enclosing AGENT spans: the trace's root span and, when the LLM span has a
+   * parent (the per-agent span), that parent.
+   */
+  private recordLiftedIO(span: Span<SpanData>, io: LiftedIO): void {
+    if (io.input === undefined && io.output === undefined) return;
+
+    if (this.rootSpans.has(span.traceId)) {
+      let traceEntry = this.traceIO.get(span.traceId);
+      if (!traceEntry) {
+        traceEntry = {};
+        this.traceIO.set(span.traceId, traceEntry);
+      }
+      mergeLiftedIO(traceEntry, io);
+    }
+
+    if (span.parentId != null && this.otelSpans.has(span.parentId)) {
+      let agentEntry = this.agentIO.get(span.parentId);
+      if (!agentEntry) {
+        agentEntry = {};
+        this.agentIO.set(span.parentId, agentEntry);
+        while (this.agentIO.size > MAX_AGENT_IO_IN_FLIGHT) {
+          const oldest = this.agentIO.keys().next().value;
+          if (oldest === undefined) break;
+          this.agentIO.delete(oldest);
+        }
+      }
+      mergeLiftedIO(agentEntry, io);
+    }
+  }
+
+  private evictOldestOtelSpans(): void {
+    while (this.otelSpans.size > MAX_SPANS_IN_FLIGHT) {
+      const oldestSpanId = this.otelSpans.keys().next().value;
+      if (oldestSpanId === undefined) break;
+
+      const otelSpan = this.otelSpans.get(oldestSpanId);
+      otelSpan?.setStatus({ code: SpanStatusCode.OK });
+      otelSpan?.end();
+      this.otelSpans.delete(oldestSpanId);
+      this.agentIO.delete(oldestSpanId);
+    }
+  }
 
   private evictOldestRootSpans(): void {
     while (this.rootSpans.size > this.maxRootSpansInFlight) {
@@ -961,10 +1222,20 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
       rootSpan?.setStatus({ code: SpanStatusCode.OK });
       rootSpan?.end();
       this.rootSpans.delete(oldestTraceId);
+      this.traceIO.delete(oldestTraceId);
       this.suppressedTraceIds.delete(oldestTraceId);
     }
   }
 
+  /**
+   * Ends the root span when a top-level agent span ends with an error.
+   *
+   * The SDK does not emit `onTraceEnd` when a run aborts (e.g. a guardrail
+   * tripwire throws), which would otherwise leave the root span dangling
+   * until eviction. This assumes the error ends the trace: if the caller
+   * catches the error and runs another top-level agent under the same trace,
+   * that agent's spans will no longer be parented under this root span.
+   */
   private endDanglingRootSpanOnTopLevelAgentError(
     span: Span<SpanData>,
     endTime: HrTime | undefined,
@@ -977,7 +1248,9 @@ export class OpenInferenceTracingProcessor implements TracingProcessor {
     const rootSpanId = rootSpan.spanContext().spanId;
     if (span.parentId != null && span.parentId !== rootSpanId) return;
 
-    setSpanStatus(rootSpan, span);
+    rootSpan.setAttributes(liftedIOAttributes(this.traceIO.get(span.traceId)));
+    this.traceIO.delete(span.traceId);
+    setSpanStatus(rootSpan, span, endTime);
     rootSpan.end(endTime);
     this.rootSpans.delete(span.traceId);
   }
