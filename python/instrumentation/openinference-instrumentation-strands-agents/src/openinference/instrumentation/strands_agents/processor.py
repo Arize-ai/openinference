@@ -23,6 +23,8 @@ from openinference.instrumentation.strands_agents.semantic_conventions import (
     GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_P,
     GEN_AI_TOOL_NAME,
+    GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GenAIAttributes,
@@ -698,6 +700,19 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             value = attrs.get(strands_key)
             if value is not None:
                 result[openinf_key] = value
+
+        cache_read = attrs.get(GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS) or 0
+        cache_write = attrs.get(GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS) or 0
+        if cache_read:
+            result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read
+        if cache_write:
+            result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cache_write
+        if cache_read or cache_write:
+            # Strands' input token count excludes cache reads/writes, but the
+            # OpenInference prompt aggregate includes its prompt_details breakdown
+            # (so prompt + completion == total).
+            input_tokens = result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) or 0
+            result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = input_tokens + cache_read + cache_write
 
     def _map_invocation_parameters(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
         params = {}

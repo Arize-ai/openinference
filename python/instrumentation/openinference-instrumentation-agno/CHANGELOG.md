@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.36...python-openinference-instrumentation-agno-v0.1.37) (2026-06-11)
+
+
+### Bug Fixes
+
+* **agno:** Stream Context Leak In Workflow, Step, & Parallel Wrappers ([#3195](https://github.com/Arize-ai/openinference/issues/3195)) ([5cb64e4](https://github.com/Arize-ai/openinference/commit/5cb64e430241d7b1a1989a09cc387b810e006d39))
+
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.35...python-openinference-instrumentation-agno-v0.1.36) (2026-06-09)
+
+
+### Bug Fixes
+
+* **agno:** capture workflow run-id properly ([#3221](https://github.com/Arize-ai/openinference/issues/3221)) ([49f536a](https://github.com/Arize-ai/openinference/commit/49f536adf8fb515d58edcae0b276be5bf222c0bc))
+
 ## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.34...python-openinference-instrumentation-agno-v0.1.35) (2026-05-29)
 
 

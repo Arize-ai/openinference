@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v1.0.4...python-openinference-instrumentation-pipecat-v2.0.0) (2026-06-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **pipecat:** instrument PipelineWorker for pipecat 1.3 ([#3202](https://github.com/Arize-ai/openinference/issues/3202))
+
+### Bug Fixes
+
+* **pipecat:** instrument PipelineWorker for pipecat 1.3 ([#3202](https://github.com/Arize-ai/openinference/issues/3202)) ([c1342ae](https://github.com/Arize-ai/openinference/commit/c1342ae0e99c2dde3cf5090c7ce5299b62fc1a39))
+
 ## [1.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v1.0.3...python-openinference-instrumentation-pipecat-v1.0.4) (2026-05-18)
 
 

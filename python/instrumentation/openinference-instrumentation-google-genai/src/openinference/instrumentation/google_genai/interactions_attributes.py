@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Iterable, Mapping, Optional, Sequence
+from typing import Any, Iterable, Mapping, Optional, Sequence, cast
 
 from opentelemetry.util.types import AttributeValue
 
@@ -29,7 +29,13 @@ from openinference.instrumentation.google_genai._utils import (
     _stop_on_exception_for_iter,
     get_attribute,
 )
-from openinference.semconv.trace import OpenInferenceLLMProviderValues
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -69,7 +75,31 @@ def _append_content(
         tool_call = ToolCall(function=ToolCallFunction(name=name, arguments=arguments))
         if call_id := get_attribute(content, "id"):
             tool_call["id"] = call_id
+        if sig := get_attribute(content, "signature"):
+            tool_call["reasoning_signature"] = sig  # type: ignore[typeddict-unknown-key]
         tool_calls.append(tool_call)
+    elif content_type == "thought":
+        signature = get_attribute(content, "signature")
+        text: Optional[str] = None
+        if summary := get_attribute(content, "summary"):
+            if isinstance(summary, list):
+                parts = [
+                    get_attribute(item, "text")
+                    for item in summary
+                    if get_attribute(item, "type") == "text"
+                ]
+                joined = "".join(p for p in parts if p)
+                if joined:
+                    text = joined
+        if text is None:
+            text = get_attribute(content, "text")
+        if text or signature:
+            rc: dict[str, Any] = {"type": "reasoning"}
+            if text:
+                rc["text"] = text
+            if signature:
+                rc["signature"] = signature
+            message_contents.append(cast(MessageContent, rc))
     elif content_type == "image":
         if uri := get_attribute(content, "uri"):
             message_contents.append(ImageMessageContent(type="image", image=Image(url=uri)))
@@ -77,6 +107,38 @@ def _append_content(
             mime_type = get_attribute(content, "mime_type") or "image/png"
             url = f"data:{mime_type};base64,{data}"
             message_contents.append(ImageMessageContent(type="image", image=Image(url=url)))
+
+
+def _get_reasoning_signature_attributes(
+    messages: list[Message],
+) -> dict[str, AttributeValue]:
+    attrs: dict[str, AttributeValue] = {}
+    base = SpanAttributes.LLM_OUTPUT_MESSAGES
+    for msg_idx, message in enumerate(messages):
+        if not isinstance(message, dict):
+            continue
+        for content_idx, content in enumerate(message.get("contents") or []):
+            if not isinstance(content, dict):
+                continue
+            content_any: Any = content
+            if content_any.get("type") == "reasoning" and isinstance(
+                sig := content_any.get("signature"), str
+            ):
+                attrs[
+                    f"{base}.{msg_idx}.{MessageAttributes.MESSAGE_CONTENTS}"
+                    f".{content_idx}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}"
+                ] = sig
+
+        for tc_idx, tool_call in enumerate(message.get("tool_calls") or []):
+            if not isinstance(tool_call, dict):
+                continue
+            tc_any: Any = tool_call
+            if isinstance(sig := tc_any.get("reasoning_signature"), str):
+                attrs[
+                    f"{base}.{msg_idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}"
+                    f".{tc_idx}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}"
+                ] = sig
+    return attrs
 
 
 def get_output_messages(steps: Any) -> list[Message]:
@@ -292,11 +354,13 @@ def get_attributes_from_response(
         }
 
     steps = get_attribute(response, "steps")
+    output_messages = get_output_messages(steps)
     return {
         **get_llm_attributes(provider=OpenInferenceLLMProviderValues.GOOGLE.value),
         **get_span_kind_attributes("llm"),
         **get_llm_model_name_attributes(get_attribute(response, "model")),
         **get_output_attributes(safe_json_dumps(steps)),
-        **get_llm_output_message_attributes(get_output_messages(steps)),
+        **get_llm_output_message_attributes(output_messages),
+        **_get_reasoning_signature_attributes(output_messages),
         **get_llm_token_count_attributes(get_token_object_from_response(response)),
     }
