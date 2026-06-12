@@ -1248,9 +1248,11 @@ async def test_thinking_blocks_mixed_sequence_uses_unified_contents_index(
     )
     assert attrs.get(f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_ID}") == "toolu_001"
     assert attrs.get(f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}") == "Bash"
-    assert json.loads(
-        attrs.get(f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}")
-    ) == {"command": "echo hi"}
+    tool_args = attrs.get(
+        f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert isinstance(tool_args, str)
+    assert json.loads(tool_args) == {"command": "echo hi"}
 
     # Index 2 has redacted_thinking block
     assert (
