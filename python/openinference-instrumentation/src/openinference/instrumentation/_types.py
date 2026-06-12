@@ -38,9 +38,10 @@ class Image(TypedDict, total=False):
     url: str
 
 
-class TextMessageContent(TypedDict):
-    type: Literal["text"]
-    text: str
+class TextMessageContent(TypedDict, total=False):
+    type: Required[Literal["text"]]
+    text: Required[str]
+    signature: str
 
 
 class ImageMessageContent(TypedDict):
@@ -48,7 +49,16 @@ class ImageMessageContent(TypedDict):
     image: Image
 
 
-MessageContent: TypeAlias = Union[TextMessageContent, ImageMessageContent]
+class ReasoningMessageContent(TypedDict, total=False):
+    type: Required[Literal["reasoning"]]
+    text: str
+    id: str
+    signature: str
+    data: str
+    encrypted_content: str
+
+
+MessageContent: TypeAlias = Union[TextMessageContent, ImageMessageContent, ReasoningMessageContent]
 
 
 class ToolCallFunction(TypedDict, total=False):
@@ -59,6 +69,7 @@ class ToolCallFunction(TypedDict, total=False):
 class ToolCall(TypedDict, total=False):
     id: str
     function: ToolCallFunction
+    reasoning_signature: str
 
 
 class Message(TypedDict, total=False):
