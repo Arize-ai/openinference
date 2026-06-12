@@ -20,10 +20,12 @@ from openinference.instrumentation import OITracer
 from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 TOOL_KIND = OpenInferenceSpanKindValues.TOOL.value
@@ -1149,19 +1151,19 @@ async def test_client_real_agent_span(
 
 
 @pytest.mark.asyncio
-async def test_thinking_blocks_captured_in_output_message_attributes(
+async def test_thinking_blocks_mixed_sequence_uses_unified_contents_index(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: Any,
 ) -> None:
-    """ThinkingBlock & RedactedThinkingBlock content is captured as reasoning message content."""
+    """Mixed output sequence uses a single message.contents index preserving order."""
     from opentelemetry import trace as trace_api
 
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
-    from openinference.semconv.trace import MessageContentAttributes
 
     trace_api.set_tracer_provider(tracer_provider)
     tracer = tracer_provider.get_tracer(__name__)
 
+    # Provider Output Sequence: thinking -> tool_use -> redacted_thinking -> text
     messages = [
         {
             "type": "system",
@@ -1179,6 +1181,12 @@ async def test_thinking_blocks_captured_in_output_message_attributes(
                         "type": "thinking",
                         "thinking": "Let me reason through this carefully.",
                         "signature": "sig_abc123",
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_001",
+                        "name": "Bash",
+                        "input": {"command": "echo hi"},
                     },
                     {
                         "type": "redacted_thinking",
@@ -1206,7 +1214,118 @@ async def test_thinking_blocks_captured_in_output_message_attributes(
             yield msg
 
     wrapper = wrappers._QueryWrapper(tracer)
-    async for _ in wrapper(fake_query, None, (), {"prompt": "Think step by step"}):
+    async for _ in wrapper(fake_query, None, (), {"prompt": "Think and use a tool"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(span.attributes or {})
+
+    msg_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    contents_prefix = f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENTS}"
+
+    assert attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+
+    # Index 0 has thinking block
+    assert (
+        attrs.get(f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    )
+    assert (
+        attrs.get(f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "Let me reason through this carefully."
+    )
+    assert (
+        attrs.get(f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}")
+        == "sig_abc123"
+    )
+    assert f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_ID}" not in attrs
+
+    # Index 1 has tool_use block
+    assert (
+        attrs.get(f"{contents_prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert attrs.get(f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_ID}") == "toolu_001"
+    assert attrs.get(f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}") == "Bash"
+    assert json.loads(
+        attrs.get(f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}")
+    ) == {"command": "echo hi"}
+
+    # Index 2 has redacted_thinking block
+    assert (
+        attrs.get(f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    )
+    assert (
+        attrs.get(f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_DATA}")
+        == "redacted_blob_xyz"
+    )
+    assert f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}" not in attrs
+    assert f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}" not in attrs
+    assert f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_ID}" not in attrs
+
+    # Index 3 has text block
+    assert (
+        attrs.get(f"{contents_prefix}.3.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    )
+    assert (
+        attrs.get(f"{contents_prefix}.3.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "The answer is 42."
+    )
+
+    # Legacy keys must NOT be present when thinking blocks are in the message
+    assert f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENT}.0" not in attrs
+    assert (
+        f"{msg_prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}"
+        not in attrs
+    )
+
+
+@pytest.mark.asyncio
+async def test_text_only_message_uses_legacy_content_keys(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Messages without thinking blocks continue to use legacy message.content keys."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-text",
+            "model": "claude-sonnet-4-6",
+        },
+        {
+            "type": "assistant",
+            "role": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Just a plain reply."}],
+            },
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "Just a plain reply.",
+            "usage": {"input_tokens": 5, "output_tokens": 3},
+            "total_cost_usd": 0.001,
+            "session_id": "sess-text",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "Say something"}):
         pass
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1215,40 +1334,11 @@ async def test_thinking_blocks_captured_in_output_message_attributes(
 
     msg_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
 
-    # Role should be set
+    # Legacy path with no thinking blocks should work
     assert attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENT}.0") == "Just a plain reply."
 
-    # ThinkingBlock -> reasoning content block
-    thinking_prefix = f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENTS}.0"
-    assert (
-        attrs.get(f"{thinking_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
-        == "reasoning"
+    # message.contents must NOT be present for non-thinking messages
+    assert not any(
+        k.startswith(f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENTS}") for k in attrs
     )
-    assert (
-        attrs.get(f"{thinking_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
-        == "Let me reason through this carefully."
-    )
-    assert (
-        attrs.get(f"{thinking_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}")
-        == "sig_abc123"
-    )
-    # id must NOT be emitted for thinking blocks
-    assert f"{thinking_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_ID}" not in attrs
-
-    # RedactedThinkingBlock -> reasoning content block with data, no text/signature
-    redacted_prefix = f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENTS}.1"
-    assert (
-        attrs.get(f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
-        == "reasoning"
-    )
-    assert (
-        attrs.get(f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_DATA}")
-        == "redacted_blob_xyz"
-    )
-    assert f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}" not in attrs
-    assert f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}" not in attrs
-    assert f"{redacted_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_ID}" not in attrs
-
-    # Text block still captured normally alongside thinking blocks
-    assert isinstance(attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENT}.0"), str)
-    assert attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENT}.0") == "The answer is 42."

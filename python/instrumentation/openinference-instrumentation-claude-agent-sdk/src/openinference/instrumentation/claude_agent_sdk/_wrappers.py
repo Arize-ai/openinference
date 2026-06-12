@@ -840,35 +840,77 @@ def _get_output_message_attributes(message: Any, message_index: int) -> dict[str
         content = _extract_message_content(message)
         if content is None:
             return attrs
-        tool_index = 0
-        text_index = 0
-        thinking_index = 0
+
+        has_thinking = any(_is_thinking_block(block) for block in content)
+        content_index = 0
         has_content = False
+
         for block in content:
             if _is_tool_use_block(block):
                 has_content = True
-                prefix = f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_index}"
-                if tool_id := _get_field(block, "id"):
-                    attrs[f"{prefix}.{TOOL_CALL_ID}"] = str(tool_id)
-                if tool_name := _get_field(block, "name"):
-                    attrs[f"{prefix}.{TOOL_CALL_FUNCTION_NAME}"] = str(tool_name)
-                attrs[f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"] = safe_json_dumps(
-                    _get_field(block, "input") or {}
-                )
-                tool_index += 1
+                if has_thinking:
+                    # Emit into message.contents to preserve block order
+                    prefix = (
+                        f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}"
+                    )
+                    attrs[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] = "tool_use"
+                    if tool_id := _get_field(block, "id"):
+                        attrs[f"{prefix}.{TOOL_CALL_ID}"] = str(tool_id)
+                    if tool_name := _get_field(block, "name"):
+                        attrs[f"{prefix}.{TOOL_CALL_FUNCTION_NAME}"] = str(tool_name)
+                    attrs[f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"] = safe_json_dumps(
+                        _get_field(block, "input") or {}
+                    )
+                else:
+                    # Legacy path with no thinking blocks
+                    tool_index = sum(
+                        1
+                        for k in attrs
+                        if k.startswith(
+                            f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}."
+                        )
+                        and k.endswith(f".{TOOL_CALL_ID}")
+                    )
+                    prefix = (
+                        f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_index}"
+                    )
+                    if tool_id := _get_field(block, "id"):
+                        attrs[f"{prefix}.{TOOL_CALL_ID}"] = str(tool_id)
+                    if tool_name := _get_field(block, "name"):
+                        attrs[f"{prefix}.{TOOL_CALL_FUNCTION_NAME}"] = str(tool_name)
+                    attrs[f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"] = safe_json_dumps(
+                        _get_field(block, "input") or {}
+                    )
+                content_index += 1
+
             elif _is_text_block(block):
                 has_content = True
-                if text := _get_field(block, "text"):
-                    attrs[
-                        f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}.{text_index}"
-                    ] = str(text)
-                    text_index += 1
+                text = _get_field(block, "text")
+                if has_thinking:
+                    # Emit into message.contents to preserve block order
+                    prefix = (
+                        f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}"
+                    )
+                    attrs[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] = "text"
+                    if text:
+                        attrs[f"{prefix}.{MESSAGE_CONTENT_TEXT}"] = str(text)
+                else:
+                    # Legacy path with no thinking blocks
+                    text_index = sum(
+                        1
+                        for k in attrs
+                        if k.startswith(f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}.")
+                    )
+                    if text:
+                        attrs[
+                            f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}.{text_index}"
+                        ] = str(text)
+                content_index += 1
+
             elif _is_thinking_block(block):
                 has_content = True
                 block_type = str(_get_field(block, "type") or "thinking")
-                prefix = (
-                    f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{thinking_index}"
-                )
+                prefix = f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}"
                 attrs[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] = "reasoning"
                 if block_type == "thinking":
                     if text := _get_field(block, "thinking"):
@@ -878,10 +920,12 @@ def _get_output_message_attributes(message: Any, message_index: int) -> dict[str
                 elif block_type == "redacted_thinking":
                     if data := _get_field(block, "data"):
                         attrs[f"{prefix}.{MESSAGE_CONTENT_DATA}"] = str(data)
-                thinking_index += 1
+                content_index += 1
+
         if has_content:
             role = _get_field(message, "role") or "assistant"
             attrs[f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}"] = str(role)
+
     except Exception:
         pass
     return attrs
