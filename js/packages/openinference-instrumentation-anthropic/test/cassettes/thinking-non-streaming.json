@@ -1,0 +1,7 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"model\":\"claude-sonnet-4-6\",\"id\":\"msg_01K7NRDr9CpvBE22JZtFy7ss\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"27 * 453\\n\\n27 * 400 = 10,800\\n27 * 50 = 1,350\\n27 * 3 = 81\\n\\n10,800 + 1,350 + 81 = 12,231\",\"signature\":\"EpwCCmUIDhgCKkDtrdu6+HbuEqGI/O/jkWJ1LCSp17mypjzutwhKTIy8bmaioUpy3cfTXVXooQFgmmeiXoC1R9aGIVho4c+HFe3aMhFjbGF1ZGUtc29ubmV0LTQtNjgAQgh0aGlua2luZxIMdLTysT60ayFsgt8XGgz5aZyaBnqGRAcF0rEiMHJFygwjTS0KygZPyGawl09LaTLlKCDWW4knDSoCAbo2gk8f3//1/Yt6Ha3jNnAeQiplj9mWZhJUBFW+pnaJSdwC/UlMgl3Z7ldLVzd47W6gu2uj/dcRerSPAHSh4r3sSRZDSrmkvl7p04wMMJCty9JyXkFa9HUTPO/ZexPSog6gj3GGs6/Gd/y1hk6TnX4uJqm2KYTpanoYAQ==\"},{\"type\":\"text\",\"text\":\"## Solving 27 × 453\\n\\nI'll break this down by splitting 453 into easier parts:\\n\\n**27 × 400**\\n27 × 4 = 108, so 27 × 400 = **10,800**\\n\\n**27 × 50**\\n27 × 5 = 135, so 27 × 50 = **1,350**\\n\\n**27 × 3 = 81**\\n\\n---\\n\\n**Adding it all together:**\\n10,800 + 1,350 + 81 = **12,231**\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":52,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":202,\"output_tokens_details\":{\"thinking_tokens\":65},\"service_tier\":\"standard\",\"inference_geo\":\"global\"}}"
+}
