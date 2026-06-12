@@ -218,7 +218,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getAnthropicOutputMessagesAttributes(result),
-                ...getAnthropicUsageAttributes(result),
+                ...getAnthropicUsageAttributes(result.usage),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -373,6 +373,20 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
           // Handle complex tool result content
           attributes[SemanticConventions.MESSAGE_CONTENT] = JSON.stringify(part.content);
         }
+      } else if (part.type === "thinking") {
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "reasoning";
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          part.thinking;
+        if (part.signature) {
+          attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+            part.signature;
+        }
+      } else if (part.type === "redacted_thinking") {
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "reasoning";
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
+          part.data;
       }
     });
   }
@@ -402,6 +416,16 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
       attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
       attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
         JSON.stringify(content.input);
+    } else if (content.type === "thinking") {
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.thinking;
+      if (content.signature) {
+        attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+          content.signature;
+      }
+    } else if (content.type === "redacted_thinking") {
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = content.data;
     }
   });
 
@@ -411,13 +435,13 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
 /**
  * Get usage attributes from Anthropic response
  */
-function getAnthropicUsageAttributes(message: Anthropic.Messages.Message): Attributes {
-  if (message.usage) {
+function getAnthropicUsageAttributes(usage: Anthropic.Messages.Usage|Anthropic.Messages.MessageDeltaUsage): Attributes {
+  if (usage && usage.input_tokens) {
     return {
-      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: message.usage.output_tokens,
-      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: message.usage.input_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: usage.output_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: usage.input_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
-        message.usage.input_tokens + message.usage.output_tokens,
+        usage.input_tokens + usage.output_tokens,
     };
   }
   return {};
@@ -432,28 +456,75 @@ async function consumeAnthropicStreamChunks(
 ) {
   let streamResponse = "";
   const toolCallAttributes: Attributes = {};
+  const contentAttributes: Attributes = {};
+  let usageAttributes: Attributes = {};
 
   for await (const chunk of stream) {
-    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-      streamResponse += chunk.delta.text;
-    } else if (chunk.type === "content_block_start" && chunk.content_block.type === "tool_use") {
-      const toolCall = chunk.content_block;
-      const toolCallIndex = chunk.index;
-      const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.`;
+    if (chunk.type === "message_start") {
+      usageAttributes = {
+        ...usageAttributes,
+        ...getAnthropicUsageAttributes(chunk.message.usage),
+      };
+    } else if (chunk.type === "message_delta") {
+      usageAttributes = {
+        ...usageAttributes,
+        ...getAnthropicUsageAttributes(chunk.usage),
+      };
+    } else if (chunk.type === "content_block_start") {
+      const contentBlock = chunk.content_block;
+      const contentIndex = chunk.index;
+      const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
 
-      toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = toolCall.id;
-      toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-        toolCall.name;
-    } else if (chunk.type === "content_block_delta" && chunk.delta.type === "input_json_delta") {
-      const toolCallIndex = chunk.index;
-      const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.`;
-      const existingArgs =
+      if (contentBlock.type === "tool_use") {
+        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.`;
+        toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] =
+          contentBlock.id;
+        toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+          contentBlock.name;
+      } else if (contentBlock.type === "text") {
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          contentBlock.text;
+      } else if (contentBlock.type === "thinking") {
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "reasoning";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          contentBlock.thinking;
+      } else if (contentBlock.type === "redacted_thinking") {
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "reasoning";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
+          contentBlock.data;
+      }
+    } else if (chunk.type === "content_block_delta") {
+      const contentIndex = chunk.index;
+      const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+
+      if (chunk.delta.type === "text_delta") {
+        streamResponse += chunk.delta.text;
+        const existingText =
+          contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] || "";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          existingText + chunk.delta.text;
+      } else if (chunk.delta.type === "thinking_delta") {
+        const existingText =
+          contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] || "";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          existingText + chunk.delta.thinking;
+      } else if (chunk.delta.type === "signature_delta") {
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+          chunk.delta.signature;
+      } else if (chunk.delta.type === "input_json_delta") {
+        const toolCallIndex = contentIndex;
+        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.`;
+        const existingArgs =
+          toolCallAttributes[
+            `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+          ] || "";
         toolCallAttributes[
           `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] || "";
-      toolCallAttributes[
-        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-      ] = existingArgs + chunk.delta.partial_json;
+        ] = existingArgs + chunk.delta.partial_json;
+      }
     }
   }
 
@@ -463,14 +534,21 @@ async function consumeAnthropicStreamChunks(
   const attributes: Attributes = {
     [SemanticConventions.OUTPUT_VALUE]: streamResponse,
     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
-    [`${messageIndexPrefix}${SemanticConventions.MESSAGE_CONTENT}`]: streamResponse,
     [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
   };
+
+  // Add the content block attributes
+  for (const [key, value] of Object.entries(contentAttributes)) {
+    attributes[`${messageIndexPrefix}${key}`] = value;
+  }
 
   // Add the tool call attributes
   for (const [key, value] of Object.entries(toolCallAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
+
+  // Add the token usage attributes
+  Object.assign(attributes, usageAttributes);
 
   span.setAttributes(attributes);
   span.setStatus({ code: SpanStatusCode.OK });
