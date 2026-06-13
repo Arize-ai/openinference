@@ -2,15 +2,18 @@
 import base64
 from collections import defaultdict
 from secrets import token_hex
-from typing import Any, cast
+from types import SimpleNamespace
+from typing import Any, AsyncGenerator, cast
 
 import pytest
 from google.adk import Agent, __version__
+from google.adk.events import Event, EventActions
 from google.adk.runners import InMemoryRunner
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool as load_artifacts
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
+from openinference.semconv.trace import SpanAttributes
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -23,7 +26,10 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
-from openinference.semconv.trace import SpanAttributes
+from openinference.instrumentation.google_adk._wrappers import (
+    _BaseAgentRunAsync,
+    _RunnerRunAsync,
+)
 
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
@@ -71,6 +77,95 @@ async def _run_weather_query(runner: InMemoryRunner, user_id: str, session_id: s
         new_message=types.Content(role="user", parts=[types.Part(text=_WEATHER_QUESTION)]),
     ):
         ...
+
+
+def _content_event(text: str, *, timestamp: float) -> Event:
+    return Event(
+        author="test-agent",
+        invocation_id="test-invocation",
+        actions=EventActions(),
+        timestamp=timestamp,
+        content=types.Content(role="model", parts=[types.Part(text=text)]),
+    )
+
+
+def _state_delta_event(*, timestamp: float) -> Event:
+    return Event(
+        author="test-agent",
+        invocation_id="test-invocation",
+        actions=EventActions(state_delta={"latest_state": "synced"}),
+        timestamp=timestamp,
+    )
+
+
+async def _event_stream(events: list[Event]) -> AsyncGenerator[Event, None]:
+    for event in events:
+        yield event
+
+
+async def test_runner_run_async_keeps_content_output_after_state_delta_final_event(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    content_event = _content_event("final answer", timestamp=1.0)
+    state_delta_event = _state_delta_event(timestamp=2.0)
+
+    async def run_async(
+        *,
+        user_id: str,
+        session_id: str,
+        new_message: types.Content,
+    ) -> AsyncGenerator[Event, None]:
+        async for event in _event_stream([content_event, state_delta_event]):
+            yield event
+
+    wrapped = _RunnerRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(Any, SimpleNamespace(app_name="test-app")),
+        (),
+        {
+            "user_id": "test-user",
+            "session_id": "test-session",
+            "new_message": types.Content(role="user", parts=[types.Part(text="hi")]),
+        },
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [content_event, state_delta_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes
+    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
+        exclude_none=True
+    )
+
+
+async def test_base_agent_run_async_keeps_content_output_after_state_delta_final_event(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    content_event = _content_event("agent answer", timestamp=1.0)
+    state_delta_event = _state_delta_event(timestamp=2.0)
+
+    async def run_async() -> AsyncGenerator[Event, None]:
+        async for event in _event_stream([content_event, state_delta_event]):
+            yield event
+
+    wrapped = _BaseAgentRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(Any, SimpleNamespace(name="test-agent")),
+        (),
+        {},
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [content_event, state_delta_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes
+    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
+        exclude_none=True
+    )
 
 
 @pytest.mark.skipif(
