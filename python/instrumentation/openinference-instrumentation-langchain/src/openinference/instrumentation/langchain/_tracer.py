@@ -82,6 +82,9 @@ _AUDIT_TIMING = False
 IGNORED_EXCEPTION_PATTERNS = [
     r"^Command\(",
     r"^ParentCommand\(",
+    # LangGraph raises GraphInterrupt to pause execution for human-in-the-loop
+    # (e.g. interrupt()); it is expected control flow, not an application error.
+    r"^GraphInterrupt\(",
 ]
 
 
