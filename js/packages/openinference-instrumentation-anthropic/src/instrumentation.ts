@@ -385,8 +385,7 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
       } else if (part.type === "redacted_thinking") {
         attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
           "reasoning";
-        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
-          part.data;
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = part.data;
       }
     });
   }
@@ -435,16 +434,21 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
 /**
  * Get usage attributes from Anthropic response
  */
-function getAnthropicUsageAttributes(usage: Anthropic.Messages.Usage|Anthropic.Messages.MessageDeltaUsage): Attributes {
-  if (usage && usage.input_tokens) {
-    return {
-      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: usage.output_tokens,
-      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: usage.input_tokens,
-      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
-        usage.input_tokens + usage.output_tokens,
-    };
+function getAnthropicUsageAttributes(
+  usage: Anthropic.Messages.Usage | Anthropic.Messages.MessageDeltaUsage,
+): Attributes {
+  const attributes: Attributes = {};
+  if (usage.input_tokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
   }
-  return {};
+  if (usage.output_tokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
+  }
+  if (usage.input_tokens != null && usage.output_tokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] =
+      usage.input_tokens + usage.output_tokens;
+  }
+  return attributes;
 }
 
 /**
@@ -547,7 +551,14 @@ async function consumeAnthropicStreamChunks(
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
 
-  // Add the token usage attributes
+  // Add the token usage attributes, recomputing the total in case prompt and
+  // completion counts were captured from different chunks (message_start vs
+  // message_delta)
+  const promptTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT];
+  const completionTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION];
+  if (typeof promptTokens === "number" && typeof completionTokens === "number") {
+    usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = promptTokens + completionTokens;
+  }
   Object.assign(attributes, usageAttributes);
 
   span.setAttributes(attributes);

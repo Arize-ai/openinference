@@ -36,6 +36,8 @@ const {
   MESSAGE_CONTENT_TYPE,
   MESSAGE_CONTENT_TEXT,
   MESSAGE_CONTENT_SIGNATURE,
+  MESSAGE_CONTENT_DATA,
+  MESSAGE_CONTENT_ID,
 } = SemanticConventions;
 
 const memoryExporter = new InMemorySpanExporter();
@@ -130,16 +132,20 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     // Output value (full message JSON) / mime type
     const outputValue = pop(attributes, OUTPUT_VALUE);
     expect(outputValue).toEqual(expect.any(String));
-    expect(outputValue as string).toMatch(/^\{"model":"claude-sonnet-4-6","id":"msg_01K7NRDr9CpvBE22JZtFy7ss"/);
+    expect(outputValue as string).toMatch(
+      /^\{"model":"claude-sonnet-4-6","id":"msg_01K7NRDr9CpvBE22JZtFy7ss"/,
+    );
     expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
 
     // Output message: role + reasoning content + text content
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
-    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`)).toBe(
-      "reasoning",
-    );
-    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`)).toBe(
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("reasoning");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe(
       "27 * 453\n\n27 * 400 = 10,800\n27 * 50 = 1,350\n27 * 3 = 81\n\n10,800 + 1,350 + 81 = 12,231",
     );
     const signature = pop(
@@ -149,9 +155,9 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(signature).toEqual(expect.any(String));
     expect(signature as string).toMatch(/^EpwCCmUIDhgCKkDtrdu6/);
 
-    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`)).toBe(
-      "text",
-    );
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("text");
     const textContent = pop(
       attributes,
       `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`,
@@ -228,10 +234,12 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     // Output message: role + reasoning content + text content
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
-    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`)).toBe(
-      "reasoning",
-    );
-    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`)).toBe(
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("reasoning");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe(
       "27 * 453\n\n27 * 400 = 10,800\n27 * 50 = 1,350\n27 * 3 = 81\n\n10,800 + 1,350 + 81 = 12,231",
     );
     const signature = pop(
@@ -241,9 +249,9 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(signature).toEqual(expect.any(String));
     expect(signature as string).toMatch(/^EpwCCmUIDhgCKkDtrdu6/);
 
-    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`)).toBe(
-      "text",
-    );
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("text");
     const textContent = pop(
       attributes,
       `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`,
@@ -254,6 +262,177 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(52);
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(230);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(282);
+
+    expect(attributes).toEqual({});
+  });
+
+  it("captures redacted thinking blocks as reasoning content for non-streaming responses", async () => {
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY ?? "fake-api-key",
+      fetch: vcrFetch("redacted-thinking-non-streaming"),
+    });
+
+    const requestBody = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      thinking: { type: "enabled" as const, budget_tokens: 1024 },
+      messages: [
+        {
+          role: "user" as const,
+          content: "What is the answer to life, the universe, and everything?",
+        },
+      ],
+    };
+
+    await client.messages.create(requestBody);
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    expect(spans[0].name).toBe("Anthropic Messages");
+    const attributes = { ...spans[0].attributes };
+
+    // Span kind / system / provider
+    expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
+    expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
+    expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
+    expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+
+    // Input value / invocation params
+    expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
+    expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
+    const { messages: _messages, ...invocationParameters } = requestBody;
+    expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
+
+    // Input messages
+    expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
+    expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
+      "What is the answer to life, the universe, and everything?",
+    );
+
+    // Output value (full message JSON) / mime type
+    const outputValue = pop(attributes, OUTPUT_VALUE);
+    expect(outputValue).toEqual(expect.any(String));
+    expect(outputValue as string).toMatch(
+      /^\{"model":"claude-sonnet-4-6","id":"msg_01RedactedThinkingTest"/,
+    );
+    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
+
+    // Output message: role + redacted reasoning content + text content
+    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
+
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("reasoning");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_DATA}`),
+    ).toBe("EmwKAhgBEgy3vOSpZ1m4FAKLm0caDOJ8K6kGz4ANRedactedDataExample==");
+    // Redacted thinking blocks have no visible text or id
+    expect(
+      attributes[`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`],
+    ).toBeUndefined();
+    expect(
+      attributes[`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_ID}`],
+    ).toBeUndefined();
+
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("text");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("I can't share the details of how I solved this, but the answer is 42.");
+
+    // Usage
+    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(30);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(20);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(50);
+
+    // No leftover attributes
+    expect(attributes).toEqual({});
+  });
+
+  it("captures redacted thinking blocks as reasoning content for streaming responses", async () => {
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY ?? "fake-api-key",
+      fetch: vcrFetch("redacted-thinking-streaming"),
+    });
+
+    const requestBody = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      thinking: { type: "enabled" as const, budget_tokens: 1024 },
+      messages: [
+        {
+          role: "user" as const,
+          content: "What is the answer to life, the universe, and everything?",
+        },
+      ],
+      stream: true as const,
+    };
+
+    const stream = await client.messages.create(requestBody);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _chunk of stream) {
+      // drain the stream
+    }
+
+    await waitForSpans(1);
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    expect(spans[0].name).toBe("Anthropic Messages");
+    const attributes = { ...spans[0].attributes };
+
+    // Span kind / system / provider
+    expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
+    expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
+    expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
+    expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+
+    // Input value / invocation params
+    expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
+    expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
+    const { messages: _messages, ...invocationParameters } = requestBody;
+    expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
+
+    // Input messages
+    expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
+    expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
+      "What is the answer to life, the universe, and everything?",
+    );
+
+    // Output value is the concatenated visible text (not the full JSON message) for streams
+    const outputValue = pop(attributes, OUTPUT_VALUE);
+    expect(outputValue).toBe("I can't share the details, but the answer is 42.");
+    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.TEXT);
+
+    // Output message: role + redacted reasoning content + text content
+    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
+
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("reasoning");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_DATA}`),
+    ).toBe("EmwKAhgBEgy3vOSpZ1m4FAKLm0caDOJ8K6kGz4ANRedactedDataExample==");
+    expect(
+      attributes[`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`],
+    ).toBeUndefined();
+    expect(
+      attributes[`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_ID}`],
+    ).toBeUndefined();
+
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("text");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("I can't share the details, but the answer is 42.");
+
+    // Usage: prompt count from message_start, completion count updated from message_delta
+    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(30);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(20);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(50);
 
     expect(attributes).toEqual({});
   });
@@ -358,7 +537,9 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       // Output value / mime type
       const outputValue = pop(attributes, OUTPUT_VALUE);
       expect(outputValue).toEqual(expect.any(String));
-      expect(outputValue as string).toMatch(/^\{"model":"claude-sonnet-4-6","id":"msg_01HkNaEbsuALpp4oY7QWTysY"/);
+      expect(outputValue as string).toMatch(
+        /^\{"model":"claude-sonnet-4-6","id":"msg_01HkNaEbsuALpp4oY7QWTysY"/,
+      );
       expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
 
       // Output message: role + reasoning content + text content

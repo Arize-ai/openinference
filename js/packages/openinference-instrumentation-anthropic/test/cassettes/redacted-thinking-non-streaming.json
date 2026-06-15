@@ -1,0 +1,7 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"model\":\"claude-sonnet-4-6\",\"id\":\"msg_01RedactedThinkingTest\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"redacted_thinking\",\"data\":\"EmwKAhgBEgy3vOSpZ1m4FAKLm0caDOJ8K6kGz4ANRedactedDataExample==\"},{\"type\":\"text\",\"text\":\"I can't share the details of how I solved this, but the answer is 42.\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":30,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":20,\"service_tier\":\"standard\"}}"
+}
