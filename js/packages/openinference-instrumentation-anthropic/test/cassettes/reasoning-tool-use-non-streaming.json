@@ -1,0 +1,7 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"model\":\"claude-sonnet-4-6\",\"id\":\"msg_01ReasoningToolUseTest\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"I should check the weather for the user.\",\"signature\":\"EpwCCmUIDhgCKkDtoolUseSignatureExample==\"},{\"type\":\"tool_use\",\"id\":\"toolu_01ReasoningToolUse\",\"name\":\"get_weather\",\"input\":{\"location\":\"San Francisco\"}}],\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":40,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":25,\"service_tier\":\"standard\"}}"
+}

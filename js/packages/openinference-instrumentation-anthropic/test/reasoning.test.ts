@@ -38,6 +38,12 @@ const {
   MESSAGE_CONTENT_SIGNATURE,
   MESSAGE_CONTENT_DATA,
   MESSAGE_CONTENT_ID,
+  MESSAGE_TOOL_CALLS,
+  TOOL_CALL_ID,
+  TOOL_CALL_FUNCTION_NAME,
+  TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+  LLM_TOOLS,
+  TOOL_JSON_SCHEMA,
 } = SemanticConventions;
 
 const memoryExporter = new InMemorySpanExporter();
@@ -580,4 +586,269 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       expect(attributes).toEqual({});
     },
   );
+
+  it("preserves message.contents order when a reasoning block is interleaved with a tool_use block (non-streaming)", async () => {
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY ?? "fake-api-key",
+      fetch: vcrFetch("reasoning-tool-use-non-streaming"),
+    });
+
+    const requestBody = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      thinking: { type: "enabled" as const, budget_tokens: 1024 },
+      tools: [
+        {
+          name: "get_weather",
+          description: "Get the current weather for a location",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              location: { type: "string" },
+            },
+            required: ["location"],
+          },
+        },
+      ],
+      messages: [
+        {
+          role: "user" as const,
+          content: "What is the weather in San Francisco?",
+        },
+      ],
+    };
+
+    await client.messages.create(requestBody);
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    expect(spans[0].name).toBe("Anthropic Messages");
+    const attributes = { ...spans[0].attributes };
+
+    // Span kind / system / provider
+    expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
+    expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
+    expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
+    expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+
+    // Input value / invocation params
+    expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
+    expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
+    const { messages: _messages, ...invocationParameters } = requestBody;
+    expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
+
+    // Input messages
+    expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
+    expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
+      "What is the weather in San Francisco?",
+    );
+
+    // Output value (full message JSON) / mime type
+    const outputValue = pop(attributes, OUTPUT_VALUE);
+    expect(outputValue).toEqual(expect.any(String));
+    expect(outputValue as string).toMatch(
+      /^\{"model":"claude-sonnet-4-6","id":"msg_01ReasoningToolUseTest"/,
+    );
+    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
+
+    // Output message: role
+    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
+
+    // message.contents.0 is the reasoning block, preserving block order
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("reasoning");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("I should check the weather for the user.");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
+      ),
+    ).toBe("EpwCCmUIDhgCKkDtoolUseSignatureExample==");
+
+    // message.contents.1 is the tool_use block, carrying the same
+    // tool_call.* fields as message.tool_calls.0
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("tool_use");
+    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_ID}`)).toBe(
+      "toolu_01ReasoningToolUse",
+    );
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_FUNCTION_NAME}`),
+    ).toBe("get_weather");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+      ),
+    ).toBe(JSON.stringify({ location: "San Francisco" }));
+
+    // message.tool_calls.1 mirrors the same tool call (index matches the
+    // content block index in message.content)
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_ID}`),
+    ).toBe("toolu_01ReasoningToolUse");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_FUNCTION_NAME}`,
+      ),
+    ).toBe("get_weather");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+      ),
+    ).toBe(JSON.stringify({ location: "San Francisco" }));
+
+    // Tool definitions from the request
+    expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`)).toBe(
+      JSON.stringify(requestBody.tools[0]),
+    );
+
+    // Usage
+    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(40);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(25);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(65);
+
+    // No leftover attributes
+    expect(attributes).toEqual({});
+  });
+
+  it("preserves message.contents order when a reasoning block is interleaved with a tool_use block (streaming)", async () => {
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY ?? "fake-api-key",
+      fetch: vcrFetch("reasoning-tool-use-streaming"),
+    });
+
+    const requestBody = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      thinking: { type: "enabled" as const, budget_tokens: 1024 },
+      tools: [
+        {
+          name: "get_weather",
+          description: "Get the current weather for a location",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              location: { type: "string" },
+            },
+            required: ["location"],
+          },
+        },
+      ],
+      messages: [
+        {
+          role: "user" as const,
+          content: "What is the weather in San Francisco?",
+        },
+      ],
+      stream: true as const,
+    };
+
+    const stream = await client.messages.create(requestBody);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _chunk of stream) {
+      // drain the stream
+    }
+
+    await waitForSpans(1);
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    expect(spans[0].name).toBe("Anthropic Messages");
+    const attributes = { ...spans[0].attributes };
+
+    // Span kind / system / provider
+    expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
+    expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
+    expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
+    expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+
+    // Input value / invocation params
+    expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
+    expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
+    const { messages: _messages, ...invocationParameters } = requestBody;
+    expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
+
+    // Input messages
+    expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
+    expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
+      "What is the weather in San Francisco?",
+    );
+
+    // No visible text content was streamed
+    expect(pop(attributes, OUTPUT_VALUE)).toBe("");
+    expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.TEXT);
+
+    // Output message: role
+    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
+
+    // message.contents.0 is the reasoning block, preserving block order
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("reasoning");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("I should check the weather for the user.");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
+      ),
+    ).toBe("EpwCCmUIDhgCKkDtoolUseSignatureExample==");
+
+    // message.contents.1 is the tool_use block, carrying the same
+    // tool_call.* fields as message.tool_calls.0
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("tool_use");
+    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_ID}`)).toBe(
+      "toolu_01ReasoningToolUse",
+    );
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_FUNCTION_NAME}`),
+    ).toBe("get_weather");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+      ),
+    ).toBe(JSON.stringify({ location: "San Francisco" }));
+
+    // message.tool_calls.1 mirrors the same tool call (index matches the
+    // content block index in the stream)
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_ID}`),
+    ).toBe("toolu_01ReasoningToolUse");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_FUNCTION_NAME}`,
+      ),
+    ).toBe("get_weather");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+      ),
+    ).toBe(JSON.stringify({ location: "San Francisco" }));
+
+    // Tool definitions from the request
+    expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`)).toBe(
+      JSON.stringify(requestBody.tools[0]),
+    );
+
+    // Usage
+    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(40);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(25);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(65);
+
+    expect(attributes).toEqual({});
+  });
 });
