@@ -36,6 +36,7 @@ const {
   MESSAGE_CONTENT_TYPE,
   MESSAGE_CONTENT_TEXT,
   MESSAGE_CONTENT_SIGNATURE,
+  MESSAGE_CONTENT_DATA,
   MESSAGE_TOOL_CALLS,
   TOOL_CALL_ID,
   TOOL_CALL_FUNCTION_NAME,
@@ -296,28 +297,19 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("reasoning");
     expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
-    ).toBe("42");
-    expect(
-      pop(
-        attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
-      ),
-    ).toEqual(expect.any(String));
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_DATA}`),
+    ).toBe("SYNTHETIC_REDACTED_ENCRYPTED_DATA");
 
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("text");
     expect(
-      pop(
-        attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`,
-      ) as string,
-    ).toMatch(/The answer is \*\*42\*\*/);
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("42");
 
     expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(49);
-    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(122);
-    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(171);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(5);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(54);
 
     expect(attributes).toEqual({});
   });
@@ -370,7 +362,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     );
 
     const outputValue = pop(attributes, OUTPUT_VALUE);
-    expect(outputValue as string).toMatch(/The answer is \*\*42\*\*/);
+    expect(outputValue).toBe("42");
     expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.TEXT);
 
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
@@ -379,28 +371,19 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("reasoning");
     expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
-    ).toBe("42");
-    expect(
-      pop(
-        attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
-      ),
-    ).toEqual(expect.any(String));
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_DATA}`),
+    ).toBe("SYNTHETIC_REDACTED_ENCRYPTED_DATA");
 
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("text");
     expect(
-      pop(
-        attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`,
-      ) as string,
-    ).toMatch(/The answer is \*\*42\*\*/);
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("42");
 
     expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(49);
-    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(140);
-    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(189);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(5);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(54);
 
     expect(attributes).toEqual({});
   });
