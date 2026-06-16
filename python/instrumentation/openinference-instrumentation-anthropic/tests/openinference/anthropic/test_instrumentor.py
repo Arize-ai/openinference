@@ -959,6 +959,9 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert isinstance(
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
     )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}"), str
+    )
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
@@ -969,6 +972,9 @@ def test_anthropic_instrumentation_multiple_tool_calling(
         ),
         str,
     )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_ID}"), str
+    )
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
         == "get_time"
@@ -976,6 +982,41 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert isinstance(
         attributes.pop(
             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    # MESSAGE_CONTENTS mirrors tool_use at content position (index 1 = get_weather, 2 = get_time)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert isinstance(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_time"
+    )
+    assert isinstance(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
         ),
         str,
     )
@@ -1111,14 +1152,9 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert isinstance(
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
     )
-    assert (
-        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
-        == "get_time"
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}"), str
     )
-    get_time_input_str = attributes.pop(
-        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
-    )
-    json.loads(get_time_input_str) == {"timezone": "America/New_York"}  # type: ignore
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
@@ -1127,6 +1163,52 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     )
     assert json.loads(get_weather_input_str) == {"location": "New York, NY"}  # type: ignore
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_time"
+    )
+    get_time_input_str = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    json.loads(get_time_input_str) == {"timezone": "America/New_York"}  # type: ignore
+    # MESSAGE_CONTENTS mirrors tool_use at content position (index 1 = get_weather, 2 = get_time)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert isinstance(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_time"
+    )
+    assert isinstance(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 721
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 113
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 834
@@ -2605,6 +2687,7 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA

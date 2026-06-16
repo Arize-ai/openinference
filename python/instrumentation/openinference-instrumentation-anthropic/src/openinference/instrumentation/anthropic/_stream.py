@@ -356,11 +356,31 @@ class _MessageExtractor:
                 )
             elif block.type == "tool_use":
                 yield (
+                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_ID}",
+                    block.id,
+                )
+                yield (
                     f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                     block.name,
                 )
                 yield (
                     f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                    safe_json_dumps(block.input),
+                )
+                yield (
+                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                    "tool_use",
+                )
+                yield (
+                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_ID}",
+                    block.id,
+                )
+                yield (
+                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                    block.name,
+                )
+                yield (
+                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                     safe_json_dumps(block.input),
                 )
                 tool_idx += 1
