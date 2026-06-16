@@ -606,7 +606,8 @@ class TestExtractOutputPydanticContent:
 
     def test_pydantic_content_serialized_to_json(self) -> None:
         from pydantic import BaseModel
-        from openinference.instrumentation.agno._workflow_wrapper import TEXT, _extract_output
+
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
 
         class _Answer(BaseModel):
             answer: str
