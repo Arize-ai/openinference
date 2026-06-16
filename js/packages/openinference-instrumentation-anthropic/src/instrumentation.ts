@@ -342,6 +342,7 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
   if (typeof message.content === "string") {
     attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
   } else if (Array.isArray(message.content)) {
+    let toolIndex = 0;
     message.content.forEach((part, index) => {
       const contentsIndexPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
       if (part.type === "text") {
@@ -358,7 +359,7 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
           ] = part.source.media_type;
         }
       } else if (part.type === "tool_use") {
-        const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
+        const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
         attributes[`${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`] = part.id;
         attributes[`${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
           part.name;
@@ -373,6 +374,7 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
         attributes[
           `${contentsIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
         ] = JSON.stringify(part.input);
+        toolIndex++;
       } else if (part.type === "tool_result") {
         attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
         if (typeof part.content === "string") {
@@ -409,7 +411,7 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
   const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
   attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] = message.role;
-
+  let toolIndex = 0;
   // Handle content array
   message.content.forEach((content, contentIndex) => {
     const contentPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
@@ -418,7 +420,7 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.text;
     } else if (content.type === "tool_use") {
-      const toolCallPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.`;
+      const toolCallPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
       attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = content.id;
       attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
       attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
@@ -429,6 +431,7 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
       attributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
       attributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
         JSON.stringify(content.input);
+      toolIndex++;
     } else if (content.type === "thinking") {
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.thinking;
@@ -476,7 +479,7 @@ async function consumeAnthropicStreamChunks(
   const toolCallAttributes: Attributes = {};
   const contentAttributes: Attributes = {};
   let usageAttributes: Attributes = {};
-
+  let toolIndex = -1;
   for await (const chunk of stream) {
     if (chunk.type === "message_start") {
       usageAttributes = {
@@ -494,7 +497,8 @@ async function consumeAnthropicStreamChunks(
       const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
 
       if (contentBlock.type === "tool_use") {
-        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.`;
+        toolIndex++;
+        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
         toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] =
           contentBlock.id;
         toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
@@ -538,7 +542,7 @@ async function consumeAnthropicStreamChunks(
         contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
           chunk.delta.signature;
       } else if (chunk.delta.type === "input_json_delta") {
-        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.`;
+        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
         const existingArgs =
           toolCallAttributes[
             `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`

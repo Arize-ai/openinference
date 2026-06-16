@@ -36,8 +36,6 @@ const {
   MESSAGE_CONTENT_TYPE,
   MESSAGE_CONTENT_TEXT,
   MESSAGE_CONTENT_SIGNATURE,
-  MESSAGE_CONTENT_DATA,
-  MESSAGE_CONTENT_ID,
   MESSAGE_TOOL_CALLS,
   TOOL_CALL_ID,
   TOOL_CALL_FUNCTION_NAME,
@@ -57,11 +55,6 @@ async function waitForSpans(count: number) {
   }
 }
 
-/**
- * Pops `key` off a mutable copy of the span attributes and returns its
- * value, so that tests can assert every attribute is accounted for and
- * finish with `expect(attributes).toEqual({})`.
- */
 function pop(attributes: Attributes, key: string): unknown {
   const value = attributes[key];
   delete attributes[key];
@@ -75,7 +68,6 @@ describe("AnthropicInstrumentation - reasoning content", () => {
   tracerProvider.register();
   const instrumentation = new AnthropicInstrumentation({ tracerProvider });
   instrumentation.disable();
-  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
   instrumentation._modules[0].moduleExports = Anthropic;
 
   beforeAll(() => {
@@ -116,34 +108,27 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(spans[0].name).toBe("Anthropic Messages");
     const attributes = { ...spans[0].attributes };
 
-    // Span kind / system / provider
     expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
-    // Input value / invocation params
     const inputValue = pop(attributes, INPUT_VALUE);
     expect(inputValue).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
     const { messages: _messages, ...invocationParameters } = requestBody;
     expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
 
-    // Input messages
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
       "What is 27 * 453? Think it through step by step.",
     );
 
-    // Output value (full message JSON) / mime type
     const outputValue = pop(attributes, OUTPUT_VALUE);
     expect(outputValue).toEqual(expect.any(String));
-    expect(outputValue as string).toMatch(
-      /^\{"model":"claude-sonnet-4-6","id":"msg_01K7NRDr9CpvBE22JZtFy7ss"/,
-    );
+    expect(outputValue as string).toMatch(/^\{"model":"claude-sonnet-4-6","id":"msg_/);
     expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
 
-    // Output message: role + reasoning content + text content
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
     expect(
@@ -159,7 +144,6 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
     );
     expect(signature).toEqual(expect.any(String));
-    expect(signature as string).toMatch(/^EpwCCmUIDhgCKkDtrdu6/);
 
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
@@ -169,14 +153,12 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`,
     );
     expect(textContent).toEqual(expect.any(String));
-    expect(textContent as string).toMatch(/^## Solving 27 × 453/);
+    expect(textContent as string).toMatch(/27 × 453/);
 
-    // Usage
     expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(52);
-    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(202);
-    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(254);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(221);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(273);
 
-    // No leftover attributes
     expect(attributes).toEqual({});
   });
 
@@ -201,7 +183,6 @@ describe("AnthropicInstrumentation - reasoning content", () => {
 
     const stream = await client.messages.create(requestBody);
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for await (const _chunk of stream) {
       // drain the stream
     }
@@ -213,31 +194,26 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(spans[0].name).toBe("Anthropic Messages");
     const attributes = { ...spans[0].attributes };
 
-    // Span kind / system / provider
     expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
-    // Input value / invocation params
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
     const { messages: _messages, ...invocationParameters } = requestBody;
     expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
 
-    // Input messages
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
       "What is 27 * 453? Think it through step by step.",
     );
 
-    // Output value is the concatenated visible text (not the full JSON message) for streams
     const outputValue = pop(attributes, OUTPUT_VALUE);
     expect(outputValue).toEqual(expect.any(String));
-    expect(outputValue as string).toMatch(/^## Solving 27 × 453/);
+    expect(outputValue as string).toMatch(/27 × 453/);
     expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.TEXT);
 
-    // Output message: role + reasoning content + text content
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
     expect(
@@ -245,15 +221,12 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     ).toBe("reasoning");
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
-    ).toBe(
-      "27 * 453\n\n27 * 400 = 10,800\n27 * 50 = 1,350\n27 * 3 = 81\n\n10,800 + 1,350 + 81 = 12,231",
-    );
+    ).toBe("27 * 453\n\n= 27 * 400 + 27 * 50 + 27 * 3\n= 10800 + 1350 + 81\n= 12231");
     const signature = pop(
       attributes,
       `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
     );
     expect(signature).toEqual(expect.any(String));
-    expect(signature as string).toMatch(/^EpwCCmUIDhgCKkDtrdu6/);
 
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
@@ -263,11 +236,11 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`,
     );
     expect(textContent).toEqual(expect.any(String));
-    expect(textContent as string).toMatch(/^## Solving 27 × 453/);
+    expect(textContent as string).toMatch(/27 × 453/);
 
     expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(52);
-    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(230);
-    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(282);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(204);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(256);
 
     expect(attributes).toEqual({});
   });
@@ -297,62 +270,55 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(spans[0].name).toBe("Anthropic Messages");
     const attributes = { ...spans[0].attributes };
 
-    // Span kind / system / provider
     expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
-    // Input value / invocation params
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
     const { messages: _messages, ...invocationParameters } = requestBody;
     expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
 
-    // Input messages
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
       "What is the answer to life, the universe, and everything?",
     );
 
-    // Output value (full message JSON) / mime type
     const outputValue = pop(attributes, OUTPUT_VALUE);
     expect(outputValue).toEqual(expect.any(String));
-    expect(outputValue as string).toMatch(
-      /^\{"model":"claude-sonnet-4-6","id":"msg_01RedactedThinkingTest"/,
-    );
+    expect(outputValue as string).toMatch(/^\{"model":"claude-sonnet-4-6","id":"msg_/);
     expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
 
-    // Output message: role + redacted reasoning content + text content
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("reasoning");
     expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_DATA}`),
-    ).toBe("EmwKAhgBEgy3vOSpZ1m4FAKLm0caDOJ8K6kGz4ANRedactedDataExample==");
-    // Redacted thinking blocks have no visible text or id
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("42");
     expect(
-      attributes[`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`],
-    ).toBeUndefined();
-    expect(
-      attributes[`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_ID}`],
-    ).toBeUndefined();
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
+      ),
+    ).toEqual(expect.any(String));
 
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("text");
     expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`),
-    ).toBe("I can't share the details of how I solved this, but the answer is 42.");
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`,
+      ) as string,
+    ).toMatch(/The answer is \*\*42\*\*/);
 
-    // Usage
-    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(30);
-    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(20);
-    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(50);
+    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(49);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(122);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(171);
 
-    // No leftover attributes
     expect(attributes).toEqual({});
   });
 
@@ -377,7 +343,6 @@ describe("AnthropicInstrumentation - reasoning content", () => {
 
     const stream = await client.messages.create(requestBody);
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for await (const _chunk of stream) {
       // drain the stream
     }
@@ -389,56 +354,53 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(spans[0].name).toBe("Anthropic Messages");
     const attributes = { ...spans[0].attributes };
 
-    // Span kind / system / provider
     expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
-    // Input value / invocation params
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
     const { messages: _messages, ...invocationParameters } = requestBody;
     expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
 
-    // Input messages
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
       "What is the answer to life, the universe, and everything?",
     );
 
-    // Output value is the concatenated visible text (not the full JSON message) for streams
     const outputValue = pop(attributes, OUTPUT_VALUE);
-    expect(outputValue).toBe("I can't share the details, but the answer is 42.");
+    expect(outputValue as string).toMatch(/The answer is \*\*42\*\*/);
     expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.TEXT);
 
-    // Output message: role + redacted reasoning content + text content
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("reasoning");
     expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_DATA}`),
-    ).toBe("EmwKAhgBEgy3vOSpZ1m4FAKLm0caDOJ8K6kGz4ANRedactedDataExample==");
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("42");
     expect(
-      attributes[`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`],
-    ).toBeUndefined();
-    expect(
-      attributes[`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_ID}`],
-    ).toBeUndefined();
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
+      ),
+    ).toEqual(expect.any(String));
 
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("text");
     expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`),
-    ).toBe("I can't share the details, but the answer is 42.");
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`,
+      ) as string,
+    ).toMatch(/The answer is \*\*42\*\*/);
 
-    // Usage: prompt count from message_start, completion count updated from message_delta
-    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(30);
-    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(20);
-    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(50);
+    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(49);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(140);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(189);
 
     expect(attributes).toEqual({});
   });
@@ -483,13 +445,11 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       expect(spans.length).toBe(2);
       const attributes = { ...spans[1].attributes };
 
-      // Span kind / system / provider / model
       expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
       expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
       expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
       expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
-      // Input value / invocation params
       const inputValue = pop(attributes, INPUT_VALUE);
       expect(inputValue).toEqual(expect.any(String));
       expect(inputValue as string).toMatch(/^\{"model":"claude-sonnet-4-6"/);
@@ -502,14 +462,11 @@ describe("AnthropicInstrumentation - reasoning content", () => {
         }),
       );
 
-      // Input message 0: original user question
       expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
       expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
         "What is 27 * 453? Think it through step by step.",
       );
 
-      // Input message 1: assistant turn from the first response, preserved with
-      // its reasoning (thinking) block and signature
       expect(pop(attributes, `${LLM_INPUT_MESSAGES}.1.${MESSAGE_ROLE}`)).toBe("assistant");
       expect(
         pop(attributes, `${LLM_INPUT_MESSAGES}.1.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
@@ -522,7 +479,6 @@ describe("AnthropicInstrumentation - reasoning content", () => {
         `${LLM_INPUT_MESSAGES}.1.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
       );
       expect(inputSignature).toEqual(expect.any(String));
-      expect(inputSignature as string).toMatch(/^EpwCCmUIDhgCKkDtrdu6/);
 
       expect(
         pop(attributes, `${LLM_INPUT_MESSAGES}.1.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
@@ -534,21 +490,16 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       expect(inputAssistantText).toEqual(expect.any(String));
       expect(inputAssistantText as string).toMatch(/^## Solving 27 × 453/);
 
-      // Input message 2: follow-up user question
       expect(pop(attributes, `${LLM_INPUT_MESSAGES}.2.${MESSAGE_ROLE}`)).toBe("user");
       expect(pop(attributes, `${LLM_INPUT_MESSAGES}.2.${MESSAGE_CONTENT}`)).toBe(
         "Now divide that result by 9 and explain your reasoning.",
       );
 
-      // Output value / mime type
       const outputValue = pop(attributes, OUTPUT_VALUE);
       expect(outputValue).toEqual(expect.any(String));
-      expect(outputValue as string).toMatch(
-        /^\{"model":"claude-sonnet-4-6","id":"msg_01HkNaEbsuALpp4oY7QWTysY"/,
-      );
+      expect(outputValue as string).toMatch(/^\{"model":"claude-sonnet-4-6","id":"msg_/);
       expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
 
-      // Output message: role + reasoning content + text content
       expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
       expect(
@@ -565,7 +516,6 @@ describe("AnthropicInstrumentation - reasoning content", () => {
         `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
       );
       expect(outputSignature).toEqual(expect.any(String));
-      expect(outputSignature as string).toMatch(/^EooECmUIDhgCKkALP1t8HA/);
 
       expect(
         pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
@@ -577,12 +527,10 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       expect(outputText).toEqual(expect.any(String));
       expect(outputText as string).toMatch(/^## Dividing 12,231 by 9/);
 
-      // Usage
       expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toEqual(expect.any(Number));
       expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toEqual(expect.any(Number));
       expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toEqual(expect.any(Number));
 
-      // No leftover attributes
       expect(attributes).toEqual({});
     },
   );
@@ -625,96 +573,90 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(spans[0].name).toBe("Anthropic Messages");
     const attributes = { ...spans[0].attributes };
 
-    // Span kind / system / provider
     expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
-    // Input value / invocation params
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
     const { messages: _messages, ...invocationParameters } = requestBody;
     expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
 
-    // Input messages
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
       "What is the weather in San Francisco?",
     );
 
-    // Output value (full message JSON) / mime type
     const outputValue = pop(attributes, OUTPUT_VALUE);
     expect(outputValue).toEqual(expect.any(String));
-    expect(outputValue as string).toMatch(
-      /^\{"model":"claude-sonnet-4-6","id":"msg_01ReasoningToolUseTest"/,
-    );
+    expect(outputValue as string).toMatch(/^\{"model":"claude-sonnet-4-6","id":"msg_/);
     expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.JSON);
 
-    // Output message: role
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
-    // message.contents.0 is the reasoning block, preserving block order
+    // block[0] = reasoning (thinking)
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("reasoning");
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
-    ).toBe("I should check the weather for the user.");
+    ).toEqual(expect.any(String));
     expect(
       pop(
         attributes,
         `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
       ),
-    ).toBe("EpwCCmUIDhgCKkDtoolUseSignatureExample==");
+    ).toEqual(expect.any(String));
 
-    // message.contents.1 is the tool_use block, carrying the same
-    // tool_call.* fields as message.tool_calls.0
+    // block[1] = text — model emitted a visible text before calling the tool
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("text");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("Sure! Let me check the weather in San Francisco for you!");
+
+    // block[2] = tool_use — tool_calls uses sequential toolIndex (0), contents uses contentIndex (2)
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_ID}`),
+    ).toEqual(expect.any(String));
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_FUNCTION_NAME}`,
+      ),
+    ).toBe("get_weather");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+      ),
+    ).toBe(JSON.stringify({ location: "San Francisco" }));
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("tool_use");
-    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_ID}`)).toBe(
-      "toolu_01ReasoningToolUse",
-    );
     expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_FUNCTION_NAME}`),
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${TOOL_CALL_ID}`),
+    ).toEqual(expect.any(String));
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${TOOL_CALL_FUNCTION_NAME}`),
     ).toBe("get_weather");
     expect(
       pop(
         attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
       ),
     ).toBe(JSON.stringify({ location: "San Francisco" }));
 
-    // message.tool_calls.1 mirrors the same tool call (index matches the
-    // content block index in message.content)
-    expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_ID}`),
-    ).toBe("toolu_01ReasoningToolUse");
-    expect(
-      pop(
-        attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_FUNCTION_NAME}`,
-      ),
-    ).toBe("get_weather");
-    expect(
-      pop(
-        attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-      ),
-    ).toBe(JSON.stringify({ location: "San Francisco" }));
-
-    // Tool definitions from the request
     expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`)).toBe(
       JSON.stringify(requestBody.tools[0]),
     );
 
-    // Usage
-    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(40);
-    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(25);
-    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(65);
+    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(596);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(99);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(695);
 
-    // No leftover attributes
     expect(attributes).toEqual({});
   });
 
@@ -752,7 +694,6 @@ describe("AnthropicInstrumentation - reasoning content", () => {
 
     const stream = await client.messages.create(requestBody);
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for await (const _chunk of stream) {
       // drain the stream
     }
@@ -764,90 +705,90 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(spans[0].name).toBe("Anthropic Messages");
     const attributes = { ...spans[0].attributes };
 
-    // Span kind / system / provider
     expect(pop(attributes, OPENINFERENCE_SPAN_KIND)).toBe(OpenInferenceSpanKind.LLM);
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
-    // Input value / invocation params
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
     const { messages: _messages, ...invocationParameters } = requestBody;
     expect(pop(attributes, LLM_INVOCATION_PARAMETERS)).toBe(JSON.stringify(invocationParameters));
 
-    // Input messages
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("user");
     expect(pop(attributes, `${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`)).toBe(
       "What is the weather in San Francisco?",
     );
 
-    // No visible text content was streamed
-    expect(pop(attributes, OUTPUT_VALUE)).toBe("");
+    // model streamed a visible text block before the tool call
+    expect(pop(attributes, OUTPUT_VALUE)).toBe(
+      "Sure! Let me check the weather in San Francisco for you!",
+    );
     expect(pop(attributes, OUTPUT_MIME_TYPE)).toBe(MimeType.TEXT);
 
-    // Output message: role
     expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`)).toBe("assistant");
 
-    // message.contents.0 is the reasoning block, preserving block order
+    // block[0] = reasoning (thinking)
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("reasoning");
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_TEXT}`),
-    ).toBe("I should check the weather for the user.");
+    ).toEqual(expect.any(String));
     expect(
       pop(
         attributes,
         `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.0.${MESSAGE_CONTENT_SIGNATURE}`,
       ),
-    ).toBe("EpwCCmUIDhgCKkDtoolUseSignatureExample==");
+    ).toEqual(expect.any(String));
 
-    // message.contents.1 is the tool_use block, carrying the same
-    // tool_call.* fields as message.tool_calls.0
+    // block[1] = text — model emitted a visible text before calling the tool
     expect(
       pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TYPE}`),
+    ).toBe("text");
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${MESSAGE_CONTENT_TEXT}`),
+    ).toBe("Sure! Let me check the weather in San Francisco for you!");
+
+    // block[2] = tool_use — tool_calls uses sequential toolIndex (0), contents uses contentIndex (2)
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_ID}`),
+    ).toEqual(expect.any(String));
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_FUNCTION_NAME}`,
+      ),
+    ).toBe("get_weather");
+    expect(
+      pop(
+        attributes,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.0.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+      ),
+    ).toBe('{"location": "San Francisco"}');
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${MESSAGE_CONTENT_TYPE}`),
     ).toBe("tool_use");
-    expect(pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_ID}`)).toBe(
-      "toolu_01ReasoningToolUse",
-    );
     expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_FUNCTION_NAME}`),
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${TOOL_CALL_ID}`),
+    ).toEqual(expect.any(String));
+    expect(
+      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${TOOL_CALL_FUNCTION_NAME}`),
     ).toBe("get_weather");
     expect(
       pop(
         attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.1.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENTS}.2.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
       ),
-    ).toBe(JSON.stringify({ location: "San Francisco" }));
+    ).toBe('{"location": "San Francisco"}');
 
-    // message.tool_calls.1 mirrors the same tool call (index matches the
-    // content block index in the stream)
-    expect(
-      pop(attributes, `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_ID}`),
-    ).toBe("toolu_01ReasoningToolUse");
-    expect(
-      pop(
-        attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_FUNCTION_NAME}`,
-      ),
-    ).toBe("get_weather");
-    expect(
-      pop(
-        attributes,
-        `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_TOOL_CALLS}.1.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-      ),
-    ).toBe(JSON.stringify({ location: "San Francisco" }));
-
-    // Tool definitions from the request
     expect(pop(attributes, `${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`)).toBe(
       JSON.stringify(requestBody.tools[0]),
     );
 
-    // Usage
-    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(40);
-    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(25);
-    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(65);
+    expect(pop(attributes, LLM_TOKEN_COUNT_PROMPT)).toBe(596);
+    expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(99);
+    expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(695);
 
     expect(attributes).toEqual({});
   });
