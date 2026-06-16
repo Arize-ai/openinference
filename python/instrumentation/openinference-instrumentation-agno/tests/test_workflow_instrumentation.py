@@ -15,7 +15,10 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.agno import AgnoInstrumentor
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+)
 
 
 @pytest.fixture()
@@ -592,33 +595,32 @@ class TestWorkflowRunId:
 
 
 class TestExtractOutputPydanticContent:
-    """Regression tests for issue #3235: ``_extract_output`` must JSON-serialize
-    pydantic ``content`` instead of stringifying the model."""
+    """Tests for _extract_output serialization and mime type."""
+
+    def _make_response(self, content: Any) -> Any:
+        class _Response:
+            def __init__(self, c: Any) -> None:
+                self.content = c
+
+        return _Response(content)
 
     def test_pydantic_content_serialized_to_json(self) -> None:
         from pydantic import BaseModel
-
-        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+        from openinference.instrumentation.agno._workflow_wrapper import TEXT, _extract_output
 
         class _Answer(BaseModel):
             answer: str
 
-        class _Response:
-            def __init__(self, content: Any) -> None:
-                self.content = content
-
-        response = _Response(content=_Answer(answer="done"))
-        # Before the fix this returned ``str(_Answer(...))`` -> ``answer='done'``.
-        assert _extract_output(response) == '{"answer":"done"}'
+        output, mime_type = _extract_output(self._make_response(_Answer(answer="done")))
+        assert output == '{"answer":"done"}'
+        assert mime_type == JSON
 
     def test_plain_string_content_unchanged(self) -> None:
         from openinference.instrumentation.agno._workflow_wrapper import _extract_output
 
-        class _Response:
-            def __init__(self, content: Any) -> None:
-                self.content = content
-
-        assert _extract_output(_Response(content="ok")) == "ok"
+        output, mime_type = _extract_output(self._make_response("ok"))
+        assert output == "ok"
+        assert mime_type == TEXT
 
     def test_unserializable_content_falls_back_to_str(self) -> None:
         from openinference.instrumentation.agno._workflow_wrapper import _extract_output
@@ -630,9 +632,38 @@ class TestExtractOutputPydanticContent:
             def __str__(self) -> str:
                 return "boom-repr"
 
-        class _Response:
-            def __init__(self, content: Any) -> None:
-                self.content = content
+        output, mime_type = _extract_output(self._make_response(_Boom()))
+        assert output == "boom-repr"
+        assert mime_type == TEXT
 
-        # ``model_dump_json`` raising must degrade to ``str(content)``, not propagate.
-        assert _extract_output(_Response(content=_Boom())) == "boom-repr"
+    def test_response_with_model_dump_json_returns_json_mime(self) -> None:
+        """Response without .content but with model_dump_json should also yield JSON mime."""
+        from pydantic import BaseModel
+
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        class _PydanticResponse(BaseModel):
+            result: str
+
+        output, mime_type = _extract_output(_PydanticResponse(result="42"))
+        assert output == '{"result":"42"}'
+        assert mime_type == JSON
+
+    def test_none_response_returns_empty_text(self) -> None:
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        output, mime_type = _extract_output(None)
+        assert output == ""
+        assert mime_type == TEXT
+
+    def test_plain_string_response_returns_text_mime(self) -> None:
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        output, mime_type = _extract_output("hello")
+        assert output == "hello"
+        assert mime_type == TEXT
+
+
+# mime types
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
+JSON = OpenInferenceMimeTypeValues.JSON.value
