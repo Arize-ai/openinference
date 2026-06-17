@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.0.2...python-openinference-instrumentation-google-genai-v1.1.0) (2026-06-11)
+
+
+### Features
+
+* **google-genai:** capture Gemini reasoning content and thoughts ([#3194](https://github.com/Arize-ai/openinference/issues/3194)) ([973bfb2](https://github.com/Arize-ai/openinference/commit/973bfb2d8a5c381605f9d06a10ae46c231fc15f6))
+
 ## [1.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.0.1...python-openinference-instrumentation-google-genai-v1.0.2) (2026-05-18)
 
 
