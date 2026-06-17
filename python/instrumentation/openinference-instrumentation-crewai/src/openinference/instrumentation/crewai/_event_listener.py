@@ -245,7 +245,28 @@ def _get_flow_method_type(source: Any, method_name: str) -> Optional[str]:
         return "start"
     if method_name in dict(getattr(source, "_listeners", {}) or {}):
         return "listen"
+    methods = getattr(source, "_methods", None)
+    if isinstance(methods, Mapping):
+        method = methods.get(method_name)
+        method_type = type(method).__name__
+        if method_type == "StartMethod":
+            return "start"
+        if method_type == "RouterMethod":
+            return "router"
+        if method_type == "ListenMethod":
+            return "listen"
+    actual_method = getattr(source, method_name, None)
+    if actual_method is not None:
+        if getattr(actual_method, "__is_start_method__", False):
+            return "start"
+        if getattr(actual_method, "__is_router__", False):
+            return "router"
+        return "listen"
     return None
+
+
+def _should_skip_flow_events(source: Any) -> bool:
+    return bool(getattr(source, "suppress_flow_events", False))
 
 
 def _build_crew_start_spec(source: Any, event: CrewKickoffStartedEvent) -> _SpanStartSpec:
@@ -874,10 +895,16 @@ class OpenInferenceEventListener(BaseEventListener):
     def _on_flow_started(self, source: Any, event: FlowStartedEvent) -> None:
         if self._is_suppressed():
             return
+        if _should_skip_flow_events(source):
+            self._assembler.open_scope(event)
+            return
         self._assembler.start_span(event, _build_flow_start_spec(source, event))
 
     def _on_flow_finished(self, source: Any, event: FlowFinishedEvent) -> None:
         if self._is_suppressed():
+            return
+        if _should_skip_flow_events(source):
+            self._assembler.close_scope(event)
             return
         self._assembler.end_span(
             event,
@@ -887,10 +914,16 @@ class OpenInferenceEventListener(BaseEventListener):
     def _on_method_started(self, source: Any, event: MethodExecutionStartedEvent) -> None:
         if self._is_suppressed():
             return
+        if _should_skip_flow_events(source):
+            self._assembler.open_scope(event)
+            return
         self._assembler.start_span(event, _build_method_start_spec(source, event))
 
     def _on_method_finished(self, source: Any, event: MethodExecutionFinishedEvent) -> None:
         if self._is_suppressed():
+            return
+        if _should_skip_flow_events(source):
+            self._assembler.close_scope(event)
             return
         self._assembler.end_span(
             event,
@@ -899,6 +932,9 @@ class OpenInferenceEventListener(BaseEventListener):
 
     def _on_method_failed(self, source: Any, event: MethodExecutionFailedEvent) -> None:
         if self._is_suppressed():
+            return
+        if _should_skip_flow_events(source):
+            self._assembler.close_scope(event)
             return
         self._assembler.end_span(
             event,

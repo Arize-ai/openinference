@@ -715,6 +715,69 @@ def test_event_listener_llm_failed_sets_error_status_and_clears_usage(
     assert not direct_event_listener._llm_usage_by_call_id
 
 
+def test_suppressed_flow_method_events_are_ignored(
+    direct_event_listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    source = SimpleNamespace(suppress_flow_events=True)
+
+    direct_event_listener._on_agent_started(
+        None,
+        _event(
+            "agent-start",
+            agent=SimpleNamespace(role="Researcher"),
+            task=SimpleNamespace(
+                id="task-1",
+                name="research-task",
+                description="Research CrewAI",
+                expected_output="Summary",
+            ),
+            task_prompt="Research CrewAI",
+        ),
+    )
+    direct_event_listener._on_method_started(
+        source,
+        _event(
+            "internal-method",
+            parent_event_id="agent-start",
+            flow_name="AgentExecutor",
+            method_name="kickoff",
+        ),
+    )
+    direct_event_listener._on_tool_started(
+        None,
+        _event(
+            "tool-start",
+            parent_event_id="internal-method",
+            tool_name="search_tool",
+            tool_args={"query": "CrewAI"},
+        ),
+    )
+    direct_event_listener._on_tool_finished(
+        None,
+        _end_event("tool-start", output="result"),
+    )
+    direct_event_listener._on_method_finished(
+        source,
+        _end_event("internal-method", result="completed"),
+    )
+    direct_event_listener._on_agent_completed(
+        None,
+        _end_event("agent-start", output="done"),
+    )
+
+    spans = _finished_spans(in_memory_span_exporter)
+    spans_by_id = _assert_single_trace(spans)
+    assert len(spans) == 2
+
+    agent_span = get_spans_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)[0]
+    tool_span = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)[0]
+    assert agent_span.name == "Researcher.research-task.execute"
+    assert tool_span.name == "search_tool.run"
+    assert _span_parent_name(agent_span, spans_by_id) is None
+    assert _span_parent_name(tool_span, spans_by_id) == agent_span.name
+
+
 @pytest.mark.vcr
 @pytest.mark.default_cassette("test_crewai_instrumentation")
 def test_event_listener_crewai_instrumentation(
