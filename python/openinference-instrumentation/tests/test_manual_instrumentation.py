@@ -30,7 +30,7 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import Status, StatusCode, get_current_span
+from opentelemetry.trace import Status, StatusCode, TracerProvider, get_current_span
 from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
 from typing_extensions import Annotated, TypeAlias
@@ -47,6 +47,7 @@ from openinference.instrumentation import (
     Tool,
     ToolCall,
     ToolCallFunction,
+    TraceConfig,
     get_llm_attributes,
     get_output_attributes,
     infer_llm_provider_from_host,
@@ -2404,6 +2405,141 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         "type": "object",
         "properties": {"operation": {"type": "string"}},
     }
+
+
+def _reasoning_message(role: str) -> Message:
+    return Message(
+        role=role,
+        contents=[
+            ReasoningMessageContent(
+                type="reasoning",
+                text="Thinking it through...",
+                id="rs_1",
+                signature="thought-sig-456",
+                data="redacted-thinking-data",
+                encrypted_content="enc-content-xyz",
+            ),
+        ],
+        tool_calls=[
+            ToolCall(
+                id="call-1",
+                function=ToolCallFunction(name="search", arguments='{"query": "test"}'),
+                reasoning_signature="tool-call-thought-sig-789",
+            ),
+        ],
+    )
+
+
+def test_context_manager_llm_span_emits_reasoning_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer: OITracer,
+) -> None:
+    with tracer.start_as_current_span(
+        "llm-span",
+        openinference_span_kind="llm",
+    ) as span:
+        span.set_attributes(
+            get_llm_attributes(
+                input_messages=[_reasoning_message("user")],
+                output_messages=[_reasoning_message("assistant")],
+            )
+        )
+        span.set_status(Status(StatusCode.OK))
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    for base in (LLM_INPUT_MESSAGES, LLM_OUTPUT_MESSAGES):
+        content = f"{base}.0.{MESSAGE_CONTENTS}.0"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_TYPE}") == "reasoning"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_TEXT}") == "Thinking it through..."
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_ID}") == "rs_1"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_SIGNATURE}") == "thought-sig-456"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_DATA}") == "redacted-thinking-data"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}") == "enc-content-xyz"
+        assert (
+            attributes.pop(f"{base}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}")
+            == "tool-call-thought-sig-789"
+        )
+
+
+def test_llm_decorator_emits_reasoning_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer: OITracer,
+) -> None:
+    def process_input(prompt: str) -> "Mapping[str, AttributeValue]":
+        return get_llm_attributes(input_messages=[_reasoning_message("user")])
+
+    def process_output(_: object) -> "Mapping[str, AttributeValue]":
+        return get_llm_attributes(output_messages=[_reasoning_message("assistant")])
+
+    @tracer.llm(process_input=process_input, process_output=process_output)
+    def call(prompt: str) -> str:
+        return "ok"
+
+    call("hello")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    content = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0"
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_TYPE}") == "reasoning"
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_TEXT}") == "Thinking it through..."
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_SIGNATURE}") == "thought-sig-456"
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_DATA}") == "redacted-thinking-data"
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}") == "enc-content-xyz"
+    assert (
+        attributes.get(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}"
+        )
+        == "tool-call-thought-sig-789"
+    )
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+def test_reasoning_content_masking(
+    direction: str,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from openinference.instrumentation.config import REDACTED_VALUE
+
+    base = LLM_INPUT_MESSAGES if direction == "input" else LLM_OUTPUT_MESSAGES
+    role = "user" if direction == "input" else "assistant"
+    content = f"{base}.0.{MESSAGE_CONTENTS}.0"
+    text_key = f"{content}.{MESSAGE_CONTENT_TEXT}"
+    opaque_keys = [
+        f"{content}.{MESSAGE_CONTENT_SIGNATURE}",
+        f"{content}.{MESSAGE_CONTENT_DATA}",
+        f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}",
+        f"{base}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}",
+    ]
+
+    def span_attributes_for(config: TraceConfig) -> Dict[str, AttributeValue]:
+        tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+        if direction == "input":
+            attrs = get_llm_attributes(input_messages=[_reasoning_message(role)])
+        else:
+            attrs = get_llm_attributes(output_messages=[_reasoning_message(role)])
+        tracer.start_span("llm-span", attributes=attrs).end()
+        return dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+
+    attrs = span_attributes_for(TraceConfig())
+    assert attrs[text_key] == "Thinking it through..."
+    for key in opaque_keys:
+        assert attrs[key] is not None
+
+    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_messages": True}))
+    assert text_key not in attrs
+    for key in opaque_keys:
+        assert key not in attrs
+
+    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_text": True}))
+    assert attrs[text_key] == REDACTED_VALUE
+    assert attrs[opaque_keys[0]] == "thought-sig-456"
+    assert attrs[opaque_keys[1]] == "redacted-thinking-data"
+    assert attrs[opaque_keys[2]] == "enc-content-xyz"
+    assert attrs[opaque_keys[3]] == "tool-call-thought-sig-789"
 
 
 def test_infer_tool_parameters() -> None:
