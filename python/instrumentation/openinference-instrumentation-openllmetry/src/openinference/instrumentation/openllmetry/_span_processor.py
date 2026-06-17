@@ -90,7 +90,39 @@ def _safe_int(value: Any) -> Optional[int]:
         return None
 
 
-def _map_generic_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
+def _coerce_json_obj(value: Any) -> Optional[Any]:
+    """Coercion of a Traceloop entity input/output attribute into a Python object."""
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return None
+    return None
+
+
+def _unwrap_tool_io(
+    input_raw: Any, output_raw: Any
+) -> Tuple[Optional[Any], Optional[Any], Optional[Any]]:
+    """Unwrap the LangChain/Traceloop tool envelopes into clean values."""
+    tool_args: Optional[Any] = None
+    tool_result: Optional[Any] = None
+
+    input_obj = _coerce_json_obj(input_raw)
+    if isinstance(input_obj, dict) and "inputs" in input_obj:
+        tool_args = input_obj["inputs"]
+
+    output_obj = _coerce_json_obj(output_raw)
+    if isinstance(output_obj, dict) and "output" in output_obj:
+        tool_result = output_obj["output"]
+
+    return tool_args, tool_result, tool_args
+
+
+def _map_generic_span(attrs: Dict[str, Any], span_name: Optional[str] = None) -> Dict[str, Any]:
     """
     Convert TraceLoop 'workflow' / 'task' / 'agent' / 'tool' spans
     to OpenInference semantic conventions.
@@ -101,7 +133,27 @@ def _map_generic_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
     mapped: Dict[str, Any] = {"openinference.span.kind": kind_val}
 
     input_raw = attrs.get(SpanAttributes.TRACELOOP_ENTITY_INPUT)
-    if input_raw is not None:
+    output_raw = attrs.get(SpanAttributes.TRACELOOP_ENTITY_OUTPUT)
+
+    is_tool = kind_val == sc.OpenInferenceSpanKindValues.TOOL.value
+    tool_args = tool_result = tool_params = None
+    if is_tool:
+        tool_args, tool_result, tool_params = _unwrap_tool_io(input_raw, output_raw)
+
+        tool_name = attrs.get(SpanAttributes.TRACELOOP_ENTITY_NAME) or span_name
+        if tool_name:
+            mapped[sc.SpanAttributes.TOOL_NAME] = tool_name
+        if tool_params is not None:
+            mapped[sc.SpanAttributes.TOOL_PARAMETERS] = _as_json_str(tool_params)
+
+    if is_tool and tool_args is not None:
+        mapped.update(
+            {
+                "input.mime_type": "application/json",
+                "input.value": _as_json_str(tool_args),
+            }
+        )
+    elif input_raw is not None:
         mapped.update(
             {
                 "input.mime_type": "application/json",
@@ -109,8 +161,26 @@ def _map_generic_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
 
-    output_raw = attrs.get(SpanAttributes.TRACELOOP_ENTITY_OUTPUT)
-    if output_raw is not None:
+    if is_tool and tool_result is not None:
+        result_mime_type = "text/plain"
+        result_value: Any = tool_result
+        if isinstance(tool_result, (dict, list)):
+            result_mime_type = "application/json"
+        elif isinstance(tool_result, str):
+            try:
+                json.loads(tool_result)
+                result_mime_type = "application/json"
+            except Exception:
+                result_mime_type = "text/plain"
+        mapped.update(
+            {
+                "output.mime_type": result_mime_type,
+                "output.value": _as_json_str(result_value)
+                if not isinstance(result_value, str)
+                else result_value,
+            }
+        )
+    elif output_raw is not None:
         mapped.update(
             {
                 "output.mime_type": "application/json",
@@ -306,7 +376,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
         kind = attrs.get(SpanAttributes.TRACELOOP_SPAN_KIND)
         if kind and kind.lower() != "llm":
-            generic = _map_generic_span(attrs)
+            generic = _map_generic_span(attrs, span_name=getattr(span, "name", None))
             attrs.clear()
             attrs.update(generic)
             return
