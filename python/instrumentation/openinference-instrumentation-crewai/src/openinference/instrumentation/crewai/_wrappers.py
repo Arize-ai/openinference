@@ -256,6 +256,28 @@ def _get_flow_name(flow: Any) -> str:
     return "Flow"
 
 
+def _get_flow_method_type(flow: Any, method_name: Any) -> str:
+    methods = getattr(flow, "_methods", None)
+    if isinstance(methods, Mapping):
+        method = methods.get(method_name)
+        method_type = type(method).__name__
+        if method_type == "StartMethod":
+            return "start"
+        if method_type == "RouterMethod":
+            return "router"
+        if method_type == "ListenMethod":
+            return "listen"
+
+    actual_method = getattr(flow, str(method_name), None)
+    if actual_method is None:
+        return "unknown"
+    if getattr(actual_method, "__is_start_method__", False):
+        return "start"
+    if getattr(actual_method, "__is_router__", False):
+        return "router"
+    return "listen"
+
+
 def _get_tool_span_name(instance: Any, wrapped: Callable[..., Any]) -> str:
     """Generate a meaningful tool span name including tool name."""
     base_method = wrapped.__name__
@@ -663,18 +685,7 @@ class _FlowExecuteMethodWrapper:
 
         # args = (method_name, method, *original_method_args)
         method_name = args[0] if args else kwargs.get("method_name", "unknown")
-        # Look up the decorated method on the instance (the 'method' arg in args[1]
-        # is the unwrapped function, not the @start/@listen/@router wrapper).
-        actual_method = getattr(instance, method_name, None)
-        if actual_method is not None:
-            if getattr(actual_method, "__is_start_method__", False):
-                node_type = "start"
-            elif getattr(actual_method, "__is_router__", False):
-                node_type = "router"
-            else:
-                node_type = "listen"
-        else:
-            node_type = "unknown"
+        node_type = _get_flow_method_type(instance, method_name)
 
         flow_name = _get_flow_name(instance)
         span_name = f"{flow_name}.{method_name}"
