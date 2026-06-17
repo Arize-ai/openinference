@@ -10,7 +10,7 @@
     "python/openinference-instrumentation": "0.1.53",
     "python/instrumentation/openinference-instrumentation-guardrails": "0.1.14",
     "python/instrumentation/openinference-instrumentation-vertexai": "0.1.16",
-    "python/instrumentation/openinference-instrumentation-crewai": "1.1.9",
+    "python/instrumentation/openinference-instrumentation-crewai": "1.1.10",
     "python/instrumentation/openinference-instrumentation-haystack": "0.1.34",
     "python/instrumentation/openinference-instrumentation-litellm": "0.1.34",
     "python/instrumentation/openinference-instrumentation-groq": "0.1.16",
