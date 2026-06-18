@@ -1,8 +1,11 @@
 import asyncio
 import json
+import logging
 import os
+import types
 from importlib import import_module
 from typing import Any, Generator, Optional
+from unittest import mock
 
 import instructor
 import openai
@@ -102,6 +105,46 @@ class TestInstrumentor:
                 assert hasattr(module, "handle_response_model")
         finally:
             instrumentor.uninstrument()
+
+    def test_instrument_degrades_gracefully_when_symbol_missing(
+        self,
+        tracer_provider: TracerProvider,
+        caplog: Any,
+    ) -> None:
+        # Covers the graceful-skip branch (#3253): when every candidate module
+        # exists but none define `handle_response_model`, instrument() must warn
+        # and skip that wrapper instead of raising. Simulated by returning empty
+        # modules from import_module — so getattr(..., None) yields None, the exact
+        # condition that previously left _patch_module pointing at a module without
+        # the symbol and crashed the subsequent wrap.
+        candidates = {
+            "instructor.core.patch",
+            "instructor.patch",
+            "instructor.processing.response",
+            "instructor.processing",
+        }
+
+        def fake_import_module(name: str) -> Any:
+            if name in candidates:
+                return types.ModuleType(name)
+            return import_module(name)
+
+        instrumentor = InstructorInstrumentor()
+        # BaseInstrumentor is a singleton; make sure we start uninstrumented so
+        # instrument() actually runs the resolution path under test.
+        instrumentor.uninstrument()
+        with mock.patch(
+            "openinference.instrumentation.instructor.import_module",
+            side_effect=fake_import_module,
+        ):
+            try:
+                with caplog.at_level(logging.WARNING):
+                    instrumentor.instrument(tracer_provider=tracer_provider)
+                assert instrumentor._patch_module is None
+                assert instrumentor._original_handle_response_model is None
+                assert "Could not locate `handle_response_model`" in caplog.text
+            finally:
+                instrumentor.uninstrument()
 
 
 @pytest.mark.asyncio
