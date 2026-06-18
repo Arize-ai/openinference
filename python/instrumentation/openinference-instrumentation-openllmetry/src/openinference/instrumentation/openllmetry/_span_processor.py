@@ -149,29 +149,29 @@ def _map_generic_span(attrs: Dict[str, Any], span_name: Optional[str] = None) ->
     if is_tool and tool_args is not None:
         mapped.update(
             {
-                "input.mime_type": "application/json",
+                "input.mime_type": sc.OpenInferenceMimeTypeValues.JSON,
                 "input.value": _as_json_str(tool_args),
             }
         )
     elif input_raw is not None:
         mapped.update(
             {
-                "input.mime_type": "application/json",
+                "input.mime_type": sc.OpenInferenceMimeTypeValues.JSON,
                 "input.value": _as_json_str(input_raw),
             }
         )
 
     if is_tool and tool_result is not None:
-        result_mime_type = "text/plain"
+        result_mime_type = sc.OpenInferenceMimeTypeValues.TEXT
         result_value: Any = tool_result
         if isinstance(tool_result, (dict, list)):
-            result_mime_type = "application/json"
+            result_mime_type = sc.OpenInferenceMimeTypeValues.JSON
         elif isinstance(tool_result, str):
             try:
                 json.loads(tool_result)
-                result_mime_type = "application/json"
+                result_mime_type = sc.OpenInferenceMimeTypeValues.JSON
             except Exception:
-                result_mime_type = "text/plain"
+                result_mime_type = sc.OpenInferenceMimeTypeValues.TEXT
         mapped.update(
             {
                 "output.mime_type": result_mime_type,
@@ -183,7 +183,7 @@ def _map_generic_span(attrs: Dict[str, Any], span_name: Optional[str] = None) ->
     elif output_raw is not None:
         mapped.update(
             {
-                "output.mime_type": "application/json",
+                "output.mime_type": sc.OpenInferenceMimeTypeValues.JSON,
                 "output.value": _as_json_str(output_raw),
             }
         )

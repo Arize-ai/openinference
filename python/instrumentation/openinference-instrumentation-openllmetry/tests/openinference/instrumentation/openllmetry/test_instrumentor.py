@@ -353,3 +353,161 @@ class TestUpdatedGenAIMessageFormat:
         assert (
             attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
         )
+
+
+class TestToolSpanMapping:
+    """Tests for the OpenLLMetry/LangChain TOOL span attributes mapping."""
+
+    def test_tool_span_with_json_result(self) -> None:
+        """A tool span whose result is a JSON string should get a clean tool.name,
+        unwrapped input/output, and application/json mime type for the output."""
+        in_memory_span_exporter = InMemorySpanExporter()
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+        tracer = tracer_provider.get_tracer(__name__)
+
+        # Mirrors the envelope LangChain/Traceloop instrumentation produces for a tool call.
+        entity_input = json.dumps(
+            {
+                "input_str": "Paris",
+                "tags": [],
+                "metadata": {},
+                "inputs": {"city": "Paris"},
+                "kwargs": {},
+            }
+        )
+        entity_output = json.dumps(
+            {
+                "output": '{"city": "Paris", "temp_c": 21, "condition": "sunny"}',
+                "kwargs": {},
+            }
+        )
+
+        with tracer.start_as_current_span("get_weather.tool") as span:
+            span.set_attribute("traceloop.span.kind", "tool")
+            span.set_attribute("traceloop.entity.name", "get_weather")
+            span.set_attribute("traceloop.entity.input", entity_input)
+            span.set_attribute("traceloop.entity.output", entity_output)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.TOOL.value
+        )
+
+        # tool.name must be populated, not dropped
+        assert attributes[SpanAttributes.TOOL_NAME] == "get_weather"
+
+        # input.value must be the resolved tool arguments, not the raw
+        # Traceloop envelope (input_str/tags/metadata/inputs/kwargs)
+        assert attributes[SpanAttributes.INPUT_VALUE] == json.dumps(
+            {"city": "Paris"}, separators=(",", ":")
+        )
+        assert attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+
+        # tool.parameters should mirror the resolved arguments
+        assert attributes[SpanAttributes.TOOL_PARAMETERS] == json.dumps(
+            {"city": "Paris"}, separators=(",", ":")
+        )
+
+        # output.value must be the bare tool result, and should be detected as JSON
+        assert (
+            attributes[SpanAttributes.OUTPUT_VALUE]
+            == '{"city": "Paris", "temp_c": 21, "condition": "sunny"}'
+        )
+        assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+
+    def test_tool_span_with_plain_text_result(self) -> None:
+        """A tool result that is not a JSON should be unwrapped as text/plain."""
+        in_memory_span_exporter = InMemorySpanExporter()
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+        tracer = tracer_provider.get_tracer(__name__)
+
+        entity_input = json.dumps(
+            {
+                "input_str": "Paris",
+                "tags": [],
+                "metadata": {},
+                "inputs": {"city": "Paris"},
+                "kwargs": {},
+            }
+        )
+        entity_output = json.dumps(
+            {
+                "output": "It is sunny and 21C in Paris.",
+                "kwargs": {},
+            }
+        )
+
+        with tracer.start_as_current_span("get_weather.tool") as span:
+            span.set_attribute("traceloop.span.kind", "tool")
+            span.set_attribute("traceloop.entity.name", "get_weather")
+            span.set_attribute("traceloop.entity.input", entity_input)
+            span.set_attribute("traceloop.entity.output", entity_output)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+
+        assert attributes[SpanAttributes.OUTPUT_VALUE] == "It is sunny and 21C in Paris."
+        assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.TEXT.value
+
+    def test_tool_span_name_fallback_when_entity_name_missing(self) -> None:
+        """When traceloop.entity.name is absent, tool.name should fall back to the span name."""
+        in_memory_span_exporter = InMemorySpanExporter()
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+        tracer = tracer_provider.get_tracer(__name__)
+
+        entity_input = json.dumps({"inputs": {"city": "Paris"}})
+        entity_output = json.dumps({"output": "sunny"})
+
+        with tracer.start_as_current_span("get_weather.tool") as span:
+            span.set_attribute("traceloop.span.kind", "tool")
+            span.set_attribute("traceloop.entity.input", entity_input)
+            span.set_attribute("traceloop.entity.output", entity_output)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+
+        assert attributes[SpanAttributes.TOOL_NAME] == "get_weather.tool"
+
+    def test_non_tool_span_unaffected(self) -> None:
+        """Workflow/Task/Agent spans should keep the original verbatim pass-through behavior."""
+        in_memory_span_exporter = InMemorySpanExporter()
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+        tracer = tracer_provider.get_tracer(__name__)
+
+        entity_input = json.dumps({"inputs": {"question": "hi"}, "kwargs": {}})
+        entity_output = json.dumps({"output": "hello", "kwargs": {}})
+
+        with tracer.start_as_current_span("my_chain.workflow") as span:
+            span.set_attribute("traceloop.span.kind", "workflow")
+            span.set_attribute("traceloop.entity.input", entity_input)
+            span.set_attribute("traceloop.entity.output", entity_output)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.CHAIN.value
+        )
+        assert SpanAttributes.TOOL_NAME not in attributes
+        assert attributes[SpanAttributes.INPUT_VALUE] == entity_input
+        assert attributes[SpanAttributes.OUTPUT_VALUE] == entity_output
