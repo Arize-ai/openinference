@@ -524,11 +524,6 @@ def _llm_messages_attributes(
                             f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
                             url,
                         )
-                if isinstance(content_id := content_block.get("id"), str):
-                    yield (
-                        f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_ID}",
-                        content_id,
-                    )
                 if isinstance(signature := content_block.get("signature"), str):
                     yield (
                         f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_SIGNATURE}",

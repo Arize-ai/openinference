@@ -2229,7 +2229,6 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
                 ReasoningMessageContent(
                     type="reasoning",
                     text="Thinking it through...",
-                    id="rs_1",
                     signature="thought-sig-456",
                     data="redacted-thinking-data",
                     encrypted_content="enc-content-xyz",
@@ -2328,10 +2327,6 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         == "Thinking it through..."
     )
     assert (
-        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_ID}")
-        == "rs_1"
-    )
-    assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_SIGNATURE}")
         == "thought-sig-456"
     )
@@ -2414,7 +2409,6 @@ def _reasoning_message(role: str) -> Message:
             ReasoningMessageContent(
                 type="reasoning",
                 text="Thinking it through...",
-                id="rs_1",
                 signature="thought-sig-456",
                 data="redacted-thinking-data",
                 encrypted_content="enc-content-xyz",
@@ -2453,7 +2447,6 @@ def test_context_manager_llm_span_emits_reasoning_content(
         content = f"{base}.0.{MESSAGE_CONTENTS}.0"
         assert attributes.pop(f"{content}.{MESSAGE_CONTENT_TYPE}") == "reasoning"
         assert attributes.pop(f"{content}.{MESSAGE_CONTENT_TEXT}") == "Thinking it through..."
-        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_ID}") == "rs_1"
         assert attributes.pop(f"{content}.{MESSAGE_CONTENT_SIGNATURE}") == "thought-sig-456"
         assert attributes.pop(f"{content}.{MESSAGE_CONTENT_DATA}") == "redacted-thinking-data"
         assert attributes.pop(f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}") == "enc-content-xyz"

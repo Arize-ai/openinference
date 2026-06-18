@@ -52,7 +52,6 @@ class ImageMessageContent(TypedDict):
 class ReasoningMessageContent(TypedDict, total=False):
     type: Required[Literal["reasoning"]]
     text: str
-    id: str
     signature: str
     data: str
     encrypted_content: str
