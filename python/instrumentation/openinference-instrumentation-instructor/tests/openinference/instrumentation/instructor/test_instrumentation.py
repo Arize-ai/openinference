@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from importlib import import_module
 from typing import Any, Generator, Optional
 
 import instructor
@@ -81,6 +82,26 @@ class TestInstrumentor:
     # Ensure we're using the common OITracer from common openinference-instrumentation pkg
     def test_oitracer(self, setup_instructor_instrumentation: Any) -> None:
         assert isinstance(InstructorInstrumentor()._tracer, OITracer)
+
+    def test_instrument_does_not_raise_across_instructor_versions(
+        self, tracer_provider: TracerProvider
+    ) -> None:
+        # Regression test for #3253. `handle_response_model` has moved across
+        # instructor releases (instructor.patch -> instructor.core.patch ->
+        # instructor.processing.response) and instructor >= 1.15.3 removed the
+        # instructor.patch module entirely. instrument() must resolve the symbol
+        # from whichever module still defines it, or skip that wrapper gracefully —
+        # never crash with AttributeError / ModuleNotFoundError.
+        instrumentor = InstructorInstrumentor()
+        try:
+            instrumentor.instrument(tracer_provider=tracer_provider)
+            # When the symbol is resolvable, it must come from a module that
+            # actually defines it (no pointing at a module missing the attribute).
+            if instrumentor._patch_module is not None:
+                module = import_module(instrumentor._patch_module)
+                assert hasattr(module, "handle_response_model")
+        finally:
+            instrumentor.uninstrument()
 
 
 @pytest.mark.asyncio
