@@ -149,29 +149,29 @@ def _map_generic_span(attrs: Dict[str, Any], span_name: Optional[str] = None) ->
     if is_tool and tool_args is not None:
         mapped.update(
             {
-                "input.mime_type": sc.OpenInferenceMimeTypeValues.JSON,
+                "input.mime_type": sc.OpenInferenceMimeTypeValues.JSON.value,
                 "input.value": _as_json_str(tool_args),
             }
         )
     elif input_raw is not None:
         mapped.update(
             {
-                "input.mime_type": sc.OpenInferenceMimeTypeValues.JSON,
+                "input.mime_type": sc.OpenInferenceMimeTypeValues.JSON.value,
                 "input.value": _as_json_str(input_raw),
             }
         )
 
     if is_tool and tool_result is not None:
-        result_mime_type = sc.OpenInferenceMimeTypeValues.TEXT
+        result_mime_type = sc.OpenInferenceMimeTypeValues.TEXT.value
         result_value: Any = tool_result
         if isinstance(tool_result, (dict, list)):
-            result_mime_type = sc.OpenInferenceMimeTypeValues.JSON
+            result_mime_type = sc.OpenInferenceMimeTypeValues.JSON.value
         elif isinstance(tool_result, str):
             try:
                 json.loads(tool_result)
-                result_mime_type = sc.OpenInferenceMimeTypeValues.JSON
+                result_mime_type = sc.OpenInferenceMimeTypeValues.JSON.value
             except Exception:
-                result_mime_type = sc.OpenInferenceMimeTypeValues.TEXT
+                result_mime_type = sc.OpenInferenceMimeTypeValues.TEXT.value
         mapped.update(
             {
                 "output.mime_type": result_mime_type,
@@ -183,7 +183,7 @@ def _map_generic_span(attrs: Dict[str, Any], span_name: Optional[str] = None) ->
     elif output_raw is not None:
         mapped.update(
             {
-                "output.mime_type": sc.OpenInferenceMimeTypeValues.JSON,
+                "output.mime_type": sc.OpenInferenceMimeTypeValues.JSON.value,
                 "output.value": _as_json_str(output_raw),
             }
         )
