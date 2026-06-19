@@ -18,6 +18,13 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
 
 Each failing package is investigated and fixed **independently**, with its own branch and its own PR. Do not bundle fixes for multiple packages together, even when they share an apparent root cause — keep PRs scoped to a single instrumentor so they can be reviewed, reverted, and released independently.
 
+When invoked by the scheduled `auto-fix` job, the workflow already runs one job per failing package and creates the branch before Claude starts. In that mode, follow the prompt's package scope, do **not** commit, push, or open a PR, and instead write:
+
+- `.scratch/pr-title.txt`: a one-line conventional-commit PR title.
+- `.scratch/pr-body.md`: a concise PR body with root cause, fix, and commands run.
+
+The workflow will commit, push, and open the PR after Claude exits. For manual use outside CI, continue to open one PR per package yourself.
+
 ### Step 1 — Enumerate failing packages
 
 1. **Identify failures**: Run `gh run list --workflow=python-cron.yaml --limit=5 --repo Arize-ai/openinference` to find the latest run, then `gh run view <id> --repo Arize-ai/openinference` and filter for `X` (failure markers) in the output.
@@ -25,9 +32,9 @@ Each failing package is investigated and fixed **independently**, with its own b
 3. **Filter transient failures**: Some failures are flaky (network, PyPI outages, 503s). For each package, if the error looks transient, check whether the same job passed in the previous cron run before investing time. Drop transient ones from the list.
 4. **Drop packages already being fixed**: For each remaining package, run `gh pr list --repo Arize-ai/openinference --search "<package>" --state open` once up front. If an open PR already addresses the canary failure for that package, drop it from the list — do not re-investigate or open a duplicate PR. If the existing PR is stale or incomplete, update it in place rather than starting over.
 
-### Step 2 — Per package: investigate, fix, and open a PR
+### Step 2 — Per package: investigate, fix, and prepare or open a PR
 
-Repeat the following for **each** remaining package, fully completing the cycle (including the PR) before moving on to the next package. Use a fresh branch per package.
+Repeat the following for **each** remaining package, fully completing the cycle before moving on to the next package. Use a fresh branch per package unless the CI workflow already created one for you.
 
 1. **Get failure logs**: `gh run view <run_id> --repo Arize-ai/openinference --job <job_id> --log-failed`.
 2. **Identify the root cause**: The canary cron tests against `*-latest` versions of upstream dependencies. Failures almost always mean an upstream package changed its API or behavior. Key signals:
@@ -47,9 +54,11 @@ Repeat the following for **each** remaining package, fully completing the cycle 
 6. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found.
 7. **Run the Python code reviewer**: Run `/python-code-reviewer` against the changed package to verify it follows project conventions (test patterns, semantic conventions, CI config).
 8. **Final duplicate-PR check**: Right before opening the PR, re-run `gh pr list --repo Arize-ai/openinference --search "<package>" --state open`. The Step 1.4 filter caught duplicates that existed at the start of the run, but one may have been opened during steps 2.1–2.7. If a duplicate now exists, update it instead of creating a new PR.
-9. **Create a PR for this package only**: Branch (e.g. `fix/canary-<package>`), commit, push, and open a PR citing the upstream change. The PR title and body should reference only this package; do not lump in other failing packages. Use `fix(<package>)!:` (or `feat(<package>)!:`) in the commit/PR title when you dropped support for older upstream versions, so release-please releases a new major version.
+9. **Prepare or create a PR for this package only**: The PR title and body should reference only this package; do not lump in other failing packages. Use `fix(<package>)!:` (or `feat(<package>)!:`) in the title when you dropped support for older upstream versions, so release-please releases a new major version.
+   - In CI auto-fix mode, write the title to `.scratch/pr-title.txt` and the body to `.scratch/pr-body.md`, then exit without committing, pushing, or opening a PR.
+   - In manual mode, branch (e.g. `fix/canary-<package>`), commit, push, and open a PR citing the upstream change.
 
-Once the PR is open, return to the package list and repeat for the next failing package.
+Once the PR is open (or the CI handoff files are written), return to the package list and repeat for the next failing package.
 
 ## Gotchas
 
