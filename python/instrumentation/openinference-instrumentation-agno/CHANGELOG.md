@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.37...python-openinference-instrumentation-agno-v0.1.38) (2026-06-19)
+
+
+### Bug Fixes
+
+* **agno:** Serialize Pydantic Content With Correct Mime Type ([#3238](https://github.com/Arize-ai/openinference/issues/3238)) ([73cb6a7](https://github.com/Arize-ai/openinference/commit/73cb6a7d1cdd93890c11b4ecca279e3b11afec48))
+* **agno:** use valid vcr record_mode "none" for cassette replay ([#3258](https://github.com/Arize-ai/openinference/issues/3258)) ([f668990](https://github.com/Arize-ai/openinference/commit/f6689903599ad17fc985e976fffc12a7775929e6))
+
 ## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.36...python-openinference-instrumentation-agno-v0.1.37) (2026-06-11)
 
 
