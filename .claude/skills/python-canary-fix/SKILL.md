@@ -25,6 +25,10 @@ When invoked by the scheduled `auto-fix` job, the workflow already runs one job 
 
 The workflow will commit, push, and open the PR after Claude exits. For manual use outside CI, continue to open one PR per package yourself.
 
+In CI auto-fix mode, the workflow downloads the failed tox logs before Claude starts. Always read `.scratch/failure-logs/*.log` first and use the first traceback or assertion from those local logs as the primary signal. Do **not** call `gh run view --log` or `gh run view --log-failed` for the same in-progress run unless the local logs are missing or clearly incomplete.
+
+The Claude Code action uses a constrained shell allowlist. Prefer `Read`, `Write`, `Glob`, and `Grep` for file work. When you need Bash, use one command at a time and avoid pipelines, redirects, command substitution, polling loops, and chained commands; those often require approval in CI and waste the run budget.
+
 ### Step 1 — Enumerate failing packages
 
 1. **Identify failures**: Run `gh run list --workflow=python-cron.yaml --limit=5 --repo Arize-ai/openinference` to find the latest run, then `gh run view <id> --repo Arize-ai/openinference` and filter for `X` (failure markers) in the output.
@@ -36,7 +40,9 @@ The workflow will commit, push, and open the PR after Claude exits. For manual u
 
 Repeat the following for **each** remaining package, fully completing the cycle before moving on to the next package. Use a fresh branch per package unless the CI workflow already created one for you.
 
-1. **Get failure logs**: `gh run view <run_id> --repo Arize-ai/openinference --job <job_id> --log-failed`.
+1. **Get failure logs**:
+   - In CI auto-fix mode, read `.scratch/failure-logs/*.log`.
+   - In manual mode, use `gh run view <run_id> --repo Arize-ai/openinference --job <job_id> --log-failed`.
 2. **Identify the root cause**: The canary cron tests against `*-latest` versions of upstream dependencies. Failures almost always mean an upstream package changed its API or behavior. Key signals:
    - The assertion or import error in the log
    - What upstream dependency was upgraded (check `python/tox.ini` for the `-latest` env's `uv pip install -U` commands)
@@ -46,9 +52,9 @@ Repeat the following for **each** remaining package, fully completing the cycle 
    - Remove the now-dead compatibility branches rather than leaving them behind.
    - Use a conventional commit with `!` (e.g. `fix(<package>)!: drop support for <upstream> < X.Y`) so release-please cuts a new **major** version of the instrumentor.
    - Call out the dropped support clearly in the PR body so reviewers and downstream users see the breaking change.
-5. **Draft and test the fix**: Modify only this package's instrumentor code and tests. Run both the pinned and `-latest` tox environments to verify the fix:
-   - `uvx --with tox-uv tox r -e ruff-mypy-test-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
-   - `uvx --with tox-uv tox r -e py310-ci-<package>-latest -- -ra -x` (latest deps)
+5. **Draft and test the fix**: Modify only this package's instrumentor code and tests. Run both the pinned and `-latest` tox environments to verify the fix. From the repository root, prefer:
+   - `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
+   - `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-<package>-latest -- -ra -x` (latest deps)
    - If ruff reformats files, include those edits in the same package commit (don't split formatting into a separate PR).
    - Both envs must pass. For drop-old-support fixes, you've raised the pinned floor — the pinned env now exercises the new minimum supported upstream version, which is expected.
 6. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found.
