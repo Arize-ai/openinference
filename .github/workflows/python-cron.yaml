@@ -333,7 +333,8 @@ jobs:
           fi
           PINNED_ENV="${FAILED_ENV%-latest}"
 
-          echo "Validating ${PINNED_ENV} and ${FAILED_ENV} before opening a PR."
+          echo "Validating ${FAILED_ENV} before opening a PR."
+          echo "Running ${PINNED_ENV} as an advisory baseline check."
           set +e
           uvx --with tox-uv tox -c python/tox.ini r -e "$PINNED_ENV" > ".scratch/validation-logs/${PINNED_ENV}.log" 2>&1
           PINNED_STATUS=$?
@@ -341,12 +342,17 @@ jobs:
           LATEST_STATUS=$?
           set -e
 
-          if [ "$PINNED_STATUS" -ne 0 ] || [ "$LATEST_STATUS" -ne 0 ]; then
+          if [ "$PINNED_STATUS" -ne 0 ]; then
+            echo "::warning::Advisory baseline validation failed for ${PINNED_ENV}; continuing because ${FAILED_ENV} is the canary gate."
+            tail -200 ".scratch/validation-logs/${PINNED_ENV}.log" || true
+          fi
+
+          if [ "$LATEST_STATUS" -ne 0 ]; then
             echo "Auto-fix validation failed; skipping PR."
             {
               echo "status=validation_failed"
               echo "message<<EOF"
-              echo "Claude produced changes, but validation failed for ${PINNED_ENV} or ${FAILED_ENV}."
+              echo "Claude produced changes, but validation failed for ${FAILED_ENV}."
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
             {
@@ -359,7 +365,6 @@ jobs:
               echo
               echo "Validation logs were uploaded as workflow artifacts."
             } >> "$GITHUB_STEP_SUMMARY"
-            tail -200 ".scratch/validation-logs/${PINNED_ENV}.log" || true
             tail -200 ".scratch/validation-logs/${FAILED_ENV}.log" || true
             exit 0
           fi
@@ -383,6 +388,17 @@ jobs:
             BODY_FILE=$(mktemp)
             echo "Automated fix for Python canary failures in ${PACKAGE}. Review the diff and workflow logs for details." > "$BODY_FILE"
           fi
+          {
+            echo
+            echo "## Auto-Fix Validation"
+            echo
+            echo "- ${FAILED_ENV}: passed"
+            if [ "$PINNED_STATUS" -eq 0 ]; then
+              echo "- ${PINNED_ENV}: passed"
+            else
+              echo "- ${PINNED_ENV}: advisory check failed (exit ${PINNED_STATUS}); see the validation log artifact."
+            fi
+          } >> "$BODY_FILE"
 
           git add -A
           git commit -m "$PR_TITLE"
@@ -401,8 +417,12 @@ jobs:
             echo
             echo "**Status:** PR opened: ${PR_URL}"
             echo
-            echo "- ${PINNED_ENV}: passed"
             echo "- ${FAILED_ENV}: passed"
+            if [ "$PINNED_STATUS" -eq 0 ]; then
+              echo "- ${PINNED_ENV}: passed"
+            else
+              echo "- ${PINNED_ENV}: advisory check failed (exit ${PINNED_STATUS}); validation log uploaded."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload validation logs

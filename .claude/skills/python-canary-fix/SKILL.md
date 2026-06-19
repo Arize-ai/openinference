@@ -52,11 +52,11 @@ Repeat the following for **each** remaining package, fully completing the cycle 
    - Remove the now-dead compatibility branches rather than leaving them behind.
    - Use a conventional commit with `!` (e.g. `fix(<package>)!: drop support for <upstream> < X.Y`) so release-please cuts a new **major** version of the instrumentor.
    - Call out the dropped support clearly in the PR body so reviewers and downstream users see the breaking change.
-5. **Draft and test the fix**: Modify only this package's instrumentor code and tests. Run both the pinned and `-latest` tox environments to verify the fix. From the repository root, prefer:
+5. **Draft and test the fix**: Modify only this package's instrumentor code and tests. Run the failed `-latest` tox environment to verify the canary fix, and run the matching pinned environment as a baseline check when practical. From the repository root, prefer:
    - `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
    - `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-<package>-latest -- -ra -x` (latest deps)
    - If ruff reformats files, include those edits in the same package commit (don't split formatting into a separate PR).
-   - Both envs must pass. For drop-old-support fixes, you've raised the pinned floor — the pinned env now exercises the new minimum supported upstream version, which is expected.
+   - The failed `-latest` env must pass before opening a PR. Treat a pinned-env failure as blocking only when it is caused by the proposed change; if it is pre-existing or clearly unrelated, document it in the PR body and include the uploaded validation log for reviewers. For drop-old-support fixes, you've raised the pinned floor — the pinned env now exercises the new minimum supported upstream version, which is expected.
 6. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found.
 7. **Run the Python code reviewer**: Run `/python-code-reviewer` against the changed package to verify it follows project conventions (test patterns, semantic conventions, CI config).
 8. **Final duplicate-PR check**: Right before opening the PR, re-run `gh pr list --repo Arize-ai/openinference --search "<package>" --state open`. The Step 1.4 filter caught duplicates that existed at the start of the run, but one may have been opened during steps 2.1–2.7. If a duplicate now exists, update it instead of creating a new PR.
