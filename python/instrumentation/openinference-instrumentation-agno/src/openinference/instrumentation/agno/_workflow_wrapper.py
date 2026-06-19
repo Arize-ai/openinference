@@ -73,20 +73,26 @@ def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
     return ""
 
 
-def _extract_output(response: Any) -> str:
+def _extract_output(response: Any) -> tuple[str, str]:
     """Extract output from workflow/step response."""
     if response is None:
-        return ""
+        return "", TEXT
     if isinstance(response, str):
-        return response
-    if hasattr(response, "content"):
-        return str(response.content)
+        return response, TEXT
+    content = getattr(response, "content", None)
+    if content is not None:
+        if hasattr(content, "model_dump_json"):
+            try:
+                return str(content.model_dump_json()), JSON
+            except Exception:
+                pass
+        return str(content), TEXT
     if hasattr(response, "model_dump_json"):
         try:
-            return str(response.model_dump_json())
+            return str(response.model_dump_json()), JSON
         except Exception:
             pass
-    return ""
+    return str(response), TEXT
 
 
 def _workflow_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
@@ -222,10 +228,10 @@ class _WorkflowWrapper:
 
             # Set output and workflow ID (outside use_span but token already detached)
             span.set_status(trace_api.StatusCode.OK)
-            output = _extract_output(result)
+            output, mime_type = _extract_output(result)
             if output:
                 span.set_attribute(OUTPUT_VALUE, output)
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if hasattr(instance, "id") and instance.id:
@@ -294,10 +300,10 @@ class _WorkflowWrapper:
             span.set_status(trace_api.StatusCode.OK)
             # Extract output only from the final response
             if final_response is not None:
-                output = _extract_output(final_response)
+                output, mime_type = _extract_output(final_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
@@ -397,10 +403,10 @@ class _WorkflowWrapper:
                     ctx_token = None
 
                 span.set_status(trace_api.StatusCode.OK)
-                output = _extract_output(response)
+                output, mime_type = _extract_output(response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
                 # Set workflow ID after execution (it's initialized inside the wrapped method)
                 if hasattr(instance, "id") and instance.id:
@@ -463,10 +469,10 @@ class _WorkflowWrapper:
             span.set_status(trace_api.StatusCode.OK)
             # Extract output only from the final response
             if final_response is not None:
-                output = _extract_output(final_response)
+                output, mime_type = _extract_output(final_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
@@ -565,10 +571,10 @@ class _StepWrapper:
 
             # Set output and return (outside use_span but token already detached)
             span.set_status(trace_api.StatusCode.OK)
-            output = _extract_output(result)
+            output, mime_type = _extract_output(result)
             if output:
                 span.set_attribute(OUTPUT_VALUE, output)
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             return result
 
@@ -623,10 +629,10 @@ class _StepWrapper:
             span.set_status(trace_api.StatusCode.OK)
             # Extract output only from the final response
             if final_response is not None:
-                output = _extract_output(final_response)
+                output, mime_type = _extract_output(final_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
         except (StopIteration, StopAsyncIteration):
             raise
@@ -716,10 +722,10 @@ class _StepWrapper:
                     ctx_token = None
 
                 span.set_status(trace_api.StatusCode.OK)
-                output = _extract_output(response)
+                output, mime_type = _extract_output(response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
                 return response
 
@@ -768,10 +774,10 @@ class _StepWrapper:
             span.set_status(trace_api.StatusCode.OK)
             # Extract output only from the final response
             if final_response is not None:
-                output = _extract_output(final_response)
+                output, mime_type = _extract_output(final_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
         except (StopIteration, StopAsyncIteration):
             raise
@@ -867,10 +873,10 @@ class _ParallelWrapper:
 
             # Set output
             span.set_status(trace_api.StatusCode.OK)
-            output = _extract_output(result)
+            output, mime_type = _extract_output(result)
             if output:
                 span.set_attribute(OUTPUT_VALUE, output)
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             return result
 
@@ -1018,10 +1024,10 @@ class _ParallelWrapper:
                     ctx_token = None
 
                 span.set_status(trace_api.StatusCode.OK)
-                output = _extract_output(response)
+                output, mime_type = _extract_output(response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
                 return response
 

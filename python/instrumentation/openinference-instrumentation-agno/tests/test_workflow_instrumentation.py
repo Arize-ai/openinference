@@ -15,7 +15,10 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.agno import AgnoInstrumentor
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+)
 
 
 @pytest.fixture()
@@ -589,3 +592,79 @@ class TestWorkflowRunId:
         )
         assert workflow_span is not None
         assert workflow_span.get("agno.run.id") == "RUN-ASYNC-STREAM-1"
+
+
+class TestExtractOutputPydanticContent:
+    """Tests for _extract_output serialization and mime type."""
+
+    def _make_response(self, content: Any) -> Any:
+        class _Response:
+            def __init__(self, c: Any) -> None:
+                self.content = c
+
+        return _Response(content)
+
+    def test_pydantic_content_serialized_to_json(self) -> None:
+        from pydantic import BaseModel
+
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        class _Answer(BaseModel):
+            answer: str
+
+        output, mime_type = _extract_output(self._make_response(_Answer(answer="done")))
+        assert output == '{"answer":"done"}'
+        assert mime_type == JSON
+
+    def test_plain_string_content_unchanged(self) -> None:
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        output, mime_type = _extract_output(self._make_response("ok"))
+        assert output == "ok"
+        assert mime_type == TEXT
+
+    def test_unserializable_content_falls_back_to_str(self) -> None:
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        class _Boom:
+            def model_dump_json(self) -> str:
+                raise ValueError("cannot serialize")
+
+            def __str__(self) -> str:
+                return "boom-repr"
+
+        output, mime_type = _extract_output(self._make_response(_Boom()))
+        assert output == "boom-repr"
+        assert mime_type == TEXT
+
+    def test_response_with_model_dump_json_returns_json_mime(self) -> None:
+        """Response without .content but with model_dump_json should also yield JSON mime."""
+        from pydantic import BaseModel
+
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        class _PydanticResponse(BaseModel):
+            result: str
+
+        output, mime_type = _extract_output(_PydanticResponse(result="42"))
+        assert output == '{"result":"42"}'
+        assert mime_type == JSON
+
+    def test_none_response_returns_empty_text(self) -> None:
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        output, mime_type = _extract_output(None)
+        assert output == ""
+        assert mime_type == TEXT
+
+    def test_plain_string_response_returns_text_mime(self) -> None:
+        from openinference.instrumentation.agno._workflow_wrapper import _extract_output
+
+        output, mime_type = _extract_output("hello")
+        assert output == "hello"
+        assert mime_type == TEXT
+
+
+# mime types
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
+JSON = OpenInferenceMimeTypeValues.JSON.value
