@@ -46,17 +46,7 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
         patch_wrapper = _PatchWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         wrap_function_wrapper("instructor", "patch", patch_wrapper)
 
-        # ``handle_response_model`` has moved across instructor releases:
-        #   <= 1.10        -> instructor.patch
-        #   1.11 - 1.15.1  -> instructor.core.patch (instructor.patch still present)
-        #   >= 1.15.3      -> instructor.processing.response (instructor.patch removed,
-        #                     instructor.core.patch no longer re-exports it)
-        # Resolve it from the first module that actually defines it. We probe with
-        # ``import_module`` + an explicit ``is not None`` check rather than relying on
-        # an exception, because ``getattr(module, name, None)`` does NOT raise when the
-        # module exists but lacks the attribute — which previously left ``_patch_module``
-        # pointing at a module without ``handle_response_model`` and made the subsequent
-        # ``wrap_function_wrapper`` raise ``AttributeError`` (see #3253).
+        # Resolve from the first known instructor module that actually defines it.
         self._patch_module = None
         self._original_handle_response_model = None
         for module_name in (
@@ -76,7 +66,6 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
                 break
 
         if self._patch_module is None:
-            # Don't crash instrument() if the symbol can't be found — degrade gracefully.
             logger.warning(
                 "Could not locate `handle_response_model` in any known instructor module "
                 "(instructor.core.patch, instructor.patch, instructor.processing.response, "

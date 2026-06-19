@@ -52,7 +52,7 @@ def setup_instructor_instrumentation(
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/instructor/fixtures/",
-    record_mode="never",
+    record_mode="none",
     match_on=["uri", "method"],
 )
 
@@ -89,17 +89,9 @@ class TestInstrumentor:
     def test_instrument_does_not_raise_across_instructor_versions(
         self, tracer_provider: TracerProvider
     ) -> None:
-        # Regression test for #3253. `handle_response_model` has moved across
-        # instructor releases (instructor.patch -> instructor.core.patch ->
-        # instructor.processing.response) and instructor >= 1.15.3 removed the
-        # instructor.patch module entirely. instrument() must resolve the symbol
-        # from whichever module still defines it, or skip that wrapper gracefully —
-        # never crash with AttributeError / ModuleNotFoundError.
         instrumentor = InstructorInstrumentor()
         try:
             instrumentor.instrument(tracer_provider=tracer_provider)
-            # When the symbol is resolvable, it must come from a module that
-            # actually defines it (no pointing at a module missing the attribute).
             if instrumentor._patch_module is not None:
                 module = import_module(instrumentor._patch_module)
                 assert hasattr(module, "handle_response_model")
@@ -111,12 +103,6 @@ class TestInstrumentor:
         tracer_provider: TracerProvider,
         caplog: Any,
     ) -> None:
-        # Covers the graceful-skip branch (#3253): when every candidate module
-        # exists but none define `handle_response_model`, instrument() must warn
-        # and skip that wrapper instead of raising. Simulated by returning empty
-        # modules from import_module — so getattr(..., None) yields None, the exact
-        # condition that previously left _patch_module pointing at a module without
-        # the symbol and crashed the subsequent wrap.
         candidates = {
             "instructor.core.patch",
             "instructor.patch",
@@ -130,8 +116,6 @@ class TestInstrumentor:
             return import_module(name)
 
         instrumentor = InstructorInstrumentor()
-        # BaseInstrumentor is a singleton; make sure we start uninstrumented so
-        # instrument() actually runs the resolution path under test.
         instrumentor.uninstrument()
         with mock.patch(
             "openinference.instrumentation.instructor.import_module",
