@@ -57,6 +57,9 @@ TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 
+# Tool names that spawn a subagent.
+_AGENT_TOOL_NAMES = {"Task", "Agent"}
+
 
 def _get_field(obj: Any, key: str, default: Any = None) -> Any:
     if isinstance(obj, MappingABC):
@@ -591,6 +594,8 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
         self._parent_span_resolver = parent_span_resolver
         self._in_flight: dict[str, trace_api.Span] = {}
         self._tool_names: dict[str, str] = {}
+        # Stack of tool_use_ids for currently in-flight Task/Agent tool calls.
+        self._agent_tool_stack: list[str] = []
 
     def start_tool_span(
         self,
@@ -612,15 +617,26 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
             **get_tool_attributes(name=tool_name_str, parameters=tool_params),
             **get_input_attributes(safe_json_dumps(tool_input), mime_type=JSON),
         }
+
+        # Fallback to the innermost currently in-flight Task/Agent tool as a parent
+        # when the PreToolUse hook payload omits parent_tool_use_id=None for a
+        # subagent's tool calls even though the message stream has the correct id.
+        resolved_parent_tool_use_id = parent_tool_use_id
+        if (
+            resolved_parent_tool_use_id is None or str(resolved_parent_tool_use_id) == ""
+        ) and self._agent_tool_stack:
+            resolved_parent_tool_use_id = self._agent_tool_stack[-1]
+
         parent_span = self._parent_span
         if (
-            parent_tool_use_id is not None
-            and str(parent_tool_use_id) != ""
+            resolved_parent_tool_use_id is not None
+            and str(resolved_parent_tool_use_id) != ""
             and self._parent_span_resolver is not None
         ):
-            resolved = self._parent_span_resolver(parent_tool_use_id)
+            resolved = self._parent_span_resolver(resolved_parent_tool_use_id)
             if resolved is not None:
                 parent_span = resolved
+
         ctx = trace_api.set_span_in_context(parent_span) if parent_span is not None else None
         span = self._tracer.start_span(
             tool_name_str,
@@ -629,6 +645,14 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
         )
         self._in_flight[tool_use_key] = span
         self._tool_names[tool_use_key] = tool_name_str
+        if tool_name_str in _AGENT_TOOL_NAMES:
+            self._agent_tool_stack.append(tool_use_key)
+
+    def _pop_agent_stack(self, tool_use_key: str) -> None:
+        try:
+            self._agent_tool_stack.remove(tool_use_key)
+        except ValueError:
+            pass
 
     def end_tool_span(self, tool_use_id: Any, tool_response: Any) -> None:
         if tool_use_id is None:
@@ -636,6 +660,7 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
         tool_use_key = str(tool_use_id)
         span = self._in_flight.pop(tool_use_key, None)
         self._tool_names.pop(tool_use_key, None)
+        self._pop_agent_stack(tool_use_key)
         if span is None:
             return
         if tool_response is not None:
@@ -651,6 +676,7 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
         tool_use_key = str(tool_use_id)
         span = self._in_flight.pop(tool_use_key, None)
         self._tool_names.pop(tool_use_key, None)
+        self._pop_agent_stack(tool_use_key)
         if span is None:
             return
         error_msg = _format_tool_error(error)
@@ -667,6 +693,7 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
                 pass
         self._in_flight.clear()
         self._tool_names.clear()
+        self._agent_tool_stack.clear()
 
     def get_in_flight_span(self, tool_use_id: Any) -> trace_api.Span | None:
         if tool_use_id is None:
