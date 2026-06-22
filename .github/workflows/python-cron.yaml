@@ -5,6 +5,13 @@ on:
     - cron: "0 18 * * 1-5"
   workflow_dispatch:
 
+# Serialize runs so an in-flight auto-fix can't race a second run (e.g. a
+# manual dispatch overlapping the schedule) into opening duplicate PRs.
+# Queue rather than cancel: don't kill an auto-fix that may be mid-push.
+concurrency:
+  group: python-canary-cron
+  cancel-in-progress: false
+
 # Least-privilege default; the auto-fix job opts into what it needs.
 permissions:
   contents: read
@@ -155,7 +162,6 @@ jobs:
           webhook-type: incoming-webhook
           payload: |
             {
-              "type": "mrkdwn",
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
 
@@ -167,6 +173,9 @@ jobs:
     timeout-minutes: 75
     strategy:
       fail-fast: false
+      # Cap concurrent Claude runs so a broad upstream break (many failing
+      # packages) can't fan out into dozens of simultaneous paid agent jobs.
+      max-parallel: 3
       matrix:
         package: ${{ fromJSON(needs.collect-failures.outputs.packages) }}
     permissions:
@@ -180,7 +189,43 @@ jobs:
         with:
           persist-credentials: false
 
+      # Dedup preflight: skip the expensive Claude run when an auto-fix PR for
+      # this package is already open. This is what breaks the daily retry loop.
+      # Open-only by design — a merged PR must NOT suppress a fresh attempt on a
+      # new break. Match on the head branch (deterministic, workflow-produced);
+      # the trailing '-' avoids matching e.g. claude/canary-openai_agents-* when
+      # PACKAGE is "openai". Note: a human closing (not merging) an auto-fix PR
+      # will not durably suppress regeneration; that needs a separate sticky
+      # signal (e.g. a label) which is not implemented here.
+      - name: Check for existing auto-fix PR
+        id: preflight
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          existing=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --limit 200 \
+            --json url,headRefName \
+            --jq "[.[] | select(.headRefName | startswith(\"claude/canary-${PACKAGE}-\"))][0].url // empty")
+          if [ -n "$existing" ]; then
+            echo "An open auto-fix PR already exists for ${PACKAGE}: ${existing}"
+            {
+              echo "skip=true"
+              echo "existing_pr=$existing"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Canary auto-fix for ${PACKAGE}"
+              echo
+              echo "**Status:** skipped; an open auto-fix PR already exists: ${existing}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create branch
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
         env:
           PACKAGE: ${{ matrix.package }}
         run: |
@@ -191,6 +236,7 @@ jobs:
           mkdir -p .scratch
 
       - name: Download failure logs
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: "*-ci-${{ matrix.package }}-latest"
@@ -198,11 +244,13 @@ jobs:
           merge-multiple: true
 
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
         with:
           version: 0.11.2
           enable-cache: false
 
       - name: Install subprocess isolation deps
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap socat
@@ -210,8 +258,9 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
 
-      - uses: anthropics/claude-code-action@0f97b95b6536c26e5f6bd90faec370d41695beca # v1.0.144
+      - uses: anthropics/claude-code-action@2fee15510437d71399d9139ed60433470484a8fb # v1.0.153
         id: auto-fix
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
         env:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         with:
@@ -252,7 +301,7 @@ jobs:
           claude_args: '--allowedTools Skill,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,"Bash(gh run list:*)","Bash(gh run view:*)","Bash(gh pr list:*)","Bash(gh pr view:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(uv:*)","Bash(uvx:*)","Bash(tox:*)","Bash(python:*)","Bash(python3:*)","Bash(pip show:*)","Bash(pip list:*)","Bash(curl -s:*)","Bash(cd:*)","Bash(ls:*)","Bash(find:*)","Bash(grep:*)","Bash(sed:*)","Bash(awk:*)","Bash(jq:*)","Bash(cat:*)","Bash(head:*)","Bash(tail:*)","Bash(sort:*)","Bash(nl:*)","Bash(mkdir:*)","Bash(date:*)","Bash(echo:*)","Bash(printf:*)"'
 
       - name: Upload Claude execution log
-        if: ${{ always() }}
+        if: ${{ always() && steps.auto-fix.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: claude-auto-fix-${{ matrix.package }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -262,17 +311,20 @@ jobs:
 
       - name: Commit and open PR
         id: publish
-        if: ${{ steps.auto-fix.outcome == 'success' }}
+        if: ${{ steps.preflight.outputs.skip != 'true' && steps.auto-fix.outcome == 'success' }}
         env:
+          # PAT is present only in this git/gh-only step. No package code or tox
+          # runs here, so freshly installed upstream deps never see the token.
           GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
           PACKAGE: ${{ matrix.package }}
-          FAILURE_LIST: ${{ needs.collect-failures.outputs.list }}
         run: |
           gh auth setup-git
           git remote set-url origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Hard guard: never let the agent modify automation / agent-instruction
+          # files. Restore them from the branch base before committing.
           blocked_files=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u | awk '
             /^\.github\// ||
             /^\.cursor\// ||
@@ -314,64 +366,6 @@ jobs:
             exit 0
           fi
 
-          mkdir -p .scratch/validation-logs
-          FAILED_ENV=""
-          if [ -d .scratch/failure-logs ]; then
-            FAILED_ENV=$(
-              find .scratch/failure-logs -maxdepth 1 -type f -name "*-ci-${PACKAGE}-latest.log" \
-                | sed -E 's|.*/||; s|\.log$||' \
-                | sort \
-                | head -n 1
-            )
-          fi
-          if [ -z "$FAILED_ENV" ]; then
-            FAILED_ENV=$(
-              printf '%s\n' "$FAILURE_LIST" \
-                | sed -nE "s/^ *[0-9]+\. (py[0-9]+-ci-${PACKAGE}-latest)$/\1/p" \
-                | head -n 1
-            )
-          fi
-          if [ -z "$FAILED_ENV" ]; then
-            FAILED_ENV="py310-ci-${PACKAGE}-latest"
-          fi
-          PINNED_ENV="${FAILED_ENV%-latest}"
-
-          echo "Validating ${FAILED_ENV} before opening a PR."
-          echo "Running ${PINNED_ENV} as an advisory baseline check."
-          set +e
-          uvx --with tox-uv tox -c python/tox.ini r -e "$PINNED_ENV" > ".scratch/validation-logs/${PINNED_ENV}.log" 2>&1
-          PINNED_STATUS=$?
-          uvx --with tox-uv tox -c python/tox.ini r -e "$FAILED_ENV" -- -ra -x > ".scratch/validation-logs/${FAILED_ENV}.log" 2>&1
-          LATEST_STATUS=$?
-          set -e
-
-          if [ "$PINNED_STATUS" -ne 0 ]; then
-            echo "::warning::Advisory baseline validation failed for ${PINNED_ENV}; continuing because ${FAILED_ENV} is the canary gate."
-            tail -200 ".scratch/validation-logs/${PINNED_ENV}.log" || true
-          fi
-
-          if [ "$LATEST_STATUS" -ne 0 ]; then
-            echo "Auto-fix validation failed; skipping PR."
-            {
-              echo "status=validation_failed"
-              echo "message<<EOF"
-              echo "Claude produced changes, but validation failed for ${FAILED_ENV}."
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
-            {
-              echo "## Canary auto-fix for ${PACKAGE}"
-              echo
-              echo "**Status:** no PR opened; validation failed."
-              echo
-              echo "- ${PINNED_ENV}: exit ${PINNED_STATUS}"
-              echo "- ${FAILED_ENV}: exit ${LATEST_STATUS}"
-              echo
-              echo "Validation logs were uploaded as workflow artifacts."
-            } >> "$GITHUB_STEP_SUMMARY"
-            tail -200 ".scratch/validation-logs/${FAILED_ENV}.log" || true
-            exit 0
-          fi
-
           DEFAULT_TITLE="fix(${PACKAGE}): resolve latest dependency canary failure"
           PR_TITLE="$DEFAULT_TITLE"
           if [ -s .scratch/pr-title.txt ]; then
@@ -389,19 +383,8 @@ jobs:
             BODY_FILE=.scratch/pr-body.md
           else
             BODY_FILE=$(mktemp)
-            echo "Automated fix for Python canary failures in ${PACKAGE}. Review the diff and workflow logs for details." > "$BODY_FILE"
+            echo "Automated fix for Python canary failures in ${PACKAGE}. Review the diff and CI checks for details." > "$BODY_FILE"
           fi
-          {
-            echo
-            echo "## Auto-Fix Validation"
-            echo
-            echo "- ${FAILED_ENV}: passed"
-            if [ "$PINNED_STATUS" -eq 0 ]; then
-              echo "- ${PINNED_ENV}: passed"
-            else
-              echo "- ${PINNED_ENV}: advisory check failed (exit ${PINNED_STATUS}); see the validation log artifact."
-            fi
-          } >> "$BODY_FILE"
 
           git add -A
           git commit -m "$PR_TITLE"
@@ -419,23 +402,7 @@ jobs:
             echo "## Canary auto-fix for ${PACKAGE}"
             echo
             echo "**Status:** PR opened: ${PR_URL}"
-            echo
-            echo "- ${FAILED_ENV}: passed"
-            if [ "$PINNED_STATUS" -eq 0 ]; then
-              echo "- ${PINNED_ENV}: passed"
-            else
-              echo "- ${PINNED_ENV}: advisory check failed (exit ${PINNED_STATUS}); validation log uploaded."
-            fi
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload validation logs
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: canary-auto-fix-validation-${{ matrix.package }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .scratch/validation-logs
-          if-no-files-found: ignore
-          retention-days: 7
 
       - name: Notify Slack of auto-fix PR
         if: ${{ steps.publish.outputs.pr_url != '' }}
@@ -444,17 +411,15 @@ jobs:
           PR_URL: ${{ steps.publish.outputs.pr_url }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          MSG="Auto-fix PR opened for ${PACKAGE} canary failures: ${PR_URL}
+          MSG="Auto-fix PR opened for ${PACKAGE} canary failures (verify its CI): ${PR_URL}
           ${RUN_URL}"
-          if [ -n "$PR_URL" ]; then
-            echo "$MSG"
-            curl -sf -X POST -H 'Content-type: application/json' \
-              --data "$(jq -n --arg text "$MSG" '{type: "mrkdwn", text: $text}')" \
-              "${{ secrets.SLACK_WEBHOOK_URL }}"
-          fi
+          echo "$MSG"
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"
 
       - name: Notify Slack of no auto-fix PR
-        if: ${{ steps.auto-fix.outcome == 'success' && steps.publish.outputs.pr_url == '' && steps.publish.outputs.status != '' }}
+        if: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.pr_url == '' && steps.publish.outputs.status != '' }}
         env:
           PACKAGE: ${{ matrix.package }}
           STATUS: ${{ steps.publish.outputs.status }}
@@ -465,5 +430,20 @@ jobs:
           ${RUN_URL}"
           echo "$MSG"
           curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{type: "mrkdwn", text: $text}')" \
+            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"
+
+      - name: Notify Slack of auto-fix job failure
+        # Catch-all so a crash in the Claude step or the publish step (which
+        # would otherwise leave no output written, and thus no Slack message)
+        # is still surfaced. Skipped runs are not failures, so they don't fire.
+        if: ${{ failure() }}
+        env:
+          PACKAGE: ${{ matrix.package }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          MSG="Canary auto-fix job failed for ${PACKAGE} (no PR opened); see logs: ${RUN_URL}"
+          echo "$MSG"
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
             "${{ secrets.SLACK_WEBHOOK_URL }}"

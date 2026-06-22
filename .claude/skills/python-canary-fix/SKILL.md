@@ -23,7 +23,7 @@ When invoked by the scheduled `auto-fix` job, the workflow already runs one job 
 - `.scratch/pr-title.txt`: a one-line conventional-commit PR title.
 - `.scratch/pr-body.md`: a concise PR body with root cause, fix, and commands run.
 
-The workflow will commit, push, and open the PR after Claude exits. For manual use outside CI, continue to open one PR per package yourself.
+The workflow will commit, push, and open the PR after Claude exits. It does **not** re-validate your fix in-workflow — the opened PR's own CI runs this package's `-latest` envs and is the gate (branch protection blocks merging until CI is green), so still aim to make the failing env pass, but an imperfect fix becomes a red PR for a human to finish rather than being discarded. The workflow also skips invoking you entirely when an open auto-fix PR for the package already exists, so you do not need to guard against that case. For manual use outside CI, continue to open one PR per package yourself.
 
 In CI auto-fix mode, the workflow downloads the failed tox logs before Claude starts. Always read `.scratch/failure-logs/*.log` first and use the first traceback or assertion from those local logs as the primary signal. Do **not** call `gh run view --log` or `gh run view --log-failed` for the same in-progress run unless the local logs are missing or clearly incomplete.
 
@@ -56,7 +56,7 @@ Repeat the following for **each** remaining package, fully completing the cycle 
    - `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
    - `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-<package>-latest -- -ra -x` (latest deps)
    - If ruff reformats files, include those edits in the same package commit (don't split formatting into a separate PR).
-   - The failed `-latest` env must pass before opening a PR. Treat a pinned-env failure as blocking only when it is caused by the proposed change; if it is pre-existing or clearly unrelated, document it in the PR body and include the uploaded validation log for reviewers. For drop-old-support fixes, you've raised the pinned floor — the pinned env now exercises the new minimum supported upstream version, which is expected.
+   - Aim to make the failed `-latest` env pass. In manual mode it must pass before you open a PR; in CI auto-fix mode the PR's own CI is the gate, so document any env you could not get green in `.scratch/pr-body.md` for reviewers. Treat a pinned-env failure as blocking only when it is caused by the proposed change; if it is pre-existing or clearly unrelated, note that in the PR body. For drop-old-support fixes, you've raised the pinned floor — the pinned env now exercises the new minimum supported upstream version, which is expected.
 6. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found.
 7. **Run the Python code reviewer**: Run `/python-code-reviewer` against the changed package to verify it follows project conventions (test patterns, semantic conventions, CI config).
 8. **Final duplicate-PR check**: Right before opening the PR, re-run `gh pr list --repo Arize-ai/openinference --search "<package>" --state open`. The Step 1.4 filter caught duplicates that existed at the start of the run, but one may have been opened during steps 2.1–2.7. If a duplicate now exists, update it instead of creating a new PR.
