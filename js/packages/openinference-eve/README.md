@@ -40,8 +40,7 @@ export default defineInstrumentation({
       spanProcessors: [
         new OpenInferenceSimpleSpanProcessor({
           exporter: new OTLPTraceExporter({
-            url:
-              process.env["PHOENIX_COLLECTOR_ENDPOINT"] ?? "http://localhost:6006/v1/traces",
+            url: process.env["PHOENIX_COLLECTOR_ENDPOINT"] ?? "http://localhost:6006/v1/traces",
             headers:
               process.env["PHOENIX_API_KEY"] != null
                 ? { Authorization: `Bearer ${process.env["PHOENIX_API_KEY"]}` }
@@ -56,11 +55,11 @@ export default defineInstrumentation({
 
 Environment variables:
 
-| Variable | Default | Description |
-|---|---|---|
-| `PHOENIX_COLLECTOR_ENDPOINT` | `http://localhost:6006/v1/traces` | OTLP endpoint |
-| `PHOENIX_PROJECT_NAME` | agent name | Project name in Phoenix |
-| `PHOENIX_API_KEY` | — | API key for Phoenix Cloud |
+| Variable                     | Default                           | Description               |
+| ---------------------------- | --------------------------------- | ------------------------- |
+| `PHOENIX_COLLECTOR_ENDPOINT` | `http://localhost:6006/v1/traces` | OTLP endpoint             |
+| `PHOENIX_PROJECT_NAME`       | agent name                        | Project name in Phoenix   |
+| `PHOENIX_API_KEY`            | —                                 | API key for Phoenix Cloud |
 
 ## Span Hierarchy
 
@@ -79,15 +78,15 @@ ai.eve.turn                    → AGENT  (session.id extracted from eve.session
 Eve injects `eve.*` context attributes onto every span. This processor maps
 them to OpenInference conventions automatically:
 
-| Eve attribute | OpenInference attribute |
-|---|---|
-| `eve.session.id` | `session.id` |
-| `eve.version` | `metadata.eve.version` |
-| `eve.environment` | `metadata.eve.environment` |
-| `eve.turn.id` | `metadata.eve.turn.id` |
+| Eve attribute       | OpenInference attribute      |
+| ------------------- | ---------------------------- |
+| `eve.session.id`    | `session.id`                 |
+| `eve.version`       | `metadata.eve.version`       |
+| `eve.environment`   | `metadata.eve.environment`   |
+| `eve.turn.id`       | `metadata.eve.turn.id`       |
 | `eve.turn.sequence` | `metadata.eve.turn.sequence` |
-| `eve.step.index` | `metadata.eve.step.index` |
-| `eve.channel.kind` | `metadata.eve.channel.kind` |
+| `eve.step.index`    | `metadata.eve.step.index`    |
+| `eve.channel.kind`  | `metadata.eve.channel.kind`  |
 
 `ai.eve.turn` spans also receive `openinference.span.kind = AGENT`.
 
@@ -127,7 +126,7 @@ import { isOpenInferenceSpan } from "@arizeai/openinference-eve";
 new OpenInferenceSimpleSpanProcessor({
   exporter,
   spanFilter: isOpenInferenceSpan,
-})
+});
 ```
 
 ## Enriching Spans with Per-Step Context
@@ -138,7 +137,10 @@ attributes and are visible in Phoenix:
 
 ```typescript
 export default defineInstrumentation({
-  setup: ({ agentName }) => registerOTel({ /* ... */ }),
+  setup: ({ agentName }) =>
+    registerOTel({
+      /* ... */
+    }),
 
   events: {
     "step.started"(input) {
@@ -157,12 +159,12 @@ export default defineInstrumentation({
 
 See `examples/` for ready-to-copy instrumentation files:
 
-| File | Description |
-|---|---|
-| `instrumentation.ts` | Send spans to Phoenix (OTLP) |
-| `instrumentation-arize.ts` | Send spans to Arize Cloud |
-| `instrumentation-with-context.ts` | Enrich spans with per-step runtime context |
-| `verify-spans.ts` | Verify the integration locally without an LLM API key |
+| File                              | Description                                           |
+| --------------------------------- | ----------------------------------------------------- |
+| `instrumentation.ts`              | Send spans to Phoenix (OTLP)                          |
+| `instrumentation-arize.ts`        | Send spans to Arize Cloud                             |
+| `instrumentation-with-context.ts` | Enrich spans with per-step runtime context            |
+| `verify-spans.ts`                 | Verify the integration locally without an LLM API key |
 
 ## Docs and Source Code in node_modules
 
