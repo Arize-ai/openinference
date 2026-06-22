@@ -4,17 +4,22 @@
  * verify-spans.ts — runnable script that verifies the Eve integration end-to-end.
  *
  * Simulates the span hierarchy Eve produces for a single-turn, two-step
- * agentic run (streamText → toolCall → streamText), then prints the resulting
- * OpenInference attributes to the console so you can confirm the mapping.
+ * agentic run (streamText → toolCall → streamText), then exports the resulting
+ * OpenInference spans to Phoenix so you can confirm the attribute mapping.
  *
  * Does NOT require the Eve SDK or an LLM API key.
+ *
+ * Environment variables:
+ *   PHOENIX_COLLECTOR_ENDPOINT  (default: http://localhost:6006/v1/traces)
+ *   PHOENIX_PROJECT_NAME        (default: openinference-eve-verify)
+ *   PHOENIX_API_KEY             (optional)
  *
  * Run from packages/openinference-eve:
  *   pnpx tsx examples/verify-spans.ts
  */
 
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
-import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
@@ -26,13 +31,23 @@ import { isOpenInferenceSpan, OpenInferenceSimpleSpanProcessor } from "../src";
 // OTel setup (mirrors what Eve's registerOTel call does under the hood)
 // ---------------------------------------------------------------------------
 
+const phoenixUrl =
+  process.env["PHOENIX_COLLECTOR_ENDPOINT"] ?? "http://localhost:6006/v1/traces";
+
 const provider = new NodeTracerProvider({
   resource: new Resource({
-    [SEMRESATTRS_PROJECT_NAME]: "openinference-eve-verify",
+    [SEMRESATTRS_PROJECT_NAME]:
+      process.env["PHOENIX_PROJECT_NAME"] ?? "openinference-eve-verify",
   }),
   spanProcessors: [
     new OpenInferenceSimpleSpanProcessor({
-      exporter: new ConsoleSpanExporter(),
+      exporter: new OTLPTraceExporter({
+        url: phoenixUrl,
+        headers:
+          process.env["PHOENIX_API_KEY"] != null
+            ? { Authorization: `Bearer ${process.env["PHOENIX_API_KEY"]}` }
+            : undefined,
+      }),
       spanFilter: isOpenInferenceSpan,
     }),
   ],
@@ -55,9 +70,8 @@ const tracer = trace.getTracer("eve-verify");
 
 async function main() {
   console.log("\n=== Eve OpenInference span verification ===\n");
-  console.log(
-    "Each exported span is printed below. Check that openinference.span.kind,",
-  );
+  console.log(`Sending spans to Phoenix at: ${phoenixUrl}`);
+  console.log("Check Phoenix for the trace — verify openinference.span.kind,");
   console.log("session.id, and metadata.* are populated correctly.\n");
 
   // Root turn span — Eve creates one of these per conversational turn.
@@ -214,6 +228,7 @@ async function main() {
   await provider.shutdown();
 
   console.log("\n=== Done ===\n");
+  console.log(`Spans exported to Phoenix: ${phoenixUrl}`);
   console.log("Expected span kinds:");
   console.log("  ai.eve.turn             → AGENT  (with session.id = sess_demo_001)");
   console.log("  ai.streamText           → AGENT  (per step)");

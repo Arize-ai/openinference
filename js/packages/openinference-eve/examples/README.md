@@ -44,24 +44,39 @@ configure the environment variables shown at the top of the file.
 ## Verification script (no Eve SDK required)
 
 `verify-spans.ts` manually recreates the span hierarchy Eve produces for a
-two-step weather-agent turn and exports it through the processor to the
-console. Use it to confirm attribute mapping without needing an LLM API key
-or the Eve runtime.
+two-step weather-agent turn and exports it to a Phoenix instance via OTLP.
+Use it to confirm attribute mapping without needing an LLM API key or the
+Eve runtime.
 
 ### Prereqs
 
 - `OPENAI_API_KEY` is **not** required (no real LLM calls are made).
+- A running Phoenix instance (default: `http://localhost:6006`).
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PHOENIX_COLLECTOR_ENDPOINT` | `http://localhost:6006/v1/traces` | OTLP endpoint |
+| `PHOENIX_PROJECT_NAME` | `openinference-eve-verify` | Project name in Phoenix |
+| `PHOENIX_API_KEY` | — | API key (optional, for Phoenix Cloud) |
 
 ### Run
 
 From `packages/openinference-eve`:
 
 ```bash
+# Against a local Phoenix instance
+pnpx tsx examples/verify-spans.ts
+
+# Against Phoenix Cloud
+PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/v1/traces \
+PHOENIX_API_KEY=your-api-key \
 pnpx tsx examples/verify-spans.ts
 ```
 
-You will see one `ConsoleSpanExporter` dump per exported span. Check the
-`openinference.*` attributes at the top of each dump:
+Open Phoenix and look for the `openinference-eve-verify` project. You should
+see one trace with four spans:
 
 | Span | `openinference.span.kind` | `session.id` |
 |---|---|---|
