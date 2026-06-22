@@ -5,9 +5,7 @@ import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventio
  * Eve creates an `ai.eve.turn` root span per conversational turn on top of
  * the standard Vercel AI SDK spans it uses internally.
  */
-export const EveFunctionNameToSpanKindMap = new Map([
-  ["ai.eve.turn", OpenInferenceSpanKind.AGENT],
-]);
+export const EveFunctionNameToSpanKindMap = new Map([["ai.eve.turn", OpenInferenceSpanKind.AGENT]]);
 
 export const EVE_ATTRIBUTE_KEYS = {
   SESSION_ID: "eve.session.id",

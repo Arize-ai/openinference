@@ -4,7 +4,11 @@ import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import { EVE_ATTRIBUTE_KEYS, EVE_ATTRIBUTE_PREFIX, EveFunctionNameToSpanKindMap } from "./constants";
+import {
+  EVE_ATTRIBUTE_KEYS,
+  EVE_ATTRIBUTE_PREFIX,
+  EveFunctionNameToSpanKindMap,
+} from "./constants";
 
 const getEveTurnSpanKind = (span: ReadableSpan): string | undefined => {
   const operationName = span.attributes["operation.name"];
