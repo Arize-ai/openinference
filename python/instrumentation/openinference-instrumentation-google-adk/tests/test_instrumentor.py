@@ -611,8 +611,17 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
         assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 136
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 16
-        assert call_llm_attributes0.pop("gen_ai.usage.experimental.reasoning_tokens", None) == 76
+        if _VERSION >= (2, 3, 0):
+            # google-adk >= 2.3.0 includes reasoning (thoughts) tokens in
+            # gen_ai.usage.output_tokens and renamed the reasoning attribute from
+            # gen_ai.usage.experimental.reasoning_tokens to gen_ai.usage.reasoning.output_tokens
+            assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 92
+            assert call_llm_attributes0.pop("gen_ai.usage.reasoning.output_tokens", None) == 76
+        else:
+            assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 16
+            assert (
+                call_llm_attributes0.pop("gen_ai.usage.experimental.reasoning_tokens", None) == 76
+            )
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
     call_llm_attributes0.pop("gen_ai.agent.name", None)
     call_llm_attributes0.pop("gen_ai.conversation.id", None)
