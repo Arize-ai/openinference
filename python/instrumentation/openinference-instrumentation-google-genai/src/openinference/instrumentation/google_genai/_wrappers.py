@@ -3,7 +3,7 @@ import logging
 from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
-from inspect import Signature, signature
+from inspect import Parameter, Signature, signature
 from itertools import chain
 from typing import Any, Callable, Iterable, Iterator, List, Mapping
 
@@ -134,8 +134,24 @@ def _parse_args(
     bound_signature = signature.bind(*args, **kwargs)
     bound_signature.apply_defaults()
     bound_arguments = bound_signature.arguments  # Defaults empty to NOT_GIVEN
-    request_data: dict[str, Any] = {}
+    # Flatten any **kwargs-style (VAR_KEYWORD) parameter so values passed through it
+    # surface as top-level request parameters. The google-genai >= 2.x interactions
+    # client funnels `model`, `input`, `generation_config`, `stream`, etc. through a
+    # `**body` parameter rather than declaring them explicitly, which would otherwise
+    # hide them (and break streaming detection) from attribute extraction.
+    flattened_arguments: dict[str, Any] = {}
     for key, value in bound_arguments.items():
+        parameter = signature.parameters.get(key)
+        if (
+            parameter is not None
+            and parameter.kind is Parameter.VAR_KEYWORD
+            and isinstance(value, Mapping)
+        ):
+            flattened_arguments.update(value)
+        else:
+            flattened_arguments[key] = value
+    request_data: dict[str, Any] = {}
+    for key, value in flattened_arguments.items():
         try:
             if value is not None:
                 try:
