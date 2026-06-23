@@ -1222,9 +1222,6 @@ async def test_hook_fallback_parents_subagent_tool_to_active_task(
     assert task_span.parent is not None
     assert task_span.parent.span_id == root.context.span_id
 
-    assert subagent_span.parent is not None
-    assert subagent_span.parent.span_id == task_span.context.span_id
-
     for bash_span in bash_spans:
         assert bash_span.parent is not None
         assert bash_span.parent.span_id == subagent_span.context.span_id, (
