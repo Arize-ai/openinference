@@ -992,5 +992,35 @@ function getAttributesFromOutputMessage({
       tool_calls: toolCalls,
     };
   }
+  if (message.type === "thinking") {
+    const thinkingText = getStringAttributeValueFromUnknown(message?.thinking) ?? undefined;
+    const signature = getStringAttributeValueFromUnknown(message?.signature) ?? undefined;
+    if (thinkingText != null || signature != null) {
+      return {
+        role,
+        contents: [
+          {
+            type: "reasoning",
+            ...(thinkingText != null ? { text: thinkingText } : {}),
+            ...(signature != null ? { signature } : {}),
+          },
+        ],
+      };
+    }
+  }
+  if (message.type === "redacted_thinking") {
+    const data = getStringAttributeValueFromUnknown(message?.data) ?? undefined;
+    if (data != null) {
+      return {
+        role,
+        contents: [
+          {
+            type: "reasoning",
+            data,
+          },
+        ],
+      };
+    }
+  }
   return null;
 }
