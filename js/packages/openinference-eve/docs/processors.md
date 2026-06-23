@@ -89,19 +89,20 @@ new OpenInferenceSimpleSpanProcessor({ exporter, spanFilter: filter })
 
 ## Processor Options
 
-Both processors inherit all options from their Vercel counterparts.
-`OpenInferenceBatchSpanProcessor` additionally accepts the standard OTel
-`BatchSpanProcessorOptions`:
+Both processors accept `{ exporter, spanFilter? }`.
+`OpenInferenceBatchSpanProcessor` additionally accepts `config` with OTel
+`BufferConfig` options:
 
 ```typescript
 new OpenInferenceBatchSpanProcessor({
   exporter,
   spanFilter: isOpenInferenceSpan,
-  // BatchSpanProcessorOptions:
-  maxQueueSize: 2048,
-  maxExportBatchSize: 512,
-  scheduledDelayMillis: 5000,
-  exportTimeoutMillis: 30000,
+  config: {
+    maxQueueSize: 2048,
+    maxExportBatchSize: 512,
+    scheduledDelayMillis: 5000,
+    exportTimeoutMillis: 30000,
+  },
 })
 ```
 

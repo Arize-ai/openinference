@@ -70,10 +70,11 @@ child spans also receive `session.id` and `metadata.eve.*` attributes.
 ```typescript
 // ai.streamText — after processing:
 {
-  "openinference.span.kind": "AGENT",  // set by Vercel processor
-  "session.id": "sess_abc123",          // extracted from eve.session.id
-  "metadata.eve.step.index": 0,         // step context
-  "metadata.eve.session.id": "...",     // (other eve.* attributes)
+  "openinference.span.kind": "AGENT",     // set by Vercel processor
+  "session.id": "sess_abc123",             // extracted from eve.session.id
+  "metadata.eve.step.index": 0,            // step index as metadata
+  "metadata.eve.turn.sequence": 0,         // other eve.* → metadata.eve.*
+  "metadata.eve.environment": "development",
   // ...plus all Vercel AI SDK attributes...
 }
 ```
