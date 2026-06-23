@@ -13,6 +13,45 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
+def _import_interactions_resources() -> Any:
+    """Resolve the google-genai interactions resource classes.
+
+    google-genai relocated and renamed these private classes in 2.x: the resource
+    classes moved from ``google.genai._interactions.resources`` (``InteractionsResource``
+    and ``AsyncInteractionsResource``) to ``google.genai._gaos.google_genai``
+    (``GeminiNextGenInteractions`` and ``AsyncGeminiNextGenInteractions``). Both still
+    expose ``create``/``get`` and back ``client.interactions``.
+
+    Returns a tuple of ``(sync_class, async_class, module_path, sync_name, async_name)``.
+    """
+    try:
+        from google.genai._interactions.resources import (
+            AsyncInteractionsResource,
+            InteractionsResource,
+        )
+
+        return (
+            InteractionsResource,
+            AsyncInteractionsResource,
+            "google.genai._interactions.resources",
+            "InteractionsResource",
+            "AsyncInteractionsResource",
+        )
+    except ModuleNotFoundError:
+        from google.genai._gaos.google_genai import (
+            AsyncGeminiNextGenInteractions,
+            GeminiNextGenInteractions,
+        )
+
+        return (
+            GeminiNextGenInteractions,
+            AsyncGeminiNextGenInteractions,
+            "google.genai._gaos.google_genai",
+            "GeminiNextGenInteractions",
+            "AsyncGeminiNextGenInteractions",
+        )
+
+
 class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
     """
     An instrumentor for `google-genai`
@@ -54,12 +93,16 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         try:
-            from google.genai._interactions.resources import (
-                AsyncInteractionsResource,
-                InteractionsResource,
-            )
             from google.genai.caches import AsyncCaches, Caches
             from google.genai.models import AsyncModels, Models
+
+            (
+                InteractionsResource,
+                AsyncInteractionsResource,
+                interactions_module,
+                interactions_sync_name,
+                interactions_async_name,
+            ) = _import_interactions_resources()
         except ImportError as err:
             raise Exception(
                 "Could not import google-genai. Please install with `pip install google-genai`."
@@ -81,14 +124,14 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         self._original_create_interactions_resource = InteractionsResource.create
         wrap_function_wrapper(
-            "google.genai._interactions.resources",
-            "InteractionsResource.create",
+            interactions_module,
+            f"{interactions_sync_name}.create",
             _SyncCreateInteractionWrapper(tracer=self._tracer),
         )
         self._original_get_interactions_resource = InteractionsResource.get
         wrap_function_wrapper(
-            "google.genai._interactions.resources",
-            "InteractionsResource.get",
+            interactions_module,
+            f"{interactions_sync_name}.get",
             _SyncGetInteractionWrapper(tracer=self._tracer),
         )
 
@@ -149,14 +192,14 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
         self._original_async_create_interactions_resource = AsyncInteractionsResource.create
         wrap_function_wrapper(
-            "google.genai._interactions.resources",
-            "AsyncInteractionsResource.create",
+            interactions_module,
+            f"{interactions_async_name}.create",
             _AsyncCreateInteractionWrapper(tracer=self._tracer),
         )
         self._original_async_get_interactions_resource = AsyncInteractionsResource.get
         wrap_function_wrapper(
-            "google.genai._interactions.resources",
-            "AsyncInteractionsResource.get",
+            interactions_module,
+            f"{interactions_async_name}.get",
             _AsyncGetInteractionWrapper(tracer=self._tracer),
         )
 
@@ -195,12 +238,10 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        from google.genai._interactions.resources import (
-            AsyncInteractionsResource,
-            InteractionsResource,
-        )
         from google.genai.caches import AsyncCaches, Caches
         from google.genai.models import AsyncModels, Models
+
+        InteractionsResource, AsyncInteractionsResource = _import_interactions_resources()[:2]
 
         if self._original_embed_content is not None:
             setattr(Models, "embed_content", self._original_embed_content)
