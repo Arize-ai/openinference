@@ -12,4 +12,4 @@ langsmith
 portpicker
 starlette
 uvicorn
-vcrpy>=6.0.1
+vcrpy
