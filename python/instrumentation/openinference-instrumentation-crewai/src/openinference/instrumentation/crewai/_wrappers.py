@@ -466,10 +466,13 @@ class _CrewKickoffWrapper:
 
             span.set_attribute("crew_key", crew.key)
             span.set_attribute("crew_id", str(crew.id))
-            span.set_attribute("crew_inputs", json.dumps(inputs) if inputs else "")
+            span.set_attribute(
+                "crew_inputs",
+                safe_json_dumps(inputs, cls=SafeJSONEncoder) if inputs else "",
+            )
             span.set_attribute(
                 "crew_agents",
-                json.dumps(
+                safe_json_dumps(
                     [
                         {
                             "key": agent.key,
@@ -484,12 +487,13 @@ class _CrewKickoffWrapper:
                             "tools_names": [tool.name.casefold() for tool in agent.tools or []],
                         }
                         for agent in crew.agents
-                    ]
+                    ],
+                    cls=SafeJSONEncoder,
                 ),
             )
             span.set_attribute(
                 "crew_tasks",
-                json.dumps(
+                safe_json_dumps(
                     [
                         {
                             "id": str(task.id),
@@ -505,7 +509,8 @@ class _CrewKickoffWrapper:
                             "tools_names": [tool.name.casefold() for tool in task.tools or []],
                         }
                         for task in crew.tasks
-                    ]
+                    ],
+                    cls=SafeJSONEncoder,
                 ),
             )
             try:
@@ -574,7 +579,10 @@ class _FlowKickoffWrapper:
                     span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("flow_id", str(flow.flow_id))
-            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+            span.set_attribute(
+                "flow_inputs",
+                safe_json_dumps(inputs, cls=SafeJSONEncoder) if inputs else "",
+            )
 
             # Signal to the async wrapper that the span already exists for this flow.
             # Store the flow_id (not a plain boolean) so that nested flows with different
@@ -644,7 +652,10 @@ class _FlowKickoffAsyncWrapper:
                     span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("flow_id", str(flow.flow_id))
-            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+            span.set_attribute(
+                "flow_inputs",
+                safe_json_dumps(inputs, cls=SafeJSONEncoder) if inputs else "",
+            )
 
             try:
                 flow_output = await wrapped(*args, **kwargs)
