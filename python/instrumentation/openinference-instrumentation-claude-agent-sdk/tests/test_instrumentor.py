@@ -1146,3 +1146,146 @@ async def test_client_real_agent_span(
     )
     assert output_msg_role == "assistant"
     assert not attrs
+
+
+@pytest.mark.asyncio
+async def test_hook_fallback_parents_subagent_tool_to_active_task(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """When the PreToolUse hook payload omits parent_tool_use_id for a tool call
+    made inside a subagent, the tracker must fall back to the innermost in-flight
+    Task/Agent tool as the parent instead of mis-parenting to the root span."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+
+    subagent_spans: dict[str, Any] = {}
+
+    def _resolve_parent_span(parent_tool_use_id: Any) -> Any:
+        key = str(parent_tool_use_id)
+        if key not in subagent_spans:
+            subagent_spans[key] = tracer.start_span(
+                "ClaudeAgentSDK.Task",
+                context=trace_api.set_span_in_context(root_span),
+            )
+        return subagent_spans[key]
+
+    tracker = wrappers._ToolSpanTracker(
+        tracer,
+        root_span,
+        parent_span_resolver=_resolve_parent_span,
+    )
+
+    # Task tool starts at root level so hook correctly reports no parent.
+    tracker.start_tool_span(
+        tool_name="Task",
+        tool_input={"objective": "do the thing"},
+        tool_use_id="toolu_task_1",
+        parent_tool_use_id=None,
+    )
+
+    # Subagent's Bash calls arrive via the hook with parent_tool_use_id=None but
+    # since Task is still in-flight, the tracker should fall back to it as the parent.
+    tracker.start_tool_span(
+        tool_name="Bash",
+        tool_input={"command": "echo alpha"},
+        tool_use_id="toolu_bash_1",
+        parent_tool_use_id=None,
+    )
+    tracker.start_tool_span(
+        tool_name="Bash",
+        tool_input={"command": "echo beta"},
+        tool_use_id="toolu_bash_2",
+        parent_tool_use_id=None,
+    )
+    tracker.end_tool_span("toolu_bash_1", "alpha")
+    tracker.end_tool_span("toolu_bash_2", "beta")
+    tracker.end_tool_span("toolu_task_1", "sub ok")
+
+    for span in subagent_spans.values():
+        span.end()
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    task_span = _span_by_name(spans, "Task")
+    subagent_span = _span_by_name(spans, "ClaudeAgentSDK.Task")
+    bash_spans = [s for s in spans if s.name == "Bash"]
+    assert len(bash_spans) == 2
+
+    assert task_span.parent is not None
+    assert task_span.parent.span_id == root.context.span_id
+
+    assert subagent_span.parent is not None
+    assert subagent_span.parent.span_id == task_span.context.span_id
+
+    for bash_span in bash_spans:
+        assert bash_span.parent is not None
+        assert bash_span.parent.span_id == subagent_span.context.span_id, (
+            "Bash tool span mis-parented: expected subagent span as parent, "
+            f"got span_id={bash_span.parent.span_id} (root={root.context.span_id}, "
+            f"subagent={subagent_span.context.span_id})"
+        )
+
+
+def test_agent_stack_popped_after_task_ends(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Once a Task/Agent tool ends, subsequent root-level tools with a missing
+    parent_tool_use_id must not be mis-parented into the finished subagent."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+    subagent_span = tracer.start_span(
+        "ClaudeAgentSDK.Task", context=trace_api.set_span_in_context(root_span)
+    )
+
+    def _resolve_parent_span(parent_tool_use_id: Any) -> Any:
+        del parent_tool_use_id
+        return subagent_span
+
+    tracker = wrappers._ToolSpanTracker(
+        tracer,
+        root_span,
+        parent_span_resolver=_resolve_parent_span,
+    )
+
+    tracker.start_tool_span(
+        tool_name="Task",
+        tool_input={},
+        tool_use_id="toolu_task_1",
+        parent_tool_use_id=None,
+    )
+    tracker.end_tool_span("toolu_task_1", "sub ok")
+
+    # Task has ended so a later root-level tool with no parent_tool_use_id
+    # must parent directly to root, not to the now-closed subagent span.
+    tracker.start_tool_span(
+        tool_name="Bash",
+        tool_input={"command": "echo done"},
+        tool_use_id="toolu_bash_root",
+        parent_tool_use_id=None,
+    )
+    tracker.end_tool_span("toolu_bash_root", "done")
+
+    subagent_span.end()
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    bash_span = _span_by_name(spans, "Bash")
+
+    assert bash_span.parent is not None
+    assert bash_span.parent.span_id == root.context.span_id
