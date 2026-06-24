@@ -364,6 +364,8 @@ class _TraceToolCall(_WithTracer):
         if event := next((arg for arg in arguments.values() if isinstance(arg, Event)), None):
             if responses := event.get_function_responses():
                 try:
+                    if responses[0].id:
+                        span.set_attribute(SpanAttributes.TOOL_ID, responses[0].id)
                     span.set_attribute(
                         SpanAttributes.OUTPUT_VALUE,
                         responses[0].model_dump_json(exclude_none=True),
@@ -524,6 +526,8 @@ def _get_attributes_from_parts(
             yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
             if function_response.name:
                 yield f"{prefix}{MessageAttributes.MESSAGE_NAME}", function_response.name
+            if function_response.id:
+                yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", function_response.id
             if function_response.response:
                 yield (
                     f"{prefix}{MessageAttributes.MESSAGE_CONTENT}",
