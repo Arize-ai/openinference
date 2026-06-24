@@ -1,6 +1,6 @@
 anthropic<0.103
 llama-index-core==0.14.19
-llama_index-llms-anthropic<0.11.0
+llama_index-llms-anthropic<0.12.0
 llama-index-llms-groq
 llama-index-llms-openai
 llama-index-llms-vertex
