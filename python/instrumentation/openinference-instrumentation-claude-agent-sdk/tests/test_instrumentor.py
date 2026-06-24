@@ -1569,3 +1569,88 @@ async def test_missing_parent_hook_keeps_root_tool_sibling_at_root(
     assert bash_span.parent is not None
     assert bash_span.parent.span_id == root.context.span_id
     assert not subagent_spans
+
+
+@pytest.mark.asyncio
+async def test_missing_parent_hook_end_before_message_result_still_closes_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Deferred hook spans can still be closed by the later message result."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+    tracker = wrappers._ToolSpanTracker(tracer, root_span)
+    options = _DummyOptions()
+    options.hooks = wrappers._create_tool_hook_matchers(tracker)
+
+    await _run_hooks(
+        options,
+        "PreToolUse",
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo late"},
+            "tool_use_id": "toolu_bash_late",
+            "parent_tool_use_id": None,
+        },
+    )
+    await _run_hooks(
+        options,
+        "PostToolUse",
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_use_id": "toolu_bash_late",
+            "tool_response": "hook output",
+        },
+    )
+    assert tracker.get_in_flight_span("toolu_bash_late") is None
+
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_bash_late",
+                        "name": "Bash",
+                        "input": {"command": "echo late"},
+                    }
+                ]
+            },
+            "parent_tool_use_id": None,
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_bash_late",
+                        "content": "message output",
+                        "is_error": False,
+                    }
+                ]
+            }
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    bash_span = _span_by_name(spans, "Bash")
+    attrs = dict(bash_span.attributes or {})
+
+    assert bash_span.parent is not None
+    assert bash_span.parent.span_id == root.context.span_id
+    assert json.loads(str(attrs.get(SpanAttributes.OUTPUT_VALUE))) == "message output"

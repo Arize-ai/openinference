@@ -386,9 +386,10 @@ def _create_tool_hook_matchers(
             tool_input = _get_field(input_data, "tool_input")
             resolved_tool_use_id = tool_use_id or _get_field(input_data, "tool_use_id")
             parent_tool_use_id = _get_field(input_data, "parent_tool_use_id")
-            # The SDK currently omits parent_tool_use_id from PreToolUse for some
-            # subagent tool calls. Defer those starts to the message stream, where
-            # AssistantMessage.parent_tool_use_id is authoritative.
+            # A missing hook parent is ambiguous: it can be a root-level tool or
+            # a subagent tool whose parent was omitted by the SDK. Starting now
+            # would permanently root the span, so defer no-parent tool starts to
+            # the message stream, where parent_tool_use_id is authoritative.
             if not _has_parent_tool_use_id(parent_tool_use_id):
                 return {}
             tool_tracker.start_tool_span(
@@ -628,14 +629,9 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
             **get_input_attributes(safe_json_dumps(tool_input), mime_type=JSON),
         }
 
-        resolved_parent_tool_use_id = parent_tool_use_id
         parent_span = self._parent_span
-        if (
-            resolved_parent_tool_use_id is not None
-            and str(resolved_parent_tool_use_id) != ""
-            and self._parent_span_resolver is not None
-        ):
-            resolved = self._parent_span_resolver(resolved_parent_tool_use_id)
+        if _has_parent_tool_use_id(parent_tool_use_id) and self._parent_span_resolver is not None:
+            resolved = self._parent_span_resolver(parent_tool_use_id)
             if resolved is not None:
                 parent_span = resolved
 
