@@ -880,9 +880,11 @@ let processor: OpenInferenceSimpleSpanProcessor | OpenInferenceBatchSpanProcesso
 function setupTraceProvider({
   Processor,
   spanFilter,
+  preserveVercelRootSpans,
 }: {
   Processor: typeof OpenInferenceBatchSpanProcessor | typeof OpenInferenceSimpleSpanProcessor;
   spanFilter?: SpanFilter;
+  preserveVercelRootSpans?: boolean;
 }) {
   memoryExporter.reset();
   trace.disable();
@@ -890,6 +892,7 @@ function setupTraceProvider({
   processor = new Processor({
     exporter: memoryExporter,
     spanFilter,
+    preserveVercelRootSpans,
   });
   traceProvider = new BasicTracerProvider({ spanProcessors: [processor] });
   trace.setGlobalTracerProvider(traceProvider);
@@ -1126,6 +1129,59 @@ describe("OpenInferenceBatchSpanProcessor", () => {
     expect(spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
       OpenInferenceSpanKind.CHAIN,
     );
+  });
+});
+
+describe("root span promotion", () => {
+  const EVE_ROOT_SPAN_NAME = "ai.eve.turn";
+
+  describe.each([
+    ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
+    ["OpenInferenceBatchSpanProcessor", OpenInferenceBatchSpanProcessor],
+  ])("%s", (_name, Processor) => {
+    beforeEach(() => {
+      setupTraceProvider({
+        Processor,
+        spanFilter: isOpenInferenceSpan,
+        preserveVercelRootSpans: true,
+      });
+    });
+    afterEach(() => {
+      trace.disable();
+    });
+
+    it("should export and promote configured framework root spans", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      const workflowSpan = tracer.startSpan("vercel.workflow");
+      const workflowContext = trace.setSpan(context.active(), workflowSpan);
+      const eveTurnSpan = tracer.startSpan(EVE_ROOT_SPAN_NAME, undefined, workflowContext);
+      const eveTurnContext = trace.setSpan(context.active(), eveTurnSpan);
+      const llmSpan = tracer.startSpan("gen_ai", undefined, eveTurnContext);
+      llmSpan.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
+
+      llmSpan.end();
+      eveTurnSpan.end();
+      workflowSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      const exportedWorkflowSpan = spans.find((span) => span.name === "vercel.workflow");
+      const promotedRootSpan = spans.find((span) => span.name === EVE_ROOT_SPAN_NAME);
+      const exportedLlmSpan = spans.find((span) => span.name === "gen_ai");
+
+      expect(spans).toHaveLength(2);
+      expect(exportedWorkflowSpan).toBeUndefined();
+      expect(promotedRootSpan).toBeDefined();
+      expect(promotedRootSpan!.parentSpanId).toBeUndefined();
+      expect(promotedRootSpan!.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+        OpenInferenceSpanKind.AGENT,
+      );
+      expect(exportedLlmSpan).toBeDefined();
+      expect(exportedLlmSpan!.parentSpanId).toBe(promotedRootSpan!.spanContext().spanId);
+      expect(exportedLlmSpan!.spanContext().traceId).toBe(promotedRootSpan!.spanContext().traceId);
+    });
   });
 });
 

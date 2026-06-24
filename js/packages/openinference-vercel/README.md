@@ -73,11 +73,21 @@ export function register() {
           // This should be removed if you want to export all spans
           return isOpenInferenceSpan(span);
         },
+        // Keep known Vercel framework root spans, such as Eve's ai.eve.turn,
+        // when filtering would otherwise orphan the AI spans.
+        preserveVercelRootSpans: true,
       }),
     ],
   });
 }
 ```
+
+`preserveVercelRootSpans` is optional. Use it when a Vercel framework wraps AI SDK
+spans in a useful non-OpenInference span, such as Eve's `ai.eve.turn`, and you
+still want to filter out unrelated HTTP or workflow spans. The first known Vercel
+root span for a trace is exported even if `spanFilter` returns false, and its
+parent is cleared so it appears as the trace root. Preserved root spans are
+tagged as OpenInference `AGENT` spans.
 
 Now enable telemetry in your AI SDK calls by setting the `experimental_telemetry` parameter to `true`.
 
