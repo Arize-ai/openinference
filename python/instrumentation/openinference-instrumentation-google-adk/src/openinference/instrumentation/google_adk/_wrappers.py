@@ -4,6 +4,8 @@ import json
 import logging
 from abc import ABC
 from contextlib import ExitStack
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import (
     Any,
     AsyncGenerator,
@@ -19,6 +21,7 @@ from typing import (
 import wrapt
 from google.adk import Runner
 from google.adk.agents import BaseAgent
+from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.run_config import RunConfig
 from google.adk.events import Event
 from google.adk.models.llm_request import LlmRequest
@@ -56,6 +59,61 @@ logger.addHandler(logging.NullHandler())
 
 P = ParamSpec("P")
 T = TypeVar("T")
+
+
+@dataclass
+class _AgentRunInputCapture:
+    """Per-agent-run capture state for propagating the first LLM request to agent_run."""
+
+    agent_name: str
+    span: trace_api.Span
+    input_captured: bool = False
+
+
+# Context-local active agent_run span. Nested agent runs override; parallel tasks get
+# independent copies via asyncio context propagation.
+_AGENT_RUN_INPUT_CAPTURE: ContextVar[_AgentRunInputCapture | None] = ContextVar(
+    "_AGENT_RUN_INPUT_CAPTURE",
+    default=None,
+)
+
+
+def _capture_agent_run_input_from_llm_request(
+    invocation_context: InvocationContext,
+    llm_request: LlmRequest,
+) -> None:
+    """Copy the first matching LlmRequest onto the active agent_run span."""
+    capture = _AGENT_RUN_INPUT_CAPTURE.get()
+    if capture is None or capture.input_captured:
+        return
+    agent = invocation_context.agent
+    if agent is None or capture.agent_name != agent.name:
+        return
+
+    try:
+        capture.span.set_attribute(
+            SpanAttributes.INPUT_VALUE,
+            _get_agent_run_input_value(llm_request),
+        )
+        capture.span.set_attribute(
+            SpanAttributes.INPUT_MIME_TYPE,
+            OpenInferenceMimeTypeValues.JSON.value,
+        )
+        capture.input_captured = True
+    except Exception:
+        logger.exception(f"Failed to get attribute: {SpanAttributes.INPUT_VALUE}.")
+
+
+def _get_agent_run_input_value(llm_request: LlmRequest) -> str:
+    """Return a user-facing snapshot of the per-agent model input."""
+    value = llm_request.model_dump(
+        exclude_none=True,
+        include={"config": {"system_instruction", "tools"}, "contents": True},
+        mode="json",
+    )
+    if config := value.pop("config", None):
+        value.update(config)
+    return safe_json_dumps(value)
 
 
 class _WithTracer(ABC):
@@ -185,23 +243,30 @@ class _BaseAgentRunAsync(_WithTracer):
                     name=name,
                     attributes=attributes,
                 ) as span:
-                    async for event in self.__wrapped__:
-                        if event.is_final_response():
-                            try:
-                                span.set_attribute(
-                                    SpanAttributes.OUTPUT_VALUE,
-                                    event.model_dump_json(exclude_none=True),
-                                )
-                                span.set_attribute(
-                                    SpanAttributes.OUTPUT_MIME_TYPE,
-                                    OpenInferenceMimeTypeValues.JSON.value,
-                                )
-                            except Exception:
-                                logger.exception(
-                                    f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
-                                )
-                        yield event
-                    span.set_status(StatusCode.OK)
+                    previous_capture = _AGENT_RUN_INPUT_CAPTURE.get()
+                    capture = _AgentRunInputCapture(agent_name=instance.name, span=span)
+                    _AGENT_RUN_INPUT_CAPTURE.set(capture)
+                    try:
+                        async for event in self.__wrapped__:
+                            if event.is_final_response():
+                                try:
+                                    span.set_attribute(
+                                        SpanAttributes.OUTPUT_VALUE,
+                                        event.model_dump_json(exclude_none=True),
+                                    )
+                                    span.set_attribute(
+                                        SpanAttributes.OUTPUT_MIME_TYPE,
+                                        OpenInferenceMimeTypeValues.JSON.value,
+                                    )
+                                except Exception:
+                                    logger.exception(
+                                        f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                    )
+                            yield event
+                        span.set_status(StatusCode.OK)
+                    finally:
+                        if _AGENT_RUN_INPUT_CAPTURE.get() is capture:
+                            _AGENT_RUN_INPUT_CAPTURE.set(previous_capture)
 
         return _AsyncGenerator(generator)
 
@@ -225,10 +290,16 @@ class _TraceCallLlm(_WithTracer):
             OpenInferenceSpanKindValues.LLM.value,
         )
         arguments = bind_args_kwargs(wrapped, *args, **kwargs)
+        invocation_context = next(
+            (arg for arg in arguments.values() if isinstance(arg, InvocationContext)),
+            None,
+        )
         llm_request = next((arg for arg in arguments.values() if isinstance(arg, LlmRequest)), None)
         llm_response = next(
             (arg for arg in arguments.values() if isinstance(arg, LlmResponse)), None
         )
+        if invocation_context and llm_request:
+            _capture_agent_run_input_from_llm_request(invocation_context, llm_request)
         input_messages_index = 0
         if llm_request:
             span.set_attribute(
