@@ -366,6 +366,10 @@ def _hook_event_name(payload: Any) -> str | None:
     return str(value)
 
 
+def _has_parent_tool_use_id(parent_tool_use_id: Any) -> bool:
+    return parent_tool_use_id is not None and str(parent_tool_use_id) != ""
+
+
 def _create_tool_hook_matchers(
     tool_tracker: "_ToolSpanTrackerBase",
 ) -> dict[str, list[Any]]:
@@ -382,6 +386,12 @@ def _create_tool_hook_matchers(
             tool_input = _get_field(input_data, "tool_input")
             resolved_tool_use_id = tool_use_id or _get_field(input_data, "tool_use_id")
             parent_tool_use_id = _get_field(input_data, "parent_tool_use_id")
+            # A missing hook parent is ambiguous: it can be a root-level tool or
+            # a subagent tool whose parent was omitted by the SDK. Starting now
+            # would permanently root the span, so defer no-parent tool starts to
+            # the message stream, where parent_tool_use_id is authoritative.
+            if not _has_parent_tool_use_id(parent_tool_use_id):
+                return {}
             tool_tracker.start_tool_span(
                 tool_name,
                 tool_input,
@@ -618,15 +628,13 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
             **get_tool_attributes(name=tool_name_str, parameters=tool_params),
             **get_input_attributes(safe_json_dumps(tool_input), mime_type=JSON),
         }
+
         parent_span = self._parent_span
-        if (
-            parent_tool_use_id is not None
-            and str(parent_tool_use_id) != ""
-            and self._parent_span_resolver is not None
-        ):
+        if _has_parent_tool_use_id(parent_tool_use_id) and self._parent_span_resolver is not None:
             resolved = self._parent_span_resolver(parent_tool_use_id)
             if resolved is not None:
                 parent_span = resolved
+
         ctx = trace_api.set_span_in_context(parent_span) if parent_span is not None else None
         span = self._tracer.start_span(
             tool_name_str,

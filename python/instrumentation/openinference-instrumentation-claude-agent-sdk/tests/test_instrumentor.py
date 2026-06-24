@@ -604,8 +604,13 @@ def test_merge_hooks_preserves_user_hooks(monkeypatch: pytest.MonkeyPatch) -> No
 
     class _NoopTracker(wrappers._ToolSpanTrackerBase):
         def start_tool_span(
-            self, tool_name: Any, tool_input: Any, tool_use_id: Any, parent_tool_use_id: Any = None
+            self,
+            tool_name: Any,
+            tool_input: Any,
+            tool_use_id: Any,
+            parent_tool_use_id: Any = None,
         ) -> None:
+            del tool_name, tool_input, tool_use_id, parent_tool_use_id
             return None
 
         def end_tool_span(self, tool_use_id: Any, tool_response: Any) -> None:
@@ -1344,3 +1349,308 @@ async def test_text_only_message_uses_legacy_content_keys(
     assert not any(
         k.startswith(f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENTS}") for k in attrs
     )
+
+
+@pytest.mark.asyncio
+async def test_missing_parent_hook_defers_to_message_parent_for_multiple_agents(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """When hooks omit parent ids, message parent ids remain authoritative."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+
+    subagent_spans: dict[str, Any] = {}
+    tracker_holder: dict[str, Any] = {}
+
+    def _resolve_parent_span(parent_tool_use_id: Any) -> Any:
+        key = str(parent_tool_use_id)
+        if key not in subagent_spans:
+            tracker = tracker_holder["tracker"]
+            parent_tool_span = tracker.get_in_flight_span(parent_tool_use_id)
+            ctx = trace_api.set_span_in_context(parent_tool_span or root_span)
+            subagent_spans[key] = tracer.start_span(
+                "ClaudeAgentSDK.Task",
+                context=ctx,
+            )
+        return subagent_spans[key]
+
+    tracker = wrappers._ToolSpanTracker(
+        tracer,
+        root_span,
+        parent_span_resolver=_resolve_parent_span,
+    )
+    tracker_holder["tracker"] = tracker
+
+    options = _DummyOptions()
+    options.hooks = wrappers._create_tool_hook_matchers(tracker)
+
+    # Two root-level subagent tools can be in flight at the same time. Both have
+    # no parent in the root assistant message and must remain root-level siblings.
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_agent_1",
+                        "name": "Agent",
+                        "input": {"prompt": "delegate one"},
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_agent_2",
+                        "name": "Agent",
+                        "input": {"prompt": "delegate two"},
+                    },
+                ]
+            },
+            "parent_tool_use_id": None,
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+
+    # The hook payload is missing the parent, so it must not create a span by
+    # guessing from whichever Agent tool is most recently active.
+    await _run_hooks(
+        options,
+        "PreToolUse",
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo from agent one"},
+            "tool_use_id": "toolu_bash_1",
+            "parent_tool_use_id": None,
+        },
+    )
+    assert tracker.get_in_flight_span("toolu_bash_1") is None
+
+    # The message stream later carries the actual parent id for this Bash call.
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_bash_1",
+                        "name": "Bash",
+                        "input": {"command": "echo from agent one"},
+                    },
+                ]
+            },
+            "parent_tool_use_id": "toolu_agent_1",
+        },
+        tracker,
+        parent_tool_use_id="toolu_agent_1",
+    )
+    tracker.end_tool_span("toolu_bash_1", "alpha")
+    tracker.end_tool_span("toolu_agent_1", "agent one")
+    tracker.end_tool_span("toolu_agent_2", "agent two")
+
+    for span in subagent_spans.values():
+        span.end()
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    agent_spans = [
+        s
+        for s in spans
+        if s.name == "Agent"
+        and dict(s.attributes or {}).get(SpanAttributes.TOOL_ID)
+        in {"toolu_agent_1", "toolu_agent_2"}
+    ]
+    assert len(agent_spans) == 2
+    agent_by_tool_id = {dict(s.attributes or {})[SpanAttributes.TOOL_ID]: s for s in agent_spans}
+    subagent_span = subagent_spans["toolu_agent_1"]
+    bash_span = _span_by_name(spans, "Bash")
+
+    for agent_span in agent_spans:
+        assert agent_span.parent is not None
+        assert agent_span.parent.span_id == root.context.span_id
+
+    assert subagent_span.parent is not None
+    assert subagent_span.parent.span_id == agent_by_tool_id["toolu_agent_1"].context.span_id
+    assert bash_span.parent is not None
+    assert bash_span.parent.span_id == subagent_span.context.span_id
+    assert "toolu_agent_2" not in subagent_spans
+
+
+@pytest.mark.asyncio
+async def test_missing_parent_hook_keeps_root_tool_sibling_at_root(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Root-level message tools stay at root when their hook payload has no parent."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+    subagent_spans: dict[str, Any] = {}
+
+    def _resolve_parent_span(parent_tool_use_id: Any) -> Any:
+        key = str(parent_tool_use_id)
+        if key not in subagent_spans:
+            subagent_spans[key] = tracer.start_span(
+                "ClaudeAgentSDK.Agent",
+                context=trace_api.set_span_in_context(root_span),
+            )
+        return subagent_spans[key]
+
+    tracker = wrappers._ToolSpanTracker(
+        tracer,
+        root_span,
+        parent_span_resolver=_resolve_parent_span,
+    )
+
+    options = _DummyOptions()
+    options.hooks = wrappers._create_tool_hook_matchers(tracker)
+
+    await _run_hooks(
+        options,
+        "PreToolUse",
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo root"},
+            "tool_use_id": "toolu_bash_root",
+            "parent_tool_use_id": None,
+        },
+    )
+    assert tracker.get_in_flight_span("toolu_bash_root") is None
+
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_agent_1",
+                        "name": "Agent",
+                        "input": {"prompt": "delegate"},
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_bash_root",
+                        "name": "Bash",
+                        "input": {"command": "echo root"},
+                    },
+                ]
+            },
+            "parent_tool_use_id": None,
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+    tracker.end_tool_span("toolu_bash_root", "root")
+    tracker.end_tool_span("toolu_agent_1", "agent")
+    for span in subagent_spans.values():
+        span.end()
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    agent_span = _span_by_name(spans, "Agent")
+    bash_span = _span_by_name(spans, "Bash")
+
+    assert agent_span.parent is not None
+    assert agent_span.parent.span_id == root.context.span_id
+    assert bash_span.parent is not None
+    assert bash_span.parent.span_id == root.context.span_id
+    assert not subagent_spans
+
+
+@pytest.mark.asyncio
+async def test_missing_parent_hook_end_before_message_result_still_closes_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Deferred hook spans can still be closed by the later message result."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+    tracker = wrappers._ToolSpanTracker(tracer, root_span)
+    options = _DummyOptions()
+    options.hooks = wrappers._create_tool_hook_matchers(tracker)
+
+    await _run_hooks(
+        options,
+        "PreToolUse",
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo late"},
+            "tool_use_id": "toolu_bash_late",
+            "parent_tool_use_id": None,
+        },
+    )
+    await _run_hooks(
+        options,
+        "PostToolUse",
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_use_id": "toolu_bash_late",
+            "tool_response": "hook output",
+        },
+    )
+    assert tracker.get_in_flight_span("toolu_bash_late") is None
+
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_bash_late",
+                        "name": "Bash",
+                        "input": {"command": "echo late"},
+                    }
+                ]
+            },
+            "parent_tool_use_id": None,
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_bash_late",
+                        "content": "message output",
+                        "is_error": False,
+                    }
+                ]
+            }
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    bash_span = _span_by_name(spans, "Bash")
+    attrs = dict(bash_span.attributes or {})
+
+    assert bash_span.parent is not None
+    assert bash_span.parent.span_id == root.context.span_id
+    assert json.loads(str(attrs.get(SpanAttributes.OUTPUT_VALUE))) == "message output"
