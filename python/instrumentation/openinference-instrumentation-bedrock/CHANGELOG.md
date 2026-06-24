@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.41...python-openinference-instrumentation-bedrock-v0.1.42) (2026-06-24)
+
+
+### Bug Fixes
+
+* **bedrock:** make aioresponses test mock compatible with aiohttp 3.14 ([#3277](https://github.com/Arize-ai/openinference/issues/3277)) ([e057959](https://github.com/Arize-ai/openinference/commit/e057959edec296e6c20b2283f26bc11348034876))
+
 ## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.40...python-openinference-instrumentation-bedrock-v0.1.41) (2026-06-03)
 
 
