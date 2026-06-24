@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.9...python-openinference-instrumentation-openllmetry-v0.1.10) (2026-06-24)
+
+
+### Bug Fixes
+
+* **openllmetry:** Handle Missing Tool Span Attributes ([#3252](https://github.com/Arize-ai/openinference/issues/3252)) ([f317434](https://github.com/Arize-ai/openinference/commit/f317434f848706fec241eda7ab53587bea53bdca))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.8...python-openinference-instrumentation-openllmetry-v0.1.9) (2026-05-18)
 
 
