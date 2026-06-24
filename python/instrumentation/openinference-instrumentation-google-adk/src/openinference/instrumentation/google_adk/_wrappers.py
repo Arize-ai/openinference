@@ -26,17 +26,6 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.base_tool import BaseTool
 from google.genai import types
 from google.genai.types import Blob
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceLLMProviderValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -49,6 +38,17 @@ from openinference.instrumentation import (
     safe_json_dumps,
     using_session,
     using_user,
+)
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
 )
 
 logger = logging.getLogger(__name__)

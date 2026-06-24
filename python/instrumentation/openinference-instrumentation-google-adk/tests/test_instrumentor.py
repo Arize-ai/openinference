@@ -13,7 +13,6 @@ from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool as load_artifacts
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
-from openinference.semconv.trace import SpanAttributes
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -30,6 +29,7 @@ from openinference.instrumentation.google_adk._wrappers import (
     _BaseAgentRunAsync,
     _RunnerRunAsync,
 )
+from openinference.semconv.trace import SpanAttributes
 
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
