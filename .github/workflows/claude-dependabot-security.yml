@@ -1,0 +1,150 @@
+name: Claude Dependabot Security
+
+on:
+  schedule:
+    - cron: "0 14 * * 1-5" # Weekdays 14:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: claude-dependabot-security
+  cancel-in-progress: true
+
+jobs:
+  fix-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      pull-requests: write
+      security-events: read
+    env:
+      GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+
+      - name: Collect open Dependabot security alerts
+        id: alerts
+        run: |
+          set -euo pipefail
+
+          gh api --paginate "/repos/$GH_REPO/dependabot/alerts?state=open&sort=created&direction=asc&per_page=100" \
+            | jq -s '[add[] | {
+                number,
+                state,
+                severity: .security_vulnerability.severity,
+                package: .dependency.package.name,
+                ecosystem: .dependency.package.ecosystem,
+                manifest_path: .dependency.manifest_path,
+                vulnerable_range: .security_vulnerability.vulnerable_version_range,
+                first_patched_version: .security_vulnerability.first_patched_version.identifier,
+                ghsa_id: .security_advisory.ghsa_id,
+                cve_id: .security_advisory.cve_id,
+                summary: .security_advisory.summary,
+                html_url
+              }]' > "$RUNNER_TEMP/dependabot-alerts.json"
+
+          count=$(jq length "$RUNNER_TEMP/dependabot-alerts.json")
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+          if [ "$count" -eq 0 ]; then
+            echo "No open Dependabot security alerts found."
+            exit 0
+          fi
+
+          {
+            echo "alerts<<EOF"
+            jq -c . "$RUNNER_TEMP/dependabot-alerts.json"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Open Dependabot security alerts"
+            jq -r '.[] | "- #\(.number) [\(.severity)] \(.ecosystem):\(.package) in `\(.manifest_path)` -> patched: \(.first_patched_version // \"unknown\")"' "$RUNNER_TEMP/dependabot-alerts.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check for existing Claude Dependabot PR
+        if: steps.alerts.outputs.count != '0'
+        id: existing_pr
+        run: |
+          set -euo pipefail
+          count=$(gh pr list --state open --limit 100 --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("claude/dependabot-security-"))] | length')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -gt 0 ]; then
+            echo "An open Claude Dependabot security PR already exists; skipping."
+          fi
+
+      - name: Create branch
+        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
+        run: |
+          set -euo pipefail
+          DATE=$(date -u +%Y-%m-%d)
+          BRANCH="claude/dependabot-security-$DATE"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            BRANCH="claude/dependabot-security-$DATE-${{ github.run_number }}"
+          fi
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Setup PNPM
+        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.8.0
+
+      - name: Setup uv
+        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: 0.6.3
+          enable-cache: false
+
+      - name: Run Claude Code
+        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
+        uses: anthropics/claude-code-action@094bd24d575e7b30ac1576024817bf1a97c81262 # v1.0.80
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+          model: claude-sonnet-4-6
+          prompt: |
+            Fix the open Dependabot security alerts for ${{ github.repository }} and open a merge-ready PR.
+
+            The workflow collected these open alerts from the Dependabot alerts API:
+
+            ```json
+            ${{ steps.alerts.outputs.alerts }}
+            ```
+
+            Requirements:
+            1. Use `gh api /repos/${{ github.repository }}/dependabot/alerts?state=open` if you need more alert detail.
+            2. Inspect each affected manifest and lockfile before editing. Update vulnerable dependencies to the first patched version or the smallest safe compatible version that resolves the alert.
+            3. Regenerate lockfiles with the package manager for the affected ecosystem. Do not hand-edit lockfiles unless that lockfile format is normally maintained manually.
+            4. Keep the change focused on resolving the listed security alerts. Do not edit CHANGELOG.md, release notes, or unrelated dependency pins.
+            5. If an alert cannot be fixed safely, leave a clear note in the PR body explaining why and what follow-up is needed.
+            6. Run the most relevant formatting, lockfile, and test checks available for the touched package paths. If a full test run is too expensive, run targeted checks and explain the coverage in the PR body.
+            7. Commit all changes, push the `BRANCH` branch, and create a PR with `gh pr create`.
+
+            PR title: `fix(deps): resolve Dependabot security alerts`
+
+            The PR body must include:
+            - A bullet list of the Dependabot alert numbers, packages, ecosystems, and manifests addressed.
+            - A summary of dependency or lockfile changes.
+            - The validation commands run and their results.
+            - A note that this PR was generated by `.github/workflows/claude-dependabot-security.yml`.
+
+            If there are no actionable dependency updates after inspection, exit without committing or opening a PR.
+          claude_args: '--allowedTools Read,Write,Edit,Glob,Grep,Agent,"Bash(git:*)","Bash(gh:*)","Bash(rg:*)","Bash(grep:*)","Bash(sed:*)","Bash(find:*)","Bash(ls:*)","Bash(cat:*)","Bash(date:*)","Bash(jq:*)","Bash(python:*)","Bash(python3:*)","Bash(pip:*)","Bash(pip3:*)","Bash(pipx:*)","Bash(poetry:*)","Bash(uv:*)","Bash(tox:*)","Bash(corepack:*)","Bash(pnpm:*)","Bash(npm:*)","Bash(npx:*)","Bash(make:*)"'
