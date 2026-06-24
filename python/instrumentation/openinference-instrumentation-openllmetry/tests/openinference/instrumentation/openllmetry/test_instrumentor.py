@@ -460,6 +460,33 @@ class TestToolSpanMapping:
         assert attributes[SpanAttributes.OUTPUT_VALUE] == "It is sunny and 21C in Paris."
         assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.TEXT.value
 
+    def test_tool_span_with_null_result(self) -> None:
+        """A tool result of JSON null should be unwrapped rather than treated as missing."""
+        in_memory_span_exporter = InMemorySpanExporter()
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+        tracer = tracer_provider.get_tracer(__name__)
+
+        entity_input = json.dumps({"inputs": {"path": "/tmp/output.txt"}})
+        entity_output = json.dumps({"output": None, "kwargs": {}})
+
+        with tracer.start_as_current_span("write_file.tool") as span:
+            span.set_attribute("traceloop.span.kind", "tool")
+            span.set_attribute("traceloop.entity.input", entity_input)
+            span.set_attribute("traceloop.entity.output", entity_output)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+
+        assert attributes[SpanAttributes.INPUT_VALUE] == json.dumps(
+            {"path": "/tmp/output.txt"}, separators=(",", ":")
+        )
+        assert attributes[SpanAttributes.OUTPUT_VALUE] == "null"
+        assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+
     def test_tool_span_name_fallback_when_entity_name_missing(self) -> None:
         """When traceloop.entity.name is absent, tool.name should fall back to the span name."""
         in_memory_span_exporter = InMemorySpanExporter()

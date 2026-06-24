@@ -68,6 +68,8 @@ _TOOL_KEY_CANDIDATES = [
     _GEN_AI_TOOL_DEFINITIONS,
 ]
 
+_MISSING: Any = object()
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -104,12 +106,10 @@ def _coerce_json_obj(value: Any) -> Optional[Any]:
     return None
 
 
-def _unwrap_tool_io(
-    input_raw: Any, output_raw: Any
-) -> Tuple[Optional[Any], Optional[Any], Optional[Any]]:
+def _unwrap_tool_io(input_raw: Any, output_raw: Any) -> Tuple[Optional[Any], Any, Optional[Any]]:
     """Unwrap the LangChain/Traceloop tool envelopes into clean values."""
     tool_args: Optional[Any] = None
-    tool_result: Optional[Any] = None
+    tool_result: Any = _MISSING
 
     input_obj = _coerce_json_obj(input_raw)
     if isinstance(input_obj, dict) and "inputs" in input_obj:
@@ -136,7 +136,9 @@ def _map_generic_span(attrs: Dict[str, Any], span_name: Optional[str] = None) ->
     output_raw = attrs.get(SpanAttributes.TRACELOOP_ENTITY_OUTPUT)
 
     is_tool = kind_val == sc.OpenInferenceSpanKindValues.TOOL.value
-    tool_args = tool_result = tool_params = None
+    tool_args: Optional[Any] = None
+    tool_params: Optional[Any] = None
+    tool_result: Any = _MISSING
     if is_tool:
         tool_args, tool_result, tool_params = _unwrap_tool_io(input_raw, output_raw)
 
@@ -161,10 +163,13 @@ def _map_generic_span(attrs: Dict[str, Any], span_name: Optional[str] = None) ->
             }
         )
 
-    if is_tool and tool_result is not None:
+    if is_tool and tool_result is not _MISSING:
         result_mime_type = sc.OpenInferenceMimeTypeValues.TEXT.value
         result_value: Any = tool_result
-        if isinstance(tool_result, (dict, list)):
+        if tool_result is None:
+            result_mime_type = sc.OpenInferenceMimeTypeValues.JSON.value
+            result_value = "null"
+        elif isinstance(tool_result, (dict, list)):
             result_mime_type = sc.OpenInferenceMimeTypeValues.JSON.value
         elif isinstance(tool_result, str):
             try:
