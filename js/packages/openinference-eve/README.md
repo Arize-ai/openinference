@@ -16,7 +16,7 @@ inherited automatically.
 ## Installation
 
 ```bash
-npm install @arizeai/openinference-eve @opentelemetry/exporter-trace-otlp-proto
+npm install @arizeai/openinference-eve @vercel/otel @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-semantic-conventions
 ```
 
 ## Quick Start
