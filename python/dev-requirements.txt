@@ -7,4 +7,3 @@ pytest-xdist==3.6.1
 pytest-socket==0.7.0
 packaging
 pre-commit
-aiohttp<3.14  # vcrpy 8.1.1 incompatible with aiohttp>=3.14 (removed AsyncStreamReaderMixin)

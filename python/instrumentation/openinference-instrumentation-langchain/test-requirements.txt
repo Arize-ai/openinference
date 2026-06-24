@@ -1,4 +1,4 @@
-langchain-core==1.2.11
+langchain-core==1.3.3
 langchain==1.2.11
 langchain-classic==1.0.0
 langchain-openai==1.0.1
@@ -12,4 +12,4 @@ langsmith
 portpicker
 starlette
 uvicorn
-vcrpy>=6.0.1
+vcrpy
