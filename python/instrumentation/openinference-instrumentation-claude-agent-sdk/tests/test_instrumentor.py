@@ -602,8 +602,20 @@ def test_merge_hooks_preserves_user_hooks(monkeypatch: pytest.MonkeyPatch) -> No
 
     class _NoopTracker(wrappers._ToolSpanTrackerBase):
         def start_tool_span(
-            self, tool_name: Any, tool_input: Any, tool_use_id: Any, parent_tool_use_id: Any = None
+            self,
+            tool_name: Any,
+            tool_input: Any,
+            tool_use_id: Any,
+            parent_tool_use_id: Any = None,
+            allow_missing_parent_fallback: bool = False,
         ) -> None:
+            del (
+                tool_name,
+                tool_input,
+                tool_use_id,
+                parent_tool_use_id,
+                allow_missing_parent_fallback,
+            )
             return None
 
         def end_tool_span(self, tool_use_id: Any, tool_response: Any) -> None:
@@ -1197,12 +1209,14 @@ async def test_hook_fallback_parents_subagent_tool_to_active_task(
         tool_input={"command": "echo alpha"},
         tool_use_id="toolu_bash_1",
         parent_tool_use_id=None,
+        allow_missing_parent_fallback=True,
     )
     tracker.start_tool_span(
         tool_name="Bash",
         tool_input={"command": "echo beta"},
         tool_use_id="toolu_bash_2",
         parent_tool_use_id=None,
+        allow_missing_parent_fallback=True,
     )
     tracker.end_tool_span("toolu_bash_1", "alpha")
     tracker.end_tool_span("toolu_bash_2", "beta")
@@ -1229,6 +1243,77 @@ async def test_hook_fallback_parents_subagent_tool_to_active_task(
             f"got span_id={bash_span.parent.span_id} (root={root.context.span_id}, "
             f"subagent={subagent_span.context.span_id})"
         )
+
+
+def test_message_parenting_keeps_root_tool_sibling_at_root(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Message-stream tool_use blocks without parent_tool_use_id are root-level tools."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+    subagent_spans: dict[str, Any] = {}
+
+    def _resolve_parent_span(parent_tool_use_id: Any) -> Any:
+        key = str(parent_tool_use_id)
+        if key not in subagent_spans:
+            subagent_spans[key] = tracer.start_span(
+                "ClaudeAgentSDK.Agent",
+                context=trace_api.set_span_in_context(root_span),
+            )
+        return subagent_spans[key]
+
+    tracker = wrappers._ToolSpanTracker(
+        tracer,
+        root_span,
+        parent_span_resolver=_resolve_parent_span,
+    )
+
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_agent_1",
+                        "name": "Agent",
+                        "input": {"prompt": "delegate"},
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_bash_root",
+                        "name": "Bash",
+                        "input": {"command": "echo root"},
+                    },
+                ]
+            },
+            "parent_tool_use_id": None,
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+    tracker.end_tool_span("toolu_bash_root", "root")
+    tracker.end_tool_span("toolu_agent_1", "agent")
+    for span in subagent_spans.values():
+        span.end()
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    agent_span = _span_by_name(spans, "Agent")
+    bash_span = _span_by_name(spans, "Bash")
+
+    assert agent_span.parent is not None
+    assert agent_span.parent.span_id == root.context.span_id
+    assert bash_span.parent is not None
+    assert bash_span.parent.span_id == root.context.span_id
+    assert not subagent_spans
 
 
 def test_agent_stack_popped_after_task_ends(

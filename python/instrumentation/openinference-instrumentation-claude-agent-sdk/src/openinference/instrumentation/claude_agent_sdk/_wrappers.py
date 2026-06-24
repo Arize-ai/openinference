@@ -384,6 +384,7 @@ def _create_tool_hook_matchers(
                 tool_input,
                 resolved_tool_use_id,
                 parent_tool_use_id,
+                allow_missing_parent_fallback=True,
             )
         except Exception:
             pass
@@ -569,6 +570,7 @@ class _ToolSpanTrackerBase:
         tool_input: Any,
         tool_use_id: Any,
         parent_tool_use_id: Any = None,
+        allow_missing_parent_fallback: bool = False,
     ) -> None:
         raise NotImplementedError
 
@@ -603,6 +605,7 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
         tool_input: Any,
         tool_use_id: Any,
         parent_tool_use_id: Any = None,
+        allow_missing_parent_fallback: bool = False,
     ) -> None:
         if not tool_use_id or not tool_name:
             return
@@ -623,7 +626,8 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
         # subagent's tool calls even though the message stream has the correct id.
         resolved_parent_tool_use_id = parent_tool_use_id
         if (
-            resolved_parent_tool_use_id is None or str(resolved_parent_tool_use_id) == ""
+            allow_missing_parent_fallback
+            and (resolved_parent_tool_use_id is None or str(resolved_parent_tool_use_id) == "")
         ) and self._agent_tool_stack:
             resolved_parent_tool_use_id = self._agent_tool_stack[-1]
 
@@ -722,6 +726,7 @@ class _DelegatingToolSpanTracker(_ToolSpanTrackerBase):
         tool_input: Any,
         tool_use_id: Any,
         parent_tool_use_id: Any = None,
+        allow_missing_parent_fallback: bool = False,
     ) -> None:
         if self._delegate is not None:
             self._delegate.start_tool_span(
@@ -729,6 +734,7 @@ class _DelegatingToolSpanTracker(_ToolSpanTrackerBase):
                 tool_input,
                 tool_use_id,
                 parent_tool_use_id,
+                allow_missing_parent_fallback=allow_missing_parent_fallback,
             )
 
     def end_tool_span(self, tool_use_id: Any, tool_response: Any) -> None:
