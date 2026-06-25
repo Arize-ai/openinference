@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 2.8.1
+
+### Patch Changes
+
+- 707d78b: Fix `reparentOrphanedSpans` orphaning AI spans across async/durable boundaries (e.g. agent frameworks like eve that wrap AI SDK calls in a per-turn span). `isLikelyAISDKSpan` now also recognizes `ai.*` attribute keys (such as `ai.telemetry.functionId`), so a framework wrapper like `ai.eve.turn` (whose `operation.name` is not `ai.*` and which has no `gen_ai.*` attributes) is kept as the trace root instead of being dropped and orphaning its children. Re-rooting now only detaches a span when its parent is _inspectable_ and confirmed non-AI: across an async boundary the parent can arrive as a non-recording span (a bare `SpanContext` with no attributes), and treating "can't inspect" as "non-AI" previously re-rooted children off an exported AI parent, splitting one trace into multiple roots. The check remains stateless. Root-span renaming also preserves a wrapper's own `ai.*` span name (e.g. `ai.eve.turn`) when its `operation.name` is unrelated; native AI SDK and `gen_ai` spans keep their existing rename behavior.
+
 ## 2.8.0
 
 ### Minor Changes
