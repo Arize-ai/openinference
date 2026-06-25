@@ -130,3 +130,39 @@ beneath it is left pointing at a parent that was never exported. Reparenting re-
 those children so the trace still renders. (Conversely, without such a filter the non-AI
 parent is still exported, so there is nothing to orphan, and reparenting would only split
 an otherwise-intact trace.)
+
+## Propagating session and context attributes
+
+The Vercel AI SDK creates its own spans, so — unlike the OpenInference instrumentors,
+which build spans through an `OITracer` — this processor does **not** read the
+OpenInference context. That means values you set with the
+[`@arizeai/openinference-core`](https://www.npmjs.com/package/@arizeai/openinference-core)
+helpers (`setSession`, `setUser`, `setMetadata`, `setTags`) never reach the exported AI
+spans. A `session.id` set around a call like this would otherwise be lost:
+
+```typescript
+import { context } from "@opentelemetry/api";
+import { setSession } from "@arizeai/openinference-core";
+
+context.with(setSession(context.active(), { sessionId }), () =>
+  streamText({ model, prompt, experimental_telemetry: { isEnabled: true } }),
+);
+```
+
+Set `propagateContextAttributes: true` to copy every OpenInference attribute on the
+start-time context (`session.id`, `user.id`, `metadata.*`, `tag.tags`, …) directly onto
+each span at `onStart`, so traces group into sessions in Arize / Phoenix.
+
+```typescript
+new OpenInferenceSimpleSpanProcessor({
+  exporter,
+  spanFilter: isOpenInferenceSpan,
+  reparentOrphanedSpans: true,
+  propagateContextAttributes: true, // default: false
+});
+```
+
+Because the values are written directly onto the span, they survive both
+`reparentOrphanedSpans` re-rooting and export, and spans started in the same context
+(child model/tool calls) inherit them. `propagateContextAttributes` is opt-in
+(default `false`), so existing behavior is unchanged.
