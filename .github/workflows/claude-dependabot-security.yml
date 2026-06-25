@@ -5,22 +5,27 @@ on:
     - cron: "0 14 * * 1-5" # Weekdays 14:00 UTC
   workflow_dispatch:
 
+# Queue rather than cancel: don't kill an auto-fix that may be mid-push.
 concurrency:
   group: claude-dependabot-security
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+# Least-privilege default; the job below opts into what it needs.
+permissions:
+  contents: read
 
 jobs:
   fix-alerts:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     permissions:
       actions: read
-      contents: write
-      id-token: write
-      pull-requests: write
+      contents: read
+      pull-requests: read
       security-events: read
     env:
-      GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
 
     steps:
@@ -29,12 +34,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
 
       - name: Collect open Dependabot security alerts
         id: alerts
         run: |
           set -euo pipefail
+          mkdir -p .scratch
 
           gh api --paginate "/repos/$GH_REPO/dependabot/alerts?state=open&sort=created&direction=asc&per_page=100" \
             | jq -s '[add[] | {
@@ -50,9 +55,9 @@ jobs:
                 cve_id: .security_advisory.cve_id,
                 summary: .security_advisory.summary,
                 html_url
-              }]' > "$RUNNER_TEMP/dependabot-alerts.json"
+              }]' > .scratch/dependabot-alerts.json
 
-          count=$(jq length "$RUNNER_TEMP/dependabot-alerts.json")
+          count=$(jq length .scratch/dependabot-alerts.json)
           echo "count=$count" >> "$GITHUB_OUTPUT"
 
           if [ "$count" -eq 0 ]; then
@@ -61,95 +66,224 @@ jobs:
           fi
 
           {
-            echo "alerts<<EOF"
-            jq -c . "$RUNNER_TEMP/dependabot-alerts.json"
+            echo "summary<<EOF"
+            jq -r '.[] | "- #\(.number) [\(.severity)] \(.ecosystem):\(.package) in `\(.manifest_path)` -> patched: \(.first_patched_version // \"unknown\")"' .scratch/dependabot-alerts.json
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
           {
             echo "## Open Dependabot security alerts"
-            jq -r '.[] | "- #\(.number) [\(.severity)] \(.ecosystem):\(.package) in `\(.manifest_path)` -> patched: \(.first_patched_version // \"unknown\")"' "$RUNNER_TEMP/dependabot-alerts.json"
+            jq -r '.[] | "- #\(.number) [\(.severity)] \(.ecosystem):\(.package) in `\(.manifest_path)` -> patched: \(.first_patched_version // \"unknown\")"' .scratch/dependabot-alerts.json
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Dedup preflight: skip the expensive Claude run when an auto-fix PR is
+      # already open. Open-only by design — a merged PR must not suppress a
+      # fresh attempt if Dependabot reports a new alert later.
       - name: Check for existing Claude Dependabot PR
         if: steps.alerts.outputs.count != '0'
-        id: existing_pr
+        id: preflight
         run: |
           set -euo pipefail
-          count=$(gh pr list --state open --limit 100 --json headRefName \
-            --jq '[.[] | select(.headRefName | startswith("claude/dependabot-security-"))] | length')
-          echo "count=$count" >> "$GITHUB_OUTPUT"
-          if [ "$count" -gt 0 ]; then
-            echo "An open Claude Dependabot security PR already exists; skipping."
+          existing=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --limit 200 \
+            --json url,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("claude/dependabot-security-"))][0].url // empty')
+          if [ -n "$existing" ]; then
+            echo "An open Claude Dependabot security PR already exists: $existing"
+            {
+              echo "skip=true"
+              echo "existing_pr=$existing"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dependabot security auto-fix"
+              echo
+              echo "**Status:** skipped; an open auto-fix PR already exists: $existing"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create branch
-        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
+        if: steps.alerts.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
         run: |
           set -euo pipefail
-          DATE=$(date -u +%Y-%m-%d)
-          BRANCH="claude/dependabot-security-$DATE"
-          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-            BRANCH="claude/dependabot-security-$DATE-${{ github.run_number }}"
-          fi
-          git checkout -b "$BRANCH"
+          BRANCH="claude/dependabot-security-${{ github.run_id }}-${{ github.run_attempt }}"
+          git fetch --no-tags --depth=1 origin "$DEFAULT_BRANCH"
+          git checkout -B "$BRANCH" FETCH_HEAD
           echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+          mkdir -p .scratch
 
       - name: Set up Node.js
-        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.alerts.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Setup PNPM
-        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        if: steps.alerts.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
-          version: 9.8.0
+          version: 10.29.3
 
       - name: Setup uv
-        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        if: steps.alerts.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
-          version: 0.6.3
+          version: 0.11.2
           enable-cache: false
 
-      - name: Configure git authentication
-        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
-        run: gh auth setup-git
+      - name: Install subprocess isolation deps
+        if: steps.alerts.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
 
       - name: Run Claude Code
-        if: steps.alerts.outputs.count != '0' && steps.existing_pr.outputs.count == '0'
-        uses: anthropics/claude-code-action@094bd24d575e7b30ac1576024817bf1a97c81262 # v1.0.80
+        id: dependabot-fix
+        if: steps.alerts.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        uses: anthropics/claude-code-action@2fee15510437d71399d9139ed60433470484a8fb # v1.0.153
+        env:
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
-          model: claude-sonnet-4-6
+          github_token: ${{ github.token }}
+          show_full_output: 'true'
           prompt: |
-            Fix the open Dependabot security alerts for ${{ github.repository }} and open a merge-ready PR.
+            Fix the open Dependabot security alerts for ${{ github.repository }}.
 
-            The workflow collected these open alerts from the Dependabot alerts API:
+            Start by reading the alert JSON in `.scratch/dependabot-alerts.json`.
 
-            ```json
-            ${{ steps.alerts.outputs.alerts }}
-            ```
+            Alert summary:
+            ${{ steps.alerts.outputs.summary }}
 
             Requirements:
-            1. Use `gh api /repos/${{ github.repository }}/dependabot/alerts?state=open` if you need more alert detail.
-            2. Inspect each affected manifest and lockfile before editing. Update vulnerable dependencies to the first patched version or the smallest safe compatible version that resolves the alert.
-            3. Regenerate lockfiles with the package manager for the affected ecosystem. Do not hand-edit lockfiles unless that lockfile format is normally maintained manually.
-            4. Keep the change focused on resolving the listed security alerts. Do not edit CHANGELOG.md, release notes, or unrelated dependency pins.
-            5. If an alert cannot be fixed safely, leave a clear note in the PR body explaining why and what follow-up is needed.
-            6. Run the most relevant formatting, lockfile, and test checks available for the touched package paths. If a full test run is too expensive, run targeted checks and explain the coverage in the PR body.
-            7. Commit all changes, push the `BRANCH` branch, and create a PR with `gh pr create`.
+            1. Inspect each affected manifest and lockfile before editing. Update vulnerable dependencies to the first patched version or the smallest safe compatible version that resolves the alert.
+            2. Regenerate lockfiles with the package manager for the affected ecosystem. Do not hand-edit lockfiles unless that lockfile format is normally maintained manually.
+            3. Keep the change focused on resolving the listed security alerts. Do not edit CHANGELOG.md, release notes, or unrelated dependency pins.
+            4. Run the most relevant formatting, lockfile, and test checks available for the touched package paths. If a full test run is too expensive, run targeted checks and explain the coverage in the PR body.
+            5. If an alert cannot be fixed safely, leave the working tree unchanged and write a clear reason to `.scratch/pr-body.md`.
 
-            PR title: `fix(deps): resolve Dependabot security alerts`
+            Apply fixes directly to the working tree. Do not commit, push, or open a PR; the workflow will do that after you exit.
 
-            The PR body must include:
-            - A bullet list of the Dependabot alert numbers, packages, ecosystems, and manifests addressed.
-            - A summary of dependency or lockfile changes.
-            - The validation commands run and their results.
-            - A note that this PR was generated by `.github/workflows/claude-dependabot-security.yml`.
+            Before exiting, write:
+              - `.scratch/pr-title.txt`: a one-line conventional-commit PR title.
+              - `.scratch/pr-body.md`: a concise PR body with the Dependabot alert numbers addressed, dependency or lockfile changes, validation commands run, and any follow-up needed.
 
-            If there are no actionable dependency updates after inspection, exit without committing or opening a PR.
-          claude_args: '--allowedTools Read,Write,Edit,Glob,Grep,Agent,"Bash(git:*)","Bash(gh:*)","Bash(rg:*)","Bash(grep:*)","Bash(sed:*)","Bash(find:*)","Bash(ls:*)","Bash(cat:*)","Bash(date:*)","Bash(jq:*)","Bash(python:*)","Bash(python3:*)","Bash(pip:*)","Bash(pip3:*)","Bash(pipx:*)","Bash(poetry:*)","Bash(uv:*)","Bash(tox:*)","Bash(corepack:*)","Bash(pnpm:*)","Bash(npm:*)","Bash(npx:*)","Bash(make:*)"'
+            Do not modify automation or agent-instruction files such as `.github/`, `.claude/`, `.agents/`, `AGENTS.md`, or `CLAUDE.md`.
+          claude_args: '--allowedTools Skill,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,"Bash(gh api:*)","Bash(gh pr list:*)","Bash(gh pr view:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(uv:*)","Bash(uvx:*)","Bash(tox:*)","Bash(python:*)","Bash(python3:*)","Bash(pip:*)","Bash(pip3:*)","Bash(pipx:*)","Bash(poetry:*)","Bash(corepack:*)","Bash(pnpm:*)","Bash(npm:*)","Bash(npx:*)","Bash(make:*)","Bash(cd:*)","Bash(ls:*)","Bash(find:*)","Bash(grep:*)","Bash(sed:*)","Bash(awk:*)","Bash(jq:*)","Bash(cat:*)","Bash(head:*)","Bash(tail:*)","Bash(sort:*)","Bash(nl:*)","Bash(mkdir:*)","Bash(date:*)","Bash(echo:*)","Bash(printf:*)"'
+
+      - name: Upload Claude execution log
+        if: ${{ always() && steps.dependabot-fix.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: claude-dependabot-security-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Commit and open PR
+        id: publish
+        if: ${{ steps.preflight.outputs.skip != 'true' && steps.dependabot-fix.outcome == 'success' }}
+        env:
+          # PAT is present only in this git/gh-only step. No package code or
+          # dependency test command runs here, so updated third-party deps never
+          # see the token.
+          GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
+        run: |
+          gh auth setup-git
+          git remote set-url origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          changed_files() {
+            { git diff --name-only; git ls-files --others --exclude-standard; } \
+              | sort -u \
+              | grep -v '^\.scratch/' || true
+          }
+
+          # Hard guard: never let the agent modify automation / agent-instruction
+          # files. Restore them from the branch base before committing.
+          blocked_files=$(changed_files | awk '
+            /^\.github\// ||
+            /^\.cursor\// ||
+            /^\.claude\// ||
+            /^\.agents\// ||
+            /(^|\/)AGENTS\.md$/ ||
+            /(^|\/)CLAUDE\.md$/
+          ')
+          if [ -n "$blocked_files" ]; then
+            echo "::warning::Dependabot auto-fix changed automation or agent-instruction files; restoring them from checked-out main."
+            printf '%s\n' "$blocked_files"
+            while IFS= read -r file; do
+              if git cat-file -e "HEAD:$file" 2>/dev/null; then
+                git restore --source=HEAD --worktree --staged -- "$file"
+              else
+                git restore --staged -- "$file" 2>/dev/null || true
+                rm -f -- "$file"
+              fi
+            done <<< "$blocked_files"
+          fi
+
+          if [ -z "$(changed_files)" ]; then
+            echo "Claude produced no package changes; skipping PR."
+            {
+              echo "status=no_changes"
+              echo "message<<EOF"
+              echo "Claude completed without tracked package changes."
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dependabot security auto-fix"
+              echo
+              echo "**Status:** no PR opened; Claude completed without tracked package changes."
+              echo
+              if [ -s .scratch/pr-body.md ]; then
+                cat .scratch/pr-body.md
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          DEFAULT_TITLE="fix(deps): resolve Dependabot security alerts"
+          PR_TITLE="$DEFAULT_TITLE"
+          if [ -s .scratch/pr-title.txt ]; then
+            CANDIDATE=$(head -n 1 .scratch/pr-title.txt | tr -d '\r')
+            if printf '%s' "$CANDIDATE" | grep -qE '^(feat|fix|chore|docs|refactor|test|ci|perf|style|build)(\([^)]+\))?!?: .+'; then
+              PR_TITLE="$CANDIDATE"
+            else
+              echo "::warning::.scratch/pr-title.txt did not match conventional-commit format; falling back to '$DEFAULT_TITLE'."
+            fi
+          else
+            echo "::warning::Claude did not write .scratch/pr-title.txt; falling back to '$DEFAULT_TITLE'."
+          fi
+
+          if [ -s .scratch/pr-body.md ]; then
+            BODY_FILE=.scratch/pr-body.md
+          else
+            BODY_FILE=$(mktemp)
+            echo "Automated fix for Dependabot security alerts. Review the diff and CI checks for details." > "$BODY_FILE"
+          fi
+
+          git add -A
+          git restore --staged -- .scratch 2>/dev/null || true
+          git commit -m "$PR_TITLE"
+          git push -u origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --base "$DEFAULT_BRANCH" \
+            --head "$BRANCH" \
+            --title "$PR_TITLE" \
+            --body-file "$BODY_FILE")
+          {
+            echo "status=pr_opened"
+            echo "pr_url=$PR_URL"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Dependabot security auto-fix"
+            echo
+            echo "**Status:** PR opened: $PR_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
