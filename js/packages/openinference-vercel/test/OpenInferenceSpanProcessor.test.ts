@@ -1564,6 +1564,173 @@ describe.each([
       expect(child?.parentSpanId).toBe(promoted?.spanContext().spanId);
     });
 
+    // Real-world eve shape: the per-turn wrapper's `operation.name` is "eve" (NOT ai.*),
+    // it has no gen_ai.* attributes, and is marked only by the AI SDK telemetry attribute
+    // `ai.telemetry.functionId`. It must still be recognized as AI so it is kept as the single
+    // root with the agent subtree nested under it — otherwise its AI children are each
+    // re-rooted into separate roots (the orphan-spans bug seen in eve traces).
+    it("recognizes a wrapper marked only by ai.telemetry.* attrs (real ai.eve.turn shape)", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      // Non-AI workflow span the filter drops.
+      const workflow = tracer.startSpan("step.execute", {
+        attributes: { "operation.name": "workflow" },
+      });
+      // The eve turn wrapper as actually emitted: operation.name "eve", no gen_ai.*, only
+      // an ai.telemetry.* marker. The kind map does not recognize it (kind-less).
+      const turn = tracer.startSpan(
+        "ai.eve.turn",
+        {
+          attributes: {
+            "operation.name": "eve",
+            "ai.telemetry.functionId": "weatherbot",
+          },
+        },
+        trace.setSpan(context.active(), workflow),
+      );
+      const turnId = turn.spanContext().spanId;
+      // A real AI SDK child (gen_ai invoke_agent) under the turn.
+      const agent = tracer.startSpan(
+        "invoke_agent",
+        { attributes: { "gen_ai.operation.name": "invoke_agent" } },
+        trace.setSpan(context.active(), turn),
+      );
+      const agentId = agent.spanContext().spanId;
+      agent.end();
+      turn.end();
+      workflow.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // The turn wrapper survives as the single promoted AGENT root. (Re-rooted AI roots are
+      // renamed to their operation.name, so match by spanId rather than name.)
+      const promoted = spans.find((s) => s.spanContext().spanId === turnId);
+      expect(promoted).toBeDefined();
+      expect(promoted?.parentSpanId).toBeUndefined();
+      expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+        OpenInferenceSpanKind.AGENT,
+      );
+
+      // The agent child stays nested under the turn — NOT re-rooted into its own root.
+      const child = spans.find((s) => s.spanContext().spanId === agentId);
+      expect(child?.parentSpanId).toBe(turnId);
+    });
+
+    // The root-span rename surfaces the AI SDK operation.name (e.g. "ai.generateText <fnId>").
+    // A framework wrapper like ai.eve.turn has operation.name "eve" — renaming would clobber
+    // the meaningful span name with "eve". Only rename when operation.name is itself ai.*.
+    it("does not rename a re-rooted wrapper whose operation.name is not ai.* (keeps ai.eve.turn)", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const workflow = tracer.startSpan("step.execute", {
+        attributes: { "operation.name": "workflow" },
+      });
+      const turn = tracer.startSpan(
+        "ai.eve.turn",
+        {
+          attributes: {
+            "operation.name": "eve",
+            "ai.telemetry.functionId": "weatherbot",
+          },
+        },
+        trace.setSpan(context.active(), workflow),
+      );
+      const turnId = turn.spanContext().spanId;
+      turn.end();
+      workflow.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      const promoted = spans.find((s) => s.spanContext().spanId === turnId);
+      // Name is preserved — NOT clobbered to the "eve" operation.name.
+      expect(promoted?.name).toBe("ai.eve.turn");
+    });
+
+    // Real eve topology: ONE ai.eve.turn wrapper under a non-AI workflow span, with MULTIPLE
+    // invoke_agent children (one per agent step). The wrapper must become the single root with
+    // ALL children nested under it — not split into one root per child (the orphan-spans bug).
+    it("keeps multiple AI children under one re-rooted wrapper (single root, no split)", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const workflow = tracer.startSpan("step.execute", {
+        attributes: { "operation.name": "workflow" },
+      });
+      const turn = tracer.startSpan(
+        "ai.eve.turn",
+        { attributes: { "operation.name": "eve", "ai.telemetry.functionId": "weatherbot" } },
+        trace.setSpan(context.active(), workflow),
+      );
+      const turnId = turn.spanContext().spanId;
+      const turnCtx = trace.setSpan(context.active(), turn);
+      const agentA = tracer.startSpan(
+        "invoke_agent",
+        { attributes: { "gen_ai.operation.name": "invoke_agent" } },
+        turnCtx,
+      );
+      const agentB = tracer.startSpan(
+        "invoke_agent",
+        { attributes: { "gen_ai.operation.name": "invoke_agent" } },
+        turnCtx,
+      );
+      const aId = agentA.spanContext().spanId;
+      const bId = agentB.spanContext().spanId;
+      agentA.end();
+      agentB.end();
+      turn.end();
+      workflow.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // Exactly one root: the turn wrapper.
+      const roots = spans.filter((s) => s.parentSpanId == null);
+      expect(roots).toHaveLength(1);
+      expect(roots[0]?.spanContext().spanId).toBe(turnId);
+      // Both invoke_agent children stay nested under it — neither is re-rooted.
+      expect(spans.find((s) => s.spanContext().spanId === aId)?.parentSpanId).toBe(turnId);
+      expect(spans.find((s) => s.spanContext().spanId === bId)?.parentSpanId).toBe(turnId);
+    });
+
+    // Across an async/durable boundary (e.g. eve workflow steps) a later AI span starts with
+    // its parent represented as a bare, non-recording SpanContext — the parent's attributes are
+    // not inspectable, even though its spanId is correct and the parent is itself exported.
+    // The re-root check must NOT treat "can't inspect parent" as "parent is non-AI", or it
+    // orphans the child off an exported AI parent.
+    it("does not re-root an AI span whose parent is a non-recording (propagated) span", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      // The eve turn wrapper — a real recording AI span that is exported as the root.
+      const turn = tracer.startSpan("ai.eve.turn", {
+        attributes: { "operation.name": "eve", "ai.telemetry.functionId": "weatherbot" },
+      });
+      const turnId = turn.spanContext().spanId;
+
+      // Simulate the boundary: the child starts under a context that carries only the turn's
+      // SpanContext (a non-recording span — no attributes), as happens after a workflow hop.
+      const propagated = trace.setSpanContext(context.active(), turn.spanContext());
+      const agent = tracer.startSpan(
+        "invoke_agent",
+        { attributes: { "gen_ai.operation.name": "invoke_agent" } },
+        propagated,
+      );
+      const agentId = agent.spanContext().spanId;
+      agent.end();
+      turn.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // The child stays attached to the exported turn — NOT re-rooted into a second root.
+      const child = spans.find((s) => s.spanContext().spanId === agentId);
+      expect(child?.parentSpanId).toBe(turnId);
+    });
+
     // Proves the AGENT promotion is keyed off the `ai.` shape, NOT the `ai.eve.turn` name:
     // arbitrary unrecognized ai.* wrappers are promoted too, and a non-AI-prefixed wrapper
     // is not.

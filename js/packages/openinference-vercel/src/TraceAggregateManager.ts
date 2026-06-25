@@ -69,6 +69,12 @@ const maybeRenameRootSpan = (span: ReadableSpan): void => {
   const operationName = attrs["operation.name"];
   if (typeof operationName !== "string" || operationName.length === 0) return;
   if (span.name === operationName) return;
+  // Preserve a framework wrapper's own ai.* span name (e.g. "ai.eve.turn") when its
+  // operation.name is something unrelated (e.g. "eve") — renaming would clobber the meaningful
+  // name with a worse one. This is narrow: it only skips when the span name is itself ai.* and
+  // the operation.name is not. Native AI SDK spans (operation.name "ai.generateText <fnId>")
+  // and gen_ai spans keep their existing rename behavior.
+  if (span.name.startsWith("ai.") && !operationName.startsWith("ai.")) return;
 
   // NOTE: Span.updateName() refuses to update after end(); by the time span processors
   // run, spans are already ended. Assign directly.
