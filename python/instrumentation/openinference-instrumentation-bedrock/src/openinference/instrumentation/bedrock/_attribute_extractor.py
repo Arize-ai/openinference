@@ -63,6 +63,7 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     Message,
+    ReasoningMessageContent,
     TokenCount,
     ToolCall,
     ToolCallFunction,
@@ -196,6 +197,22 @@ class AttributeExtractor:
                 tool_call_id=message["id"] if "id" in message else "",
                 role="tool",
                 tool_calls=tool_calls,
+            )
+        if "type" in message and message["type"] == "thinking":
+            reasoning_content = ReasoningMessageContent(
+                type="reasoning", text=message["thinking"] if "thinking" in message else ""
+            )
+            if "signature" in message:
+                reasoning_content["signature"] = message["signature"]
+            return Message(role=role, contents=[reasoning_content])
+        if "type" in message and message["type"] == "redacted_thinking":
+            return Message(
+                role=role,
+                contents=[
+                    ReasoningMessageContent(
+                        type="reasoning", data=message["data"] if "data" in message else ""
+                    )
+                ],
             )
         return None
 
