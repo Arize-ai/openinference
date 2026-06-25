@@ -92,3 +92,41 @@ const result = await generateText({
 For details on Vercel AI SDK telemetry see the [Vercel AI SDK Telemetry documentation](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
 
 For more information on Vercel OpenTelemetry support see the [Vercel AI SDK Telemetry documentation](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
+
+## Reparenting orphaned spans
+
+When you filter with `spanFilter: isOpenInferenceSpan`, only AI-related spans are
+exported. But the highest-level AI span (e.g. `ai.generateText`, `ai.streamText`) is
+frequently parented under a **non-AI span** — for example the HTTP/server span that
+Next.js parents everything under. That parent is filtered out, leaving the AI span
+**orphaned**: it references a parent that was never exported, so backends may not be
+able to render the trace correctly.
+
+Set `reparentOrphanedSpans: true` to detach (re-root) any AI span whose direct parent
+is a non-AI span, so it becomes a trace root. Multiple sibling AI spans in the same
+trace are each re-rooted, and AI spans nested under an AI parent keep their place.
+
+```typescript
+new OpenInferenceSimpleSpanProcessor({
+  exporter,
+  spanFilter: isOpenInferenceSpan,
+  reparentOrphanedSpans: true, // default: false
+});
+```
+
+The check is stateless — the parent span is read from the start-time context, so no
+per-trace bookkeeping is kept.
+
+If the re-rooted span is an `ai.*` framework wrapper that the package doesn't map to a
+span kind (for example a per-turn span an agent framework emits on top of the AI SDK),
+it would otherwise be kind-less and dropped by the filter. Such a root is tagged
+`openinference.span.kind = AGENT` so it is kept as the trace root. This is matched by
+shape (an unrecognized AI-like root), not by any specific framework span name.
+
+`reparentOrphanedSpans` is opt-in (default `false`). It is intended for use alongside a
+filter that drops non-AI parent spans — which is exactly the situation that orphans the
+AI children in the first place: when the filter removes a non-AI parent, every AI span
+beneath it is left pointing at a parent that was never exported. Reparenting re-roots
+those children so the trace still renders. (Conversely, without such a filter the non-AI
+parent is still exported, so there is nothing to orphan, and reparenting would only split
+an otherwise-intact trace.)
