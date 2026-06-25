@@ -11,65 +11,32 @@ import { TraceAggregateManager } from "./TraceAggregateManager";
 import type { SpanFilter } from "./types";
 import { shouldExportSpan } from "./utils";
 
-const DEFAULT_ROOT_SPAN_TRACE_ID_CACHE_SIZE = 1000;
-const VERCEL_ROOT_SPAN_NAMES = new Set(["ai.eve.turn"]);
+export type RootSpanConfig = {
+  /**
+   * Returns true for wrapper spans that should be promoted to exported trace roots.
+   */
+  readonly filter: (span: Span) => boolean;
+  /**
+   * OpenInference span kind to assign to promoted root spans.
+   *
+   * @default OpenInferenceSpanKind.AGENT
+   */
+  readonly kind?: OpenInferenceSpanKind | string;
+};
 
-class RootSpanManager {
-  private readonly preserveVercelRootSpans: boolean;
-  private readonly maxTraceIds: number;
-  private readonly rootSpanIdsByTraceId = new Map<string, string>();
-
-  constructor({
-    preserveVercelRootSpans,
-    rootSpanTraceIdCacheSize,
-  }: {
-    readonly preserveVercelRootSpans?: boolean;
-    readonly rootSpanTraceIdCacheSize?: number;
-  }) {
-    this.preserveVercelRootSpans = preserveVercelRootSpans ?? false;
-    this.maxTraceIds = Math.max(
-      1,
-      rootSpanTraceIdCacheSize ?? DEFAULT_ROOT_SPAN_TRACE_ID_CACHE_SIZE,
-    );
+const promoteRootSpan = (span: Span, rootSpan?: RootSpanConfig): void => {
+  if (rootSpan == null || !rootSpan.filter(span)) {
+    return;
   }
 
-  onStart(span: Span): void {
-    if (!this.preserveVercelRootSpans || !VERCEL_ROOT_SPAN_NAMES.has(span.name)) {
-      return;
-    }
-
-    const { traceId, spanId } = span.spanContext();
-    if (this.rootSpanIdsByTraceId.has(traceId)) {
-      return;
-    }
-
-    // parentSpanId is readonly on the public Span type; runtime SDK spans are mutable.
-    (span as unknown as { parentSpanId?: string }).parentSpanId = undefined;
-    (span as unknown as { parentSpanContext?: unknown }).parentSpanContext = undefined;
-    span.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.AGENT);
-    this.rootSpanIdsByTraceId.set(traceId, spanId);
-    this.enforceMaxTraceIds();
-  }
-
-  shouldExport(span: ReadableSpan): boolean {
-    const { traceId, spanId } = span.spanContext();
-    return this.rootSpanIdsByTraceId.get(traceId) === spanId;
-  }
-
-  clear(): void {
-    this.rootSpanIdsByTraceId.clear();
-  }
-
-  private enforceMaxTraceIds(): void {
-    while (this.rootSpanIdsByTraceId.size > this.maxTraceIds) {
-      const oldestTraceId = this.rootSpanIdsByTraceId.keys().next().value;
-      if (oldestTraceId == null) {
-        return;
-      }
-      this.rootSpanIdsByTraceId.delete(oldestTraceId);
-    }
-  }
-}
+  // parentSpanId is readonly on the public Span type; runtime SDK spans are mutable.
+  (span as unknown as { parentSpanId?: string }).parentSpanId = undefined;
+  (span as unknown as { parentSpanContext?: unknown }).parentSpanContext = undefined;
+  span.setAttribute(
+    SemanticConventions.OPENINFERENCE_SPAN_KIND,
+    rootSpan.kind ?? OpenInferenceSpanKind.AGENT,
+  );
+};
 
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.
@@ -100,13 +67,12 @@ class RootSpanManager {
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly aggregateManager = new TraceAggregateManager();
-  private readonly rootSpanManager: RootSpanManager;
+  private readonly rootSpan?: RootSpanConfig;
 
   constructor({
     exporter,
     spanFilter,
-    preserveVercelRootSpans,
-    rootSpanTraceIdCacheSize,
+    rootSpan,
   }: {
     /**
      * The exporter to pass spans to.
@@ -117,26 +83,23 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
      */
     readonly spanFilter?: SpanFilter;
     /**
-     * Whether to preserve known Vercel framework root spans when filtering would otherwise drop their parents.
+     * Promotes matching wrapper spans to exported trace roots.
+     *
+     * Use this when a framework wraps AI SDK spans in a meaningful span that would otherwise
+     * be filtered out. Matching spans have their parent cleared and receive an OpenInference
+     * span kind so filters such as {@link isOpenInferenceSpan} can export them.
      */
-    readonly preserveVercelRootSpans?: boolean;
-    /**
-     * The maximum number of trace IDs to remember for root span promotion.
-     */
-    readonly rootSpanTraceIdCacheSize?: number;
+    readonly rootSpan?: RootSpanConfig;
 
     config?: BufferConfig;
   }) {
     super(exporter);
     this.spanFilter = spanFilter;
-    this.rootSpanManager = new RootSpanManager({
-      preserveVercelRootSpans,
-      rootSpanTraceIdCacheSize,
-    });
+    this.rootSpan = rootSpan;
   }
 
   onStart(span: Span, parentContext: Context): void {
-    this.rootSpanManager.onStart(span);
+    promoteRootSpan(span, this.rootSpan);
     this.aggregateManager.onStart(span);
     super.onStart(span, parentContext);
   }
@@ -148,8 +111,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
       shouldExportSpan({
         span,
         spanFilter: this.spanFilter,
-      }) ||
-      this.rootSpanManager.shouldExport(span)
+      })
     ) {
       super.onEnd(span);
     }
@@ -157,7 +119,6 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
 
   async shutdown(): Promise<void> {
     this.aggregateManager.clear();
-    this.rootSpanManager.clear();
     return super.shutdown();
   }
 
@@ -197,13 +158,12 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
 export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly aggregateManager = new TraceAggregateManager();
-  private readonly rootSpanManager: RootSpanManager;
+  private readonly rootSpan?: RootSpanConfig;
 
   constructor({
     exporter,
     spanFilter,
-    preserveVercelRootSpans,
-    rootSpanTraceIdCacheSize,
+    rootSpan,
     config,
   }: {
     /**
@@ -215,13 +175,13 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
      */
     readonly spanFilter?: SpanFilter;
     /**
-     * Whether to preserve known Vercel framework root spans when filtering would otherwise drop their parents.
+     * Promotes matching wrapper spans to exported trace roots.
+     *
+     * Use this when a framework wraps AI SDK spans in a meaningful span that would otherwise
+     * be filtered out. Matching spans have their parent cleared and receive an OpenInference
+     * span kind so filters such as {@link isOpenInferenceSpan} can export them.
      */
-    readonly preserveVercelRootSpans?: boolean;
-    /**
-     * The maximum number of trace IDs to remember for root span promotion.
-     */
-    readonly rootSpanTraceIdCacheSize?: number;
+    readonly rootSpan?: RootSpanConfig;
     /**
      * The configuration options for processor.
      */
@@ -229,14 +189,11 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   }) {
     super(exporter, config);
     this.spanFilter = spanFilter;
-    this.rootSpanManager = new RootSpanManager({
-      preserveVercelRootSpans,
-      rootSpanTraceIdCacheSize,
-    });
+    this.rootSpan = rootSpan;
   }
 
   onStart(span: Span, parentContext: Context): void {
-    this.rootSpanManager.onStart(span);
+    promoteRootSpan(span, this.rootSpan);
     this.aggregateManager.onStart(span);
     return super.onStart(span, parentContext);
   }
@@ -248,8 +205,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
       shouldExportSpan({
         span,
         spanFilter: this.spanFilter,
-      }) ||
-      this.rootSpanManager.shouldExport(span)
+      })
     ) {
       super.onEnd(span);
     }
@@ -257,7 +213,6 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
 
   async shutdown(): Promise<void> {
     this.aggregateManager.clear();
-    this.rootSpanManager.clear();
     return super.shutdown();
   }
 

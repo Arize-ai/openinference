@@ -9,7 +9,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import type { SpanFilter } from "../src";
+import type { RootSpanConfig, SpanFilter } from "../src";
 import {
   isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
@@ -880,11 +880,11 @@ let processor: OpenInferenceSimpleSpanProcessor | OpenInferenceBatchSpanProcesso
 function setupTraceProvider({
   Processor,
   spanFilter,
-  preserveVercelRootSpans,
+  rootSpan,
 }: {
   Processor: typeof OpenInferenceBatchSpanProcessor | typeof OpenInferenceSimpleSpanProcessor;
   spanFilter?: SpanFilter;
-  preserveVercelRootSpans?: boolean;
+  rootSpan?: RootSpanConfig;
 }) {
   memoryExporter.reset();
   trace.disable();
@@ -892,7 +892,7 @@ function setupTraceProvider({
   processor = new Processor({
     exporter: memoryExporter,
     spanFilter,
-    preserveVercelRootSpans,
+    rootSpan,
   });
   traceProvider = new BasicTracerProvider({ spanProcessors: [processor] });
   trace.setGlobalTracerProvider(traceProvider);
@@ -1133,7 +1133,7 @@ describe("OpenInferenceBatchSpanProcessor", () => {
 });
 
 describe("root span promotion", () => {
-  const EVE_ROOT_SPAN_NAME = "ai.eve.turn";
+  const FRAMEWORK_ROOT_SPAN_NAME = "framework.turn";
 
   describe.each([
     ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
@@ -1143,7 +1143,9 @@ describe("root span promotion", () => {
       setupTraceProvider({
         Processor,
         spanFilter: isOpenInferenceSpan,
-        preserveVercelRootSpans: true,
+        rootSpan: {
+          filter: (span) => span.name === FRAMEWORK_ROOT_SPAN_NAME,
+        },
       });
     });
     afterEach(() => {
@@ -1155,20 +1157,24 @@ describe("root span promotion", () => {
 
       const workflowSpan = tracer.startSpan("vercel.workflow");
       const workflowContext = trace.setSpan(context.active(), workflowSpan);
-      const eveTurnSpan = tracer.startSpan(EVE_ROOT_SPAN_NAME, undefined, workflowContext);
-      const eveTurnContext = trace.setSpan(context.active(), eveTurnSpan);
-      const llmSpan = tracer.startSpan("gen_ai", undefined, eveTurnContext);
+      const frameworkTurnSpan = tracer.startSpan(
+        FRAMEWORK_ROOT_SPAN_NAME,
+        undefined,
+        workflowContext,
+      );
+      const frameworkTurnContext = trace.setSpan(context.active(), frameworkTurnSpan);
+      const llmSpan = tracer.startSpan("gen_ai", undefined, frameworkTurnContext);
       llmSpan.setAttribute(SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
 
       llmSpan.end();
-      eveTurnSpan.end();
+      frameworkTurnSpan.end();
       workflowSpan.end();
 
       await processor.forceFlush();
       const spans = memoryExporter.getFinishedSpans();
 
       const exportedWorkflowSpan = spans.find((span) => span.name === "vercel.workflow");
-      const promotedRootSpan = spans.find((span) => span.name === EVE_ROOT_SPAN_NAME);
+      const promotedRootSpan = spans.find((span) => span.name === FRAMEWORK_ROOT_SPAN_NAME);
       const exportedLlmSpan = spans.find((span) => span.name === "gen_ai");
 
       expect(spans).toHaveLength(2);
@@ -1181,6 +1187,35 @@ describe("root span promotion", () => {
       expect(exportedLlmSpan).toBeDefined();
       expect(exportedLlmSpan!.parentSpanId).toBe(promotedRootSpan!.spanContext().spanId);
       expect(exportedLlmSpan!.spanContext().traceId).toBe(promotedRootSpan!.spanContext().traceId);
+    });
+
+    it("should support a custom promoted root span kind", async () => {
+      setupTraceProvider({
+        Processor,
+        spanFilter: isOpenInferenceSpan,
+        rootSpan: {
+          filter: (span) => span.name === "framework.chain",
+          kind: OpenInferenceSpanKind.CHAIN,
+        },
+      });
+      const tracer = trace.getTracer("test-tracer");
+
+      const workflowSpan = tracer.startSpan("vercel.workflow");
+      const workflowContext = trace.setSpan(context.active(), workflowSpan);
+      const chainSpan = tracer.startSpan("framework.chain", undefined, workflowContext);
+
+      chainSpan.end();
+      workflowSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      expect(spans).toHaveLength(1);
+      expect(spans[0].name).toBe("framework.chain");
+      expect(spans[0].parentSpanId).toBeUndefined();
+      expect(spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+        OpenInferenceSpanKind.CHAIN,
+      );
     });
   });
 });
