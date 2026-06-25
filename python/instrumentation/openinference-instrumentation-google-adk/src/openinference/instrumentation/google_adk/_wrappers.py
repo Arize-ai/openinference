@@ -569,24 +569,6 @@ def _get_attributes_from_function_call(
 
 
 @stop_on_exception
-def _get_attributes_from_function_response(
-    obj: types.FunctionResponse,
-    /,
-    *,
-    prefix: str = "",
-) -> Iterator[tuple[str, AttributeValue]]:
-    if id_ := obj.id:
-        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", id_
-    if name := obj.name:
-        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", name
-    if response := obj.response:
-        yield (
-            f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-            safe_json_dumps(response),
-        )
-
-
-@stop_on_exception
 def _get_attributes_from_base_tool(
     obj: BaseTool,
     /,
