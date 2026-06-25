@@ -1127,6 +1127,83 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
     },
   );
 
+  it("should expand AI SDK v7 multi-tool response messages into separate tool messages", () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("chat gpt-4o-mini");
+    span.setAttributes({
+      "gen_ai.operation.name": "chat",
+      "gen_ai.provider.name": "openai",
+      "gen_ai.request.model": "gpt-4o-mini",
+      "gen_ai.input.messages": JSON.stringify([
+        { role: "user", parts: [{ type: "text", content: "Use both tools." }] },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool_call",
+              id: "weather-call-id",
+              name: "weather",
+              arguments: { location: "Boston, MA" },
+            },
+            {
+              type: "tool_call",
+              id: "calculator-call-id",
+              name: "calculator",
+              arguments: { expression: "100 * 25 + 3" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          parts: [
+            {
+              type: "tool_call_response",
+              id: "weather-call-id",
+              response: { forecast: "sunny", temperatureF: 70 },
+            },
+            {
+              type: "tool_call_response",
+              id: "calculator-call-id",
+              response: { expression: "100 * 25 + 3", value: 2503 },
+            },
+          ],
+        },
+      ]),
+    });
+    span.end();
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const attributes = spans[0].attributes;
+
+    expect(
+      attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_ROLE}`],
+    ).toBe("tool");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`
+      ],
+    ).toBe("weather-call-id");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_CONTENT}`
+      ],
+    ).toBe(JSON.stringify({ forecast: "sunny", temperatureF: 70 }));
+    expect(
+      attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.3.${SemanticConventions.MESSAGE_ROLE}`],
+    ).toBe("tool");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.3.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`
+      ],
+    ).toBe("calculator-call-id");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.3.${SemanticConventions.MESSAGE_CONTENT}`
+      ],
+    ).toBe(JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }));
+  });
+
   it("should not export non-AI spans", () => {
     const tracer = trace.getTracer("test-tracer");
     const span = tracer.startSpan("ai.generateText");

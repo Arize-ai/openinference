@@ -2,16 +2,18 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel)
 
-This package provides utilities to ingest [Vercel AI SDK](https://github.com/vercel/ai) spans into platforms like [Arize](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
+This package provides utilities to transform [Vercel AI SDK](https://github.com/vercel/ai) OpenTelemetry spans into OpenInference spans for platforms like [Arize](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
 
-> Note: This package targets AI SDK v7 telemetry. Use the latest v2 release for AI SDK v6.
+> Note: This package targets AI SDK v7 telemetry. Use `@arizeai/openinference-vercel` v2.x for AI SDK v6.
 
 ## AI SDK Compatibility
 
 | AI SDK version | Support level | Notes                                                                                                                                           |
 | -------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| v7.x           | Targeted      | Uses `@ai-sdk/otel` `OpenTelemetry`, which emits `gen_ai.*` spans by default. Optional supplemental `ai.*` attributes fill non-GenAI data gaps. |
-| v6.x and older | Unsupported   | Use `@arizeai/openinference-vercel` v2.x.                                                                                                       |
+| v7.x           | Supported     | Uses `@ai-sdk/otel` `OpenTelemetry`, which emits `gen_ai.*` spans by default. Optional supplemental `ai.*` attributes fill non-GenAI data gaps. |
+| v6.x and older | Unsupported   | Use `@arizeai/openinference-vercel` v2.x. AI SDK v6 used `experimental_telemetry` and emitted a different span shape.                           |
+
+AI SDK v7 requires Node.js 22 or newer and is ESM-only. Configure your application accordingly before upgrading.
 
 ## Installation
 
@@ -19,13 +21,13 @@ This package provides utilities to ingest [Vercel AI SDK](https://github.com/ver
 npm install --save @arizeai/openinference-vercel
 ```
 
-You will also need to install OpenTelemetry, `ai`, `@ai-sdk/otel`, and the AI SDK provider package you use. The example below uses `@ai-sdk/openai`.
+You will also need OpenTelemetry, `ai`, `@ai-sdk/otel`, and the AI SDK provider package you use. The examples below use `@ai-sdk/openai`.
 
 ```shell
-npm i ai@^7 @ai-sdk/otel@^1 @ai-sdk/openai@^4 @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto@^0.57.2 @opentelemetry/resources@^1.30.1 @opentelemetry/sdk-trace-base@^1.30.1 @opentelemetry/sdk-trace-node@^1.30.1 @arizeai/openinference-semantic-conventions
+npm i @arizeai/openinference-vercel ai@^7 @ai-sdk/otel@^1 @ai-sdk/openai@^4 @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-node @arizeai/openinference-semantic-conventions
 ```
 
-If you are deploying a Next.js application, also install `@vercel/otel`
+For Next.js applications deployed on Vercel, also install `@vercel/otel`:
 
 ```shell
 npm i @vercel/otel
@@ -33,18 +35,18 @@ npm i @vercel/otel
 
 ## Usage
 
-`@arizeai/openinference-vercel` provides a set of utilities to help you ingest Vercel AI SDK spans into platforms and works in conjunction with Vercel's OpenTelemetry support. To get started, you will need to add OpenTelemetry support to your Vercel project according to their [guide](https://vercel.com/docs/observability/otel-overview).
+`@arizeai/openinference-vercel` provides span processors that convert AI SDK v7 telemetry into OpenInference attributes before spans are exported. To get started, add OpenTelemetry to your application and register AI SDK telemetry once at application startup.
 
-For Next.js apps deployed on Vercel, `registerOTel` from `@vercel/otel` is still used to register the OpenTelemetry provider, resource attributes, exporters, and span processors. AI SDK v7's `registerTelemetry(new OpenTelemetry(...))` does not replace that setup; it configures the AI SDK's own telemetry emission.
+For Next.js apps deployed on Vercel, `registerOTel` from `@vercel/otel` still registers the OpenTelemetry provider, resource attributes, exporters, and span processors. AI SDK v7's `registerTelemetry(new OpenTelemetry(...))` does not replace that setup; it configures the AI SDK's telemetry integration.
 
-To process your Vercel AI SDK Spans add a `OpenInferenceSimpleSpanProcessor` or `OpenInferenceBatchSpanProcessor` to your OpenTelemetry configuration.
+To process Vercel AI SDK spans, add `OpenInferenceSimpleSpanProcessor` or `OpenInferenceBatchSpanProcessor` to your OpenTelemetry configuration.
 
 > [!NOTE]
 > The `OpenInferenceSpanProcessor` does not handle the exporting of spans by itself, pass it an [exporter](https://opentelemetry.io/docs/languages/js/exporters/) as a parameter.
 
 ### TypeScript Application
 
-For a standalone TypeScript or Node.js application, exporting to Arize Phoenix, create an instrumentation module and import it before your AI SDK calls run.
+For a standalone TypeScript or Node.js application exporting to Phoenix, create an instrumentation module and import it before your AI SDK calls run.
 
 ```typescript
 // instrumentation.ts
@@ -55,7 +57,6 @@ import { OpenTelemetry } from "@ai-sdk/otel";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { Resource } from "@opentelemetry/resources";
-import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { registerTelemetry } from "ai";
 
@@ -63,27 +64,22 @@ import { registerTelemetry } from "ai";
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 const phoenixUrl = process.env["PHOENIX_COLLECTOR_ENDPOINT"] ?? "http://localhost:6006/v1/traces";
+const phoenixApiKey = process.env["PHOENIX_API_KEY"];
 
 export const tracerProvider = new NodeTracerProvider({
   resource: new Resource({
     [SEMRESATTRS_PROJECT_NAME]: process.env["PHOENIX_PROJECT_NAME"] ?? "my-typescript-app",
   }),
   spanProcessors: [
-    // Optional local debugging.
-    new OpenInferenceBatchSpanProcessor({
-      exporter: new ConsoleSpanExporter(),
-    }),
-    // Export to Phoenix.
     new OpenInferenceBatchSpanProcessor({
       exporter: new OTLPTraceExporter({
         url: phoenixUrl,
-        headers:
-          process.env["PHOENIX_API_KEY"] != null
-            ? {
-                api_key: process.env["PHOENIX_API_KEY"],
-                Authorization: `Bearer ${process.env["PHOENIX_API_KEY"]}`,
-              }
-            : undefined,
+        headers: phoenixApiKey
+          ? {
+              api_key: phoenixApiKey,
+              Authorization: `Bearer ${phoenixApiKey}`,
+            }
+          : undefined,
       }),
     }),
   ],
@@ -117,6 +113,8 @@ import { generateText } from "ai";
 const result = await generateText({
   model: openai("gpt-4o-mini"),
   prompt: "Write a short story about a cat.",
+  // Telemetry is enabled by default once OpenTelemetry is registered.
+  // Use telemetry for per-call metadata or to opt out with isEnabled: false.
   telemetry: { functionId: "story-agent" },
 });
 ```
@@ -128,7 +126,6 @@ const result = await generateText({
 import { registerOTel } from "@vercel/otel";
 import { registerTelemetry } from "ai";
 import { OpenTelemetry } from "@ai-sdk/otel";
-import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import {
   isOpenInferenceSpan,
   OpenInferenceSimpleSpanProcessor,
@@ -136,10 +133,9 @@ import {
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 
-// For troubleshooting, set the log level to DiagLogLevel.DEBUG
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
-
 export function register() {
+  const phoenixApiKey = process.env["PHOENIX_API_KEY"];
+
   registerTelemetry(
     new OpenTelemetry({
       // Optional, but recommended for fuller OpenInference coverage.
@@ -163,18 +159,17 @@ export function register() {
     spanProcessors: [
       new OpenInferenceSimpleSpanProcessor({
         exporter: new OTLPTraceExporter({
-          headers: {
-            // API key if you are sending it to Phoenix Cloud
-            api_key: process.env["PHOENIX_API_KEY"] || "",
-            // API key if you are sending it to local Phoenix
-            Authorization: `Bearer ${process.env["PHOENIX_API_KEY"]}` || "",
-          },
+          headers: phoenixApiKey
+            ? {
+                api_key: phoenixApiKey,
+                Authorization: `Bearer ${phoenixApiKey}`,
+              }
+            : undefined,
           url:
-            process.env["PHOENIX_COLLECTOR_ENDPOINT"] || "https://app.phoenix.arize.com/v1/traces",
+            process.env["PHOENIX_COLLECTOR_ENDPOINT"] ?? "https://app.phoenix.arize.com/v1/traces",
         }),
         spanFilter: (span) => {
-          // Only export spans that are OpenInference to negate non-generative spans
-          // This should be removed if you want to export all spans
+          // Remove this filter if you want to export non-generative spans too.
           return isOpenInferenceSpan(span);
         },
       }),
@@ -193,9 +188,11 @@ const result = await generateText({
 });
 ```
 
-For details on Vercel AI SDK telemetry see the [Vercel AI SDK Telemetry documentation](https://ai-sdk.dev/v7/docs/ai-sdk-core/telemetry).
+To disable telemetry for a single call, set `telemetry: { isEnabled: false }`.
 
-For more information on Vercel OpenTelemetry support see the [Vercel AI SDK Telemetry documentation](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
+For details on AI SDK v7 telemetry, see the [AI SDK telemetry documentation](https://ai-sdk.dev/docs/ai-sdk-core/telemetry).
+
+For more information on Vercel OpenTelemetry support, see the [Vercel OpenTelemetry guide](https://vercel.com/docs/observability/otel-overview).
 
 ## Reparenting orphaned spans
 

@@ -521,7 +521,11 @@ export const mapSystemInstructions = (spanAttributes: Attributes): Attributes =>
 
     const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0.`;
     set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, "system");
-    processMessageParts({ attrs, msgPrefix, parts: getSystemInstructionParts(spanAttributes) ?? [] });
+    processMessageParts({
+      attrs,
+      msgPrefix,
+      parts: getSystemInstructionParts(spanAttributes) ?? [],
+    });
   }
   return attrs;
 };

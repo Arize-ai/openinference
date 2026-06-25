@@ -287,9 +287,7 @@ describe("attributes helpers", () => {
         "You are concise.",
       );
       expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
-      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe(
-        "Hello",
-      );
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe("Hello");
     });
 
     it("maps structured input messages and forwards input.value", () => {
