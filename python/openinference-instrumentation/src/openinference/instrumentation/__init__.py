@@ -1,3 +1,4 @@
+from ._exporters import EnsureRootSpanExporter
 from ._attributes import (
     get_context_attributes,
     get_embedding_attributes,
@@ -63,6 +64,7 @@ from .helpers import safe_json_dumps
 __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
 __all__ = [
+    "EnsureRootSpanExporter",
     "capture_span_context",
     "get_attributes_from_context",
     "using_attributes",
