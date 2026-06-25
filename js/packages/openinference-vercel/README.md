@@ -75,7 +75,7 @@ export function register() {
         },
         // Promote framework wrapper spans when filtering would otherwise
         // remove them and orphan their AI descendants.
-        rootSpan: {
+        rootSpanPromotion: {
           filter: (span) => span.name === "framework.turn",
         },
       }),
@@ -84,10 +84,10 @@ export function register() {
 }
 ```
 
-`rootSpan` is optional. Use it when a Vercel framework wraps AI SDK spans in a useful
-non-OpenInference span and you still want to filter out unrelated HTTP or workflow
-spans. Matching spans have their parent cleared so they appear as trace roots and
-are tagged as OpenInference `AGENT` spans by default.
+`rootSpanPromotion` is optional. Use it when a Vercel framework wraps AI SDK spans
+in a useful non-OpenInference span and you still want to filter out unrelated HTTP
+or workflow spans. Matching spans have their parent cleared so they appear as trace
+roots and are tagged as OpenInference `AGENT` spans by default.
 
 You can override the promoted root kind for wrappers that should not be `AGENT`:
 
@@ -95,7 +95,7 @@ You can override the promoted root kind for wrappers that should not be `AGENT`:
 new OpenInferenceSimpleSpanProcessor({
   exporter,
   spanFilter: isOpenInferenceSpan,
-  rootSpan: {
+  rootSpanPromotion: {
     filter: (span) => span.name === "framework.chain",
     kind: "CHAIN",
   },

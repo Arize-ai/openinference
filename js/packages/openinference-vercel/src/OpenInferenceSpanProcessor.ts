@@ -11,7 +11,7 @@ import { TraceAggregateManager } from "./TraceAggregateManager";
 import type { SpanFilter } from "./types";
 import { shouldExportSpan } from "./utils";
 
-export type RootSpanConfig = {
+export type RootSpanPromotionConfig = {
   /**
    * Returns true for wrapper spans that should be promoted to exported trace roots.
    */
@@ -24,8 +24,8 @@ export type RootSpanConfig = {
   readonly kind?: OpenInferenceSpanKind | string;
 };
 
-const promoteRootSpan = (span: Span, rootSpan?: RootSpanConfig): void => {
-  if (rootSpan == null || !rootSpan.filter(span)) {
+const promoteRootSpan = (span: Span, rootSpanPromotion?: RootSpanPromotionConfig): void => {
+  if (rootSpanPromotion == null || !rootSpanPromotion.filter(span)) {
     return;
   }
 
@@ -34,7 +34,7 @@ const promoteRootSpan = (span: Span, rootSpan?: RootSpanConfig): void => {
   (span as unknown as { parentSpanContext?: unknown }).parentSpanContext = undefined;
   span.setAttribute(
     SemanticConventions.OPENINFERENCE_SPAN_KIND,
-    rootSpan.kind ?? OpenInferenceSpanKind.AGENT,
+    rootSpanPromotion.kind ?? OpenInferenceSpanKind.AGENT,
   );
 };
 
@@ -67,12 +67,12 @@ const promoteRootSpan = (span: Span, rootSpan?: RootSpanConfig): void => {
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly aggregateManager = new TraceAggregateManager();
-  private readonly rootSpan?: RootSpanConfig;
+  private readonly rootSpanPromotion?: RootSpanPromotionConfig;
 
   constructor({
     exporter,
     spanFilter,
-    rootSpan,
+    rootSpanPromotion,
   }: {
     /**
      * The exporter to pass spans to.
@@ -89,17 +89,17 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
      * be filtered out. Matching spans have their parent cleared and receive an OpenInference
      * span kind so filters such as {@link isOpenInferenceSpan} can export them.
      */
-    readonly rootSpan?: RootSpanConfig;
+    readonly rootSpanPromotion?: RootSpanPromotionConfig;
 
     config?: BufferConfig;
   }) {
     super(exporter);
     this.spanFilter = spanFilter;
-    this.rootSpan = rootSpan;
+    this.rootSpanPromotion = rootSpanPromotion;
   }
 
   onStart(span: Span, parentContext: Context): void {
-    promoteRootSpan(span, this.rootSpan);
+    promoteRootSpan(span, this.rootSpanPromotion);
     this.aggregateManager.onStart(span);
     super.onStart(span, parentContext);
   }
@@ -158,12 +158,12 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
 export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly aggregateManager = new TraceAggregateManager();
-  private readonly rootSpan?: RootSpanConfig;
+  private readonly rootSpanPromotion?: RootSpanPromotionConfig;
 
   constructor({
     exporter,
     spanFilter,
-    rootSpan,
+    rootSpanPromotion,
     config,
   }: {
     /**
@@ -181,7 +181,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
      * be filtered out. Matching spans have their parent cleared and receive an OpenInference
      * span kind so filters such as {@link isOpenInferenceSpan} can export them.
      */
-    readonly rootSpan?: RootSpanConfig;
+    readonly rootSpanPromotion?: RootSpanPromotionConfig;
     /**
      * The configuration options for processor.
      */
@@ -189,11 +189,11 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   }) {
     super(exporter, config);
     this.spanFilter = spanFilter;
-    this.rootSpan = rootSpan;
+    this.rootSpanPromotion = rootSpanPromotion;
   }
 
   onStart(span: Span, parentContext: Context): void {
-    promoteRootSpan(span, this.rootSpan);
+    promoteRootSpan(span, this.rootSpanPromotion);
     this.aggregateManager.onStart(span);
     return super.onStart(span, parentContext);
   }

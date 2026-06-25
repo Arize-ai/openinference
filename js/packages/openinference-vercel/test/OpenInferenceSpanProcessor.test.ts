@@ -9,7 +9,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import type { RootSpanConfig, SpanFilter } from "../src";
+import type { RootSpanPromotionConfig, SpanFilter } from "../src";
 import {
   isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
@@ -880,11 +880,11 @@ let processor: OpenInferenceSimpleSpanProcessor | OpenInferenceBatchSpanProcesso
 function setupTraceProvider({
   Processor,
   spanFilter,
-  rootSpan,
+  rootSpanPromotion,
 }: {
   Processor: typeof OpenInferenceBatchSpanProcessor | typeof OpenInferenceSimpleSpanProcessor;
   spanFilter?: SpanFilter;
-  rootSpan?: RootSpanConfig;
+  rootSpanPromotion?: RootSpanPromotionConfig;
 }) {
   memoryExporter.reset();
   trace.disable();
@@ -892,7 +892,7 @@ function setupTraceProvider({
   processor = new Processor({
     exporter: memoryExporter,
     spanFilter,
-    rootSpan,
+    rootSpanPromotion,
   });
   traceProvider = new BasicTracerProvider({ spanProcessors: [processor] });
   trace.setGlobalTracerProvider(traceProvider);
@@ -1143,7 +1143,7 @@ describe("root span promotion", () => {
       setupTraceProvider({
         Processor,
         spanFilter: isOpenInferenceSpan,
-        rootSpan: {
+        rootSpanPromotion: {
           filter: (span) => span.name === FRAMEWORK_ROOT_SPAN_NAME,
         },
       });
@@ -1193,7 +1193,7 @@ describe("root span promotion", () => {
       setupTraceProvider({
         Processor,
         spanFilter: isOpenInferenceSpan,
-        rootSpan: {
+        rootSpanPromotion: {
           filter: (span) => span.name === "framework.chain",
           kind: OpenInferenceSpanKind.CHAIN,
         },
