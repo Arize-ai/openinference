@@ -1393,3 +1393,296 @@ describe("Trace aggregate behavior", () => {
     });
   });
 });
+
+describe.each([
+  ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
+  ["OpenInferenceBatchSpanProcessor", OpenInferenceBatchSpanProcessor],
+] as [string, typeof OpenInferenceSimpleSpanProcessor | typeof OpenInferenceBatchSpanProcessor][])(
+  "%s — reparentOrphanedSpans",
+  (_name, Processor) => {
+    const build = (reparentOrphanedSpans?: boolean) => {
+      const exporter = new InMemorySpanExporter();
+      const proc = new Processor({
+        exporter,
+        spanFilter: isOpenInferenceSpan,
+        reparentOrphanedSpans,
+      });
+      const provider = new BasicTracerProvider({ spanProcessors: [proc] });
+      return { exporter, provider, tracer: provider.getTracer("test") };
+    };
+
+    // Emits: GET /chat (non-AI root) -> ai.generateText -> ai.generateText.doGenerate
+    const emitHttpWrappedAI = (tracer: ReturnType<typeof build>["tracer"]) => {
+      const http = tracer.startSpan("GET /chat", {
+        attributes: { "http.request.method": "GET", "http.route": "/chat" },
+      });
+      const top = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText" } },
+        trace.setSpan(context.active(), http),
+      );
+      const llm = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        { attributes: { "operation.name": "ai.generateText.doGenerate" } },
+        trace.setSpan(context.active(), top),
+      );
+      llm.end();
+      top.end();
+      http.end();
+      return {
+        httpId: http.spanContext().spanId,
+        topId: top.spanContext().spanId,
+        llmId: llm.spanContext().spanId,
+      };
+    };
+
+    it("re-roots the top AI span when its non-AI parent is filtered out", async () => {
+      const { exporter, provider, tracer } = build(true);
+      const { topId } = emitHttpWrappedAI(tracer);
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // Non-AI HTTP span filtered out; AI spans exported.
+      expect(spans.find((s) => s.name === "GET /chat")).toBeUndefined();
+      const top = spans.find((s) => s.name === "ai.generateText");
+      expect(top?.parentSpanId).toBeUndefined(); // re-rooted
+      // Subtree intact: the LLM child stays parented to the (now-root) top AI span.
+      const llm = spans.find((s) => s.name === "ai.generateText.doGenerate");
+      expect(llm?.parentSpanId).toBe(topId);
+    });
+
+    it("leaves the top AI span orphaned when reparentOrphanedSpans is off (default)", async () => {
+      const { exporter, provider, tracer } = build(); // default: off
+      const { httpId } = emitHttpWrappedAI(tracer);
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.find((s) => s.name === "GET /chat")).toBeUndefined();
+      const top = spans.find((s) => s.name === "ai.generateText");
+      // Still points at the filtered-out HTTP parent → orphaned.
+      expect(top?.parentSpanId).toBe(httpId);
+    });
+
+    it("re-roots multiple sibling AI spans under one non-AI parent", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const http = tracer.startSpan("GET /batch", {
+        attributes: { "http.request.method": "POST", "http.route": "/batch" },
+      });
+      const httpCtx = trace.setSpan(context.active(), http);
+      const a = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText turn-a" } },
+        httpCtx,
+      );
+      const b = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText turn-b" } },
+        httpCtx,
+      );
+      a.end();
+      b.end();
+      http.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // Re-rooted root spans are renamed to their operation.name (with functionId suffix).
+      const aiSpans = spans.filter((s) => s.name.startsWith("ai.generateText"));
+      expect(aiSpans).toHaveLength(2);
+      // Both sibling AI spans are re-rooted (neither is orphaned).
+      expect(aiSpans.every((s) => s.parentSpanId == null)).toBe(true);
+    });
+
+    it("does not re-root an AI span nested under an AI parent", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const top = tracer.startSpan("ai.streamText", {
+        attributes: { "operation.name": "ai.streamText" },
+      });
+      const llm = tracer.startSpan(
+        "ai.streamText.doStream",
+        { attributes: { "operation.name": "ai.streamText.doStream" } },
+        trace.setSpan(context.active(), top),
+      );
+      llm.end();
+      top.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      const child = spans.find((s) => s.name === "ai.streamText.doStream");
+      // Parent is an AI span → the child keeps its parent (subtree preserved).
+      expect(child?.parentSpanId).toBe(top.spanContext().spanId);
+    });
+
+    it("preserves a kind-less AI wrapper root (e.g. ai.eve.turn) as a promoted AGENT root", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      // Non-AI workflow/HTTP span that the filter drops.
+      const workflow = tracer.startSpan("vercel.workflow");
+      // A framework wrapper with an ai.* operation name the kind map does NOT recognize,
+      // so conversion leaves it kind-less. (Matched by shape, not by name.)
+      const turn = tracer.startSpan(
+        "ai.eve.turn",
+        { attributes: { "operation.name": "ai.eve.turn" } },
+        trace.setSpan(context.active(), workflow),
+      );
+      // A recognized LLM child.
+      const llm = tracer.startSpan(
+        "ai.streamText.doStream",
+        { attributes: { "operation.name": "ai.streamText.doStream" } },
+        trace.setSpan(context.active(), turn),
+      );
+      llm.end();
+      turn.end();
+      workflow.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // Non-AI workflow span is filtered out.
+      expect(spans.find((s) => s.name === "vercel.workflow")).toBeUndefined();
+
+      // The kind-less wrapper is re-rooted AND promoted to an AGENT so it survives the filter.
+      const promoted = spans.find((s) => s.name === "ai.eve.turn");
+      expect(promoted).toBeDefined();
+      expect(promoted?.parentSpanId).toBeUndefined();
+      expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+        OpenInferenceSpanKind.AGENT,
+      );
+
+      // The LLM child stays attached to the promoted root.
+      const child = spans.find((s) => s.name === "ai.streamText.doStream");
+      expect(child?.parentSpanId).toBe(promoted?.spanContext().spanId);
+    });
+
+    // Proves the AGENT promotion is keyed off the `ai.` shape, NOT the `ai.eve.turn` name:
+    // arbitrary unrecognized ai.* wrappers are promoted too, and a non-AI-prefixed wrapper
+    // is not.
+    it.each([
+      ["ai.eve.turn", true],
+      ["ai.workflow.run", true],
+      ["ai.customAgent.session", true],
+      ["acme.workflow.run", false], // not ai.*-prefixed → not AI-like → not promoted
+    ] as [string, boolean][])(
+      "promotes kind-less wrapper %s only when it is AI-like (name-agnostic)",
+      async (wrapperName, expectPromoted) => {
+        const { exporter, provider, tracer } = build(true);
+
+        const outer = tracer.startSpan("vercel.workflow");
+        const wrapper = tracer.startSpan(
+          wrapperName,
+          { attributes: { "operation.name": wrapperName } },
+          trace.setSpan(context.active(), outer),
+        );
+        tracer
+          .startSpan(
+            "ai.streamText.doStream",
+            { attributes: { "operation.name": "ai.streamText.doStream" } },
+            trace.setSpan(context.active(), wrapper),
+          )
+          .end();
+        wrapper.end();
+        outer.end();
+
+        await provider.forceFlush();
+        const spans = exporter.getFinishedSpans();
+        await provider.shutdown();
+
+        const promoted = spans.find((s) => s.name === wrapperName);
+        if (expectPromoted) {
+          expect(promoted?.parentSpanId).toBeUndefined();
+          expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+            OpenInferenceSpanKind.AGENT,
+          );
+        } else {
+          // Not AI-like → never re-rooted or promoted → dropped by the filter.
+          expect(promoted).toBeUndefined();
+        }
+      },
+    );
+
+    it("promotes multiple sibling kind-less AI wrappers, each to its own AGENT root", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const http = tracer.startSpan("GET /chat", { attributes: { "http.route": "/chat" } });
+      const httpCtx = trace.setSpan(context.active(), http);
+      // Two independent unrecognized ai.* turn wrappers in one trace (non-eve names).
+      for (const id of ["a", "b"]) {
+        const turn = tracer.startSpan(
+          "ai.agent.turn",
+          { attributes: { "operation.name": `ai.agent.turn ${id}` } },
+          httpCtx,
+        );
+        tracer
+          .startSpan(
+            "ai.streamText.doStream",
+            { attributes: { "operation.name": `ai.streamText.doStream ${id}` } },
+            trace.setSpan(context.active(), turn),
+          )
+          .end();
+        turn.end();
+      }
+      http.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // Both wrappers are promoted to parentless AGENT roots (renamed to operation.name).
+      const wrappers = spans.filter((s) => s.name.startsWith("ai.agent.turn"));
+      expect(wrappers).toHaveLength(2);
+      expect(
+        wrappers.every(
+          (s) =>
+            s.parentSpanId == null &&
+            s.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+              OpenInferenceSpanKind.AGENT,
+        ),
+      ).toBe(true);
+      // Each LLM child is attached to one of the promoted roots (none orphaned).
+      const wrapperIds = new Set(wrappers.map((s) => s.spanContext().spanId));
+      const llms = spans.filter((s) => s.name.startsWith("ai.streamText.doStream"));
+      expect(llms).toHaveLength(2);
+      expect(llms.every((s) => s.parentSpanId != null && wrapperIds.has(s.parentSpanId))).toBe(
+        true,
+      );
+    });
+
+    it("re-roots a recognized AI span (ai.embed) while keeping its mapped kind (CHAIN, not AGENT)", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      // Non-AI parent the filter drops.
+      const http = tracer.startSpan("GET /embed", { attributes: { "http.route": "/embed" } });
+      // `ai.embed` IS recognized by the kind map → CHAIN. The AGENT promotion only ever
+      // fires on kind-less wrappers, so re-rooting must leave this span's mapped kind intact.
+      const embed = tracer.startSpan(
+        "ai.embed",
+        { attributes: { "operation.name": "ai.embed" } },
+        trace.setSpan(context.active(), http),
+      );
+      embed.end();
+      http.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.find((s) => s.name === "GET /embed")).toBeUndefined();
+      const reRooted = spans.find((s) => s.name.startsWith("ai.embed"));
+      expect(reRooted?.parentSpanId).toBeUndefined(); // re-rooted
+      // Kept CHAIN from the kind map — NOT overridden to AGENT by promotion.
+      expect(reRooted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+        OpenInferenceSpanKind.CHAIN,
+      );
+    });
+  },
+);
