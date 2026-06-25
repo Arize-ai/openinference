@@ -36,10 +36,22 @@ export const reparentOrphanedSpan = (span: Span, parentContext: Context): void =
   if (!isLikelyAISDKSpan(span)) return;
 
   const parentSpan = trace.getSpan(parentContext);
-  // No parent (already a root), or the parent also looks like an AI span (so it will be
-  // exported too and the link is fine). Only re-root when the parent looks non-AI — i.e.
+  // No parent — already a root.
+  if (parentSpan == null) return;
+
+  // The parent must be inspectable to judge it. Across an async/durable boundary (e.g. a
+  // framework's workflow steps) the parent arrives as a non-recording span — only a
+  // SpanContext, with no `attributes` — even though its spanId is correct and the parent is
+  // itself exported. "Can't inspect" is NOT "non-AI": treating it as non-AI re-roots the child
+  // off an exported AI parent (orphaning it). When the parent isn't inspectable, leave the
+  // child attached; the parentSpanId link stays valid if the parent is exported.
+  const parentAttributes = (parentSpan as unknown as { attributes?: unknown }).attributes;
+  if (parentAttributes == null) return;
+
+  // The parent is inspectable and also looks like an AI span (so it will be exported too and
+  // the link is fine). Only re-root when the parent is a real, inspectable, non-AI span — i.e.
   // likely to be filtered out, which is what would orphan this span.
-  if (parentSpan == null || isLikelyAISDKSpan(parentSpan as unknown as Span)) return;
+  if (isLikelyAISDKSpan(parentSpan as unknown as Span)) return;
 
   // Detach from the non-AI parent so this span becomes a trace root. The parent fields are
   // typed readonly on ReadableSpan, but the live Span object at onStart is mutable — re-type

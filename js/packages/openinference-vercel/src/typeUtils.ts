@@ -16,8 +16,14 @@ export const isLikelyAISDKSpan = (span: ReadableSpan | Span): boolean => {
   if (typeof opName === "string" && opName.startsWith("ai.")) return true;
   if (typeof opId === "string" && opId.startsWith("ai.")) return true;
 
-  // gen_ai.* indicates AI SDK v6+ GenAI spans
-  return attrs != null && Object.keys(attrs).some((k) => k.startsWith("gen_ai."));
+  // gen_ai.* indicates AI SDK v6+ GenAI spans. ai.* attribute keys (e.g.
+  // `ai.telemetry.functionId`, `ai.settings.*`) mark framework wrapper spans that
+  // carry AI SDK telemetry but whose `operation.name` is not `ai.*` — for example a
+  // per-turn span like `ai.eve.turn` (operation.name `eve`). Recognizing these keeps
+  // such a wrapper as the trace root instead of orphaning its AI children.
+  return (
+    attrs != null && Object.keys(attrs).some((k) => k.startsWith("gen_ai.") || k.startsWith("ai."))
+  );
 };
 
 const isObjectWithStringKeys = (value: unknown): value is Record<string, unknown> => {
