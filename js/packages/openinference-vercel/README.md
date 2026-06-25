@@ -121,28 +121,18 @@ When enabled, for each trace the processor:
 
 It is `false` by default and never changes trace topology unless enabled.
 
-### Mapping framework-specific attributes
+### Framework-specific attributes
 
-If a framework attaches custom span attributes you want mapped onto
-OpenInference conventions, pass a `preProcessSpan` hook. It runs on each span
-before OpenInference conversion. For example, mapping Eve's `eve.*` attributes:
+`agentTraceMode` keeps no framework-specific knowledge. Frameworks built on the
+AI SDK (Eve, Mastra, ...) should emit OpenInference-standard attributes
+themselves, which this processor already understands automatically:
 
-```typescript
-const addEveAttributes = (span) => {
-  for (const [key, value] of Object.entries(span.attributes)) {
-    if (!key.startsWith("eve.")) continue;
-    if (key === "eve.session.id") span.attributes["session.id"] = value;
-    else span.attributes[`metadata.${key}`] = value;
-  }
-};
+- **Session** — set `session.id` on the OpenInference context via
+  [`@arizeai/openinference-core`](../openinference-core)'s `setSession`;
+  `agentTraceMode` propagates it onto every span.
+- **Metadata** — emit it through the AI SDK's
+  `experimental_telemetry.metadata`, which arrives as `ai.telemetry.metadata.*`
+  and is converted to `metadata.*` with no extra configuration.
 
-new OpenInferenceSimpleSpanProcessor({
-  exporter,
-  spanFilter: isOpenInferenceSpan,
-  agentTraceMode: true,
-  preProcessSpan: addEveAttributes,
-});
-```
-
-See [`examples/agent-trace-mode.ts`](./examples/agent-trace-mode.ts) for a
-complete setup.
+This keeps the processor generic — a single `agentTraceMode: true` is the whole
+integration. See [`examples/agent-trace-mode.ts`](./examples/agent-trace-mode.ts).

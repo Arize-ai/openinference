@@ -1,4 +1,3 @@
-import type { AttributeValue } from "@opentelemetry/api";
 import { context, trace } from "@opentelemetry/api";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { BasicTracerProvider, InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
@@ -11,7 +10,6 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import type { PreProcessSpan } from "../src";
 import {
   isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
@@ -27,7 +25,6 @@ const buildProvider = (
   opts: {
     agentTraceMode?: boolean;
     spanFilter?: (span: ReadableSpan) => boolean;
-    preProcessSpan?: PreProcessSpan;
   } = {},
 ) => {
   const exporter = new InMemorySpanExporter();
@@ -35,23 +32,6 @@ const buildProvider = (
   const provider = new BasicTracerProvider({ spanProcessors: [processor] });
   const tracer = provider.getTracer("test");
   return { exporter, tracer, provider };
-};
-
-/**
- * Sample framework attribute mapper (mirrors the README's Eve example), used to
- * exercise the generic `preProcessSpan` hook: `eve.session.id` → `session.id`,
- * other `eve.*` → `metadata.eve.*`, and no-op when there are no `eve.*` attrs.
- */
-const addEveAttributes: PreProcessSpan = (span) => {
-  const attrs = span.attributes as Record<string, AttributeValue>;
-  for (const [key, value] of Object.entries(attrs)) {
-    if (!key.startsWith("eve.")) continue;
-    if (key === "eve.session.id") {
-      attrs[SemanticConventions.SESSION_ID] = value;
-    } else {
-      attrs[`${SemanticConventions.METADATA}.${key}`] = value;
-    }
-  }
 };
 
 /** Reads `parentSpanId` defensively across sdk-trace-base versions. */
@@ -475,85 +455,6 @@ describe.each([
       expect(getParentId(child as ReadableSpan)).toBe(turnId);
       expect(root?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBeUndefined();
       expect(child?.attributes[SemanticConventions.SESSION_ID]).toBeUndefined();
-    });
-  });
-
-  // Ports the Eve package's attribute-mapping tests to the generic preProcessSpan
-  // hook, using a sample eve.* mapper (see addEveAttributes above).
-  describe("preProcessSpan (framework attribute mapping)", () => {
-    beforeEach(() => {
-      ({ exporter, tracer, provider } = buildProvider(ProcessorClass, {
-        agentTraceMode: true,
-        spanFilter: isOpenInferenceSpan,
-        preProcessSpan: addEveAttributes,
-      }));
-    });
-
-    it("maps eve.session.id to session.id", async () => {
-      tracer
-        .startSpan("ai.eve.turn", {
-          attributes: { "operation.name": "ai.eve.turn", "eve.session.id": "session-xyz" },
-        })
-        .end();
-
-      await provider.forceFlush();
-      const [finished] = exporter.getFinishedSpans();
-      expect(finished.attributes[SemanticConventions.SESSION_ID]).toBe("session-xyz");
-    });
-
-    it("maps eve.* attributes (excluding session.id) to metadata.*", async () => {
-      tracer
-        .startSpan("ai.eve.turn", {
-          attributes: {
-            "operation.name": "ai.eve.turn",
-            "eve.session.id": "sess-1",
-            "eve.version": "1.2.3",
-            "eve.turn.sequence": 3,
-          },
-        })
-        .end();
-
-      await provider.forceFlush();
-      const [finished] = exporter.getFinishedSpans();
-      expect(finished.attributes[`${SemanticConventions.METADATA}.eve.version`]).toBe("1.2.3");
-      expect(finished.attributes[`${SemanticConventions.METADATA}.eve.turn.sequence`]).toBe(3);
-      // session.id is mapped to session.id, not metadata
-      expect(finished.attributes[`${SemanticConventions.METADATA}.eve.session.id`]).toBeUndefined();
-    });
-
-    it("maps eve.session.id on child spans too", async () => {
-      const root = tracer.startSpan("ai.eve.turn", {
-        attributes: { "operation.name": "ai.eve.turn", "eve.session.id": "sess-1" },
-      });
-      tracer
-        .startSpan(
-          "ai.streamText.doStream",
-          {
-            attributes: {
-              "operation.name": "ai.streamText.doStream",
-              "gen_ai.request.model": "gpt-4o",
-              "eve.session.id": "sess-1",
-            },
-          },
-          trace.setSpan(context.active(), root),
-        )
-        .end();
-      root.end();
-
-      await provider.forceFlush();
-      const child = exporter.getFinishedSpans().find((s) => s.name === "ai.streamText.doStream");
-      expect(child?.attributes[SemanticConventions.SESSION_ID]).toBe("sess-1");
-    });
-
-    it("does not add OpenInference attributes for spans without eve.* attributes", async () => {
-      tracer
-        .startSpan("ai.streamText", { attributes: { "operation.name": "ai.streamText" } })
-        .end();
-
-      await provider.forceFlush();
-      const aiSpan = exporter.getFinishedSpans().find((s) => s.name === "ai.streamText");
-      // promoted to AGENT root by agentTraceMode, but the eve mapper added nothing
-      expect(aiSpan?.attributes[SemanticConventions.SESSION_ID]).toBeUndefined();
     });
   });
 });

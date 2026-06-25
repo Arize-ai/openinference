@@ -23,11 +23,3 @@ export type OpenInferenceIOConventionKey = Extract<
  * A filter to apply to a {@link ReadableSpan}.
  */
 export type SpanFilter = (span: ReadableSpan) => boolean;
-
-/**
- * A hook invoked on each span at `onEnd`, before OpenInference attribute
- * conversion runs. Use it to enrich or remap framework-specific attributes
- * (e.g. mapping `eve.*` attributes onto OpenInference conventions) so the
- * conversion and span filter see the result. The span is mutated in place.
- */
-export type PreProcessSpan = (span: ReadableSpan) => void;

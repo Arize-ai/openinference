@@ -3,7 +3,7 @@ import type { BufferConfig, ReadableSpan, Span, SpanExporter } from "@openteleme
 import { BatchSpanProcessor, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 
 import { TraceAggregateManager } from "./TraceAggregateManager";
-import type { PreProcessSpan, SpanFilter } from "./types";
+import type { SpanFilter } from "./types";
 import { propagateSessionFromContext, shouldExportSpan } from "./utils";
 
 /**
@@ -44,14 +44,12 @@ import { propagateSessionFromContext, shouldExportSpan } from "./utils";
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly agentTraceMode: boolean;
-  private readonly preProcessSpan?: PreProcessSpan;
   protected readonly aggregateManager: TraceAggregateManager;
 
   constructor({
     exporter,
     spanFilter,
     agentTraceMode = false,
-    preProcessSpan,
   }: {
     /**
      * The exporter to pass spans to.
@@ -70,18 +68,12 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
      * its own. Defaults to `false` (no change to trace topology).
      */
     readonly agentTraceMode?: boolean;
-    /**
-     * A hook invoked on each span at `onEnd` before OpenInference attribute
-     * conversion runs. Use it to enrich or remap framework-specific attributes.
-     */
-    readonly preProcessSpan?: PreProcessSpan;
 
     config?: BufferConfig;
   }) {
     super(exporter);
     this.spanFilter = spanFilter;
     this.agentTraceMode = agentTraceMode;
-    this.preProcessSpan = preProcessSpan;
     this.aggregateManager = new TraceAggregateManager({ agentTraceMode });
   }
 
@@ -94,7 +86,6 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   }
 
   onEnd(span: ReadableSpan): void {
-    this.preProcessSpan?.(span);
     // In agentTraceMode the manager may defer the promoted root and return it
     // alongside a later span, so export every span it hands back.
     for (const toExport of this.aggregateManager.onEnd(span)) {
@@ -164,14 +155,12 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
 export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly agentTraceMode: boolean;
-  private readonly preProcessSpan?: PreProcessSpan;
   protected readonly aggregateManager: TraceAggregateManager;
 
   constructor({
     exporter,
     spanFilter,
     agentTraceMode = false,
-    preProcessSpan,
     config,
   }: {
     /**
@@ -192,11 +181,6 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
      */
     readonly agentTraceMode?: boolean;
     /**
-     * A hook invoked on each span at `onEnd` before OpenInference attribute
-     * conversion runs. Use it to enrich or remap framework-specific attributes.
-     */
-    readonly preProcessSpan?: PreProcessSpan;
-    /**
      * The configuration options for processor.
      */
     config?: BufferConfig;
@@ -204,7 +188,6 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     super(exporter, config);
     this.spanFilter = spanFilter;
     this.agentTraceMode = agentTraceMode;
-    this.preProcessSpan = preProcessSpan;
     this.aggregateManager = new TraceAggregateManager({ agentTraceMode });
   }
 
@@ -217,7 +200,6 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   }
 
   onEnd(span: ReadableSpan): void {
-    this.preProcessSpan?.(span);
     // In agentTraceMode the manager may defer the promoted root and return it
     // alongside a later span, so export every span it hands back.
     for (const toExport of this.aggregateManager.onEnd(span)) {
