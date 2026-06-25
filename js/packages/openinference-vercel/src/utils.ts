@@ -1,9 +1,14 @@
-import type { Attributes, AttributeValue } from "@opentelemetry/api";
+import type { Attributes, AttributeValue, Context } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
-import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
 
-import { safelyJSONParse, safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
+import {
+  getSession,
+  safelyJSONParse,
+  safelyJSONStringify,
+  withSafety,
+} from "@arizeai/openinference-core";
 import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "@arizeai/openinference-genai";
 import {
   MimeType,
@@ -11,7 +16,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { VercelSDKFunctionNameToSpanKindMap } from "./constants";
+import { AI_SDK_SPAN_NAME_PREFIX, VercelSDKFunctionNameToSpanKindMap } from "./constants";
 import type { OpenInferenceIOConventionKey, SpanFilter } from "./types";
 import { isArrayOfObjects, isStringArray } from "./typeUtils";
 import { VercelAISemanticConventions } from "./VercelAISemanticConventions";
@@ -909,5 +914,65 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
     if (span.events[i].name.startsWith("ai.stream.")) {
       span.events.splice(i, 1);
     }
+  }
+};
+
+/**
+ * Determines whether a span belongs to the Vercel AI SDK by name.
+ *
+ * The Vercel AI SDK (and frameworks built on it, such as Eve) name their spans
+ * with an `ai.` prefix — top-level operations (`ai.streamText`,
+ * `ai.generateText`, ...), their inner model calls (`ai.streamText.doStream`),
+ * tool calls (`ai.toolCall`), and framework wrappers (`ai.eve.turn`). The span
+ * name is set at creation, so this is reliable at `onStart` time, whereas the
+ * `operation.name` attribute and `gen_ai.*` attributes may not yet be populated.
+ * @param span - the span to inspect
+ * @returns true if the span name is an AI SDK span
+ */
+export const isAISDKSpanByName = (span: ReadableSpan | Span): boolean => {
+  return span.name.startsWith(AI_SDK_SPAN_NAME_PREFIX);
+};
+
+/**
+ * Promotes a span to the root of its trace by clearing its parent references.
+ *
+ * Both `parentSpanId` (`@opentelemetry/sdk-trace-base` < 1.30) and
+ * `parentSpanContext` (>= 1.30) are cleared so the behavior is stable across
+ * the supported SDK range. These fields are typed readonly on the public Span
+ * type, so we cast to mutate them.
+ * @param span - the span to promote to a trace root
+ */
+export const promoteSpanToRoot = (span: ReadableSpan | Span): void => {
+  (span as unknown as { parentSpanId?: string }).parentSpanId = undefined;
+  (span as unknown as { parentSpanContext?: unknown }).parentSpanContext = undefined;
+};
+
+/**
+ * Ensures a span carries an OpenInference span kind, defaulting to `AGENT` when
+ * none is present. Never overrides an existing kind. Used to label promoted
+ * root spans (e.g. a framework wrapper like `ai.eve.turn`) that the Vercel
+ * span-kind map does not recognize, so they survive the `isOpenInferenceSpan`
+ * filter and render as agents.
+ * @param span - the span to label
+ */
+export const ensureAgentSpanKind = (span: ReadableSpan): void => {
+  if (span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] == null) {
+    (span.attributes as Record<string, AttributeValue>)[
+      SemanticConventions.OPENINFERENCE_SPAN_KIND
+    ] = OpenInferenceSpanKind.AGENT;
+  }
+};
+
+/**
+ * Copies the session id from the active OpenInference context onto the span as
+ * the OpenInference `session.id` attribute, if a session is present on the
+ * context. No-op when no session has been set.
+ * @param span - the span to annotate
+ * @param parentContext - the context the span was started in
+ */
+export const propagateSessionFromContext = (span: Span, parentContext: Context): void => {
+  const session = getSession(parentContext);
+  if (session?.sessionId != null) {
+    span.setAttribute(SemanticConventions.SESSION_ID, session.sessionId);
   }
 };

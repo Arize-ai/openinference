@@ -24,3 +24,15 @@ export const VercelSDKFunctionNameToSpanKindMap = new Map([
   ["ai.embedMany.doEmbed", OpenInferenceSpanKind.EMBEDDING],
   ["ai.toolCall", OpenInferenceSpanKind.TOOL],
 ]);
+
+/**
+ * The name prefix shared by all Vercel AI SDK spans — top-level operations
+ * (`ai.streamText`, `ai.generateText`, ...), their inner model calls
+ * (`ai.streamText.doStream`), tool calls (`ai.toolCall`), and framework
+ * wrappers built on the AI SDK (e.g. Eve's `ai.eve.turn`).
+ *
+ * `agentTraceMode` uses this prefix to find the outermost AI SDK span in a
+ * trace (the first one to start) and promote it to the trace root, without
+ * needing a per-framework list of wrapper span names.
+ */
+export const AI_SDK_SPAN_NAME_PREFIX = "ai.";

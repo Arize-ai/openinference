@@ -92,3 +92,57 @@ const result = await generateText({
 For details on Vercel AI SDK telemetry see the [Vercel AI SDK Telemetry documentation](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
 
 For more information on Vercel OpenTelemetry support see the [Vercel AI SDK Telemetry documentation](https://sdk.vercel.ai/docs/ai-sdk-core/telemetry).
+
+## Agent trace mode
+
+Frameworks built on the Vercel AI SDK (e.g. Eve, Mastra) wrap each turn in a
+top-level span (such as `ai.eve.turn`) and run under an HTTP/fetch root that is
+filtered out before export — leaving the AI spans orphaned. Set
+`agentTraceMode: true` to get a clean, rooted agent trace with a single option:
+
+```typescript
+new OpenInferenceSimpleSpanProcessor({
+  exporter,
+  spanFilter: isOpenInferenceSpan,
+  agentTraceMode: true,
+});
+```
+
+When enabled, for each trace the processor:
+
+- promotes the first `ai.*` span (including framework wrappers like
+  `ai.eve.turn`) to the trace root, clearing its non-AI parent;
+- labels that root `AGENT` when it has no span kind, so wrapper spans survive
+  the `isOpenInferenceSpan` filter;
+- propagates `session.id` from the active OpenInference context (see
+  [`@arizeai/openinference-core`](../openinference-core) `setSession`);
+- stamps the trace's earliest input / latest output onto the root when it has
+  none of its own.
+
+It is `false` by default and never changes trace topology unless enabled.
+
+### Mapping framework-specific attributes
+
+If a framework attaches custom span attributes you want mapped onto
+OpenInference conventions, pass a `preProcessSpan` hook. It runs on each span
+before OpenInference conversion. For example, mapping Eve's `eve.*` attributes:
+
+```typescript
+const addEveAttributes = (span) => {
+  for (const [key, value] of Object.entries(span.attributes)) {
+    if (!key.startsWith("eve.")) continue;
+    if (key === "eve.session.id") span.attributes["session.id"] = value;
+    else span.attributes[`metadata.${key}`] = value;
+  }
+};
+
+new OpenInferenceSimpleSpanProcessor({
+  exporter,
+  spanFilter: isOpenInferenceSpan,
+  agentTraceMode: true,
+  preProcessSpan: addEveAttributes,
+});
+```
+
+See [`examples/agent-trace-mode.ts`](./examples/agent-trace-mode.ts) for a
+complete setup.
