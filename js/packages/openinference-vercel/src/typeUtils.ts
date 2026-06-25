@@ -22,8 +22,7 @@ export const isLikelyAISDKSpan = (span: ReadableSpan | Span): boolean => {
   // per-turn span like `ai.eve.turn` (operation.name `eve`). Recognizing these keeps
   // such a wrapper as the trace root instead of orphaning its AI children.
   return (
-    attrs != null &&
-    Object.keys(attrs).some((k) => k.startsWith("gen_ai.") || k.startsWith("ai."))
+    attrs != null && Object.keys(attrs).some((k) => k.startsWith("gen_ai.") || k.startsWith("ai."))
   );
 };
 
