@@ -913,11 +913,14 @@ const getVercelGenAIAttributes = (
     if (Array.isArray(parsedSystemInstructions)) {
       const messagePrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${inputMessageIndex}`;
       result[`${messagePrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "system";
-      parsedSystemInstructions.forEach((part, partIndex) => {
+      let contentIndex = 0;
+      parsedSystemInstructions.forEach((part) => {
         if (typeof part === "object" && part !== null && "content" in part) {
-          const contentsPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${partIndex}`;
+          const contentsPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
+          result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
           result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
             typeof part.content === "string" ? part.content : undefined;
+          contentIndex++;
         }
       });
       inputMessageIndex++;
