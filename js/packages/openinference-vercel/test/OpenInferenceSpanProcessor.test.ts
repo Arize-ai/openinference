@@ -114,6 +114,168 @@ const generateV6FixtureTestCases = (): SpanProcessorTestCase[] => {
 };
 
 /**
+ * Generate test cases for AI SDK v7 GenAI semantic convention spans.
+ */
+const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
+  [
+    "AI SDK v7 invoke_agent span",
+    {
+      vercelFunctionName: "invoke_agent gpt-4o-mini",
+      vercelAttributes: {
+        "gen_ai.operation.name": "invoke_agent",
+        "gen_ai.provider.name": "openai",
+        "gen_ai.request.model": "gpt-4o-mini",
+        "gen_ai.agent.name": "story-agent",
+        "gen_ai.usage.input_tokens": 12,
+        "gen_ai.usage.output_tokens": 8,
+        "gen_ai.usage.cache_read.input_tokens": 3,
+        "gen_ai.usage.cache_creation.input_tokens": 2,
+        "ai.settings.context.requestId": "req-123",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+        [SemanticConventions.AGENT_NAME]: "story-agent",
+        [SemanticConventions.LLM_SYSTEM]: "openai",
+        [SemanticConventions.LLM_MODEL_NAME]: "gpt-4o-mini",
+        [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 12,
+        [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 8,
+        [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 20,
+        [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: 3,
+        [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: 2,
+        [`${SemanticConventions.METADATA}.requestId`]: "req-123",
+      },
+    },
+  ],
+  [
+    "AI SDK v7 chat span",
+    {
+      vercelFunctionName: "chat gpt-4o-mini",
+      vercelAttributes: {
+        "gen_ai.operation.name": "chat",
+        "gen_ai.provider.name": "openai",
+        "gen_ai.request.model": "gpt-4o-mini",
+        "gen_ai.system_instructions": JSON.stringify([
+          { type: "text", content: "You are a helpful assistant." },
+        ]),
+        "gen_ai.input.messages": JSON.stringify([
+          { role: "user", parts: [{ type: "text", content: "Hello" }] },
+        ]),
+        "gen_ai.output.messages": JSON.stringify([
+          { role: "assistant", finish_reason: "stop", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+        "gen_ai.tool.definitions": JSON.stringify([
+          {
+            type: "function",
+            name: "weather",
+            inputSchema: { type: "object", properties: { location: { type: "string" } } },
+            description: "Get weather",
+          },
+        ]),
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+        [SemanticConventions.LLM_SYSTEM]: "openai",
+        [SemanticConventions.LLM_MODEL_NAME]: "gpt-4o-mini",
+        [SemanticConventions.INPUT_VALUE]: JSON.stringify([
+          { role: "user", parts: [{ type: "text", content: "Hello" }] },
+        ]),
+        [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+        [SemanticConventions.OUTPUT_VALUE]: JSON.stringify([
+          { role: "assistant", finish_reason: "stop", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+          "system",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+          "text",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+          "You are a helpful assistant.",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]: "user",
+        [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+          "assistant",
+        [`${SemanticConventions.LLM_TOOLS}.0.${SemanticConventions.TOOL_JSON_SCHEMA}`]:
+          JSON.stringify({
+            type: "function",
+            function: {
+              name: "weather",
+              description: "Get weather",
+              parameters: { type: "object", properties: { location: { type: "string" } } },
+            },
+          }),
+      },
+    },
+  ],
+  [
+    "AI SDK v7 execute_tool span",
+    {
+      vercelFunctionName: "execute_tool weather",
+      vercelAttributes: {
+        "gen_ai.operation.name": "execute_tool",
+        "gen_ai.tool.name": "weather",
+        "gen_ai.tool.call.id": "call-1",
+        "gen_ai.tool.type": "function",
+        "gen_ai.tool.call.arguments": JSON.stringify({ location: "Boston" }),
+        "gen_ai.tool.call.result": JSON.stringify({ forecast: "sunny" }),
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
+        [SemanticConventions.TOOL_NAME]: "weather",
+        [SemanticConventions.TOOL_CALL_ID]: "call-1",
+        [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify({ location: "Boston" }),
+        [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+      },
+    },
+  ],
+  [
+    "AI SDK v7 embeddings span",
+    {
+      vercelFunctionName: "embeddings text-embedding-3-small",
+      vercelAttributes: {
+        "gen_ai.operation.name": "embeddings",
+        "gen_ai.provider.name": "openai",
+        "gen_ai.request.model": "text-embedding-3-small",
+        [VercelAISemanticConventions.EMBEDDING_TEXT]: JSON.stringify("hello"),
+        [VercelAISemanticConventions.EMBEDDING_VECTOR]: JSON.stringify([0.1, 0.2]),
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.EMBEDDING,
+        [SemanticConventions.EMBEDDING_MODEL_NAME]: "text-embedding-3-small",
+        [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
+          "hello",
+      },
+    },
+  ],
+  [
+    "AI SDK v7 rerank span",
+    {
+      vercelFunctionName: "rerank test-reranker",
+      vercelAttributes: {
+        "gen_ai.operation.name": "rerank",
+        "gen_ai.provider.name": "test-provider",
+        "gen_ai.request.model": "test-reranker",
+        [VercelAISemanticConventions.RERANK_DOCUMENTS]: [
+          JSON.stringify({ text: "first" }),
+          JSON.stringify({ text: "second" }),
+        ],
+        [VercelAISemanticConventions.RERANKING_OUTPUT]: [JSON.stringify({ index: 0, score: 0.9 })],
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.RERANKER,
+        [SemanticConventions.RERANKER_MODEL_NAME]: "test-reranker",
+        [`${SemanticConventions.RERANKER_INPUT_DOCUMENTS}.0.document.content`]: JSON.stringify({
+          text: "first",
+        }),
+        [`${SemanticConventions.RERANKER_OUTPUT_DOCUMENTS}.0.document.content`]: JSON.stringify({
+          index: 0,
+          score: 0.9,
+        }),
+      },
+    },
+  ],
+];
+
+/**
  * Generate test cases for Vercel-specific attribute handling
  */
 const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
@@ -952,6 +1114,143 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
       });
     },
   );
+
+  test.each(generateV7GenAITestCases())(
+    "should correctly process %s",
+    (_name, { vercelAttributes, expectedOpenInferenceAttributes }) => {
+      const tracer = trace.getTracer("test-tracer");
+      const span = tracer.startSpan(_name);
+      span.setAttributes(vercelAttributes);
+      span.end();
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      Object.entries(expectedOpenInferenceAttributes).forEach(([key, value]) => {
+        expect(spans[0].attributes[key]).toEqual(value);
+      });
+    },
+  );
+
+  it("should expand AI SDK v7 multi-tool response messages into separate tool messages", () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("chat gpt-4o-mini");
+    span.setAttributes({
+      "gen_ai.operation.name": "chat",
+      "gen_ai.provider.name": "openai",
+      "gen_ai.request.model": "gpt-4o-mini",
+      "gen_ai.input.messages": JSON.stringify([
+        { role: "user", parts: [{ type: "text", content: "Use both tools." }] },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool_call",
+              id: "weather-call-id",
+              name: "weather",
+              arguments: { location: "Boston, MA" },
+            },
+            {
+              type: "tool_call",
+              id: "calculator-call-id",
+              name: "calculator",
+              arguments: { expression: "100 * 25 + 3" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          parts: [
+            {
+              type: "tool_call_response",
+              id: "weather-call-id",
+              response: { forecast: "sunny", temperatureF: 70 },
+            },
+            {
+              type: "tool_call_response",
+              id: "calculator-call-id",
+              response: { expression: "100 * 25 + 3", value: 2503 },
+            },
+          ],
+        },
+      ]),
+    });
+    span.end();
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const attributes = spans[0].attributes;
+
+    expect(
+      attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_ROLE}`],
+    ).toBe("tool");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`
+      ],
+    ).toBe("weather-call-id");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_CONTENT}`
+      ],
+    ).toBe(JSON.stringify({ forecast: "sunny", temperatureF: 70 }));
+    expect(
+      attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.3.${SemanticConventions.MESSAGE_ROLE}`],
+    ).toBe("tool");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.3.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`
+      ],
+    ).toBe("calculator-call-id");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.3.${SemanticConventions.MESSAGE_CONTENT}`
+      ],
+    ).toBe(JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }));
+  });
+
+  it("should use dense content indices for AI SDK v7 messages with mixed part types", () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("chat gpt-4o-mini");
+    span.setAttributes({
+      "gen_ai.operation.name": "chat",
+      "gen_ai.provider.name": "openai",
+      "gen_ai.request.model": "gpt-4o-mini",
+      "gen_ai.input.messages": JSON.stringify([
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool_call",
+              id: "weather-call-id",
+              name: "weather",
+              arguments: { location: "Boston" },
+            },
+            { type: "text", content: "I will check that." },
+          ],
+        },
+      ]),
+    });
+    span.end();
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const attributes = spans[0].attributes;
+
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+      ],
+    ).toBe("I will check that.");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.1.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+      ],
+    ).toBeUndefined();
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_ID}`
+      ],
+    ).toBe("weather-call-id");
+  });
 
   it("should not export non-AI spans", () => {
     const tracer = trace.getTracer("test-tracer");
@@ -1913,7 +2212,7 @@ describe.each([
       expect(spans[0].attributes[SemanticConventions.USER_ID]).toBe("user-42");
     });
 
-    it("does NOT stamp context attributes when disabled (default)", async () => {
+    it("does NOT stamp context attributes when explicitly disabled", async () => {
       const { exporter, provider, tracer } = build(false);
 
       const ctx = setSession(context.active(), { sessionId: "session-123" });
@@ -1930,6 +2229,25 @@ describe.each([
 
       expect(spans.length).toBe(1);
       expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBeUndefined();
+    });
+
+    it("stamps context attributes by default when the option is omitted", async () => {
+      const { exporter, provider, tracer } = build();
+
+      const ctx = setSession(context.active(), { sessionId: "session-123" });
+      const span = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText" } },
+        ctx,
+      );
+      span.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.length).toBe(1);
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("session-123");
     });
 
     it("keeps session.id on a re-rooted AI span whose non-AI parent is filtered out", async () => {

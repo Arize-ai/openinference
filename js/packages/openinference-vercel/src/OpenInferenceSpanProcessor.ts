@@ -2,11 +2,11 @@ import type { Context } from "@opentelemetry/api";
 import type { BufferConfig, ReadableSpan, Span, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { BatchSpanProcessor, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 
-import { propagateContextAttributesToSpan } from "./contextPropagation";
-import { promoteReparentedRoot, reparentOrphanedSpan } from "./reparenting";
-import { TraceAggregateManager } from "./TraceAggregateManager";
-import type { SpanFilter } from "./types";
-import { shouldExportSpan } from "./utils";
+import { propagateContextAttributesToSpan } from "./contextPropagation.js";
+import { promoteReparentedRoot, reparentOrphanedSpan } from "./reparenting.js";
+import { TraceAggregateManager } from "./TraceAggregateManager.js";
+import type { SpanFilter } from "./types.js";
+import { shouldExportSpan } from "./utils.js";
 
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.
@@ -44,7 +44,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
     exporter,
     spanFilter,
     reparentOrphanedSpans = false,
-    propagateContextAttributes = false,
+    propagateContextAttributes = true,
   }: {
     /**
      * The exporter to pass spans to.
@@ -94,7 +94,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
      * children started in the same context inherit them, and the values survive
      * {@link reparentOrphanedSpans} and export.
      *
-     * @default false
+     * @default true
      */
     readonly propagateContextAttributes?: boolean;
 
@@ -185,7 +185,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     exporter,
     spanFilter,
     reparentOrphanedSpans = false,
-    propagateContextAttributes = false,
+    propagateContextAttributes = true,
     config,
   }: {
     /**
@@ -236,7 +236,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
      * children started in the same context inherit them, and the values survive
      * {@link reparentOrphanedSpans} and export.
      *
-     * @default false
+     * @default true
      */
     readonly propagateContextAttributes?: boolean;
     /**
