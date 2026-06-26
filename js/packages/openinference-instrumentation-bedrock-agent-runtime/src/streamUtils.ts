@@ -18,14 +18,14 @@ export function interceptAgentResponse<
               callback.consumeTrace(item.trace as Record<string, unknown>);
             }
           } catch (err: unknown) {
-            diag.debug("Error in interceptAgentResponse Stream:", err);
+            diag.error("Error in interceptAgentResponse Stream:", err);
           }
           yield item;
         }
         try {
           callback.onComplete();
         } catch (err: unknown) {
-          diag.debug("Error in interceptAgentResponse:", err);
+          diag.error("Error in interceptAgentResponse:", err);
         }
       } catch (err) {
         callback.onError(err);
@@ -69,14 +69,14 @@ export function interceptRagResponse<T extends RetrieveAndGenerateStreamResponse
               );
             }
           } catch (err: unknown) {
-            diag.debug("Error in interceptRagResponse stream", err);
+            diag.error("Error in interceptRagResponse stream", err);
           }
           yield item;
         }
         try {
           callback.onComplete();
         } catch (err: unknown) {
-          diag.debug("Error in interceptRagResponse:", err);
+          diag.error("Error in interceptRagResponse:", err);
         }
       } catch (err) {
         callback.onError(err);
