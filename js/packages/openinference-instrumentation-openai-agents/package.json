@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-openai-agents",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": false,
   "description": "OpenInference instrumentation for OpenAI Agents SDK",
   "keywords": [
