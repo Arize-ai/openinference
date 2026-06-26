@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.instrumented import InstrumentationSettings
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from openinference.semconv.trace import (
@@ -26,17 +26,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-
-
-@pytest.mark.vcr
-def test_openai_agent_plain_text_output_v1(
-    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
-) -> None:
-    _test_openai_agent_plain_text_output(
-        in_memory_span_exporter,
-        tracer_provider,
-        InstrumentationSettings(version=1, event_mode="attributes"),
-    )
 
 
 @pytest.mark.vcr
@@ -59,7 +48,7 @@ def _test_openai_agent_plain_text_output(
     trace.set_tracer_provider(tracer_provider)
 
     api_key = os.getenv("OPENAI_API_KEY", "sk-test")
-    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    model = OpenAIChatModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
     agent = Agent(model, output_type=str)
     agent.instrument = instrumentation
 
@@ -79,24 +68,6 @@ def _test_openai_agent_plain_text_output(
     output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert output_value is not None, "output.value must be set for plain-text agent responses."
     assert output_value == message_content
-
-
-@pytest.mark.vcr
-def test_openai_agent_and_llm_spans_v1(
-    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
-) -> None:
-    # Version 1 is deprecated and will be removed in a future release.
-    _test_openai_agent_and_llm_spans(
-        in_memory_span_exporter,
-        tracer_provider,
-        InstrumentationSettings(version=1, event_mode="attributes"),
-    )
-    in_memory_span_exporter.clear()
-    _test_openai_agent_and_llm_spans_message_history(
-        in_memory_span_exporter,
-        tracer_provider,
-        InstrumentationSettings(version=1, event_mode="attributes"),
-    )
 
 
 @pytest.mark.vcr
@@ -132,7 +103,7 @@ def _test_openai_agent_and_llm_spans(
     api_key = os.getenv("OPENAI_API_KEY", "sk-test")
 
     # Create the model and agent
-    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    model = OpenAIChatModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
     agent = Agent(
         model,
         instructions=["Use the weather tool", "Use the calculator tool"],
@@ -154,12 +125,12 @@ def _test_openai_agent_and_llm_spans(
     llm_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
     agent_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
 
-    _verify_llm_span(llm_span, instrumentation.version)
+    _verify_llm_span(llm_span)
 
     _verify_agent_span(agent_span)
 
 
-def _verify_llm_span(span: ReadableSpan, version: int) -> None:
+def _verify_llm_span(span: ReadableSpan) -> None:
     """Verify the LLM span has correct attributes."""
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
@@ -187,12 +158,10 @@ def _verify_llm_span(span: ReadableSpan, version: int) -> None:
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
     attribute = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
-    attribute = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}" if version == 1 else attribute
     assert attributes.get(attribute) == "You are a weather assistant"
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}") == "user"
     attribute_name = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
-    attribute_name = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}" if version == 1 else attribute_name
     assert attributes.get(attribute_name) == "The windy city in the US of A."
     assert (
         attributes.get(f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
@@ -274,7 +243,7 @@ def _test_openai_agent_and_llm_spans_message_history(
 
     # Create the model and agent
     api_key = os.getenv("OPENAI_API_KEY", "sk-test")
-    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    model = OpenAIChatModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
     agent = Agent(model, output_type=LocationModel)
     agent.instrument = instrumentation
 
@@ -323,5 +292,3 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
-MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
-MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
