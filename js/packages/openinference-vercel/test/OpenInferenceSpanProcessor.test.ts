@@ -3,6 +3,7 @@ import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { BasicTracerProvider, InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
 
+import { setSession, setUser } from "@arizeai/openinference-core";
 import {
   MimeType,
   OpenInferenceSpanKind,
@@ -2149,6 +2150,147 @@ describe.each([
       expect(reRooted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
         OpenInferenceSpanKind.CHAIN,
       );
+    });
+  },
+);
+
+describe.each([
+  ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
+  ["OpenInferenceBatchSpanProcessor", OpenInferenceBatchSpanProcessor],
+] as [string, typeof OpenInferenceSimpleSpanProcessor | typeof OpenInferenceBatchSpanProcessor][])(
+  "%s — propagateContextAttributes",
+  (_name, Processor) => {
+    const build = (propagateContextAttributes?: boolean) => {
+      const exporter = new InMemorySpanExporter();
+      const proc = new Processor({
+        exporter,
+        spanFilter: isOpenInferenceSpan,
+        reparentOrphanedSpans: true,
+        propagateContextAttributes,
+      });
+      const provider = new BasicTracerProvider({ spanProcessors: [proc] });
+      return { exporter, provider, tracer: provider.getTracer("test") };
+    };
+
+    it("stamps session.id from the OpenInference context onto an AI span", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const ctx = setSession(context.active(), { sessionId: "session-123" });
+      const span = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText" } },
+        ctx,
+      );
+      span.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.length).toBe(1);
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("session-123");
+    });
+
+    it("propagates multiple context attributes (session + user)", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const ctx = setUser(setSession(context.active(), { sessionId: "session-abc" }), {
+        userId: "user-42",
+      });
+      const span = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText" } },
+        ctx,
+      );
+      span.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("session-abc");
+      expect(spans[0].attributes[SemanticConventions.USER_ID]).toBe("user-42");
+    });
+
+    it("does NOT stamp context attributes when explicitly disabled", async () => {
+      const { exporter, provider, tracer } = build(false);
+
+      const ctx = setSession(context.active(), { sessionId: "session-123" });
+      const span = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText" } },
+        ctx,
+      );
+      span.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.length).toBe(1);
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBeUndefined();
+    });
+
+    it("stamps context attributes by default when the option is omitted", async () => {
+      const { exporter, provider, tracer } = build();
+
+      const ctx = setSession(context.active(), { sessionId: "session-123" });
+      const span = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText" } },
+        ctx,
+      );
+      span.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.length).toBe(1);
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("session-123");
+    });
+
+    it("keeps session.id on a re-rooted AI span whose non-AI parent is filtered out", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      // Session lives on the context; the HTTP span that would normally carry it is
+      // filtered out and the AI span is re-rooted — session.id must survive on the root.
+      const sessionCtx = setSession(context.active(), { sessionId: "session-xyz" });
+      const http = tracer.startSpan(
+        "GET /chat",
+        { attributes: { "http.route": "/chat" } },
+        sessionCtx,
+      );
+      const aiCtx = trace.setSpan(sessionCtx, http);
+      const ai = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText" } },
+        aiCtx,
+      );
+      const child = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        { attributes: { "operation.name": "ai.generateText.doGenerate" } },
+        trace.setSpan(aiCtx, ai),
+      );
+      child.end();
+      ai.end();
+      http.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // HTTP parent dropped by the filter.
+      expect(spans.find((s) => s.name === "GET /chat")).toBeUndefined();
+      const root = spans.find(
+        (s) => s.name.startsWith("ai.generateText") && s.parentSpanId == null,
+      );
+      expect(root).toBeDefined();
+      expect(root?.attributes[SemanticConventions.SESSION_ID]).toBe("session-xyz");
+      // Every exported AI span carries the session id.
+      for (const s of spans) {
+        expect(s.attributes[SemanticConventions.SESSION_ID]).toBe("session-xyz");
+      }
     });
   },
 );

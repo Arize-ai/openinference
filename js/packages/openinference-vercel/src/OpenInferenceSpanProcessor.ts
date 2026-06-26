@@ -2,6 +2,7 @@ import type { Context } from "@opentelemetry/api";
 import type { BufferConfig, ReadableSpan, Span, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { BatchSpanProcessor, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 
+import { propagateContextAttributesToSpan } from "./contextPropagation.js";
 import { promoteReparentedRoot, reparentOrphanedSpan } from "./reparenting.js";
 import { TraceAggregateManager } from "./TraceAggregateManager.js";
 import type { SpanFilter } from "./types.js";
@@ -36,12 +37,14 @@ import { shouldExportSpan } from "./utils.js";
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly reparentOrphanedSpans: boolean;
+  private readonly propagateContextAttributes: boolean;
   private readonly aggregateManager: TraceAggregateManager;
 
   constructor({
     exporter,
     spanFilter,
     reparentOrphanedSpans = false,
+    propagateContextAttributes = true,
   }: {
     /**
      * The exporter to pass spans to.
@@ -75,16 +78,39 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
      * @default false
      */
     readonly reparentOrphanedSpans?: boolean;
+    /**
+     * Copies OpenInference context attributes onto each span at start time.
+     *
+     * The Vercel AI SDK creates its own spans, so this processor never reads the
+     * OpenInference context the way the OpenInference instrumentors do. As a result,
+     * values set with the `@arizeai/openinference-core` helpers — `setSession`,
+     * `setUser`, `setMetadata`, `setTags` — never reach the exported AI spans.
+     *
+     * When enabled, every OpenInference attribute (`session.id`, `user.id`, `metadata.*`,
+     * `tag.tags`, …) present on the start-time context is written directly onto the span,
+     * so e.g. a `session.id` set via
+     * `context.with(setSession(context.active(), { sessionId }), () => streamText(...))`
+     * groups the trace into a session in Arize / Phoenix. Setting them at start time means
+     * children started in the same context inherit them, and the values survive
+     * {@link reparentOrphanedSpans} and export.
+     *
+     * @default true
+     */
+    readonly propagateContextAttributes?: boolean;
 
     config?: BufferConfig;
   }) {
     super(exporter);
     this.spanFilter = spanFilter;
     this.reparentOrphanedSpans = reparentOrphanedSpans;
+    this.propagateContextAttributes = propagateContextAttributes;
     this.aggregateManager = new TraceAggregateManager();
   }
 
   onStart(span: Span, parentContext: Context): void {
+    if (this.propagateContextAttributes) {
+      propagateContextAttributesToSpan(span, parentContext);
+    }
     if (this.reparentOrphanedSpans) {
       reparentOrphanedSpan(span, parentContext);
     }
@@ -152,12 +178,14 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
 export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly reparentOrphanedSpans: boolean;
+  private readonly propagateContextAttributes: boolean;
   private readonly aggregateManager: TraceAggregateManager;
 
   constructor({
     exporter,
     spanFilter,
     reparentOrphanedSpans = false,
+    propagateContextAttributes = true,
     config,
   }: {
     /**
@@ -193,6 +221,25 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
      */
     readonly reparentOrphanedSpans?: boolean;
     /**
+     * Copies OpenInference context attributes onto each span at start time.
+     *
+     * The Vercel AI SDK creates its own spans, so this processor never reads the
+     * OpenInference context the way the OpenInference instrumentors do. As a result,
+     * values set with the `@arizeai/openinference-core` helpers — `setSession`,
+     * `setUser`, `setMetadata`, `setTags` — never reach the exported AI spans.
+     *
+     * When enabled, every OpenInference attribute (`session.id`, `user.id`, `metadata.*`,
+     * `tag.tags`, …) present on the start-time context is written directly onto the span,
+     * so e.g. a `session.id` set via
+     * `context.with(setSession(context.active(), { sessionId }), () => streamText(...))`
+     * groups the trace into a session in Arize / Phoenix. Setting them at start time means
+     * children started in the same context inherit them, and the values survive
+     * {@link reparentOrphanedSpans} and export.
+     *
+     * @default true
+     */
+    readonly propagateContextAttributes?: boolean;
+    /**
      * The configuration options for processor.
      */
     config?: BufferConfig;
@@ -200,10 +247,14 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     super(exporter, config);
     this.spanFilter = spanFilter;
     this.reparentOrphanedSpans = reparentOrphanedSpans;
+    this.propagateContextAttributes = propagateContextAttributes;
     this.aggregateManager = new TraceAggregateManager();
   }
 
   onStart(span: Span, parentContext: Context): void {
+    if (this.propagateContextAttributes) {
+      propagateContextAttributesToSpan(span, parentContext);
+    }
     if (this.reparentOrphanedSpans) {
       reparentOrphanedSpan(span, parentContext);
     }
