@@ -24,7 +24,7 @@ npm install --save @arizeai/openinference-vercel
 You will also need OpenTelemetry, `ai`, `@ai-sdk/otel`, and the AI SDK provider package you use. The examples below use `@ai-sdk/openai`.
 
 ```shell
-npm i @arizeai/openinference-vercel ai@^7 @ai-sdk/otel@^1 @ai-sdk/openai@^4 @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-node @arizeai/openinference-semantic-conventions
+npm i @arizeai/openinference-vercel ai@^7 @ai-sdk/otel@^1 @ai-sdk/openai@^4 @opentelemetry/api @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions @arizeai/openinference-semantic-conventions
 ```
 
 For Next.js applications deployed on Vercel, also install `@vercel/otel`:
