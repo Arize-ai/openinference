@@ -338,6 +338,14 @@ class _WorkflowWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        # Bind arguments to extract input
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+
+        # Background runs return a placeholder WorkflowRunOutput immediately while
+        # the real work happens later so we skip span creation here entirely.
+        if arguments.get("background"):
+            return wrapped(*args, **kwargs)
+
         workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
         # Use the actual method name for consistency
         method_name = getattr(wrapped, "__name__", "arun")
@@ -345,9 +353,6 @@ class _WorkflowWrapper:
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
-
-        # Bind arguments to extract input
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
 
         span = self._tracer.start_span(
             span_name,
