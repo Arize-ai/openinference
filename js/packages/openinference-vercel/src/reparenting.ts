@@ -6,7 +6,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { isLikelyAISDKSpan } from "./typeUtils";
+import { isLikelyAISDKSpan } from "./typeUtils.js";
 
 /**
  * Reparents an AI span that would be orphaned by span filtering.
