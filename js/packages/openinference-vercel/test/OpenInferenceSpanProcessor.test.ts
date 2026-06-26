@@ -1453,6 +1453,45 @@ describe.each([
       expect(llm?.parentSpanId).toBe(topId);
     });
 
+    it("does not mutate the caller's live span object (re-roots only the exported span)", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const http = tracer.startSpan("GET /chat", {
+        attributes: { "http.request.method": "GET", "http.route": "/chat" },
+      });
+      const httpId = http.spanContext().spanId;
+      const top = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText" } },
+        trace.setSpan(context.active(), http),
+      );
+
+      // The live Span object the host runtime owns must keep its real parent
+      // linkage: re-rooting for export must NOT mutate the caller's span in
+      // place. Host runtimes that manage span lifecycle around that parent
+      // (e.g. Vercel eve's durable workflow) otherwise get driven into
+      // post-end span operations — a flood of "Operation attempted on ended
+      // Span" warnings. (The parent is exposed as `parentSpanId` on 1.x spans
+      // and `parentSpanContext` on 2.x; the re-rooting clears both on export.)
+      const liveTop = top as unknown as {
+        parentSpanId?: string;
+        parentSpanContext?: { spanId: string };
+      };
+      const liveParentId = liveTop.parentSpanId ?? liveTop.parentSpanContext?.spanId;
+      expect(liveParentId).toBe(httpId);
+
+      top.end();
+      http.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // ...but the EXPORTED span is still re-rooted to be a clean trace root.
+      const exportedTop = spans.find((s) => s.name === "ai.generateText");
+      expect(exportedTop?.parentSpanId).toBeUndefined();
+    });
+
     it("leaves the top AI span orphaned when reparentOrphanedSpans is off (default)", async () => {
       const { exporter, provider, tracer } = build(); // default: off
       const { httpId } = emitHttpWrappedAI(tracer);
@@ -1559,6 +1598,39 @@ describe.each([
         OpenInferenceSpanKind.AGENT,
       );
 
+      // The LLM child stays attached to the promoted root.
+      const child = spans.find((s) => s.name === "ai.streamText.doStream");
+      expect(child?.parentSpanId).toBe(promoted?.spanContext().spanId);
+    });
+
+    it("promotes a kind-less AI wrapper that is a natural root (no parent) to an AGENT root", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      // A kind-less AI-like wrapper started as a top-level root (no parent at all) — e.g. a
+      // framework "turn" span that isn't nested under an HTTP/workflow span. It is not
+      // re-rooted (already a root), but must still be promoted to AGENT so it survives the
+      // filter instead of being dropped as kind-less.
+      const turn = tracer.startSpan("ai.eve.turn", {
+        attributes: { "operation.name": "ai.eve.turn" },
+      });
+      const llm = tracer.startSpan(
+        "ai.streamText.doStream",
+        { attributes: { "operation.name": "ai.streamText.doStream" } },
+        trace.setSpan(context.active(), turn),
+      );
+      llm.end();
+      turn.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      const promoted = spans.find((s) => s.name === "ai.eve.turn");
+      expect(promoted).toBeDefined();
+      expect(promoted?.parentSpanId).toBeUndefined();
+      expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+        OpenInferenceSpanKind.AGENT,
+      );
       // The LLM child stays attached to the promoted root.
       const child = spans.find((s) => s.name === "ai.streamText.doStream");
       expect(child?.parentSpanId).toBe(promoted?.spanContext().spanId);

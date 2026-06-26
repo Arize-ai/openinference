@@ -2,7 +2,11 @@ import type { Context } from "@opentelemetry/api";
 import type { BufferConfig, ReadableSpan, Span, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { BatchSpanProcessor, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 
-import { promoteReparentedRoot, reparentOrphanedSpan } from "./reparenting";
+import {
+  createReparentedSpan,
+  promoteReparentedRoot,
+  shouldReparentOrphanedSpan,
+} from "./reparenting";
 import { TraceAggregateManager } from "./TraceAggregateManager";
 import type { SpanFilter } from "./types";
 import { shouldExportSpan } from "./utils";
@@ -37,6 +41,12 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly reparentOrphanedSpans: boolean;
   private readonly aggregateManager: TraceAggregateManager;
+  /**
+   * Spans that {@link shouldReparentOrphanedSpan} flagged at onStart for re-rooting. Tracked by
+   * object identity (the same span instance is passed to onStart and onEnd) so the live span is
+   * never mutated; the re-rooting is applied to an exported view at onEnd.
+   */
+  private readonly orphanedSpans = new WeakSet<Span>();
 
   constructor({
     exporter,
@@ -85,19 +95,26 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   }
 
   onStart(span: Span, parentContext: Context): void {
-    if (this.reparentOrphanedSpans) {
-      reparentOrphanedSpan(span, parentContext);
+    if (this.reparentOrphanedSpans && shouldReparentOrphanedSpan(span, parentContext)) {
+      // Don't mutate the live span — record intent and re-root the exported view at onEnd.
+      this.orphanedSpans.add(span);
     }
     this.aggregateManager.onStart(span);
     super.onStart(span, parentContext);
   }
 
   onEnd(span: ReadableSpan): void {
-    this.aggregateManager.onEnd(span);
+    const isReparented =
+      this.reparentOrphanedSpans && this.orphanedSpans.has(span as unknown as Span);
 
-    if (this.reparentOrphanedSpans) {
-      // A re-rooted AI wrapper the kind map didn't recognize is still kind-less here;
-      // give it a fallback kind so it survives the filter as the trace root.
+    // A re-rooted span still carries its original parent id on the live object (we only clear
+    // it on the export view), so tell the aggregate manager to treat it as a root for
+    // status/rename handling.
+    this.aggregateManager.onEnd(span, isReparented);
+
+    // A kind-less AI-like root — whether re-rooted here or a natural root — would be dropped by
+    // an OpenInference filter; give it a fallback AGENT kind so it survives as the trace root.
+    if (this.reparentOrphanedSpans && (isReparented || span.parentSpanId == null)) {
       promoteReparentedRoot(span);
     }
 
@@ -107,7 +124,8 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
         spanFilter: this.spanFilter,
       })
     ) {
-      super.onEnd(span);
+      // Export a parent-cleared view for re-rooted spans; never mutate the caller's live span.
+      super.onEnd(isReparented ? createReparentedSpan(span) : span);
     }
   }
 
@@ -153,6 +171,12 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   private readonly spanFilter?: SpanFilter;
   private readonly reparentOrphanedSpans: boolean;
   private readonly aggregateManager: TraceAggregateManager;
+  /**
+   * Spans that {@link shouldReparentOrphanedSpan} flagged at onStart for re-rooting. Tracked by
+   * object identity (the same span instance is passed to onStart and onEnd) so the live span is
+   * never mutated; the re-rooting is applied to an exported view at onEnd.
+   */
+  private readonly orphanedSpans = new WeakSet<Span>();
 
   constructor({
     exporter,
@@ -204,19 +228,26 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   }
 
   onStart(span: Span, parentContext: Context): void {
-    if (this.reparentOrphanedSpans) {
-      reparentOrphanedSpan(span, parentContext);
+    if (this.reparentOrphanedSpans && shouldReparentOrphanedSpan(span, parentContext)) {
+      // Don't mutate the live span — record intent and re-root the exported view at onEnd.
+      this.orphanedSpans.add(span);
     }
     this.aggregateManager.onStart(span);
     return super.onStart(span, parentContext);
   }
 
   onEnd(span: ReadableSpan): void {
-    this.aggregateManager.onEnd(span);
+    const isReparented =
+      this.reparentOrphanedSpans && this.orphanedSpans.has(span as unknown as Span);
 
-    if (this.reparentOrphanedSpans) {
-      // A re-rooted AI wrapper the kind map didn't recognize is still kind-less here;
-      // give it a fallback kind so it survives the filter as the trace root.
+    // A re-rooted span still carries its original parent id on the live object (we only clear
+    // it on the export view), so tell the aggregate manager to treat it as a root for
+    // status/rename handling.
+    this.aggregateManager.onEnd(span, isReparented);
+
+    // A kind-less AI-like root — whether re-rooted here or a natural root — would be dropped by
+    // an OpenInference filter; give it a fallback AGENT kind so it survives as the trace root.
+    if (this.reparentOrphanedSpans && (isReparented || span.parentSpanId == null)) {
       promoteReparentedRoot(span);
     }
 
@@ -226,7 +257,8 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
         spanFilter: this.spanFilter,
       })
     ) {
-      super.onEnd(span);
+      // Export a parent-cleared view for re-rooted spans; never mutate the caller's live span.
+      super.onEnd(isReparented ? createReparentedSpan(span) : span);
     }
   }
 

@@ -38,9 +38,14 @@ const spanHasErrorSignal = (span: ReadableSpan): { error: boolean; message?: str
   return { error: false };
 };
 
-const maybeSetRootStatus = (span: ReadableSpan, agg: TraceAggregate): void => {
-  // Only set status on the root span, and only when it's currently UNSET.
-  if (span.parentSpanId != null) return;
+const maybeSetRootStatus = (
+  span: ReadableSpan,
+  agg: TraceAggregate,
+  treatAsRoot: boolean,
+): void => {
+  // Only set status on the root span, and only when it's currently UNSET. A re-rooted span is
+  // treated as a root even though its live parent id is still set (it's cleared only on export).
+  if (!treatAsRoot && span.parentSpanId != null) return;
   if (!isLikelyAISDKSpan(span)) return;
   if (span.status.code !== SpanStatusCode.UNSET) return;
 
@@ -61,8 +66,8 @@ const maybeSetSpanOkStatus = (span: ReadableSpan): void => {
   };
 };
 
-const maybeRenameRootSpan = (span: ReadableSpan): void => {
-  if (span.parentSpanId != null) return;
+const maybeRenameRootSpan = (span: ReadableSpan, treatAsRoot: boolean): void => {
+  if (!treatAsRoot && span.parentSpanId != null) return;
   if (!isLikelyAISDKSpan(span)) return;
 
   const attrs = span.attributes as Record<string, unknown>;
@@ -113,7 +118,7 @@ export class TraceAggregateManager {
   /**
    * Process a span ending: update error state, rename root span, set root status.
    */
-  onEnd(span: ReadableSpan): void {
+  onEnd(span: ReadableSpan, treatAsRoot = false): void {
     addOpenInferenceAttributesToSpan(span);
 
     const traceId = span.spanContext().traceId;
@@ -121,7 +126,7 @@ export class TraceAggregateManager {
 
     // If we don't have an aggregate for this trace, just process the span
     if (agg == null) {
-      maybeRenameRootSpan(span);
+      maybeRenameRootSpan(span, treatAsRoot);
       return;
     }
 
@@ -142,14 +147,14 @@ export class TraceAggregateManager {
       }
     }
 
-    maybeRenameRootSpan(span);
+    maybeRenameRootSpan(span, treatAsRoot);
 
     // Set status for AI SDK spans:
     // - Root spans get OK/ERROR based on aggregate error state
     // - Child spans get OK if they completed without error (already have ERROR if they errored)
     if (agg.isAISDKTrace) {
-      if (span.parentSpanId == null) {
-        maybeSetRootStatus(span, agg);
+      if (treatAsRoot || span.parentSpanId == null) {
+        maybeSetRootStatus(span, agg, treatAsRoot);
       } else {
         maybeSetSpanOkStatus(span);
       }
