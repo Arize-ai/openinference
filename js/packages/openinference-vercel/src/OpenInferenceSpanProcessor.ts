@@ -2,10 +2,10 @@ import type { Context } from "@opentelemetry/api";
 import type { BufferConfig, ReadableSpan, Span, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { BatchSpanProcessor, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 
-import { promoteReparentedRoot, reparentOrphanedSpan } from "./reparenting";
-import { TraceAggregateManager } from "./TraceAggregateManager";
-import type { SpanFilter } from "./types";
-import { shouldExportSpan } from "./utils";
+import { promoteReparentedRoot, reparentOrphanedSpan } from "./reparenting.js";
+import { TraceAggregateManager } from "./TraceAggregateManager.js";
+import type { SpanFilter } from "./types.js";
+import { shouldExportSpan } from "./utils.js";
 
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.

@@ -8,7 +8,7 @@ import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { registerTelemetry } from "ai";
 
-import { isOpenInferenceSpan, OpenInferenceSimpleSpanProcessor } from "../src";
+import { isOpenInferenceSpan, OpenInferenceSimpleSpanProcessor } from "../src/index.js";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);

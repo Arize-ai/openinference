@@ -1,8 +1,8 @@
 import { SpanStatusCode } from "@opentelemetry/api";
 import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
 
-import { isLikelyAISDKSpan } from "./typeUtils";
-import { addOpenInferenceAttributesToSpan } from "./utils";
+import { isLikelyAISDKSpan } from "./typeUtils.js";
+import { addOpenInferenceAttributesToSpan } from "./utils.js";
 
 type TraceAggregate = {
   activeSpans: number;

@@ -13,7 +13,7 @@ This package provides utilities to transform [Vercel AI SDK](https://github.com/
 | v7.x           | Supported     | Uses `@ai-sdk/otel` `OpenTelemetry`, which emits `gen_ai.*` spans by default. Optional supplemental `ai.*` attributes fill non-GenAI data gaps. |
 | v6.x and older | Unsupported   | Use `@arizeai/openinference-vercel` v2.x. AI SDK v6 used `experimental_telemetry` and emitted a different span shape.                           |
 
-AI SDK v7 requires Node.js 22 or newer and is ESM-only. Configure your application accordingly before upgrading.
+AI SDK v7 and this package require Node.js 22 or newer and are ESM-only. Configure your application accordingly before upgrading.
 
 ## Installation
 

@@ -11,10 +11,13 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { GenAIOperationNameToSpanKindMap, VercelSDKFunctionNameToSpanKindMap } from "./constants";
-import type { OpenInferenceIOConventionKey, SpanFilter } from "./types";
-import { isArrayOfObjects, isStringArray } from "./typeUtils";
-import { VercelAISemanticConventions } from "./VercelAISemanticConventions";
+import {
+  GenAIOperationNameToSpanKindMap,
+  VercelSDKFunctionNameToSpanKindMap,
+} from "./constants.js";
+import type { OpenInferenceIOConventionKey, SpanFilter } from "./types.js";
+import { isArrayOfObjects, isStringArray } from "./typeUtils.js";
+import { VercelAISemanticConventions } from "./VercelAISemanticConventions.js";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(

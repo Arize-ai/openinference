@@ -24,31 +24,27 @@
     "dist",
     "src"
   ],
-  "main": "dist/src/index.js",
+  "type": "module",
   "module": "dist/esm/index.js",
-  "types": "dist/src/index.d.ts",
-  "esnext": "dist/esnext/index.js",
+  "types": "dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/src/index.d.ts",
-      "import": "./dist/esm/index.js",
-      "require": "./dist/src/index.js"
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
     },
     "./utils": {
-      "types": "./dist/src/utils.d.ts",
-      "import": "./dist/esm/utils.js",
-      "require": "./dist/src/utils.js"
+      "types": "./dist/esm/utils.d.ts",
+      "import": "./dist/esm/utils.js"
     },
     "./types": {
-      "types": "./dist/src/types.d.ts",
-      "import": "./dist/esm/types.js",
-      "require": "./dist/src/types.js"
+      "types": "./dist/esm/types.d.ts",
+      "import": "./dist/esm/types.js"
     }
   },
   "scripts": {
     "prebuild": "rimraf dist",
-    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
-    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
+    "build": "tsc --build tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
+    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json",
     "type:check": "tsc --noEmit && tsc -p tsconfig.examples.json",
     "test": "vitest run --typecheck"
   },

@@ -1,4 +1,4 @@
-import type { ValueOf } from "./typeUtils";
+import type { ValueOf } from "./typeUtils.js";
 
 /**
  * Semantic conventions for the Vercel AI SDK `ai.*` attributes.
