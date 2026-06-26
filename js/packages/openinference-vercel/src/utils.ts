@@ -823,18 +823,20 @@ const getGenAIInputMessageAttributes = ({
     result[`${messagePrefix}.${SemanticConventions.MESSAGE_ROLE}`] = role;
 
     let toolCallIndex = 0;
-    parts.forEach((part, partIndex) => {
+    let contentIndex = 0;
+    parts.forEach((part) => {
       if (typeof part !== "object" || part === null) {
         return;
       }
       if (part.type === "text") {
-        const contentsPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${partIndex}`;
+        const contentsPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
         result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
         result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
           typeof part.content === "string" ? part.content : undefined;
         if (parts.length === 1 && typeof part.content === "string") {
           result[`${messagePrefix}.${SemanticConventions.MESSAGE_CONTENT}`] = part.content;
         }
+        contentIndex++;
       }
       if (part.type === "tool_call") {
         const toolCallPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;

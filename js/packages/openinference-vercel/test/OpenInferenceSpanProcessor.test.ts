@@ -1204,6 +1204,51 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
     ).toBe(JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }));
   });
 
+  it("should use dense content indices for AI SDK v7 messages with mixed part types", () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("chat gpt-4o-mini");
+    span.setAttributes({
+      "gen_ai.operation.name": "chat",
+      "gen_ai.provider.name": "openai",
+      "gen_ai.request.model": "gpt-4o-mini",
+      "gen_ai.input.messages": JSON.stringify([
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool_call",
+              id: "weather-call-id",
+              name: "weather",
+              arguments: { location: "Boston" },
+            },
+            { type: "text", content: "I will check that." },
+          ],
+        },
+      ]),
+    });
+    span.end();
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const attributes = spans[0].attributes;
+
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+      ],
+    ).toBe("I will check that.");
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.1.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+      ],
+    ).toBeUndefined();
+    expect(
+      attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_ID}`
+      ],
+    ).toBe("weather-call-id");
+  });
+
   it("should not export non-AI spans", () => {
     const tracer = trace.getTracer("test-tracer");
     const span = tracer.startSpan("ai.generateText");
