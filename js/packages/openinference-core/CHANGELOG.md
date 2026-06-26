@@ -1,5 +1,11 @@
 # @arizeai/openinference-core
 
+## 2.4.0
+
+### Minor Changes
+
+- d0f5a88: feat(openinference-genai): Improve compatability with gen_ai conventions
+
 ## 2.3.0
 
 ### Minor Changes
