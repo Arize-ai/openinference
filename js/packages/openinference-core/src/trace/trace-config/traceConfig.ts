@@ -32,8 +32,13 @@ function parseOption({
           ? maybeEnvNumber
           : optionMetadata.default;
       }
-      case "boolean":
-        return envValue.toLowerCase() === "true";
+      case "boolean": {
+        const lowerEnvValue = envValue.toLowerCase();
+        if (lowerEnvValue === "true" || lowerEnvValue === "1" || lowerEnvValue === "yes") {
+          return true;
+        }
+        return false;
+      }
       default:
         assertUnreachable(optionMetadata);
     }
