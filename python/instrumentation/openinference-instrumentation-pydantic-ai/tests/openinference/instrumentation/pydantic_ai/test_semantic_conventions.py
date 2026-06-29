@@ -183,3 +183,41 @@ def test_instrumentation_version_5_default_dotted_keys() -> None:
     assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT not in agent_attributes
     assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION not in agent_attributes
     assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL not in agent_attributes
+
+
+def _make_model_request_params(tools: list[Dict[str, Any]]) -> Dict[str, Any]:
+    import json
+
+    return {"model_request_parameters": json.dumps({"function_tools": tools})}
+
+
+def test_tool_description_none_does_not_raise() -> None:
+    """A tool with description=None must not emit a None span attribute.
+
+    pydantic-ai may emit model_request_parameters where a tool's description
+    field is present but null (tools with no docstring). Yielding None as an
+    OTel attribute value causes the OTLP exporter to raise
+    'Invalid type <class NoneType>'.
+    """
+    gen_ai_attrs = _make_model_request_params(
+        [{"name": "get_weather", "description": None, "properties": {"city": {"type": "string"}}}]
+    )
+
+    attrs = dict(get_attributes(gen_ai_attrs))
+
+    assert attrs.get(f"{SpanAttributes.LLM_TOOLS}.0.{SpanAttributes.TOOL_NAME}") == "get_weather"
+    assert f"{SpanAttributes.LLM_TOOLS}.0.{SpanAttributes.TOOL_DESCRIPTION}" not in attrs
+
+
+def test_tool_description_present_is_emitted() -> None:
+    """A tool with a non-None description should still be emitted normally."""
+    gen_ai_attrs = _make_model_request_params(
+        [{"name": "get_weather", "description": "Returns the weather.", "properties": {}}]
+    )
+
+    attrs = dict(get_attributes(gen_ai_attrs))
+
+    assert (
+        attrs.get(f"{SpanAttributes.LLM_TOOLS}.0.{SpanAttributes.TOOL_DESCRIPTION}")
+        == "Returns the weather."
+    )

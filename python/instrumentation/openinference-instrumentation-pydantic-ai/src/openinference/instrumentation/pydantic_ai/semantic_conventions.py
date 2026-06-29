@@ -345,7 +345,7 @@ def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[
     if GEN_AI_TOOL_NAME in gen_ai_attrs:
         yield SpanAttributes.TOOL_NAME, gen_ai_attrs[GEN_AI_TOOL_NAME]
 
-    if GEN_AI_TOOL_DESCRIPTION in gen_ai_attrs:
+    if gen_ai_attrs.get(GEN_AI_TOOL_DESCRIPTION) is not None:
         yield SpanAttributes.TOOL_DESCRIPTION, gen_ai_attrs[GEN_AI_TOOL_DESCRIPTION]
 
     if GEN_AI_TOOL_CALL_ID in gen_ai_attrs:
@@ -407,10 +407,9 @@ def _extract_tools(output_tools: List[Dict[str, Any]]) -> Any:
         tool_info: Dict[str, Any] = {}
         if PydanticModelRequestParametersTool.NAME in tool:
             tool_info[SpanAttributes.TOOL_NAME] = tool[PydanticModelRequestParametersTool.NAME]
-        if PydanticModelRequestParametersTool.DESCRIPTION in tool:
-            tool_info[SpanAttributes.TOOL_DESCRIPTION] = tool[
-                PydanticModelRequestParametersTool.DESCRIPTION
-            ]
+        description = tool.get(PydanticModelRequestParametersTool.DESCRIPTION)
+        if description is not None:
+            tool_info[SpanAttributes.TOOL_DESCRIPTION] = description
         if PydanticModelRequestParametersTool.PARAMETERS in tool and isinstance(
             tool[PydanticModelRequestParametersTool.PARAMETERS], dict
         ):
