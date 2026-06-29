@@ -3,9 +3,7 @@ from typing import Any, Dict
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_AGENT_NAME,
     GEN_AI_OPERATION_NAME,
-    GEN_AI_TOOL_CALL_ARGUMENTS,
     GEN_AI_TOOL_CALL_ID,
-    GEN_AI_TOOL_CALL_RESULT,
     GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
@@ -19,6 +17,9 @@ from openinference.semconv.trace import SpanAttributes
 LEGACY_TOOL_ARGUMENTS_KEY = "tool_arguments"
 LEGACY_TOOL_RESPONSE_KEY = "tool_response"
 LEGACY_AGENT_NAME_KEY = "agent_name"
+
+GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
+GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
 
 def test_tool_attributes_from_legacy_flat_keys_only() -> None:

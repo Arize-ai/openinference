@@ -18,9 +18,7 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_REQUEST_TOP_P,
     GEN_AI_SYSTEM,
     GEN_AI_SYSTEM_INSTRUCTIONS,
-    GEN_AI_TOOL_CALL_ARGUMENTS,
     GEN_AI_TOOL_CALL_ID,
-    GEN_AI_TOOL_CALL_RESULT,
     GEN_AI_TOOL_DESCRIPTION,
     GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_INPUT_TOKENS,
@@ -40,6 +38,9 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+_GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
+_GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
 
 # Many event related conventions are not in the opentelemetry-python package yet
@@ -350,16 +351,16 @@ def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[
 
     if GEN_AI_TOOL_CALL_ID in gen_ai_attrs:
         yield ToolCallAttributes.TOOL_CALL_ID, gen_ai_attrs[GEN_AI_TOOL_CALL_ID]
-    if GEN_AI_TOOL_CALL_ARGUMENTS in gen_ai_attrs:
-        yield SpanAttributes.TOOL_PARAMETERS, gen_ai_attrs[GEN_AI_TOOL_CALL_ARGUMENTS]
+    if _GEN_AI_TOOL_CALL_ARGUMENTS in gen_ai_attrs:
+        yield SpanAttributes.TOOL_PARAMETERS, gen_ai_attrs[_GEN_AI_TOOL_CALL_ARGUMENTS]
     elif PydanticTools.TOOL_ARGUMENTS in gen_ai_attrs:
         yield (
             SpanAttributes.TOOL_PARAMETERS,
             gen_ai_attrs[PydanticTools.TOOL_ARGUMENTS],
         )
 
-    if GEN_AI_TOOL_CALL_RESULT in gen_ai_attrs:
-        yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[GEN_AI_TOOL_CALL_RESULT]
+    if _GEN_AI_TOOL_CALL_RESULT in gen_ai_attrs:
+        yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[_GEN_AI_TOOL_CALL_RESULT]
     elif PydanticTools.TOOL_RESPONSE in gen_ai_attrs:
         yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[PydanticTools.TOOL_RESPONSE]
 

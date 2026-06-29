@@ -14,7 +14,7 @@ tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
 tracer_provider.add_span_processor(BatchSpanProcessor(exporter))
 
 agent = Agent("openai:gpt-4.1-nano")
-agent.instrument_all(instrument=InstrumentationSettings(version=2))
+agent.instrument_all(instrument=InstrumentationSettings(version=5))
 
 
 @agent.tool_plain
