@@ -18,7 +18,9 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_REQUEST_TOP_P,
     GEN_AI_SYSTEM,
     GEN_AI_SYSTEM_INSTRUCTIONS,
+    GEN_AI_TOOL_CALL_ARGUMENTS,
     GEN_AI_TOOL_CALL_ID,
+    GEN_AI_TOOL_CALL_RESULT,
     GEN_AI_TOOL_DESCRIPTION,
     GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_INPUT_TOKENS,
@@ -124,6 +126,9 @@ class PydanticGenAIAttribute:
     GEN_AI = "gen_ai"
 
 
+_AGENT_OPERATION_NAMES = frozenset({"invoke_agent", "create_agent"})
+
+
 class PydanticGenAITool:
     TOOL = "tool"
 
@@ -180,9 +185,11 @@ def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]
 
 def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract attributes common to all operation types."""
-
     # We want to ignore token counts on non LLM spans. Pydantic adds token counts to agents
-    ignore_token_counts = PydanticAgentName.AGENT in gen_ai_attrs
+    ignore_token_counts = (
+        PydanticAgentName.AGENT in gen_ai_attrs
+        or gen_ai_attrs.get(GEN_AI_OPERATION_NAME) in _AGENT_OPERATION_NAMES
+    )
     if GEN_AI_OPERATION_NAME in gen_ai_attrs:
         try:
             operation = gen_ai_attrs[GEN_AI_OPERATION_NAME]
@@ -343,12 +350,17 @@ def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[
 
     if GEN_AI_TOOL_CALL_ID in gen_ai_attrs:
         yield ToolCallAttributes.TOOL_CALL_ID, gen_ai_attrs[GEN_AI_TOOL_CALL_ID]
-    if PydanticTools.TOOL_ARGUMENTS in gen_ai_attrs:
+    if GEN_AI_TOOL_CALL_ARGUMENTS in gen_ai_attrs:
+        yield SpanAttributes.TOOL_PARAMETERS, gen_ai_attrs[GEN_AI_TOOL_CALL_ARGUMENTS]
+    elif PydanticTools.TOOL_ARGUMENTS in gen_ai_attrs:
         yield (
             SpanAttributes.TOOL_PARAMETERS,
             gen_ai_attrs[PydanticTools.TOOL_ARGUMENTS],
         )
-    if PydanticTools.TOOL_RESPONSE in gen_ai_attrs:
+
+    if GEN_AI_TOOL_CALL_RESULT in gen_ai_attrs:
+        yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[GEN_AI_TOOL_CALL_RESULT]
+    elif PydanticTools.TOOL_RESPONSE in gen_ai_attrs:
         yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[PydanticTools.TOOL_RESPONSE]
 
     if OTELConventions.EVENTS in gen_ai_attrs:

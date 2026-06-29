@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import List, Mapping, Sequence, Union, cast
+from typing import Any, List, Mapping, Sequence, Union, cast
 
 import pytest
 from opentelemetry import trace
@@ -292,3 +292,44 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+
+
+@pytest.mark.vcr
+def test_openai_tool_span_instrumentation_v5(
+    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
+) -> None:
+    trace.set_tracer_provider(tracer_provider)
+
+    api_key = os.getenv("OPENAI_API_KEY", "sk-test")
+    model = OpenAIChatModel("gpt-4o-mini", provider=OpenAIProvider(api_key=api_key))
+    agent = Agent(model)
+    agent.instrument = InstrumentationSettings(version=cast(Any, 5))
+
+    @agent.tool_plain
+    def get_weather(city: str) -> str:
+        return f"It's sunny in {city}."
+
+    result = agent.run_sync("What's the weather in Paris?")
+    assert result is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    tool_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    tool_attrs = dict(cast(Mapping[str, AttributeValue], tool_span.attributes))
+
+    assert (
+        tool_attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.TOOL.value
+    )
+    assert tool_attrs.get(SpanAttributes.TOOL_NAME) == "get_weather"
+    assert tool_attrs.get(SpanAttributes.TOOL_PARAMETERS) is not None
+    assert tool_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None
+
+    agent_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+    agent_attrs = dict(cast(Mapping[str, AttributeValue], agent_span.attributes))
+    assert (
+        agent_attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.AGENT.value
+    )
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT not in agent_attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION not in agent_attrs
