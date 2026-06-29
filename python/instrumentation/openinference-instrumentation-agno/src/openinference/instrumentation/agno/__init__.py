@@ -270,7 +270,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
             # Wrap Workflow.aexecute (async)
             if hasattr(Workflow, "_aexecute") and callable(getattr(Workflow, "_aexecute", None)):
-                self._original_workflow_methods["_aexecute"] = Workflow._aexecute
+                self._original_workflow_methods["_aexecute"] = Workflow._aexecute  # type: ignore[assignment]
                 wrap_function_wrapper(
                     Workflow,
                     "_aexecute",
