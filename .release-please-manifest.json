@@ -24,7 +24,7 @@
     "python/instrumentation/openinference-instrumentation-mcp": "2.0.3",
     "python/instrumentation/openinference-instrumentation-google-genai": "1.1.1",
     "python/instrumentation/openinference-instrumentation-autogen-agentchat": "0.1.9",
-    "python/instrumentation/openinference-instrumentation-pydantic-ai": "0.1.16",
+    "python/instrumentation/openinference-instrumentation-pydantic-ai": "0.1.17",
     "python/instrumentation/openinference-instrumentation-google-adk": "0.1.16",
     "python/instrumentation/openinference-instrumentation-openlit": "0.1.7",
     "python/instrumentation/openinference-instrumentation-openllmetry": "0.1.11",
