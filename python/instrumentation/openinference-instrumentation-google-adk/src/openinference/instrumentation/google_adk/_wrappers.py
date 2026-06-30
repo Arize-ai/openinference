@@ -604,10 +604,7 @@ def bind_args_kwargs(func: Any, *args: Any, **kwargs: Any) -> OrderedDict[str, A
 
 
 def _event_has_content(event: Event) -> bool:
-    content = getattr(event, "content", None)
-    if content is None:
-        return False
-    return bool(getattr(content, "parts", None))
+    return bool(event.content and event.content.parts)
 
 
 def _default(obj: Any) -> Any:
