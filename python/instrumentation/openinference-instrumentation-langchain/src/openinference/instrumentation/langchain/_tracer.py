@@ -82,6 +82,7 @@ _AUDIT_TIMING = False
 IGNORED_EXCEPTION_PATTERNS = [
     r"^Command\(",
     r"^ParentCommand\(",
+    r"^GraphInterrupt\(",
 ]
 
 
