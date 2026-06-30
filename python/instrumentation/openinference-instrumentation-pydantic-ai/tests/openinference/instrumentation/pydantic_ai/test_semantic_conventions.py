@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict
 
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
@@ -11,7 +12,7 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
 )
 
 from openinference.instrumentation.pydantic_ai.semantic_conventions import get_attributes
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import SpanAttributes, ToolAttributes
 
 # Legacy (instrumentation version 2) flat attribute keys used by pydantic-ai.
 LEGACY_TOOL_ARGUMENTS_KEY = "tool_arguments"
@@ -187,8 +188,6 @@ def test_instrumentation_version_5_default_dotted_keys() -> None:
 
 
 def _make_model_request_params(tools: list[Dict[str, Any]]) -> Dict[str, Any]:
-    import json
-
     return {"model_request_parameters": json.dumps({"function_tools": tools})}
 
 
@@ -222,3 +221,59 @@ def test_tool_description_present_is_emitted() -> None:
         attrs.get(f"{SpanAttributes.LLM_TOOLS}.0.{SpanAttributes.TOOL_DESCRIPTION}")
         == "Returns the weather."
     )
+
+
+def test_tool_json_schema_from_parameters_json_schema_key() -> None:
+    """pydantic-ai serializes a ToolDefinition's JSON schema under the
+    ``parameters_json_schema`` key (confirmed for both instrumentation v2 / pydantic-ai
+    1.51.0 and v5 / pydantic-ai 2.0.0). The extractor must read that key so the LLM span
+    carries ``llm.tools.0.tool.json_schema`` -- reading ``properties`` alone silently drops it.
+    """
+    schema = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+    gen_ai_attrs = _make_model_request_params(
+        [{"name": "get_weather", "description": "d", "parameters_json_schema": schema}]
+    )
+
+    attrs = dict(get_attributes(gen_ai_attrs))
+
+    json_schema_attr = attrs.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
+    assert json_schema_attr is not None
+    assert json.loads(json_schema_attr) == schema
+
+
+def test_tool_json_schema_falls_back_to_properties_key() -> None:
+    """If only the legacy ``properties`` key is present, it is still used as the schema."""
+    schema = {"type": "object", "properties": {"city": {"type": "string"}}}
+    gen_ai_attrs = _make_model_request_params([{"name": "get_weather", "properties": schema}])
+
+    attrs = dict(get_attributes(gen_ai_attrs))
+
+    json_schema_attr = attrs.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
+    assert json_schema_attr is not None
+    assert json.loads(json_schema_attr) == schema
+
+
+def test_tool_json_schema_parameters_json_schema_takes_precedence() -> None:
+    """When both the canonical ``parameters_json_schema`` and the legacy ``properties`` key
+    are present, the canonical key wins (mirrors the tool argument/result precedence)."""
+    canonical = {"type": "object", "properties": {"city": {"type": "string"}}}
+    legacy = {"type": "object", "properties": {"stale": {"type": "string"}}}
+    gen_ai_attrs = _make_model_request_params(
+        [{"name": "get_weather", "parameters_json_schema": canonical, "properties": legacy}]
+    )
+
+    attrs = dict(get_attributes(gen_ai_attrs))
+
+    json_schema_attr = attrs.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
+    assert json_schema_attr is not None
+    assert json.loads(json_schema_attr) == canonical
+
+
+def test_tool_json_schema_absent_when_neither_key_present() -> None:
+    """A tool with no schema key emits no ``tool.json_schema`` attribute (but still its name)."""
+    gen_ai_attrs = _make_model_request_params([{"name": "get_weather"}])
+
+    attrs = dict(get_attributes(gen_ai_attrs))
+
+    assert attrs.get(f"{SpanAttributes.LLM_TOOLS}.0.{SpanAttributes.TOOL_NAME}") == "get_weather"
+    assert f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}" not in attrs

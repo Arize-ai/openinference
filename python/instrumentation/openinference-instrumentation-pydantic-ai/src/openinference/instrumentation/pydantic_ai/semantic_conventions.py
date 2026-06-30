@@ -149,6 +149,10 @@ class PydanticModelRequestParameters:
 class PydanticModelRequestParametersTool:
     NAME = "name"
     DESCRIPTION = "description"
+    # pydantic-ai serializes ToolDefinition with the JSON schema under
+    # ``parameters_json_schema`` (both instrumentation v2 and v5). ``properties`` is
+    # kept only as a defensive fallback for older/alternate shapes.
+    PARAMETERS_JSON_SCHEMA = "parameters_json_schema"
     PARAMETERS = "properties"
 
 
@@ -411,12 +415,11 @@ def _extract_tools(output_tools: List[Dict[str, Any]]) -> Any:
         description = tool.get(PydanticModelRequestParametersTool.DESCRIPTION)
         if description is not None:
             tool_info[SpanAttributes.TOOL_DESCRIPTION] = description
-        if PydanticModelRequestParametersTool.PARAMETERS in tool and isinstance(
-            tool[PydanticModelRequestParametersTool.PARAMETERS], dict
-        ):
-            tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(
-                tool[PydanticModelRequestParametersTool.PARAMETERS]
-            )
+        json_schema = tool.get(
+            PydanticModelRequestParametersTool.PARAMETERS_JSON_SCHEMA
+        ) or tool.get(PydanticModelRequestParametersTool.PARAMETERS)
+        if isinstance(json_schema, dict):
+            tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(json_schema)
 
         if tool_info:
             tools.append(tool_info)

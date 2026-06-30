@@ -24,6 +24,7 @@ from openinference.semconv.trace import (
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -324,6 +325,31 @@ def test_openai_tool_span_instrumentation_v5(
     assert tool_attrs.get(SpanAttributes.TOOL_NAME) == "get_weather"
     assert tool_attrs.get(SpanAttributes.TOOL_PARAMETERS) is not None
     assert tool_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None
+
+    # An LLM span must carry the tool's JSON schema. pydantic-ai 2.0 serializes it under
+    # ``parameters_json_schema`` (not ``properties``), so this guards the extraction path.
+    # A tool-calling run produces multiple LLM spans (the call and the follow-up); the tool
+    # definitions appear on the span(s) where the tool is offered to the model.
+    json_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    ]
+    json_schemas = [
+        json.loads(cast(str, span.attributes[json_schema_key]))
+        for span in llm_spans
+        if span.attributes and json_schema_key in span.attributes
+    ]
+    assert json_schemas, "no LLM span carried llm.tools.0.tool.json_schema"
+    # The emitted value must be the actual JSON schema object (the get_weather tool takes a
+    # `city: str`), not just any string that happens to contain "city".
+    assert any(
+        schema.get("properties", {}).get("city", {}).get("type") == "string"
+        for schema in json_schemas
+    )
 
     agent_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
     agent_attrs = dict(cast(Mapping[str, AttributeValue], agent_span.attributes))
