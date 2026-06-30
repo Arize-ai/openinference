@@ -286,11 +286,14 @@ function extractInputToolAttributes({
     Array.isArray(requestBody.toolConfig.tools)
   ) {
     requestBody.toolConfig.tools.forEach((tool, index) => {
-      if (tool.toolSpec && isObjectWithStringKeys(tool.toolSpec)) {
+      // Record each tool element verbatim (keeping the Converse tagged-union
+      // envelope) to match the OpenAI/Anthropic instrumentors and the Converse
+      // extractor, and to preserve non-toolSpec members such as systemTool.
+      if (isObjectWithStringKeys(tool)) {
         setSpanAttribute(
           span,
           `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
-          JSON.stringify(tool.toolSpec),
+          JSON.stringify(tool),
         );
       }
     });
