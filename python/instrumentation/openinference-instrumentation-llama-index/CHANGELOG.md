@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.4.2...python-openinference-instrumentation-llama-index-v4.4.3) (2026-06-30)
+
+
+### Bug Fixes
+
+* **llama_index:** capture LLM model name from to_payload() serialization in legacy callback handler ([#3306](https://github.com/Arize-ai/openinference/issues/3306)) ([3dd465f](https://github.com/Arize-ai/openinference/commit/3dd465f155d266c1c4a8955ac2bf39b1677f0274))
+
 ## [4.4.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.4.1...python-openinference-instrumentation-llama-index-v4.4.2) (2026-05-18)
 
 
