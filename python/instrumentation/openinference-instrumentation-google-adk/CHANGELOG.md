@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.15...python-openinference-instrumentation-google-adk-v0.1.16) (2026-06-30)
+
+
+### Bug Fixes
+
+* **google_adk docs:** updating default model in example code ([#3290](https://github.com/Arize-ai/openinference/issues/3290)) ([084eb73](https://github.com/Arize-ai/openinference/commit/084eb733b724430adb311c08e9a33539b9d5237d))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.14...python-openinference-instrumentation-google-adk-v0.1.15) (2026-05-22)
 
 
