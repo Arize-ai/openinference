@@ -376,14 +376,36 @@ class OpenInferenceSpanProcessor(SpanProcessor):
     SpanProcessor that converts OpenLLMetry spans to OpenInference attributes.
     """
 
+    @staticmethod
+    def _write_attributes(span: Any, new_attrs: Dict[str, Any]) -> None:
+        """Write the converted attributes back onto the readable span.
+
+        Since opentelemetry-sdk 1.37, ``Span.end()`` marks the span's
+        attributes immutable (``self._attributes._immutable = True``) before
+        invoking ``on_end``, so mutating them in place via ``clear()`` /
+        ``update()`` raises ``TypeError``. Rebind the readable span's
+        ``_attributes`` to a fresh mapping instead. This only affects the
+        ``ReadableSpan`` handed to downstream processors/exporters; the live
+        span object is untouched. Older SDKs whose attributes are still
+        mutable are handled by the same in-place path below.
+        """
+        existing = getattr(span, "_attributes", None)
+        if existing is not None and not getattr(existing, "_immutable", False):
+            try:
+                existing.clear()
+                existing.update(new_attrs)
+                return
+            except (TypeError, AttributeError):
+                pass
+        span._attributes = new_attrs
+
     def on_end(self, span: Any) -> None:
-        attrs: Dict[str, Any] = getattr(span, "_attributes", {})
+        attrs: Dict[str, Any] = dict(getattr(span, "_attributes", None) or {})
 
         kind = attrs.get(SpanAttributes.TRACELOOP_SPAN_KIND)
         if kind and kind.lower() != "llm":
             generic = _map_generic_span(attrs, span_name=getattr(span, "name", None))
-            attrs.clear()
-            attrs.update(generic)
+            self._write_attributes(span, generic)
             return
 
         # Detect which message format is present.
@@ -498,3 +520,4 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         }
 
         attrs.update(oi_attrs)
+        self._write_attributes(span, attrs)
