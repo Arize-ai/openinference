@@ -164,6 +164,7 @@ jobs:
         id: preflight
         env:
           SLICE_PREFIX: claude/dependabot-security-${{ steps.alerts.outputs.slug }}--
+          TARGET_MANIFEST: ${{ steps.alerts.outputs.manifest }}
         run: |
           set -euo pipefail
           # Pipe to standalone jq (gh's built-in --jq does not accept --arg);
@@ -184,7 +185,7 @@ jobs:
             {
               echo "## Dependabot security auto-fix"
               echo
-              echo "**Status:** skipped; an open auto-fix PR for \`${{ steps.alerts.outputs.manifest }}\` already exists: $existing"
+              printf '**Status:** skipped; an open auto-fix PR for `%s` already exists: %s\n' "$TARGET_MANIFEST" "$existing"
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -192,9 +193,13 @@ jobs:
 
       - name: Create branch
         if: steps.alerts.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+          SLICE_SLUG: ${{ steps.alerts.outputs.slug }}
         run: |
           set -euo pipefail
-          BRANCH="claude/dependabot-security-${{ steps.alerts.outputs.slug }}--${{ github.run_id }}-${{ github.run_attempt }}"
+          BRANCH="claude/dependabot-security-${SLICE_SLUG}--${RUN_ID}-${RUN_ATTEMPT}"
           git fetch --no-tags --depth=1 origin "$DEFAULT_BRANCH"
           git checkout -B "$BRANCH" FETCH_HEAD
           echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
@@ -305,6 +310,7 @@ jobs:
           # Empty on scheduled runs (-> real publish). Set true via dispatch to
           # commit locally and emit the diff as an artifact without pushing/PRing.
           DRY_RUN: ${{ inputs.dry_run }}
+          TARGET_MANIFEST: ${{ steps.alerts.outputs.manifest }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -358,7 +364,7 @@ jobs:
             exit 0
           fi
 
-          DEFAULT_TITLE="fix(deps): resolve Dependabot security alerts in ${{ steps.alerts.outputs.manifest }}"
+          DEFAULT_TITLE="fix(deps): resolve Dependabot security alerts in $TARGET_MANIFEST"
           PR_TITLE="$DEFAULT_TITLE"
           if [ -s .scratch/pr-title.txt ]; then
             CANDIDATE=$(head -n 1 .scratch/pr-title.txt | tr -d '\r')
