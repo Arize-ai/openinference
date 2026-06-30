@@ -666,6 +666,810 @@ async def test_acompletion_streaming_with_tool_calls(
     assert attributes.get(tool_call_1_args) == '{"x": 1, "y": 2}'
 
 
+def test_completion_with_reasoning_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import Choices, ModelResponse
+
+    in_memory_span_exporter.clear()
+
+    msg = LitellmMessage.model_construct(
+        role="assistant",
+        content="Beijing",
+        reasoning_content="I need to think about this.",
+    )
+    response = ModelResponse(
+        id="chatcmpl-rc1",
+        choices=[Choices(message=msg, index=0, finish_reason="stop")],
+        model="deepseek/deepseek-reasoner",
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = lambda *args, **kwargs: response
+        litellm.completion(
+            model="deepseek/deepseek-reasoner",
+            messages=[{"role": "user", "content": "What is the capital of China?"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+
+    # Block 0 is the reasoning block
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) == "I need to think about this."
+    # Block 1 is the text block
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "Beijing"
+    # Flat message.content must NOT be set when structured blocks are present
+    assert attributes.get(f"{prefix}.0.{MESSAGE_CONTENT}") is None
+
+
+def test_completion_streaming_with_reasoning_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Streaming: delta.reasoning_content chunks accumulate and are emitted as a reasoning block."""
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+
+    in_memory_span_exporter.clear()
+
+    chunks = [
+        ModelResponseStream(
+            id="chatcmpl-rs1",
+            model="deepseek/deepseek-reasoner",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role="assistant", content=None, reasoning_content="thinking "
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-rs1",
+            model="deepseek/deepseek-reasoner",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role=None, content="answer", reasoning_content="hard"
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-rs1",
+            model="deepseek/deepseek-reasoner",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(role=None, content=None, reasoning_content=None),
+                    finish_reason="stop",
+                )
+            ],
+        ),
+    ]
+
+    class MockStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __iter__(self) -> "MockStreamWrapper":
+            return self
+
+        def __next__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    input_messages = [{"content": "What is the capital of China?", "role": "user"}]
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: MockStreamWrapper(chunks)
+        )
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            MockStreamWrapper,
+        ):
+            response = litellm.completion(
+                model="deepseek/deepseek-reasoner",
+                messages=input_messages,
+                stream=True,
+            )
+            chunks_received = list(response)
+            assert len(chunks_received) == 3
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) == "thinking hard"
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "answer"
+
+
+@pytest.mark.asyncio
+async def test_acompletion_streaming_with_reasoning_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+
+    in_memory_span_exporter.clear()
+
+    chunks = [
+        ModelResponseStream(
+            id="chatcmpl-ars1",
+            model="deepseek/deepseek-reasoner",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role="assistant", content=None, reasoning_content="thinking "
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-ars1",
+            model="deepseek/deepseek-reasoner",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role=None, content="answer", reasoning_content="hard"
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-ars1",
+            model="deepseek/deepseek-reasoner",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(role=None, content=None, reasoning_content=None),
+                    finish_reason="stop",
+                )
+            ],
+        ),
+    ]
+
+    class MockAsyncStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __aiter__(self) -> "MockAsyncStreamWrapper":
+            return self
+
+        async def __anext__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopAsyncIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    input_messages = [{"content": "What is the capital of China?", "role": "user"}]
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+
+    async def mock_acompletion(*args: Any, **kwargs: Any) -> MockAsyncStreamWrapper:
+        return MockAsyncStreamWrapper(chunks)
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = mock_acompletion
+        response = await litellm.acompletion(
+            model="deepseek/deepseek-reasoner",
+            messages=input_messages,
+            stream=True,
+        )
+        chunks_received = [chunk async for chunk in response]
+        assert len(chunks_received) == 3
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) == "thinking hard"
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "answer"
+
+
+def test_completion_with_thinking_blocks_and_signature(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import Choices, ModelResponse
+
+    in_memory_span_exporter.clear()
+
+    msg = LitellmMessage.model_construct(
+        role="assistant",
+        content="result",
+        thinking_blocks=[{"type": "thinking", "thinking": "step 1", "signature": "sig_abc"}],
+    )
+    response = ModelResponse(
+        id="chatcmpl-tb1",
+        choices=[Choices(message=msg, index=0, finish_reason="stop")],
+        model="claude-3-7-sonnet",
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = lambda *args, **kwargs: response
+        litellm.completion(
+            model="claude-3-7-sonnet",
+            messages=[{"role": "user", "content": "Solve step by step"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    sig_key = (
+        f"{prefix}.0.{MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}"
+    )
+
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) == "step 1"
+    assert attributes.get(sig_key) == "sig_abc"
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "result"
+
+
+def test_completion_with_inline_thinking_content_blocks(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Non-streaming: content list with type='thinking' dicts are captured as reasoning blocks."""
+    from litellm.types.utils import Choices, ModelResponse
+
+    in_memory_span_exporter.clear()
+
+    msg = LitellmMessage.model_construct(
+        role="assistant",
+        content=[
+            {"type": "thinking", "thinking": "reasoning text", "signature": "sig_xyz"},
+            {"type": "text", "text": "answer"},
+        ],
+    )
+    response = ModelResponse(
+        id="chatcmpl-it1",
+        choices=[Choices(message=msg, index=0, finish_reason="stop")],
+        model="claude-3-7-sonnet",
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = lambda *args, **kwargs: response
+        litellm.completion(
+            model="claude-3-7-sonnet",
+            messages=[{"role": "user", "content": "Think and answer"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    sig_key = (
+        f"{prefix}.0.{MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}"
+    )
+
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) == "reasoning text"
+    assert attributes.get(sig_key) == "sig_xyz"
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "answer"
+
+
+def test_completion_content_id_not_emitted(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """'id' field inside a thinking content block must never appear as a span attribute."""
+    from litellm.types.utils import Choices, ModelResponse
+
+    in_memory_span_exporter.clear()
+
+    msg = LitellmMessage.model_construct(
+        role="assistant",
+        content=[
+            {"type": "thinking", "thinking": "r", "signature": "s", "id": "do_not_emit_me"},
+        ],
+    )
+    response = ModelResponse(
+        id="chatcmpl-noid1",
+        choices=[Choices(message=msg, index=0, finish_reason="stop")],
+        model="claude-3-7-sonnet",
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = lambda *args, **kwargs: response
+        litellm.completion(
+            model="claude-3-7-sonnet",
+            messages=[{"role": "user", "content": "Think"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) == "r"
+    for key in attributes:
+        assert "message_content.id" not in key, f"Unexpected id attribute found: {key}"
+
+
+def test_completion_with_thinking_blocks_and_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import Choices, ModelResponse
+
+    in_memory_span_exporter.clear()
+
+    msg = LitellmMessage.model_construct(
+        role="assistant",
+        content="ok",
+        thinking_blocks=[{"type": "thinking", "thinking": "let me reason"}],
+        tool_calls=[{"function": {"name": "get_weather", "arguments": '{"city": "Paris"}'}}],
+    )
+    response = ModelResponse(
+        id="chatcmpl-tbtc1",
+        choices=[Choices(message=msg, index=0, finish_reason="tool_calls")],
+        model="claude-3-7-sonnet",
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = lambda *args, **kwargs: response
+        litellm.completion(
+            model="claude-3-7-sonnet",
+            messages=[{"role": "user", "content": "Get weather for Paris"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) == "let me reason"
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "ok"
+
+    tool_call_name_key = (
+        f"{prefix}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    assert attributes.get(tool_call_name_key) == "get_weather"
+
+
+def test_completion_with_redacted_thinking_block(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Non-streaming: a single redacted_thinking block in thinking_blocks is emitted as
+    a reasoning block with data, followed by the text content block."""
+    from litellm.types.utils import Choices, ModelResponse
+
+    in_memory_span_exporter.clear()
+
+    msg = LitellmMessage.model_construct(
+        role="assistant",
+        content="result",
+        thinking_blocks=[{"type": "redacted_thinking", "data": "enc_blob_abc"}],
+    )
+    response = ModelResponse(
+        id="chatcmpl-rt1",
+        choices=[Choices(message=msg, index=0, finish_reason="stop")],
+        model="claude-3-7-sonnet",
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = lambda *args, **kwargs: response
+        litellm.completion(
+            model="claude-3-7-sonnet",
+            messages=[{"role": "user", "content": "Think step by step"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+
+    # Block 0 is the redacted reasoning block
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_data(prefix, 0, 0)) == "enc_blob_abc"
+    # No text field on a redacted block
+    assert attributes.get(message_contents_text(prefix, 0, 0)) is None
+    # Block 1 is the text content
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "result"
+
+
+def test_completion_with_mixed_thinking_and_redacted_thinking(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Non-streaming: thinking_blocks with both a visible thinking block and a redacted_thinking
+    block are each emitted as reasoning blocks in order, followed by the text block."""
+    from litellm.types.utils import Choices, ModelResponse
+
+    in_memory_span_exporter.clear()
+
+    msg = LitellmMessage.model_construct(
+        role="assistant",
+        content="answer",
+        thinking_blocks=[
+            {"type": "thinking", "thinking": "step1", "signature": "sig1"},
+            {"type": "redacted_thinking", "data": "enc_data"},
+        ],
+    )
+    response = ModelResponse(
+        id="chatcmpl-mrt1",
+        choices=[Choices(message=msg, index=0, finish_reason="stop")],
+        model="claude-3-7-sonnet",
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = lambda *args, **kwargs: response
+        litellm.completion(
+            model="claude-3-7-sonnet",
+            messages=[{"role": "user", "content": "Think and answer"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    sig_key = (
+        f"{prefix}.0.{MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}"
+    )
+
+    # Block 0: visible thinking block
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) == "step1"
+    assert attributes.get(sig_key) == "sig1"
+    # Block 1: redacted thinking block
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "reasoning"
+    assert attributes.get(message_contents_data(prefix, 0, 1)) == "enc_data"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) is None
+    # Block 2: text content
+    assert attributes.get(message_contents_type(prefix, 0, 2)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 2)) == "answer"
+
+
+def test_completion_streaming_with_redacted_thinking_block(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Streaming: a delta.thinking_blocks entry of type redacted_thinking is accumulated and
+    emitted as a reasoning block with data, followed by the text content block."""
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+
+    in_memory_span_exporter.clear()
+
+    chunks = [
+        ModelResponseStream(
+            id="chatcmpl-rts1",
+            model="claude-3-7-sonnet",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role="assistant",
+                        content=None,
+                        reasoning_content=None,
+                        thinking_blocks=[
+                            {"type": "redacted_thinking", "data": "enc_streaming_blob"}
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-rts1",
+            model="claude-3-7-sonnet",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role=None,
+                        content="streamed answer",
+                        reasoning_content=None,
+                        thinking_blocks=None,
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-rts1",
+            model="claude-3-7-sonnet",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role=None, content=None, reasoning_content=None, thinking_blocks=None
+                    ),
+                    finish_reason="stop",
+                )
+            ],
+        ),
+    ]
+
+    class MockStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __iter__(self) -> "MockStreamWrapper":
+            return self
+
+        def __next__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    input_messages = [{"content": "Think about this", "role": "user"}]
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: MockStreamWrapper(chunks)
+        )
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            MockStreamWrapper,
+        ):
+            response = litellm.completion(
+                model="claude-3-7-sonnet",
+                messages=input_messages,
+                stream=True,
+            )
+            chunks_received = list(response)
+            assert len(chunks_received) == 3
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+
+    # Block 0: redacted reasoning block collected from streaming
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_data(prefix, 0, 0)) == "enc_streaming_blob"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) is None
+    # Block 1: text content from streaming
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "streamed answer"
+
+
+@pytest.mark.asyncio
+async def test_acompletion_streaming_with_redacted_thinking_block(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Async streaming: delta.thinking_blocks with redacted_thinking are captured correctly."""
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+
+    in_memory_span_exporter.clear()
+
+    chunks = [
+        ModelResponseStream(
+            id="chatcmpl-arts1",
+            model="claude-3-7-sonnet",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role="assistant",
+                        content=None,
+                        reasoning_content=None,
+                        thinking_blocks=[{"type": "redacted_thinking", "data": "enc_async_blob"}],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-arts1",
+            model="claude-3-7-sonnet",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role=None,
+                        content="async answer",
+                        reasoning_content=None,
+                        thinking_blocks=None,
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-arts1",
+            model="claude-3-7-sonnet",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta.model_construct(
+                        role=None, content=None, reasoning_content=None, thinking_blocks=None
+                    ),
+                    finish_reason="stop",
+                )
+            ],
+        ),
+    ]
+
+    class MockAsyncStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __aiter__(self) -> "MockAsyncStreamWrapper":
+            return self
+
+        async def __anext__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopAsyncIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    input_messages = [{"content": "Think about this", "role": "user"}]
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+
+    async def mock_acompletion(*args: Any, **kwargs: Any) -> MockAsyncStreamWrapper:
+        return MockAsyncStreamWrapper(chunks)
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = mock_acompletion
+        response = await litellm.acompletion(
+            model="claude-3-7-sonnet",
+            messages=input_messages,
+            stream=True,
+        )
+        chunks_received = [chunk async for chunk in response]
+        assert len(chunks_received) == 3
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_data(prefix, 0, 0)) == "enc_async_blob"
+    assert attributes.get(message_contents_text(prefix, 0, 0)) is None
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "async answer"
+
+
+def test_completion_with_inline_redacted_thinking_content_block(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Non-streaming: content list containing type='redacted_thinking' dict exercises the
+    _get_attributes_from_message_content() path and emits a reasoning block with data."""
+    from litellm.types.utils import Choices, ModelResponse
+
+    in_memory_span_exporter.clear()
+
+    msg = LitellmMessage.model_construct(
+        role="assistant",
+        content=[
+            {"type": "redacted_thinking", "data": "enc_inline_blob"},
+            {"type": "text", "text": "reply"},
+        ],
+    )
+    response = ModelResponse(
+        id="chatcmpl-irt1",
+        choices=[Choices(message=msg, index=0, finish_reason="stop")],
+        model="claude-3-7-sonnet",
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = lambda *args, **kwargs: response
+        litellm.completion(
+            model="claude-3-7-sonnet",
+            messages=[{"role": "user", "content": "Think and reply"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+
+    # Block 0: inline redacted_thinking content block
+    assert attributes.get(message_contents_type(prefix, 0, 0)) == "reasoning"
+    assert attributes.get(message_contents_data(prefix, 0, 0)) == "enc_inline_blob"
+    # Block 1: text content block
+    assert attributes.get(message_contents_type(prefix, 0, 1)) == "text"
+    assert attributes.get(message_contents_text(prefix, 0, 1)) == "reply"
+
+
 def test_completion_with_tool_schema_capture(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
@@ -1925,6 +2729,10 @@ def message_contents_type(prefix: str, i: int, j: int) -> str:
 
 def message_contents_text(prefix: str, i: int, j: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_TEXT}"
+
+
+def message_contents_data(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MessageContentAttributes.MESSAGE_CONTENT_DATA}"
 
 
 def message_contents_image_url(prefix: str, i: int, j: int) -> str:
