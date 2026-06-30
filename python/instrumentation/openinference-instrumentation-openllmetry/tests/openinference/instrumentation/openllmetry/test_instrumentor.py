@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 from typing import Any, Dict, Mapping, Optional, cast
 
 import openai
@@ -125,6 +126,49 @@ class TestOpenLLMetryInstrumentor:
         tracer_provider.add_span_processor(span_processor)
 
         assert True
+
+    def test_write_attributes_updates_mutable_attributes_in_place(self) -> None:
+        """Test older SDK behavior where readable span attributes are still mutable."""
+        span = SimpleNamespace(_attributes={"old": "value"})
+        original_attributes = span._attributes
+
+        OpenInferenceSpanProcessor._write_attributes(span, {"new": "value"})
+
+        assert span._attributes is original_attributes
+        assert span._attributes == {"new": "value"}
+
+    def test_on_end_rebinds_immutable_attributes(self) -> None:
+        """Test SDK >= 1.37 behavior where span attributes are immutable before on_end."""
+
+        class _ImmutableAttributes(dict[str, Any]):
+            _immutable = True
+
+        original_attributes = _ImmutableAttributes(
+            {
+                "gen_ai.input.messages": json.dumps(
+                    [{"role": "user", "parts": [{"type": "text", "content": "Hello"}]}]
+                ),
+                "gen_ai.output.messages": json.dumps(
+                    [{"role": "assistant", "parts": [{"type": "text", "content": "Hi"}]}]
+                ),
+                "gen_ai.request.model": "gpt-4.1",
+                "gen_ai.usage.input_tokens": 1,
+                "gen_ai.usage.output_tokens": 2,
+                "gen_ai.provider.name": "openai",
+            }
+        )
+        span = SimpleNamespace(name="openai.chat", _attributes=original_attributes)
+
+        OpenInferenceSpanProcessor().on_end(span)
+
+        assert span._attributes is not original_attributes
+        assert (
+            span._attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.LLM.value
+        )
+        assert span._attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 1
+        assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2
 
 
 def _set_span_attributes(
