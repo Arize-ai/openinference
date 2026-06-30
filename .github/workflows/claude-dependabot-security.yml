@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "0 14 * * 1-5" # Weekdays 14:00 UTC
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run end-to-end but DO NOT push or open a PR; upload the proposed diff as an artifact instead."
+        type: boolean
+        default: true
+      manifest:
+        description: "Force a specific manifest_path to fix (instead of the highest-severity auto-pick). Useful for cheap test runs against a small slice."
+        type: string
+        default: ""
 
 # Queue rather than cancel: don't kill an auto-fix that may be mid-push.
 concurrency:
@@ -37,6 +46,10 @@ jobs:
 
       - name: Collect open Dependabot security alerts
         id: alerts
+        env:
+          # Empty on scheduled runs; set only via workflow_dispatch to force a
+          # specific slice for cheap test runs.
+          FORCE_MANIFEST: ${{ inputs.manifest }}
         run: |
           set -euo pipefail
           mkdir -p .scratch
@@ -55,43 +68,115 @@ jobs:
                 cve_id: .security_advisory.cve_id,
                 summary: .security_advisory.summary,
                 html_url
-              }]' > .scratch/dependabot-alerts.json
+              }]' > .scratch/all-alerts.json
 
-          count=$(jq length .scratch/dependabot-alerts.json)
-          echo "count=$count" >> "$GITHUB_OUTPUT"
+          total=$(jq length .scratch/all-alerts.json)
+          echo "total=$total" >> "$GITHUB_OUTPUT"
 
-          if [ "$count" -eq 0 ]; then
+          if [ "$total" -eq 0 ]; then
             echo "No open Dependabot security alerts found."
+            echo "count=0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
+          # Slice the queue to a SINGLE manifest per run. A monorepo-wide queue
+          # (often dozens of alerts across npm + pip) would otherwise produce one
+          # unreviewable, timeout-prone PR that also blocks every later run via the
+          # open-PR dedup. Pick the highest-severity (then lowest-numbered) alert
+          # that HAS a patched version, then target every open alert sharing its
+          # manifest_path. Excluding no-patch alerts from selection matters: an
+          # unfixable top-severity alert produces no PR, so it would otherwise be
+          # re-selected every run and starve every other manifest.
+          if [ -n "${FORCE_MANIFEST:-}" ]; then
+            # Test override: only honored if it actually has open alerts.
+            if [ "$(jq --arg m "$FORCE_MANIFEST" '[.[] | select(.manifest_path == $m)] | length' .scratch/all-alerts.json)" -gt 0 ]; then
+              target_manifest="$FORCE_MANIFEST"
+              echo "Forced manifest via workflow input: $target_manifest"
+            else
+              echo "::error::Forced manifest '$FORCE_MANIFEST' has no open alerts."
+              exit 1
+            fi
+          else
+            target_manifest=$(jq -r '
+              def rank: {"critical":0,"high":1,"medium":2,"low":3}[.] // 4;
+              [ .[] | select(.first_patched_version != null) ]
+              | sort_by((.severity | rank), .number)
+              | (.[0].manifest_path // "")
+            ' .scratch/all-alerts.json)
+          fi
+
+          if [ -z "$target_manifest" ]; then
+            echo "No auto-fixable alerts (none have a published patched version)."
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dependabot security alerts"
+              echo
+              echo "**Status:** $total open alert(s), but none have a patched version available; nothing to auto-fix."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          jq --arg m "$target_manifest" '[.[] | select(.manifest_path == $m)]' \
+            .scratch/all-alerts.json > .scratch/dependabot-alerts.json
+
+          count=$(jq length .scratch/dependabot-alerts.json)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "manifest=$target_manifest" >> "$GITHUB_OUTPUT"
+
+          # Branch-/dedup-safe slug. Manifest paths share a long common PREFIX
+          # (python/instrumentation/openinference-instrumentation-*), and two files
+          # in one package differ only by SUFFIX, so a front-truncated slug would
+          # collide. Use the distinguishing tail plus a content hash of the full
+          # path for guaranteed, deterministic uniqueness. The branch name appends
+          # a '--' delimiter so slugs can never prefix-collide either.
+          path_hash=$(printf '%s' "$target_manifest" | sha1sum | cut -c1-8)
+          path_tail=$(printf '%s' "$target_manifest" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
+            | tail -c 40 \
+            | sed -E 's/^-+//')
+          slug="${path_tail}-${path_hash}"
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+
           {
             echo "summary<<EOF"
-            jq -r '.[] | "- #\(.number) [\(.severity)] \(.ecosystem):\(.package) in `\(.manifest_path)` -> patched: \(.first_patched_version // \"unknown\")"' .scratch/dependabot-alerts.json
+            jq -r '.[] | "- #\(.number) [\(.severity)] \(.ecosystem):\(.package) in `\(.manifest_path)` -> patched: \(.first_patched_version // "unknown")"' .scratch/dependabot-alerts.json
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+          remaining=$((total - count))
           {
-            echo "## Open Dependabot security alerts"
-            jq -r '.[] | "- #\(.number) [\(.severity)] \(.ecosystem):\(.package) in `\(.manifest_path)` -> patched: \(.first_patched_version // \"unknown\")"' .scratch/dependabot-alerts.json
+            echo "## Dependabot security alerts"
+            echo
+            echo "Selected manifest for this run: \`$target_manifest\` ($count alert(s))."
+            echo "Remaining open alerts in other manifests: $remaining."
+            echo
+            echo "### Alerts in this slice"
+            jq -r '.[] | "- #\(.number) [\(.severity)] \(.ecosystem):\(.package) in `\(.manifest_path)` -> patched: \(.first_patched_version // "unknown")"' .scratch/dependabot-alerts.json
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Dedup preflight: skip the expensive Claude run when an auto-fix PR is
-      # already open. Open-only by design — a merged PR must not suppress a
-      # fresh attempt if Dependabot reports a new alert later.
+      # Dedup preflight: skip only when an auto-fix PR for THIS manifest slice is
+      # already open, so other manifests can still get their own PR concurrently.
+      # Open-only by design — a merged PR must not suppress a fresh attempt if
+      # Dependabot reports a new alert in the same manifest later.
       - name: Check for existing Claude Dependabot PR
         if: steps.alerts.outputs.count != '0'
         id: preflight
+        env:
+          SLICE_PREFIX: claude/dependabot-security-${{ steps.alerts.outputs.slug }}--
         run: |
           set -euo pipefail
+          # Pipe to standalone jq (gh's built-in --jq does not accept --arg);
+          # read the prefix from the environment via jq's env.* to keep the
+          # filter in single quotes (no shell interpolation).
           existing=$(gh pr list \
-            --repo "$GITHUB_REPOSITORY" \
-            --state open \
-            --limit 200 \
-            --json url,headRefName \
-            --jq '[.[] | select(.headRefName | startswith("claude/dependabot-security-"))][0].url // empty')
+              --repo "$GITHUB_REPOSITORY" \
+              --state open \
+              --limit 200 \
+              --json url,headRefName \
+            | jq -r '[.[] | select(.headRefName | startswith(env.SLICE_PREFIX))][0].url // empty')
           if [ -n "$existing" ]; then
-            echo "An open Claude Dependabot security PR already exists: $existing"
+            echo "An open Claude Dependabot security PR for this manifest already exists: $existing"
             {
               echo "skip=true"
               echo "existing_pr=$existing"
@@ -99,7 +184,7 @@ jobs:
             {
               echo "## Dependabot security auto-fix"
               echo
-              echo "**Status:** skipped; an open auto-fix PR already exists: $existing"
+              echo "**Status:** skipped; an open auto-fix PR for \`${{ steps.alerts.outputs.manifest }}\` already exists: $existing"
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -109,7 +194,7 @@ jobs:
         if: steps.alerts.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
         run: |
           set -euo pipefail
-          BRANCH="claude/dependabot-security-${{ github.run_id }}-${{ github.run_attempt }}"
+          BRANCH="claude/dependabot-security-${{ steps.alerts.outputs.slug }}--${{ github.run_id }}-${{ github.run_attempt }}"
           git fetch --no-tags --depth=1 origin "$DEFAULT_BRANCH"
           git checkout -B "$BRANCH" FETCH_HEAD
           echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
@@ -154,19 +239,41 @@ jobs:
           github_token: ${{ github.token }}
           show_full_output: 'true'
           prompt: |
-            Fix the open Dependabot security alerts for ${{ github.repository }}.
+            Fix the open Dependabot security alerts in a SINGLE manifest of ${{ github.repository }}.
 
-            Start by reading the alert JSON in `.scratch/dependabot-alerts.json`.
+            Target manifest (the only one you may change deps for):
+            `${{ steps.alerts.outputs.manifest }}`
+
+            Start by reading the alert JSON in `.scratch/dependabot-alerts.json`. It is
+            already filtered to this one manifest; do not pull in alerts from elsewhere.
 
             Alert summary:
             ${{ steps.alerts.outputs.summary }}
 
             Requirements:
-            1. Inspect each affected manifest and lockfile before editing. Update vulnerable dependencies to the first patched version or the smallest safe compatible version that resolves the alert.
-            2. Regenerate lockfiles with the package manager for the affected ecosystem. Do not hand-edit lockfiles unless that lockfile format is normally maintained manually.
-            3. Keep the change focused on resolving the listed security alerts. Do not edit CHANGELOG.md, release notes, or unrelated dependency pins.
-            4. Run the most relevant formatting, lockfile, and test checks available for the touched package paths. If a full test run is too expensive, run targeted checks and explain the coverage in the PR body.
-            5. If an alert cannot be fixed safely, leave the working tree unchanged and write a clear reason to `.scratch/pr-body.md`.
+            1. Confine dependency edits to the target manifest above and the lockfile it
+               drives. Inspect both before editing. Update each vulnerable dependency to the
+               first patched version or the smallest safe compatible version that resolves
+               the alert.
+            2. For a TRANSITIVE dependency (not directly listed in the manifest), prefer the
+               ecosystem's override mechanism over adding a new direct dependency: pnpm
+               `overrides` in the workspace root `package.json`, or the narrowest pin that
+               the project already uses for that ecosystem. Do not change the package's
+               public/runtime dependency surface to fix a transitive test/dev advisory.
+            3. Pick the right tool by lockfile, not just ecosystem: pnpm workspaces use
+               `pnpm` against `pnpm-lock.yaml`; a standalone `package-lock.json` uses `npm`.
+               Regenerate lockfiles with that tool; do not hand-edit them.
+            4. If the alert has no patched version, or fixing it would require an unrelated
+               major bump, breaking change, or edits outside the target manifest, DO NOT
+               force it. Leave that alert unfixed and explain why in `.scratch/pr-body.md`.
+               Still apply any sibling alerts in this manifest that you can fix safely.
+            5. Keep the change focused. Do not edit CHANGELOG.md, release notes, or unrelated
+               dependency pins.
+            6. Run the most relevant formatting, lockfile, and test checks for the touched
+               package path. If a full test run is too expensive, run targeted checks and
+               explain the coverage in the PR body.
+            7. If nothing in this manifest can be fixed safely, leave the working tree
+               unchanged and write a clear reason to `.scratch/pr-body.md`.
 
             Apply fixes directly to the working tree. Do not commit, push, or open a PR; the workflow will do that after you exit.
 
@@ -190,13 +297,15 @@ jobs:
         id: publish
         if: ${{ steps.preflight.outputs.skip != 'true' && steps.dependabot-fix.outcome == 'success' }}
         env:
-          # PAT is present only in this git/gh-only step. No package code or
-          # dependency test command runs here, so updated third-party deps never
-          # see the token.
+          # PAT (not the default GITHUB_TOKEN) so the opened PR triggers
+          # pull_request CI; GITHUB_TOKEN-authored PRs do not. The PAT is present
+          # only in this git/gh-only step. No package code or dependency test
+          # command runs here, so updated third-party deps never see the token.
           GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
+          # Empty on scheduled runs (-> real publish). Set true via dispatch to
+          # commit locally and emit the diff as an artifact without pushing/PRing.
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          gh auth setup-git
-          git remote set-url origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -249,7 +358,7 @@ jobs:
             exit 0
           fi
 
-          DEFAULT_TITLE="fix(deps): resolve Dependabot security alerts"
+          DEFAULT_TITLE="fix(deps): resolve Dependabot security alerts in ${{ steps.alerts.outputs.manifest }}"
           PR_TITLE="$DEFAULT_TITLE"
           if [ -s .scratch/pr-title.txt ]; then
             CANDIDATE=$(head -n 1 .scratch/pr-title.txt | tr -d '\r')
@@ -272,6 +381,39 @@ jobs:
           git add -A
           git restore --staged -- .scratch 2>/dev/null || true
           git commit -m "$PR_TITLE"
+
+          if [ "${DRY_RUN:-}" = "true" ]; then
+            # No PAT use, no network mutation: emit the proposed commit for review.
+            git show --stat HEAD > "$RUNNER_TEMP/proposed-changes.diff"
+            echo "---" >> "$RUNNER_TEMP/proposed-changes.diff"
+            git show HEAD >> "$RUNNER_TEMP/proposed-changes.diff"
+            {
+              echo "status=dry_run"
+              echo "pr_title<<EOF"
+              echo "$PR_TITLE"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dependabot security auto-fix (DRY RUN)"
+              echo
+              echo "No branch pushed and no PR opened. Proposed change below; full diff is in the **proposed-changes** artifact."
+              echo
+              echo "**Proposed title:** \`$PR_TITLE\`"
+              echo
+              echo "**Diffstat:**"
+              echo '```'
+              git show --stat --oneline HEAD
+              echo '```'
+              echo
+              echo "**Proposed body:**"
+              echo
+              cat "$BODY_FILE"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          gh auth setup-git
+          git remote set-url origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
           git push -u origin "$BRANCH"
           PR_URL=$(gh pr create \
             --base "$DEFAULT_BRANCH" \
@@ -287,3 +429,12 @@ jobs:
             echo
             echo "**Status:** PR opened: $PR_URL"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload proposed diff (dry run)
+        if: ${{ steps.publish.outputs.status == 'dry_run' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proposed-changes-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proposed-changes.diff
+          if-no-files-found: warn
+          retention-days: 7

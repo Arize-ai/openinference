@@ -36,3 +36,6 @@ assertion.log
 
 # Git branches
 .git-branches.toml
+
+# Dependabot security auto-fix scratch dir (CI)
+.scratch/
