@@ -389,6 +389,7 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           TARGET_MANIFEST: ${{ matrix.manifest }}
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
