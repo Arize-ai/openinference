@@ -1,0 +1,174 @@
+interactions:
+- request:
+    body: '{"input": {"text": "What is Telos?"}, "retrieveAndGenerateConfiguration":
+      {"externalSourcesConfiguration": {"sources": [{"s3Location": {"uri": "s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf"},
+      "sourceType": "S3"}], "modelArn": "anthropic.claude-3-haiku-20240307-v1:0"},
+      "type": "EXTERNAL_SOURCES"}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-agent-runtime.ap-south-1.amazonaws.com/retrieveAndGenerate
+  response:
+    body:
+      string: "{\"citations\":[{\"generatedResponsePart\":{\"textResponsePart\":{\"span\":{\"end\":399,\"start\":0},\"text\":\"Telos
+        is a knowledge representation language that is used as the basis for the knowledge
+        representation framework in the proposed knowledge base management system
+        (KBMS). Telos treats attributes as first-class citizens, supports a powerful
+        classification (or instantiation) mechanism which enhances extensibility,
+        and offers special representational and inferential mechanisms for temporal
+        knowledge.\"}},\"retrievedReferences\":[{\"content\":{\"text\":\"This paper
+        proposes a generic architecture for a knowl- edge base management system (KBMS)
+        and describes a body of results addressing issues that range from storage
+        management, query processing and concurrency control to rule processing. The
+        proposed system offers a rich rep- resentational framework including structuring
+        mechanisms (generalization, aggregation, classification and others), as well
+        as an assertion language for expressing deductive rules and integrity constraints.
+        Moreover, the system supports reasoning mechanisms, including deductive inference,
+        con- straint enforcement and temporal reasoning. The represen- tation language
+        adopted for the KBMS design is Telos (Mylopoulos et al. 1990).   The term
+        \u201Cknowledge base\u201D is used throughout the paper, instead of \u201Cdatabase\u201D,
+        mostly for historical reasons. There are no technical grounds for distinguishing
+        between the two terms, in view of the fact that (extended) database systems
+        (such as ones managing object-oriented, active and deductive databases) do
+        support some deductive and non-deductive in- ference mechanisms and structuring
+        facilities analogous to those found in knowledge bases. The difference in
+        meaning, if any, between the two terms is mostly in the degree to which they
+        support representational, structuring and infer- ence capabilities.   \"},\"location\":{\"s3Location\":{\"uri\":\"s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf\"},\"type\":\"S3\"}},{\"content\":{\"text\":\"The
+        rest of the paper is organized as follows. Section 2 presents a brief overview
+        of the knowledge representation framework of Telos. Section 3 proposes a generic
+        architec- ture for a KBMS and its components. Sections 4\u20137 describe,
+        respectively, research results on storage management, query processing, concurrency
+        control and constraint and rule man- agement. Each one of these sections defines
+        the problem in the context of knowledge bases, identifies limitations of existing
+        approaches (if such exist) and proposes solutions,   along with an evaluation.
+        The methodology used to evalu- ate the proposed research results varies with
+        the results being evaluated. Section 8 summarizes the results of this work
+        and outlines open problems for further research.   2 Overview of Telos   The
+        representational framework of Telos (Mylopoulos et al. 1990) constitutes a
+        generalization of graph-theoretic data structures used in semantic networks
+        (Findler 1979), seman- tic data models (Hull and King 1987) and object-oriented
+        representations (Zdonik and Maier 1989). \"},\"location\":{\"s3Location\":{\"uri\":\"s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf\"},\"type\":\"S3\"}},{\"content\":{\"text\":\"Telos
+        treats at- tributes as first-class citizens, supports a powerful classi- fication
+        (or instantiation) mechanism which enhances ex- tensibility and offers special
+        representational and inferen- tial mechanisms for temporal knowledge. In addition,
+        there have been formal accounts of the semantics of the lan- guage based on
+        an axiomatic approach (Stanley 1986) or a possible-worlds model (Plexousakis
+        1993b). This section introduces the core features of Telos which are divided
+        into structural, temporaland assertionalfeatures. A more com- prehensive description
+        of the language can be found else- where (Mylopoulos et al. 1990).   2.1 Structural
+        component   A Telos knowledge base consists of structured objects built out
+        of two kinds of primitive units, individuals and at- tributes. Individuals
+        are intended to represent entities (con- crete ones such as John , or abstract
+        ones such as Person ), whereas, attributes represent binary relationships
+        between entities or other relationships. Individuals and attributes are referred
+        to by a common term \u2013 proposition. As in object models, Telos propositions
+        have their own internal identi- fiers.   \"},\"location\":{\"s3Location\":{\"uri\":\"s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf\"},\"type\":\"S3\"}}]},{\"generatedResponsePart\":{\"textResponsePart\":{\"span\":{\"end\":753,\"start\":401},\"text\":\"The
+        Telos knowledge base consists of structured objects built out of two kinds
+        of primitive units: individuals and attributes. Individuals represent entities,
+        while attributes represent binary relationships between entities or other
+        relationships. Telos propositions are organized along three dimensions: attribution,
+        classification, and generalization.\"}},\"retrievedReferences\":[{\"content\":{\"text\":\"Telos
+        treats at- tributes as first-class citizens, supports a powerful classi- fication
+        (or instantiation) mechanism which enhances ex- tensibility and offers special
+        representational and inferen- tial mechanisms for temporal knowledge. In addition,
+        there have been formal accounts of the semantics of the lan- guage based on
+        an axiomatic approach (Stanley 1986) or a possible-worlds model (Plexousakis
+        1993b). This section introduces the core features of Telos which are divided
+        into structural, temporaland assertionalfeatures. A more com- prehensive description
+        of the language can be found else- where (Mylopoulos et al. 1990).   2.1 Structural
+        component   A Telos knowledge base consists of structured objects built out
+        of two kinds of primitive units, individuals and at- tributes. Individuals
+        are intended to represent entities (con- crete ones such as John , or abstract
+        ones such as Person ), whereas, attributes represent binary relationships
+        between entities or other relationships. Individuals and attributes are referred
+        to by a common term \u2013 proposition. As in object models, Telos propositions
+        have their own internal identi- fiers.   \"},\"location\":{\"s3Location\":{\"uri\":\"s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf\"},\"type\":\"S3\"}},{\"content\":{\"text\":\"Every
+        proposition p consists of a source, a label and a destinationwhich can be
+        retrieved through the functions from(p) , label(p) and to(p) . A proposition
+        can be represented by a 3-tuple2 (e.g., [Martin,age,35] ).   Propositions
+        (individuals and attributes) are organized along three dimensions, referred
+        to in the literature as attri- bution (Attardi and Simi 1981), classificationand
+        general- ization (Brodie et al. 1984).   Structured objectsconsist of collections
+        of (possibly multi-valued) attributes that have a common proposition as a
+        source, thus adding a simple form of aggregation. The structured object corresponding
+        to an individual, for exam- ple, may consist of the following set of propositions:
+        \  {MTS, [MTS, InstanceOf, Employee], [MTS, name, Martin], [MTS, sal, 30000],
+        [MTS, addr, \u201910 King\u2019s College Road\u2019], [MTS, dept, \u2019Computer
+        Science\u2019] }   In this case, MTS, an employee named Martin , has a sal
+        attribute with value 30000 , an addr attribute with value 10 King\u2019s College
+        Road and an attribute   2 Later, when\"},\"location\":{\"s3Location\":{\"uri\":\"s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf\"},\"type\":\"S3\"}},{\"content\":{\"text\":\"when
+        the temporal dimension is introduced, propositions will be shown as 4-tuples.
+        \       240   Author   Person   Employee   Conference   Paper   Univ Affiliate
+        \  Organization   Company   Integer   String   Manager   ConfPaper Department
+        \  String   String   Real   Referee   String   submittedTo   referee   author
+        \  supervisor   dept   sal   comp   name   addr   budgetname   name   Attribute
+        \  ISA   Fig. 1. An example Telos knowledge base   dept with value Computer
+        Science . Note that an at- tribute may also represent abstract relationships
+        such as [Person,addr,GeographicLocation] , intended to represent the concept
+        of the address relationship between persons and geographic locations.   Each
+        proposition is an instance of one or more generic propositions called classes\u2013
+        thus giving rise to a classi- fication hierarchy. \"},\"location\":{\"s3Location\":{\"uri\":\"s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf\"},\"type\":\"S3\"}}]},{\"generatedResponsePart\":{\"textResponsePart\":{\"span\":{\"end\":1139,\"start\":755},\"text\":\"Telos
+        also has a temporal component, where every proposition has an associated history
+        time and belief time. The history time represents the lifetime of a proposition
+        in the application domain, while the belief time refers to the time when the
+        proposition is believed by the knowledge base. Telos provides an assertion
+        language for expressing deductive rules and integrity constraints.\"}},\"retrievedReferences\":[{\"content\":{\"text\":\"For
+        example, in Fig. 1 the attribute [Employee, dept, Department] is represented
+        in this graph as an edge between Employee and Department which is la- beled
+        by dept .   2.2 The temporal component   Every Telos proposition has an associated
+        history time and a belief time. The history time of a proposition represents
+        the lifetime of a proposition in the application domain (i.e., the lifetime
+        of an entity or a relationship). A proposition\u2019s belief time, on the
+        other hand, refers to the time when the proposition is believed by the knowledge
+        base, i.e., the in- terval between the moment the proposition is added to
+        the knowledge base and the time when its belief is terminated. Both history
+        and belief time are represented by means of time intervals. The model of time
+        adopted is a modification of Allen\u2019s framework (Allen 1983). Seven exclusive
+        tem- poral relations (e.g., equal, meet, before, after, during, start, end
+        ) together with their inverses are used to characterize the possible positions
+        of two intervals on a linear time line. \"},\"location\":{\"s3Location\":{\"uri\":\"s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf\"},\"type\":\"S3\"}},{\"content\":{\"text\":\"Temporal
+        relationships participate in   the expression of deductive rules and integrity
+        constraints in the assertion language. Disjunction of temporal relation- ships
+        is disallowed in order to facilitate efficient temporal reasoning.   A proposition
+        with history time will now be a 4-tuple. For example, the proposition [Martian,
+        addr, \u201910 King\u2019s College Road\u2019,1/1/89..3/10/89] means that
+        Martian had an addr of 10 King\u2019s College Road during the period 1/1/89
+        to 3/10/89 . The time component of a proposition p may be retrieved using
+        the function when(p) .   Telos has several built-in temporal constants, such
+        as dates and times (e.g., 1988/12/07 denoting December 7, 1988, 1988 denoting
+        the interval starting at the beginning of 1988 and ending at the end of 1988),
+        semi-infinite intervals having conventional dates or times as one endpoint
+        (e.g., 1986/10/25 .. *) and the infinite interval Alltime .   2.3 The assertional
+        component   Telos provides an assertion language for the expression of deductive
+        rules and integrity constraints. \"},\"location\":{\"s3Location\":{\"uri\":\"s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf\"},\"type\":\"S3\"}},{\"content\":{\"text\":\"The
+        assertion lan- guage is a first-order language with equality.   Function symbols
+        of the language that have already been mentioned in the previous sections
+        are from(p), label(p), to(p) and when(p) , returning the source, label, destination
+        and duration of p, respectively. In addition, the assertion language supports
+        selection operations, which make it possible to \u201Cnavigate\u201D through
+        a Telos knowledge base. The selection operations include a dot function opera-
+        tion x.l [r1 t1] which evaluates to the set of to -values of the attributes
+        of proposition with source x which belong to the attribute class labeled by
+        l during intervals which are in relation r1 with time interval t1 . The definitions
+        of other functions can be found elsewhere (Mylopoulos et al. 1990). The terms
+        of the language include variables, constants (in- cluding conventional dates)
+        and the result of applying func- tions to terms.   \"},\"location\":{\"s3Location\":{\"uri\":\"s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf\"},\"type\":\"S3\"}}]}],\"output\":{\"text\":\"Telos
+        is a knowledge representation language that is used as the basis for the knowledge
+        representation framework in the proposed knowledge base management system
+        (KBMS). Telos treats attributes as first-class citizens, supports a powerful
+        classification (or instantiation) mechanism which enhances extensibility,
+        and offers special representational and inferential mechanisms for temporal
+        knowledge. The Telos knowledge base consists of structured objects built out
+        of two kinds of primitive units: individuals and attributes. Individuals represent
+        entities, while attributes represent binary relationships between entities
+        or other relationships. Telos propositions are organized along three dimensions:
+        attribution, classification, and generalization. Telos also has a temporal
+        component, where every proposition has an associated history time and belief
+        time. The history time represents the lifetime of a proposition in the application
+        domain, while the belief time refers to the time when the proposition is believed
+        by the knowledge base. Telos provides an assertion language for expressing
+        deductive rules and integrity constraints.\"},\"sessionId\":\"4cd3901e-fcb9-4e68-a887-f87779c1fe4d\"}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,5 +1,305 @@
 # @arizeai/openinference-vercel
 
+## 3.1.0
+
+### Minor Changes
+
+- d0f5a88: feat(openinference-genai): Improve compatability with gen_ai conventions
+- 605d537: Add a `propagateContextAttributes` option to `OpenInferenceSimpleSpanProcessor` and `OpenInferenceBatchSpanProcessor`. The Vercel AI SDK creates its own spans, so unlike the OpenInference instrumentors (which build spans through an `OITracer`) this processor never reads the OpenInference context — meaning values set with the `@arizeai/openinference-core` helpers (`setSession`, `setUser`, `setMetadata`, `setTags`) never reach the exported AI spans. For example, a `session.id` set via `context.with(setSession(context.active(), { sessionId }), () => streamText(...))` would be dropped, and `reparentOrphanedSpans` makes this worse: once the HTTP/server span that carried it is filtered out and the AI span is re-rooted, nothing is left holding the session id.
+
+  When enabled, every OpenInference attribute present on the start-time context (`session.id`, `user.id`, `metadata.*`, `tag.tags`, …) is written directly onto the span at `onStart`, so the values survive reparenting and export and traces group into sessions in Arize / Phoenix. Setting them at start time means children started in the same context inherit them too. The read is wrapped in `withSafety`, so a malformed context can never break the span pipeline.
+
+  Defaults to `true`; set `propagateContextAttributes: false` to opt out. Packages that extend these processors inherit the option.
+
+### Patch Changes
+
+- Updated dependencies [d0f5a88]
+  - @arizeai/openinference-genai@0.3.0
+  - @arizeai/openinference-core@2.4.0
+
+## 3.0.0
+
+### Major Changes
+
+- 930e41a: Add support for stable Vercel AI SDK v7 telemetry through `@ai-sdk/otel`. This release updates the Vercel span processor to convert AI SDK v7 GenAI semantic convention spans into idiomatic OpenInference AGENT, CHAIN, LLM, TOOL, EMBEDDING, and RERANKER spans, including model/provider metadata, token counts, cache-token details, runtime context metadata, tool definitions, tool calls, tool results, and agent names.
+
+  This also updates the package to target the stable AI SDK v7 package set, require Node.js 22 or newer, publish ESM-only entrypoints, and require compatible OpenTelemetry GenAI semantic conventions. AI SDK v6 or CommonJS users should remain on the latest v2 release of `@arizeai/openinference-vercel`.
+
+## 2.8.1
+
+### Patch Changes
+
+- 707d78b: Fix `reparentOrphanedSpans` orphaning AI spans across async/durable boundaries (e.g. agent frameworks like eve that wrap AI SDK calls in a per-turn span). `isLikelyAISDKSpan` now also recognizes `ai.*` attribute keys (such as `ai.telemetry.functionId`), so a framework wrapper like `ai.eve.turn` (whose `operation.name` is not `ai.*` and which has no `gen_ai.*` attributes) is kept as the trace root instead of being dropped and orphaning its children. Re-rooting now only detaches a span when its parent is _inspectable_ and confirmed non-AI: across an async boundary the parent can arrive as a non-recording span (a bare `SpanContext` with no attributes), and treating "can't inspect" as "non-AI" previously re-rooted children off an exported AI parent, splitting one trace into multiple roots. The check remains stateless. Root-span renaming also preserves a wrapper's own `ai.*` span name (e.g. `ai.eve.turn`) when its `operation.name` is unrelated; native AI SDK and `gen_ai` spans keep their existing rename behavior.
+
+## 2.8.0
+
+### Minor Changes
+
+- 722bf42: Add an opt-in `reparentOrphanedSpans` option to `OpenInferenceSimpleSpanProcessor` and `OpenInferenceBatchSpanProcessor`. When a span filter drops non-OpenInference spans (e.g. `isOpenInferenceSpan`), the highest-level AI span (such as `ai.generateText`/`ai.streamText` parented under the HTTP/server span Next.js parents everything under) is otherwise left orphaned — pointing at a parent that was never exported, so backends may not be able to render the trace correctly. With this enabled, any AI span whose direct parent is a non-AI span is detached (re-rooted) so it becomes a trace root. The check is stateless (the parent is read from the start-time context). Handles multiple sibling AI spans per trace; AI spans nested under an AI parent are left intact.
+
+  If the re-rooted span is an `ai.*` framework wrapper that the package doesn't map to a span kind (e.g. a per-turn span an agent framework emits on top of the AI SDK), it would otherwise be kind-less and dropped by the filter; such a root is tagged `openinference.span.kind = AGENT` so it is kept. This is matched by shape (an unrecognized AI-like root), not by any specific span name.
+
+  Defaults to `false`, so existing behavior is unchanged. It is intended for use alongside a filter that drops non-AI parent spans. Packages that extend these processors inherit the option.
+
+## 2.7.9
+
+### Patch Changes
+
+- Updated dependencies [1fe7927]
+  - @arizeai/openinference-core@2.3.0
+
+## 2.7.8
+
+### Patch Changes
+
+- Updated dependencies [52f368d]
+  - @arizeai/openinference-genai@0.2.0
+
+## 2.7.7
+
+### Patch Changes
+
+- Updated dependencies [0f0242c]
+- Updated dependencies [26733d8]
+  - @arizeai/openinference-semantic-conventions@2.5.0
+  - @arizeai/openinference-core@2.2.0
+  - @arizeai/openinference-genai@0.1.10
+
+## 2.7.6
+
+### Patch Changes
+
+- Updated dependencies [81b8bdb]
+  - @arizeai/openinference-semantic-conventions@2.4.0
+  - @arizeai/openinference-core@2.1.1
+  - @arizeai/openinference-genai@0.1.9
+
+## 2.7.5
+
+### Patch Changes
+
+- Updated dependencies [cfb128c]
+  - @arizeai/openinference-core@2.1.0
+
+## 2.7.4
+
+### Patch Changes
+
+- Updated dependencies [e09ce3f]
+  - @arizeai/openinference-semantic-conventions@2.3.0
+  - @arizeai/openinference-core@2.0.8
+  - @arizeai/openinference-genai@0.1.8
+
+## 2.7.3
+
+### Patch Changes
+
+- Updated dependencies [4eebba3]
+  - @arizeai/openinference-core@2.0.7
+
+## 2.7.2
+
+### Patch Changes
+
+- Updated dependencies [7eb1c88]
+- Updated dependencies [3944459]
+  - @arizeai/openinference-semantic-conventions@2.2.0
+  - @arizeai/openinference-core@2.0.6
+  - @arizeai/openinference-genai@0.1.7
+
+## 2.7.1
+
+### Patch Changes
+
+- cacb415: fix: Add llm.input_messages attributes to AGENT spans and ensure proper input/output formatting on LLM spans
+
+## 2.7.0
+
+### Minor Changes
+
+- 2821f95: feat(openinference-vercel): Expand multi-tool results into multiple tool messages
+
+## 2.6.0
+
+### Minor Changes
+
+- 912cdbe: feat(openinference-vercel): add AI SDK v6 telemetry support
+
+  This release improves compatibility with AI SDK v6 telemetry while keeping best-effort compatibility with older AI SDK versions.
+
+  Key behavior:
+
+  - Prefer standard `gen_ai.*` attributes (OTel GenAI semantic conventions) when present
+  - Fall back to Vercel-specific `ai.*` attributes for data not available in `gen_ai.*` and for older SDK versions
+
+  Vercel-specific `ai.*` processing includes:
+
+  - Span kind determination from `operation.name`
+  - Embeddings (`ai.value`, `ai.embedding`, etc.)
+  - Tool calls (`ai.toolCall.*`)
+  - Metadata (`ai.telemetry.metadata.*`)
+  - Streaming metrics (`ai.response.msToFirstChunk`, etc.)
+  - Input/output messages from `ai.prompt.messages` and `ai.response.toolCalls`
+
+  Additional improvements:
+
+  - Root AI SDK spans now have a status set (`OK`/`ERROR`) based on the overall invocation result.
+
+  Notes:
+
+  - AI SDK telemetry is experimental; older versions are supported on a best-effort basis.
+
+  **Migration Guide:**
+
+  - If you are on AI SDK v6: no code changes required.
+  - If you are on older AI SDK versions: no code changes required; compatibility is best-effort.
+
+## 2.5.5
+
+### Patch Changes
+
+- c79c564: force publish
+- c79c564: signed publishing
+- Updated dependencies [c79c564]
+- Updated dependencies [c79c564]
+  - @arizeai/openinference-core@2.0.5
+  - @arizeai/openinference-semantic-conventions@2.1.7
+
+## 2.5.4
+
+### Patch Changes
+
+- a4eead1: force publish
+- a4eead1: signed publishing
+- Updated dependencies [a4eead1]
+- Updated dependencies [a4eead1]
+  - @arizeai/openinference-core@2.0.4
+  - @arizeai/openinference-semantic-conventions@2.1.6
+
+## 2.5.3
+
+### Patch Changes
+
+- 74f278c: force publish
+- 74f278c: signed publishing
+- Updated dependencies [74f278c]
+- Updated dependencies [74f278c]
+  - @arizeai/openinference-core@2.0.3
+  - @arizeai/openinference-semantic-conventions@2.1.5
+
+## 2.5.2
+
+### Patch Changes
+
+- fe61379: force publish
+- fe61379: signed publishing
+- Updated dependencies [fe61379]
+- Updated dependencies [fe61379]
+  - @arizeai/openinference-core@2.0.2
+  - @arizeai/openinference-semantic-conventions@2.1.4
+
+## 2.5.1
+
+### Patch Changes
+
+- 006a685: signed publishing
+- Updated dependencies [006a685]
+  - @arizeai/openinference-core@2.0.1
+  - @arizeai/openinference-semantic-conventions@2.1.3
+
+## 2.5.0
+
+### Minor Changes
+
+- 95f4c5f: feat: Trace new token usage keys in ai sdk v5
+
+## 2.4.0
+
+### Minor Changes
+
+- 6103271: # feat: Add support for ai sdk v5 tools
+
+### Patch Changes
+
+- Updated dependencies [d3d7017]
+  - @arizeai/openinference-core@2.0.0
+
+## 2.3.5
+
+### Patch Changes
+
+- Updated dependencies [5161c9f]
+  - @arizeai/openinference-core@1.0.8
+
+## 2.3.4
+
+### Patch Changes
+
+- Updated dependencies [c50ffb0]
+  - @arizeai/openinference-semantic-conventions@2.1.2
+  - @arizeai/openinference-core@1.0.7
+
+## 2.3.3
+
+### Patch Changes
+
+- Updated dependencies [9d3bdb4]
+  - @arizeai/openinference-core@1.0.6
+
+## 2.3.2
+
+### Patch Changes
+
+- Updated dependencies [59be946]
+  - @arizeai/openinference-semantic-conventions@2.1.1
+  - @arizeai/openinference-core@1.0.5
+
+## 2.3.1
+
+### Patch Changes
+
+- fc7f97b: do not override existing span kind on a span
+
+## 2.3.0
+
+### Minor Changes
+
+- aaed014: fix: Increase opentelemetry/api peer dependency ranges for compatibility with vercel ai
+
+## 2.2.2
+
+### Patch Changes
+
+- Updated dependencies [34a4159]
+  - @arizeai/openinference-semantic-conventions@2.1.0
+  - @arizeai/openinference-core@1.0.4
+
+## 2.2.1
+
+### Patch Changes
+
+- Updated dependencies [c2ee804]
+- Updated dependencies [5f904bf]
+- Updated dependencies [5f90a80]
+  - @arizeai/openinference-semantic-conventions@2.0.0
+  - @arizeai/openinference-core@1.0.3
+
+## 2.2.0
+
+### Minor Changes
+
+- a573489: feat: Mastra instrumentation
+
+  Initial instrumentation for Mastra, adhering to OpenInference semantic conventions
+
+- a573489: feat: Instrument tool calls and results from multi-part content messages
+
+## 2.1.0
+
+### Minor Changes
+
+- c301f99: chore: pin peer deps, update readme, fix types
+
 ## 2.0.3
 
 ### Patch Changes

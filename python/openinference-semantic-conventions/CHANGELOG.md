@@ -1,5 +1,96 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.29...python-openinference-semantic-conventions-v0.1.30) (2026-05-22)
+
+
+### Features
+
+* specify reasoning semantic conventions ([#3112](https://github.com/Arize-ai/openinference/issues/3112)) ([81b8bdb](https://github.com/Arize-ai/openinference/commit/81b8bdbbb108aa98c89e25e8301cc5ab2bf734ba))
+
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.28...python-openinference-semantic-conventions-v0.1.29) (2026-04-21)
+
+
+### Features
+
+* add llm.finish_reason semantic convention ([#2991](https://github.com/Arize-ai/openinference/issues/2991)) ([e09ce3f](https://github.com/Arize-ai/openinference/commit/e09ce3f88892dff236f2ba79f395006c3c6447db))
+
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.27...python-openinference-semantic-conventions-v0.1.28) (2026-03-11)
+
+
+### Features
+
+* add new LLM provider values (groq, fireworks, moonshot, cerebras, perplexity, together) ([#2853](https://github.com/Arize-ai/openinference/issues/2853)) ([7eb1c88](https://github.com/Arize-ai/openinference/commit/7eb1c88b5014419ffb041e412ca7b5a2cbd7f2c2))
+
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.26...python-openinference-semantic-conventions-v0.1.27) (2026-03-04)
+
+
+### Features
+
+* **semconv:** add TOOL_ID (tool.id) to Python and JS semconv ([#2831](https://github.com/Arize-ai/openinference/issues/2831)) ([0b70006](https://github.com/Arize-ai/openinference/commit/0b700063be06ff135cb4210ff8243c4a67f9b765))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.25...python-openinference-semantic-conventions-v0.1.26) (2026-02-01)
+
+
+### Features
+
+* **semconv:** add prompt span kind and prompt template variables attributes ([#2669](https://github.com/Arize-ai/openinference/issues/2669)) ([cd5d2ff](https://github.com/Arize-ai/openinference/commit/cd5d2ff13ecbd50472f4097ac10994aee3245924))
+
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.24...python-openinference-semantic-conventions-v0.1.25) (2025-11-05)
+
+
+### Features
+
+* **litellm:** align embedding instrumentation with pending spec ([#2238](https://github.com/Arize-ai/openinference/issues/2238)) ([d03047d](https://github.com/Arize-ai/openinference/commit/d03047d880fc5538ba1b2fcbb37812a665905d33))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.23...python-openinference-semantic-conventions-v0.1.24) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.22...python-openinference-semantic-conventions-v0.1.23) (2025-10-07)
+
+
+### Bug Fixes
+
+* **semconv:** refactor semconv ([#2281](https://github.com/Arize-ai/openinference/issues/2281)) ([090864b](https://github.com/Arize-ai/openinference/commit/090864b0549588830c38aaa1fcd9c9700f7caf14))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.21...python-openinference-semantic-conventions-v0.1.22) (2025-10-07)
+
+
+### Features
+
+* **openai:** standardize completions to indexed attribute format ([#2242](https://github.com/Arize-ai/openinference/issues/2242)) ([478d17a](https://github.com/Arize-ai/openinference/commit/478d17a5433bd6119a8d501899a5eadbd2accccf))
+
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.20...python-openinference-semantic-conventions-v0.1.21) (2025-06-13)
+
+
+### Features
+
+* **semcov:** Update input and output cost ([#1774](https://github.com/Arize-ai/openinference/issues/1774)) ([c2ee804](https://github.com/Arize-ai/openinference/commit/c2ee804e63cb4b5ff393238854c37d99c6f5d675))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.19...python-openinference-semantic-conventions-v0.1.20) (2025-06-11)
+
+
+### Features
+
+* **semantic-conventions:** enhance provider enum to include XAI and DeepSeek ([#1766](https://github.com/Arize-ai/openinference/issues/1766)) ([f7e125e](https://github.com/Arize-ai/openinference/commit/f7e125ea70c181b2a3f069bcca4bae3bb75a7d45))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.18...python-openinference-semantic-conventions-v0.1.19) (2025-06-10)
+
+
+### Features
+
+* Add semantic conventions for agent and graph attributes ([#1748](https://github.com/Arize-ai/openinference/issues/1748)) ([5f90a80](https://github.com/Arize-ai/openinference/commit/5f90a8014c216a821c299d0c7ea7aa79a4fc738d))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.17...python-openinference-semantic-conventions-v0.1.18) (2025-06-09)
+
+
+### Features
+
+* **semcov:** Cost semantic convention changes ([#1694](https://github.com/Arize-ai/openinference/issues/1694)) ([5f904bf](https://github.com/Arize-ai/openinference/commit/5f904bfad33e109843924aab1a609845a050d6f3))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.16...python-openinference-semantic-conventions-v0.1.17) (2025-04-02)
 
 

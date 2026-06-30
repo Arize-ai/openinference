@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference OpenAI Agents Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.14"
+requires-python = ">=3.10, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,25 +18,26 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.12",
+  "openinference-instrumentation>=0.1.51",
+  "openinference-semantic-conventions>=0.1.21",
   "typing-extensions",
   "wrapt",
+  "eval_type_backport ; python_version < '3.10'",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "openai-agents >= 0.0.7",
+  "openai-agents >= 0.2.6",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -81,6 +82,12 @@ module = [
   "wrapt",
   "agents.*",
 ]
+
+# openai library types differ between v1.99.9 (py310) and v2.7.2 (py313-latest),
+# causing type ignores to be unused in one version but required in the other.
+[[tool.mypy.overrides]]
+module = "tests.test_span_attribute_helpers"
+warn_unused_ignores = false
 
 [tool.ruff]
 line-length = 100

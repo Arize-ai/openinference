@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Hello there."}, {"role": "assistant",
+      "content": "Hi, I''m Claude. How can I help you?"}, {"role": "user", "content":
+      "Can you explain LLMs in plain English?"}], "max_tokens": 1000, "temperature":
+      0.7, "anthropic_version": "bedrock-2023-05-31"}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-haiku-20240307-v1%3A0/invoke
+  response:
+    body:
+      string: '{"id":"msg_bdrk_01XwpES7uwPrhtHvHZsW2zCr","type":"message","role":"assistant","model":"claude-3-haiku-20240307","content":[{"type":"text","text":"Sure,
+        I''d be happy to explain large language models (LLMs) in plain English.\n\nLLMs
+        are a type of artificial intelligence that are trained on massive amounts
+        of text data, like books, websites, and conversations. This allows them to
+        understand and generate human-like language.\n\nThe \"large\" part refers
+        to the fact that these models have a huge number of parameters - the knobs
+        and dials that determine how the model works. The more parameters, the more
+        complex and capable the model can be.\n\nLLMs are able to perform all sorts
+        of language-related tasks, like answering questions, summarizing text, translating
+        between languages, and even generating original text. They do this by identifying
+        patterns in the training data and learning to produce human-like language.\n\nThe
+        key thing that makes LLMs powerful is their ability to understand and generate
+        language in a very flexible and contextual way, similar to how humans use
+        language. This makes them useful for all kinds of applications, from chatbots
+        and virtual assistants to content creation and language analysis.\n\nDoes
+        this help explain large language models in plain terms? Let me know if you
+        have any other questions!"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":38,"output_tokens":246}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1431'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 10 Jun 2025 18:38:38 GMT
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '38'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '3163'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '246'
+      x-amzn-RequestId:
+      - 90d78b28-0041-4c86-a776-55ac9e8cddc6
+    status:
+      code: 200
+      message: OK
+version: 1

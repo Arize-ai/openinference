@@ -1,3 +1,6 @@
+import { diag } from "@opentelemetry/api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
 import {
   MimeType,
   OpenInferenceSpanKind,
@@ -5,11 +8,13 @@ import {
   SemanticAttributePrefixes,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
+import type { LLMMessage } from "../src/types";
 import {
   safelyFlattenAttributes,
   safelyFormatFunctionCalls,
-  safelyFormatIO,
   safelyFormatInputMessages,
+  safelyFormatIO,
   safelyFormatLLMParams,
   safelyFormatMetadata,
   safelyFormatOutputMessages,
@@ -19,9 +24,7 @@ import {
   safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
 } from "../src/utils";
-import { diag } from "@opentelemetry/api";
 import { getLangchainMessage, getLangchainRun } from "./fixtures";
-import { LLMMessage } from "../src/types";
 
 describe("safelyFlattenAttributes", () => {
   const testAttributes = {
@@ -276,9 +279,7 @@ describe("formatMessages", () => {
   });
 
   describe("formatOutputMessages", () => {
-    const testOutputMessages = [
-      testMessages[0].map((message) => ({ message })),
-    ];
+    const testOutputMessages = [testMessages[0].map((message) => ({ message }))];
     it("should return null if generations is an empty array", () => {
       const result = safelyFormatOutputMessages({
         generations: [],
@@ -305,11 +306,7 @@ describe("formatMessages", () => {
     it("should ignore non-object messages and return the valid ones", () => {
       const result = safelyFormatOutputMessages({
         generations: [
-          [
-            ...testOutputMessages[0],
-            "invalid message",
-            { notGeneration: getLangchainMessage() },
-          ],
+          [...testOutputMessages[0], "invalid message", { notGeneration: getLangchainMessage() }],
         ],
       });
       expect(result).toEqual({
@@ -323,15 +320,14 @@ describe("formatRetrievalDocuments", () => {
   const runOutputDocuments = [{ pageContent: "doc1" }, { pageContent: "doc2" }];
 
   const expectedOpenInferenceRetrievalDocuments = {
-    [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]:
-      [
-        {
-          [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
-        },
-        {
-          [SemanticConventions.DOCUMENT_CONTENT]: "doc2",
-        },
-      ],
+    [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]: [
+      {
+        [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
+      },
+      {
+        [SemanticConventions.DOCUMENT_CONTENT]: "doc2",
+      },
+    ],
   };
   it("should return null if run_type is not 'retriever'", () => {
     const result = safelyFormatRetrievalDocuments(getLangchainRun());
@@ -339,9 +335,7 @@ describe("formatRetrievalDocuments", () => {
   });
 
   it("should return null if outputs is not an object", () => {
-    const result = safelyFormatRetrievalDocuments(
-      getLangchainRun({ run_type: "retriever" }),
-    );
+    const result = safelyFormatRetrievalDocuments(getLangchainRun({ run_type: "retriever" }));
     expect(result).toBeNull();
   });
 
@@ -386,23 +380,21 @@ describe("formatRetrievalDocuments", () => {
       }),
     );
     expect(result).toEqual({
-      [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]:
-        [
-          {
-            [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
-            [SemanticConventions.DOCUMENT_METADATA]: JSON.stringify({
-              key: "value",
-            }),
-          },
-        ],
+      [`${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}`]: [
+        {
+          [SemanticConventions.DOCUMENT_CONTENT]: "doc1",
+          [SemanticConventions.DOCUMENT_METADATA]: JSON.stringify({
+            key: "value",
+          }),
+        },
+      ],
     });
   });
 });
 describe("formatLLMParams", () => {
   afterEach(() => {
-    jest.clearAllMocks();
-    jest.resetModules();
-    jest.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
   it("should return null if runExtra is not an object or runExtra.invocation_params is not an object", () => {
     expect(safelyFormatLLMParams(undefined)).toBeNull();
@@ -411,7 +403,7 @@ describe("formatLLMParams", () => {
   });
 
   it("should return swallow errors stringifying invocation params, but still add model_name if possible", () => {
-    const diagMock = jest.spyOn(diag, "warn");
+    const diagMock = vi.spyOn(diag, "warn");
     const runExtra = getLangchainRun({
       extra: { invocation_params: { badKey: BigInt(1), model_name: "gpt-4" } },
     }).extra;
@@ -432,9 +424,7 @@ describe("formatLLMParams", () => {
       },
     };
     const expectedParams = {
-      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(
-        runExtra.invocation_params,
-      ),
+      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(runExtra.invocation_params),
       [SemanticConventions.LLM_MODEL_NAME]: "test",
     };
     const result = safelyFormatLLMParams(runExtra);
@@ -448,9 +438,7 @@ describe("formatLLMParams", () => {
       },
     };
     const expectedParams = {
-      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(
-        runExtra.invocation_params,
-      ),
+      [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(runExtra.invocation_params),
       [SemanticConventions.LLM_MODEL_NAME]: "test",
     };
     const result = safelyFormatLLMParams(runExtra);
@@ -477,9 +465,7 @@ describe("formatPromptTemplate", () => {
     });
     const result = safelyFormatPromptTemplate(promptRun);
     expect(result).toEqual({
-      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(
-        promptRun.inputs,
-      ),
+      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
     });
   });
 
@@ -501,9 +487,7 @@ describe("formatPromptTemplate", () => {
     });
     const result = safelyFormatPromptTemplate(promptRun);
     expect(result).toEqual({
-      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(
-        promptRun.inputs,
-      ),
+      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
       [SemanticConventions.PROMPT_TEMPLATE_TEMPLATE]: "my template",
     });
   });
@@ -524,9 +508,7 @@ describe("formatPromptTemplate", () => {
     });
     const result = safelyFormatPromptTemplate(promptRun);
     expect(result).toEqual({
-      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(
-        promptRun.inputs,
-      ),
+      [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: JSON.stringify(promptRun.inputs),
     });
   });
 });
@@ -688,9 +670,7 @@ describe("formatFunctionCalls", () => {
       },
     });
 
-    const resultWithNoMessage = safelyFormatFunctionCalls(
-      runWithInvalidMessage.outputs,
-    );
+    const resultWithNoMessage = safelyFormatFunctionCalls(runWithInvalidMessage.outputs);
     expect(resultWithNoMessage).toBeNull();
   });
 

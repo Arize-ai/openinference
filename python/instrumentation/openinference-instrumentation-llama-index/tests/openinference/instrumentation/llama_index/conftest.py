@@ -1,11 +1,32 @@
-from typing import Iterator
+from typing import Any, Iterator
+from unittest.mock import Mock, patch
 
+import google.auth.credentials
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+
+
+def _strip_request_headers(request: Any) -> Any:
+    request.headers.clear()
+    return request
+
+
+def _strip_response_headers(response: Any) -> Any:
+    return {**response, "headers": {}}
+
+
+@pytest.fixture(scope="session")
+def vcr_config() -> dict[str, Any]:
+    return {
+        "before_record_request": _strip_request_headers,
+        "before_record_response": _strip_response_headers,
+        "decode_compressed_response": True,
+        "record_mode": "once",
+    }
 
 
 @pytest.fixture
@@ -36,3 +57,15 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-")
+
+
+@pytest.fixture(autouse=True)
+def mock_google_auth() -> Iterator[Mock]:
+    """Mock Google authentication to prevent network calls during testing."""
+    with patch("google.auth.default") as mock_auth:
+        mock_credentials = Mock(spec=google.auth.credentials.Credentials)
+        mock_credentials.token = "fake_token"
+        mock_credentials.valid = True
+        mock_credentials.expired = False
+        mock_auth.return_value = (mock_credentials, "fake-project")
+        yield mock_auth

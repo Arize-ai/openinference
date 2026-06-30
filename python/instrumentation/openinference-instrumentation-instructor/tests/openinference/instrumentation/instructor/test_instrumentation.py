@@ -1,11 +1,17 @@
 import asyncio
+import json
+import logging
 import os
+import types
+from importlib import import_module
 from typing import Any, Generator, Optional
+from unittest import mock
 
 import instructor
 import openai
 import pytest
 import vcr  # type: ignore
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -15,6 +21,10 @@ from pydantic import BaseModel
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.instructor import InstructorInstrumentor
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+)
 
 
 @pytest.fixture()
@@ -42,25 +52,26 @@ def setup_instructor_instrumentation(
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/instructor/fixtures/",
-    record_mode="never",
+    record_mode="none",
     match_on=["uri", "method"],
 )
 
 
 class UserInfo(BaseModel):
-    name: str
-    age: int
+    name: Optional[str] = None
+    age: Optional[int] = None
 
 
 async def extract() -> UserInfo:
     client = instructor.from_openai(openai.AsyncOpenAI())
-    return await client.chat.completions.create(
+    user_info: UserInfo = await client.chat.completions.create(
         model="gpt-4-turbo-preview",
         messages=[
             {"role": "user", "content": "Create a user"},
         ],
         response_model=UserInfo,
     )
+    return user_info
 
 
 class TestInstrumentor:
@@ -74,6 +85,50 @@ class TestInstrumentor:
     # Ensure we're using the common OITracer from common openinference-instrumentation pkg
     def test_oitracer(self, setup_instructor_instrumentation: Any) -> None:
         assert isinstance(InstructorInstrumentor()._tracer, OITracer)
+
+    def test_instrument_does_not_raise_across_instructor_versions(
+        self, tracer_provider: TracerProvider
+    ) -> None:
+        instrumentor = InstructorInstrumentor()
+        try:
+            instrumentor.instrument(tracer_provider=tracer_provider)
+            if instrumentor._patch_module is not None:
+                module = import_module(instrumentor._patch_module)
+                assert hasattr(module, "handle_response_model")
+        finally:
+            instrumentor.uninstrument()
+
+    def test_instrument_degrades_gracefully_when_symbol_missing(
+        self,
+        tracer_provider: TracerProvider,
+        caplog: Any,
+    ) -> None:
+        candidates = {
+            "instructor.core.patch",
+            "instructor.patch",
+            "instructor.processing.response",
+            "instructor.processing",
+        }
+
+        def fake_import_module(name: str) -> Any:
+            if name in candidates:
+                return types.ModuleType(name)
+            return import_module(name)
+
+        instrumentor = InstructorInstrumentor()
+        instrumentor.uninstrument()
+        with mock.patch(
+            "openinference.instrumentation.instructor.import_module",
+            side_effect=fake_import_module,
+        ):
+            try:
+                with caplog.at_level(logging.WARNING):
+                    instrumentor.instrument(tracer_provider=tracer_provider)
+                assert instrumentor._patch_module is None
+                assert instrumentor._original_handle_response_model is None
+                assert "Could not locate `handle_response_model`" in caplog.text
+            finally:
+                instrumentor.uninstrument()
 
 
 @pytest.mark.asyncio
@@ -96,7 +151,12 @@ async def test_async_instrumentation(
         assert len(spans) == 2
         for span in spans:
             attributes = dict(span.attributes or dict())
+            if span.name in {"instructor.patch", "instructor.async_patch"}:
+                assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
+                assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
+                assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
             assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert span.status.status_code == trace_api.StatusCode.OK
 
 
 @pytest.mark.asyncio
@@ -134,7 +194,12 @@ async def test_streaming_instrumentation(
     assert len(spans) == 2
     for span in spans:
         attributes = dict(span.attributes or dict())
+        if span.name in {"instructor.patch", "instructor.async_patch"}:
+            assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
+            assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
+            assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
         assert attributes.get("openinference.span.kind") in ["TOOL"]
+        assert span.status.status_code == trace_api.StatusCode.OK
 
 
 def test_instructor_instrumentation(
@@ -149,6 +214,7 @@ def test_instructor_instrumentation(
             model="gpt-3.5-turbo",
             response_model=UserInfo,
             messages=[{"role": "user", "content": "John Doe is 30 years old."}],
+            max_retries=1,
         )
         assert user_info.name == "John Doe"
         assert user_info.age == 30
@@ -159,4 +225,17 @@ def test_instructor_instrumentation(
         assert len(spans) == 2
         for span in spans:
             attributes = dict(span.attributes or dict())
+            if span.name in {"instructor.patch", "instructor.async_patch"}:
+                assert attributes.get("llm.model_name") == "gpt-3.5-turbo"
+                assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
+                assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
             assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert span.status.status_code == trace_api.StatusCode.OK
+
+            # Validate invocation parameters handling
+            invocation_params = attributes.get("llm.invocation_parameters")
+            if isinstance(invocation_params, dict):
+                # Ensure max_retries key exists
+                assert "max_retries" in invocation_params
+                # Ensure max_retries is JSON-serializable
+                json.dumps(invocation_params)

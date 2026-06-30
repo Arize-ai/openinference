@@ -1,0 +1,283 @@
+interactions:
+- request:
+    body: '{"batch": [{"properties": {"libraries.haystack": "2.18.0", "os.containerized":
+      false, "os.version": "22.6.0", "os.family": "Darwin", "os.machine": "x86_64",
+      "python.version": "3.12.6", "hardware.cpus": 8, "libraries.pytest": "8.4.2",
+      "libraries.ipython": false, "libraries.colab": false, "hardware.gpus": 0, "libraries.transformers":
+      false, "libraries.torch": false, "libraries.cuda": false, "pipeline_id": "4640500496",
+      "pipeline_type": "haystack.core.pipeline.async_pipeline.AsyncPipeline", "runs":
+      1, "components": {"haystack.components.builders.chat_prompt_builder.ChatPromptBuilder":
+      [{"name": "prompt_builder"}], "haystack.components.generators.chat.openai.OpenAIChatGenerator":
+      [{"name": "llm", "model": "gpt-4o"}]}, "$python_runtime": "CPython", "$python_version":
+      "3.12.6", "$os": "Mac OS X", "$os_version": "13.7.8", "$lib": "posthog-python",
+      "$lib_version": "6.7.6", "$geoip_disable": true}, "timestamp": "2025-10-14T03:34:26.218782+00:00",
+      "distinct_id": "0fbae5f1-414c-4dde-a02e-459ab7e75ae0", "event": "Pipeline run
+      (2.x)", "uuid": "27ad501b-c2f4-4cfc-a072-cd97fbba7cd6"}], "historical_migration":
+      false, "sentAt": "2025-10-14T03:34:26.714869+00:00", "api_key": "phc_C44vUK9R1J6HYVdfJarTEPqVAoRPJzMXzFcj8PIrJgP"}'
+    headers: {}
+    method: POST
+    uri: https://eu.i.posthog.com/batch/
+  response:
+    body:
+      string: '{"status":"Ok"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer concisely in one sentence."},{"role":"user","content":"What
+      country is Berlin in?"}],"model":"gpt-4o","n":1,"response_format":null,"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CQQ5sZyPe1HnbYQuMnWWe1jTTkS9S\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1760412868,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Germany.\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 25,\n    \"completion_tokens\":
+        2,\n    \"total_tokens\": 27,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_f64f290af2\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"batch": [{"properties": {"libraries.haystack": "2.18.0", "os.containerized":
+      false, "os.version": "22.6.0", "os.family": "Darwin", "os.machine": "x86_64",
+      "python.version": "3.12.6", "hardware.cpus": 8, "libraries.pytest": "8.4.2",
+      "libraries.ipython": false, "libraries.colab": false, "hardware.gpus": 0, "libraries.transformers":
+      false, "libraries.torch": false, "libraries.cuda": false, "pipeline_id": "4512891632",
+      "pipeline_type": "haystack.core.pipeline.async_pipeline.AsyncPipeline", "runs":
+      1, "components": {"haystack.components.builders.chat_prompt_builder.ChatPromptBuilder":
+      [{"name": "prompt_builder"}], "haystack.components.generators.chat.openai.OpenAIChatGenerator":
+      [{"name": "llm", "model": "gpt-4o"}]}, "$python_runtime": "CPython", "$python_version":
+      "3.12.6", "$os": "Mac OS X", "$os_version": "13.7.8", "$lib": "posthog-python",
+      "$lib_version": "6.7.6", "$geoip_disable": true}, "timestamp": "2025-10-14T03:34:41.386273+00:00",
+      "distinct_id": "0fbae5f1-414c-4dde-a02e-459ab7e75ae0", "event": "Pipeline run
+      (2.x)", "uuid": "c7241bd1-beda-43a3-8abc-f3e4cbc666a0"}], "historical_migration":
+      false, "sentAt": "2025-10-14T03:34:41.885263+00:00", "api_key": "phc_C44vUK9R1J6HYVdfJarTEPqVAoRPJzMXzFcj8PIrJgP"}'
+    headers: {}
+    method: POST
+    uri: https://eu.i.posthog.com/batch/
+  response:
+    body:
+      string: '{"status":"Ok"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer concisely in one sentence."},{"role":"user","content":"What
+      country is Berlin in?"}],"model":"gpt-4o","n":1,"response_format":null,"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CQQ66Xo4WkCnmV1QIycD2kQ0AovdE\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1760412882,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Germany.\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 25,\n    \"completion_tokens\":
+        2,\n    \"total_tokens\": 27,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_cbf1785567\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"batch": [{"properties": {"libraries.haystack": "2.18.0", "os.containerized":
+      false, "os.version": "22.6.0", "os.family": "Darwin", "os.machine": "x86_64",
+      "python.version": "3.12.6", "hardware.cpus": 8, "libraries.pytest": "8.4.2",
+      "libraries.ipython": false, "libraries.colab": false, "hardware.gpus": 0, "libraries.transformers":
+      false, "libraries.torch": false, "libraries.cuda": false, "pipeline_id": "4845469376",
+      "pipeline_type": "haystack.core.pipeline.async_pipeline.AsyncPipeline", "runs":
+      1, "components": {"haystack.components.builders.chat_prompt_builder.ChatPromptBuilder":
+      [{"name": "prompt_builder"}], "haystack.components.generators.chat.openai.OpenAIChatGenerator":
+      [{"name": "llm", "model": "gpt-4o"}]}, "$python_runtime": "CPython", "$python_version":
+      "3.12.6", "$os": "Mac OS X", "$os_version": "13.7.8", "$lib": "posthog-python",
+      "$lib_version": "6.7.6", "$geoip_disable": true}, "timestamp": "2025-10-14T03:35:33.372393+00:00",
+      "distinct_id": "0fbae5f1-414c-4dde-a02e-459ab7e75ae0", "event": "Pipeline run
+      (2.x)", "uuid": "74ccbc77-642f-4445-9c1f-bba4de3beb0b"}], "historical_migration":
+      false, "sentAt": "2025-10-14T03:35:33.873017+00:00", "api_key": "phc_C44vUK9R1J6HYVdfJarTEPqVAoRPJzMXzFcj8PIrJgP"}'
+    headers: {}
+    method: POST
+    uri: https://eu.i.posthog.com/batch/
+  response:
+    body:
+      string: '{"status":"Ok"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer concisely in one sentence."},{"role":"user","content":"What
+      country is Berlin in?"}],"model":"gpt-4o","n":1,"response_format":null,"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CQQ6xhpEJUsqOQws2rR7eQEtEgWQw\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1760412935,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Germany.\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 25,\n    \"completion_tokens\":
+        2,\n    \"total_tokens\": 27,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_cbf1785567\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"batch": [{"properties": {"libraries.haystack": "2.18.0", "os.containerized":
+      false, "os.version": "22.6.0", "os.family": "Darwin", "os.machine": "x86_64",
+      "python.version": "3.12.6", "hardware.cpus": 8, "libraries.pytest": "8.4.2",
+      "libraries.ipython": false, "libraries.colab": false, "hardware.gpus": 0, "libraries.transformers":
+      false, "libraries.torch": false, "libraries.cuda": false, "pipeline_id": "4793484688",
+      "pipeline_type": "haystack.core.pipeline.async_pipeline.AsyncPipeline", "runs":
+      1, "components": {"haystack.components.builders.chat_prompt_builder.ChatPromptBuilder":
+      [{"name": "prompt_builder"}], "haystack.components.generators.chat.openai.OpenAIChatGenerator":
+      [{"name": "llm", "model": "gpt-4o"}]}, "$python_runtime": "CPython", "$python_version":
+      "3.12.6", "$os": "Mac OS X", "$os_version": "13.7.8", "$lib": "posthog-python",
+      "$lib_version": "6.7.6", "$geoip_disable": true}, "timestamp": "2025-10-14T03:38:55.205550+00:00",
+      "distinct_id": "0fbae5f1-414c-4dde-a02e-459ab7e75ae0", "event": "Pipeline run
+      (2.x)", "uuid": "5fea4b60-bede-4410-987f-3c2df9570974"}], "historical_migration":
+      false, "sentAt": "2025-10-14T03:38:55.707360+00:00", "api_key": "phc_C44vUK9R1J6HYVdfJarTEPqVAoRPJzMXzFcj8PIrJgP"}'
+    headers: {}
+    method: POST
+    uri: https://eu.i.posthog.com/batch/
+  response:
+    body:
+      string: '{"status":"Ok"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer concisely in one sentence."},{"role":"user","content":"What
+      country is Berlin in?"}],"model":"gpt-4o","n":1,"response_format":null,"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CQQACRvhu9t3L1iBPehqykg2GpkUP\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1760413136,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Germany.\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 25,\n    \"completion_tokens\":
+        2,\n    \"total_tokens\": 27,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_cbf1785567\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"batch": [{"properties": {"libraries.haystack": "2.18.0", "os.containerized":
+      false, "os.version": "22.6.0", "os.family": "Darwin", "os.machine": "x86_64",
+      "python.version": "3.12.6", "hardware.cpus": 8, "libraries.pytest": "8.4.2",
+      "libraries.ipython": false, "libraries.colab": false, "hardware.gpus": 0, "libraries.transformers":
+      false, "libraries.torch": false, "libraries.cuda": false, "pipeline_id": "4503724128",
+      "pipeline_type": "haystack.core.pipeline.async_pipeline.AsyncPipeline", "runs":
+      1, "components": {"haystack.components.builders.chat_prompt_builder.ChatPromptBuilder":
+      [{"name": "prompt_builder"}], "haystack.components.generators.chat.openai.OpenAIChatGenerator":
+      [{"name": "llm", "model": "gpt-4o"}]}, "$python_runtime": "CPython", "$python_version":
+      "3.12.6", "$os": "Mac OS X", "$os_version": "13.7.8", "$lib": "posthog-python",
+      "$lib_version": "6.7.6", "$geoip_disable": true}, "timestamp": "2025-10-14T03:39:59.797989+00:00",
+      "distinct_id": "0fbae5f1-414c-4dde-a02e-459ab7e75ae0", "event": "Pipeline run
+      (2.x)", "uuid": "24b38219-8711-49d3-8bc1-a97a8d9c0a24"}], "historical_migration":
+      false, "sentAt": "2025-10-14T03:40:00.295829+00:00", "api_key": "phc_C44vUK9R1J6HYVdfJarTEPqVAoRPJzMXzFcj8PIrJgP"}'
+    headers: {}
+    method: POST
+    uri: https://eu.i.posthog.com/batch/
+  response:
+    body:
+      string: '{"status":"Ok"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer concisely in one sentence."},{"role":"user","content":"What
+      country is Berlin in?"}],"model":"gpt-4o","n":1,"response_format":null,"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CQQBEEw6PCs8bYb5B3axDfkZFXI2p\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1760413200,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Germany.\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 25,\n    \"completion_tokens\":
+        2,\n    \"total_tokens\": 27,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_cbf1785567\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"batch": [{"properties": {"libraries.haystack": "2.18.0", "os.containerized":
+      false, "os.version": "22.6.0", "os.family": "Darwin", "os.machine": "x86_64",
+      "python.version": "3.12.6", "hardware.cpus": 8, "libraries.pytest": "8.4.2",
+      "libraries.ipython": false, "libraries.colab": false, "hardware.gpus": 0, "libraries.transformers":
+      false, "libraries.torch": false, "libraries.cuda": false, "pipeline_id": "4889055008",
+      "pipeline_type": "haystack.core.pipeline.async_pipeline.AsyncPipeline", "runs":
+      1, "components": {"haystack.components.builders.chat_prompt_builder.ChatPromptBuilder":
+      [{"name": "prompt_builder"}], "haystack.components.generators.chat.openai.OpenAIChatGenerator":
+      [{"name": "llm", "model": "gpt-4o"}]}, "$python_runtime": "CPython", "$python_version":
+      "3.12.6", "$os": "Mac OS X", "$os_version": "13.7.8", "$lib": "posthog-python",
+      "$lib_version": "6.7.6", "$geoip_disable": true}, "timestamp": "2025-10-14T03:40:40.328529+00:00",
+      "distinct_id": "0fbae5f1-414c-4dde-a02e-459ab7e75ae0", "event": "Pipeline run
+      (2.x)", "uuid": "8c164705-ec00-4e16-aaa8-0414ba44883b"}], "historical_migration":
+      false, "sentAt": "2025-10-14T03:40:40.830131+00:00", "api_key": "phc_C44vUK9R1J6HYVdfJarTEPqVAoRPJzMXzFcj8PIrJgP"}'
+    headers: {}
+    method: POST
+    uri: https://eu.i.posthog.com/batch/
+  response:
+    body:
+      string: '{"status":"Ok"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer concisely in one sentence."},{"role":"user","content":"What
+      country is Berlin in?"}],"model":"gpt-4o","n":1,"response_format":null,"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        sk-. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+    headers: {}
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

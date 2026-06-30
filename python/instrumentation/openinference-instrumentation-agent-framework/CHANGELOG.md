@@ -1,0 +1,36 @@
+# Changelog
+
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.4...python-openinference-instrumentation-agent-framework-v0.1.5) (2026-05-22)
+
+
+### Bug Fixes
+
+* **agent_framework:** bump test pin to agent-framework 1.4.0 ([#3129](https://github.com/Arize-ai/openinference/issues/3129)) ([a380ac0](https://github.com/Arize-ai/openinference/commit/a380ac07a41377ce55ef07d77fb59a2a18150280))
+
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.3...python-openinference-instrumentation-agent-framework-v0.1.4) (2026-04-09)
+
+
+### Features
+
+* **agent-framework:** support v_1.0.0 ([#2966](https://github.com/Arize-ai/openinference/issues/2966)) ([e8e4dac](https://github.com/Arize-ai/openinference/commit/e8e4dac31afeaf198440429ff565eb48105c1fc5))
+
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.2...python-openinference-instrumentation-agent-framework-v0.1.3) (2026-02-28)
+
+
+### Bug Fixes
+
+* add version.py ([#2821](https://github.com/Arize-ai/openinference/issues/2821)) ([5ee2716](https://github.com/Arize-ai/openinference/commit/5ee271613c925a60f5e4127d063359c469be77b5))
+
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.1...python-openinference-instrumentation-agent-framework-v0.1.2) (2026-02-12)
+
+
+### Bug Fixes
+
+* resolve Python daily cron failures (langchain, pipecat, openlit, agent-framework) ([#2724](https://github.com/Arize-ai/openinference/issues/2724)) ([87639c4](https://github.com/Arize-ai/openinference/commit/87639c48600a3e18ec16a3c75c185631916bd7f3))
+
+## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.0...python-openinference-instrumentation-agent-framework-v0.1.1) (2026-02-05)
+
+
+### Features
+
+* add OpenInference instrumentation for Microsoft Agent Framework ([#2580](https://github.com/Arize-ai/openinference/issues/2580)) ([72cd5e6](https://github.com/Arize-ai/openinference/commit/72cd5e62077ca95d220094b27433f974ff6d8fb2))

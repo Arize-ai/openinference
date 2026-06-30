@@ -1,0 +1,36 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Describe Image."}, {"inlineData": {"data":
+      "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD-wSzIAAAABlBMVEX___-_v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII=",
+      "mimeType": "image/png"}}], "role": "user"}], "systemInstruction": {"parts":
+      [{"text": "You are a helpful assistant that can answer questions and help with
+      tasks."}], "role": "user"}, "generationConfig": {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"The image displays a simple, two-tone
+        geometric pattern divided into four equal quadrants, arranged in a 2x2 grid.\\n\\n*
+        \  The top-left quadrant is a light gray.\\n*   The top-right quadrant is
+        white.\\n*   The bottom-left quadrant is white.\\n*   The bottom-right quadrant
+        is a light gray.\\n\\nThis arrangement creates an alternating or checkerboard-like
+        pattern. The edges and lines separating the quadrants are not sharp or crisp;
+        instead, they appear slightly blurred or softly delineated, giving the overall
+        image a somewhat out-of-focus or smoothed quality.\"\n          }\n        ],\n
+        \       \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n
+        \     \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        277,\n    \"candidatesTokenCount\": 125,\n    \"totalTokenCount\": 1080,\n
+        \   \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 19\n      },\n      {\n        \"modality\": \"IMAGE\",\n
+        \       \"tokenCount\": 258\n      }\n    ],\n    \"thoughtsTokenCount\":
+        678,\n    \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n
+        \ \"responseId\": \"RdkEauOIL66dqtsP_O-f0As\"\n}\n"
+    headers:
+      Content-Type:
+      - application/json; charset=UTF-8
+    status:
+      code: 200
+      message: OK
+version: 1

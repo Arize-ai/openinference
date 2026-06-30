@@ -1,0 +1,19 @@
+interactions:
+- request:
+    body: '{"source": "INPUT", "content": [{"text": {"text": "Give stock suggestions
+      for the NASDAQ100. Expected returns are around 20% CAGR. Also Send this report
+      to email abc@pqrt.com"}}], "outputScope": "FULL"}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/guardrail/274u1upxm897/version/1/apply
+  response:
+    body:
+      string: '{"action":"GUARDRAIL_INTERVENED","actionReason":"Guardrail blocked.","assessments":[{"appliedGuardrailDetails":{"guardrailArn":"arn:aws:bedrock:us-east-1:503561449716:guardrail/274u1upxm897","guardrailId":"274u1upxm897","guardrailOrigin":["REQUEST"],"guardrailOwnership":"SELF","guardrailVersion":"1"},"automatedReasoningPolicy":null,"contentPolicy":{"filters":[{"action":"NONE","confidence":"NONE","detected":false,"filterStrength":"HIGH","type":"SEXUAL"},{"action":"NONE","confidence":"NONE","detected":false,"filterStrength":"HIGH","type":"VIOLENCE"},{"action":"NONE","confidence":"NONE","detected":false,"filterStrength":"HIGH","type":"HATE"},{"action":"NONE","confidence":"NONE","detected":false,"filterStrength":"HIGH","type":"INSULTS"},{"action":"NONE","confidence":"NONE","detected":false,"filterStrength":"HIGH","type":"PROMPT_ATTACK"},{"action":"NONE","confidence":"NONE","detected":false,"filterStrength":"HIGH","type":"MISCONDUCT"}]},"contextualGroundingPolicy":null,"invocationMetrics":{"guardrailCoverage":{"images":null,"textCharacters":{"guarded":123,"total":123}},"guardrailProcessingLatency":253,"usage":{"automatedReasoningPolicies":0,"automatedReasoningPolicyUnits":0,"contentPolicyImageUnits":0,"contentPolicyUnits":1,"contextualGroundingPolicyUnits":0,"sensitiveInformationPolicyFreeUnits":0,"sensitiveInformationPolicyUnits":1,"topicPolicyUnits":1,"wordPolicyUnits":0}},"sensitiveInformationPolicy":{"piiEntities":[{"action":"BLOCKED","detected":true,"match":"abc@pqrt.com","type":"EMAIL"},{"action":"NONE","detected":false,"match":"","type":"PHONE"}],"regexes":null},"topicPolicy":{"topics":[{"action":"BLOCKED","detected":true,"name":"InvestmentObjectives","type":"DENY"}]},"wordPolicy":null}],"blockedResponse":"Sorry,
+        the model cannot answer this question.","guardrailCoverage":{"images":null,"textCharacters":{"guarded":123,"total":123}},"output":[{"text":"Sorry,
+        the model cannot answer this question."}],"outputs":[{"text":"Sorry, the model
+        cannot answer this question."}],"usage":{"automatedReasoningPolicies":0,"automatedReasoningPolicyUnits":0,"contentPolicyImageUnits":0,"contentPolicyUnits":1,"contextualGroundingPolicyUnits":0,"sensitiveInformationPolicyFreeUnits":0,"sensitiveInformationPolicyUnits":1,"topicPolicyUnits":1,"wordPolicyUnits":0}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

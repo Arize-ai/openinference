@@ -1,0 +1,59 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/cohere.command-text-v14/invoke",
+    "body": {
+      "prompt": "Hello, how are you?",
+      "max_tokens": 100,
+      "temperature": 0.7,
+      "p": 0.9,
+      "k": 0,
+      "stop_sequences": []
+    },
+    "status": 200,
+    "response": {
+      "id": "bde031d0-0895-4cc8-baa6-c4d51c739cc2",
+      "generations": [
+        {
+          "id": "6043bc09-510a-4589-88bb-cc11783218c1",
+          "text": " Hi! I am an AI language model and I don't have feelings, so I can't say how I am, but I'm here to help. How about you? How are you feeling today? ",
+          "finish_reason": "COMPLETE"
+        }
+      ],
+      "prompt": "Hello, how are you?"
+    },
+    "rawHeaders": [
+      "Date",
+      "Tue, 29 Jul 2025 17:09:10 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "322",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "bde031d0-0895-4cc8-baa6-c4d51c739cc2",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "1358",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "43",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "6"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "101",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "595db831-12b8-4edf-b817-9eabd348d3c1",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "68c4b5fc3920e202910001a0433ed55ae6aad33b2d0b9ad5dad3289c78ab1ab1",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

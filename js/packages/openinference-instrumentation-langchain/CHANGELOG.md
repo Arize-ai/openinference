@@ -1,5 +1,217 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies [d0f5a88]
+  - @arizeai/openinference-core@2.4.0
+
+## 4.0.13
+
+### Patch Changes
+
+- Updated dependencies [1fe7927]
+  - @arizeai/openinference-core@2.3.0
+
+## 4.0.12
+
+### Patch Changes
+
+- 0f0242c: Add `PROMPT` to the `OpenInferenceSpanKind` enum, aligning the JS package with the OpenInference spec and the Python semantic conventions. LangChain prompt template spans now correctly report `openinference.span.kind = "PROMPT"` instead of falling through to `"CHAIN"`.
+- Updated dependencies [0f0242c]
+- Updated dependencies [26733d8]
+  - @arizeai/openinference-semantic-conventions@2.5.0
+  - @arizeai/openinference-core@2.2.0
+
+## 4.0.11
+
+### Patch Changes
+
+- Updated dependencies [81b8bdb]
+  - @arizeai/openinference-semantic-conventions@2.4.0
+  - @arizeai/openinference-core@2.1.1
+
+## 4.0.10
+
+### Patch Changes
+
+- Updated dependencies [cfb128c]
+  - @arizeai/openinference-core@2.1.0
+
+## 4.0.9
+
+### Patch Changes
+
+- Updated dependencies [e09ce3f]
+  - @arizeai/openinference-semantic-conventions@2.3.0
+  - @arizeai/openinference-core@2.0.8
+
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [4eebba3]
+  - @arizeai/openinference-core@2.0.7
+
+## 4.0.7
+
+### Patch Changes
+
+- Updated dependencies [7eb1c88]
+- Updated dependencies [3944459]
+  - @arizeai/openinference-semantic-conventions@2.2.0
+  - @arizeai/openinference-core@2.0.6
+
+## 4.0.6
+
+### Patch Changes
+
+- c79c564: force publish
+- c79c564: signed publishing
+- Updated dependencies [c79c564]
+- Updated dependencies [c79c564]
+  - @arizeai/openinference-core@2.0.5
+  - @arizeai/openinference-semantic-conventions@2.1.7
+
+## 4.0.5
+
+### Patch Changes
+
+- a4eead1: force publish
+- a4eead1: signed publishing
+- Updated dependencies [a4eead1]
+- Updated dependencies [a4eead1]
+  - @arizeai/openinference-core@2.0.4
+  - @arizeai/openinference-semantic-conventions@2.1.6
+
+## 4.0.4
+
+### Patch Changes
+
+- 74f278c: force publish
+- 74f278c: signed publishing
+- Updated dependencies [74f278c]
+- Updated dependencies [74f278c]
+  - @arizeai/openinference-core@2.0.3
+  - @arizeai/openinference-semantic-conventions@2.1.5
+
+## 4.0.3
+
+### Patch Changes
+
+- fe61379: force publish
+- fe61379: signed publishing
+- Updated dependencies [fe61379]
+- Updated dependencies [fe61379]
+  - @arizeai/openinference-core@2.0.2
+  - @arizeai/openinference-semantic-conventions@2.1.4
+
+## 4.0.2
+
+### Patch Changes
+
+- 006a685: signed publishing
+- Updated dependencies [006a685]
+  - @arizeai/openinference-core@2.0.1
+  - @arizeai/openinference-semantic-conventions@2.1.3
+
+## 4.0.1
+
+### Patch Changes
+
+- 371a664: fix: Ensure esm builds are emitted correctly
+
+## 4.0.0
+
+### Major Changes
+
+- 9b3681c: Deprecates langchain v0.2 in favor of v0.3 only
+- 3ef46a9: Add support for langchain 1.0 and above
+
+## 3.4.6
+
+### Patch Changes
+
+- Updated dependencies [d3d7017]
+  - @arizeai/openinference-core@2.0.0
+
+## 3.4.5
+
+### Patch Changes
+
+- Updated dependencies [5161c9f]
+  - @arizeai/openinference-core@1.0.8
+
+## 3.4.4
+
+### Patch Changes
+
+- 6066704: roughly check json strings for mime type
+
+## 3.4.3
+
+### Patch Changes
+
+- Updated dependencies [c50ffb0]
+  - @arizeai/openinference-semantic-conventions@2.1.2
+  - @arizeai/openinference-core@1.0.7
+
+## 3.4.2
+
+### Patch Changes
+
+- Updated dependencies [9d3bdb4]
+  - @arizeai/openinference-core@1.0.6
+
+## 3.4.1
+
+### Patch Changes
+
+- Updated dependencies [59be946]
+  - @arizeai/openinference-semantic-conventions@2.1.1
+  - @arizeai/openinference-core@1.0.5
+
+## 3.4.0
+
+### Minor Changes
+
+- e211094: add ability to use a non-global trace provider
+
+## 3.3.2
+
+### Patch Changes
+
+- Updated dependencies [34a4159]
+  - @arizeai/openinference-semantic-conventions@2.1.0
+  - @arizeai/openinference-core@1.0.4
+
+## 3.3.1
+
+### Patch Changes
+
+- Updated dependencies [c2ee804]
+- Updated dependencies [5f904bf]
+- Updated dependencies [5f90a80]
+  - @arizeai/openinference-semantic-conventions@2.0.0
+  - @arizeai/openinference-core@1.0.3
+
+## 3.3.0
+
+### Minor Changes
+
+- 2869d93: captures the json schema for function calls that are bound to llm calls as tools
+
+## 3.2.0
+
+### Minor Changes
+
+- 6892184: feat(langchain-js): Instrument tool messages in langchain js instrumentation
+
+### Patch Changes
+
+- 4b296d2: properly record exceptions on spans for langchain runs
+
 ## 3.1.0
 
 ### Minor Changes

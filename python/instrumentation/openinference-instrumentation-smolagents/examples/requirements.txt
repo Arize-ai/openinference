@@ -1,5 +1,7 @@
 # Main dependencies of the examples in this directory:
 smolagents[e2b,gradio,litellm,openai]
+pillow
+litellm<1.82.7  # versions >=1.82.7 are compromised, see https://github.com/BerriAI/litellm/issues/24518
 datasets
 langchain
 langchain_community
@@ -10,8 +12,6 @@ rank_bm25
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-distro
-# Source of openinference-instrumentation-smolagents
--e ../
 
 
 # Both `opentelemetry-instrument` and main need .env variables. Run like this:

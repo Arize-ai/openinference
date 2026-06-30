@@ -2,109 +2,302 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-core.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-core)
 
-This package provides OpenInference Core utilities for LLM Traces.
+`@arizeai/openinference-core` is the shared tracing foundation for OpenInference JS packages. It provides:
+
+- context attribute propagation (`session.id`, `user.id`, metadata, tags, prompt template)
+- span wrappers (`withSpan`, `traceChain`, `traceAgent`, `traceTool`)
+- method decorator tracing (`@observe`)
+- helpers for LLM/retrieval/embedding/tool attributes
+- optional sensitive-data masking through `OITracer` trace config
 
 ## Installation
 
 ```bash
-npm install @arizeai/openinference-core # npm
-pnpm add @arizeai/openinference-core # pnpm
-yarn add @arizeai/openinference-core # yarn
+npm install @arizeai/openinference-core
+
+# Only needed if you want to run the Quick Start example in this README:
+npm install @arizeai/openinference-semantic-conventions @opentelemetry/sdk-trace-node @opentelemetry/resources
 ```
 
-## Customizing Spans
+## Quick Start (Runnable)
 
-The `@arizeai/openinference-core` package offers utilities to track important application metadata such as sessions and users using context attribute propagation:
+This example exports spans to stdout and sets an OpenInference project name.
 
-- `setSession`: to specify a session ID to track and group multi-turn conversations
-- `setUser`: to specify a user ID to track different conversations with a given user
-- `setMetadata`: to add custom metadata that can provide extra information to support a wide range of operational needs
-- `setTag`: to add tags, to filter spans on specific keywords
-- `setPromptTemplate`: to reflect the prompt template used, with its version and variables. This is useful for prompt template tracking
-- `setAttributes`: to add multiple custom attributes at the same time
+```typescript
+import {
+  OpenInferenceSpanKind,
+  SEMRESATTRS_PROJECT_NAME,
+} from "@arizeai/openinference-semantic-conventions";
+import {
+  ConsoleSpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-node";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 
-> [!NOTE] All @arizeai/openinference auto instrumentation packages will pull attributes off of context and add them to spans
+import { withSpan } from "@arizeai/openinference-core";
 
-### Examples
+const provider = new NodeTracerProvider({
+  resource: resourceFromAttributes({
+    [SEMRESATTRS_PROJECT_NAME]: "openinference-core-demo",
+  }),
+  spanProcessors: [new SimpleSpanProcessor(new ConsoleSpanExporter())],
+});
 
-`setSession`
+provider.register();
+
+const answerQuestion = withSpan(
+  async (question: string) => {
+    return `Answer: ${question}`;
+  },
+  {
+    name: "answer-question",
+    kind: OpenInferenceSpanKind.CHAIN,
+  },
+);
+
+async function main() {
+  const answer = await answerQuestion("What is OpenInference?");
+  console.log(answer);
+}
+
+void main();
+```
+
+## Context Attributes
+
+Each setter returns a new OpenTelemetry context. Compose them to propagate request-level attributes:
+
+- `setSession(context, { sessionId })`
+- `setUser(context, { userId })`
+- `setMetadata(context, metadataObject)`
+- `setTags(context, string[])`
+- `setPromptTemplate(context, { template, variables?, version? })`
+- `setAttributes(context, attributes)`
 
 ```typescript
 import { context } from "@opentelemetry/api";
-import { setSession } from "@arizeai/openinference-core";
+import {
+  setAttributes,
+  setMetadata,
+  setPromptTemplate,
+  setSession,
+  setTags,
+  setUser,
+} from "@arizeai/openinference-core";
 
-context.with(setSession(context.active(), { sessionId: "session-id" }), () => {
-  // Calls within this block will generate spans with the attributes:
-  // "session.id" = "session-id"
+let ctx = context.active();
+ctx = setSession(ctx, { sessionId: "sess-42" });
+ctx = setUser(ctx, { userId: "user-7" });
+ctx = setMetadata(ctx, { tenant: "acme", environment: "prod" });
+ctx = setTags(ctx, ["support", "priority-high"]);
+ctx = setPromptTemplate(ctx, {
+  template: "Answer using docs about {topic}",
+  variables: { topic: "billing" },
+  version: "v3",
+});
+ctx = setAttributes(ctx, { "app.request_id": "req-123" });
+
+context.with(ctx, async () => {
+  // spans started in this context by openinference-core wrappers
+  // include these propagated attributes automatically
 });
 ```
 
-Each setter function returns a new active context, so they can be chained together.
+If you create spans manually with a plain OpenTelemetry tracer, apply propagated attributes explicitly:
 
 ```typescript
-import { context } from "@opentelemetry/api";
-import { setAttributes, setSession } from "@arizeai/openinference-core";
+import { context, trace } from "@opentelemetry/api";
+import { getAttributesFromContext } from "@arizeai/openinference-core";
 
-context.with(
-  setAttributes(setSession(context.active(), { sessionId: "session-id" }), {
-    myAttribute: "test",
-  }),
-  () => {
-    // Calls within this block will generate spans with the attributes:
-    // "myAttribute" = "test"
-    // "session.id" = "session-id"
+const tracer = trace.getTracer("manual-tracer");
+const span = tracer.startSpan("manual-span");
+span.setAttributes(getAttributesFromContext(context.active()));
+span.end();
+```
+
+## Function Wrappers
+
+### `withSpan`
+
+```typescript
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import { withSpan } from "@arizeai/openinference-core";
+
+const retrieve = withSpan(
+  async (query: string) => {
+    return [`Document for ${query}`];
+  },
+  {
+    name: "retrieve-documents",
+    kind: OpenInferenceSpanKind.RETRIEVER,
   },
 );
 ```
 
-Additionally, they can be used in conjunction with the [OpenInference Semantic Conventions](../openinference-semantic-conventions/).
+### `traceChain`, `traceAgent`, `traceTool`
+
+These wrappers call `withSpan` and set `kind` automatically.
 
 ```typescript
-import { context } from "@opentelemetry/api"
-import { setAttributes } from "@openinference-core"
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import { traceAgent, traceChain, traceTool } from "@arizeai/openinference-core";
 
+const tracedChain = traceChain(async (q: string) => `chain result: ${q}`, {
+  name: "rag-chain",
+});
 
-context.with(
-  setAttributes(
-    { [SemanticConventions.SESSION_ID: "session-id" }
-  ),
-  () => {
-      // Calls within this block will generate spans with the attributes:
-      // "session.id" = "session-id"
+const tracedTool = traceTool(async (city: string) => ({ temp: 72, city }), {
+  name: "weather-tool",
+});
+
+const tracedAgent = traceAgent(
+  async (q: string) => {
+    const toolResult = await tracedTool("seattle");
+    return tracedChain(`${q} (${toolResult.temp}F)`);
+  },
+  { name: "qa-agent" },
+);
+```
+
+### Custom input/output processors
+
+```typescript
+import { getInputAttributes, getRetrieverAttributes, withSpan } from "@arizeai/openinference-core";
+
+const retriever = withSpan(async (query: string) => [`Doc A for ${query}`, `Doc B for ${query}`], {
+  name: "retriever",
+  kind: "RETRIEVER",
+  processInput: (query) => getInputAttributes(query),
+  processOutput: (documents) =>
+    getRetrieverAttributes({
+      documents: documents.map((content, i) => ({
+        id: `doc-${i}`,
+        content,
+      })),
+    }),
+});
+```
+
+## Decorators (`@observe`)
+
+`observe` wraps class methods with tracing and preserves method `this` context.
+Use TypeScript 5+ standard decorators when applying `@observe`.
+
+```typescript
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import { observe } from "@arizeai/openinference-core";
+
+class ChatService {
+  @observe({ kind: OpenInferenceSpanKind.CHAIN })
+  async runWorkflow(message: string) {
+    return `processed: ${message}`;
   }
-)
+
+  @observe({ name: "llm-call", kind: OpenInferenceSpanKind.LLM })
+  async callModel(prompt: string) {
+    return `model output for: ${prompt}`;
+  }
+}
 ```
 
-If you are creating spans manually and want to propagate context attributes you've set to those spans as well you can use the `getAttributesFromContext` utility to do that. you can read more about customizing spans in our [docs](https://docs.arize.com/phoenix/tracing/how-to-tracing/customize-spans).
+## Attribute Helper APIs
+
+Use these helpers to generate OpenInference-compatible attributes and attach them to spans:
+
+- `getLLMAttributes({ provider, modelName, inputMessages, outputMessages, tokenCount, tools, ... })`
+- `getEmbeddingAttributes({ modelName, embeddings })`
+- `getRetrieverAttributes({ documents })`
+- `getToolAttributes({ name, description?, parameters })`
+- `getMetadataAttributes(metadataObject)`
+- `getInputAttributes(input)` / `getOutputAttributes(output)`
+- `defaultProcessInput(...args)` / `defaultProcessOutput(result)`
+
+Example:
 
 ```typescript
-import { getAttributesFromContext } from "@arizeai/openinference-core";
-import { context, trace } from "@opentelemetry/api";
+import { trace } from "@opentelemetry/api";
+import { getLLMAttributes } from "@arizeai/openinference-core";
 
-const contextAttributes = getAttributesFromContext(context.active());
-const tracer = trace.getTracer("example");
-const span = tracer.startSpan("example span");
-span.setAttributes(contextAttributes);
-span.end();
+const tracer = trace.getTracer("llm-service");
+
+tracer.startActiveSpan("llm-inference", (span) => {
+  span.setAttributes(
+    getLLMAttributes({
+      provider: "openai",
+      modelName: "gpt-4o-mini",
+      inputMessages: [{ role: "user", content: "What is OpenInference?" }],
+      outputMessages: [{ role: "assistant", content: "OpenInference is..." }],
+      tokenCount: { prompt: 12, completion: 44, total: 56 },
+      invocationParameters: { temperature: 0.2 },
+    }),
+  );
+  span.end();
+});
 ```
 
-## Trace Config
+## Trace Config and Redaction (`OITracer`)
 
-This package also provides support for controlling settings like data privacy and payload sizes. For instance, you may want to keep sensitive information from being logged for security reasons, or you may want to limit the size of the base64 encoded images logged to reduced payload size.
-
-> [!NOTE] These values can also be controlled via environment variables, see more information [here](https://github.com/Arize-ai/openinference/blob/main/spec/configuration.md).
-
-Here is an example of how to configure these settings using the OpenAI auto instrumentation. Note that all of our auto instrumentations will accept a traceConfig object.
+`OITracer` wraps an OpenTelemetry tracer and can redact or drop sensitive attributes before writing spans:
 
 ```typescript
-import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
+import { trace } from "@opentelemetry/api";
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import { OITracer, withSpan } from "@arizeai/openinference-core";
 
-/**
- * Everything left out of here will fallback to
- * environment variables then defaults
- */
-const traceConfig = { hideInputs: true };
+const tracer = new OITracer({
+  tracer: trace.getTracer("my-service"),
+  traceConfig: {
+    hideInputs: true,
+    hideOutputText: true,
+    hideEmbeddingVectors: true,
+    base64ImageMaxLength: 8_000,
+  },
+});
 
-const instrumentation = new OpenAIInstrumentation({ traceConfig });
+const traced = withSpan(async (prompt: string) => `model response for ${prompt}`, {
+  tracer,
+  kind: OpenInferenceSpanKind.LLM,
+  name: "safe-llm-call",
+});
 ```
+
+You can also configure masking with environment variables:
+
+- `OPENINFERENCE_HIDE_LLM_TOOLS`
+- `OPENINFERENCE_HIDE_INPUTS`
+- `OPENINFERENCE_HIDE_OUTPUTS`
+- `OPENINFERENCE_HIDE_INPUT_MESSAGES`
+- `OPENINFERENCE_HIDE_OUTPUT_MESSAGES`
+- `OPENINFERENCE_HIDE_INPUT_IMAGES`
+- `OPENINFERENCE_HIDE_INPUT_TEXT`
+- `OPENINFERENCE_HIDE_OUTPUT_TEXT`
+- `OPENINFERENCE_HIDE_EMBEDDING_VECTORS`
+- `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH`
+- `OPENINFERENCE_HIDE_PROMPTS`
+
+## Utility Helpers
+
+- `withSafety({ fn, onError? })`: wraps a function and returns `null` on error
+- `safelyJSONStringify(value)` / `safelyJSONParse(value)`: guarded JSON operations
+
+## Docs and Source Code in node_modules
+
+Once you've installed the openinference-core package, you already have the full
+openinference-core documentation and source code available locally inside
+node_modules. Your coding agent can read these directly -- no internet access
+required.
+
+```
+node_modules/@arizeai/openinference-core/src/              # Full source code organized by module
+node_modules/@arizeai/openinference-core/docs/             # Official documentation with examples
+```
+
+This means your agent can look up accurate API signatures, implementations, and
+usage examples directly from the installed package -- ensuring it always uses the
+version of the SDK that's actually installed in your project.
+
+## Documentation
+
+- API reference: [@arizeai/openinference-core](https://arize-ai.github.io/openinference/js/modules/_arizeai_openinference-core.html)
+- OpenInference JS docs: [openinference/js](https://arize-ai.github.io/openinference/js/)
+- Source code: [js/packages/openinference-core](https://github.com/Arize-ai/openinference/tree/main/js/packages/openinference-core)

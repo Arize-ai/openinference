@@ -14,13 +14,27 @@
  * limitations under the License.
  */
 
-import { Serializable } from "beeai-framework/internals/serializable";
-import { getProp } from "beeai-framework/internals/helpers/object";
-import { EventMeta, InferCallbackValue } from "beeai-framework/emitter/types";
-import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
-import { ChatModel, ChatModelEvents } from "beeai-framework/backend/chat";
+import { diag } from "@opentelemetry/api";
 import { BaseAgent } from "beeai-framework/agents/base";
-import { Message, MessageContentPart } from "beeai-framework/backend/message";
+import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
+import type { ChatModelEvents } from "beeai-framework/backend/chat";
+import { ChatModel } from "beeai-framework/backend/chat";
+import type { Message, MessageContentPart } from "beeai-framework/backend/message";
+import type { EventMeta, InferCallbackValue } from "beeai-framework/emitter/types";
+import { getProp } from "beeai-framework/internals/helpers/object";
+import { Serializable } from "beeai-framework/internals/serializable";
+import type { ToolEvents } from "beeai-framework/tools/base";
+import { Tool } from "beeai-framework/tools/base";
+
+import {
+  LLMAttributePostfixes,
+  MessageAttributePostfixes,
+  MimeType,
+  OpenInferenceSpanKind,
+  SemanticAttributePrefixes,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
 import {
   errorEventName,
   errorLLMEventName,
@@ -42,20 +56,8 @@ import {
   toolSuccessEventName,
   updateEventName,
 } from "../config";
-import {
-  LLMAttributePostfixes,
-  MessageAttributePostfixes,
-  MimeType,
-  OpenInferenceSpanKind,
-  SemanticAttributePrefixes,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-import { Tool, ToolEvents } from "beeai-framework/tools/base";
-import { diag } from "@opentelemetry/api";
 
-function parserLLMInputMessages(
-  messages: readonly Message<MessageContentPart, string>[],
-) {
+function parserLLMInputMessages(messages: readonly Message<MessageContentPart, string>[]) {
   return messages.reduce(
     (acc, item, key) => ({
       ...acc,
@@ -71,9 +73,7 @@ function parserLLMInputMessages(
   );
 }
 
-function parseLLMOutputMessages(
-  messages: readonly Message<MessageContentPart, string>[],
-) {
+function parseLLMOutputMessages(messages: readonly Message<MessageContentPart, string>[]) {
   return messages.reduce(
     (acc, item, key) => ({
       ...acc,
@@ -89,31 +89,23 @@ function parseLLMOutputMessages(
   );
 }
 
-export function getSerializedObjectSafe(
-  dataObject: unknown,
-  meta: EventMeta<unknown>,
-) {
+export function getSerializedObjectSafe(dataObject: unknown, meta: EventMeta<unknown>) {
   try {
     // agent events
     if (
-      [
-        startEventName,
-        successEventName,
-        errorEventName,
-        retryEventName,
-      ].includes(meta.name as keyof ReActAgentCallbacks) &&
+      [startEventName, successEventName, errorEventName, retryEventName].includes(
+        meta.name as keyof ReActAgentCallbacks,
+      ) &&
       meta.creator instanceof BaseAgent
     ) {
-      const { meta, tools, memory, error, data } =
-        dataObject as InferCallbackValue<
-          | ReActAgentCallbacks["start"]
-          | ReActAgentCallbacks["error"]
-          | ReActAgentCallbacks["success"]
-          | ReActAgentCallbacks["retry"]
-        >;
+      const { meta, tools, memory, error, data } = dataObject as InferCallbackValue<
+        | ReActAgentCallbacks["start"]
+        | ReActAgentCallbacks["error"]
+        | ReActAgentCallbacks["success"]
+        | ReActAgentCallbacks["retry"]
+      >;
       return {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.AGENT,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
         iteration: meta?.iteration,
         ...(tools?.length > 0 && {
           [SemanticConventions.LLM_TOOLS]: tools.map((tool) => ({
@@ -140,9 +132,7 @@ export function getSerializedObjectSafe(
 
     // update events
     if (
-      [updateEventName, partialUpdateEventName].includes(
-        meta.name as keyof ReActAgentCallbacks,
-      )
+      [updateEventName, partialUpdateEventName].includes(meta.name as keyof ReActAgentCallbacks)
     ) {
       const { data } = dataObject as InferCallbackValue<
         ReActAgentCallbacks["partialUpdate"] | ReActAgentCallbacks["update"]
@@ -150,16 +140,13 @@ export function getSerializedObjectSafe(
 
       const output = data?.final_answer || data?.tool_output;
       return {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.AGENT,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
         thought: data.thought,
         ...(data?.tool_name && {
           [SemanticConventions.TOOL_NAME]: data.tool_name,
         }),
         ...(data?.tool_input && {
-          [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(
-            data.tool_input,
-          ),
+          [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(data.tool_input),
         }),
         ...(output && {
           [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
@@ -183,8 +170,7 @@ export function getSerializedObjectSafe(
       const output: any = data?.result && data.result.createSnapshot();
 
       return {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.TOOL,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
         thought: data?.iteration?.thought,
         ...(data?.input
           ? {
@@ -220,23 +206,16 @@ export function getSerializedObjectSafe(
     ) {
       if (!dataObject) {
         return {
-          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-            OpenInferenceSpanKind.TOOL,
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
         };
       }
       const { input, output, error } = dataObject as InferCallbackValue<
-        | ToolEvents["start"]
-        | ToolEvents["success"]
-        | ToolEvents["retry"]
-        | ToolEvents["error"]
+        ToolEvents["start"] | ToolEvents["success"] | ToolEvents["retry"] | ToolEvents["error"]
       >;
 
       return {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.TOOL,
-        ...(input
-          ? { [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(input) }
-          : {}),
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
+        ...(input ? { [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(input) } : {}),
         ...(output && {
           [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(output),
         }),
@@ -250,12 +229,9 @@ export function getSerializedObjectSafe(
 
     // llm events
     if (
-      [
-        successLLMEventName,
-        startLLMEventName,
-        errorLLMEventName,
-        newTokenLLMEventName,
-      ].includes(meta.name as keyof ChatModelEvents) &&
+      [successLLMEventName, startLLMEventName, errorLLMEventName, newTokenLLMEventName].includes(
+        meta.name as keyof ChatModelEvents,
+      ) &&
       meta.creator instanceof ChatModel
     ) {
       const { value, input, error } = dataObject as InferCallbackValue<
@@ -267,19 +243,15 @@ export function getSerializedObjectSafe(
 
       const creator = meta.creator.createSnapshot();
       return {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.LLM,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
         ...(value?.usage?.completionTokens && {
-          [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
-            value?.usage?.completionTokens,
+          [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: value?.usage?.completionTokens,
         }),
         ...(value?.usage?.promptTokens && {
-          [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
-            value?.usage?.promptTokens,
+          [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: value?.usage?.promptTokens,
         }),
         ...(value?.usage?.totalTokens && {
-          [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
-            value?.usage?.totalTokens,
+          [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: value?.usage?.totalTokens,
         }),
         ...(input?.messages.length > 0 && {
           [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
@@ -307,16 +279,13 @@ export function getSerializedObjectSafe(
             creator.modelId,
         }),
         ...(creator?.parameters && {
-          [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(
-            creator.parameters,
-          ),
+          [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(creator.parameters),
         }),
       };
     }
     if (meta.name === finishLLMEventName && meta.creator instanceof ChatModel) {
       return {
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-          OpenInferenceSpanKind.LLM,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
       };
     }
 

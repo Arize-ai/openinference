@@ -1,53 +1,56 @@
 name: Typescript Publish
 on:
-    push:
-        branches:
-            - main
+  push:
+    branches:
+      - main
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
 env:
-    CI: true
-    PNPM_CACHE_FOLDER: .pnpm-store
+  CI: true
+  PNPM_CACHE_FOLDER: .pnpm-store
 jobs:
-    version:
-        timeout-minutes: 15
-        runs-on: ubuntu-latest
-        steps:
-            - name: checkout code repository
-              uses: actions/checkout@v3
-              with:
-                  fetch-depth: 0
-            - name: setup node.js
-              uses: actions/setup-node@v3
-              with:
-                  node-version: 20
-                  registry-url: https://registry.npmjs.org/
-                  scope: "@arizeai"
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-            - name: Setup PNPM
-              uses: pnpm/action-setup@v4
-              with:
-                  version: 9.8.0
-            - name: setup pnpm config
-              run: pnpm config set store-dir $PNPM_CACHE_FOLDER
-            - name: Install Dependencies
-              working-directory: ./js
-              run: pnpm install --frozen-lockfile
-            - name: Creating .npmrc
-              run: |
-                  cat << EOF > "$HOME/.npmrc"
-                    //registry.npmjs.org/:_authToken=$NPM_TOKEN
-                  EOF
-              env:
-                  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-            - name: create and publish versions
-              uses: changesets/action@v1
-              with:
-                  version: pnpm ci:version
-                  commit: "chore(js): update versions"
-                  title: "chore(js): update versions"
-                  publish: pnpm ci:publish
-                  cwd: "./js"
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-                  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  version:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          # changesets/action uses git-cli commit mode by default, so this
+          # checkout intentionally keeps credentials available for git push.
+          persist-credentials: true
+          token: ${{ secrets.MY_CHANGESET_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org/
+          scope: "@arizeai"
+      - name: Setup PNPM
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 10.29.3
+      - name: Setup pnpm config
+        run: pnpm config set store-dir $PNPM_CACHE_FOLDER
+
+      - name: Install dependencies
+        working-directory: ./js
+        run: pnpm install --frozen-lockfile
+      - name: Create and publish versions
+        # Pinned to v1.5.2 because released versions after that still break monorepo
+        # cwd handling; the upstream fix merged after v1.7.0 but is not released yet.
+        uses: changesets/action@e0538e686673de0265c8a3e2904b8c76beaa43fd # v1.5.2
+        with:
+          version: pnpm ci:version
+          commit: "chore(js): update versions"
+          title: "chore(js): update versions"
+          publish: pnpm ci:publish
+          createGithubReleases: true
+          # v1.5.2 resolves cwd relative to the action runtime, not github.workspace.
+          cwd: "${{ github.workspace }}/js"
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_CHANGESET_TOKEN }}

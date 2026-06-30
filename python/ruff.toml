@@ -10,5 +10,9 @@ target-version = "py38"
 ignore-init-module-imports = true
 select = ["E", "F", "W", "I"]
 
+[lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+"**/examples/**" = ["E501"]
+
 [lint.isort]
 force-single-line = false

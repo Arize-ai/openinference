@@ -9,6 +9,10 @@ from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.haystack._wrappers import (
+    _AsyncComponentRunWrapper,
+    _AsyncPipelineRunAsyncGeneratorWrapper,
+    _AsyncPipelineRunComponentWrapper,
+    _AsyncPipelineWrapper,
     _ComponentRunWrapper,
     _PipelineRunComponentWrapper,
     _PipelineWrapper,
@@ -17,7 +21,7 @@ from openinference.instrumentation.haystack.version import __version__
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("haystack-ai >= 2.9.0",)
+_instruments = ("haystack-ai >= 2.18.0",)
 
 
 class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
@@ -27,6 +31,11 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_pipeline_run",
         "_original_pipeline_run_component",
         "_original_component_run_methods",
+        "_original_async_pipeline_run",
+        "_original_async_pipeline_run_async",
+        "_original_async_pipeline_run_async_generator",
+        "_original_async_pipeline_run_component_async",
+        "_original_component_run_async_methods",
         "_tracer",
     )
 
@@ -34,8 +43,6 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        import haystack
-
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
@@ -46,43 +53,136 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
+        import haystack
 
         self._original_pipeline_run = haystack.Pipeline.run
         wrap_function_wrapper(
-            module="haystack.core.pipeline.pipeline",
-            name="Pipeline.run",
-            wrapper=_PipelineWrapper(tracer=self._tracer),
+            "haystack.core.pipeline.pipeline",
+            "Pipeline.run",
+            _PipelineWrapper(tracer=self._tracer),  # type: ignore[arg-type]
         )
-        self._original_pipeline_run_component = haystack.Pipeline._run_component
+        self._original_async_pipeline_run = haystack.AsyncPipeline.run
+        wrap_function_wrapper(
+            "haystack.core.pipeline.async_pipeline",
+            "AsyncPipeline.run",
+            _PipelineWrapper(tracer=self._tracer),  # type: ignore[arg-type]
+        )
+        self._original_async_pipeline_run_async = haystack.AsyncPipeline.run_async
+        wrap_function_wrapper(
+            "haystack.core.pipeline.async_pipeline",
+            "AsyncPipeline.run_async",
+            _AsyncPipelineWrapper(tracer=self._tracer),  # type: ignore[arg-type]
+        )
+        self._original_async_pipeline_run_async_generator = (
+            haystack.AsyncPipeline.run_async_generator
+        )
+        wrap_function_wrapper(
+            "haystack.core.pipeline.async_pipeline",
+            "AsyncPipeline.run_async_generator",
+            _AsyncPipelineRunAsyncGeneratorWrapper(tracer=self._tracer),  # type: ignore[arg-type]
+        )
+
+        from haystack.core.pipeline.async_pipeline import AsyncPipeline
+        from haystack.core.pipeline.pipeline import Pipeline
+
+        original = Pipeline.__dict__["_run_component"]
+        self._original_pipeline_run_component = original.__func__
         self._original_component_run_methods: dict[type[Any], Callable[..., Any]] = {}
+        self._original_component_run_async_methods: dict[type[Any], Callable[..., Any]] = {}
 
         def wrap_component_run_method(
             component_cls: type[Any], run_method: Callable[..., Any]
         ) -> None:
-            if component_cls not in self._original_component_run_methods:
-                self._original_component_run_methods[component_cls] = run_method
+            # To avoid double wrapping, we only wrap the class bound "run" method here.
+
+            method_name = getattr(run_method, "__name__", None)
+            if method_name is None and hasattr(run_method, "__func__"):
+                method_name = getattr(run_method.__func__, "__name__", None)
+
+            if method_name == "run" and component_cls not in self._original_component_run_methods:
+                class_method = getattr(component_cls, "run")
+                self._original_component_run_methods[component_cls] = class_method
                 wrap_function_wrapper(
-                    module=component_cls.__module__,
-                    name=f"{component_cls.__name__}.run",
-                    wrapper=_ComponentRunWrapper(tracer=self._tracer),
+                    component_cls.__module__,
+                    f"{component_cls.__name__}.run",
+                    _ComponentRunWrapper(tracer=self._tracer),  # type: ignore[arg-type]
+                )
+            if (
+                method_name == "run_async"
+                and component_cls not in self._original_component_run_async_methods
+            ):
+                class_method = getattr(component_cls, "run_async")
+                self._original_component_run_async_methods[component_cls] = class_method
+                wrap_function_wrapper(
+                    component_cls.__module__,
+                    f"{component_cls.__name__}.{method_name}",
+                    _AsyncComponentRunWrapper(tracer=self._tracer),  # type: ignore[arg-type]
                 )
 
         wrap_function_wrapper(
-            module="haystack.core.pipeline.pipeline",
-            name="Pipeline._run_component",
-            wrapper=_PipelineRunComponentWrapper(
-                tracer=self._tracer, wrap_component_run_method=wrap_component_run_method
+            Pipeline,
+            "_run_component",
+            _PipelineRunComponentWrapper(
+                tracer=self._tracer,  # type: ignore[arg-type]
+                wrap_component_run_method=wrap_component_run_method,
             ),
         )
+
+        async_original = AsyncPipeline.__dict__["_run_component_async"]
+        self._original_async_pipeline_run_component_async = async_original.__func__
+
+        wrap_function_wrapper(
+            AsyncPipeline,
+            "_run_component_async",
+            _AsyncPipelineRunComponentWrapper(
+                tracer=self._tracer,  # type: ignore[arg-type]
+                wrap_component_run_method=wrap_component_run_method,
+            ),
+        )
+        from haystack.core.component.component import component
+
+        for class_path, cls in component.registry.items():
+            # Ensure the class looks like a Component (has run or run_async)
+            if hasattr(cls, "run"):
+                wrap_component_run_method(cls, cls.run)
+            if hasattr(cls, "run_async"):
+                wrap_component_run_method(cls, cls.run_async)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         import haystack
 
         if self._original_pipeline_run is not None:
-            haystack.Pipeline.run = self._original_pipeline_run
+            setattr(haystack.Pipeline, "run", self._original_pipeline_run)
+
+        if self._original_async_pipeline_run is not None:
+            setattr(haystack.AsyncPipeline, "run", self._original_async_pipeline_run)
+
+        if self._original_async_pipeline_run_async is not None:
+            setattr(haystack.AsyncPipeline, "run_async", self._original_async_pipeline_run_async)
+
+        if self._original_async_pipeline_run_async_generator is not None:
+            setattr(
+                haystack.AsyncPipeline,
+                "run_async_generator",
+                self._original_async_pipeline_run_async_generator,
+            )
 
         if self._original_pipeline_run_component is not None:
-            haystack.Pipeline._run_component = self._original_pipeline_run_component
+            from haystack.core.pipeline.pipeline import Pipeline
+
+            setattr(Pipeline, "_run_component", staticmethod(self._original_pipeline_run_component))
 
         for component_cls, original_run_method in self._original_component_run_methods.items():
-            component_cls.run = original_run_method
+            setattr(component_cls, "run", original_run_method)
+
+        if self._original_async_pipeline_run_component_async is not None:
+            from haystack.core.pipeline.async_pipeline import AsyncPipeline
+
+            setattr(
+                AsyncPipeline,
+                "_run_component_async",
+                staticmethod(self._original_async_pipeline_run_component_async),
+            )
+
+        for component_cls, original_run_mt in self._original_component_run_async_methods.items():
+            setattr(component_cls, "run_async", original_run_mt)

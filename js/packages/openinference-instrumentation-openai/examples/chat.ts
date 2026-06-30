@@ -1,5 +1,7 @@
 import "./instrumentation";
+
 import { isPatched } from "../src";
+
 import OpenAI from "openai";
 
 // Check if OpenAI has been patched

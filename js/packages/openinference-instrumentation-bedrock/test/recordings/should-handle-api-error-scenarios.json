@@ -1,0 +1,53 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/invalid-model-id/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 50
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "This should fail"
+            }
+          ],
+          "role": "user"
+        }
+      ]
+    },
+    "status": 400,
+    "response": {
+      "message": "The provided model identifier is invalid."
+    },
+    "rawHeaders": [
+      "Date",
+      "Fri, 18 Jul 2025 19:03:06 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "55",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "fe4e3f9c-abb5-4a80-996c-1bd403ee3d99",
+      "x-amzn-ErrorType",
+      "ValidationException:http://internal.amazon.com/coral/com.amazon.bedrock/"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "105",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "0793c161-b0cd-4d77-b884-5e1e517f3bc0",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "d4492b742244758f5284c05fc8fe88fafc55647d3d3b15cea0274d921486eedc",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "input": "{\"model\":\"gpt-4\",\"temperature\":0.5,\"top_p\":0.9,\"max_completion_tokens\":200, \"messages\":[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Absolutely! Let me check the weather for you.\"},{\"type\":\"tool_call\",\"id\":\"1234\",\"name\":\"get_weather\",\"arguments\":{\"location\":\"Paris\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"1234\",\"response\":\"rainy, 57°F\"}]}]}",
+  "output": "{\"text\":\"The weather in Paris is currently rainy with a temperature of 57°F.\",\"finish_reason\":\"stop\"}",
+  "gen_ai.provider.name": "openai",
+  "gen_ai.operation.name": "chat",
+  "gen_ai.request.model": "gpt-4",
+  "gen_ai.request.max_tokens": 200,
+  "gen_ai.request.temperature": 0.5,
+  "gen_ai.request.top_p": 0.9,
+  "gen_ai.response.id": "chatcmpl-CQF10eCkoFphJZJQkzzN6EkTD0AVF",
+  "gen_ai.response.model": "gpt-4-0613",
+  "gen_ai.usage.output_tokens": 52,
+  "gen_ai.usage.input_tokens": 97,
+  "gen_ai.response.finish_reasons": ["stop"],
+  "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Absolutely! Let me check the weather for you.\"},{\"type\":\"tool_call\",\"id\":\"1234\",\"name\":\"get_weather\",\"arguments\":{\"location\":\"Paris\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"1234\",\"response\":\"rainy, 57°F\"}]}]",
+  "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"The weather in Paris is currently rainy with a temperature of 57°F.\"}],\"finish_reason\":\"stop\"}]"
+}

@@ -1,15 +1,14 @@
 import json
-import os
-from typing import Any, Generator, Optional
+from contextlib import contextmanager
+from typing import Any, Iterator, Optional
+from unittest.mock import MagicMock, patch
 
 import pytest
 from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from opentelemetry.util._importlib_metadata import entry_points
-from smolagents import OpenAIServerModel, Tool
+from smolagents import LiteLLMModel, OpenAIServerModel, Tool, tool
 from smolagents.agents import (  # type: ignore[import-untyped]
     CodeAgent,
     ToolCallingAgent,
@@ -17,13 +16,24 @@ from smolagents.agents import (  # type: ignore[import-untyped]
 from smolagents.models import (  # type: ignore[import-untyped]
     ChatMessage,
     ChatMessageToolCall,
-    ChatMessageToolCallDefinition,
+    ChatMessageToolCallFunction,
+    MessageRole,
 )
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+from openinference.instrumentation.smolagents._wrappers import (
+    _finalize_step_span,
+    _llm_input_messages,
+    _llm_output_messages,
+    infer_llm_provider_from_class_name,
+)
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -32,68 +42,84 @@ from openinference.semconv.trace import (
 )
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
+def make_non_recording_span() -> NonRecordingSpan:
+    """Helper to construct a dropped/invalid span as OTEL would produce."""
+    return NonRecordingSpan(
+        SpanContext(
+            trace_id=0,
+            span_id=0,
+            is_remote=False,
+            trace_flags=TraceFlags(0),
+        )
     )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
 
 
-def remove_all_vcr_response_headers(response: dict[str, Any]) -> dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
+@contextmanager
+def assert_no_attribute_error() -> Iterator[None]:
+    """Helper to fail the test if an AttributeError sneaks through."""
+    try:
+        yield
+    except AttributeError as e:
+        pytest.fail(f"Unexpected AttributeError: {e}")
 
 
-@pytest.fixture
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
+class TestFinalizeStepSpanWithDroppedSpan:
+    """Guards against AttributeError when OTEL drops or misconfigures a span."""
 
+    def test_with_observations_and_no_error_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock()
+        step_log.observations = "Test observations from Agent."
+        step_log.error = None
 
-@pytest.fixture
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = trace_sdk.TracerProvider(resource=resource)
-    span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
-    tracer_provider.add_span_processor(span_processor=span_processor)
-    return tracer_provider
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
 
+    def test_with_error_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock()
+        step_log.observations = None
+        step_log.error = RuntimeError("Something went wrong.")
 
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    SmolagentsInstrumentor().instrument(tracer_provider=tracer_provider, skip_dep_check=True)
-    yield
-    SmolagentsInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
 
+    def test_with_expected_tool_error_does_not_crash(self) -> None:
+        span = make_non_recording_span()
 
-@pytest.fixture
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
-    api_key = "sk-0123456789"
-    monkeypatch.setenv("OPENAI_API_KEY", api_key)
-    return api_key
+        tool_error = MagicMock()
+        tool_error.__class__.__name__ = "AgentToolExecutionError"
+        tool_error.dict.return_value = {"message": "Tool does not work."}
+
+        step_log = MagicMock()
+        step_log.observations = None
+        step_log.error = tool_error
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_with_no_observations_does_not_crash(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock(spec=[])
+
+        with assert_no_attribute_error():
+            _finalize_step_span(span, step_log)
+
+    def test_early_return_means_no_side_effects(self) -> None:
+        span = make_non_recording_span()
+        step_log = MagicMock()
+        step_log.observations = "Test observations from Agent."
+        step_log.error = None
+
+        with (
+            patch.object(span, "set_attribute", wraps=span.set_attribute) as mock_set_attr,
+            patch.object(span, "set_status", wraps=span.set_status) as mock_set_status,
+        ):
+            with assert_no_attribute_error():
+                _finalize_step_span(span, step_log)
+
+            mock_set_attr.assert_not_called()
+            mock_set_status.assert_not_called()
 
 
 class TestInstrumentor:
@@ -110,11 +136,7 @@ class TestInstrumentor:
 
 
 class TestModels:
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
+    @pytest.mark.vcr
     def test_openai_server_model_has_expected_attributes(
         self,
         openai_api_key: str,
@@ -122,7 +144,7 @@ class TestModels:
     ) -> None:
         model = OpenAIServerModel(
             model_id="gpt-4o",
-            api_key=os.environ["OPENAI_API_KEY"],
+            api_key=openai_api_key,
             api_base="https://api.openai.com/v1",
         )
         input_message_content = (
@@ -142,7 +164,7 @@ class TestModels:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.__call__"
+        assert span.name == "OpenAIModel.generate"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -154,24 +176,108 @@ class TestModels:
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
         assert (
-            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == output_message_content
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == output_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
         )
         assert not attributes
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
+    @pytest.mark.vcr
+    def test_openai_server_model_with_chatmessage_image_url_has_expected_attributes(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        model = OpenAIServerModel(
+            model_id="gpt-4o",
+            api_key=openai_api_key,
+            api_base="https://api.openai.com/v1",
+        )
+        text_content = "What breed is this dog?"
+        image_url = "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U"
+
+        output_message = model(
+            messages=[
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[
+                        {"type": "text", "text": text_content},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                )
+            ]
+        )
+        assert output_message is not None
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "OpenAIModel.generate"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(INPUT_VALUE), str)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
+        assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == text_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+            == "image"
+        )
+        assert (
+            attributes.pop(
+                f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
+            )
+            == image_url
+        )
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert isinstance(
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"),
+            str,
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert not attributes
+
+    @pytest.mark.vcr
     def test_openai_server_model_with_tool_has_expected_attributes(
         self,
         openai_api_key: str,
@@ -180,7 +286,7 @@ class TestModels:
     ) -> None:
         model = OpenAIServerModel(
             model_id="gpt-4o",
-            api_key=os.environ["OPENAI_API_KEY"],
+            api_key=openai_api_key,
             api_base="https://api.openai.com/v1",
         )
         input_message_content = "What is the weather in Paris?"
@@ -198,10 +304,9 @@ class TestModels:
 
         output_message = model(
             messages=[
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": input_message_content}],
-                }
+                ChatMessage(
+                    role=MessageRole.USER, content=[{"type": "text", "text": input_message_content}]
+                )
             ],
             tools_to_call_from=[GetWeatherTool()],
         )
@@ -209,14 +314,16 @@ class TestModels:
         assert output_message_content is None
         tool_calls = output_message.tool_calls
         assert len(tool_calls) == 1
-        assert isinstance(tool_call := tool_calls[0], ChatMessageToolCall)
-        assert tool_call.function.name == "get_weather"
-        assert tool_call.function.arguments == {"location": "Paris"}
+        tool_call = tool_calls[0]
+        tool_function = getattr(tool_call, "function", None)
+        assert tool_function is not None
+        assert getattr(tool_function, "name", None) == "get_weather"
+        assert getattr(tool_function, "arguments", None) == '{"location":"Paris"}'
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.__call__"
+        assert span.name == "OpenAIModel.generate"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -228,10 +335,19 @@ class TestModels:
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
         assert isinstance(
             tool_json_schema := attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str
         )
@@ -275,9 +391,369 @@ class TestModels:
         assert json.loads(tool_call_arguments_json) == {"location": "Paris"}
         assert not attributes
 
+    @pytest.mark.vcr
+    def test_litellm_reasoning_model_has_expected_attributes(
+        self,
+        anthropic_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+        patch_tiktoken_encoding: None,
+    ) -> None:
+        model_params = {"thinking": {"type": "enabled", "budget_tokens": 4000}}
 
-class TestRun:
-    @pytest.mark.xfail
+        model = LiteLLMModel(
+            model_id="anthropic/claude-3-7-sonnet-20250219",
+            api_key=anthropic_api_key,
+            **model_params,
+        )
+
+        input_message_content = (
+            "Who won the World Cup in 2018? Answer in one word with no punctuation."
+        )
+        output_message = model(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": input_message_content}],
+                }
+            ]
+        )
+        output_message_content = output_message.content
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "LiteLLMModel.generate"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        input_data = json.loads(input_value)
+        assert "messages" in input_data
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(json.loads(output_value), dict)
+        assert attributes.pop(LLM_MODEL_NAME) == "anthropic/claude-3-7-sonnet-20250219"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.ANTHROPIC.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.ANTHROPIC.value
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == model_params
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == output_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert isinstance(
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"),
+            str,
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert not attributes
+
+
+class TestAgents:
+    @pytest.mark.vcr
+    def test_tool_calling_agent_with_image_has_expected_attributes(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        import pathlib
+
+        from PIL import Image
+
+        model = OpenAIServerModel(
+            model_id="gpt-4o",
+            api_key=openai_api_key,
+            api_base="https://api.openai.com/v1",
+        )
+        image_path = pathlib.Path(__file__).parent / "fixtures" / "img.png"
+        pil_image = Image.open(image_path)
+
+        agent = ToolCallingAgent(
+            tools=[],
+            model=model,
+            max_steps=3,
+        )
+        agent.run(
+            "Describe what you see in this image briefly.",
+            images=[pil_image],
+        )
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 4
+        llm_span = spans[0]
+        assert llm_span.name == "OpenAIModel.generate"
+        assert llm_span.status.is_ok
+
+        llm_attrs = dict(llm_span.attributes or {})
+        assert llm_attrs.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert llm_attrs.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(llm_attrs.pop(INPUT_VALUE), str)
+        assert llm_attrs.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(llm_attrs.pop(OUTPUT_VALUE), str)
+        assert llm_attrs.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert llm_attrs.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert llm_attrs.pop(LLM_SYSTEM) == OpenInferenceLLMSystemValues.OPENAI.value
+        assert isinstance(llm_attrs.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert llm_attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 1102
+        assert llm_attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 44
+        assert llm_attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 1146
+
+        assert llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+        assert (
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert isinstance(
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"),
+            str,
+        )
+        assert llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+        assert (
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert (
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == "New task:\nDescribe what you see in this image briefly."
+        )
+        assert (
+            llm_attrs.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+            == "image"
+        )
+        image_url_value = llm_attrs.pop(
+            f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
+        )
+        assert str(image_url_value).startswith("data:image/png;base64,")
+
+        assert llm_attrs.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert (
+            llm_attrs.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
+            == "call_UemzWkeWxboyk7wCbBNRfUZp"
+        )
+        assert (
+            llm_attrs.pop(
+                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}"
+            )
+            == "final_answer"
+        )
+        assert isinstance(
+            llm_attrs.pop(
+                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+            ),
+            str,
+        )
+        assert isinstance(llm_attrs.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str)
+        assert not llm_attrs
+
+        agent_span = spans[3]
+        assert agent_span.name == "ToolCallingAgent.run"
+        assert agent_span.status.is_ok
+
+        agent_attrs = dict(agent_span.attributes or {})
+        assert agent_attrs.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
+        assert isinstance(agent_attrs.pop(INPUT_VALUE), str)
+        assert isinstance(agent_attrs.pop(OUTPUT_VALUE), str)
+        assert agent_attrs.pop(LLM_TOKEN_COUNT_PROMPT) == 1102
+        assert agent_attrs.pop(LLM_TOKEN_COUNT_COMPLETION) == 44
+        assert agent_attrs.pop(LLM_TOKEN_COUNT_TOTAL) == 1146
+        assert agent_attrs.pop("smolagents.max_steps") == 3
+        assert "final_answer" in str(agent_attrs.pop("smolagents.tools_names"))
+        assert not agent_attrs
+
+
+class TestRuns:
+    def test_streaming_and_non_streaming_code_agent_runs(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        class FakeModel:
+            def __init__(self, streaming: bool = False):
+                self.streaming = streaming
+                self.call_count = 0
+
+            def __call__(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                self.call_count += 1
+                return ChatMessage(
+                    role="assistant",
+                    content="""
+Thought: Let's return a simple answer.
+Code:
+```py
+final_answer("Test result from CodeAgent")
+```<end_code>
+""",
+                )
+
+            def generate(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                return self(messages, stop_sequences, grammar, tools_to_call_from)
+
+        # Handle non-streaming (normal) run
+        non_streaming_model = FakeModel(streaming=False)
+        code_agent_non_stream = CodeAgent(
+            tools=[],
+            model=non_streaming_model,
+            max_steps=5,
+            additional_authorized_imports=["json", "os"],
+        )
+        result_non_stream = code_agent_non_stream.run("Test question for non-streaming")
+
+        assert result_non_stream == "Test result from CodeAgent"
+
+        non_stream_spans = in_memory_span_exporter.get_finished_spans()
+        assert len(non_stream_spans) > 0
+
+        agent_spans_non_stream = [
+            span
+            for span in non_stream_spans
+            if span.attributes is not None
+            and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.AGENT.value
+        ]
+        assert len(agent_spans_non_stream) >= 1
+
+        # Check attributes in main span
+        main_span_non_stream = agent_spans_non_stream[0]
+        main_span_non_stream_attributes = dict(main_span_non_stream.attributes or {})
+        assert main_span_non_stream.name == "CodeAgent.run"
+        assert main_span_non_stream_attributes.get(SpanAttributes.INPUT_VALUE) is not None
+        assert (
+            main_span_non_stream_attributes.get(SpanAttributes.OUTPUT_VALUE)
+            == "Test result from CodeAgent"
+        )
+        assert main_span_non_stream_attributes.get("smolagents.max_steps") == 5
+
+        step_spans_non_stream = [
+            span
+            for span in non_stream_spans
+            if span.attributes is not None
+            and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.CHAIN.value
+        ]
+        assert len(step_spans_non_stream) >= 1
+
+        # Check attributes in step span
+        step_span_non_stream = step_spans_non_stream[0]
+        step_span_non_stream_attributes = dict(step_span_non_stream.attributes or {})
+        assert step_span_non_stream.name == "Step 1"
+        assert step_span_non_stream_attributes.get(SpanAttributes.INPUT_VALUE) is not None
+        assert step_span_non_stream_attributes.get(SpanAttributes.OUTPUT_VALUE) is not None
+
+        # Check token usage metadata
+        assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_non_stream_attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in main_span_non_stream_attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in main_span_non_stream_attributes
+
+        in_memory_span_exporter.clear()
+
+        # Handle streaming (generator) run
+        streaming_model = FakeModel(streaming=True)
+        code_agent_stream = CodeAgent(
+            tools=[],
+            model=streaming_model,
+            max_steps=3,
+            additional_authorized_imports=["json"],
+        )
+        result_stream = code_agent_stream.run("Test question for streaming", stream=True)
+
+        # Check that CodeAgent result is a generator
+        assert hasattr(result_stream, "__iter__")
+        assert hasattr(result_stream, "__next__")
+
+        # Collect chunks for final output
+        output_chunks = []
+        for chunk in result_stream:
+            output_chunks.append(str(chunk))
+        final_output = "".join(output_chunks)
+        assert "Test result from CodeAgent" in final_output
+
+        stream_spans = in_memory_span_exporter.get_finished_spans()
+        assert len(stream_spans) > 0
+
+        agent_spans_stream = [
+            span
+            for span in stream_spans
+            if span.attributes is not None
+            and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.AGENT.value
+        ]
+        assert len(agent_spans_stream) >= 1
+
+        # Check attributes in main span
+        main_span_stream = agent_spans_stream[0]
+        main_span_stream_attributes = dict(main_span_stream.attributes or {})
+        assert main_span_stream.name == "CodeAgent.run"
+        assert main_span_stream_attributes.get(SpanAttributes.INPUT_VALUE) is not None
+        assert main_span_stream_attributes.get("smolagents.max_steps") == 3
+
+        output_value = main_span_stream_attributes.get(SpanAttributes.OUTPUT_VALUE)
+        assert output_value is not None
+
+        step_spans_stream = [
+            span
+            for span in stream_spans
+            if span.attributes is not None
+            and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.CHAIN.value
+        ]
+        assert len(step_spans_stream) >= 1
+
+        # Check attributes in step span
+        step_span_stream = step_spans_stream[0]
+        step_span_stream_attributes = dict(step_span_stream.attributes or {})
+        assert step_span_stream.name == "Step 1"
+        assert step_span_stream_attributes.get(SpanAttributes.INPUT_VALUE) is not None
+        assert step_span_stream_attributes.get(SpanAttributes.OUTPUT_VALUE) is not None
+
+        # Check token usage metadata
+        assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_stream_attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in main_span_stream_attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in main_span_stream_attributes
+
+        # Check common attributes & status codes
+        common_attributes = [
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            SpanAttributes.INPUT_VALUE,
+            "smolagents.max_steps",
+            "smolagents.tools_names",
+        ]
+        for attr in common_attributes:
+            assert attr in main_span_non_stream_attributes
+            assert attr in main_span_stream_attributes
+
+        assert main_span_non_stream.status.status_code == trace_api.StatusCode.OK
+        assert main_span_stream.status.status_code == trace_api.StatusCode.OK
+
     def test_multiagents(self) -> None:
         class FakeModelMultiagentsManagerAgent:
             def __call__(
@@ -296,7 +772,7 @@ class TestRun:
                                 ChatMessageToolCall(
                                     id="call_0",
                                     type="function",
-                                    function=ChatMessageToolCallDefinition(
+                                    function=ChatMessageToolCallFunction(
                                         name="search_agent",
                                         arguments="Who is the current US president?",
                                     ),
@@ -312,7 +788,7 @@ class TestRun:
                                 ChatMessageToolCall(
                                     id="call_0",
                                     type="function",
-                                    function=ChatMessageToolCallDefinition(
+                                    function=ChatMessageToolCallFunction(
                                         name="final_answer", arguments="Final report."
                                     ),
                                 )
@@ -343,15 +819,37 @@ final_answer("Final report.")
 """,
                         )
 
+            def generate(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                return self(messages, stop_sequences, grammar, tools_to_call_from)
+
+            def parse_tool_calls(self, message: ChatMessage) -> ChatMessage:
+                if not message.tool_calls:
+                    message.tool_calls = [
+                        ChatMessageToolCall(
+                            id="call_0",
+                            type="function",
+                            function=ChatMessageToolCallFunction(
+                                name="final_answer", arguments="Final report."
+                            ),
+                        )
+                    ]
+                return message
+
         manager_model = FakeModelMultiagentsManagerAgent()
 
         class FakeModelMultiagentsManagedAgent:
             def __call__(
                 self,
                 messages: list[dict[str, Any]],
-                tools_to_call_from: Optional[list[Tool]] = None,
                 stop_sequences: Optional[list[str]] = None,
                 grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
             ) -> Any:
                 return ChatMessage(
                     role="assistant",
@@ -360,13 +858,22 @@ final_answer("Final report.")
                         ChatMessageToolCall(
                             id="call_0",
                             type="function",
-                            function=ChatMessageToolCallDefinition(
+                            function=ChatMessageToolCallFunction(
                                 name="final_answer",
                                 arguments="Report on the current US president",
                             ),
                         )
                     ],
                 )
+
+            def generate(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                return self(messages, stop_sequences, grammar, tools_to_call_from)
 
         managed_model = FakeModelMultiagentsManagedAgent()
 
@@ -385,7 +892,6 @@ final_answer("Final report.")
             tools=[],
             model=manager_model,
             managed_agents=[web_agent],
-            additional_authorized_imports=["time", "numpy", "pandas"],
         )
 
         report = manager_code_agent.run("Fake question.")
@@ -493,14 +999,382 @@ class TestTools:
         }
         assert not attributes
 
+    def test_tool_invocation_returning_tuple_has_expected_attributes(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        @tool  # type: ignore[misc]
+        def get_population(location: str) -> tuple[str, str]:
+            """
+            Get Population of the location and location type for the given location.
+
+            Args:
+                location: the location
+            """
+            return f"Population In {location} is 10 million", "City"
+
+        result = get_population("Paris")
+        assert result == ("Population In Paris is 10 million", "City")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {
+            "args": ["Paris"],
+            "sanitize_inputs_outputs": False,
+            "kwargs": {},
+        }
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == ["Population In Paris is 10 million", "City"]
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert attributes.pop(TOOL_NAME) == "get_population"
+        assert (
+            attributes.pop(TOOL_DESCRIPTION) == "Get Population of the location and location "
+            "type for the given location."
+        )
+        assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
+        assert json.loads(tool_parameters) == {
+            "location": {
+                "type": "string",
+                "description": "the location",
+            },
+        }
+        assert not attributes
+
+
+class TestInferLLMProviderFromClassName:
+    def test_returns_none_when_instance_is_none(self) -> None:
+        result = infer_llm_provider_from_class_name(None)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "class_name, model_id, expected",
+        [
+            ("LiteLLMModel", "anthropic/claude-3-opus", OpenInferenceLLMProviderValues.ANTHROPIC),
+            ("LiteLLMModel", "openai/gpt-4", OpenInferenceLLMProviderValues.OPENAI),
+            ("LiteLLMModel", "azure/gpt-4", OpenInferenceLLMProviderValues.AZURE),
+            ("LiteLLMModel", "cohere/command-r", OpenInferenceLLMProviderValues.COHERE),
+            ("LiteLLMRouterModel", "anthropic/claude-3", OpenInferenceLLMProviderValues.ANTHROPIC),
+            ("LiteLLMRouterModel", "openai/gpt-3.5", OpenInferenceLLMProviderValues.OPENAI),
+        ],
+    )
+    def test_litellm_models_with_valid_provider_prefix(
+        self, class_name: str, model_id: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+        mock_instance.model_id = model_id
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "class_name, model_id",
+        [
+            ("LiteLLMModel", "invalid_provider/some-model"),
+            ("LiteLLMModel", "gpt-4"),
+            ("LiteLLMRouterModel", "unknown/model"),
+        ],
+    )
+    def test_litellm_models_with_invalid_model_id_returns_none(
+        self, class_name: str, model_id: str
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+        mock_instance.model_id = model_id
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "model_id",
+        [None, 12345, [], {}],
+    )
+    def test_litellm_model_with_invalid_model_id_type(self, model_id: Any) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = "LiteLLMModel"
+        mock_instance.model_id = model_id
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    def test_litellm_model_with_missing_model_id_attribute(self) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = "LiteLLMModel"
+        del mock_instance.model_id
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "class_name, expected",
+        [
+            ("OpenAIModel", OpenInferenceLLMProviderValues.OPENAI),
+            ("AzureOpenAIModel", OpenInferenceLLMProviderValues.AZURE),
+            ("AmazonBedrockModel", OpenInferenceLLMProviderValues.AWS),
+        ],
+    )
+    def test_known_server_models_return_expected_provider(
+        self, class_name: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "class_name",
+        ["InferenceClientModel", "UnknownModelClass", "CustomModel"],
+    )
+    def test_unknown_or_special_class_names_return_none(self, class_name: str) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+
+class TestLlmInputMessages:
+    def test_dict_messages_with_list_content(self) -> None:
+        arguments = {
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+                {"role": "assistant", "content": [{"type": "text", "text": "Hi there"}]},
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+            == "user"
+        )
+        assert (
+            result[
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+                f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+                f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+            ]
+            == "Hello"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}"]
+            == "assistant"
+        )
+        assert (
+            result[
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.1."
+                f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+                f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+            ]
+            == "Hi there"
+        )
+
+    def test_chatmessage_objects_with_string_content(self) -> None:
+        arguments = {
+            "messages": [
+                ChatMessage(role=MessageRole.USER, content="Hello"),
+                ChatMessage(role=MessageRole.ASSISTANT, content="Hi there"),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+            == "user"
+        )
+        assert isinstance(
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"], str
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hello"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}"]
+            == "assistant"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hi there"
+        )
+
+    def test_chatmessage_objects_with_list_text_content(self) -> None:
+        arguments = {
+            "messages": [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[{"type": "text", "text": "Describe this image"}],
+                ),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+            == "user"
+        )
+        assert isinstance(
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"], str
+        )
+        text_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Describe this image"
+        type_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        assert result[type_key] == "text"
+
+    def test_chatmessage_with_image_url_content(self) -> None:
+        image_url = "data:image/png;base64,abc123"
+        arguments = {
+            "messages": [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[
+                        {"type": "text", "text": "What is in this image?"},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                ),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        text_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "What is in this image?"
+        image_url_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        assert result[image_url_key] == image_url
+        image_type_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        assert result[image_type_key] == "image"
+
+    def test_chatmessage_with_base64_image_content(self) -> None:
+        arguments = {
+            "messages": [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[{"type": "image", "image": "iVBORw0KGgo="}],
+                ),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        image_url_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        assert result[image_url_key] == "data:image/png;base64,iVBORw0KGgo="
+
+
+class TestLlmOutputMessages:
+    def test_chatmessage_role_is_plain_string(self) -> None:
+        output = ChatMessage(role=MessageRole.ASSISTANT, content="Paris")
+        result = dict(_llm_output_messages(output))
+        role_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"
+        assert result[role_key] == "assistant"
+        assert isinstance(result[role_key], str)
+
+    def test_chatmessage_content_is_captured(self) -> None:
+        output = ChatMessage(role=MessageRole.ASSISTANT, content="Hello world")
+        result = dict(_llm_output_messages(output))
+        text_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Hello world"
+
+    def test_chatmessage_with_list_text_content(self) -> None:
+        output = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=[{"type": "text", "text": "Here is the result"}],
+        )
+        result = dict(_llm_output_messages(output))
+        text_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Here is the result"
+
+    def test_chatmessage_with_list_image_url_content(self) -> None:
+        image_url = "data:image/png;base64,abc123"
+        output = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=[
+                {"type": "text", "text": "Here is the image"},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        )
+        result = dict(_llm_output_messages(output))
+        text_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Here is the image"
+        image_url_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        assert result[image_url_key] == image_url
+
+    def test_chatmessage_with_tool_calls(self) -> None:
+        output = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=None,
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_123",
+                    type="function",
+                    function=ChatMessageToolCallFunction(
+                        name="get_weather", arguments='{"location": "Paris"}'
+                    ),
+                )
+            ],
+        )
+        result = dict(_llm_output_messages(output))
+        role_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"
+        assert result[role_key] == "assistant"
+        assert isinstance(result[role_key], str)
+        tool_name_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        )
+        assert result[tool_name_key] == "get_weather"
+
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+
+# image attributes
+IMAGE_URL = ImageAttributes.IMAGE_URL
 
 # mime types
 JSON = OpenInferenceMimeTypeValues.JSON.value
@@ -517,6 +1391,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

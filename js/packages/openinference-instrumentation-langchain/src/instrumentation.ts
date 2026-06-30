@@ -1,17 +1,25 @@
 import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
-import {
-  InstrumentationBase,
+import type { Tracer, TracerProvider } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+import type {
   InstrumentationConfig,
   InstrumentationModuleDefinition,
+} from "@opentelemetry/instrumentation";
+import {
+  InstrumentationBase,
   InstrumentationNodeModuleDefinition,
   isWrapped,
 } from "@opentelemetry/instrumentation";
-import { VERSION } from "./version";
-import { diag } from "@opentelemetry/api";
+
+import type { TraceConfigOptions } from "@arizeai/openinference-core";
+import { OITracer } from "@arizeai/openinference-core";
+
 import { addTracerToHandlers } from "./instrumentationUtils";
-import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
+import { VERSION } from "./version";
 
 const MODULE_NAME = "@langchain/core/callbacks";
+
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-langchain";
 
 /**
  * Flag to check if the openai module has been patched
@@ -35,10 +43,13 @@ type CallbackManagerModule = typeof CallbackManagerModuleV02;
  */
 export class LangChainInstrumentation extends InstrumentationBase<CallbackManagerModule> {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
 
   constructor({
     instrumentationConfig,
     traceConfig,
+    tracerProvider,
   }: {
     /**
      * The config for the instrumentation
@@ -50,14 +61,19 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
      * @see {@link TraceConfigOptions}
      */
     traceConfig?: TraceConfigOptions;
+    /**
+     * An optional custom trace provider to be used for tracing. If not provided, a tracer will be created using the global tracer provider.
+     * This is useful if you want to use a non-global tracer provider.
+     *
+     * @see {@link TracerProvider}
+     */
+    tracerProvider?: TracerProvider;
   } = {}) {
-    super(
-      "@arizeai/openinference-instrumentation-langchain",
-      VERSION,
-      Object.assign({}, instrumentationConfig),
-    );
+    super(INSTRUMENTATION_NAME, VERSION, Object.assign({}, instrumentationConfig));
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer: this.tracer,
+      tracer: this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ?? this.tracer,
       traceConfig,
     });
   }
@@ -68,14 +84,29 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
   }
 
   protected init(): InstrumentationModuleDefinition<CallbackManagerModule> {
-    const module =
-      new InstrumentationNodeModuleDefinition<CallbackManagerModule>(
-        "@langchain/core/dist/callbacks/manager.cjs",
-        ["^0.1.0", "^0.2.0"],
-        this.patch.bind(this),
-        this.unpatch.bind(this),
-      );
+    const module = new InstrumentationNodeModuleDefinition<CallbackManagerModule>(
+      "@langchain/core/dist/callbacks/manager.cjs",
+      ["^1.0.0", "^0.3.0", "^0.2.0"], // Only the latest is tested in this module
+      this.patch.bind(this),
+      this.unpatch.bind(this),
+    );
     return module;
+  }
+
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(this.instrumentationName, this.instrumentationVersion);
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
   }
 
   private patch(
@@ -85,12 +116,11 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     moduleVersion?: string,
   ) {
     diag.debug(
-      `Applying patch for ${MODULE_NAME}${
-        moduleVersion != null ? `@${moduleVersion}` : ""
-      }`,
+      `Applying patch for ${MODULE_NAME}${moduleVersion != null ? `@${moduleVersion}` : ""}`,
     );
     if (module?.openInferencePatched || _isOpenInferencePatched) {
-      return module;
+      // If already patched, unpatch first to allow re-patching with new instrumentation
+      this.unpatch(module, moduleVersion);
     }
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation = this;
@@ -107,9 +137,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
       this._wrap(module.CallbackManager, "_configureSync", (original) => {
         return function (
           this: typeof CallbackManagerModuleV02,
-          ...args: Parameters<
-            (typeof CallbackManagerModuleV02.CallbackManager)["_configureSync"]
-          >
+          ...args: Parameters<(typeof CallbackManagerModuleV02.CallbackManager)["_configureSync"]>
         ) {
           const inheritableHandlers = args[0];
           const newInheritableHandlers = addTracerToHandlers(
@@ -143,9 +171,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
       return;
     }
     diag.debug(
-      `Removing patch for ${MODULE_NAME}${
-        moduleVersion != null ? `@${moduleVersion}` : ""
-      }`,
+      `Removing patch for ${MODULE_NAME}${moduleVersion != null ? `@${moduleVersion}` : ""}`,
     );
     if (isWrapped(module.CallbackManager.configure)) {
       this._unwrap(module.CallbackManager, "configure");

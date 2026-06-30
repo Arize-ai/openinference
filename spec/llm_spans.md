@@ -2,24 +2,86 @@
 
 LLM spans capture the API parameters sent to a LLM provider such as OpenAI or Cohere.
 
-## Examples
+## Required Attributes
 
-A span for a tool call with OpenAI
+All LLM spans MUST include:
+- `openinference.span.kind`: Set to `"LLM"`
+- `llm.system`: The AI system/product (e.g., "openai", "anthropic")
+
+## Common Attributes
+
+LLM spans typically include:
+- `llm.model_name`: The specific model used (e.g., "gpt-4-0613")
+- `llm.invocation_parameters`: JSON string of parameters sent to the model
+- `input.value`: The raw input as a JSON string
+- `input.mime_type`: Usually "application/json"
+- `output.value`: The raw output as a JSON string
+- `output.mime_type`: Usually "application/json"
+- `llm.input_messages`: Flattened list of input messages
+- `llm.output_messages`: Flattened list of output messages
+- `llm.token_count.*`: Token usage metrics
+
+## Context Attributes
+
+All LLM spans automatically inherit context attributes when they are set via the instrumentation context API. These attributes are propagated to every span in the trace without needing to be explicitly set on each span:
+
+| Attribute | Description |
+| --------- | ----------- |
+| `session.id` | Unique identifier for the session |
+| `user.id` | Unique identifier for the user |
+| `metadata` | JSON string of key-value metadata associated with the trace |
+| `tag.tags` | List of string tags for categorizing the span |
+| `llm.prompt_template.template` | The prompt template used to generate the LLM input |
+| `llm.prompt_template.variables` | JSON of key-value pairs applied to the prompt template |
+| `llm.prompt_template.version` | Version identifier for the prompt template |
+
+See [Configuration](./configuration.md) for details on how to set these context attributes.
+
+## Attribute Flattening
+
+Note that while the examples below show attributes in a nested JSON format for readability, in actual OpenTelemetry spans, these attributes are flattened using indexed dot notation:
+
+- `llm.input_messages.0.message.role` instead of `llm.input_messages[0].message.role`
+- `llm.output_messages.0.message.tool_calls.0.tool_call.function.name` for nested tool calls
+- `llm.tools.0.tool.json_schema` for tool definitions
+
+## Tool Role Messages
+
+When a message with `message.role` set to `"tool"` represents the result of a function call, the `message.name` attribute MAY be set to identify which function produced the result. This complements `message.tool_call_id`, which links the result back to the original tool call request. For example:
 
 ```json
 {
-    "name": "llm",
+    "message.role": "tool",
+    "message.content": "2001",
+    "message.name": "multiply",
+    "message.tool_call_id": "call_62136355"
+}
+```
+
+See [Tool Calling](./tool_calling.md) for the complete tool calling flow.
+
+## Examples
+
+### Chat Completions
+
+A span for a tool call with OpenAI (shown in logical JSON format for clarity)
+
+```json
+{
+    "name": "ChatCompletion",
     "context": {
         "trace_id": "409df945-e058-4829-b240-cfbdd2ff4488",
         "span_id": "01fa9612-01b8-4358-85d6-e3e067305ec3"
     },
-    "span_kind": "LLM",
+    "span_kind": "SPAN_KIND_INTERNAL",
     "parent_id": "2fe8a793-2cf1-42d7-a1df-bd7d46e017ef",
     "start_time": "2024-01-11T16:45:17.982858-07:00",
     "end_time": "2024-01-11T16:45:18.517639-07:00",
     "status_code": "OK",
     "status_message": "",
     "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "openai",
         "llm.input_messages": [
             {
                 "message.role": "system",
@@ -59,13 +121,15 @@ A synthesis call using a function call output
         "trace_id": "409df945-e058-4829-b240-cfbdd2ff4488",
         "span_id": "f26d1f26-9671-435d-9716-14a87a3f228b"
     },
-    "span_kind": "LLM",
+    "span_kind": "SPAN_KIND_INTERNAL",
     "parent_id": "2fe8a793-2cf1-42d7-a1df-bd7d46e017ef",
     "start_time": "2024-01-11T16:45:18.519427-07:00",
     "end_time": "2024-01-11T16:45:19.159145-07:00",
     "status_code": "OK",
     "status_message": "",
     "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "openai",
         "llm.input_messages": [
             {
                 "message.role": "system",
@@ -107,5 +171,163 @@ A synthesis call using a function call output
     },
     "events": [],
     "conversation": null
+}
+```
+
+### Reasoning Content
+
+Assistant messages from reasoning-capable models may include `"reasoning"` items in `message.contents` alongside `"text"` and tool calls. Use `message.contents` when the provider returns ordered parts that must be replayed in order, such as reasoning followed by a tool call. The reasoning content convention uses these message content attributes:
+
+- `message_content.type` — set to `"reasoning"` for reasoning/thinking content. This includes Anthropic `redacted_thinking` blocks.
+- `message_content.id` — captures provider-assigned content identifiers when they are needed for replay, such as OpenAI `ResponseReasoningItem.id`.
+- `message_content.signature` — captures provider `signature` values verbatim, and captures Gemini `thoughtSignature` values when they are attached to a non-tool content part such as text.
+- `message_content.data` — captures Anthropic `redacted_thinking.data` values verbatim.
+- `message_content.encrypted_content` — captures OpenAI `encrypted_content` verbatim.
+
+When a provider attaches the reasoning echo token to a tool call instead of a message content item, use `tool_call.reasoning_signature`. Gemini uses this for `thoughtSignature` on `functionCall` parts. If a tool call must remain ordered relative to reasoning or text content, emit a `message.contents` item with `message_content.type = "tool_use"` and the same `tool_call.*` fields used by `message.tool_calls`.
+
+When OpenAI returns an array of `summary_text` items, concatenate them in source order into a single `message_content.text` value for now. Emit `message_content.id` when the `ResponseReasoningItem.id` is present, because stateless replay needs the reasoning item id as well as its `encrypted_content`.
+
+#### OpenAI Responses
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "openai",
+        "llm.model_name": "gpt-5",
+        "llm.output_messages": [
+            {
+                "message.role": "assistant",
+                "message.contents": [
+                    {
+                        "message_content.type": "reasoning",
+                        "message_content.id": "rs_abc123",
+                        "message_content.text": "User asked for the capital of France...\nThe answer is Paris.",
+                        "message_content.encrypted_content": "gAAAAA...=="
+                    },
+                    {
+                        "message_content.type": "text",
+                        "message_content.text": "Paris."
+                    }
+                ]
+            }
+        ],
+        "llm.token_count.completion_details.reasoning": 482
+    }
+}
+```
+
+#### Anthropic Messages
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "anthropic",
+        "llm.model_name": "claude-opus-4-6",
+        "llm.output_messages": [
+            {
+                "message.role": "assistant",
+                "message.contents": [
+                    {
+                        "message_content.type": "reasoning",
+                        "message_content.text": "Let me work through this. The capital of France is...",
+                        "message_content.signature": "EuYBCkQYAiJA..."
+                    },
+                    {
+                        "message_content.type": "text",
+                        "message_content.text": "Paris."
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+For an Anthropic `redacted_thinking` block, emit a reasoning content item with `message_content.data` and without `message_content.text`:
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "anthropic",
+        "llm.model_name": "claude-opus-4-6",
+        "llm.output_messages": [
+            {
+                "message.role": "assistant",
+                "message.contents": [
+                    {
+                        "message_content.type": "reasoning",
+                        "message_content.data": "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2..."
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+#### Gemini Function Calling
+
+Gemini attaches `thoughtSignature` to content parts such as `functionCall` and sometimes `text`. When the signature is on a non-tool content part, capture it on that content item as `message_content.signature`. When the signature is on a function call, capture it on the corresponding tool call as `tool_call.reasoning_signature`:
+
+```json
+{
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "google",
+        "llm.model_name": "gemini-3-pro",
+        "llm.output_messages": [
+            {
+                "message.role": "model",
+                "message.tool_calls": [
+                    {
+                        "tool_call.function.name": "get_current_temperature",
+                        "tool_call.function.arguments": "{\"location\":\"Paris\"}",
+                        "tool_call.reasoning_signature": "CiQB..."
+                    }
+                ]
+            }
+        ],
+        "llm.token_count.completion_details.reasoning": 318
+    }
+}
+```
+
+### Completions
+
+A span for a simple completion (shown in logical JSON format for clarity)
+
+```json
+{
+    "name": "Completion",
+    "context": {
+        "trace_id": "12345678-1234-5678-1234-567812345678",
+        "span_id": "87654321-4321-8765-4321-876543218765"
+    },
+    "span_kind": "SPAN_KIND_INTERNAL",
+    "parent_id": null,
+    "start_time": "2025-09-29T03:42:49.000000Z",
+    "end_time": "2025-09-29T03:42:50.284841Z",
+    "status_code": "OK",
+    "status_message": "",
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "openai",
+        "llm.model_name": "babbage:2023-07-21-v2",
+        "llm.invocation_parameters": "{\"model\": \"babbage-002\", \"temperature\": 0.4, \"top_p\": 0.9, \"max_tokens\": 25}",
+        "input.value": "{\"model\": \"babbage-002\", \"prompt\": \"def fib(n):\\n    if n <= 1:\\n        return n\\n    else:\\n        return fib(n-1) + fib(n-2)\", \"temperature\": 0.4, \"top_p\": 0.9, \"max_tokens\": 25}",
+        "input.mime_type": "application/json",
+        "llm.prompts.0.prompt.text": "def fib(n):\n    if n <= 1:\n        return n\n    else:\n        return fib(n-1) + fib(n-2)",
+        "output.value": "{\"id\": \"cmpl-CKz4klHa1MMqAa4hQn3yzIMlLMZHd\", \"object\": \"text_completion\", \"created\": 1759117370, \"model\": \"babbage:2023-07-21-v2\", \"choices\": [{\"text\": \" + fib(n-3) + fib(n-4)\\n\\ndef fib(n):\\n    if n <= 1:\\n        return\", \"index\": 0, \"finish_reason\": \"length\"}], \"usage\": {\"prompt_tokens\": 31, \"completion_tokens\": 25, \"total_tokens\": 56}}",
+        "output.mime_type": "application/json",
+        "llm.choices.0.completion.text": " + fib(n-3) + fib(n-4)\n\ndef fib(n):\n    if n <= 1:\n        return",
+        "llm.token_count.prompt": 31,
+        "llm.token_count.completion": 25,
+        "llm.token_count.total": 56
+    },
+    "events": []
 }
 ```

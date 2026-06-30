@@ -1,0 +1,74 @@
+{
+  "name": "@arizeai/openinference-genai",
+  "version": "0.3.0",
+  "private": false,
+  "description": "OpenInference utilities for converting OpenTelemetry GenAI span attributes to OpenInference span attributes",
+  "keywords": [
+    "agent",
+    "genai",
+    "llm",
+    "openinference",
+    "opentelemetry"
+  ],
+  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-genai",
+  "bugs": {
+    "url": "https://github.com/Arize-ai/openinference/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "oss-devs@arize.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arize-ai/openinference.git"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "main": "dist/commonjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/commonjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/commonjs/index.js"
+    },
+    "./attributes": {
+      "import": "./dist/esm/attributes.js",
+      "require": "./dist/commonjs/attributes.js"
+    },
+    "./utils": {
+      "import": "./dist/esm/utils.js",
+      "require": "./dist/commonjs/utils.js"
+    },
+    "./types": {
+      "types": "./dist/esm/types.d.ts",
+      "require": "./dist/commonjs/types.d.ts"
+    }
+  },
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "tsc --build tsconfig.commonjs.json tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
+    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test dist/examples",
+    "type:check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@arizeai/openinference-semantic-conventions": "workspace:*"
+  },
+  "devDependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^2.1.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.206.0",
+    "@opentelemetry/resources": "^2.1.0",
+    "@opentelemetry/sdk-trace-base": "^2.1.0",
+    "@opentelemetry/sdk-trace-node": "^2.1.0",
+    "@opentelemetry/semantic-conventions": "^1.41.1",
+    "@types/node": "^20.14.11",
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.3"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": ">=1.9.0",
+    "@opentelemetry/semantic-conventions": ">=1.41.1"
+  }
+}

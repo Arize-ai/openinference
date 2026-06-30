@@ -5,14 +5,12 @@ from importlib.metadata import version
 from typing import (
     Any,
     Iterator,
-    List,
     Mapping,
     NamedTuple,
     Optional,
     Protocol,
     Sequence,
     Tuple,
-    Union,
     cast,
 )
 
@@ -110,26 +108,3 @@ def _finish_tracing(
         )
     except Exception:
         logger.exception("Failed to finish tracing")
-
-
-def _get_texts(
-    model_input: Optional[Union[str, List[str], List[int], List[List[int]]]],
-    model: Optional[str],
-) -> Iterator[str]:
-    if not model_input:
-        return
-    if isinstance(model_input, str):
-        text = model_input
-        yield text
-        return
-    if not isinstance(model_input, Sequence):
-        return
-    if any(not isinstance(item, str) for item in model_input):
-        # FIXME: We can't decode tokens (List[int]) reliably because the model name is not reliable,
-        # e.g. for text-embedding-ada-002 (cl100k_base), OpenAI returns "text-embedding-ada-002-v2",
-        # and Azure returns "ada", which refers to a different model (r50k_base). We could use the
-        # request model name instead, but that doesn't work for Azure because Azure uses the
-        # deployment name (which differs from the model name).
-        return
-    for text in cast(List[str], model_input):
-        yield text

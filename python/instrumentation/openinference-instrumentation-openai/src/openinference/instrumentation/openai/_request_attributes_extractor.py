@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from enum import Enum
 from types import ModuleType
@@ -11,16 +13,21 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
+    Union,
+    cast,
 )
 
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
+    EmbeddingAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    PromptAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -28,6 +35,8 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
     from openai.types.chat import ChatCompletion
+    from openai.types.responses.response import Response
+    from openai.types.responses.response_create_params import ResponseCreateParamsBase
 
 __all__ = ("_RequestAttributesExtractor",)
 
@@ -40,6 +49,7 @@ class _RequestAttributesExtractor:
         "_openai",
         "_chat_completion_type",
         "_completion_type",
+        "_responses_type",
         "_create_embedding_response_type",
     )
 
@@ -47,6 +57,7 @@ class _RequestAttributesExtractor:
         self._openai = openai
         self._chat_completion_type: Type["ChatCompletion"] = openai.types.chat.ChatCompletion
         self._completion_type: Type["Completion"] = openai.types.Completion
+        self._responses_type: Type["Response"] = openai.types.responses.response.Response
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
             openai.types.CreateEmbeddingResponse
         )
@@ -60,6 +71,10 @@ class _RequestAttributesExtractor:
             return
         if cast_to is self._chat_completion_type:
             yield from self._get_attributes_from_chat_completion_create_param(request_parameters)
+        elif cast_to is self._responses_type:
+            yield from _ResponsesApiAttributes._get_attributes_from_response_create_param_base(
+                cast("ResponseCreateParamsBase", request_parameters)
+            )
         elif cast_to is self._create_embedding_response_type:
             yield from _get_attributes_from_embedding_create_param(request_parameters)
         elif cast_to is self._completion_type:
@@ -182,23 +197,47 @@ class _RequestAttributesExtractor:
 
     def _get_attributes_from_image(
         self,
-        image: Mapping[str, Any],
+        image: Union[Mapping[str, Any], str],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        image = dict(image)
-        if url := image.pop("url"):
-            yield f"{ImageAttributes.IMAGE_URL}", url
+        # Handle both dict and string formats for image_url
+        if isinstance(image, str):
+            if image:  # Only yield if string is not empty
+                yield f"{ImageAttributes.IMAGE_URL}", image
+        elif isinstance(image, Mapping):
+            image_dict = dict(image)
+            if url := image_dict.pop("url"):
+                yield f"{ImageAttributes.IMAGE_URL}", url
 
 
 def _get_attributes_from_completion_create_param(
     params: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    # openai.types.completion_create_params.CompletionCreateParamsBase
-    # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_create_params.py#L11  # noqa: E501
+    """
+    Extract attributes from parameters for the LEGACY completions API.
+
+    The legacy completions API supports:
+    - Single prompt: client.completions.create(prompt="text")
+    - Batch prompts: client.completions.create(prompt=["text1", "text2"])
+      where each prompt generates a separate completion
+
+    See: https://github.com/openai/openai-python/blob/7da727a4a3eb35306c328e2c3207a1618ed1809f/src/openai/types/completion_create_params.py#L18-L25
+    """
     if not isinstance(params, Mapping):
         return
     invocation_params = dict(params)
     invocation_params.pop("prompt", None)
     yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+
+    model_prompt = params.get("prompt")
+    if isinstance(model_prompt, str):
+        yield f"{SpanAttributes.LLM_PROMPTS}.0.{PromptAttributes.PROMPT_TEXT}", model_prompt
+    elif (
+        isinstance(model_prompt, list)
+        and model_prompt
+        and all(isinstance(item, str) for item in model_prompt)
+    ):
+        for index, prompt in enumerate(model_prompt):
+            yield f"{SpanAttributes.LLM_PROMPTS}.{index}.{PromptAttributes.PROMPT_TEXT}", prompt
 
 
 def _get_attributes_from_embedding_create_param(
@@ -210,7 +249,26 @@ def _get_attributes_from_embedding_create_param(
         return
     invocation_params = dict(params)
     invocation_params.pop("input", None)
-    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+    yield SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+
+    # Extract text from embedding input - only records text, not token IDs
+    embedding_input = params.get("input")
+    if embedding_input is not None:
+        if isinstance(embedding_input, str):
+            # Single string input
+            yield (
+                f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}",
+                embedding_input,
+            )
+        elif isinstance(embedding_input, list) and embedding_input:
+            # Check if it's a list of strings (not tokens)
+            if all(isinstance(item, str) for item in embedding_input):
+                # List of strings
+                for index, text in enumerate(embedding_input):
+                    yield (
+                        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{EmbeddingAttributes.EMBEDDING_TEXT}",
+                        text,
+                    )
 
 
 T = TypeVar("T", bound=type)

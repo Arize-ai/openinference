@@ -14,19 +14,9 @@
  * limitations under the License.
  */
 
-const DEFAULT_IGNORE_KEYS = [
-  "emitter",
-  "logger",
-  "tokens",
-  "createdBy",
-  "client",
-];
+const DEFAULT_IGNORE_KEYS = ["emitter", "logger", "tokens", "createdBy", "client"];
 
-export function traceSerializer({
-  ignored_keys = [],
-}: {
-  ignored_keys?: string[];
-}) {
+export function traceSerializer({ ignored_keys = [] }: { ignored_keys?: string[] }) {
   const mergedIgnoreKeys = new Set([...DEFAULT_IGNORE_KEYS, ...ignored_keys]);
 
   return (body: object) =>

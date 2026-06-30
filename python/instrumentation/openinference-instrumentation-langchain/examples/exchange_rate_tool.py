@@ -1,7 +1,11 @@
+# /// script
+# dependencies = [
+#   "langchain>=1.0.0"
+# ]
+# ///
 import requests
 from langchain import agents
 from langchain.tools import tool
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -32,16 +36,17 @@ def get_exchange_rate(
 
 tools = [get_exchange_rate]
 llm = ChatOpenAI()
-prompt = ChatPromptTemplate.from_messages(
-    [
-        ("human", "{input}"),
-        ("placeholder", "{agent_scratchpad}"),
-    ]
-)
-agent = agents.create_tool_calling_agent(llm, tools, prompt)
-agent_executor = agents.AgentExecutor(agent=agent, tools=tools, verbose=True)
+agent = agents.create_agent(llm, tools)
 
 if __name__ == "__main__":
-    agent_executor.invoke(
-        {"input": "What is the exchange rate from US dollars to Swedish currency today?"}
+    agent.invoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "What is the exchange rate from US dollars to Swedish "
+                    "currency today?",
+                }
+            ]
+        }
     )

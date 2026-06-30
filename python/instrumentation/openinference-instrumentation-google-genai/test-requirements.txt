@@ -1,0 +1,4 @@
+google-genai==2.0.1
+opentelemetry-sdk
+pytest-asyncio
+pytest-recording

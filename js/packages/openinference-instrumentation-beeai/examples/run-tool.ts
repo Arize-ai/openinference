@@ -1,4 +1,5 @@
 import "./instrumentation";
+
 import { OpenMeteoTool } from "beeai-framework/tools/weather/openMeteo";
 
 async function main() {

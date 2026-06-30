@@ -30,7 +30,14 @@ import pytest
 import vcr  # type: ignore
 from google.auth.credentials import AnonymousCredentials
 from httpx import AsyncByteStream, Response, SyncByteStream
-from langchain.chains import LLMChain, RetrievalQA
+
+try:
+    from langchain.chains import LLMChain, RetrievalQA
+except ImportError:
+    # Fallback import for LangChain v1.0 changes (moved to langchain_classic)
+    from langchain_classic.chains import LLMChain, RetrievalQA
+
+
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -61,6 +68,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -99,19 +107,19 @@ async def test_get_current_span(
             await asyncio.sleep(0.001)
             return get_current_span()
 
-        results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))  # type: ignore[arg-type]
+        runnable: Any = RunnableLambda(f)
+        results = await asyncio.gather(*(runnable.ainvoke(0) for _ in range(n)))
     else:
         results = await asyncio.gather(
             *(
-                loop.run_in_executor(None, RunnableLambda(lambda _: get_current_span()).invoke, ...)
+                loop.run_in_executor(None, RunnableLambda(current_span_getter).invoke, 0)
                 for _ in range(n)
             )
         )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == n
     assert {id(span.get_span_context()) for span in results if isinstance(span, Span)} == {
-        id(span.get_span_context())  # type: ignore[no-untyped-call]
-        for span in spans
+        id(span.get_span_context()) for span in spans
     }
 
 
@@ -119,7 +127,7 @@ def test_get_current_span_when_there_is_no_tracer() -> None:
     instrumentor = LangChainInstrumentor()
     instrumentor.uninstrument()
     del instrumentor._tracer
-    assert RunnableLambda(lambda _: (get_current_span(), get_ancestor_spans())).invoke(0) == (
+    assert RunnableLambda(current_span_and_ancestors_getter).invoke(0) == (
         None,
         [],
     )
@@ -157,13 +165,13 @@ async def test_get_ancestor_spans(
     ancestors_after_execution = get_ancestor_spans()
     assert ancestors_after_execution == [], "No ancestors after execution"
 
-    assert (
-        len(ancestors_during_execution) == 2 * n
-    ), "Did not capture all ancestors during execution"
+    assert len(ancestors_during_execution) == 2 * n, (
+        "Did not capture all ancestors during execution"
+    )
 
-    assert (
-        len(set(id(span) for span in ancestors_during_execution)) == n
-    ), "Both Lambdas share the same ancestor"
+    assert len(set(id(span) for span in ancestors_during_execution)) == n, (
+        "Both Lambdas share the same ancestor"
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
@@ -201,13 +209,13 @@ async def test_get_ancestor_spans_async(
     ancestors_after_execution = get_ancestor_spans()
     assert ancestors_after_execution == [], "No ancestors after execution"
 
-    assert (
-        len(ancestors_during_execution) == 2 * n
-    ), "Did not capture all ancestors during execution"
+    assert len(ancestors_during_execution) == 2 * n, (
+        "Did not capture all ancestors during execution"
+    )
 
-    assert (
-        len(set(id(span) for span in ancestors_during_execution)) == n
-    ), "Both Lambdas share the same ancestor"
+    assert len(set(id(span) for span in ancestors_during_execution)) == n, (
+        "Both Lambdas share the same ancestor"
+    )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 3 * n, f"Expected {3 * n} spans, but found {len(spans)}"
@@ -423,7 +431,10 @@ def test_callback_llm(
         assert oai_span.context.trace_id == llm_span.context.trace_id
         oai_attributes = dict(oai_span.attributes or {})
         assert oai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
-        assert oai_attributes.pop(LLM_MODEL_NAME, None) is not None
+        if not is_stream and status_code == 200:
+            assert oai_attributes.pop(LLM_MODEL_NAME, None) == model_name
+        else:
+            assert oai_attributes.pop(LLM_MODEL_NAME, None) == "gpt-3.5-turbo"
         assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
         assert oai_attributes.pop(INPUT_VALUE, None) is not None
         assert oai_attributes.pop(INPUT_MIME_TYPE, None) == JSON.value
@@ -477,6 +488,9 @@ def test_callback_llm(
         # Ignore metadata since LC adds a bunch of unstable metadata
         oai_attributes.pop(METADATA, None)
         if status_code == 200:
+            # Also pop any LLM provider and system attributes that might have been added
+            assert oai_attributes.pop(SpanAttributes.LLM_PROVIDER, None) == "openai"
+            assert oai_attributes.pop(SpanAttributes.LLM_SYSTEM, None) == "openai"
             assert oai_attributes == {}
 
         assert spans_by_name == {}
@@ -576,7 +590,7 @@ def test_anthropic_token_counts(
     span = spans[0]
     llm_attributes = dict(span.attributes or {})
     assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
-    assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == 22
+    assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == 33
     assert llm_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == 5
     assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 2
     assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 9
@@ -605,10 +619,13 @@ def test_gemini_token_counts_streaming(
             llm = VertexAI(
                 api_transport="rest",
                 project="test-project",
-                model_name="gemini-pro",
-                streaming=streaming,
+                model_name="gemini-2.5-flash",
             )
-            llm.invoke("Tell me a funny joke, a one-liner.")
+            if streaming:
+                for _ in llm.stream("Tell me a funny joke, a one-liner."):
+                    pass
+            else:
+                llm.invoke("Tell me a funny joke, a one-liner.")
             spans = in_memory_span_exporter.get_finished_spans()
             assert len(spans) == 1
             span = spans[0]
@@ -841,47 +858,12 @@ def test_read_session_from_metadata(
     assert llm_attributes == {}
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
-
-
 @pytest.mark.skipif(
     condition=LANGCHAIN_OPENAI_VERSION < (0, 1, 9),
     reason="The stream_usage parameter was introduced in langchain-openai==0.1.9",
     # https://github.com/langchain-ai/langchain/releases/tag/langchain-openai%3D%3D0.1.9
 )
-@pytest.mark.vcr(
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_records_token_counts_for_streaming_openai_llm(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -897,11 +879,7 @@ def test_records_token_counts_for_streaming_openai_llm(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_token_counts(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -931,6 +909,95 @@ def test_token_counts(
     assert attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO) == 2
     assert attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 1
     assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == 24
+
+
+@pytest.mark.vcr(
+    cassette_library_dir="tests/cassettes/test_instrumentor",  # Explicitly set the directory
+)
+def test_tool_call_with_function(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from langchain.chat_models import init_chat_model
+    from langchain_core.messages import AIMessage
+    from langchain_core.tools import tool
+
+    @tool
+    def add(a: int, b: int) -> int:
+        """Adds a and b."""
+        return a + b
+
+    @tool
+    def multiply(a: int, b: int) -> int:
+        """Multiplies a and b."""
+        return a * b
+
+    tools = [add, multiply]
+
+    llm = init_chat_model(
+        "gpt-4o-mini",
+        model_provider="openai",
+        api_key="sk-fake-key",
+    )
+    llm_with_tools = llm.bind_tools(tools)
+    query = "What is 3 * 12? Also, what is 11 + 49?"
+    result = llm_with_tools.invoke(query)
+    assert isinstance(result, AIMessage)
+    _ = result.tool_calls
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Test input message
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert attributes.pop("llm.input_messages.0.message.content") == query
+
+    # Test output message and tool calls
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+
+    # Test first tool call (multiply)
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.name")
+        == "multiply"
+    )
+    multiply_args = attributes.pop(
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+    )
+    assert isinstance(multiply_args, str)
+    assert json.loads(multiply_args) == {"a": 3, "b": 12}
+
+    # Test second tool call (add)
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.function.name")
+        == "add"
+    )
+    add_args = attributes.pop(
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments"
+    )
+    assert isinstance(add_args, str)
+    assert json.loads(add_args) == {"a": 11, "b": 49}
+
+    # Test tool schemas
+    tool1_schema = attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}", None)
+    tool2_schema = attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}", None)
+    assert tool1_schema is not None
+    assert tool2_schema is not None
+    assert isinstance(tool1_schema, str)
+    assert isinstance(tool2_schema, str)
+
+    tool1_schema_dict = json.loads(tool1_schema)
+    assert tool1_schema_dict["type"] == "function"
+    assert tool1_schema_dict["function"]["name"] == "add"
+    assert tool1_schema_dict["function"]["description"] == "Adds a and b."
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["a"]["type"] == "integer"
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["b"]["type"] == "integer"
+
+    tool2_schema_dict = json.loads(tool2_schema)
+    assert tool2_schema_dict["type"] == "function"
+    assert tool2_schema_dict["function"]["name"] == "multiply"
+    assert tool2_schema_dict["function"]["description"] == "Multiplies a and b."
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["a"]["type"] == "integer"
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["b"]["type"] == "integer"
 
 
 def _check_context_attributes(
@@ -1079,6 +1146,16 @@ class MockByteStream(SyncByteStream, AsyncByteStream):
             yield byte_string
 
 
+def current_span_getter(x: Any) -> Optional[Span]:
+    """Getter function that returns the current span."""
+    return get_current_span()
+
+
+def current_span_and_ancestors_getter(x: Any) -> Tuple[Optional[Span], List[Any]]:
+    """Getter function that returns the current span and ancestor spans."""
+    return (get_current_span(), get_ancestor_spans())
+
+
 LANGCHAIN_SESSION_ID = "session_id"
 LANGCHAIN_CONVERSATION_ID = "conversation_id"
 LANGCHAIN_THREAD_ID = "thread_id"
@@ -1127,6 +1204,8 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
 LLM = OpenInferenceSpanKindValues.LLM

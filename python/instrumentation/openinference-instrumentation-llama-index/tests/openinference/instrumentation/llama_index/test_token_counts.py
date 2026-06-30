@@ -5,6 +5,7 @@ from llama_index.core.base.llms.types import ChatMessage
 from llama_index.llms.anthropic import Anthropic
 from llama_index.llms.groq import Groq  # type: ignore[import-untyped]
 from llama_index.llms.openai import OpenAI
+from llama_index.llms.vertex import Vertex
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
@@ -13,11 +14,7 @@ from openinference.semconv.trace import SpanAttributes
 
 
 class TestTokenCounts:
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     async def test_groq(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -34,11 +31,7 @@ class TestTokenCounts:
         assert span.attributes.get(LLM_TOKEN_COUNT_COMPLETION)
         assert span.attributes.get(LLM_TOKEN_COUNT_TOTAL)
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_openai(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -71,9 +64,7 @@ class TestTokenCounts:
         )
 
     @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
+        match_on=["method", "scheme", "host", "port", "path"],
     )
     def test_anthropic(
         self,
@@ -97,6 +88,36 @@ class TestTokenCounts:
             attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE)
             == usage.cache_creation_input_tokens
         )
+
+    @pytest.mark.vcr(
+        before_record_request=lambda request: (
+            None if "oauth2" in request.uri else (request.headers.clear() or request)
+        ),
+        match_on=["method", "body"],
+    )
+    def test_vertex(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        llm = Vertex(model="gemini-1.5-flash-002")
+        resp = llm.chat([ChatMessage(content="Hello!")])
+        span = in_memory_span_exporter.get_finished_spans()[0]
+        attr = dict(span.attributes or {})
+
+        if not resp.raw:
+            raise ValueError("No raw response")
+
+        # Get usage_metadata from the raw response
+        raw_response = resp.raw.get("_raw_response")
+
+        if not raw_response:
+            raise ValueError("No raw response")
+
+        usage_metadata = raw_response.usage_metadata
+
+        assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == usage_metadata.prompt_token_count
+        assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == usage_metadata.candidates_token_count
+        assert attr.pop(LLM_TOKEN_COUNT_TOTAL) == usage_metadata.total_token_count
 
 
 @pytest.fixture(autouse=True)

@@ -1,0 +1,30 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // OpenInference instrumentation
+    implementation project(path: ':instrumentation:openinference-instrumentation-langchain4j')
+//    implementation 'com.arize:openinference-instrumentation-langchain4j:0.1.2'
+    
+    // LangChain4j
+    implementation "dev.langchain4j:langchain4j:${langchain4jVersion}"
+    implementation "dev.langchain4j:langchain4j-open-ai:${langchain4jVersion}"
+    
+    // OpenTelemetry
+    implementation "io.opentelemetry:opentelemetry-sdk"
+    implementation "io.opentelemetry:opentelemetry-exporter-otlp"
+    implementation "io.opentelemetry:opentelemetry-exporter-logging"
+    
+    // Logging
+    implementation "org.slf4j:slf4j-simple:${slf4jVersion}"
+}
+
+application {
+    mainClass = 'io.openinference.examples.LangChain4jExample'
+} 

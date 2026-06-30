@@ -2,9 +2,6 @@ import os
 
 from llama_index.core.multi_modal_llms.generic_utils import load_image_urls
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal
-from llama_index.multi_modal_llms.openai.utils import (
-    generate_openai_multi_modal_chat_message,
-)
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -27,10 +24,14 @@ IMAGE_URLS = [
     # "https://www.cleverfiles.com/howto/wp-content/uploads/2018/03/minion.jpg",
 ]
 
+openai_mm_llm = OpenAIMultiModal(
+    model="gpt-4o",
+)
+
 
 def get_chat_messages():
     return [
-        generate_openai_multi_modal_chat_message(
+        openai_mm_llm._get_multi_modal_chat_message(
             prompt="Describe the images as an alternative text",
             role="user",
             image_documents=image_documents,
@@ -41,9 +42,6 @@ def get_chat_messages():
 if __name__ == "__main__":
     image_documents = load_image_urls(IMAGE_URLS)
 
-    openai_mm_llm = OpenAIMultiModal(
-        model="gpt-4o",
-    )
     os.environ["OPENINFERENCE_HIDE_INPUT_IMAGES"] = str(True)  # Will hide input images
     os.environ["OPENINFERENCE_HIDE_INPUTS"] = str(True)  # Will hide all inputs
     config = TraceConfig(

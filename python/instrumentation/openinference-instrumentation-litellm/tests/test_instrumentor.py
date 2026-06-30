@@ -1,16 +1,18 @@
 import json
+import os
 from typing import Any, Dict, Generator, List, Mapping, Optional, Union, cast
 from unittest.mock import patch
 
 import litellm
 import pytest
-from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
+from litellm import OpenAIChatCompletion  # type: ignore[attr-defined, unused-ignore]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from litellm.types.utils import Message as LitellmMessage
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
@@ -22,15 +24,19 @@ from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
 )
 
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 
-@pytest.fixture(scope="module")
+
+@pytest.fixture
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
     resource = Resource(attributes={})
     tracer_provider = TracerProvider(resource=resource)
@@ -44,7 +50,6 @@ def setup_litellm_instrumentation(
 ) -> Generator[None, None, None]:
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
-    LiteLLMInstrumentor().uninstrument()
 
 
 class TestInstrumentor:
@@ -122,13 +127,14 @@ def test_completion(
     ]
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps({"messages": input_values})
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert str(attributes.get(SpanAttributes.OUTPUT_VALUE)) == "Beijing"
     for i, choice in enumerate(response["choices"]):
         _check_llm_message(SpanAttributes.LLM_OUTPUT_MESSAGES, i, attributes, choice.message)
 
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -247,13 +253,563 @@ def test_completion_with_parameters(
     )
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {"mock_response": "Beijing", "temperature": 0.7, "top_p": 0.9}
+        {
+            "model": "gpt-3.5-turbo",
+            "mock_response": "Beijing",
+            "temperature": 0.7,
+            "top_p": 0.9,
+        }
     )
 
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
+
+
+def test_completion_with_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages: List[Dict[str, Any]] = [
+        {"content": "What's the weather like in New York?", "role": "user"},
+        {
+            "role": "assistant",
+            "content": "Let me check the weather for you.",
+            "tool_calls": [
+                {
+                    "index": 1,
+                    "id": "call_abc123",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": '{"location": "New York", "unit": "celsius"}',
+                    },
+                }
+            ],
+        },
+    ]
+    litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        mock_response="The weather in New York is 22°C and sunny.",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    for i, message in enumerate(input_messages):
+        _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
+
+    tool_call_function_name = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tool_call_function_args = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+
+    assert attributes.get(tool_call_function_name) == "get_weather"
+    assert attributes.get(tool_call_function_args) == '{"location": "New York", "unit": "celsius"}'
+
+    assert "The weather in New York is 22°C and sunny." == attributes.get(OUTPUT_VALUE)
+
+
+def test_completion_streaming_with_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Test that tool calls are captured correctly in streaming responses."""
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+    from openai.types.chat.chat_completion_chunk import (
+        ChoiceDeltaToolCall,
+        ChoiceDeltaToolCallFunction,
+    )
+
+    in_memory_span_exporter.clear()
+
+    # Helper to create Delta with tool_calls (needs model_construct for extra fields)
+    def make_delta(
+        role: Optional[str] = None,
+        content: Optional[str] = None,
+        tool_calls: Optional[List[ChoiceDeltaToolCall]] = None,
+    ) -> Delta:
+        return Delta.model_construct(role=role, content=content, tool_calls=tool_calls)
+
+    chunks = [
+        ModelResponseStream(
+            id="chatcmpl-123",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id="call_abc123",
+                                type="function",
+                                function=ChoiceDeltaToolCallFunction(
+                                    name="get_weather",
+                                    arguments="",
+                                ),
+                            )
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-123",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role=None,
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id=None,
+                                type=None,
+                                function=ChoiceDeltaToolCallFunction(
+                                    name=None,
+                                    arguments='{"location": "New ',
+                                ),
+                            )
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-123",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role=None,
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id=None,
+                                type=None,
+                                function=ChoiceDeltaToolCallFunction(
+                                    name=None,
+                                    arguments='York"}',
+                                ),
+                            )
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-123",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(role=None, content=None, tool_calls=None),
+                    finish_reason="tool_calls",
+                )
+            ],
+        ),
+    ]
+
+    class MockStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __iter__(self) -> "MockStreamWrapper":
+            return self
+
+        def __next__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    input_messages = [{"content": "What's the weather like in New York?", "role": "user"}]
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+
+    # The wrapper does `from litellm.litellm_core_utils.streaming_handler import
+    # CustomStreamWrapper` on each call, so patching the source module makes the
+    # `isinstance(result, CustomStreamWrapper)` branch accept our mock.
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: MockStreamWrapper(chunks)
+        )
+
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            MockStreamWrapper,
+        ):
+            response = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=input_messages,
+                stream=True,
+            )
+
+            chunks_received = list(response)
+            assert len(chunks_received) == 4
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    tool_call_function_name = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tool_call_function_args = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+
+    assert attributes.get(tool_call_function_name) == "get_weather"
+    assert attributes.get(tool_call_function_args) == '{"location": "New York"}'
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) is None
+
+
+@pytest.mark.asyncio
+async def test_acompletion_streaming_with_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Test that tool calls are captured correctly in async streaming responses."""
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+    from openai.types.chat.chat_completion_chunk import (
+        ChoiceDeltaToolCall,
+        ChoiceDeltaToolCallFunction,
+    )
+
+    in_memory_span_exporter.clear()
+
+    def make_delta(
+        role: Optional[str] = None,
+        content: Optional[str] = None,
+        tool_calls: Optional[List[ChoiceDeltaToolCall]] = None,
+    ) -> Delta:
+        return Delta.model_construct(role=role, content=content, tool_calls=tool_calls)
+
+    chunks = [
+        ModelResponseStream(
+            id="chatcmpl-456",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id="call_def456",
+                                type="function",
+                                function=ChoiceDeltaToolCallFunction(
+                                    name="search",
+                                    arguments="",
+                                ),
+                            ),
+                            ChoiceDeltaToolCall(
+                                index=1,
+                                id="call_ghi789",
+                                type="function",
+                                function=ChoiceDeltaToolCallFunction(
+                                    name="calculate",
+                                    arguments="",
+                                ),
+                            ),
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-456",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role=None,
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id=None,
+                                type=None,
+                                function=ChoiceDeltaToolCallFunction(
+                                    name=None,
+                                    arguments='{"query": "test"}',
+                                ),
+                            ),
+                            ChoiceDeltaToolCall(
+                                index=1,
+                                id=None,
+                                type=None,
+                                function=ChoiceDeltaToolCallFunction(
+                                    name=None,
+                                    arguments='{"x": 1, "y": 2}',
+                                ),
+                            ),
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-456",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(role=None, content=None, tool_calls=None),
+                    finish_reason="tool_calls",
+                )
+            ],
+        ),
+    ]
+
+    class MockAsyncStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __aiter__(self) -> "MockAsyncStreamWrapper":
+            return self
+
+        async def __anext__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopAsyncIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    input_messages = [{"content": "Search for test and calculate 1+2", "role": "user"}]
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+
+    async def mock_acompletion(*args: Any, **kwargs: Any) -> MockAsyncStreamWrapper:
+        return MockAsyncStreamWrapper(chunks)
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = mock_acompletion
+
+        response = await litellm.acompletion(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            stream=True,
+        )
+
+        chunks_received = [chunk async for chunk in response]
+        assert len(chunks_received) == 3
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    tool_call_0_name = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tool_call_0_args = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert attributes.get(tool_call_0_name) == "search"
+    assert attributes.get(tool_call_0_args) == '{"query": "test"}'
+
+    tool_call_1_name = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tool_call_1_args = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert attributes.get(tool_call_1_name) == "calculate"
+    assert attributes.get(tool_call_1_args) == '{"x": 1, "y": 2}'
+
+
+def test_completion_with_tool_schema_capture(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get current weather in a given location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                    },
+                    "required": ["location"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_forecast",
+                "description": "Get weather forecast for a location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {"type": "string"},
+                        "days": {"type": "integer", "minimum": 1, "maximum": 7},
+                    },
+                    "required": ["location", "days"],
+                },
+            },
+        },
+    ]
+
+    input_messages = [{"content": "What's the weather like in New York?", "role": "user"}]
+    litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        tools=tools,
+        tool_choice="auto",
+        mock_response="I'll check the weather for you.",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify basic attributes
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    # Verify tool schemas are captured
+    tool1_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
+    tool2_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_JSON_SCHEMA}")
+
+    assert tool1_schema is not None
+    assert tool2_schema is not None
+    assert isinstance(tool1_schema, str)
+    assert isinstance(tool2_schema, str)
+
+    # Verify first tool schema
+    tool1_schema_dict = json.loads(tool1_schema)
+    assert tool1_schema_dict["type"] == "function"
+    assert tool1_schema_dict["function"]["name"] == "get_weather"
+    assert tool1_schema_dict["function"]["description"] == "Get current weather in a given location"
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["location"]["type"] == "string"
+    assert tool1_schema_dict["function"]["parameters"]["properties"]["unit"]["enum"] == [
+        "celsius",
+        "fahrenheit",
+    ]
+    assert tool1_schema_dict["function"]["parameters"]["required"] == ["location"]
+
+    # Verify second tool schema
+    tool2_schema_dict = json.loads(tool2_schema)
+    assert tool2_schema_dict["type"] == "function"
+    assert tool2_schema_dict["function"]["name"] == "get_forecast"
+    assert tool2_schema_dict["function"]["description"] == "Get weather forecast for a location"
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["location"]["type"] == "string"
+    assert tool2_schema_dict["function"]["parameters"]["properties"]["days"]["type"] == "integer"
+    assert tool2_schema_dict["function"]["parameters"]["required"] == ["location", "days"]
+
+    assert "I'll check the weather for you." == attributes.get(OUTPUT_VALUE)
+
+
+async def test_acompletion_with_tool_schema_capture(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Test that async completion captures tool schemas correctly"""
+    in_memory_span_exporter.clear()
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_time",
+                "description": "Get current time in a timezone",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "timezone": {"type": "string", "description": "Timezone name"},
+                    },
+                    "required": ["timezone"],
+                },
+            },
+        }
+    ]
+
+    input_messages = [{"content": "What time is it in Tokyo?", "role": "user"}]
+    await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        tools=tools,
+        mock_response="I'll check the time in Tokyo for you.",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify tool schema is captured
+    tool_schema = attributes.get(f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}")
+    assert tool_schema is not None
+
+    tool_schema_dict = json.loads(cast(str, tool_schema))
+    assert tool_schema_dict["function"]["name"] == "get_time"
+    assert tool_schema_dict["function"]["description"] == "Get current time in a timezone"
+
+    assert "I'll check the time in Tokyo for you." == attributes.get(OUTPUT_VALUE)
 
 
 def test_completion_with_multiple_messages(
@@ -271,6 +827,7 @@ def test_completion_with_multiple_messages(
         model="gpt-3.5-turbo",
         messages=input_messages,
         mock_response="Got it! What kind of pie would you like to make?",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
     )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -285,15 +842,16 @@ def test_completion_with_multiple_messages(
     for i, message in enumerate(input_messages):
         _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
     assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {"mock_response": "Got it! What kind of pie would you like to make?"}
+        {
+            "model": "gpt-3.5-turbo",
+            "mock_response": "Got it! What kind of pie would you like to make?",
+        }
     )
-    assert (
-        attributes.get(SpanAttributes.OUTPUT_VALUE)
-        == "Got it! What kind of pie would you like to make?"
-    )
+    assert "Got it! What kind of pie would you like to make?" == attributes.get(OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
 
 
 def test_completion_image_support(
@@ -331,13 +889,45 @@ def test_completion_image_support(
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     for i, message in enumerate(input_messages):
         _check_llm_message(SpanAttributes.LLM_INPUT_MESSAGES, i, attributes, message)
-    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {"mock_response": "That's an image of a pasture"}
-    )
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "That's an image of a pasture"
+    params_str = attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS)
+    assert isinstance(params_str, str)  # Type narrowing for mypy
+    assert json.loads(params_str) == {
+        "model": "gpt-4o",
+        "mock_response": "That's an image of a pasture",
+    }
+    assert "That's an image of a pasture" == attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
+
+
+def test_completion_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        litellm.completion(
+            model="invalid-model-name",
+            messages=[{"content": "What's the capital of China?", "role": "user"}],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "completion"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -389,10 +979,11 @@ async def test_acompletion(
     )
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -405,6 +996,181 @@ async def test_acompletion(
             prompt_template_version,
             prompt_template_variables,
         )
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+async def test_acompletion_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    use_context_attributes: bool,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            response = await litellm.acompletion(
+                model="gpt-3.5-turbo",
+                messages=input_messages,
+                mock_response="Beijing",
+                stream=True,
+            )
+            async for chunk in response:
+                print(chunk)
+    else:
+        response = await litellm.acompletion(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            mock_response="Beijing",
+            stream=True,
+        )
+        async for chunk in response:
+            print(chunk)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert span.status.status_code == StatusCode.OK
+
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+async def test_acompletion_stream_token_count(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    use_context_attributes: bool,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            response = await litellm.acompletion(
+                model="gpt-3.5-turbo",
+                messages=input_messages,
+                mock_response="Beijing",
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            async for chunk in response:
+                print(chunk)
+    else:
+        response = await litellm.acompletion(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            mock_response="Beijing",
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+        async for chunk in response:
+            print(chunk)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 14
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 2
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 16
+    assert span.status.status_code == StatusCode.OK
+
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+
+
+async def test_acompletion_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        await litellm.acompletion(
+            model="invalid-model-name",
+            messages=[{"content": "What's the capital of China?", "role": "user"}],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "acompletion"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -455,10 +1221,11 @@ def test_completion_with_retries(
     )
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
 
-    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "Beijing"
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -541,15 +1308,28 @@ def test_embedding(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    assert span.name == "embedding"
+    assert span.name == "CreateEmbeddings"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
+    assert (
+        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
+        == '{"model": "text-embedding-ada-002"}'
+    )
 
-    assert attributes.get(EmbeddingAttributes.EMBEDDING_VECTOR) == str([0.1, 0.2, 0.3])
+    assert (
+        attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "good morning from litellm"
+    )
+    assert attributes.get(
+        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+    ) == (0.1, 0.2, 0.3)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 6
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 1
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 6
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -562,6 +1342,39 @@ def test_embedding(
             prompt_template_version,
             prompt_template_variables,
         )
+
+
+def test_embedding_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        litellm.embedding(model="invalid-model-name", input=["good morning from litellm"])
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "CreateEmbeddings"
+    assert span.status.status_code == StatusCode.ERROR
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert (
+        attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "good morning from litellm"
+    )
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -608,15 +1421,28 @@ async def test_aembedding(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    assert span.name == "aembedding"
+    assert span.name == "CreateEmbeddings"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
+    assert (
+        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
+        == '{"model": "text-embedding-ada-002"}'
+    )
 
-    assert attributes.get(EmbeddingAttributes.EMBEDDING_VECTOR) == str([0.1, 0.2, 0.3])
+    assert (
+        attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "good morning from litellm"
+    )
+    assert attributes.get(
+        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+    ) == (0.1, 0.2, 0.3)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 6
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 1
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 6
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -629,6 +1455,39 @@ async def test_aembedding(
             prompt_template_version,
             prompt_template_variables,
         )
+
+
+async def test_aembedding_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        await litellm.aembedding(model="invalid-model-name", input=["good morning from litellm"])
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "CreateEmbeddings"
+    assert span.status.status_code == StatusCode.ERROR
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert (
+        attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "good morning from litellm"
+    )
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -684,6 +1543,7 @@ def test_image_generation_url(
 
     assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -751,6 +1611,7 @@ def test_image_generation_b64json(
 
     assert attributes.get(ImageAttributes.IMAGE_URL) == "dummy_b64_json"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "dummy_b64_json"
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -763,6 +1624,34 @@ def test_image_generation_b64json(
             prompt_template_version,
             prompt_template_variables,
         )
+
+
+def test_image_generation_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        litellm.image_generation(
+            model="invalid-model-name",
+            prompt="a sunrise over the mountains",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "image_generation"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
 
 
 @pytest.mark.parametrize("use_context_attributes", [False, True])
@@ -817,6 +1706,7 @@ async def test_aimage_generation(
 
     assert attributes.get(ImageAttributes.IMAGE_URL) == "https://dummy-url"
     assert attributes.get(SpanAttributes.OUTPUT_VALUE) == "https://dummy-url"
+    assert span.status.status_code == StatusCode.OK
 
     if use_context_attributes:
         _check_context_attributes(
@@ -831,6 +1721,34 @@ async def test_aimage_generation(
         )
 
 
+async def test_aimage_generation_with_invalid_model_triggers_exception_event(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with pytest.raises(Exception):
+        await litellm.aimage_generation(
+            model="invalid-model-name",
+            prompt="a sunrise over the mountains",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, "Expected one span to be recorded"
+
+    span = spans[0]
+    assert span.name == "aimage_generation"
+    assert span.status.status_code == StatusCode.ERROR
+
+    exception_events = [e for e in span.events if e.name == "exception"]
+    assert len(exception_events) == 1, "Expected one exception event to be recorded"
+
+    exception_attributes = cast(Mapping[str, AttributeValue], exception_events[0].attributes)
+    assert "exception.type" in exception_attributes
+    assert "exception.message" in exception_attributes
+    assert "exception.stacktrace" in exception_attributes
+
+
 def test_uninstrument(tracer_provider: TracerProvider) -> None:
     func_names = [
         "completion",
@@ -839,6 +1757,8 @@ def test_uninstrument(tracer_provider: TracerProvider) -> None:
         # "acompletion_with_retries",
         "embedding",
         "aembedding",
+        "responses",
+        "aresponses",
         "image_generation",
         "aimage_generation",
     ]
@@ -1009,6 +1929,42 @@ def message_contents_text(prefix: str, i: int, j: int) -> str:
 
 def message_contents_image_url(prefix: str, i: int, j: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
+
+
+@pytest.mark.parametrize(
+    "model_name,expected_provider",
+    [
+        pytest.param("gpt-4o", "openai", id="openai"),
+        pytest.param("claude-3-haiku-20240307", "anthropic", id="anthropic"),
+        pytest.param("azure/gpt-4", "azure", id="azure"),
+        pytest.param("bedrock/anthropic.claude-3-sonnet-20240229-v1:0", "aws", id="aws"),
+        pytest.param("vertex_ai/gemini-1.5-pro", "google", id="google"),
+        pytest.param("cohere/command", "cohere", id="cohere"),
+        pytest.param("mistral/mistral-medium", "mistralai", id="mistralai"),
+        pytest.param("xai/grok-beta", "xai", id="xai"),
+        pytest.param("deepseek/deepseek-chat", "deepseek", id="deepseek"),
+        pytest.param("huggingface/together/deepseek-ai/DeepSeek-R1", None, id="unknown-provider"),
+    ],
+)
+def test_provider_attribute_correctly_set(
+    model_name: str,
+    expected_provider: Optional[str],
+    setup_litellm_instrumentation: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    litellm.completion(
+        model=model_name,
+        messages=[{"content": "Hello", "role": "user"}],
+        mock_response="Hi there!",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = span.attributes
+    assert attributes is not None
+    provider = attributes.get(SpanAttributes.LLM_PROVIDER)
+    assert provider == expected_provider
 
 
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

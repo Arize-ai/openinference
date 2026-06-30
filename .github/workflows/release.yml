@@ -4,6 +4,7 @@ on:
       - main
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -12,89 +13,13 @@ name: release
 jobs:
   release:
     runs-on: ubuntu-latest
-    outputs:
-      releases_created: ${{ steps.release.outputs.releases_created }}
-      paths_released: ${{ steps.release.outputs.paths_released }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4.4.0
+        with:
+          token: ${{ secrets.MY_RELEASE_PLEASE }}
         id: release
-
-  publish:
-    name: Publish Python distribution
-    runs-on: ubuntu-latest
-    needs: release
-    if: ${{ needs.release.outputs.releases_created == 'true' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        path: ${{ fromJSON(needs.release.outputs.paths_released) }}
-    defaults:
-      run:
-        working-directory: ${{ matrix.path }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: python
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-      - name: Install utilities
-        run: python -m pip install hatch check_wheel_contents twine
-      - name: Build distribution
-        run: hatch build
-      - name: Check wheel contents
-        run: check-wheel-contents dist/*.whl
-      - name: Publish to PyPI
+      - name: Trigger publish
+        if: steps.release.outputs.releases_created == 'true'
+        run: gh workflow run publish.yaml --repo ${{ github.repository }}
         env:
-          TWINE_USERNAME: '__token__'
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          twine upload --skip-existing --verbose dist/*
-      - run: echo "NAME=$(basename ${{ matrix.path }})" >> $GITHUB_ENV
-        if: failure()
-      - run: touch ${{ runner.temp }}/${{ env.NAME }}
-        if: failure()
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: ${{ env.NAME }}
-          path: ${{ runner.temp }}/${{ env.NAME }}
-          retention-days: 1
-
-  slack:
-    name: Slack notification on failure
-    needs: publish
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-      - name: List failures as markdown
-        run: |
-          {
-            echo "list<<EOF"
-            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | nl -w2 -s'. '
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-        id: failures
-      - name: Create message text
-        if: ${{ steps.failures.outputs.list != '' }}
-        run: |
-          {
-            echo "text<<EOF"
-            echo "Publication failed for the following packages:"
-            echo "${{ steps.failures.outputs.list }}"
-            echo ""
-            echo "Re-run CI step if error is transient."
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-        id: message
-      - name: Send message to Slack
-        if: ${{ steps.failures.outputs.list != '' }}
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "type": "mrkdwn",
-              "text": ${{ toJSON(steps.message.outputs.text) }}
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

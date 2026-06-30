@@ -9,6 +9,7 @@
     - [Trace Configuration](#trace-configuration)
     - [Testing](#testing-1)
 - [Changesets](#changesets)
+- [First-Time Package Publishing](#first-time-package-publishing)
 - [Publishing](#publishing)
 
 The development guide for the JavaScript packages in this repo.
@@ -17,7 +18,7 @@ This project and its packages are built using the following tools:
 
 - [pnpm](https://pnpm.io/) for managing packages across the repo. Note, this project uses pnpm workspaces, so you must use pnpm to install packages at the root of the repo.
 - [TypeScript](https://www.typescriptlang.org/) for type checking and transpiling.
-- [Jest](https://jestjs.io/) for unit testing.
+- [Vitest](https://vitest.dev/) for unit testing and test running.
 - [Eslint](https://eslint.org/) for linting and best practices.
 - [Prettier](https://prettier.io/) for code formatting.
 
@@ -32,6 +33,13 @@ nvm install 20
 nvm use 20
 ```
 
+or
+
+```shell
+cd js
+nvm use
+```
+
 Next, you will need to install [pnpm](https://pnpm.io/installation). pnpm is a package manager that is similar to npm, but is much faster and is optimized for workspaces with multiple packages. Once PNPM is installed, you can install the packages in this repo via:
 
 The pnpm version used in this repo is managed in the package.json file. This will allow you to run all commands below with the proper version. In order to take advantage of that make sure your global pnpm version is `>=9.7.0`.
@@ -42,10 +50,9 @@ pnpm install --frozen-lockfile -r
 
 This will install all the packages in the repo and their dependencies.
 
-After the dependencies are installed, you can build the packages via the following two commands:
+After the dependencies are installed, you can build the packages via the following command:
 
 ```shell
-pnpm run -r prebuild
 pnpm run -r build
 ```
 
@@ -60,7 +67,7 @@ pnpm run -r test
 ```
 
 > [!NOTE]
-> The tests in this repo use `jest` but it's auto-mocking feature can cause issues since instrumentation relies on it running first before the package is imported in user-code. For the tests you may have to manually set the instrumented module manually (e.x.`instrumentation._modules[0].moduleExports = module`)
+> The tests in this repo use `vitest` but it's auto-mocking feature can cause issues since instrumentation relies on it running first before the package is imported in user-code. For the tests you may have to manually set the instrumented module manually (e.x.`instrumentation._modules[0].moduleExports = module`)
 
 ## Creating an Instrumentor
 
@@ -138,6 +145,32 @@ Once your pr is merged, Github Actions will create a release PR like [this](http
 
 For a detailed explanation of changesets, consult [this documentation](https://github.com/changesets/changesets/blob/main/docs/detailed-explanation.md)
 
+## First-Time Package Publishing
+
+When a **new** `@arizeai`-scoped package is added to the workspace, the automated changesets/GitHub Actions pipeline **cannot publish it** on the first release. There are two reasons for this:
+
+1. **Scoped packages default to private on npm.** The first `npm publish` of an `@arizeai/*` package must include `--access public`; the changesets CLI does not pass this flag.
+2. **Trusted publishers must be configured per-package.** npm's [trusted publishers](https://docs.npmjs.com/trusted-publishers) feature requires an admin to link the GitHub Actions workflow to the package _after_ it already exists on the npm registry.
+
+### Step 1 — Manual first publish
+
+A maintainer with publish access to the `@arizeai` npm organization must run:
+
+```shell
+cd js
+pnpm run -r prebuild && pnpm run -r build
+cd packages/<new-package>
+npm publish --access public
+```
+
+### Step 2 — Configure trusted publisher on npm
+
+An npm org admin must then go to the package's settings page on [npmjs.com](https://www.npmjs.com) and add the GitHub Actions workflow as a trusted publisher. See [npm trusted publishers docs](https://docs.npmjs.com/trusted-publishers) for detailed instructions.
+
+### After setup
+
+Once the package exists on npm and trusted publishers are configured, all subsequent releases will be handled automatically by the changesets + GitHub Actions pipeline — no further manual steps are needed.
+
 ## Publishing
 
 In most cases, changes to the packages in this repo will be published automatically via Github Actions and the changesets workflow. However, if you need to publish manually, you can do so via:
@@ -145,7 +178,6 @@ In most cases, changes to the packages in this repo will be published automatica
 ```shell
 pnpm changeset # create a changeset
 pnpm changeset version # bump the version of the packages
-pnpm -r prebuild # generate the files needed for the build
 pnpm -r build # build the packages
 pnpm -r publish # publish to npm
 ```

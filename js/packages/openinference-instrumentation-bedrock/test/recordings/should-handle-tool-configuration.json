@@ -1,0 +1,106 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What's the weather in San Francisco?"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "toolConfig": {
+        "tools": [
+          {
+            "toolSpec": {
+              "description": "Get current weather for a location",
+              "inputSchema": {
+                "json": {
+                  "type": "object",
+                  "properties": {
+                    "location": {
+                      "type": "string",
+                      "description": "The city and state, e.g. San Francisco, CA"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": ["celsius", "fahrenheit"],
+                      "description": "Temperature unit"
+                    }
+                  },
+                  "required": ["location"]
+                }
+              },
+              "name": "get_weather"
+            }
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 2930
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "Certainly! I'd be happy to check the current weather in San Francisco for you. To get this information, I'll need to use the weather tool. Let me fetch that data for you."
+            },
+            {
+              "toolUse": {
+                "input": {
+                  "location": "San Francisco, CA"
+                },
+                "name": "get_weather",
+                "toolUseId": "tooluse_0ae1_ahYROawF4OObK5xBg"
+              }
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "max_tokens",
+      "usage": {
+        "inputTokens": 408,
+        "outputTokens": 100,
+        "totalTokens": 508
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Fri, 18 Jul 2025 19:10:44 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "478",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "bb8a436c-67ce-49e0-8401-e023d4b4d44d"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "514",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "4a5661e2-85bd-45c9-aab2-f9a353d91b98",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "a21ffbcf3bd84f1815650ff49435b0fc58cd827c58adcd4a96f0ca858275b2dd",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

@@ -3,7 +3,16 @@ from abc import ABC
 from contextlib import contextmanager
 from itertools import chain
 from types import ModuleType
-from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Iterable,
+    Iterator,
+    Mapping,
+    Tuple,
+)
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -12,13 +21,18 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
-from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    infer_llm_provider_from_host,
+)
+from openinference.instrumentation.openai._image_utils import redact_images_from_request_parameters
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
 from openinference.instrumentation.openai._response_accumulator import (
     _ChatCompletionAccumulator,
     _CompletionAccumulator,
+    _ResponsesAccumulator,
 )
 from openinference.instrumentation.openai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
@@ -32,7 +46,6 @@ from openinference.instrumentation.openai._utils import (
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import (
-    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -42,6 +55,7 @@ __all__ = (
     "_Request",
     "_AsyncRequest",
 )
+
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -99,6 +113,14 @@ class _WithOpenAI(ABC):
         self._stream_types = (openai.Stream, openai.AsyncStream)
         self._request_attributes_extractor = _RequestAttributesExtractor(openai=openai)
         self._response_attributes_extractor = _ResponseAttributesExtractor(openai=openai)
+
+        def responses_accumulator(request_parameters: _RequestParameters) -> Any:
+            return _ResponsesAccumulator(
+                request_parameters=request_parameters,
+                chat_completion_type=openai.types.responses.response.Response,
+                response_attributes_extractor=self._response_attributes_extractor,
+            )
+
         self._response_accumulator_factories: Mapping[
             type, Callable[[_RequestParameters], _ResponseAccumulator]
         ] = {
@@ -112,6 +134,7 @@ class _WithOpenAI(ABC):
                 chat_completion_type=openai.types.chat.ChatCompletion,
                 response_attributes_extractor=self._response_attributes_extractor,
             ),
+            openai.types.responses.response.Response: responses_accumulator,
         }
 
     def _get_span_kind(self, cast_to: type) -> str:
@@ -128,12 +151,8 @@ class _WithOpenAI(ABC):
             or not isinstance(host, str)
         ):
             return
-        if host.endswith("api.openai.com"):
-            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-        elif host.endswith("openai.azure.com"):
-            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
-        elif host.endswith("googleapis.com"):
-            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
+        if provider := infer_llm_provider_from_host(host):
+            yield SpanAttributes.LLM_PROVIDER, provider.value
 
     def _get_attributes_from_request(
         self,
@@ -143,9 +162,26 @@ class _WithOpenAI(ABC):
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
         yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
-            yield from _as_input_attributes(
-                _io_value_and_type(request_parameters),
-            )
+            # Get the configuration from the tracer to check image hiding settings
+            if TYPE_CHECKING:
+                assert hasattr(self, "_tracer")
+            config = getattr(getattr(self, "_tracer", None), "_self_config", None)
+
+            # Apply image redaction if configured
+            hide_images = bool(config and getattr(config, "hide_input_images", False))
+            max_length = int(getattr(config, "base64_image_max_length", 0) if config else 0)
+
+            if hide_images or (config and max_length > 0):
+                # Redact images if hide_input_images=True OR if base64_image_max_length is set
+                processed_params = redact_images_from_request_parameters(
+                    dict(request_parameters),
+                    hide_input_images=hide_images,
+                    base64_image_max_length=max_length,
+                )
+            else:
+                processed_params = dict(request_parameters)
+
+            yield from _as_input_attributes(_io_value_and_type(processed_params))
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request parameters of "
@@ -273,8 +309,12 @@ class _Request(_WithTracer, _WithOpenAI):
             return wrapped(*args, **kwargs)
         try:
             cast_to, request_parameters = _parse_request_args(args)
-            # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
-            span_name: str = cast_to.__name__.split(".")[-1]
+            # Use consistent span names: "CreateEmbeddings" for embeddings, class name for others
+            if cast_to is self._openai.types.CreateEmbeddingResponse:
+                span_name = "CreateEmbeddings"
+            else:
+                # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
+                span_name = cast_to.__name__.split(".")[-1]
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
@@ -330,8 +370,12 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
             return await wrapped(*args, **kwargs)
         try:
             cast_to, request_parameters = _parse_request_args(args)
-            # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
-            span_name: str = cast_to.__name__.split(".")[-1]
+            # Use consistent span names: "CreateEmbeddings" for embeddings, class name for others
+            if cast_to is self._openai.types.CreateEmbeddingResponse:
+                span_name = "CreateEmbeddings"
+            else:
+                # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
+                span_name = cast_to.__name__.split(".")[-1]
         except Exception:
             logger.exception("Failed to parse request args")
             return await wrapped(*args, **kwargs)

@@ -1,11 +1,13 @@
-import { withSafety } from "../../src";
 import { diag } from "@opentelemetry/api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { withSafety } from "../../src";
 
 describe("withSafety", () => {
   afterEach(() => {
-    jest.clearAllMocks();
-    jest.resetModules();
-    jest.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.restoreAllMocks();
   });
   it("should return a function", () => {
     const safeFunction = withSafety({ fn: () => {} });
@@ -13,7 +15,7 @@ describe("withSafety", () => {
   });
 
   it("should execute the provided function without errors", () => {
-    const mockFn = jest.fn();
+    const mockFn = vi.fn();
     const safeFunction = withSafety({ fn: mockFn });
     safeFunction();
     expect(mockFn).toHaveBeenCalled();
@@ -21,10 +23,10 @@ describe("withSafety", () => {
 
   it("should return null", () => {
     const error = new Error("Test error");
-    const mockFn = jest.fn((_a: number) => {
+    const mockFn = vi.fn((_a: number) => {
       throw error;
     });
-    const diagMock = jest.spyOn(diag, "error");
+    const diagMock = vi.spyOn(diag, "error");
     const safeFunction = withSafety({ fn: mockFn });
     const result = safeFunction(1);
     expect(result).toBeNull();
@@ -34,10 +36,10 @@ describe("withSafety", () => {
 
   it("should log a message and the error when one is passed in", () => {
     const error = new Error("Test error");
-    const mockFn = jest.fn((_a: number) => {
+    const mockFn = vi.fn((_a: number) => {
       throw error;
     });
-    const diagMock = jest.spyOn(diag, "error");
+    const diagMock = vi.spyOn(diag, "error");
     const safeFunction = withSafety({
       fn: mockFn,
       onError: (error) => diag.error(`Test message ${error}`),

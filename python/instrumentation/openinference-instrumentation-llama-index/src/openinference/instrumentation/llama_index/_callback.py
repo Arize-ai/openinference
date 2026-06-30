@@ -172,7 +172,10 @@ def payload_to_semantic_attributes(
             if model_name := serialized.get("model_name"):
                 attributes[EMBEDDING_MODEL_NAME] = model_name
         if event_type is CBEventType.LLM:
-            if model_name := serialized.get("model"):
+            # Newer llama-index-core serializes the LLM via `to_payload()`, which
+            # exposes the model under "model_name" (from LLMMetadata) rather than
+            # the "model" key returned by the older `to_dict()` serialization.
+            if model_name := (serialized.get("model") or serialized.get("model_name")):
                 attributes[LLM_MODEL_NAME] = model_name
                 invocation_parameters = _extract_invocation_parameters(serialized)
                 invocation_parameters["model"] = model_name
@@ -337,7 +340,7 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
                 _is_streaming_response(response := payload.get(EventPayload.RESPONSE))
                 and response.response_gen is not None
             ):
-                response.response_gen = _ResponseGen(response.response_gen, event_data)
+                response.response_gen = _ResponseGen(response.response_gen, event_data)  # type: ignore[assignment]
                 is_dispatched = True
 
         if not is_dispatched:
@@ -395,7 +398,7 @@ class _BoundedDict(OrderedDict[str, _Value]):
         super().__setitem__(key, value)
 
 
-class _ResponseGen(ObjectProxy):  # type: ignore
+class _ResponseGen(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_self_tokens",
         "_self_is_finished",
@@ -403,7 +406,7 @@ class _ResponseGen(ObjectProxy):  # type: ignore
     )
 
     def __init__(self, token_gen: Any, event_data: _EventData) -> None:
-        super().__init__(token_gen)
+        super().__init__(token_gen)  # type: ignore[no-untyped-call]
         self._self_tokens: List[str] = []
         self._self_is_finished = False
         self._self_event_data = event_data
@@ -511,9 +514,9 @@ def _message_payload_to_attributes(message: Any) -> Dict[str, Optional[str]]:
         if "name" in message.additional_kwargs:
             message_attributes[MESSAGE_NAME] = message.additional_kwargs["name"]
         if tool_calls := message.additional_kwargs.get("tool_calls"):
-            assert isinstance(
-                tool_calls, Iterable
-            ), f"tool_calls must be Iterable, found {type(tool_calls)}"
+            assert isinstance(tool_calls, Iterable), (
+                f"tool_calls must be Iterable, found {type(tool_calls)}"
+            )
             message_tool_calls = []
             for tool_call in tool_calls:
                 if message_tool_call := dict(_get_tool_call(tool_call)):
@@ -578,9 +581,9 @@ def _get_message(message: object) -> Iterator[Tuple[str, Any]]:
         assert isinstance(content, str), f"content must be str, found {type(content)}"
         yield MESSAGE_CONTENT, content
     if tool_calls := getattr(message, "tool_calls", None):
-        assert isinstance(
-            tool_calls, Iterable
-        ), f"tool_calls must be Iterable, found {type(tool_calls)}"
+        assert isinstance(tool_calls, Iterable), (
+            f"tool_calls must be Iterable, found {type(tool_calls)}"
+        )
         message_tool_calls = []
         for tool_call in tool_calls:
             if message_tool_call := dict(_get_tool_call(tool_call)):

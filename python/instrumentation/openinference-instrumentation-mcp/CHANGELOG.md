@@ -1,0 +1,83 @@
+# Changelog
+
+## [2.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.2...python-openinference-instrumentation-mcp-v2.0.3) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [2.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.1...python-openinference-instrumentation-mcp-v2.0.2) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [2.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.0...python-openinference-instrumentation-mcp-v2.0.1) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.3.3...python-openinference-instrumentation-mcp-v2.0.0) (2026-04-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcp:** support streamable_http_client introduced in mcp ([#3012](https://github.com/Arize-ai/openinference/issues/3012))
+
+### Features
+
+* **mcp:** support streamable_http_client introduced in mcp ([#3012](https://github.com/Arize-ai/openinference/issues/3012)) ([0d0fa3d](https://github.com/Arize-ai/openinference/commit/0d0fa3da31e3ea1335786b88e975033be967183b))
+
+## [1.3.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.3.2...python-openinference-instrumentation-mcp-v1.3.3) (2025-10-23)
+
+
+### Bug Fixes
+
+* update dependancies for security ([#2320](https://github.com/Arize-ai/openinference/issues/2320)) ([c7eab4f](https://github.com/Arize-ai/openinference/commit/c7eab4fbcac5b7d7407d9ed9c28706d4919421fb))
+
+## [1.3.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.3.1...python-openinference-instrumentation-mcp-v1.3.2) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [1.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.3.0...python-openinference-instrumentation-mcp-v1.3.1) (2025-09-11)
+
+
+### Bug Fixes
+
+* **mcp:** handle ValidationError in stdio stream instrumentation ([#2170](https://github.com/Arize-ai/openinference/issues/2170)) ([48aa236](https://github.com/Arize-ai/openinference/commit/48aa2362a97a7efb029bd1f1e339297e6c6feec0))
+
+## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.2.1...python-openinference-instrumentation-mcp-v1.3.0) (2025-05-19)
+
+
+### Features
+
+* **mcp:** add instrumentation support for Streamable-HTTP transport and bump mcp dependency to ≥1.8.1 ([#1640](https://github.com/Arize-ai/openinference/issues/1640)) ([4df8976](https://github.com/Arize-ai/openinference/commit/4df8976066f1911321ee31f7732854787079e981))
+
+## [1.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.2.0...python-openinference-instrumentation-mcp-v1.2.1) (2025-05-14)
+
+
+### Bug Fixes
+
+* **mcp:** support mcp&gt;=1.8.0 with new SessionMessage structure ([#1634](https://github.com/Arize-ai/openinference/issues/1634)) ([ba6af47](https://github.com/Arize-ai/openinference/commit/ba6af477e97585a41f4a58efcb45890e9bb6c89c))
+
+## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.1.0...python-openinference-instrumentation-mcp-v1.2.0) (2025-04-25)
+
+
+### Features
+
+* **mcp-python:** move instrumentation to transport layer ([#1563](https://github.com/Arize-ai/openinference/issues/1563)) ([2ef9208](https://github.com/Arize-ai/openinference/commit/2ef9208ecdf51e5cf5fba87da20f052ddb198668))
+
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.0.0...python-openinference-instrumentation-mcp-v1.1.0) (2025-04-17)
+
+
+### Features
+
+* **mcp:** mcp python context propagation ([#1524](https://github.com/Arize-ai/openinference/issues/1524)) ([1af5f7d](https://github.com/Arize-ai/openinference/commit/1af5f7d2e7c78e8fdebf9aaf2e50ccaa74eb6f9a))

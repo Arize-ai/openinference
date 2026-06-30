@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
 from importlib.metadata import version
+from io import IOBase
 from queue import SimpleQueue
 from threading import RLock, Thread
 from time import sleep, time, time_ns
@@ -39,9 +40,31 @@ from pydantic import BaseModel as PydanticBaseModel
 from pydantic import PrivateAttr
 from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
+from workflows.runtime.types.step_function import (
+    SpanCancelledEvent,
+    WorkflowRunOutputEvent,
+    WorkflowStepOutputEvent,
+)
 
 from llama_index.core import QueryBundle
-from llama_index.core.base.agent.types import BaseAgent, BaseAgentWorker
+
+# Conditionally import agent base classes (they may not exist in all versions)
+try:
+    from llama_index.core.agent import BaseAgent, BaseAgentWorker  # type: ignore[attr-defined]
+except ImportError:
+    # Fallback for older versions
+    try:
+        from llama_index.core.base.agent.types import (  # type: ignore[import-not-found]
+            BaseAgent,
+            BaseAgentWorker,
+        )
+    except ImportError:
+        BaseAgent = None  # type: ignore[misc,assignment]
+        BaseAgentWorker = None  # type: ignore[misc,assignment]
+try:
+    from llama_index.core.base.llms.types import ToolCallBlock  # type: ignore
+except ImportError:
+    ToolCallBlock = None  # type: ignore
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
@@ -79,6 +102,8 @@ from llama_index.core.instrumentation.events.chat_engine import (
 from llama_index.core.instrumentation.events.embedding import (
     EmbeddingEndEvent,
     EmbeddingStartEvent,
+    SparseEmbeddingEndEvent,
+    SparseEmbeddingStartEvent,
 )
 from llama_index.core.instrumentation.events.llm import (
     LLMChatEndEvent,
@@ -101,7 +126,7 @@ from llama_index.core.instrumentation.events.retrieval import (
     RetrievalEndEvent,
     RetrievalStartEvent,
 )
-from llama_index.core.instrumentation.events.span import SpanDropEvent
+from llama_index.core.instrumentation.events.span import SpanDropEvent  # type: ignore[attr-defined]
 from llama_index.core.instrumentation.events.synthesis import (
     GetResponseEndEvent,
     GetResponseStartEvent,
@@ -114,7 +139,7 @@ from llama_index.core.multi_modal_llms import MultiModalLLM
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
 from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
-from llama_index.core.workflow.errors import WorkflowDone
+from llama_index.core.workflow.errors import WorkflowDone  # type: ignore[attr-defined]
 from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
@@ -125,6 +150,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -156,6 +183,122 @@ if LLAMA_INDEX_VERSION < (0, 10, 44):
 
 elif not TYPE_CHECKING:
     from llama_index.core.instrumentation.events.exception import ExceptionEvent
+
+
+def _detect_llm_provider(instance: Any) -> Optional[str]:
+    """
+    Detect LLM provider using lazy imports to avoid import errors when
+    optional LLM provider packages are not installed.
+
+    Args:
+        instance: The LLM instance to check
+
+    Returns:
+        Provider string if detected, None otherwise
+    """
+    # Try specific provider imports with lazy loading
+    try:
+        from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
+
+        if isinstance(instance, LlamaIndexOpenAI):
+            return OpenInferenceLLMProviderValues.OPENAI.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
+
+        if isinstance(instance, LlamaIndexAnthropic):
+            return OpenInferenceLLMProviderValues.ANTHROPIC.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
+
+        if isinstance(instance, LlamaIndexAzureOpenAI):
+            return OpenInferenceLLMProviderValues.AZURE.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.vertex import Vertex as LlamaIndexVertex
+
+        if isinstance(instance, LlamaIndexVertex):
+            return OpenInferenceLLMProviderValues.GOOGLE.value
+    except ImportError:
+        pass
+
+    # Fallback: check class name if imports fail
+    class_name = instance.__class__.__name__.lower()
+    if "openai" in class_name:
+        if "azure" in class_name:
+            return OpenInferenceLLMProviderValues.AZURE.value
+        return OpenInferenceLLMProviderValues.OPENAI.value
+    elif "anthropic" in class_name:
+        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+    elif "vertex" in class_name or "gemini" in class_name:
+        return OpenInferenceLLMProviderValues.GOOGLE.value
+
+    return None
+
+
+def _detect_llm_system(instance: Any) -> Optional[str]:
+    """
+    Detect LLM system (AI product) using lazy imports to avoid import errors when
+    optional LLM provider packages are not installed.
+
+    Args:
+        instance: The LLM instance to check
+
+    Returns:
+        System string if detected, None otherwise
+    """
+    # Try specific system imports with lazy loading
+    try:
+        from llama_index.llms.openai import OpenAI as LlamaIndexOpenAI
+
+        if isinstance(instance, LlamaIndexOpenAI):
+            return OpenInferenceLLMSystemValues.OPENAI.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.azure_openai import AzureOpenAI as LlamaIndexAzureOpenAI
+
+        if isinstance(instance, LlamaIndexAzureOpenAI):
+            return OpenInferenceLLMSystemValues.OPENAI.value  # Azure OpenAI uses OpenAI's system
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.anthropic import Anthropic as LlamaIndexAnthropic
+
+        if isinstance(instance, LlamaIndexAnthropic):
+            return OpenInferenceLLMSystemValues.ANTHROPIC.value
+    except ImportError:
+        pass
+
+    try:
+        from llama_index.llms.vertex import Vertex as LlamaIndexVertex
+
+        if isinstance(instance, LlamaIndexVertex):
+            return OpenInferenceLLMSystemValues.VERTEXAI.value
+    except ImportError:
+        pass
+
+    # Fallback: check class name if imports fail
+    class_name = instance.__class__.__name__.lower()
+    if "openai" in class_name:
+        return (
+            OpenInferenceLLMSystemValues.OPENAI.value
+        )  # Both OpenAI and Azure OpenAI use OpenAI system
+    elif "anthropic" in class_name:
+        return OpenInferenceLLMSystemValues.ANTHROPIC.value
+    elif "vertex" in class_name or "gemini" in class_name:
+        return OpenInferenceLLMSystemValues.VERTEXAI.value
+
+    return None
 
 
 class _StreamingStatus(Enum):
@@ -287,6 +430,14 @@ class _Span(BaseSpan):
             self[LLM_MODEL_NAME] = metadata.model_name
             self[LLM_INVOCATION_PARAMETERS] = metadata.json(exclude_unset=True)
 
+        # Add LLM provider detection
+        if provider := _detect_llm_provider(instance):
+            self[LLM_PROVIDER] = provider
+
+        # Add LLM system detection
+        if system := _detect_llm_system(instance):
+            self[LLM_SYSTEM] = system
+
     @process_instance.register
     def _(self, instance: BaseEmbedding) -> None:
         if name := instance.model_name:
@@ -376,13 +527,36 @@ class _Span(BaseSpan):
     def _(self, event: EmbeddingStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = EMBEDDING
+        # model_dict mirrors what BaseEmbedding.metadata gives for dense embeddings
+        if model_name := event.model_dict.get("model_name"):
+            self[EMBEDDING_MODEL_NAME] = model_name
 
     @_process_event.register
     def _(self, event: EmbeddingEndEvent) -> None:
+        # Simple embeddings are flat float lists so we can directly store them as an OTEL attribute.
         i = self._list_attr_len[EMBEDDING_EMBEDDINGS]
         for text, vector in zip(event.chunks, event.embeddings):
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
+            i += 1
+        self._list_attr_len[EMBEDDING_EMBEDDINGS] = i
+
+    @_process_event.register
+    def _(self, event: SparseEmbeddingStartEvent) -> None:
+        if not self._span_kind:
+            self._span_kind = EMBEDDING
+        # model_dict mirrors what BaseEmbedding.metadata gives for dense embeddings
+        if model_name := event.model_dict.get("model_name"):
+            self[EMBEDDING_MODEL_NAME] = model_name
+
+    @_process_event.register
+    def _(self, event: SparseEmbeddingEndEvent) -> None:
+        # Sparse embeddings are Dict[int, float] so we can serialise each one as a JSON string
+        # rather than trying to store a heterogeneous list as an OTEL attribute.
+        i = self._list_attr_len[EMBEDDING_EMBEDDINGS]
+        for text, vector in zip(event.chunks, event.embeddings):
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = safe_json_dumps(vector)
             i += 1
         self._list_attr_len[EMBEDDING_EMBEDDINGS] = i
 
@@ -556,6 +730,20 @@ class _Span(BaseSpan):
             ):
                 for k, v in _get_token_counts(usage):
                     self[k] = v
+
+            # Check for VertexAI usage_metadata
+            # VertexAI stores usage_metadata inside _raw_response
+            if isinstance(raw, Mapping) and (raw_response := raw.get("_raw_response")):
+                usage_metadata = (
+                    raw_response.get("usage_metadata")
+                    if isinstance(raw_response, Mapping)
+                    else getattr(raw_response, "usage_metadata", None)
+                )
+            else:
+                usage_metadata = getattr(raw, "usage_metadata", None)
+            if usage_metadata:
+                for k, v in _get_token_counts(usage_metadata):
+                    self[k] = v
         # Look for token counts in additional_kwargs of the completion payload
         # This is needed for non-OpenAI models
         if additional_kwargs := getattr(response, "additional_kwargs", None):
@@ -580,10 +768,13 @@ class _Span(BaseSpan):
         for i, message in enumerate(messages):
             self[f"{prefix}.{i}.{MESSAGE_ROLE}"] = message.role.value
             blocks = message.blocks
+            tool_calls = []
             if len(blocks) == 1 and isinstance(blocks[0], TextBlock):
                 self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = blocks[0].text
             else:
                 for j, block in enumerate(blocks):
+                    if ToolCallBlock is not None and isinstance(block, ToolCallBlock):
+                        tool_calls.append(block)
                     for k, v in _get_attributes_from_content_block(
                         block,
                         prefix=f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.",
@@ -592,7 +783,7 @@ class _Span(BaseSpan):
             additional_kwargs = message.additional_kwargs
             if name := additional_kwargs.get("name"):
                 self[f"{prefix}.{i}.{MESSAGE_NAME}"] = name
-            if tool_calls := additional_kwargs.get("tool_calls"):
+            if tool_calls := (additional_kwargs.get("tool_calls") or tool_calls):
                 for j, tool_call in enumerate(tool_calls):
                     for k, v in _get_tool_call(tool_call):
                         self[f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{k}"] = v
@@ -679,7 +870,10 @@ def _get_attributes_from_text_block(
     prefix: str = "",
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "text"
-    yield f"{prefix}{MESSAGE_CONTENT_TEXT}", obj.text
+    if isinstance(obj.text, str):
+        yield f"{prefix}{MESSAGE_CONTENT_TEXT}", obj.text
+    else:
+        yield f"{prefix}{MESSAGE_CONTENT_TEXT}", safe_json_dumps(obj.text)
 
 
 def _get_attributes_from_image_block(
@@ -687,9 +881,17 @@ def _get_attributes_from_image_block(
     prefix: str = "",
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if obj.image and obj.image_mimetype:
-        url = f"data:{obj.image_mimetype};base64,{obj.image.decode()}"
-        yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
-        yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
+        url = None
+        if isinstance(obj.image, bytes):
+            image_bytes = obj.image
+            url = f"data:{obj.image_mimetype};base64,{image_bytes.decode()}"
+        elif isinstance(obj.image, IOBase):
+            obj.image.seek(0)
+            image_bytes = obj.image.read()
+            url = f"data:{obj.image_mimetype};base64,{image_bytes.decode()}"
+        if url:
+            yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
+            yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
     elif obj.url:
         yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", str(obj.url)
         yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
@@ -895,18 +1097,39 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
             yield TOOL_CALL_ID, tool_call_id
         if name := tool_call.get("name"):
             yield TOOL_CALL_FUNCTION_NAME, name
+        if function := tool_call.get("function"):
+            yield TOOL_CALL_FUNCTION_NAME, function.get("name")
+            if isinstance(function.get("arguments"), str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, function.get("arguments")
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(function.get("arguments"))
         if arguments := tool_call.get("input"):
             if isinstance(arguments, str):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
             elif isinstance(arguments, dict):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
+    elif ToolCallBlock is not None and isinstance(tool_call, ToolCallBlock):
+        if tool_call_id := getattr(tool_call, "tool_call_id", None):
+            yield TOOL_CALL_ID, tool_call_id
+        if name := getattr(tool_call, "tool_name", None):
+            yield TOOL_CALL_FUNCTION_NAME, name
+        if isinstance(getattr(tool_call, "tool_kwargs", None), str):
+            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, getattr(tool_call, "tool_kwargs", None)
+        else:
+            yield (
+                TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+                safe_json_dumps(getattr(tool_call, "tool_kwargs", None)),
+            )
     elif function := getattr(tool_call, "function", None):
         if tool_call_id := getattr(tool_call, "id", None):
             yield TOOL_CALL_ID, tool_call_id
         if name := getattr(function, "name", None):
             yield TOOL_CALL_FUNCTION_NAME, name
         if arguments := getattr(function, "arguments", None):
-            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            if isinstance(arguments, str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
 
 
 def _get_token_counts(usage: Union[object, Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
@@ -1007,20 +1230,69 @@ def _get_token_counts_impl(
         except BaseException:
             pass
 
+    # VertexAI
+    if (prompt_token_count := get_value(usage, "prompt_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
+        except BaseException:
+            pass
+    if (candidates_token_count := get_value(usage, "candidates_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_COMPLETION, int(candidates_token_count)
+        except BaseException:
+            pass
+    if (total_token_count := get_value(usage, "total_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
+        except BaseException:
+            pass
+
+
+if WorkflowStepOutputEvent is not None:
+
+    @_Span._process_event.register(WorkflowStepOutputEvent)  # type: ignore[attr-defined,misc]
+    def _workflow_step_output_event(self: _Span, event: WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
+        # Pre-summarised step output produced by workflows.runtime
+        self[OUTPUT_VALUE] = str(event.output)
+        self[OUTPUT_MIME_TYPE] = TEXT
+
+
+if WorkflowRunOutputEvent is not None:
+
+    @_Span._process_event.register(WorkflowRunOutputEvent)  # type: ignore[attr-defined,misc]
+    def _workflow_run_output_event(self: _Span, event: WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
+        # Pre-summarised whole-workflow output
+        self[OUTPUT_VALUE] = str(event.output)
+        self[OUTPUT_MIME_TYPE] = TEXT
+
+
+if SpanCancelledEvent is not None:
+
+    @_Span._process_event.register(SpanCancelledEvent)  # type: ignore[attr-defined,misc]
+    def _span_cancelled_event(self: _Span, event: SpanCancelledEvent) -> None:  # type: ignore[misc]
+        # Cancellation is intentional (user or asyncio) so we record the reason as a
+        # span event instead of marking the span as ERROR.
+        self._otel_span.add_event("span.cancelled", attributes={"reason": event.reason})
+
 
 @singledispatch
 def _init_span_kind(_: Any) -> Optional[str]:
     return None
 
 
-@_init_span_kind.register
-def _(_: BaseAgent) -> str:
-    return AGENT
+# Only register agent handlers if the classes exist
+if BaseAgent is not None:
+
+    @_init_span_kind.register
+    def _agent_span_kind(_: BaseAgent) -> str:  # type: ignore[misc]
+        return AGENT
 
 
-@_init_span_kind.register
-def _(_: BaseAgentWorker) -> str:
-    return AGENT
+if BaseAgentWorker is not None:
+
+    @_init_span_kind.register
+    def _agent_worker_span_kind(_: BaseAgentWorker) -> str:  # type: ignore[misc]
+        return AGENT
 
 
 @_init_span_kind.register
@@ -1046,7 +1318,7 @@ def _(_: BaseTool) -> str:
 class _Encoder(json.JSONEncoder):
     def __init__(self, **kwargs: Any) -> None:
         kwargs.pop("default", None)
-        super().__init__()
+        super().__init__(**kwargs)
 
     def default(self, obj: Any) -> Any:
         return _encoder(obj)
@@ -1158,6 +1430,8 @@ LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
@@ -1169,7 +1443,6 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMP
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
     SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
 )
-
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
@@ -1199,11 +1472,9 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
-
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
-
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
-
 AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value

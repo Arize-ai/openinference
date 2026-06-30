@@ -1,4 +1,4 @@
-import { Attributes } from "@opentelemetry/api";
+import type { Attributes } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
 
 /**
@@ -15,9 +15,7 @@ export function isStringArray(value: unknown): value is string[] {
  * @param value
  * @returns true if the value is an object, false otherwise.
  */
-function isObject(
-  value: unknown,
-): value is Record<string | number | symbol, unknown> {
+function isObject(value: unknown): value is Record<string | number | symbol, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -26,12 +24,22 @@ function isObject(
  * @param value
  * @returns true if the value is an object with string keys, false otherwise.
  */
-export function isObjectWithStringKeys(
-  value: unknown,
-): value is Record<string, unknown> {
+export function isObjectWithStringKeys(value: unknown): value is Record<string, unknown> {
+  return isObject(value) && Object.keys(value).every((key) => typeof key === "string");
+}
+
+/**
+ * Type guard for if a function is a Promise
+ * @param value
+ * @returns true if it is a Promise
+ */
+export function isPromise<T = unknown>(value: unknown): value is Promise<T> {
   return (
-    isObject(value) &&
-    Object.keys(value).every((key) => typeof key === "string")
+    !!value &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    typeof (value as any)?.then === "function" &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    typeof (value as any)?.catch === "function"
   );
 }
 
@@ -51,7 +59,7 @@ export function isAttributes(value: unknown): value is Attributes {
 
 /**
  * A type check function to ensure that a switch or set of conditionals is exhaustive.
- * Typscript will throw an error if the switch or conditionals are not exhaustive.
+ * Typescript will throw an error if the switch or conditionals are not exhaustive.
  * @example
  *  ```typescript
  * type MyType = "a" | "b";

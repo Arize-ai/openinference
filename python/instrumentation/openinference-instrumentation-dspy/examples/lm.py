@@ -12,6 +12,10 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 DSPyInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
-lm = LM("openai/gpt-4")
-output = lm("hello!")
-print(f"{output=}")
+if __name__ == "__main__":
+    lm = LM("openai/gpt-4.1")
+    output = lm("hello!")
+    print(f"{output=}")
+    DSPyInstrumentor().uninstrument()
+    output = lm("hello! What is latest on AI?")
+    print(output)

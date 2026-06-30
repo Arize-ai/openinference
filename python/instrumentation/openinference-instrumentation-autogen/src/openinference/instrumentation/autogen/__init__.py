@@ -4,8 +4,6 @@ from typing import Any, Callable, Dict, Optional, Union
 from opentelemetry import trace
 from opentelemetry.trace import Link, SpanContext, Status, StatusCode
 
-from autogen import ConversableAgent  # type: ignore
-
 
 class AutogenInstrumentor:
     def __init__(self) -> None:
@@ -21,6 +19,8 @@ class AutogenInstrumentor:
             return json.dumps(str(obj))
 
     def instrument(self) -> "AutogenInstrumentor":
+        from autogen import ConversableAgent  # type: ignore
+
         # Save original methods
         self._original_generate = ConversableAgent.generate_reply
         self._original_initiate_chat = ConversableAgent.initiate_chat
@@ -207,6 +207,8 @@ class AutogenInstrumentor:
 
     def uninstrument(self) -> "AutogenInstrumentor":
         """Restore original behavior."""
+        from autogen import ConversableAgent
+
         if (
             self._original_generate
             and self._original_initiate_chat

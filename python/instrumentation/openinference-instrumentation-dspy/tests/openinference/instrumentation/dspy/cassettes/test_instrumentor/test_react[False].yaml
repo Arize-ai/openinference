@@ -1,0 +1,156 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"Your input fields are:\n1. `question`
+      (str)\n2. `trajectory` (str)\nYour output fields are:\n1. `next_thought` (str)\n2.
+      `next_tool_name` (Literal[''add'', ''finish''])\n3. `next_tool_args` (dict[str,
+      Any])\nAll interactions will be structured in the following way, with the appropriate
+      values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## trajectory ##
+      ]]\n{trajectory}\n\n[[ ## next_thought ## ]]\n{next_thought}\n\n[[ ## next_tool_name
+      ## ]]\n{next_tool_name}        # note: the value you produce must exactly match
+      (no extra characters) one of: add; finish\n\n[[ ## next_tool_args ## ]]\n{next_tool_args}        #
+      note: the value you produce must adhere to the JSON schema: {\"type\": \"object\",
+      \"additionalProperties\": true}\n\n[[ ## completed ## ]]\nIn adhering to this
+      structure, your objective is: \n        Given the fields `question`, produce
+      the fields `answer`.\n        \n        You are an Agent. In each episode, you
+      will be given the fields `question` as input. And you can see your past trajectory
+      so far.\n        Your goal is to use one or more of the supplied tools to collect
+      any necessary information for producing `answer`.\n        \n        To do this,
+      you will interleave next_thought, next_tool_name, and next_tool_args in each
+      turn, and also when finishing the task.\n        After each tool call, you receive
+      a resulting observation, which gets appended to your trajectory.\n        \n        When
+      writing next_thought, you may reason about the current situation and plan for
+      future steps.\n        When selecting the next_tool_name and its next_tool_args,
+      the tool must be one of:\n        \n        (1) add. It takes arguments {''x'':
+      {''type'': ''integer''}, ''y'': {''type'': ''integer''}} in JSON format.\n        (2)
+      finish, whose description is <desc>Marks the task as complete. That is, signals
+      that all infomration for producing the outputs, i.e. `answer`, are now available
+      to be extracted.</desc>. It takes arguments {} in JSON format."},{"role":"user","content":"[[
+      ## question ## ]]\nWhat is 2 + 2?\n\n[[ ## trajectory ## ]]\n\n\nRespond with
+      the corresponding output fields, starting with the field `[[ ## next_thought
+      ## ]]`, then `[[ ## next_tool_name ## ]]` (must be formatted as a valid Python
+      Literal[''add'', ''finish'']), then `[[ ## next_tool_args ## ]]` (must be formatted
+      as a valid Python dict[str, Any]), and then ending with the marker for `[[ ##
+      completed ## ]]`."}],"model":"gpt-4o-mini","max_tokens":1000,"temperature":0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BWDq2shdpLeQ8ybFr6T3e6WZ8Gua1\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1747019390,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## next_thought ## ]]\\nI need to
+        perform the addition of 2 and 2 to answer the question.\\n\\n[[ ## next_tool_name
+        ## ]]\\nadd\\n\\n[[ ## next_tool_args ## ]]\\n{\\\"x\\\": 2, \\\"y\\\": 2}\\n\\n[[
+        ## completed ## ]]\",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 560,\n    \"completion_tokens\":
+        58,\n    \"total_tokens\": 618,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_0392822090\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Your input fields are:\n1. `question`
+      (str)\n2. `trajectory` (str)\nYour output fields are:\n1. `next_thought` (str)\n2.
+      `next_tool_name` (Literal[''add'', ''finish''])\n3. `next_tool_args` (dict[str,
+      Any])\nAll interactions will be structured in the following way, with the appropriate
+      values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## trajectory ##
+      ]]\n{trajectory}\n\n[[ ## next_thought ## ]]\n{next_thought}\n\n[[ ## next_tool_name
+      ## ]]\n{next_tool_name}        # note: the value you produce must exactly match
+      (no extra characters) one of: add; finish\n\n[[ ## next_tool_args ## ]]\n{next_tool_args}        #
+      note: the value you produce must adhere to the JSON schema: {\"type\": \"object\",
+      \"additionalProperties\": true}\n\n[[ ## completed ## ]]\nIn adhering to this
+      structure, your objective is: \n        Given the fields `question`, produce
+      the fields `answer`.\n        \n        You are an Agent. In each episode, you
+      will be given the fields `question` as input. And you can see your past trajectory
+      so far.\n        Your goal is to use one or more of the supplied tools to collect
+      any necessary information for producing `answer`.\n        \n        To do this,
+      you will interleave next_thought, next_tool_name, and next_tool_args in each
+      turn, and also when finishing the task.\n        After each tool call, you receive
+      a resulting observation, which gets appended to your trajectory.\n        \n        When
+      writing next_thought, you may reason about the current situation and plan for
+      future steps.\n        When selecting the next_tool_name and its next_tool_args,
+      the tool must be one of:\n        \n        (1) add. It takes arguments {''x'':
+      {''type'': ''integer''}, ''y'': {''type'': ''integer''}} in JSON format.\n        (2)
+      finish, whose description is <desc>Marks the task as complete. That is, signals
+      that all infomration for producing the outputs, i.e. `answer`, are now available
+      to be extracted.</desc>. It takes arguments {} in JSON format."},{"role":"user","content":"[[
+      ## question ## ]]\nWhat is 2 + 2?\n\n[[ ## trajectory ## ]]\n[[ ## thought_0
+      ## ]]\nI need to perform the addition of 2 and 2 to answer the question.\n\n[[
+      ## tool_name_0 ## ]]\nadd\n\n[[ ## tool_args_0 ## ]]\n{\"x\": 2, \"y\": 2}\n\n[[
+      ## observation_0 ## ]]\n4\n\nRespond with the corresponding output fields, starting
+      with the field `[[ ## next_thought ## ]]`, then `[[ ## next_tool_name ## ]]`
+      (must be formatted as a valid Python Literal[''add'', ''finish'']), then `[[
+      ## next_tool_args ## ]]` (must be formatted as a valid Python dict[str, Any]),
+      and then ending with the marker for `[[ ## completed ## ]]`."}],"model":"gpt-4o-mini","max_tokens":1000,"temperature":0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BWDq3QLNtR3y94ZnrPs8WwZteHYWp\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1747019391,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## next_thought ## ]]\\nI have completed
+        the addition and found that 2 + 2 equals 4. I can now finish the task as I
+        have all the information needed to answer the question.\\n\\n[[ ## next_tool_name
+        ## ]]\\nfinish\\n\\n[[ ## next_tool_args ## ]]\\n{}\\n\\n[[ ## completed ##
+        ]]\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 622,\n    \"completion_tokens\": 65,\n
+        \   \"total_tokens\": 687,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_0392822090\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Your input fields are:\n1. `question`
+      (str)\n2. `trajectory` (str)\nYour output fields are:\n1. `reasoning` (str)\n2.
+      `answer` (str)\nAll interactions will be structured in the following way, with
+      the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[
+      ## trajectory ## ]]\n{trajectory}\n\n[[ ## reasoning ## ]]\n{reasoning}\n\n[[
+      ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure,
+      your objective is: \n        Given the fields `question`, produce the fields
+      `answer`."},{"role":"user","content":"[[ ## question ## ]]\nWhat is 2 + 2?\n\n[[
+      ## trajectory ## ]]\n[[ ## thought_0 ## ]]\nI need to perform the addition of
+      2 and 2 to answer the question.\n\n[[ ## tool_name_0 ## ]]\nadd\n\n[[ ## tool_args_0
+      ## ]]\n{\"x\": 2, \"y\": 2}\n\n[[ ## observation_0 ## ]]\n4\n\n[[ ## thought_1
+      ## ]]\nI have completed the addition and found that 2 + 2 equals 4. I can now
+      finish the task as I have all the information needed to answer the question.\n\n[[
+      ## tool_name_1 ## ]]\nfinish\n\n[[ ## tool_args_1 ## ]]\n{}\n\n[[ ## observation_1
+      ## ]]\nCompleted.\n\nRespond with the corresponding output fields, starting
+      with the field `[[ ## reasoning ## ]]`, then `[[ ## answer ## ]]`, and then
+      ending with the marker for `[[ ## completed ## ]]`."}],"model":"gpt-4o-mini","max_tokens":1000,"temperature":0.0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BWDq5XAS2EARmfa98pkgqcALXVlUU\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1747019393,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"[[ ## reasoning ## ]]\\nTo answer the
+        question, I performed the addition of 2 and 2. The result of this calculation
+        is 4, which directly answers the question posed.\\n\\n[[ ## answer ## ]]\\n4\\n\\n[[
+        ## completed ## ]]\",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 324,\n    \"completion_tokens\":
+        50,\n    \"total_tokens\": 374,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_0392822090\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

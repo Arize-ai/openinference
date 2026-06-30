@@ -1,0 +1,65 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the capital of France?"}], "role":
+      "user"}]}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"The capital of France is **Paris**.\\n\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"avgLogprobs\": -0.021913599636819627\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 7,\n    \"candidatesTokenCount\": 9,\n    \"totalTokenCount\":
+        16,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 7\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 9\n      }\n
+        \   ],\n    \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n
+        \ \"responseId\": \"iNcEatOgNqbMqtsP75j8mA0\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the capital of France?"}], "role":
+      "user"}, {"parts": [{"text": "The capital of France is **Paris**.\n"}], "role":
+      "model"}, {"parts": [{"text": "Why is the sky blue?"}], "role": "user"}]}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"The sky is blue because of a phenomenon
+        called **Rayleigh scattering**. Here's a breakdown:\\n\\n*   **Sunlight is
+        made of all colors:** White sunlight is actually a mixture of all the colors
+        of the rainbow.\\n\\n*   **Sunlight hits the Earth's atmosphere:** When sunlight
+        enters the Earth's atmosphere, it collides with tiny air molecules (mostly
+        nitrogen and oxygen).\\n\\n*   **Scattering:** This collision causes the sunlight
+        to scatter in different directions.\\n\\n*   **Rayleigh Scattering:** Rayleigh
+        scattering is the type of scattering that's most effective at scattering shorter
+        wavelengths of light.\\n\\n*   **Blue and violet are scattered more:** Blue
+        and violet light have shorter wavelengths than other colors like red and orange.
+        Therefore, they are scattered much more strongly by the air molecules.\\n\\n*
+        \  **Why not violet?** While violet is scattered more than blue, our eyes
+        are more sensitive to blue light. Additionally, the sun emits slightly less
+        violet light than blue light. These two factors lead us to perceive the sky
+        as blue.\\n\\n*   **Sunsets are red:** At sunrise and sunset, the sunlight
+        travels through a much greater distance in the atmosphere. The blue light
+        is scattered away almost completely, leaving the longer wavelengths like red
+        and orange to dominate what we see.\\n\\nIn summary, the sky is blue because
+        air molecules scatter blue light from the sun more than they scatter other
+        colors.\\n\"\n          }\n        ],\n        \"role\": \"model\"\n      },\n
+        \     \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -0.23152936738112878\n
+        \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 22,\n    \"candidatesTokenCount\":
+        290,\n    \"totalTokenCount\": 312,\n    \"promptTokensDetails\": [\n      {\n
+        \       \"modality\": \"TEXT\",\n        \"tokenCount\": 22\n      }\n    ],\n
+        \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 290\n      }\n    ],\n    \"serviceTier\": \"standard\"\n
+        \ },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\": \"idcEasGMJLCzqtsPgPryoQM\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

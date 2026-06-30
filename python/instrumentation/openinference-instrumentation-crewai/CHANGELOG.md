@@ -1,5 +1,193 @@
 # Changelog
 
+## [1.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.9...python-openinference-instrumentation-crewai-v1.1.10) (2026-06-17)
+
+
+### Bug Fixes
+
+* **crewai:** handle latest flow method events ([#3250](https://github.com/Arize-ai/openinference/issues/3250)) ([e8e1ce8](https://github.com/Arize-ai/openinference/commit/e8e1ce8222a79533f3a772c4708ed7224b92ea42))
+
+## [1.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.8...python-openinference-instrumentation-crewai-v1.1.9) (2026-06-02)
+
+
+### Bug Fixes
+
+* **crewai:** post-process tool payload to strip args_schema and cache_function ([#3192](https://github.com/Arize-ai/openinference/issues/3192)) ([76c797c](https://github.com/Arize-ai/openinference/commit/76c797c75035bf65225fe9e2025e63b97a384905))
+
+## [1.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.7...python-openinference-instrumentation-crewai-v1.1.8) (2026-05-22)
+
+
+### Bug Fixes
+
+* **crewai:** skip flow spans for internal AgentExecutor ([#3154](https://github.com/Arize-ai/openinference/issues/3154)) ([fc7af5f](https://github.com/Arize-ai/openinference/commit/fc7af5f0169067eeb391c6771c70663f0e6282a9))
+
+## [1.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.6...python-openinference-instrumentation-crewai-v1.1.7) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [1.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.5...python-openinference-instrumentation-crewai-v1.1.6) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [1.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.4...python-openinference-instrumentation-crewai-v1.1.5) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [1.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.3...python-openinference-instrumentation-crewai-v1.1.4) (2026-05-04)
+
+
+### Bug Fixes
+
+* removed the per-agent i18n field ([f2d4191](https://github.com/Arize-ai/openinference/commit/f2d419170879b1d161e9bd2b167be640319533d4))
+
+## [1.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.2...python-openinference-instrumentation-crewai-v1.1.3) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.1...python-openinference-instrumentation-crewai-v1.1.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* **crewai:** serialize agent task input as structured JSON ([#2916](https://github.com/Arize-ai/openinference/issues/2916)) ([e6ed1f6](https://github.com/Arize-ai/openinference/commit/e6ed1f63b8062e590a1cd51f17ba26bab9e22a72))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.0...python-openinference-instrumentation-crewai-v1.1.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **crewAI:** sanitize event message ([#2946](https://github.com/Arize-ai/openinference/issues/2946)) ([b05ec92](https://github.com/Arize-ai/openinference/commit/b05ec926e037c026769d2a543e205b40033c9847))
+
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.0.0...python-openinference-instrumentation-crewai-v1.1.0) (2026-03-23)
+
+
+### Features
+
+* **crewai:** instrument event-listener ([#2895](https://github.com/Arize-ai/openinference/issues/2895)) ([7e03708](https://github.com/Arize-ai/openinference/commit/7e037086a2688b2e453a27785835b0d5175de302))
+
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.22...python-openinference-instrumentation-crewai-v1.0.0) (2026-03-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **crewai:** fix flow node spans, agent kickoff span, context propagation & INPUT_MIME_TYPE ([#2848](https://github.com/Arize-ai/openinference/issues/2848))
+
+### Features
+
+* **crewai:** fix flow node spans, agent kickoff span, context propagation & INPUT_MIME_TYPE ([#2848](https://github.com/Arize-ai/openinference/issues/2848)) ([bbd2673](https://github.com/Arize-ai/openinference/commit/bbd26739b0e96a9b689914c4f689c212fca546bf))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.21...python-openinference-instrumentation-crewai-v0.1.22) (2026-03-06)
+
+
+### Bug Fixes
+
+* **crewai:** None Literal Showing For Agent Span Names ([#2836](https://github.com/Arize-ai/openinference/issues/2836)) ([6ab5758](https://github.com/Arize-ai/openinference/commit/6ab5758813d0d268243826cdca494ff941de7902))
+
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.20...python-openinference-instrumentation-crewai-v0.1.21) (2026-02-27)
+
+
+### Bug Fixes
+
+* **crewai:** propagate OTel context across thread and async boundaries ([#2805](https://github.com/Arize-ai/openinference/issues/2805)) ([4637961](https://github.com/Arize-ai/openinference/commit/4637961621639a3f74191d4c3cebc2eb533aafb9))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.19...python-openinference-instrumentation-crewai-v0.1.20) (2026-02-24)
+
+
+### Bug Fixes
+
+* update agent span name to include task name ([#2767](https://github.com/Arize-ai/openinference/issues/2767)) ([99b8e4e](https://github.com/Arize-ai/openinference/commit/99b8e4e759eee98b34bb94d8f5489a52233f2bb3))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.18...python-openinference-instrumentation-crewai-v0.1.19) (2026-02-18)
+
+
+### Features
+
+* **crewai:** Add Kickoff ID Attribute in Root Level ([#2742](https://github.com/Arize-ai/openinference/issues/2742)) ([8df5581](https://github.com/Arize-ai/openinference/commit/8df558116cd3e596818640b69d5192497c16266c))
+* **crewai:** add task name attribute to span ([#2740](https://github.com/Arize-ai/openinference/issues/2740)) ([66fb074](https://github.com/Arize-ai/openinference/commit/66fb074ff0dad21c6c4f8d5d0752f39ef87f13e8))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.17...python-openinference-instrumentation-crewai-v0.1.18) (2026-02-05)
+
+
+### Bug Fixes
+
+* **crewai:** Not Getting Tool Spans From Latest CrewAI ([#2665](https://github.com/Arize-ai/openinference/issues/2665)) ([d80846f](https://github.com/Arize-ai/openinference/commit/d80846f897d8427b4bd58ddf510414838e42649c))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.16...python-openinference-instrumentation-crewai-v0.1.17) (2025-12-04)
+
+
+### Features
+
+* **crewai:** Enable Tracing Support For CrewAI Metrics ([#2377](https://github.com/Arize-ai/openinference/issues/2377)) ([5e4b862](https://github.com/Arize-ai/openinference/commit/5e4b86223d73380c04561279b890bbf6d77f996f))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.15...python-openinference-instrumentation-crewai-v0.1.16) (2025-10-29)
+
+
+### Bug Fixes
+
+* **crewai:** CI Failures For CrewAI ([#2359](https://github.com/Arize-ai/openinference/issues/2359)) ([0921129](https://github.com/Arize-ai/openinference/commit/092112969c663b2215bd8a036441b8341a15d239))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.14...python-openinference-instrumentation-crewai-v0.1.15) (2025-10-21)
+
+
+### Bug Fixes
+
+* **crewai:** CrewAI Flow Traces Not Generated With Async ([#2308](https://github.com/Arize-ai/openinference/issues/2308)) ([7e7f532](https://github.com/Arize-ai/openinference/commit/7e7f53283df61a0d78df01ab808bacdddd14620a))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.13...python-openinference-instrumentation-crewai-v0.1.14) (2025-10-14)
+
+
+### Features
+
+* **crewai:** Enable Tracing Support For CrewAI Flows ([#2286](https://github.com/Arize-ai/openinference/issues/2286)) ([4930cb1](https://github.com/Arize-ai/openinference/commit/4930cb11f86845b10b02ed2cab03c63880419915))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.12...python-openinference-instrumentation-crewai-v0.1.13) (2025-09-15)
+
+
+### Features
+
+* **crewai:** enhance span naming to include crew, agent, and tool context ([#2202](https://github.com/Arize-ai/openinference/issues/2202)) ([af44991](https://github.com/Arize-ai/openinference/commit/af44991003f70fc21701b2f1ead8a19554cd37e2))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.11...python-openinference-instrumentation-crewai-v0.1.12) (2025-09-11)
+
+
+### Bug Fixes
+
+* **crewai:** Not Getting Inputs For CrewAI Root Span ([#2193](https://github.com/Arize-ai/openinference/issues/2193)) ([9cf3b8f](https://github.com/Arize-ai/openinference/commit/9cf3b8fa0f432f6b6f783fc25a9d3d78f9164d4e))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.10...python-openinference-instrumentation-crewai-v0.1.11) (2025-07-16)
+
+
+### Features
+
+* **crewai:** capture graph.node.id and graph.node.parent_id semantics ([#1794](https://github.com/Arize-ai/openinference/issues/1794)) ([4645932](https://github.com/Arize-ai/openinference/commit/4645932b68f7ed5ab3ecd8818ddad9e1011c027e))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.9...python-openinference-instrumentation-crewai-v0.1.10) (2025-05-27)
+
+
+### Bug Fixes
+
+* **crewai:** crewai default empty tasks ([#1682](https://github.com/Arize-ai/openinference/issues/1682)) ([4a47bfc](https://github.com/Arize-ai/openinference/commit/4a47bfc065b88b55bfcb7605abf66ef12a286ec9))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.8...python-openinference-instrumentation-crewai-v0.1.9) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.7...python-openinference-instrumentation-crewai-v0.1.8) (2025-04-11)
 
 

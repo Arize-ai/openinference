@@ -1,0 +1,5 @@
+openlit==1.36.8
+opentelemetry-sdk>=1.20.0
+opentelemetry-exporter-otlp-proto-http
+pytest-recording
+semantic-kernel>=1.0.0

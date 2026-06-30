@@ -1,17 +1,25 @@
+import type { Tracer, TracerProvider } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+import type { InstrumentationConfig } from "@opentelemetry/instrumentation";
 import {
   InstrumentationBase,
   InstrumentationNodeModuleDefinition,
-  InstrumentationConfig,
 } from "@opentelemetry/instrumentation";
-import { diag } from "@opentelemetry/api";
 import { Version } from "beeai-framework";
-import * as bee from "beeai-framework";
+import type * as bee from "beeai-framework";
+import { satisfies } from "semver";
 
-import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
-import { createTelemetryMiddleware } from "./middleware";
+import type { TraceConfigOptions } from "@arizeai/openinference-core";
+import { OITracer } from "@arizeai/openinference-core";
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
+import { createTelemetryMiddleware } from "./middleware";
+
 const MODULE_NAME = "beeai-framework";
+
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-beeai";
+
+const INSTRUMENTS = [">=0.1.9 <0.1.14"];
 
 /**
  * Flag to check if the openai module has been patched
@@ -28,10 +36,13 @@ export function isPatched() {
 
 export class BeeAIInstrumentation extends InstrumentationBase {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
 
   constructor({
     instrumentationConfig,
     traceConfig,
+    tracerProvider,
   }: {
     /**
      * The config for the instrumentation
@@ -43,19 +54,27 @@ export class BeeAIInstrumentation extends InstrumentationBase {
      * @see {@link TraceConfigOptions}
      */
     traceConfig?: TraceConfigOptions;
+    /**
+     * An optional custom trace provider to be used for tracing. If not provided, a tracer will be created using the global tracer provider.
+     * This is useful if you want to use a non-global tracer provider.
+     *
+     * @see {@link TracerProvider}
+     */
+    tracerProvider?: TracerProvider;
   } = {}) {
-    super(
-      "@arizeai/openinference-instrumentation-beeai",
-      Version,
-      Object.assign({}, instrumentationConfig),
-    );
-    this.oiTracer = new OITracer({ tracer: this.tracer, traceConfig });
+    super(INSTRUMENTATION_NAME, Version, Object.assign({}, instrumentationConfig));
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
+    this.oiTracer = new OITracer({
+      tracer: this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
+      traceConfig,
+    });
   }
 
   protected init() {
     const module = new InstrumentationNodeModuleDefinition(
       MODULE_NAME,
-      ["0.*"],
+      INSTRUMENTS,
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -68,15 +87,37 @@ export class BeeAIInstrumentation extends InstrumentationBase {
    * @param {openai} module
    */
   manuallyInstrument(module: typeof bee) {
+    if (!INSTRUMENTS.some((instrument) => satisfies(module.Version, instrument))) {
+      const supportedVersionsString = `beeai-framework ["${INSTRUMENTS.join(',"')}"]`;
+      diag.warn(
+        `DependencyConflict: requested: '${supportedVersionsString}' but found: 'beeai-framework "${module.Version}"'`,
+      );
+      return;
+    }
+
     diag.debug(`[BeeaiInstrumentation] Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
   }
 
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(this.instrumentationName);
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
+  }
+
   private patch(module: typeof bee & { openInferencePatched?: boolean }) {
     if (!module?.BaseAgent) {
-      diag.warn(
-        "[BeeaiInstrumentation] BaseAgent not found, skipping instrumentation.",
-      );
+      diag.warn("[BeeaiInstrumentation] BaseAgent not found, skipping instrumentation.");
       return module;
     }
 
@@ -93,9 +134,7 @@ export class BeeAIInstrumentation extends InstrumentationBase {
       return function wrappedMethod(this: unknown, ...args: unknown[]) {
         const returned = original.apply(this, args);
         if (returned?.middleware) {
-          returned.middleware(
-            createTelemetryMiddleware(instrumentation.oiTracer, mainSpanKind),
-          );
+          returned.middleware(createTelemetryMiddleware(instrumentation.oiTracer, mainSpanKind));
         }
         return returned;
       };
@@ -106,47 +145,27 @@ export class BeeAIInstrumentation extends InstrumentationBase {
     const instrumentation: BeeAIInstrumentation = this;
 
     this._wrap(module.BaseAgent.prototype, "run", (original) =>
-      createWrappedMethod(
-        instrumentation,
-        original,
-        OpenInferenceSpanKind.AGENT,
-      ),
+      createWrappedMethod(instrumentation, original, OpenInferenceSpanKind.AGENT),
     );
 
     // tool instrumentation support
     if (module.Tool) {
       this._wrap(module.Tool.prototype, "run", (original) =>
-        createWrappedMethod(
-          instrumentation,
-          original,
-          OpenInferenceSpanKind.TOOL,
-        ),
+        createWrappedMethod(instrumentation, original, OpenInferenceSpanKind.TOOL),
       );
     }
     // model instrumentation support
     if (module.ChatModel) {
       this._wrap(module.ChatModel.prototype, "create", (original) =>
-        createWrappedMethod(
-          instrumentation,
-          original,
-          OpenInferenceSpanKind.LLM,
-        ),
+        createWrappedMethod(instrumentation, original, OpenInferenceSpanKind.LLM),
       );
       this._wrap(module.ChatModel.prototype, "createStructure", (original) =>
-        createWrappedMethod(
-          instrumentation,
-          original,
-          OpenInferenceSpanKind.LLM,
-        ),
+        createWrappedMethod(instrumentation, original, OpenInferenceSpanKind.LLM),
       );
     }
     if (module.EmbeddingModel) {
       this._wrap(module.EmbeddingModel.prototype, "create", (original) =>
-        createWrappedMethod(
-          instrumentation,
-          original,
-          OpenInferenceSpanKind.EMBEDDING,
-        ),
+        createWrappedMethod(instrumentation, original, OpenInferenceSpanKind.EMBEDDING),
       );
     }
 

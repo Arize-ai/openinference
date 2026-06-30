@@ -1,0 +1,31 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-lint-python
+        name: ruff lint (Python)
+        language: system
+        entry: ruff check
+        args: [--fix]
+        files: \.py$
+        pass_filenames: true
+
+      - id: ruff-format-python
+        name: ruff format (Python)
+        language: system
+        entry: ruff format
+        files: \.py$
+        pass_filenames: true
+
+      - id: oxfmt-js
+        name: oxfmt (JS/TS)
+        language: system
+        entry: scripts/pre-commit/oxfmt.sh
+        files: ^js/.*\.(jsx?|tsx?|json|ya?ml)$
+        pass_filenames: true
+
+      - id: oxlint-js
+        name: oxlint (JS/TS)
+        language: system
+        entry: scripts/pre-commit/oxlint.sh
+        files: ^js/.*\.[jt]sx?$
+        pass_filenames: true

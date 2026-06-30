@@ -13,8 +13,8 @@ from typing import (
 import pytest
 import respx
 from httpx import Response
-from mistralai import Mistral
-from mistralai.models import (
+from mistralai.client import Mistral
+from mistralai.client.models import (
     ChatCompletionChoice,
     ChatCompletionResponse,
     CompletionEvent,
@@ -32,6 +32,8 @@ from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -131,7 +133,7 @@ def test_synchronous_chat_completions_emits_expected_span(
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
                 }
-            ],  # type: ignore
+            ],
             temperature=0.1,
         )
 
@@ -150,6 +152,7 @@ def test_synchronous_chat_completions_emits_expected_span(
         response = mistral_chat()
     choices: Optional[List[ChatCompletionChoice]] = response.choices
     assert choices is not None and len(choices) == 1
+    assert choices[0].message is not None
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "France" in response_content
@@ -201,7 +204,9 @@ def test_synchronous_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -284,13 +289,13 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
         return mistral_sync_client.chat.complete(
             model="mistral-large-latest",
             tool_choice="any",
-            tools=[tool],  # type: ignore
+            tools=[tool],
             messages=[
                 {
                     "content": "What's the weather like in San Francisco?",
                     "role": "user",
                 }
-            ],  # type: ignore
+            ],
         )
 
     if use_context_attributes:
@@ -308,6 +313,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
         response = mistral_chat()
     choices: Optional[List[ChatCompletionChoice]] = response.choices
     assert choices is not None and len(choices) == 1
+    assert choices[0].message is not None
     assert choices[0].message.content == ""
 
     assert (tool_calls := choices[0].message.tool_calls)
@@ -369,7 +375,9 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 96
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -444,7 +452,7 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
                     ],
                 },
                 {"role": "tool", "name": "get_weather", "content": '{"weather_category": "sunny"}'},
-            ],  # type: ignore
+            ],
         )
 
     if use_context_attributes:
@@ -462,6 +470,7 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
         response = mistral_chat()
     choices: Optional[List[ChatCompletionChoice]] = response.choices
     assert choices is not None and len(choices) == 1
+    assert choices[0].message is not None
     assert choices[0].message.content == "The weather in San Francisco is currently sunny."
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -528,7 +537,9 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 64
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 74
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -571,7 +582,7 @@ def test_synchronous_chat_completions_emits_span_with_exception_event_on_error(
                 {
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
-                }  # type: ignore
+                }
             ],
             temperature=0.1,
         )
@@ -686,7 +697,7 @@ async def test_asynchronous_chat_completions_emits_expected_span(
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
                 }
-            ],  # type: ignore
+            ],
             temperature=0.1,
         )
 
@@ -705,6 +716,7 @@ async def test_asynchronous_chat_completions_emits_expected_span(
         response = await mistral_chat()
     choices: Optional[List[ChatCompletionChoice]] = response.choices
     assert choices is not None and len(choices) == 1
+    assert choices[0].message is not None
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "France" in response_content
@@ -756,7 +768,9 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -801,7 +815,7 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
                     "content": "Who won the World Cup in 2018? Answer in one word, no punctuation.",
                     "role": "user",
                 }
-            ],  # type: ignore
+            ],
             temperature=0.1,
         )
 
@@ -887,7 +901,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
         mistral_client = Mistral(api_key="redacted")
         return mistral_client.chat.stream(  # type: ignore
             model="mistral-small-latest",
-            messages=[  # type: ignore
+            messages=[
                 {
                     "content": (
                         "Who won the World Cup in 2018? Answer in three word, "
@@ -971,7 +985,9 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 26
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 4
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 30
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1015,7 +1031,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
                     ),
                     "role": "user",
                 }
-            ],  # type: ignore
+            ],
             temperature=0.1,
         )
 
@@ -1092,7 +1108,9 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 24
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 2
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 26
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1143,11 +1161,11 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     mistral = Mistral(api_key="redacted")
 
     def mistral_chat() -> Generator[CompletionEvent, None, None]:
-        return mistral.chat.stream(
+        return mistral.chat.stream(  # type: ignore[return-value]
             model="mistral-small-latest",
             tool_choice="any",
-            tools=[tool],  # type: ignore
-            messages=[  # type: ignore
+            tools=[tool],
+            messages=[
                 {
                     "content": "What's the weather like in San Francisco?",
                     "role": "user",
@@ -1232,7 +1250,9 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 96
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1364,6 +1384,8 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

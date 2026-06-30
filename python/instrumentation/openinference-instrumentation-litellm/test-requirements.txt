@@ -1,0 +1,7 @@
+litellm==1.83.11
+fastapi
+orjson
+opentelemetry-sdk
+opentelemetry-instrumentation-httpx
+pytest-recording
+tenacity

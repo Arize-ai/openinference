@@ -1,0 +1,66 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello, how are you?"
+            }
+          ],
+          "role": "user"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 1071
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 13,
+        "outputTokens": 35,
+        "totalTokens": 48
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 17 Jul 2025 03:34:40 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "312",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "a0d610ed-fef1-41e8-b6c0-99c0cd96af0f"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "73",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "9d622a6b-0093-46a2-b4e2-e76d3438645c",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "6b236fa82c21185507053b9a648af7d5bf8a70d7052deb5739168d20590c6f6d",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

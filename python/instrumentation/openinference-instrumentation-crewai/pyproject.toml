@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Crewai Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.10, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -21,27 +21,21 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions",
+  "openinference-instrumentation>=0.1.51",
+  "openinference-semantic-conventions>=0.1.21",
   "wrapt",
   "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "crewai >= 0.95.0",
-]
-test = [
-  "crewai == 0.95.0",
-  "crewai-tools == 0.33.0",
-  "opentelemetry-sdk",
-  "responses",
-  "vcrpy",
+  "crewai >= 1.10.1",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -69,6 +63,9 @@ asyncio_mode = "auto"
 testpaths = [
   "tests",
 ]
+markers = [
+  "no_autoinstrument: disable the default wrapper instrumentor fixture for event-listener tests",
+]
 
 [tool.mypy]
 strict = true
@@ -82,13 +79,19 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
-  "crewai",
   "wrapt",
+  "crewai",
+  "crewai.*",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]

@@ -1,0 +1,25 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // OpenInference core trace library (no annotations, no ByteBuddy)
+    implementation project(path: ':openinference-instrumentation')
+
+    // OpenTelemetry
+    implementation "io.opentelemetry:opentelemetry-sdk"
+    implementation "io.opentelemetry:opentelemetry-exporter-otlp"
+    implementation "io.opentelemetry:opentelemetry-exporter-logging"
+
+    // Logging
+    implementation "org.slf4j:slf4j-simple:${slf4jVersion}"
+}
+
+application {
+    mainClass = 'com.arize.examples.programmatic.ProgrammaticDemo'
+}

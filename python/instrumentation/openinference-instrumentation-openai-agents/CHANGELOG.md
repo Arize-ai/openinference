@@ -1,5 +1,167 @@
 # Changelog
 
+## [1.6.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.6.0...python-openinference-instrumentation-openai-agents-v1.6.1) (2026-06-05)
+
+
+### Bug Fixes
+
+* **openai-agents:** handle additional_tools type in assert_never chain ([#3206](https://github.com/Arize-ai/openinference/issues/3206)) ([fd2a79c](https://github.com/Arize-ai/openinference/commit/fd2a79c92a975faf95c1ca8622666a42a04f9003))
+
+## [1.6.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.5.1...python-openinference-instrumentation-openai-agents-v1.6.0) (2026-06-03)
+
+
+### Features
+
+* **openai-agents:** Add realtime audio tracing ([#3173](https://github.com/Arize-ai/openinference/issues/3173)) ([cfb1e86](https://github.com/Arize-ai/openinference/commit/cfb1e866ff6c15a797d45aee002d90367545eff0))
+
+## [1.5.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.5.0...python-openinference-instrumentation-openai-agents-v1.5.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [1.5.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.4.3...python-openinference-instrumentation-openai-agents-v1.5.0) (2026-05-14)
+
+
+### Features
+
+* Use host-to-provider & model-to-system Resolution Helpers from Common Package ([#2959](https://github.com/Arize-ai/openinference/issues/2959)) ([8475221](https://github.com/Arize-ai/openinference/commit/8475221faf93f21a02f70523963259555a9f8be9))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [1.4.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.4.2...python-openinference-instrumentation-openai-agents-v1.4.3) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [1.4.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.4.1...python-openinference-instrumentation-openai-agents-v1.4.2) (2026-04-29)
+
+
+### Bug Fixes
+
+* Openai instrumentation returning the incorrect span kind for GuardrailSpanData  ([#2964](https://github.com/Arize-ai/openinference/issues/2964)) ([e1b7eb7](https://github.com/Arize-ai/openinference/commit/e1b7eb72d9b5d5ea9afede827f333ef3e538de91))
+
+## [1.4.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.4.0...python-openinference-instrumentation-openai-agents-v1.4.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **openai,openai-agents:** handle new output item types from latest OpenAI SDK ([#2923](https://github.com/Arize-ai/openinference/issues/2923)) ([75667be](https://github.com/Arize-ai/openinference/commit/75667be1128ee402ded7251755f148fb0ce14d5d))
+
+## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.3.1...python-openinference-instrumentation-openai-agents-v1.4.0) (2025-12-04)
+
+
+### Features
+
+* Added support py314 ([#2470](https://github.com/Arize-ai/openinference/issues/2470)) ([1399bcb](https://github.com/Arize-ai/openinference/commit/1399bcba260cc33c07328406c0b6c74466d315ce))
+
+
+### Bug Fixes
+
+* Openai CI Failures ([#2461](https://github.com/Arize-ai/openinference/issues/2461)) ([e2b4dbc](https://github.com/Arize-ai/openinference/commit/e2b4dbc32ee797ae89f0814a5c1e48107ccf4dd0))
+* **openai-agents:** handle None token details from providers ([#2496](https://github.com/Arize-ai/openinference/issues/2496)) ([aa31202](https://github.com/Arize-ai/openinference/commit/aa3120275c228af163bb2d8cba23eca0124610cd))
+* **openai-agents:** serialize complex output types to JSON for AttributeValue compatibility ([dc9b1ae](https://github.com/Arize-ai/openinference/commit/dc9b1aee75fd2362bf4501bf6f6d267e379d0819))
+
+## [1.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.3.0...python-openinference-instrumentation-openai-agents-v1.3.1) (2025-11-18)
+
+
+### Bug Fixes
+
+* CI issues for openai agents ([#2367](https://github.com/Arize-ai/openinference/issues/2367)) ([a18078b](https://github.com/Arize-ai/openinference/commit/a18078bb150134b5988c454b9143e1ef93fc4aa6))
+
+## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.2.0...python-openinference-instrumentation-openai-agents-v1.3.0) (2025-09-08)
+
+
+### Features
+
+* **openai:** implement image redaction for input values when hide_input_images=True ([#2146](https://github.com/Arize-ai/openinference/issues/2146)) ([fac0604](https://github.com/Arize-ai/openinference/commit/fac0604caeedf0b0332151dfde69f0b51b554652))
+
+## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.1.1...python-openinference-instrumentation-openai-agents-v1.2.0) (2025-08-18)
+
+
+### Features
+
+* openai + openai agent support custom tool calls ([#2080](https://github.com/Arize-ai/openinference/issues/2080)) ([ee8693c](https://github.com/Arize-ai/openinference/commit/ee8693c3325380440e4af4e0df708851c5598c30))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.1.0...python-openinference-instrumentation-openai-agents-v1.1.1) (2025-07-30)
+
+
+### Bug Fixes
+
+* openai-agents CI add eval_type_backport dependency for Python &lt;3.10 compatibility ([#2004](https://github.com/Arize-ai/openinference/issues/2004)) ([f38ed8e](https://github.com/Arize-ai/openinference/commit/f38ed8efe6734297a3e77c0b4d4ddde32bc8ba11))
+
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.0.0...python-openinference-instrumentation-openai-agents-v1.1.0) (2025-07-18)
+
+
+### Features
+
+* **openai-agents:** capture graph.node.id and graph.node.parent_id semantics  ([#1854](https://github.com/Arize-ai/openinference/issues/1854)) ([0864c13](https://github.com/Arize-ai/openinference/commit/0864c13fdfa9e289468ac0a79a2860a155be46de))
+
+
+### Bug Fixes
+
+* fix IndexError for empty function output ([#1878](https://github.com/Arize-ai/openinference/issues/1878)) ([e6453e7](https://github.com/Arize-ai/openinference/commit/e6453e72784aac519e05c98b541a551500b814a4))
+
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.14...python-openinference-instrumentation-openai-agents-v1.0.0) (2025-07-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* set openinference processor as the exclusive processor by default ([#1792](https://github.com/Arize-ai/openinference/issues/1792))
+
+### Features
+
+* set openinference processor as the exclusive processor by default ([#1792](https://github.com/Arize-ai/openinference/issues/1792)) ([d56abb1](https://github.com/Arize-ai/openinference/commit/d56abb1935aa4a96925214c39cef045381ab9b15))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.13...python-openinference-instrumentation-openai-agents-v0.1.14) (2025-05-30)
+
+
+### Bug Fixes
+
+* CI Failures For OpenAI & OpenAI Agents Follow Up ([#1733](https://github.com/Arize-ai/openinference/issues/1733)) ([ec1e855](https://github.com/Arize-ai/openinference/commit/ec1e8552b40c8a04ee2b3b92073e41e405b95293))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.12...python-openinference-instrumentation-openai-agents-v0.1.13) (2025-05-30)
+
+
+### Bug Fixes
+
+* CI Failures For OpenAI & OpenAI Agents ([#1725](https://github.com/Arize-ai/openinference/issues/1725)) ([69576ca](https://github.com/Arize-ai/openinference/commit/69576cac4628f7d3b1b36558ad6cf8e4ae65b2d8))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.11...python-openinference-instrumentation-openai-agents-v0.1.12) (2025-05-14)
+
+
+### Features
+
+* **openai-agents:** add support for exclusive processor configuration ([#1586](https://github.com/Arize-ai/openinference/issues/1586)) ([47c2ac3](https://github.com/Arize-ai/openinference/commit/47c2ac350a113bf7df45fbcebdfc19504e73723c))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.10...python-openinference-instrumentation-openai-agents-v0.1.11) (2025-05-11)
+
+
+### Bug Fixes
+
+* ruff formating fix & bump ruff version in dev requirements ([#1600](https://github.com/Arize-ai/openinference/issues/1600)) ([076bb79](https://github.com/Arize-ai/openinference/commit/076bb7966d44fccdb2ab94e6f379ef4ae22c39b1))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.9...python-openinference-instrumentation-openai-agents-v0.1.10) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.8...python-openinference-instrumentation-openai-agents-v0.1.9) (2025-04-24)
+
+
+### Bug Fixes
+
+* **openai_agents:** Set status `on_span_end`. ([#1556](https://github.com/Arize-ai/openinference/issues/1556)) ([2b53efa](https://github.com/Arize-ai/openinference/commit/2b53efa491d81ab5852387f5a4d2e87972262616))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.7...python-openinference-instrumentation-openai-agents-v0.1.8) (2025-04-11)
 
 

@@ -1,0 +1,110 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-beeai"
+dynamic = ["version"]
+description = "OpenInference BeeAI Instrumentation"
+license = "Apache-2.0"
+authors = [{ name = "IBM Corp." }]
+maintainers = [{name = "Tomas Dvorak", email = "toomas2d@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.11,<3.15"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "beeai-framework (>=0.1.51,<0.2.0)",
+    "openinference-instrumentation>=0.1.51",
+    "openinference-semantic-conventions>=0.1.25",
+    "opentelemetry-api>=1.36.0",
+    "opentelemetry-instrumentation>=0.57b0",
+    "opentelemetry-semantic-conventions>=0.57b0",
+    "wrapt",
+]
+
+[project.optional-dependencies]
+instruments = [
+  "beeai-framework >= 0.1.51",
+]
+test = [
+  "beeai-framework >= 0.1.51",
+  "opentelemetry-sdk",
+  "opentelemetry-exporter-otlp",
+  "pytest-recording",
+  "vcrpy",
+  "brotli",
+  "beeai-framework[duckduckgo]",
+  "pytest-asyncio",
+  "pytest",
+]
+
+[project.entry-points.opentelemetry_instrumentor]
+beeai = "openinference.instrumentation.beeai:BeeAIInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+beeai = "openinference.instrumentation.beeai:BeeAIInstrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-beeai"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/beeai/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+  "tests",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "wrapt",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
+
+[tool.poetry]
+version = "0.1"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.12.2"
+

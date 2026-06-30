@@ -1,0 +1,7 @@
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+pytest-recording
+vcrpy
+beeai-framework[duckduckgo]==0.1.51
+pytest-asyncio
+pytest

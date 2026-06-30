@@ -1,0 +1,241 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer the user''s question using
+      the available tools."},{"role":"user","content":[{"type":"text","text":"What''s
+      the current weather in Las Vegas?"}]}],"model":"gpt-4o","max_tokens":100,"parallel_tool_calls":false,"temperature":0.0,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"DuckDuckGo","description":"Search
+      for online trends, news, current events, real-time information, or research
+      topics.","parameters":{"properties":{"query":{"description":"The search query.","title":"Query","type":"string"}},"required":["query"],"title":"DuckDuckGoSearchToolInput","type":"object","additionalProperties":false},"strict":true}},{"type":"function","function":{"name":"OpenMeteoTool","description":"Retrieve
+      current, past, or future weather forecasts for a location.","parameters":{"properties":{"location_name":{"description":"The
+      name of the location to retrieve weather information.","title":"Location Name","type":"string"},"country":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Country
+      name.","title":"Country"},"start_date":{"anyOf":[{"format":"date","type":"string"},{"type":"null"}],"description":"Start
+      date for the weather forecast in the format YYYY-MM-DD (UTC)","title":"Start
+      Date"},"end_date":{"anyOf":[{"format":"date","type":"string"},{"type":"null"}],"description":"End
+      date for the weather forecast in the format YYYY-MM-DD (UTC)","title":"End Date"},"temperature_unit":{"default":"celsius","description":"The
+      unit to express temperature","enum":["celsius","fahrenheit"],"title":"Temperature
+      Unit","type":"string"}},"required":["location_name","country","start_date","end_date","temperature_unit"],"title":"OpenMeteoToolInput","type":"object","additionalProperties":false},"strict":true}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '1777'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 2.12.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.12.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.6
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CoC8iBQCAZ4oQmm3uAGgg8etOGtHL\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1766079100,\n  \"model\": \"gpt-4o-2024-08-06\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
+        : [\n          {\n            \"id\": \"call_l3hCeqcnWalcG3C9gI5t9p1w\",\n\
+        \            \"type\": \"function\",\n            \"function\": {\n      \
+        \        \"name\": \"OpenMeteoTool\",\n              \"arguments\": \"{\\\"\
+        location_name\\\":\\\"Las Vegas\\\",\\\"country\\\":\\\"USA\\\",\\\"start_date\\\
+        \":null,\\\"end_date\\\":null,\\\"temperature_unit\\\":\\\"celsius\\\"}\"\n\
+        \            }\n          }\n        ],\n        \"refusal\": null,\n    \
+        \    \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\"\
+        : \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 252,\n\
+        \    \"completion_tokens\": 39,\n    \"total_tokens\": 291,\n    \"prompt_tokens_details\"\
+        : {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"\
+        completion_tokens_details\": {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\"\
+        : 0,\n      \"accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\"\
+        : 0\n    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\"\
+        : \"fp_deacdd5f6f\"\n}\n"
+    headers:
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      CF-RAY:
+      - 9b0065284ce00fac-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 18 Dec 2025 17:31:42 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=Zz_rKCESKx3ppK.nwqvKHo.pquTiGyEF2XtmF150kFs-1766079102-1.0.1.1-xv3CdLOQDpN.ihUbZsghf0hPZO0Uv.qF22Ph5OliqRpUER26uoPm9zlxz1AU2yR_Z5Xud6yopPun8DkZz0SaQsOP.tUd.aqDmH2CdNv62A8;
+        path=/; expires=Thu, 18-Dec-25 18:01:42 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=E9R_neXjCG2fYprKE4Ig.qQh.8JXDu8fEGWAwdYtyWk-1766079102229-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - srinivas-hccy17
+      openai-processing-ms:
+      - '1470'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '1714'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '500'
+      x-ratelimit-limit-tokens:
+      - '30000'
+      x-ratelimit-remaining-requests:
+      - '499'
+      x-ratelimit-remaining-tokens:
+      - '29973'
+      x-ratelimit-reset-requests:
+      - 120ms
+      x-ratelimit-reset-tokens:
+      - 54ms
+      x-request-id:
+      - req_89d44c5539424e02b030915cfe609943
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer the user''s question using
+      the available tools."},{"role":"user","content":[{"type":"text","text":"What''s
+      the current weather in Las Vegas?"}]}],"model":"gpt-4o","max_tokens":100,"parallel_tool_calls":false,"temperature":0.0,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"DuckDuckGo","description":"Search
+      for online trends, news, current events, real-time information, or research
+      topics.","parameters":{"properties":{"query":{"description":"The search query.","title":"Query","type":"string"}},"required":["query"],"title":"DuckDuckGoSearchToolInput","type":"object","additionalProperties":false},"strict":true}},{"type":"function","function":{"name":"OpenMeteoTool","description":"Retrieve
+      current, past, or future weather forecasts for a location.","parameters":{"properties":{"location_name":{"description":"The
+      name of the location to retrieve weather information.","title":"Location Name","type":"string"},"country":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Country
+      name.","title":"Country"},"start_date":{"anyOf":[{"format":"date","type":"string"},{"type":"null"}],"description":"Start
+      date for the weather forecast in the format YYYY-MM-DD (UTC)","title":"Start
+      Date"},"end_date":{"anyOf":[{"format":"date","type":"string"},{"type":"null"}],"description":"End
+      date for the weather forecast in the format YYYY-MM-DD (UTC)","title":"End Date"},"temperature_unit":{"default":"celsius","description":"The
+      unit to express temperature","enum":["celsius","fahrenheit"],"title":"Temperature
+      Unit","type":"string"}},"required":["location_name","country","start_date","end_date","temperature_unit"],"title":"OpenMeteoToolInput","type":"object","additionalProperties":false},"strict":true}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '1777'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 2.12.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.12.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.6
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: ''
+    headers:
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      CF-RAY:
+      - 9b0065284ce00fac-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 18 Dec 2025 17:31:42 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=Zz_rKCESKx3ppK.nwqvKHo.pquTiGyEF2XtmF150kFs-1766079102-1.0.1.1-xv3CdLOQDpN.ihUbZsghf0hPZO0Uv.qF22Ph5OliqRpUER26uoPm9zlxz1AU2yR_Z5Xud6yopPun8DkZz0SaQsOP.tUd.aqDmH2CdNv62A8;
+        path=/; expires=Thu, 18-Dec-25 18:01:42 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=E9R_neXjCG2fYprKE4Ig.qQh.8JXDu8fEGWAwdYtyWk-1766079102229-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - srinivas-hccy17
+      openai-processing-ms:
+      - '1470'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '1714'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '500'
+      x-ratelimit-limit-tokens:
+      - '30000'
+      x-ratelimit-remaining-requests:
+      - '499'
+      x-ratelimit-remaining-tokens:
+      - '29973'
+      x-ratelimit-reset-requests:
+      - 120ms
+      x-ratelimit-reset-tokens:
+      - 54ms
+      x-request-id:
+      - req_89d44c5539424e02b030915cfe609943
+    status:
+      code: 200
+      message: OK
+version: 1

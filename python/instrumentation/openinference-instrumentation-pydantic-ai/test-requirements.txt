@@ -1,0 +1,6 @@
+pytest
+pytest-cov
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+pydantic-ai==1.51.0
+pytest-recording

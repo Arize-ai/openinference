@@ -1,0 +1,81 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/invoke",
+    "body": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 100,
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "What do you see in this image?"
+            },
+            {
+              "type": "image",
+              "source": {
+                "type": "base64",
+                "media_type": "image/png",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "msg_bdrk_01GKV3gTrEVoxHSj4ErmzgRS",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-5-sonnet-20240620",
+      "content": [
+        {
+          "type": "text",
+          "text": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is"
+        }
+      ],
+      "stop_reason": "max_tokens",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 19,
+        "output_tokens": 100
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 10 Jul 2025 01:12:02 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "754",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "6d0c5b15-ba33-434e-85b8-f658db76bb29",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "3798",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "100",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "19"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "331",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "ae114117-d94d-4c81-bdc7-b512fec1bfeb",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "377bccd94e17e2fbc33ba174bffe773610f33b5d08d1a1c7351fa9c5f5d1136e",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

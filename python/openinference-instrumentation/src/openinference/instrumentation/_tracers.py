@@ -27,7 +27,7 @@ from typing import (  # type: ignore[attr-defined]
     get_origin,
 )
 
-import wrapt  # type: ignore[import-untyped]
+import wrapt
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, Context, get_value
 from opentelemetry.sdk.trace.id_generator import IdGenerator, RandomIdGenerator
 from opentelemetry.trace import (
@@ -56,6 +56,7 @@ from ._attributes import (
     get_span_kind_attributes,
     get_tool_attributes,
 )
+from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
@@ -92,7 +93,7 @@ class _IdGenerator(IdGenerator):
         return trace_id
 
 
-class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
+class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(self, wrapped: Tracer, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
@@ -153,28 +154,68 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
     ) -> OpenInferenceSpan:
         otel_span: Span
+        # Apply masking to attributes before passing to sampler to ensure
+        # samplers don't see sensitive data that should be masked
+        user_attributes = dict(attributes) if attributes else {}
+        span_kind_attributes = (
+            get_span_kind_attributes(openinference_span_kind)
+            if openinference_span_kind is not None
+            else {}
+        )
+        context_attributes = dict(get_attributes_from_context())
+        combined_attributes = self._get_masked_attributes_for_sampling(
+            {
+                **context_attributes,
+                **user_attributes,
+                **span_kind_attributes,
+            }
+        )
+
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             otel_span = INVALID_SPAN
         else:
             tracer = cast(Tracer, self.__wrapped__)
             otel_span = tracer.__class__.start_span(
-                self,
+                self,  # type: ignore[arg-type,unused-ignore]
                 name=name,
                 context=context,
                 kind=kind,
-                attributes=None,
+                attributes=combined_attributes,  # Pass all attributes for sampling
                 links=links,
                 start_time=start_time,
                 record_exception=record_exception,
                 set_status_on_exception=set_status_on_exception,
             )
+
         openinference_span = OpenInferenceSpan(otel_span, config=self._self_config)
-        if attributes:
-            openinference_span.set_attributes(dict(attributes))
-        if openinference_span_kind is not None:
-            openinference_span.set_attributes(get_span_kind_attributes(openinference_span_kind))
-        openinference_span.set_attributes(dict(get_attributes_from_context()))
+
+        # Use OpenInferenceSpan wrapper's attribute handling
+        if user_attributes:
+            openinference_span.set_attributes(user_attributes)
+        if span_kind_attributes:
+            openinference_span.set_attributes(span_kind_attributes)
+        if context_attributes:
+            openinference_span.set_attributes(context_attributes)
+
+        _capture_span_context(openinference_span.get_span_context())
+
         return openinference_span
+
+    def _get_masked_attributes_for_sampling(
+        self, attributes: Dict[str, AttributeValue]
+    ) -> Dict[str, AttributeValue]:
+        """Apply masking to attributes before passing to samplers.
+
+        This ensures samplers don't see sensitive data that should be masked
+        according to the TraceConfig, while maintaining the same masking logic
+        as OpenInferenceSpan.
+        """
+        masked_attributes = {}
+        for key, value in attributes.items():
+            masked_value = self._self_config.mask(key, value)
+            if masked_value is not None:
+                masked_attributes[key] = masked_value
+        return masked_attributes
 
     @overload  # for @tracer.agent usage (no parameters)
     def agent(
@@ -251,7 +292,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
@@ -272,7 +313,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 chain_context.process_output(output)
                 return output
 
-        @wrapt.decorator  #  type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_wrapper(
             wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
@@ -295,9 +336,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         if wrapped_function is not None:
             if asyncio.iscoroutinefunction(wrapped_function):
-                return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
-            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
+                return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
 
     @overload  # for @tracer.tool usage (no parameters)
     def tool(
@@ -333,7 +374,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
@@ -355,7 +396,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 tool_context.process_output(output)
                 return output
 
-        @wrapt.decorator  #  type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_wrapper(
             wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
@@ -379,9 +420,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         if wrapped_function is not None:
             if asyncio.iscoroutinefunction(wrapped_function):
-                return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
-            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
+                return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
 
     @overload  # @tracer.llm usage with no explicit application of the decorator
     def llm(
@@ -420,7 +461,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_function_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
@@ -442,7 +483,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 llm_context.process_output(output)
                 return output
 
-        @wrapt.decorator  #  type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_function_wrapper(
             wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
@@ -464,7 +505,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 llm_context.process_output(output)
                 return output
 
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_generator_function_wrapper(
             wrapped: Callable[ParametersType, Generator[ReturnType, None, None]],
             instance: Any,
@@ -496,7 +537,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                     yield output
                 llm_context.process_output(outputs)
 
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_generator_function_wrapper(
             wrapped: Callable[ParametersType, AsyncGenerator[ReturnType, None]],
             instance: Any,

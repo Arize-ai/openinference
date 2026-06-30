@@ -20,8 +20,6 @@ class _ValueAndType(NamedTuple):
 class _HasAttributes(Protocol):
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]: ...
 
-    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]: ...
-
 
 def _finish_tracing(
     with_span: _WithSpan,
@@ -34,15 +32,9 @@ def _finish_tracing(
         logger.exception("Failed to get attributes")
         attributes = None
     try:
-        extra_attributes: Attributes = dict(has_attributes.get_extra_attributes())
-    except Exception:
-        logger.exception("Failed to get extra attributes")
-        extra_attributes = None
-    try:
         with_span.finish_tracing(
             status=status,
             attributes=attributes,
-            extra_attributes=extra_attributes,
         )
     except Exception:
         raise

@@ -1,0 +1,140 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Please process the image at ''sample.png'',
+      describe it."}], "role": "user"}], "systemInstruction": {"parts": [{"text":
+      "You are a creative poet and visual analyst. 1. First, use ''load_local_image_artifact''
+      to get the file into the system. 2. Then, use ''load_artifacts'' to see the
+      image content. 3. Describe the image in detail. 4. Write a beautiful poem based
+      on that description.\n\nYou are an agent. Your internal name is \"poet_agent\"."}],
+      "role": "user"}, "tools": [{"functionDeclarations": [{"description": "\nReads
+      a local image file and registers it as an ADK artifact.\nArgs:\n    tool_context:\n    file_path:
+      Remote location of file.\n", "name": "load_remote_image", "parameters": {"properties":
+      {"file_path": {"type": "STRING"}}, "required": ["file_path"], "type": "OBJECT"}},
+      {"description": "Loads artifacts into the session for this request.\n\nNOTE:
+      Call when you need access to artifacts (for example, uploads saved by the\nweb
+      UI).", "name": "load_artifacts", "parameters": {"properties": {"artifact_names":
+      {"items": {"type": "STRING"}, "type": "ARRAY"}}, "type": "OBJECT"}}]}], "generationConfig":
+      {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"functionCall\": {\n              \"name\": \"load_remote_image\",\n
+        \             \"args\": {\n                \"file_path\": \"sample.png\"\n
+        \             }\n            }\n          }\n        ],\n        \"role\":
+        \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
+        -0.01414042982188138\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        188,\n    \"candidatesTokenCount\": 11,\n    \"totalTokenCount\": 199,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 188\n
+        \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
+        \"TEXT\",\n        \"tokenCount\": 11\n      }\n    ]\n  },\n  \"modelVersion\":
+        \"gemini-2.0-flash\",\n  \"responseId\": \"zXShabfkKvb7juMP5dGvwQc\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "Please process the image at ''sample.png'',
+      describe it."}], "role": "user"}, {"parts": [{"functionCall": {"args": {"file_path":
+      "sample.png"}, "name": "load_remote_image"}}], "role": "model"}, {"parts": [{"functionResponse":
+      {"name": "load_remote_image", "response": {"result": "Success! Image ''sample.png''
+      is now available as an artifact."}}}], "role": "user"}], "systemInstruction":
+      {"parts": [{"text": "You are a creative poet and visual analyst. 1. First, use
+      ''load_local_image_artifact'' to get the file into the system. 2. Then, use
+      ''load_artifacts'' to see the image content. 3. Describe the image in detail.
+      4. Write a beautiful poem based on that description.\n\nYou are an agent. Your
+      internal name is \"poet_agent\".\n\nYou have a list of artifacts:\n  [\"sample.png\"]\n\n  When
+      the user asks questions about any of the artifacts, you should call the\n  `load_artifacts`
+      function to load the artifact. Always call load_artifacts\n  before answering
+      questions related to the artifacts, regardless of whether the\n  artifacts have
+      been loaded before. Do not depend on prior answers about the\n  artifacts.\n  "}],
+      "role": "user"}, "tools": [{"functionDeclarations": [{"description": "\nReads
+      a local image file and registers it as an ADK artifact.\nArgs:\n    tool_context:\n    file_path:
+      Remote location of file.\n", "name": "load_remote_image", "parameters": {"properties":
+      {"file_path": {"type": "STRING"}}, "required": ["file_path"], "type": "OBJECT"}},
+      {"description": "Loads artifacts into the session for this request.\n\nNOTE:
+      Call when you need access to artifacts (for example, uploads saved by the\nweb
+      UI).", "name": "load_artifacts", "parameters": {"properties": {"artifact_names":
+      {"items": {"type": "STRING"}, "type": "ARRAY"}}, "type": "OBJECT"}}]}], "generationConfig":
+      {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"functionCall\": {\n              \"name\": \"load_artifacts\",\n
+        \             \"args\": {\n                \"artifact_names\": [\n                  \"sample.png\"\n
+        \               ]\n              }\n            }\n          }\n        ],\n
+        \       \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n
+        \     \"avgLogprobs\": -0.00806895891825358\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 306,\n    \"candidatesTokenCount\": 9,\n    \"totalTokenCount\":
+        315,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 306\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 9\n      }\n
+        \   ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
+        \"z3ShaduRDfKP9tMP9r3PqAY\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "Please process the image at ''sample.png'',
+      describe it."}], "role": "user"}, {"parts": [{"functionCall": {"args": {"file_path":
+      "sample.png"}, "name": "load_remote_image"}}], "role": "model"}, {"parts": [{"functionResponse":
+      {"name": "load_remote_image", "response": {"result": "Success! Image ''sample.png''
+      is now available as an artifact."}}}], "role": "user"}, {"parts": [{"functionCall":
+      {"args": {"artifact_names": ["sample.png"]}, "name": "load_artifacts"}}], "role":
+      "model"}, {"parts": [{"functionResponse": {"name": "load_artifacts", "response":
+      {"artifact_names": ["sample.png"], "status": "artifact contents temporarily
+      inserted and removed. to access these artifacts, call load_artifacts tool again."}}}],
+      "role": "user"}, {"parts": [{"text": "Artifact sample.png is:"}, {"inlineData":
+      {"data": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD-wSzIAAAABlBMVEX___-_v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII=",
+      "mimeType": "image/png"}}], "role": "user"}], "systemInstruction": {"parts":
+      [{"text": "You are a creative poet and visual analyst. 1. First, use ''load_local_image_artifact''
+      to get the file into the system. 2. Then, use ''load_artifacts'' to see the
+      image content. 3. Describe the image in detail. 4. Write a beautiful poem based
+      on that description.\n\nYou are an agent. Your internal name is \"poet_agent\".\n\nYou
+      have a list of artifacts:\n  [\"sample.png\"]\n\n  When the user asks questions
+      about any of the artifacts, you should call the\n  `load_artifacts` function
+      to load the artifact. Always call load_artifacts\n  before answering questions
+      related to the artifacts, regardless of whether the\n  artifacts have been loaded
+      before. Do not depend on prior answers about the\n  artifacts.\n  "}], "role":
+      "user"}, "tools": [{"functionDeclarations": [{"description": "\nReads a local
+      image file and registers it as an ADK artifact.\nArgs:\n    tool_context:\n    file_path:
+      Remote location of file.\n", "name": "load_remote_image", "parameters": {"properties":
+      {"file_path": {"type": "STRING"}}, "required": ["file_path"], "type": "OBJECT"}},
+      {"description": "Loads artifacts into the session for this request.\n\nNOTE:
+      Call when you need access to artifacts (for example, uploads saved by the\nweb
+      UI).", "name": "load_artifacts", "parameters": {"properties": {"artifact_names":
+      {"items": {"type": "STRING"}, "type": "ARRAY"}}, "type": "OBJECT"}}]}], "generationConfig":
+      {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"\\nThe image is a simple, blurred
+        cross shape. Two squares are white, and the other two are a light gray. The
+        blurring makes the edges soft and indistinct.\\n\\nHere's a poem inspired
+        by it:\\n\\nA muted cross, a gentle sign,\\nWhere light and shadow intertwine.\\nTwo
+        squares of white, a pristine gleam,\\nTwo shades of gray, a fading dream.\\n\\nNo
+        sharp divide, no stark contrast,\\nBut soft transitions, fading fast.\\nA
+        quiet symbol, undefined,\\nA peaceful solace for the mind.\\n\"\n          }\n
+        \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"avgLogprobs\": -0.3900084122367527\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 608,\n    \"candidatesTokenCount\": 115,\n    \"totalTokenCount\":
+        723,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"IMAGE\",\n
+        \       \"tokenCount\": 258\n      },\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 350\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 115\n
+        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
+        \"0HShafy2EObbjuMPk4K8iQ8\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

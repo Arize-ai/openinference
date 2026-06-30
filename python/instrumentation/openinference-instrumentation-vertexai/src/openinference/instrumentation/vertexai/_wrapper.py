@@ -38,13 +38,15 @@ from openinference.instrumentation.vertexai import _instrumentation_status
 from openinference.instrumentation.vertexai._accumulator import (
     _IndexedAccumulator,
     _KeyValuesAccumulator,
-    _StringAccumulator,
+    _PartsAccumulator,
 )
 from openinference.instrumentation.vertexai._proxy import _proxy
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -109,7 +111,7 @@ class _Wrapper:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
 
-    @wrapt.decorator  # type: ignore[misc]
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -250,16 +252,7 @@ class _GenerateContentResponseAccumulator:
                 lambda: _KeyValuesAccumulator(
                     # FIXME: It's unclear how to accumulate `safety_ratings` if there are several.
                     content=_KeyValuesAccumulator(
-                        # FIXME: Because `Part` doesn't have `index`, it's unclear what should
-                        # happen during streaming if there are multiple separate parts. The current
-                        # setup just merges all the parts.
-                        parts=_IndexedAccumulator(
-                            lambda: _KeyValuesAccumulator(
-                                # FIXME: It's unclear whether we should have an accumulator for
-                                # `function_call`.
-                                text=_StringAccumulator(),
-                            )
-                        ),
+                        parts=_PartsAccumulator(),
                     ),
                 ),
             ),
@@ -326,6 +319,8 @@ def _update_span(obj: Any, span: Span) -> None: ...
 @_update_span.register(v1beta1.GenerateContentRequest)
 def _(req: GenerateContentRequest, span: Span) -> None:
     span.set_attribute(LLM_MODEL_NAME, req.model)
+    span.set_attribute(LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value)
+    span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.VERTEXAI.value)
     span.set_attribute(
         LLM_INVOCATION_PARAMETERS,
         safe_json_dumps(
@@ -515,6 +510,8 @@ LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT

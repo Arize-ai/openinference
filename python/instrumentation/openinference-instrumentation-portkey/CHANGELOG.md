@@ -1,0 +1,106 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.10...python-openinference-instrumentation-portkey-v0.1.11) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.9...python-openinference-instrumentation-portkey-v0.1.10) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.8...python-openinference-instrumentation-portkey-v0.1.9) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.7...python-openinference-instrumentation-portkey-v0.1.8) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.6...python-openinference-instrumentation-portkey-v0.1.7) (2025-11-13)
+
+
+### Features
+
+* **portkey:** Support instrumentation of `portkey_ai.AsyncPortkey` ([#2407](https://github.com/Arize-ai/openinference/issues/2407)) ([118ef32](https://github.com/Arize-ai/openinference/commit/118ef329a797c59e1e91ce00a3a13fd165c8fded))
+
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.5...python-openinference-instrumentation-portkey-v0.1.6) (2025-10-29)
+
+
+### Bug Fixes
+
+* **portkey:** CI Failures For Portkey ([#2368](https://github.com/Arize-ai/openinference/issues/2368)) ([3654315](https://github.com/Arize-ai/openinference/commit/365431588857ae5f15385f9dfc2f681e386b9845))
+
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.4...python-openinference-instrumentation-portkey-v0.1.5) (2025-10-23)
+
+
+### Bug Fixes
+
+* update dependancies for security ([#2320](https://github.com/Arize-ai/openinference/issues/2320)) ([c7eab4f](https://github.com/Arize-ai/openinference/commit/c7eab4fbcac5b7d7407d9ed9c28706d4919421fb))
+
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.3...python-openinference-instrumentation-portkey-v0.1.4) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.2...python-openinference-instrumentation-portkey-v0.1.3) (2025-05-22)
+
+
+### Features
+
+* portkey chat completions ([#1495](https://github.com/Arize-ai/openinference/issues/1495)) ([0866af3](https://github.com/Arize-ai/openinference/commit/0866af3e9428f59c67704899da37a63cfbef453c))
+* **portkey:** Add support for propmt template calls ([#1663](https://github.com/Arize-ai/openinference/issues/1663)) ([c1e813e](https://github.com/Arize-ai/openinference/commit/c1e813e26c62713229958c625c088ffe46ea1608))
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.1...python-openinference-instrumentation-portkey-v0.1.2) (2025-05-22)
+
+
+### Features
+
+* **portkey:** Add support for propmt template calls ([#1663](https://github.com/Arize-ai/openinference/issues/1663)) ([c1e813e](https://github.com/Arize-ai/openinference/commit/c1e813e26c62713229958c625c088ffe46ea1608))
+
+## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.0...python-openinference-instrumentation-portkey-v0.1.1) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
+## 0.1.0 (2025-04-14)
+
+
+### Features
+
+* portkey chat completions ([#1495](https://github.com/Arize-ai/openinference/issues/1495)) ([0866af3](https://github.com/Arize-ai/openinference/commit/0866af3e9428f59c67704899da37a63cfbef453c))
+
+## [0.1.0] - 2024-04-01
+
+### Added
+
+- Initial release of the OpenInference Portkey AI instrumentation
+- Basic scaffolding for instrumentation of Portkey AI
+- Support for tracing Portkey AI API calls
+- Integration with OpenTelemetry for distributed tracing

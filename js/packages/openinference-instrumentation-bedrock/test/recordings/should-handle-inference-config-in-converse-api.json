@@ -1,0 +1,72 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 150,
+        "stopSequences": ["END", "STOP"],
+        "temperature": 0.7,
+        "topP": 0.9
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Explain machine learning briefly."
+            }
+          ],
+          "role": "user"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 3474
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "Machine learning is a branch of artificial intelligence that focuses on developing algorithms and statistical models that enable computer systems to improve their performance on a specific task through experience, without being explicitly programmed.\n\nIn essence, machine learning allows computers to learn from data and make predictions or decisions without human intervention. Here's a brief overview of the key aspects of machine learning:\n\n1. Types of Machine Learning:\n   - Supervised Learning: The algorithm learns from labeled data to make predictions or classifications.\n   - Unsupervised Learning: The algorithm finds patterns in unlabeled data.\n   - Reinforcement Learning: The algorithm learns through interaction with an environment, receiving feedback in the form of rewards or penalties.\n\n2. Process:"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "max_tokens",
+      "usage": {
+        "inputTokens": 13,
+        "outputTokens": 150,
+        "totalTokens": 163
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 17 Jul 2025 03:55:37 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "1009",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "a098eb17-e542-4bb6-bcb5-6a12c27a6c33"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "183",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "95eb2c1f-97b9-4278-b553-df7fc3c4870b",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "1326b1c20ffe731e25aa2659565adb5f94d4c2550a03bdbaf1360c6f159e2abd",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

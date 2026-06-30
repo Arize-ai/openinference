@@ -1,0 +1,540 @@
+import base64
+import logging
+from collections import defaultdict
+from copy import deepcopy
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Callable,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Union,
+)
+
+from opentelemetry import trace as trace_api
+from opentelemetry.util.types import AttributeValue
+from wrapt import ObjectProxy
+
+from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.google_genai._context import (
+    CapturedRequestScope,
+    get_input_attributes,
+    get_llm_invocation_parameters,
+    get_tool_attributes,
+)
+from openinference.instrumentation.google_genai._utils import (
+    _as_output_attributes,
+    _finish_tracing,
+    _get_attributes_from_content_text,
+    _get_attributes_from_file_data,
+    _get_attributes_from_inline_data,
+    _get_token_count_attributes_from_usage_metadata,
+    _ValueAndType,
+)
+from openinference.instrumentation.google_genai._with_span import _WithSpan
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+    ToolCallAttributes,
+)
+
+if TYPE_CHECKING:
+    from google.genai.types import GenerateContentResponse
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+
+class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    __slots__ = (
+        "_response_accumulator",
+        "_with_span",
+        "_request_scope",
+        "_request_captured",
+    )
+
+    def __init__(
+        self,
+        stream: Iterator["GenerateContentResponse"],
+        with_span: _WithSpan,
+        request_scope: CapturedRequestScope | None = None,
+    ) -> None:
+        super().__init__(stream)
+        self._response_accumulator = _ResponseAccumulator()
+        self._with_span = with_span
+        self._request_scope = request_scope
+        self._request_captured = False
+
+    def _capture_request_once(self) -> None:
+        """Read captured request from ContextVar on first iteration and set on span."""
+        if self._request_captured:
+            return
+        self._request_captured = True
+        try:
+            self._with_span.set_attributes(dict(get_input_attributes()))
+            self._with_span.set_attributes(dict(get_tool_attributes()))
+            if invocation_params := get_llm_invocation_parameters():
+                self._with_span.set_attributes(
+                    {SpanAttributes.LLM_INVOCATION_PARAMETERS: invocation_params}
+                )
+        except Exception:
+            logger.exception("Failed to capture request attributes from stream")
+        finally:
+            if self._request_scope is not None:
+                self._request_scope.__exit__(None, None, None)
+                self._request_scope = None
+
+    def __iter__(self) -> Iterator["GenerateContentResponse"]:
+        try:
+            for item in self.__wrapped__:
+                self._capture_request_once()
+                self._response_accumulator.process_chunk(item)
+                yield item
+        except Exception as exception:
+            status = trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+            self._with_span.record_exception(exception)
+            self._finish_tracing(status=status)
+            raise
+        # completed without exception
+        status = trace_api.Status(
+            status_code=trace_api.StatusCode.OK,
+        )
+        self._finish_tracing(status=status)
+
+    async def __aiter__(self) -> AsyncIterator["GenerateContentResponse"]:
+        try:
+            async for item in self.__wrapped__:
+                self._capture_request_once()
+                self._response_accumulator.process_chunk(item)
+                yield item
+        except Exception as exception:
+            status = trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+            self._with_span.record_exception(exception)
+            self._finish_tracing(status=status)
+            raise
+        # completed without exception
+        status = trace_api.Status(
+            status_code=trace_api.StatusCode.OK,
+        )
+        self._finish_tracing(status=status)
+
+    def _finish_tracing(
+        self,
+        status: trace_api.Status | None = None,
+    ) -> None:
+        response_extractor = _ResponseExtractor(response_accumulator=self._response_accumulator)
+        _finish_tracing(
+            with_span=self._with_span,
+            attributes=response_extractor.get_attributes(),
+            status=status,
+        )
+
+
+class _ResponseAccumulator:
+    __slots__ = (
+        "_is_null",
+        "_values",
+    )
+
+    def __init__(self) -> None:
+        self._is_null = True
+        self._values = _ValuesAccumulator(
+            candidates=_IndexedAccumulator(
+                lambda: _ValuesAccumulator(
+                    content=_ValuesAccumulator(
+                        parts=_PartsAccumulator(),
+                        role=_SimpleStringReplace(),
+                    ),
+                    finish_reason=_SimpleStringReplace(),
+                ),
+            ),
+            usage_metadata=_DictReplace(),
+            model_version=_SimpleStringReplace(),
+        )
+
+    def process_chunk(self, chunk: "GenerateContentResponse") -> None:
+        self._is_null = False
+        values = chunk.model_dump(exclude_unset=True, warnings=False)
+        self._values += values
+
+    def _result(self) -> Optional[dict[str, Any]]:
+        if self._is_null:
+            return None
+        return dict(self._values)
+
+
+class _ResponseExtractor:
+    __slots__ = ("_response_accumulator",)
+
+    def __init__(
+        self,
+        response_accumulator: _ResponseAccumulator,
+    ) -> None:
+        self._response_accumulator = response_accumulator
+
+    def get_attributes(self) -> Iterator[tuple[str, AttributeValue]]:
+        if not (result := self._response_accumulator._result()):
+            return
+        json_string = safe_json_dumps(result)
+        yield from _as_output_attributes(
+            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
+        )
+
+        if model_version := result.get("model_version"):
+            yield SpanAttributes.LLM_MODEL_NAME, model_version
+        if usage_metadata := result.get("usage_metadata"):
+            from google.genai import types
+
+            try:
+                usage_metadata_obj = types.GenerateContentResponseUsageMetadata.model_validate(
+                    usage_metadata
+                )
+            except Exception:
+                logger.warning(f"Failed to validate usage metadata: {usage_metadata}")
+            else:
+                yield from _get_token_count_attributes_from_usage_metadata(usage_metadata_obj)
+        if candidates := result.get("candidates"):
+            for idx, candidate in enumerate(candidates):
+                prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}"
+                if content := candidate.get("content"):
+                    if role := content.get("role"):
+                        yield (
+                            f"{prefix}.{MessageAttributes.MESSAGE_ROLE}",
+                            role,
+                        )
+                    if parts := content.get("parts"):
+                        content_index = 0
+                        is_single_part = len(parts) == 1
+                        tool_call_index = 0
+                        for part in parts:
+                            increment_content_index = False
+                            sig_str: Optional[str] = None
+                            if thought_signature := part.get("thought_signature"):
+                                sig_str = (
+                                    base64.b64encode(thought_signature).decode()
+                                    if isinstance(thought_signature, bytes)
+                                    else str(thought_signature)
+                                )
+                            if part.get("thought"):
+                                text = part.get("text")
+                                if text or sig_str is not None:
+                                    cp = (
+                                        f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}."
+                                        f"{content_index}"
+                                    )
+                                    yield (
+                                        f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                                        "reasoning",
+                                    )
+                                    if text:
+                                        yield (
+                                            f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                                            text,
+                                        )
+                                    if sig_str is not None:
+                                        yield (
+                                            f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                                            sig_str,
+                                        )
+                                    increment_content_index = True
+                            elif (text := part.get("text")) is not None:
+                                cp = (
+                                    f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                                )
+                                if sig_str is not None:
+                                    yield (
+                                        f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                                        "text",
+                                    )
+                                    if text:
+                                        yield (
+                                            f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                                            text,
+                                        )
+                                    yield (
+                                        f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                                        sig_str,
+                                    )
+                                    increment_content_index = True
+                                elif text:
+                                    for key, value in _get_attributes_from_content_text(
+                                        text, content_index, is_single_part
+                                    ):
+                                        yield f"{prefix}.{key}", value
+                                    increment_content_index = True
+                            elif function_call := part.get("function_call"):
+                                tc = (
+                                    f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}."
+                                    f"{tool_call_index}"
+                                )
+                                if function_name := function_call.get("name"):
+                                    yield (
+                                        f"{tc}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                                        function_name,
+                                    )
+                                if function_args := function_call.get("args"):
+                                    yield (
+                                        f"{tc}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                        safe_json_dumps(function_args),
+                                    )
+                                if sig_str is not None:
+                                    yield (
+                                        f"{tc}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                                        sig_str,
+                                    )
+                                tool_call_index += 1
+                            if inline_data := part.get("inline_data"):
+                                for key, value in _get_attributes_from_inline_data(
+                                    inline_data, content_index
+                                ):
+                                    yield f"{prefix}.{key}", value
+                                increment_content_index = True
+                            if file_data := part.get("file_data"):
+                                for key, value in _get_attributes_from_file_data(
+                                    file_data, content_index
+                                ):
+                                    yield f"{prefix}.{key}", value
+                                increment_content_index = True
+                            if increment_content_index:
+                                content_index += 1
+
+
+class _ValuesAccumulator:
+    __slots__ = ("_values",)
+
+    def __init__(self, **values: Any) -> None:
+        self._values: dict[str, Any] = values
+
+    def __iter__(self) -> Iterator[tuple[str, Any]]:
+        for key, value in self._values.items():
+            if value is None:
+                continue
+            if isinstance(value, _ValuesAccumulator):
+                if dict_value := dict(value):
+                    yield key, dict_value
+            elif isinstance(value, _SimpleStringReplace):
+                if str_value := str(value):
+                    yield key, str_value
+            elif isinstance(value, _StringAccumulator):
+                if str_value := str(value):
+                    yield key, str_value
+            elif isinstance(value, (_IndexedAccumulator, _PartsAccumulator)):
+                yield key, list(value)
+            elif isinstance(value, _DictReplace):
+                if dict_value := dict(value):
+                    yield key, dict_value
+            else:
+                yield key, value
+
+    def __iadd__(self, values: Optional[Mapping[str, Any]]) -> "_ValuesAccumulator":
+        if not values:
+            return self
+        for key in self._values.keys():
+            if (value := values.get(key)) is None:
+                continue
+            self_value = self._values[key]
+            if isinstance(self_value, _ValuesAccumulator):
+                if isinstance(value, Mapping):
+                    self_value += value
+            elif isinstance(self_value, _StringAccumulator):
+                if isinstance(value, str):
+                    self_value += value
+            elif isinstance(self_value, _SimpleStringReplace):
+                if isinstance(value, str):
+                    self_value += value
+            elif isinstance(self_value, (_IndexedAccumulator, _PartsAccumulator)):
+                self_value += value
+            elif isinstance(self_value, _DictReplace):
+                if isinstance(value, Mapping):
+                    self_value += value
+            elif isinstance(self_value, List) and isinstance(value, Iterable):
+                self_value.extend(value)
+            else:
+                self._values[key] = value  # replacement
+        for key in values.keys():
+            if key in self._values or (value := values[key]) is None:
+                continue
+            value = deepcopy(value)
+            if isinstance(value, Mapping):
+                value = _ValuesAccumulator(**value)
+            self._values[key] = value  # new entry
+        return self
+
+
+_PART_KIND_FIELDS = (
+    "function_call",
+    "function_response",
+    "inline_data",
+    "file_data",
+    "executable_code",
+    "code_execution_result",
+)
+
+_STREAMING_KINDS = frozenset(("text", "reasoning"))
+
+
+def _part_kind(part: Mapping[str, Any]) -> str:
+    for field in _PART_KIND_FIELDS:
+        if field in part:
+            return field
+    return "reasoning" if part.get("thought") else "text"
+
+
+def _starts_new_slot(part: Mapping[str, Any], kind: str, last_kind: Optional[str]) -> bool:
+    if last_kind is None:
+        return True
+    if kind != last_kind:
+        return True
+    if kind in _STREAMING_KINDS:
+        return False
+    if kind == "function_call":
+        function_call = part.get("function_call") or {}
+        return "name" in function_call
+    return True
+
+
+class _PartsAccumulator:
+    __slots__ = ("_indexed", "_next_slot", "_position_state")
+
+    def __init__(self) -> None:
+        self._indexed: defaultdict[int, _ValuesAccumulator] = defaultdict(
+            lambda: _ValuesAccumulator(
+                text=_StringAccumulator(),
+                function_call=_DictReplace(),
+                function_response=_DictReplace(),
+                inline_data=_DictReplace(),
+                file_data=_DictReplace(),
+                executable_code=_DictReplace(),
+                code_execution_result=_DictReplace(),
+            )
+        )
+        self._next_slot = 0
+        self._position_state: dict[int, tuple[int, str]] = {}
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        for _, values in sorted(self._indexed.items()):
+            if d := dict(values):
+                yield d
+
+    def __iadd__(
+        self, values: Optional[Union[Mapping[str, Any], list[Any]]]
+    ) -> "_PartsAccumulator":
+        if not values:
+            return self
+        if isinstance(values, Mapping):
+            values = [values]
+        for position, part in enumerate(values):
+            if not part or not hasattr(part, "get"):
+                continue
+            kind = _part_kind(part)
+            explicit_index = part.get("index")
+            if explicit_index is not None:
+                slot = explicit_index
+            elif position in self._position_state and not _starts_new_slot(
+                part, kind, self._position_state[position][1]
+            ):
+                slot = self._position_state[position][0]
+            else:
+                slot = self._next_slot
+                self._next_slot += 1
+            self._indexed[slot] += part
+            self._position_state[position] = (slot, kind)
+            if slot >= self._next_slot:
+                self._next_slot = slot + 1
+        return self
+
+
+class _StringAccumulator:
+    __slots__ = ("_fragments",)
+
+    def __init__(self) -> None:
+        self._fragments: list[str] = []
+
+    def __str__(self) -> str:
+        return "".join(self._fragments)
+
+    def __iadd__(self, value: Optional[str]) -> "_StringAccumulator":
+        if not value:
+            return self
+        # If the value is a list of strings, extend with all of them
+        if isinstance(value, list):
+            self._fragments.extend(value)
+        # If the value is a dict with a text field, add just the text
+        elif isinstance(value, dict) and "text" in value:
+            self._fragments.append(value["text"])
+        # Otherwise treat as a string
+        else:
+            self._fragments.append(str(value))
+        return self
+
+
+class _IndexedAccumulator:
+    __slots__ = ("_indexed",)
+
+    def __init__(self, factory: Callable[[], _ValuesAccumulator]) -> None:
+        self._indexed: defaultdict[int, _ValuesAccumulator] = defaultdict(factory)
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        for _, values in sorted(self._indexed.items()):
+            yield dict(values)
+
+    def __iadd__(
+        self, values: Optional[Union[Mapping[str, Any], list[Any]]]
+    ) -> "_IndexedAccumulator":
+        if not values:
+            return self
+        if isinstance(values, Mapping):
+            values = [values]
+        for index, v in enumerate(values):
+            if v and hasattr(v, "get"):
+                item_index = v.get("index")
+                self._indexed[index if item_index is None else item_index] += v
+        return self
+
+
+class _SimpleStringReplace:
+    __slots__ = ("_str_val",)
+
+    def __init__(self) -> None:
+        self._str_val: str = ""
+
+    def __str__(self) -> str:
+        return self._str_val
+
+    def __iadd__(self, value: Optional[str]) -> "_SimpleStringReplace":
+        if not value:
+            return self
+        self._str_val = value
+        return self
+
+
+class _DictReplace:
+    __slots__ = ("_val",)
+
+    def __init__(self) -> None:
+        self._val: Optional[dict[Any, Any]] = None
+
+    def __iter__(self) -> Iterator[tuple[Any, Any]]:
+        if self._val is not None:
+            yield from self._val.items()
+
+    def __iadd__(self, value: Optional[Mapping[Any, Any]]) -> "_DictReplace":
+        if not value:
+            return self
+        if self._val is None:
+            self._val = dict(value)  # First chunk
+        else:
+            self._val.update(value)  # Merge subsequent chunks
+        return self

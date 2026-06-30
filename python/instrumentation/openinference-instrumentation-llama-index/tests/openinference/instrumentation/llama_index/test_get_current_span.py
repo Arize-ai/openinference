@@ -1,7 +1,7 @@
 from asyncio import create_task, gather, sleep
 from random import random
 
-from llama_index.core.instrumentation import get_dispatcher
+from llama_index.core.instrumentation import get_dispatcher  # type: ignore[attr-defined]
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 

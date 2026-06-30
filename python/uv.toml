@@ -1,0 +1,5 @@
+# Exempt Arize/OpenInference-published packages from `exclude-newer` so freshly
+# released versions are picked up immediately. Far-future date acts as "no cutoff".
+# Note: `exclude-newer-package` has no environment variable equivalent in uv,
+# so it must live in a config file rather than tox.ini's `setenv`.
+exclude-newer-package = { "openinference-instrumentation" = "2099-12-31", "openinference-semantic-conventions" = "2099-12-31" }

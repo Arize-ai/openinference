@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference instrumentation utilities"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8, <3.14"
+requires-python = ">=3.10, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,16 +18,17 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-sdk",
-  "openinference-semantic-conventions>=0.1.6",
+  "openinference-semantic-conventions>=0.1.29",
+  "wrapt>=1.14.0,<3",
 ]
 
 [project.optional-dependencies]
@@ -66,15 +67,26 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]
+norecursedirs = [
+  "scripts",
+]
 
 [tool.mypy]
 strict = true
 explicit_package_bases = true
 exclude = [
+  "scripts/*",
+  "src/openinference/instrumentation/agentspec/*",
+  "src/openinference/instrumentation/agno/*",
   "src/openinference/instrumentation/anthropic/*",
+  "src/openinference/instrumentation/autogen/*",
+  "src/openinference/instrumentation/autogen_agentchat/*",
   "src/openinference/instrumentation/bedrock/*",
+  "src/openinference/instrumentation/beeai/*",
   "src/openinference/instrumentation/crewai/*",
   "src/openinference/instrumentation/dspy/*",
+  "src/openinference/instrumentation/google_adk/*",
+  "src/openinference/instrumentation/google_genai/*",
   "src/openinference/instrumentation/groq/*",
   "src/openinference/instrumentation/guardrails/*",
   "src/openinference/instrumentation/haystack/*",
@@ -82,21 +94,32 @@ exclude = [
   "src/openinference/instrumentation/langchain/*",
   "src/openinference/instrumentation/litellm/*",
   "src/openinference/instrumentation/llama_index/*",
+  "src/openinference/instrumentation/mcp/*",
   "src/openinference/instrumentation/mistralai/*",
   "src/openinference/instrumentation/openai/*",
+  "src/openinference/instrumentation/openai_agents/*",
+  "src/openinference/instrumentation/openllmetry/*",
+  "src/openinference/instrumentation/portkey/*",
+  "src/openinference/instrumentation/pydantic_ai/*",
   "src/openinference/instrumentation/smolagents/*",
   "src/openinference/instrumentation/vertexai/*",
 ]
+
+[[tool.mypy.overrides]]
+module=["wrapt"]
+ignore_missing_imports = true
+
 
 [tool.ruff]
 exclude= [
   "src/openinference/instrumentation/*/*",
 ]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
+"tests/**/*.py" = ["E501"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

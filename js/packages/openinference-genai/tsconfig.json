@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["vitest/globals"],
+    "lib": ["ESNext"],
+    "resolveJsonModule": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "files": [],
+  "include": ["src/**/*.ts", "test/**/*.ts", "test/__fixtures__/**/*.json", "examples/**/*.ts"],
+  "exclude": ["test/__snapshots__/**/*.ts"],
+  "references": []
+}

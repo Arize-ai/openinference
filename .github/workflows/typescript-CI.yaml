@@ -4,10 +4,12 @@ on:
     push:
         branches: [main]
     pull_request:
-        paths:
-            - "js/**"
     # Allows you to run this workflow manually from the Actions tab
     workflow_dispatch:
+
+# Least-privilege GITHUB_TOKEN: this workflow only needs to read the repo.
+permissions:
+    contents: read
 
 concurrency:
     group: test-typescript-${{ github.head_ref }}
@@ -20,12 +22,21 @@ jobs:
         outputs:
             diff: ${{ steps.filter.outputs.diff }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: dorny/paths-filter@v3
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              with:
+                  persist-credentials: false
+            - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
               id: filter
               with:
                   filters: |
                       diff:
+                        - ".github/workflows/typescript-CI.yaml"
+                        - "js/package.json"
+                        - "js/pnpm-lock.json"
+                        - "js/pnpm-workspace.yaml"
+                        - "js/tsconfig.*.json"
+                        - "js/.oxlintrc.json"
+                        - "js/.oxfmtrc.jsonc"
                         - "js/packages/**/*.js"
                         - "js/packages/**/*.ts"
                         - "js/packages/**/package.json"
@@ -36,33 +47,39 @@ jobs:
         needs: changes
         if: ${{ needs.changes.outputs.diff == 'true' }}
         runs-on: ubuntu-latest
+        env:
+            NODE_OPTIONS: "--max-old-space-size=8192"
         steps:
             - name: Checkout Repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              with:
+                  persist-credentials: false
             - name: Set up Nodejs
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
-                  node-version: 18
+                  node-version: 20
             - name: Setup PNPM
-              uses: pnpm/action-setup@v4
+              uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
               with:
-                  version: 9.8.0
+                  version: 10.29.3
             - name: Install Dependencies
               working-directory: ./js
-              run: pnpm install --frozen-lockfile --no-optional -r
+              run: pnpm install --frozen-lockfile -r
             - name: Pre-Build
               working-directory: ./js
               run: pnpm run -r prebuild
             - name: Build
               working-directory: ./js
               run: pnpm run -r build
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=8192"
             - name: Test
               working-directory: ./js
               run: pnpm run -r test
             - name: Formatting
               working-directory: ./js
               run: |
-                  pnpm run prettier:check
+                  pnpm run fmt:check
             - name: Type Checking
               working-directory: ./js
               run: |
@@ -71,3 +88,21 @@ jobs:
               working-directory: ./js
               run: |
                   pnpm run lint
+
+    ci-required:
+        name: Typescript CI Required
+        needs: [changes, ci]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check results
+              run: |
+                  if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+                    echo "One or more CI jobs failed"
+                    exit 1
+                  fi
+                  if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+                    echo "One or more CI jobs were cancelled"
+                    exit 1
+                  fi
+                  echo "All CI jobs passed or were skipped"

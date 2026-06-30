@@ -134,6 +134,11 @@ def test_chat_with_config_hiding_inputs(
         attributes,
         returned_message,
     )
+
+    # Also pop any LLM provider and system attributes that might have been added
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER, None) == "openai"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM, None) == "openai"
+
     assert attributes == {}
 
 
@@ -234,6 +239,11 @@ def test_chat_with_config_hiding_outputs(
             returned_message,
             hide_text=hide_output_text,
         )
+
+    # Also pop any LLM provider and system attributes that might have been added
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER, None) == "openai"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM, None) == "openai"
+
     assert attributes == {}
 
 

@@ -1,0 +1,1464 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"developer","content":"You are the leader of a team
+      and sub-teams of AI Agents.\nYour task is to coordinate the team to complete
+      the user''s request.\n\nHere are the members in your team:\n<team_members>\n
+      - Agent 1:\n   - ID: web-agent\n   - Name: Web Agent\n   - Role: Search the
+      web for information\n   - Member tools:\n    - duckduckgo_search\n    - duckduckgo_news\n
+      - Agent 2:\n   - ID: finance-agent\n   - Name: Finance Agent\n   - Role: Get
+      financial data\n   - Member tools:\n    - get_current_stock_price\n    - get_company_info\n    -
+      get_stock_fundamentals\n    - get_income_statements\n    - get_key_financial_ratios\n    -
+      get_analyst_recommendations\n    - get_company_news\n    - get_technical_indicators\n    -
+      get_historical_stock_prices\n</team_members>\n\n<how_to_respond>\n- Your role
+      is to delegate tasks to members in your team with the highest likelihood of
+      completing the user''s request.\n- Carefully analyze the tools available to
+      the members and their roles before delegating tasks.\n- You cannot use a member
+      tool directly. You can only delegate tasks to members.\n- When you delegate
+      a task to another member, make sure to include:\n  - member_id (str): The ID
+      of the member to delegate the task to. Use only the ID of the member, not the
+      ID of the team followed by the ID of the member.\n  - task (str): A clear description
+      of the task. Determine the best way to describe the task to the member.\n- You
+      can delegate tasks to multiple members at once.\n- You must always analyze the
+      responses from members before responding to the user.\n- After analyzing the
+      responses from the members, if you feel the task has been completed, you can
+      stop and respond to the user.\n- If you are NOT satisfied with the responses
+      from the members, you should re-assign the task to a different member.\n- For
+      simple greetings, thanks, or questions about the team itself, you should respond
+      directly.\n- For all work requests, tasks, or questions requiring expertise,
+      route to appropriate team members.\n</how_to_respond>\n\n<instructions>\n- Always
+      include sources\n- Use tables to display data\n</instructions>"},{"role":"user","content":"What''s
+      the market outlook and financial performance of NVIDIA?"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"delegate_task_to_member","description":"Use
+      this function to delegate a task to the selected team member.\nYou must provide
+      a clear and concise description of the task the member should achieve AND the
+      expected output.","parameters":{"type":"object","properties":{"member_id":{"type":"string","description":"(str)
+      The ID of the member to delegate the task to. Use only the ID of the member,
+      not the ID of the team followed by the ID of the member."},"task":{"type":"string","description":"(str)
+      A clear and concise description of the task the member should achieve."}},"required":["member_id","task"],"additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '2942'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CVKXDkxP2suVtCJtLycTpotlP6VyB\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1761583139,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
+        : [\n          {\n            \"id\": \"call_gkmMloRMKIk0W0w1MtZdTGdd\",\n\
+        \            \"type\": \"function\",\n            \"function\": {\n      \
+        \        \"name\": \"delegate_task_to_member\",\n              \"arguments\"\
+        : \"{\\\"member_id\\\": \\\"finance-agent\\\", \\\"task\\\": \\\"Get financial\
+        \ performance data for NVIDIA, including income statements and key financial\
+        \ ratios.\\\"}\"\n            }\n          },\n          {\n            \"\
+        id\": \"call_aMqmhJodbC4PRS0JXbxvaw1j\",\n            \"type\": \"function\"\
+        ,\n            \"function\": {\n              \"name\": \"delegate_task_to_member\"\
+        ,\n              \"arguments\": \"{\\\"member_id\\\": \\\"finance-agent\\\"\
+        , \\\"task\\\": \\\"Get analyst recommendations and market outlook for NVIDIA.\\\
+        \"}\"\n            }\n          }\n        ],\n        \"refusal\": null,\n\
+        \        \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"\
+        finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\"\
+        : 616,\n    \"completion_tokens\": 82,\n    \"total_tokens\": 698,\n    \"\
+        prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n      \"audio_tokens\"\
+        : 0\n    },\n    \"completion_tokens_details\": {\n      \"reasoning_tokens\"\
+        : 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\": 0,\n\
+        \      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
+        : \"default\",\n  \"system_fingerprint\": \"fp_560af6e559\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9953a06f0a45c230-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:39:01 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=_HHW2OggAoDjoYFHwk9Z9NzRiK.ab8GXJYR7MdNCoSU-1761583141-1.0.1.1-66He.RXwzUlu_W77h.QAytFW_MR6CDh5FiFngVhHA3Q8531msQommQhK_MyO.rpNBCkoxAAkJX2TBudu2xB51OMGWNhF31n6AWX7kzVKOa8;
+        path=/; expires=Mon, 27-Oct-25 17:09:01 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=bdCRNrmeXOqTKdA39hwP84O9mUDLhutDe0bel.u10EM-1761583141493-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '2050'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '3638'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '199468'
+      x-ratelimit-reset-requests:
+      - 8.64s
+      x-ratelimit-reset-tokens:
+      - 159ms
+      x-request-id:
+      - req_0c8d1bc603cb414d8196f90b0674fca9
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
+      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":"Get
+      financial performance data for NVIDIA, including income statements and key financial
+      ratios."}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
+      this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
+      this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_stock_fundamentals","description":"Use
+      this function to get fundamental data for a given stock symbol yfinance API.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_income_statements","description":"Use
+      this function to get income statements for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_key_financial_ratios","description":"Use
+      this function to get key financial ratios for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_analyst_recommendations","description":"Use
+      this function to get analyst recommendations for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_news","description":"Use
+      this function to get company news and press releases for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"num_stories":{"type":"number","description":"(int) The
+      number of news stories to return. Defaults to 3."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_technical_indicators","description":"Use
+      this function to get technical indicators for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The time
+      period for which to retrieve technical indicators.\nValid periods: 1d, 5d, 1mo,
+      3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Defaults to 3mo."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_historical_stock_prices","description":"Use
+      this function to get the historical stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The period
+      for which to retrieve historical prices. Defaults to \"1mo\".\nValid periods:
+      1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max"},"interval":{"type":"string","description":"(str)
+      The interval between data points. Defaults to \"1d\".\nValid intervals: 1d,5d,1wk,1mo,3mo"}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '4066'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CVKXG7uyiVpJP59sGZ0dVmdilQmqR\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1761583142,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
+        : [\n          {\n            \"id\": \"call_Nxrbmytq1NgiJqMuakMO9YoB\",\n\
+        \            \"type\": \"function\",\n            \"function\": {\n      \
+        \        \"name\": \"get_income_statements\",\n              \"arguments\"\
+        : \"{\\\"symbol\\\": \\\"NVDA\\\"}\"\n            }\n          },\n      \
+        \    {\n            \"id\": \"call_HYhcvepGxnfUL8HbuRWA9IgU\",\n         \
+        \   \"type\": \"function\",\n            \"function\": {\n              \"\
+        name\": \"get_key_financial_ratios\",\n              \"arguments\": \"{\\\"\
+        symbol\\\": \\\"NVDA\\\"}\"\n            }\n          }\n        ],\n    \
+        \    \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\"\
+        : null,\n      \"finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\"\
+        : {\n    \"prompt_tokens\": 598,\n    \"completion_tokens\": 52,\n    \"total_tokens\"\
+        : 650,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n  \
+        \    \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\": {\n \
+        \     \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\"\
+        : 0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
+        : \"default\",\n  \"system_fingerprint\": \"fp_560af6e559\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9953a08b799fdf6e-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:39:04 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=ijO_OoBDP1_6zB7XTSx6SxHpQPvXYi_cAoXt2qhM2Pw-1761583144-1.0.1.1-wdXiRJBrs1CQ6vujS5T_dmzun14TmzAau7.rQdgU12TJpoSNOY_qvNLLe2onGHHNc1xkZ6kIHmsasxHE.NNiHgLSRAtHwQENWOg3G.O1MgI;
+        path=/; expires=Mon, 27-Oct-25 17:09:04 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=RHoq9hG_wXvF3sj6TDOSKn_9Lo0OCrbXTCqiCCF4.k0-1761583144549-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '1912'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '2187'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9998'
+      x-ratelimit-remaining-tokens:
+      - '199947'
+      x-ratelimit-reset-requests:
+      - 12.676s
+      x-ratelimit-reset-tokens:
+      - 15ms
+      x-request-id:
+      - req_603d8ac9ef8b49d38ac68ec7ec2cb64e
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
+      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":"Get
+      financial performance data for NVIDIA, including income statements and key financial
+      ratios."},{"role":"assistant","tool_calls":[{"id":"call_Nxrbmytq1NgiJqMuakMO9YoB","function":{"arguments":"{\"symbol\":
+      \"NVDA\"}","name":"get_income_statements"},"type":"function"},{"id":"call_HYhcvepGxnfUL8HbuRWA9IgU","function":{"arguments":"{\"symbol\":
+      \"NVDA\"}","name":"get_key_financial_ratios"},"type":"function"}],"content":""},{"role":"tool","content":"{\"Tax
+      Effect Of Unusual Items\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-284130000.0,\"1643587200000\":0.0},\"Tax
+      Rate For Calcs\":{\"1738281600000\":0.133,\"1706659200000\":0.12,\"1675123200000\":0.21,\"1643587200000\":0.019},\"Normalized
+      EBITDA\":{\"1738281600000\":86137000000.0,\"1706659200000\":35583000000.0,\"1675123200000\":7339000000.0,\"1643587200000\":11351000000.0},\"Total
+      Unusual Items\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-1353000000.0,\"1643587200000\":0.0},\"Total
+      Unusual Items Excluding Goodwill\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-1353000000.0,\"1643587200000\":0.0},\"Net
+      Income From Continuing Operation Net Minority Interest\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Reconciled
+      Depreciation\":{\"1738281600000\":1864000000.0,\"1706659200000\":1508000000.0,\"1675123200000\":1543000000.0,\"1643587200000\":1174000000.0},\"Reconciled
+      Cost Of Revenue\":{\"1738281600000\":32639000000.0,\"1706659200000\":16621000000.0,\"1675123200000\":11618000000.0,\"1643587200000\":9439000000.0},\"EBITDA\":{\"1738281600000\":86137000000.0,\"1706659200000\":35583000000.0,\"1675123200000\":5986000000.0,\"1643587200000\":11351000000.0},\"EBIT\":{\"1738281600000\":84273000000.0,\"1706659200000\":34075000000.0,\"1675123200000\":4443000000.0,\"1643587200000\":10177000000.0},\"Net
+      Interest Income\":{\"1738281600000\":1539000000.0,\"1706659200000\":609000000.0,\"1675123200000\":5000000.0,\"1643587200000\":-207000000.0},\"Interest
+      Expense\":{\"1738281600000\":247000000.0,\"1706659200000\":257000000.0,\"1675123200000\":262000000.0,\"1643587200000\":236000000.0},\"Interest
+      Income\":{\"1738281600000\":1786000000.0,\"1706659200000\":866000000.0,\"1675123200000\":267000000.0,\"1643587200000\":29000000.0},\"Normalized
+      Income\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":5436870000.0,\"1643587200000\":9752000000.0},\"Net
+      Income From Continuing And Discontinued Operation\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Total
+      Expenses\":{\"1738281600000\":49044000000.0,\"1706659200000\":27950000000.0,\"1675123200000\":21397000000.0,\"1643587200000\":16873000000.0},\"Total
+      Operating Income As Reported\":{\"1738281600000\":81453000000.0,\"1706659200000\":32972000000.0,\"1675123200000\":4224000000.0,\"1643587200000\":10041000000.0},\"Diluted
+      Average Shares\":{\"1738281600000\":24804000000.0,\"1706659200000\":24940000000.0,\"1675123200000\":25070000000.0,\"1643587200000\":25350000000.0},\"Basic
+      Average Shares\":{\"1738281600000\":24555000000.0,\"1706659200000\":24690000000.0,\"1675123200000\":24870000000.0,\"1643587200000\":24960000000.0},\"Diluted
+      EPS\":{\"1738281600000\":2.94,\"1706659200000\":1.19,\"1675123200000\":0.174,\"1643587200000\":0.385},\"Basic
+      EPS\":{\"1738281600000\":2.97,\"1706659200000\":1.21,\"1675123200000\":0.176,\"1643587200000\":0.391},\"Diluted
+      NI Availto Com Stockholders\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
+      Income Common Stockholders\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
+      Income\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
+      Income Including Noncontrolling Interests\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
+      Income Continuous Operations\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Tax
+      Provision\":{\"1738281600000\":11146000000.0,\"1706659200000\":4058000000.0,\"1675123200000\":-187000000.0,\"1643587200000\":189000000.0},\"Pretax
+      Income\":{\"1738281600000\":84026000000.0,\"1706659200000\":33818000000.0,\"1675123200000\":4181000000.0,\"1643587200000\":9941000000.0},\"Other
+      Income Expense\":{\"1738281600000\":1034000000.0,\"1706659200000\":237000000.0,\"1675123200000\":-1401000000.0,\"1643587200000\":107000000.0},\"Other
+      Non Operating Income Expenses\":{\"1738281600000\":1034000000.0,\"1706659200000\":237000000.0,\"1675123200000\":-48000000.0,\"1643587200000\":107000000.0},\"Special
+      Income Charges\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-1353000000.0,\"1643587200000\":0.0},\"Restructuring
+      And Mergern Acquisition\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":1353000000.0,\"1643587200000\":0.0},\"Net
+      Non Operating Interest Income Expense\":{\"1738281600000\":1539000000.0,\"1706659200000\":609000000.0,\"1675123200000\":5000000.0,\"1643587200000\":-207000000.0},\"Interest
+      Expense Non Operating\":{\"1738281600000\":247000000.0,\"1706659200000\":257000000.0,\"1675123200000\":262000000.0,\"1643587200000\":236000000.0},\"Interest
+      Income Non Operating\":{\"1738281600000\":1786000000.0,\"1706659200000\":866000000.0,\"1675123200000\":267000000.0,\"1643587200000\":29000000.0},\"Operating
+      Income\":{\"1738281600000\":81453000000.0,\"1706659200000\":32972000000.0,\"1675123200000\":5577000000.0,\"1643587200000\":10041000000.0},\"Operating
+      Expense\":{\"1738281600000\":16405000000.0,\"1706659200000\":11329000000.0,\"1675123200000\":9779000000.0,\"1643587200000\":7434000000.0},\"Research
+      And Development\":{\"1738281600000\":12914000000.0,\"1706659200000\":8675000000.0,\"1675123200000\":7339000000.0,\"1643587200000\":5268000000.0},\"Selling
+      General And Administration\":{\"1738281600000\":3491000000.0,\"1706659200000\":2654000000.0,\"1675123200000\":2440000000.0,\"1643587200000\":2166000000.0},\"Gross
+      Profit\":{\"1738281600000\":97858000000.0,\"1706659200000\":44301000000.0,\"1675123200000\":15356000000.0,\"1643587200000\":17475000000.0},\"Cost
+      Of Revenue\":{\"1738281600000\":32639000000.0,\"1706659200000\":16621000000.0,\"1675123200000\":11618000000.0,\"1643587200000\":9439000000.0},\"Total
+      Revenue\":{\"1738281600000\":130497000000.0,\"1706659200000\":60922000000.0,\"1675123200000\":26974000000.0,\"1643587200000\":26914000000.0},\"Operating
+      Revenue\":{\"1738281600000\":130497000000.0,\"1706659200000\":60922000000.0,\"1675123200000\":26974000000.0,\"1643587200000\":26914000000.0}}","tool_call_id":"call_Nxrbmytq1NgiJqMuakMO9YoB"},{"role":"tool","content":"{\n  \"address1\":
+      \"2788 San Tomas Expressway\",\n  \"city\": \"Santa Clara\",\n  \"state\": \"CA\",\n  \"zip\":
+      \"95051\",\n  \"country\": \"United States\",\n  \"phone\": \"408 486 2000\",\n  \"website\":
+      \"https://www.nvidia.com\",\n  \"industry\": \"Semiconductors\",\n  \"industryKey\":
+      \"semiconductors\",\n  \"industryDisp\": \"Semiconductors\",\n  \"sector\":
+      \"Technology\",\n  \"sectorKey\": \"technology\",\n  \"sectorDisp\": \"Technology\",\n  \"longBusinessSummary\":
+      \"NVIDIA Corporation, a computing infrastructure company, provides graphics
+      and compute and networking solutions in the United States, Singapore, Taiwan,
+      China, Hong Kong, and internationally. The Compute & Networking segment includes
+      its Data Centre accelerated computing platforms and artificial intelligence
+      solutions and software; networking; automotive platforms and autonomous and
+      electric vehicle solutions; Jetson for robotics and other embedded platforms;
+      and DGX Cloud computing services. The Graphics segment offers GeForce GPUs for
+      gaming and PCs, the GeForce NOW game streaming service and related infrastructure,
+      and solutions for gaming platforms; Quadro/NVIDIA RTX GPUs for enterprise workstation
+      graphics; virtual GPU or vGPU software for cloud-based visual and virtual computing;
+      automotive platforms for infotainment systems; and Omniverse software for building
+      and operating industrial AI and digital twin applications. It also customized
+      agentic solutions designed in collaboration with NVIDIA to accelerate enterprise
+      AI adoption. The company''s products are used in gaming, professional visualization,
+      data center, and automotive markets. It sells its products to original equipment
+      manufacturers, original device manufacturers, system integrators and distributors,
+      independent software vendors, cloud service providers, consumer internet companies,
+      add-in board manufacturers, distributors, automotive manufacturers and tier-1
+      automotive suppliers, and other ecosystem participants. NVIDIA Corporation was
+      incorporated in 1993 and is headquartered in Santa Clara, California.\",\n  \"fullTimeEmployees\":
+      36000,\n  \"companyOfficers\": [\n    {\n      \"maxAge\": 1,\n      \"name\":
+      \"Mr. Jen-Hsun  Huang\",\n      \"age\": 61,\n      \"title\": \"Co-Founder,
+      CEO, President & Director\",\n      \"yearBorn\": 1963,\n      \"fiscalYear\":
+      2025,\n      \"totalPay\": 11054945,\n      \"exercisedValue\": 0,\n      \"unexercisedValue\":
+      0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\": \"Ms. Colette M. Kress\",\n      \"age\":
+      57,\n      \"title\": \"Executive VP & CFO\",\n      \"yearBorn\": 1967,\n      \"fiscalYear\":
+      2025,\n      \"totalPay\": 1512641,\n      \"exercisedValue\": 0,\n      \"unexercisedValue\":
+      0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\": \"Ms. Debora  Shoquist\",\n      \"age\":
+      69,\n      \"title\": \"Executive Vice President of Operations\",\n      \"yearBorn\":
+      1955,\n      \"fiscalYear\": 2025,\n      \"totalPay\": 1379071,\n      \"exercisedValue\":
+      0,\n      \"unexercisedValue\": 0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\":
+      \"Mr. Timothy S. Teter J.D.\",\n      \"age\": 57,\n      \"title\": \"Executive
+      VP, General Counsel & Secretary\",\n      \"yearBorn\": 1967,\n      \"fiscalYear\":
+      2025,\n      \"totalPay\": 1362989,\n      \"exercisedValue\": 0,\n      \"unexercisedValue\":
+      0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\": \"Mr. Ajay K. Puri\",\n      \"age\":
+      69,\n      \"title\": \"Executive Vice President of Worldwide Field Operations\",\n      \"yearBorn\":
+      1955,\n      \"fiscalYear\": 2025,\n      \"totalPay\": 2313851,\n      \"exercisedValue\":
+      0,\n      \"unexercisedValue\": 0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\":
+      \"Mr. Chris A. Malachowsky\",\n      \"title\": \"Co-Founder\",\n      \"fiscalYear\":
+      2025,\n      \"totalPay\": 320000,\n      \"exercisedValue\": 0,\n      \"unexercisedValue\":
+      0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\": \"Mr. Donald F. Robertson
+      Jr.\",\n      \"age\": 55,\n      \"title\": \"VP & Chief Accounting Officer\",\n      \"yearBorn\":
+      1969,\n      \"fiscalYear\": 2025,\n      \"exercisedValue\": 0,\n      \"unexercisedValue\":
+      0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\": \"Prof. William J. Dally
+      Ph.D.\",\n      \"age\": 63,\n      \"title\": \"Chief Scientist & Senior VP
+      of Research\",\n      \"yearBorn\": 1961,\n      \"fiscalYear\": 2025,\n      \"exercisedValue\":
+      0,\n      \"unexercisedValue\": 0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\":
+      \"Mr. Toshiya  Hari\",\n      \"title\": \"Vice President of Investor Relations
+      & Strategic Finance\",\n      \"fiscalYear\": 2025,\n      \"exercisedValue\":
+      0,\n      \"unexercisedValue\": 0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\":
+      \"Ms. Mylene  Mangalindan\",\n      \"title\": \"VP of Corporate Communications\",\n      \"fiscalYear\":
+      2025,\n      \"exercisedValue\": 0,\n      \"unexercisedValue\": 0\n    }\n  ],\n  \"auditRisk\":
+      5,\n  \"boardRisk\": 10,\n  \"compensationRisk\": 4,\n  \"shareHolderRightsRisk\":
+      8,\n  \"overallRisk\": 8,\n  \"governanceEpochDate\": 1759276800,\n  \"compensationAsOfEpochDate\":
+      1767139200,\n  \"irWebsite\": \"http://phx.corporate-ir.net/phoenix.zhtml?c=116466&p=irol-IRHome\",\n  \"executiveTeam\":
+      [],\n  \"maxAge\": 86400,\n  \"priceHint\": 2,\n  \"previousClose\": 186.26,\n  \"open\":
+      189.98,\n  \"dayLow\": 188.4318,\n  \"dayHigh\": 191.47,\n  \"regularMarketPreviousClose\":
+      186.26,\n  \"regularMarketOpen\": 189.98,\n  \"regularMarketDayLow\": 188.4318,\n  \"regularMarketDayHigh\":
+      191.47,\n  \"dividendRate\": 0.04,\n  \"dividendYield\": 0.02,\n  \"exDividendDate\":
+      1757548800,\n  \"payoutRatio\": 0.0114,\n  \"fiveYearAvgDividendYield\": 0.06,\n  \"beta\":
+      2.123,\n  \"trailingPE\": 54.52709,\n  \"forwardPE\": 46.321556,\n  \"volume\":
+      82213253,\n  \"regularMarketVolume\": 82213253,\n  \"averageVolume\": 173456453,\n  \"averageVolume10days\":
+      158377370,\n  \"averageDailyVolume10Day\": 158377370,\n  \"bid\": 190.72,\n  \"ask\":
+      190.94,\n  \"bidSize\": 5,\n  \"askSize\": 5,\n  \"marketCap\": 4646498729984,\n  \"fiftyTwoWeekLow\":
+      86.62,\n  \"fiftyTwoWeekHigh\": 195.62,\n  \"allTimeHigh\": 195.62,\n  \"allTimeLow\":
+      0.033333,\n  \"priceToSalesTrailing12Months\": 28.123442,\n  \"fiftyDayAverage\":
+      179.59,\n  \"twoHundredDayAverage\": 146.57625,\n  \"trailingAnnualDividendRate\":
+      0.04,\n  \"trailingAnnualDividendYield\": 0.00021475357,\n  \"currency\": \"USD\",\n  \"tradeable\":
+      false,\n  \"enterpriseValue\": 4479925092352,\n  \"profitMargins\": 0.52414,\n  \"floatShares\":
+      23327514000,\n  \"sharesOutstanding\": 24347000000,\n  \"sharesShort\": 210957056,\n  \"sharesShortPriorMonth\":
+      217485473,\n  \"sharesShortPreviousMonthDate\": 1757894400,\n  \"dateShortInterest\":
+      1760486400,\n  \"sharesPercentSharesOut\": 0.0087,\n  \"heldPercentInsiders\":
+      0.04322,\n  \"heldPercentInstitutions\": 0.6899,\n  \"shortRatio\": 1.15,\n  \"shortPercentOfFloat\":
+      0.009,\n  \"impliedSharesOutstanding\": 24623853720,\n  \"bookValue\": 4.113,\n  \"priceToBook\":
+      46.40039,\n  \"lastFiscalYearEnd\": 1737849600,\n  \"nextFiscalYearEnd\": 1769385600,\n  \"mostRecentQuarter\":
+      1753574400,\n  \"earningsQuarterlyGrowth\": 0.592,\n  \"netIncomeToCommon\":
+      86597001216,\n  \"trailingEps\": 3.5,\n  \"forwardEps\": 4.12,\n  \"lastSplitFactor\":
+      \"10:1\",\n  \"lastSplitDate\": 1717977600,\n  \"enterpriseToRevenue\": 27.115,\n  \"enterpriseToEbitda\":
+      45.583,\n  \"52WeekChange\": 0.32550526,\n  \"SandP52WeekChange\": 0.16625166,\n  \"lastDividendValue\":
+      0.01,\n  \"lastDividendDate\": 1757548800,\n  \"quoteType\": \"EQUITY\",\n  \"currentPrice\":
+      190.8448,\n  \"targetHighPrice\": 320.0,\n  \"targetLowPrice\": 100.0,\n  \"targetMeanPrice\":
+      218.51369,\n  \"targetMedianPrice\": 214.0,\n  \"recommendationMean\": 1.34375,\n  \"recommendationKey\":
+      \"strong_buy\",\n  \"numberOfAnalystOpinions\": 57,\n  \"totalCash\": 56790999040,\n  \"totalCashPerShare\":
+      2.337,\n  \"ebitda\": 98280996864,\n  \"totalDebt\": 10597999616,\n  \"quickRatio\":
+      3.488,\n  \"currentRatio\": 4.214,\n  \"totalRevenue\": 165217992704,\n  \"debtToEquity\":
+      10.584,\n  \"revenuePerShare\": 6.755,\n  \"returnOnAssets\": 0.53094,\n  \"returnOnEquity\":
+      1.09417,\n  \"grossProfits\": 115399999488,\n  \"freeCashflow\": 52436750336,\n  \"operatingCashflow\":
+      77035003904,\n  \"earningsGrowth\": 0.612,\n  \"revenueGrowth\": 0.556,\n  \"grossMargins\":
+      0.69847,\n  \"ebitdaMargins\": 0.59486,\n  \"operatingMargins\": 0.60842997,\n  \"financialCurrency\":
+      \"USD\",\n  \"symbol\": \"NVDA\",\n  \"language\": \"en-US\",\n  \"region\":
+      \"US\",\n  \"typeDisp\": \"Equity\",\n  \"quoteSourceName\": \"Nasdaq Real Time
+      Price\",\n  \"triggerable\": true,\n  \"customPriceAlertConfidence\": \"HIGH\",\n  \"shortName\":
+      \"NVIDIA Corporation\",\n  \"averageAnalystRating\": \"1.3 - Strong Buy\",\n  \"cryptoTradeable\":
+      false,\n  \"longName\": \"NVIDIA Corporation\",\n  \"regularMarketPrice\": 190.8448,\n  \"hasPrePostMarketData\":
+      true,\n  \"firstTradeDateMilliseconds\": 917015400000,\n  \"regularMarketChange\":
+      4.5848083,\n  \"regularMarketDayRange\": \"188.4318 - 191.47\",\n  \"fullExchangeName\":
+      \"NasdaqGS\",\n  \"averageDailyVolume3Month\": 173456453,\n  \"fiftyTwoWeekLowChange\":
+      104.2248,\n  \"fiftyTwoWeekLowChangePercent\": 1.2032417,\n  \"fiftyTwoWeekRange\":
+      \"86.62 - 195.62\",\n  \"fiftyTwoWeekHighChange\": -4.7751923,\n  \"fiftyTwoWeekHighChangePercent\":
+      -0.024410553,\n  \"fiftyTwoWeekChangePercent\": 32.550526,\n  \"dividendDate\":
+      1759363200,\n  \"earningsTimestamp\": 1763582400,\n  \"earningsTimestampStart\":
+      1763582400,\n  \"earningsTimestampEnd\": 1763582400,\n  \"earningsCallTimestampStart\":
+      1756328400,\n  \"earningsCallTimestampEnd\": 1756328400,\n  \"isEarningsDateEstimate\":
+      false,\n  \"epsTrailingTwelveMonths\": 3.5,\n  \"epsForward\": 4.12,\n  \"epsCurrentYear\":
+      4.51146,\n  \"priceEpsCurrentYear\": 42.302227,\n  \"fiftyDayAverageChange\":
+      11.2548065,\n  \"fiftyDayAverageChangePercent\": 0.06266945,\n  \"twoHundredDayAverageChange\":
+      44.268555,\n  \"twoHundredDayAverageChangePercent\": 0.30201724,\n  \"sourceInterval\":
+      15,\n  \"exchangeDataDelayedBy\": 0,\n  \"corporateActions\": [],\n  \"regularMarketTime\":
+      1761583144,\n  \"exchange\": \"NMS\",\n  \"messageBoardId\": \"finmb_32307\",\n  \"exchangeTimezoneName\":
+      \"America/New_York\",\n  \"exchangeTimezoneShortName\": \"EDT\",\n  \"gmtOffSetMilliseconds\":
+      -14400000,\n  \"market\": \"us_market\",\n  \"esgPopulated\": false,\n  \"regularMarketChangePercent\":
+      2.46151,\n  \"marketState\": \"REGULAR\",\n  \"displayName\": \"NVIDIA\",\n  \"trailingPegRatio\":
+      1.0002\n}","tool_call_id":"call_HYhcvepGxnfUL8HbuRWA9IgU"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
+      this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
+      this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_stock_fundamentals","description":"Use
+      this function to get fundamental data for a given stock symbol yfinance API.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_income_statements","description":"Use
+      this function to get income statements for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_key_financial_ratios","description":"Use
+      this function to get key financial ratios for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_analyst_recommendations","description":"Use
+      this function to get analyst recommendations for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_news","description":"Use
+      this function to get company news and press releases for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"num_stories":{"type":"number","description":"(int) The
+      number of news stories to return. Defaults to 3."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_technical_indicators","description":"Use
+      this function to get technical indicators for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The time
+      period for which to retrieve technical indicators.\nValid periods: 1d, 5d, 1mo,
+      3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Defaults to 3mo."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_historical_stock_prices","description":"Use
+      this function to get the historical stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The period
+      for which to retrieve historical prices. Defaults to \"1mo\".\nValid periods:
+      1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max"},"interval":{"type":"string","description":"(str)
+      The interval between data points. Defaults to \"1d\".\nValid intervals: 1d,5d,1wk,1mo,3mo"}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '21642'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CVKXKfA6nhBPVGvlkpjbTHOA48TV0\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1761583146,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"### NVIDIA Income\
+        \ Statement Data\\n\\n| Year                  | 2023                     \
+        \ | 2022                      | 2021                     | 2020          \
+        \           |\\n|-----------------------|---------------------------|---------------------------|--------------------------|--------------------------|\\\
+        n| Total Revenue         | $130.50 billion           | $60.92 billion    \
+        \        | $26.97 billion           | $26.91 billion           |\\n| Cost\
+        \ of Revenue       | $32.64 billion            | $16.62 billion          \
+        \  | $11.62 billion           | $9.44 billion            |\\n| Gross Profit\
+        \          | $97.86 billion            | $44.30 billion            | $15.36\
+        \ billion           | $17.48 billion           |\\n| Operating Income    \
+        \   | $81.45 billion            | $32.97 billion            | $5.58 billion\
+        \            | $10.04 billion           |\\n| Net Income            | $72.88\
+        \ billion            | $29.76 billion            | $4.36 billion         \
+        \   | $9.75 billion            |\\n| Diluted EPS           | $2.94       \
+        \              | $1.19                     | $0.17                    | $0.39\
+        \                    |\\n\\n### NVIDIA Key Financial Ratios\\n\\n| Ratio \
+        \                             | Value          |\\n|-------------------------------------|----------------|\\\
+        n| Price to Earnings (Trailing PE)    | 54.53          |\\n| Price to Earnings\
+        \ (Forward PE)     | 46.32          |\\n| Price to Book                  \
+        \     | 46.40          |\\n| Profit Margin                       | 52.41%\
+        \         |\\n| Gross Margin                        | 69.85%         |\\n|\
+        \ Operating Margin                    | 60.84%         |\\n| EBITDA Margin\
+        \                       | 59.49%         |\\n| Return on Assets (ROA)    \
+        \         | 53.09%         |\\n| Return on Equity (ROE)             | 109.41%\
+        \        |\\n| Debt to Equity                      | 10.58          |\\n|\
+        \ Current Ratio                       | 4.21           |\\n| Quick Ratio \
+        \                        | 3.49           |\\n| Free Cash Flow           \
+        \           | $52.44 billion  |\\n\\n### Summary\\nNVIDIA has shown significant\
+        \ growth in revenue and net income over the past few years, reflecting its\
+        \ strong position in the semiconductor market. The key financial ratios suggest\
+        \ robust profitability and efficient use of equity.\",\n        \"refusal\"\
+        : null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n\
+        \      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\"\
+        : 6244,\n    \"completion_tokens\": 478,\n    \"total_tokens\": 6722,\n  \
+        \  \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n      \"audio_tokens\"\
+        : 0\n    },\n    \"completion_tokens_details\": {\n      \"reasoning_tokens\"\
+        : 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\": 0,\n\
+        \      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
+        : \"default\",\n  \"system_fingerprint\": \"fp_560af6e559\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9953a0a4e864162a-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:39:18 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=ovE.lffU9BT9931xddpBZ0DXkJau.j8pA5y7PKa5yro-1761583158-1.0.1.1-OXz8wOikoJECSxB0bKwRSezwSmOrj2URSA6t1hb3VkLNIZq1L3eFHE9YA1wvRb69x3iGtlrD2uebAOp.6ivnwH5LK3pHZDGyPVA7jpLB7qo;
+        path=/; expires=Mon, 27-Oct-25 17:09:18 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=B9YbQeBX6uWFhJqT_JQeiYVgto4DhQ1VLnP6N4YtjgE-1761583158696-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '12069'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '12271'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9997'
+      x-ratelimit-remaining-tokens:
+      - '196006'
+      x-ratelimit-reset-requests:
+      - 17.333s
+      x-ratelimit-reset-tokens:
+      - 1.198s
+      x-request-id:
+      - req_4f0a1d52a3624e6abcec6cd64231cba8
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"session_id":"test_session","run_id":"9b0623ab-ee90-4c5e-853e-6eb98cc2b1d7","data":{"agent_id":"finance-agent","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"has_tools":true,"has_memory":false,"has_culture":false,"has_reasoning":false,"has_knowledge":false,"has_input_schema":false,"has_output_schema":false,"has_team":true},"sdk_version":"2.2.1","type":"agent"}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '449'
+      content-type:
+      - application/json
+      host:
+      - os-api.agno.com
+      user-agent:
+      - agno/2.2.1
+    method: POST
+    uri: https://os-api.agno.com/telemetry/runs
+  response:
+    body:
+      string: '{"message":"Run creation acknowledged: 9b0623ab-ee90-4c5e-853e-6eb98cc2b1d7","status":"success"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '96'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:39:20 GMT
+      server:
+      - uvicorn
+    status:
+      code: 201
+      message: Created
+- request:
+    body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
+      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":"Get
+      analyst recommendations and market outlook for NVIDIA."}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
+      this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
+      this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_stock_fundamentals","description":"Use
+      this function to get fundamental data for a given stock symbol yfinance API.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_income_statements","description":"Use
+      this function to get income statements for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_key_financial_ratios","description":"Use
+      this function to get key financial ratios for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_analyst_recommendations","description":"Use
+      this function to get analyst recommendations for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_news","description":"Use
+      this function to get company news and press releases for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"num_stories":{"type":"number","description":"(int) The
+      number of news stories to return. Defaults to 3."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_technical_indicators","description":"Use
+      this function to get technical indicators for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The time
+      period for which to retrieve technical indicators.\nValid periods: 1d, 5d, 1mo,
+      3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Defaults to 3mo."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_historical_stock_prices","description":"Use
+      this function to get the historical stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The period
+      for which to retrieve historical prices. Defaults to \"1mo\".\nValid periods:
+      1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max"},"interval":{"type":"string","description":"(str)
+      The interval between data points. Defaults to \"1d\".\nValid intervals: 1d,5d,1wk,1mo,3mo"}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '4028'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CVKXZ5G1eH5rC4ABbFchWM9inhQo5\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1761583161,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
+        : [\n          {\n            \"id\": \"call_OKnCqIxY5hbwdIjVbyigKd7F\",\n\
+        \            \"type\": \"function\",\n            \"function\": {\n      \
+        \        \"name\": \"get_analyst_recommendations\",\n              \"arguments\"\
+        : \"{\\\"symbol\\\": \\\"NVDA\\\"}\"\n            }\n          },\n      \
+        \    {\n            \"id\": \"call_RWVrsookQ9NlSkEclIq9YeNu\",\n         \
+        \   \"type\": \"function\",\n            \"function\": {\n              \"\
+        name\": \"get_company_news\",\n              \"arguments\": \"{\\\"symbol\\\
+        \": \\\"NVDA\\\", \\\"num_stories\\\": 5}\"\n            }\n          }\n\
+        \        ],\n        \"refusal\": null,\n        \"annotations\": []\n   \
+        \   },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\
+        \n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 592,\n    \"completion_tokens\"\
+        : 58,\n    \"total_tokens\": 650,\n    \"prompt_tokens_details\": {\n    \
+        \  \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
+        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
+        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
+        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
+        \ \"fp_560af6e559\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9953a0ff0f8b49d5-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:39:24 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=0Tx1foIthRrhgC4jYJPXNkK7DXEbmgoA59UxFvyzwYE-1761583164-1.0.1.1-kb3U5hjdN2qhO3AwiUyufhlY.sny7MNpa4cwhgBhNt.57SCkedzuX91cZvF5FBG9A8zuGT21Aaol9arN77DhQHXaP.HeE7xWbvhfGYJAEZQ;
+        path=/; expires=Mon, 27-Oct-25 17:09:24 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=RX6i.aEPlZsxqyVGxQWuSCWtq8dxjoNKhXEIYAULntA-1761583164395-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '3061'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '3269'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9998'
+      x-ratelimit-remaining-tokens:
+      - '199957'
+      x-ratelimit-reset-requests:
+      - 11.284s
+      x-ratelimit-reset-tokens:
+      - 12ms
+      x-request-id:
+      - req_663984f1ee8c4e99aefb91f28d364555
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
+      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":"Get
+      analyst recommendations and market outlook for NVIDIA."},{"role":"assistant","tool_calls":[{"id":"call_OKnCqIxY5hbwdIjVbyigKd7F","function":{"arguments":"{\"symbol\":
+      \"NVDA\"}","name":"get_analyst_recommendations"},"type":"function"},{"id":"call_RWVrsookQ9NlSkEclIq9YeNu","function":{"arguments":"{\"symbol\":
+      \"NVDA\", \"num_stories\": 5}","name":"get_company_news"},"type":"function"}],"content":""},{"role":"tool","content":"{\"0\":{\"period\":\"0m\",\"strongBuy\":10,\"buy\":49,\"hold\":4,\"sell\":1,\"strongSell\":0},\"1\":{\"period\":\"-1m\",\"strongBuy\":11,\"buy\":48,\"hold\":4,\"sell\":1,\"strongSell\":0},\"2\":{\"period\":\"-2m\",\"strongBuy\":11,\"buy\":47,\"hold\":6,\"sell\":1,\"strongSell\":0},\"3\":{\"period\":\"-3m\",\"strongBuy\":11,\"buy\":48,\"hold\":6,\"sell\":1,\"strongSell\":0}}","tool_call_id":"call_OKnCqIxY5hbwdIjVbyigKd7F"},{"role":"tool","content":"[\n  {\n    \"id\":
+      \"5c0dff72-e835-48ac-bfe9-0e62e2647010\",\n    \"content\": {\n      \"id\":
+      \"5c0dff72-e835-48ac-bfe9-0e62e2647010\",\n      \"contentType\": \"STORY\",\n      \"title\":
+      \"Stock market today: Dow, S&P 500, Nasdaq head toward records as Trump stokes
+      hopes US-China trade deal is near\",\n      \"description\": \"\",\n      \"summary\":
+      \"Wall Street is in an upbeat mood as it gears up for a pivotal week featuring
+      the Federal Reserve\\u2019s expected interest rate cut and a barrage of Big
+      Tech earnings, as well as Trump''s visit to Asia.\",\n      \"pubDate\": \"2025-10-26T22:50:50Z\",\n      \"displayTime\":
+      \"2025-10-27T16:35:38Z\",\n      \"isHosted\": true,\n      \"bypassModal\":
+      false,\n      \"previewUrl\": null,\n      \"thumbnail\": {\n        \"originalUrl\":
+      \"https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2\",\n        \"originalWidth\":
+      2410,\n        \"originalHeight\": 1890,\n        \"caption\": \"\",\n        \"resolutions\":
+      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/FjX1ZPUWO0LP5zf_16X8rg--~B/aD0xODkwO3c9MjQxMDthcHBpZD15dGFjaHlvbg--/https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2\",\n            \"width\":
+      2410,\n            \"height\": 1890,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
+      \"https://s.yimg.com/uu/api/res/1.2/5wq4teZMjAHBfXXW0QIVkA--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2\",\n            \"width\":
+      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
+      {\n        \"displayName\": \"Yahoo Finance\",\n        \"url\": \"http://finance.yahoo.com/\"\n      },\n      \"canonicalUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
+      {\n        \"editorsPick\": true\n      },\n      \"finance\": {\n        \"premiumFinance\":
+      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
+      {\n        \"storylineItems\": [\n          {\n            \"content\": {\n              \"id\":
+      \"bafedcde-1688-3134-a50c-56d94202d1d8\",\n              \"contentType\": \"VIDEO\",\n              \"isHosted\":
+      true,\n              \"title\": \"Big Tech earnings: The 3 things Wall Street
+      will be listening for\",\n              \"thumbnail\": {\n                \"originalUrl\":
+      \"https://s.yimg.com/os/creatr-uploaded-images/2025-10/f1cdc750-b33c-11f0-bfd7-93882954981f\",\n                \"originalWidth\":
+      3218,\n                \"originalHeight\": 1808,\n                \"caption\":
+      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
+      {\n                \"displayName\": \"Yahoo Finance Video\",\n                \"sourceId\":
+      \"video.yahoofinance.com\"\n              },\n              \"previewUrl\":
+      null,\n              \"providerContentUrl\": \"\",\n              \"canonicalUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/video/big-tech-earnings-3-things-143000573.html\"\n              },\n              \"clickThroughUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/video/big-tech-earnings-3-things-143000573.html\"\n              }\n            }\n          },\n          {\n            \"content\":
+      {\n              \"id\": \"7d90ebf9-7d8d-496f-9169-69ff7246812a\",\n              \"contentType\":
+      \"STORY\",\n              \"isHosted\": true,\n              \"title\": \"Qualcomm
+      stock spikes more than 20% as company enters AI chip race, taking on Nvidia,
+      AMD\",\n              \"thumbnail\": {\n                \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2025-10/268b72e0-b0f3-11f0-bfcf-816f87be6591\",\n                \"originalWidth\":
+      1000,\n                \"originalHeight\": 820,\n                \"caption\":
+      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
+      {\n                \"displayName\": \"Yahoo Finance\",\n                \"sourceId\":
+      \"yahoofinance.com\"\n              },\n              \"previewUrl\": null,\n              \"providerContentUrl\":
+      \"\",\n              \"canonicalUrl\": {\n                \"url\": \"https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html\"\n              },\n              \"clickThroughUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html\"\n              }\n            }\n          }\n        ]\n      }\n    }\n  },\n  {\n    \"id\":
+      \"a33c5dc0-c9e5-35ac-a6b8-f60a3e88d1be\",\n    \"content\": {\n      \"id\":
+      \"a33c5dc0-c9e5-35ac-a6b8-f60a3e88d1be\",\n      \"contentType\": \"VIDEO\",\n      \"title\":
+      \"Are the Magnificent Seven as speculative as meme stocks?\",\n      \"description\":
+      \"<p>Beyond Meat (<a data-i13n=\\\"cpos:1;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/BYND\\\">BYND</a>)
+      <a data-i13n=\\\"cpos:2;pos:1\\\" href=\\\"https://finance.yahoo.com/news/why-beyond-meat-stock-is-up-about-600-in-3-days-093158667.html\\\">rallied
+      by 1,300%</a> over the course of several sessions last week, igniting a new
+      <a data-i13n=\\\"cpos:3;pos:1\\\" href=\\\"https://finance.yahoo.com/video/roundhill-relaunches-meme-stock-etf-152455008.html\\\">meme
+      stock trading</a> frenzy. Northwestern Mutual Wealth Management chief portfolio
+      manager, equities Matt Stucky sits down with Morning Brief host <a data-i13n=\\\"cpos:4;pos:1\\\"
+      href=\\\"https://www.yahoo.com/author/julie-hyman/?.tsrc=fin-srch\\\">Julie
+      Hyman</a> to share his perspective on trading meme stocks and what same themes
+      he could see materializing in the Magnificent Seven.</p>\\n<p>To watch more
+      expert insights and analysis on the latest market action, check out more\\u00a0<a
+      data-i13n=\\\"cpos:5;pos:1\\\" href=\\\"https://finance.yahoo.com/videos/series/morning-brief/\\\">Morning
+      Brief</a>.</p>\",\n      \"summary\": \"Beyond Meat (BYND) rallied by 1,300%
+      over the course of several sessions last week, igniting a new meme stock trading
+      frenzy. Northwestern Mutual Wealth Management chief portfolio manager, equities
+      Matt Stucky sits down with Morning Brief host Julie Hyman to share his perspective
+      on trading meme stocks and what same themes he could see materializing in the
+      Magnificent Seven. To watch more expert insights and analysis on the latest
+      market action, check out more&nbsp;Morning Brief.\",\n      \"pubDate\": \"2025-10-27T10:00:02Z\",\n      \"displayTime\":
+      \"\",\n      \"isHosted\": true,\n      \"bypassModal\": false,\n      \"previewUrl\":
+      null,\n      \"thumbnail\": {\n        \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2025-10/2c24de20-af55-11f0-afd5-33a483240e60\",\n        \"originalWidth\":
+      7039,\n        \"originalHeight\": 3963,\n        \"caption\": \"\",\n        \"resolutions\":
+      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/TalN8V5ASG9grsBwryyQ5g--~B/aD0zOTYzO3c9NzAzOTthcHBpZD15dGFjaHlvbg--/https://s.yimg.com/os/creatr-uploaded-images/2025-10/2c24de20-af55-11f0-afd5-33a483240e60\",\n            \"width\":
+      7039,\n            \"height\": 3963,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
+      \"https://s.yimg.com/uu/api/res/1.2/1BJQslt8wIait2cSBy4L3w--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://s.yimg.com/os/creatr-uploaded-images/2025-10/2c24de20-af55-11f0-afd5-33a483240e60\",\n            \"width\":
+      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
+      {\n        \"displayName\": \"Yahoo Finance Video\",\n        \"url\": \"https://finance.yahoo.com/\"\n      },\n      \"canonicalUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/video/magnificent-seven-speculative-meme-stocks-100002713.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/video/magnificent-seven-speculative-meme-stocks-100002713.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
+      {\n        \"editorsPick\": true\n      },\n      \"finance\": {\n        \"premiumFinance\":
+      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
+      {\n        \"storylineItems\": [\n          {\n            \"content\": {\n              \"id\":
+      \"3f8f9e8b-b6bd-41c0-8fca-538632a9e324\",\n              \"contentType\": \"STORY\",\n              \"isHosted\":
+      true,\n              \"title\": \"''This fight is far from over'': Intel\\u2019s
+      key business is nowhere near a turnaround\",\n              \"thumbnail\": {\n                \"originalUrl\":
+      \"https://s.yimg.com/os/creatr-uploaded-images/2024-03/a1d476c0-dcf8-11ee-bffe-5bbd8a146cd3\",\n                \"originalWidth\":
+      5500,\n                \"originalHeight\": 3667,\n                \"caption\":
+      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
+      {\n                \"displayName\": \"Yahoo Finance\",\n                \"sourceId\":
+      \"yahoofinance.com\"\n              },\n              \"previewUrl\": null,\n              \"providerContentUrl\":
+      \"\",\n              \"canonicalUrl\": {\n                \"url\": \"https://finance.yahoo.com/news/this-fight-is-far-from-over-intels-key-business-is-nowhere-near-a-turnaround-143041684.html\"\n              },\n              \"clickThroughUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/news/this-fight-is-far-from-over-intels-key-business-is-nowhere-near-a-turnaround-143041684.html\"\n              }\n            }\n          },\n          {\n            \"content\":
+      {\n              \"id\": \"89370013-225f-4d95-8c67-730012fb3747\",\n              \"contentType\":
+      \"STORY\",\n              \"isHosted\": true,\n              \"title\": \"Bitcoin
+      ''just doesn''t cut it anymore'': Miners'' pivot to AI sends stocks soaring\",\n              \"thumbnail\":
+      {\n                \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2021-04/5af69a20-a8e5-11eb-bf7f-5f2e9fe992ce\",\n                \"originalWidth\":
+      3931,\n                \"originalHeight\": 2502,\n                \"caption\":
+      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
+      {\n                \"displayName\": \"Yahoo Finance\",\n                \"sourceId\":
+      \"yahoofinance.com\"\n              },\n              \"previewUrl\": null,\n              \"providerContentUrl\":
+      \"\",\n              \"canonicalUrl\": {\n                \"url\": \"https://finance.yahoo.com/news/bitcoin-just-doesnt-cut-it-anymore-miners-pivot-to-ai-sends-stocks-soaring-150018229.html\"\n              },\n              \"clickThroughUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/news/bitcoin-just-doesnt-cut-it-anymore-miners-pivot-to-ai-sends-stocks-soaring-150018229.html\"\n              }\n            }\n          }\n        ]\n      }\n    }\n  },\n  {\n    \"id\":
+      \"98b01261-7ecc-361f-b6ca-b6d1bf6d137b\",\n    \"content\": {\n      \"id\":
+      \"98b01261-7ecc-361f-b6ca-b6d1bf6d137b\",\n      \"contentType\": \"STORY\",\n      \"title\":
+      \"US Equity Indexes Touch Record Highs in Anticipation of China Trade Deal\",\n      \"description\":
+      \"\",\n      \"summary\": \"US equity indexes rose in midday trading, breaking
+      records, amid expectations of a trade deal with C\",\n      \"pubDate\": \"2025-10-27T16:31:07Z\",\n      \"displayTime\":
+      \"2025-10-27T16:31:07Z\",\n      \"isHosted\": true,\n      \"bypassModal\":
+      false,\n      \"previewUrl\": null,\n      \"thumbnail\": null,\n      \"provider\":
+      {\n        \"displayName\": \"MT Newswires\",\n        \"url\": \"https://www.mtnewswires.com/\"\n      },\n      \"canonicalUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
+      {\n        \"editorsPick\": false\n      },\n      \"finance\": {\n        \"premiumFinance\":
+      {\n          \"isPremiumNews\": true,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
+      null\n    }\n  },\n  {\n    \"id\": \"e0aba664-f989-3fab-8463-a9de0ce61e65\",\n    \"content\":
+      {\n      \"id\": \"e0aba664-f989-3fab-8463-a9de0ce61e65\",\n      \"contentType\":
+      \"STORY\",\n      \"title\": \"The ''Debasement Trade'' Just Hit A Wall\\u2014And
+      The Bond Market Knows Something Gold Bugs Don''t\",\n      \"description\":
+      \"\",\n      \"summary\": \"The narrative sounded perfect: gold soaring past
+      records, Bitcoin rallying, stocks climbing relentlessly\\u2014all signs that
+      investors were fleeing the dollar in a panic over U.S. currency debasement.
+      But if you check what\\u2019s actually happening in the bond ...\",\n      \"pubDate\":
+      \"2025-10-27T16:31:03Z\",\n      \"displayTime\": \"2025-10-27T16:31:03Z\",\n      \"isHosted\":
+      true,\n      \"bypassModal\": false,\n      \"previewUrl\": null,\n      \"thumbnail\":
+      {\n        \"originalUrl\": \"https://media.zenfs.com/en/benzinga_79/3112d09d344f767b665887ca547cdd1b\",\n        \"originalWidth\":
+      677,\n        \"originalHeight\": 451,\n        \"caption\": \"\",\n        \"resolutions\":
+      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/On.9nT9cb3geH0tDkNJmwg--~B/aD00NTE7dz02Nzc7YXBwaWQ9eXRhY2h5b24-/https://media.zenfs.com/en/benzinga_79/3112d09d344f767b665887ca547cdd1b\",\n            \"width\":
+      677,\n            \"height\": 451,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
+      \"https://s.yimg.com/uu/api/res/1.2/ec288vcI2mbQQSeNYw917g--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://media.zenfs.com/en/benzinga_79/3112d09d344f767b665887ca547cdd1b\",\n            \"width\":
+      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
+      {\n        \"displayName\": \"Benzinga\",\n        \"url\": \"https://www.benzinga.com/\"\n      },\n      \"canonicalUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
+      {\n        \"editorsPick\": false\n      },\n      \"finance\": {\n        \"premiumFinance\":
+      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
+      null\n    }\n  },\n  {\n    \"id\": \"8c0f2a09-f3a2-3a4b-aafd-c139836fa0b7\",\n    \"content\":
+      {\n      \"id\": \"8c0f2a09-f3a2-3a4b-aafd-c139836fa0b7\",\n      \"contentType\":
+      \"STORY\",\n      \"title\": \"Stock Market Today: Dow Up On U.S.-China Trade
+      Hopes; These Stocks Clear Entries (Live Coverage)\",\n      \"description\":
+      \"\",\n      \"summary\": \"The Dow Jones index popped on U.S.-China trade optimism.
+      Nvidia stock and Tesla rallied. Rare earth stocks fell on the stock market today.\",\n      \"pubDate\":
+      \"2025-10-27T16:21:22Z\",\n      \"displayTime\": \"2025-10-27T16:21:22Z\",\n      \"isHosted\":
+      false,\n      \"bypassModal\": false,\n      \"previewUrl\": \"https://finance.yahoo.com/m/8c0f2a09-f3a2-3a4b-aafd-c139836fa0b7/stock-market-today-dow-up-on.html\",\n      \"thumbnail\":
+      {\n        \"originalUrl\": \"https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d\",\n        \"originalWidth\":
+      1000,\n        \"originalHeight\": 563,\n        \"caption\": \"\",\n        \"resolutions\":
+      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/kLH0WqvtacfrdK6JDvvATA--~B/aD01NjM7dz0xMDAwO2FwcGlkPXl0YWNoeW9u/https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d\",\n            \"width\":
+      1000,\n            \"height\": 563,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
+      \"https://s.yimg.com/uu/api/res/1.2/.1S9aR6n3KxuBD3jyvuEew--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d\",\n            \"width\":
+      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
+      {\n        \"displayName\": \"Investor''s Business Daily\",\n        \"url\":
+      \"http://www.investors.com/\"\n      },\n      \"canonicalUrl\": {\n        \"url\":
+      \"https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      null,\n      \"metadata\": {\n        \"editorsPick\": false\n      },\n      \"finance\":
+      {\n        \"premiumFinance\": {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\":
+      false\n        }\n      },\n      \"storyline\": null\n    }\n  }\n]","tool_call_id":"call_RWVrsookQ9NlSkEclIq9YeNu"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
+      this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
+      this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_stock_fundamentals","description":"Use
+      this function to get fundamental data for a given stock symbol yfinance API.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_income_statements","description":"Use
+      this function to get income statements for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_key_financial_ratios","description":"Use
+      this function to get key financial ratios for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_analyst_recommendations","description":"Use
+      this function to get analyst recommendations for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_news","description":"Use
+      this function to get company news and press releases for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"num_stories":{"type":"number","description":"(int) The
+      number of news stories to return. Defaults to 3."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_technical_indicators","description":"Use
+      this function to get technical indicators for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The time
+      period for which to retrieve technical indicators.\nValid periods: 1d, 5d, 1mo,
+      3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Defaults to 3mo."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_historical_stock_prices","description":"Use
+      this function to get the historical stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The period
+      for which to retrieve historical prices. Defaults to \"1mo\".\nValid periods:
+      1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max"},"interval":{"type":"string","description":"(str)
+      The interval between data points. Defaults to \"1d\".\nValid intervals: 1d,5d,1wk,1mo,3mo"}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '23213'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CVKXd3BPci4LfkyXpQjmco1VKRQKG\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1761583165,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"### Analyst Recommendations\
+        \ for NVIDIA (NVDA)\\n\\nHere is the summary of analyst recommendations over\
+        \ the last few months:\\n\\n| Recommendation     | Current Month | Last Month\
+        \ | 2 Months Ago | 3 Months Ago |\\n|--------------------|---------------|------------|--------------|--------------|\\\
+        n| Strong Buy         | 10            | 11         | 11           | 11   \
+        \        |\\n| Buy                | 49            | 48         | 47      \
+        \     | 48           |\\n| Hold               | 4             | 4        \
+        \  | 6            | 6            |\\n| Sell               | 1            \
+        \ | 1          | 1            | 1            |\\n| Strong Sell        | 0\
+        \             | 0          | 0            | 0            |\\n\\n### Recent\
+        \ Market Outlook and News for NVIDIA\\n\\nHere are some recent news articles\
+        \ that might reflect the current market outlook:\\n\\n1. **[Stock market today:\
+        \ Dow, S&P 500, Nasdaq head toward records as Trump stokes hopes US-China\
+        \ trade deal is near](https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html)**\
+        \ \\n   - Published on: **October 26, 2025**\\n   - Summary: Wall Street is\
+        \ in an upbeat mood as it gears up for a pivotal week featuring the Federal\
+        \ Reserve’s expected interest rate cut and a barrage of Big Tech earnings,\
+        \ as well as Trump's visit to Asia.\\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2)\\\
+        n\\n2. **[Qualcomm stock spikes more than 20% as company enters AI chip race,\
+        \ taking on Nvidia, AMD](https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html)**\\\
+        n   - Published on: **October 26, 2025**\\n   - Summary: Qualcomm has seen\
+        \ a significant rise in stock value as it enters the competitive AI chip market,\
+        \ directly competing with NVIDIA and AMD.\\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/268b72e0-b0f3-11f0-bfcf-816f87be6591)\\\
+        n\\n3. **[US Equity Indexes Touch Record Highs in Anticipation of China Trade\
+        \ Deal](https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html)**\\\
+        n   - Published on: **October 27, 2025**\\n   - Summary: US equity indexes\
+        \ rose in midday trading, breaking records, amid expectations of a trade deal\
+        \ with China.\\n   \\n4. **[The 'Debasement Trade' Just Hit A Wall—And The\
+        \ Bond Market Knows Something Gold Bugs Don't](https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html)**\\\
+        n   - Published on: **October 27, 2025**\\n   - Summary: Investors are reassessing\
+        \ the conditions in gold and Bitcoin as the bond market signals shifts in\
+        \ the economy.\\n\\n5. **[Stock Market Today: Dow Up On U.S.-China Trade Hopes;\
+        \ These Stocks Clear Entries (Live Coverage)](https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo)**\\\
+        n   - Published on: **October 27, 2025**\\n   - Summary: The Dow Jones index\
+        \ rose on U.S.-China trade optimism, leading to a rally in stocks like NVIDIA\
+        \ and Tesla.\\n   - ![News Thumbnail](https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d)\\\
+        n\\nThis information suggests a strong optimistic sentiment among analysts\
+        \ regarding NVIDIA, alongside notable market developments that could impact\
+        \ its stock performance.\",\n        \"refusal\": null,\n        \"annotations\"\
+        : []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\
+        \n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 5382,\n    \"completion_tokens\"\
+        : 877,\n    \"total_tokens\": 6259,\n    \"prompt_tokens_details\": {\n  \
+        \    \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
+        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
+        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
+        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
+        \ \"fp_560af6e559\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9953a11b89c7ac91-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:39:46 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=nOmVF._yxLPz.1mK2.jeQKupqiViDGSmCuFLnwU2KQA-1761583186-1.0.1.1-4YDkoW2N3IfZzF4VQJ7dycX4xNsrN7QMSuzAoEO73cVBBfw4Ab9S6uMIt1NfOGh9Z4GdtaarVKNum4mKXiY1ZmoyGPkRzg3G2HFNaI501ik;
+        path=/; expires=Mon, 27-Oct-25 17:09:46 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=T7arOyhUCKnzLuUfTH01zC5FLljGH8yT_JfbaZtG28U-1761583186842-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '21758'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '21772'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9998'
+      x-ratelimit-remaining-tokens:
+      - '195632'
+      x-ratelimit-reset-requests:
+      - 16.118s
+      x-ratelimit-reset-tokens:
+      - 1.31s
+      x-request-id:
+      - req_80a23055f42c490f823011e02c940a24
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"session_id":"test_session","run_id":"9533f95c-68b7-4530-8e5a-2ef3954ed0c7","data":{"agent_id":"finance-agent","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"has_tools":true,"has_memory":false,"has_culture":false,"has_reasoning":false,"has_knowledge":false,"has_input_schema":false,"has_output_schema":false,"has_team":true},"sdk_version":"2.2.1","type":"agent"}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '449'
+      content-type:
+      - application/json
+      host:
+      - os-api.agno.com
+      user-agent:
+      - agno/2.2.1
+    method: POST
+    uri: https://os-api.agno.com/telemetry/runs
+  response:
+    body:
+      string: '{"message":"Run creation acknowledged: 9533f95c-68b7-4530-8e5a-2ef3954ed0c7","status":"success"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '96'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:39:48 GMT
+      server:
+      - uvicorn
+    status:
+      code: 201
+      message: Created
+- request:
+    body: '{"messages":[{"role":"developer","content":"You are the leader of a team
+      and sub-teams of AI Agents.\nYour task is to coordinate the team to complete
+      the user''s request.\n\nHere are the members in your team:\n<team_members>\n
+      - Agent 1:\n   - ID: web-agent\n   - Name: Web Agent\n   - Role: Search the
+      web for information\n   - Member tools:\n    - duckduckgo_search\n    - duckduckgo_news\n
+      - Agent 2:\n   - ID: finance-agent\n   - Name: Finance Agent\n   - Role: Get
+      financial data\n   - Member tools:\n    - get_current_stock_price\n    - get_company_info\n    -
+      get_stock_fundamentals\n    - get_income_statements\n    - get_key_financial_ratios\n    -
+      get_analyst_recommendations\n    - get_company_news\n    - get_technical_indicators\n    -
+      get_historical_stock_prices\n</team_members>\n\n<how_to_respond>\n- Your role
+      is to delegate tasks to members in your team with the highest likelihood of
+      completing the user''s request.\n- Carefully analyze the tools available to
+      the members and their roles before delegating tasks.\n- You cannot use a member
+      tool directly. You can only delegate tasks to members.\n- When you delegate
+      a task to another member, make sure to include:\n  - member_id (str): The ID
+      of the member to delegate the task to. Use only the ID of the member, not the
+      ID of the team followed by the ID of the member.\n  - task (str): A clear description
+      of the task. Determine the best way to describe the task to the member.\n- You
+      can delegate tasks to multiple members at once.\n- You must always analyze the
+      responses from members before responding to the user.\n- After analyzing the
+      responses from the members, if you feel the task has been completed, you can
+      stop and respond to the user.\n- If you are NOT satisfied with the responses
+      from the members, you should re-assign the task to a different member.\n- For
+      simple greetings, thanks, or questions about the team itself, you should respond
+      directly.\n- For all work requests, tasks, or questions requiring expertise,
+      route to appropriate team members.\n</how_to_respond>\n\n<instructions>\n- Always
+      include sources\n- Use tables to display data\n</instructions>"},{"role":"user","content":"What''s
+      the market outlook and financial performance of NVIDIA?"},{"role":"assistant","tool_calls":[{"id":"call_gkmMloRMKIk0W0w1MtZdTGdd","function":{"arguments":"{\"member_id\":
+      \"finance-agent\", \"task\": \"Get financial performance data for NVIDIA, including
+      income statements and key financial ratios.\"}","name":"delegate_task_to_member"},"type":"function"},{"id":"call_aMqmhJodbC4PRS0JXbxvaw1j","function":{"arguments":"{\"member_id\":
+      \"finance-agent\", \"task\": \"Get analyst recommendations and market outlook
+      for NVIDIA.\"}","name":"delegate_task_to_member"},"type":"function"}],"content":""},{"role":"tool","content":"###
+      NVIDIA Income Statement Data\n\n| Year                  | 2023                      |
+      2022                      | 2021                     | 2020                     |\n|-----------------------|---------------------------|---------------------------|--------------------------|--------------------------|\n|
+      Total Revenue         | $130.50 billion           | $60.92 billion            |
+      $26.97 billion           | $26.91 billion           |\n| Cost of Revenue       |
+      $32.64 billion            | $16.62 billion            | $11.62 billion           |
+      $9.44 billion            |\n| Gross Profit          | $97.86 billion            |
+      $44.30 billion            | $15.36 billion           | $17.48 billion           |\n|
+      Operating Income       | $81.45 billion            | $32.97 billion            |
+      $5.58 billion            | $10.04 billion           |\n| Net Income            |
+      $72.88 billion            | $29.76 billion            | $4.36 billion            |
+      $9.75 billion            |\n| Diluted EPS           | $2.94                     |
+      $1.19                     | $0.17                    | $0.39                    |\n\n###
+      NVIDIA Key Financial Ratios\n\n| Ratio                              | Value          |\n|-------------------------------------|----------------|\n|
+      Price to Earnings (Trailing PE)    | 54.53          |\n| Price to Earnings (Forward
+      PE)     | 46.32          |\n| Price to Book                       | 46.40          |\n|
+      Profit Margin                       | 52.41%         |\n| Gross Margin                        |
+      69.85%         |\n| Operating Margin                    | 60.84%         |\n|
+      EBITDA Margin                       | 59.49%         |\n| Return on Assets (ROA)             |
+      53.09%         |\n| Return on Equity (ROE)             | 109.41%        |\n|
+      Debt to Equity                      | 10.58          |\n| Current Ratio                       |
+      4.21           |\n| Quick Ratio                         | 3.49           |\n|
+      Free Cash Flow                      | $52.44 billion  |\n\n### Summary\nNVIDIA
+      has shown significant growth in revenue and net income over the past few years,
+      reflecting its strong position in the semiconductor market. The key financial
+      ratios suggest robust profitability and efficient use of equity.","tool_call_id":"call_gkmMloRMKIk0W0w1MtZdTGdd"},{"role":"tool","content":"###
+      Analyst Recommendations for NVIDIA (NVDA)\n\nHere is the summary of analyst
+      recommendations over the last few months:\n\n| Recommendation     | Current
+      Month | Last Month | 2 Months Ago | 3 Months Ago |\n|--------------------|---------------|------------|--------------|--------------|\n|
+      Strong Buy         | 10            | 11         | 11           | 11           |\n|
+      Buy                | 49            | 48         | 47           | 48           |\n|
+      Hold               | 4             | 4          | 6            | 6            |\n|
+      Sell               | 1             | 1          | 1            | 1            |\n|
+      Strong Sell        | 0             | 0          | 0            | 0            |\n\n###
+      Recent Market Outlook and News for NVIDIA\n\nHere are some recent news articles
+      that might reflect the current market outlook:\n\n1. **[Stock market today:
+      Dow, S&P 500, Nasdaq head toward records as Trump stokes hopes US-China trade
+      deal is near](https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html)**
+      \n   - Published on: **October 26, 2025**\n   - Summary: Wall Street is in an
+      upbeat mood as it gears up for a pivotal week featuring the Federal Reserve’s
+      expected interest rate cut and a barrage of Big Tech earnings, as well as Trump''s
+      visit to Asia.\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2)\n\n2.
+      **[Qualcomm stock spikes more than 20% as company enters AI chip race, taking
+      on Nvidia, AMD](https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html)**\n   -
+      Published on: **October 26, 2025**\n   - Summary: Qualcomm has seen a significant
+      rise in stock value as it enters the competitive AI chip market, directly competing
+      with NVIDIA and AMD.\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/268b72e0-b0f3-11f0-bfcf-816f87be6591)\n\n3.
+      **[US Equity Indexes Touch Record Highs in Anticipation of China Trade Deal](https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html)**\n   -
+      Published on: **October 27, 2025**\n   - Summary: US equity indexes rose in
+      midday trading, breaking records, amid expectations of a trade deal with China.\n   \n4.
+      **[The ''Debasement Trade'' Just Hit A Wall—And The Bond Market Knows Something
+      Gold Bugs Don''t](https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html)**\n   -
+      Published on: **October 27, 2025**\n   - Summary: Investors are reassessing
+      the conditions in gold and Bitcoin as the bond market signals shifts in the
+      economy.\n\n5. **[Stock Market Today: Dow Up On U.S.-China Trade Hopes; These
+      Stocks Clear Entries (Live Coverage)](https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo)**\n   -
+      Published on: **October 27, 2025**\n   - Summary: The Dow Jones index rose on
+      U.S.-China trade optimism, leading to a rally in stocks like NVIDIA and Tesla.\n   -
+      ![News Thumbnail](https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d)\n\nThis
+      information suggests a strong optimistic sentiment among analysts regarding
+      NVIDIA, alongside notable market developments that could impact its stock performance.","tool_call_id":"call_aMqmhJodbC4PRS0JXbxvaw1j"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"delegate_task_to_member","description":"Use
+      this function to delegate a task to the selected team member.\nYou must provide
+      a clear and concise description of the task the member should achieve AND the
+      expected output.","parameters":{"type":"object","properties":{"member_id":{"type":"string","description":"(str)
+      The ID of the member to delegate the task to. Use only the ID of the member,
+      not the ID of the team followed by the ID of the member."},"task":{"type":"string","description":"(str)
+      A clear and concise description of the task the member should achieve."}},"required":["member_id","task"],"additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '9306'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CVKY0M6globzUlK6tznOIYmA8Kr8c\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1761583188,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"Here is the financial\
+        \ performance data and market outlook for NVIDIA:\\n\\n### NVIDIA Income Statement\
+        \ Data\\n| Year          | 2023           | 2022          | 2021         \
+        \ | 2020          |\\n|---------------|----------------|---------------|---------------|---------------|\\\
+        n| Total Revenue | $130.50 billion | $60.92 billion | $26.97 billion | $26.91\
+        \ billion |\\n| Cost of Revenue | $32.64 billion | $16.62 billion | $11.62\
+        \ billion | $9.44 billion  |\\n| Gross Profit  | $97.86 billion  | $44.30\
+        \ billion | $15.36 billion | $17.48 billion |\\n| Operating Income | $81.45\
+        \ billion | $32.97 billion | $5.58 billion  | $10.04 billion |\\n| Net Income\
+        \    | $72.88 billion  | $29.76 billion | $4.36 billion  | $9.75 billion \
+        \ |\\n| Diluted EPS   | $2.94           | $1.19         | $0.17         |\
+        \ $0.39         |\\n\\n### NVIDIA Key Financial Ratios\\n| Ratio         \
+        \                     | Value          |\\n|------------------------------------|----------------|\\\
+        n| Price to Earnings (Trailing PE)    | 54.53          |\\n| Price to Earnings\
+        \ (Forward PE)     | 46.32          |\\n| Price to Book                  \
+        \     | 46.40          |\\n| Profit Margin                       | 52.41%\
+        \         |\\n| Gross Margin                        | 69.85%         |\\n|\
+        \ Operating Margin                    | 60.84%         |\\n| EBITDA Margin\
+        \                       | 59.49%         |\\n| Return on Assets (ROA)    \
+        \         | 53.09%         |\\n| Return on Equity (ROE)             | 109.41%\
+        \        |\\n| Debt to Equity                      | 10.58          |\\n|\
+        \ Current Ratio                       | 4.21           |\\n| Quick Ratio \
+        \                        | 3.49           |\\n| Free Cash Flow           \
+        \           | $52.44 billion  |\\n\\n### Summary\\nNVIDIA has shown significant\
+        \ growth in revenue and net income over the past few years, reflecting its\
+        \ strong position in the semiconductor market. The key financial ratios suggest\
+        \ robust profitability and efficient use of equity.\\n\\n### Analyst Recommendations\
+        \ for NVIDIA (NVDA)\\n| Recommendation     | Current Month | Last Month |\
+        \ 2 Months Ago | 3 Months Ago |\\n|--------------------|---------------|------------|--------------|--------------|\\\
+        n| Strong Buy         | 10            | 11         | 11           | 11   \
+        \        |\\n| Buy                | 49            | 48         | 47      \
+        \     | 48           |\\n| Hold               | 4             | 4        \
+        \  | 6            | 6            |\\n| Sell               | 1            \
+        \ | 1          | 1            | 1            |\\n| Strong Sell        | 0\
+        \             | 0          | 0            | 0            |\\n\\n### Recent\
+        \ Market Outlook and News for NVIDIA\\n1. **[Stock market today: Dow, S&P\
+        \ 500, Nasdaq head toward records as Trump stokes hopes US-China trade deal\
+        \ is near](https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html)**\
+        \ \\n   - Published on: **October 26, 2025**  \\n   - Summary: Wall Street\
+        \ is in an upbeat mood as it gears up for a pivotal week featuring the Federal\
+        \ Reserve’s expected interest rate cut and a barrage of Big Tech earnings,\
+        \ as well as Trump's visit to Asia.\\n\\n2. **[Qualcomm stock spikes more\
+        \ than 20% as company enters AI chip race, taking on Nvidia, AMD](https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html)**\
+        \  \\n   - Published on: **October 26, 2025**  \\n   - Summary: Qualcomm has\
+        \ seen a significant rise in stock value as it enters the competitive AI chip\
+        \ market, directly competing with NVIDIA and AMD.\\n\\n3. **[US Equity Indexes\
+        \ Touch Record Highs in Anticipation of China Trade Deal](https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html)**\
+        \  \\n   - Published on: **October 27, 2025**  \\n   - Summary: US equity\
+        \ indexes rose in midday trading, breaking records, amid expectations of a\
+        \ trade deal with China.\\n\\n4. **[The 'Debasement Trade' Just Hit A Wall—And\
+        \ The Bond Market Knows Something Gold Bugs Don't](https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html)**\
+        \  \\n   - Published on: **October 27, 2025**  \\n   - Summary: Investors\
+        \ are reassessing the conditions in gold and Bitcoin as the bond market signals\
+        \ shifts in the economy.\\n\\n5. **[Stock Market Today: Dow Up On U.S.-China\
+        \ Trade Hopes; These Stocks Clear Entries (Live Coverage)](https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo)**\
+        \  \\n   - Published on: **October 27, 2025**  \\n   - Summary: The Dow Jones\
+        \ index rose on U.S.-China trade optimism, leading to a rally in stocks like\
+        \ NVIDIA and Tesla.\\n\\nThis information indicates a strong optimistic sentiment\
+        \ among analysts regarding NVIDIA, alongside notable market developments that\
+        \ could impact its stock performance.\",\n        \"refusal\": null,\n   \
+        \     \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\"\
+        : \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 2140,\n  \
+        \  \"completion_tokens\": 1180,\n    \"total_tokens\": 3320,\n    \"prompt_tokens_details\"\
+        : {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"\
+        completion_tokens_details\": {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\"\
+        : 0,\n      \"accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\"\
+        : 0\n    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\"\
+        : \"fp_560af6e559\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9953a1b0cd47162a-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:40:17 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=MDS68iYHJ_V7IXaq3JdWyvF_M5kefTGUWtBt9vFGlAU-1761583217-1.0.1.1-komAdoAKDa7z2xZOGoEIVz4HLWLNfc5kC8oky4TK7vWxX0jsne7kzc2uSbKQN3jGgximKWSFziK9916kDVBUGXR_wQ8OPbgidYbX4Xun7_I;
+        path=/; expires=Mon, 27-Oct-25 17:10:17 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=ITIZRLbn3nViRp_ZFtxpCvY3pmYdhexb3lz6AgWyEoQ-1761583217535-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '28536'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '28566'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '198064'
+      x-ratelimit-reset-requests:
+      - 8.64s
+      x-ratelimit-reset-tokens:
+      - 580ms
+      x-request-id:
+      - req_82df88d3c32e45e787eb4872875fb919
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"session_id":"test_session","run_id":"576bdbd1-a330-4ec3-ae78-0d12b49de0aa","data":{"team_id":"team","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"member_count":2,"has_knowledge":false,"has_tools":false},"sdk_version":"2.2.1","type":"team"}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '328'
+      content-type:
+      - application/json
+      host:
+      - os-api.agno.com
+      user-agent:
+      - agno/2.2.1
+    method: POST
+    uri: https://os-api.agno.com/telemetry/runs
+  response:
+    body:
+      string: '{"message":"Run creation acknowledged: 576bdbd1-a330-4ec3-ae78-0d12b49de0aa","status":"success"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '96'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:40:18 GMT
+      server:
+      - uvicorn
+    status:
+      code: 201
+      message: Created
+version: 1

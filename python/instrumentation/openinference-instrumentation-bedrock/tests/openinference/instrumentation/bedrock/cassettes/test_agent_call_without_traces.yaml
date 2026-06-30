@@ -1,0 +1,18 @@
+interactions:
+- request:
+    body: '{"inputText": "What is task decomposition?", "enableTrace": false}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-agent-runtime.us-east-1.amazonaws.com/agents/XNW1LGJJZT/agentAliases/K0P4LV9GPO/sessions/default_session_id/text
+  response:
+    body:
+      string: !!binary |
+        AAAArwAAAEt2W082CzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0
+        aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6IlUyOXljbmtzSUVrZ1pHOXVK
+        M1FnYUdGMlpTQmxibTkxWjJnZ2FXNW1iM0p0WVhScGIyNGdkRzhnWVc1emQyVnlJSFJvWVhRdSJ9
+        K9qtkQ==
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

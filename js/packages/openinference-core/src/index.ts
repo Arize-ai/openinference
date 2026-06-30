@@ -1,3 +1,4 @@
 export * from "./trace";
 export * from "./utils";
-export type * from "./utils/types";
+export * from "./utils/types";
+export * from "./helpers";

@@ -1,0 +1,17 @@
+# Core dependencies
+openai>=1.0.0
+grpcio>=1.60.0
+
+# OpenTelemetry and Observability
+opentelemetry-sdk>=1.22.0
+opentelemetry-instrumentation-openai>=0.40b0
+opentelemetry-instrumentation-langchain>=0.40b0
+opentelemetry-exporter-otlp-proto-grpc>=1.22.0
+
+# provider dependencies
+langchain>=0.1.0
+langgraph>=0.0.15
+typing-extensions>=4.8.0
+openai>=1.0.0
+
+arize-phoenix>=10.14.0

@@ -34,10 +34,13 @@ def test_image_in_message(
     assert attributes.pop(SpanAttributes.INPUT_VALUE, None)
     assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE, None)
     assert attributes.pop(SpanAttributes.OUTPUT_VALUE, None)
-    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None)
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None) == "gpt-4o"
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS, None)
     if LANGCHAIN_VERSION >= (0, 2):
         assert attributes.pop(SpanAttributes.METADATA, None)
+    # Also pop any LLM provider and system attributes that might have been added
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER, None) == "openai"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM, None) == "openai"
     assert attributes == {
         "llm.input_messages.0.message.role": "user",
         "llm.input_messages.0.message.contents.0.message_content.type": "text",

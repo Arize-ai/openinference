@@ -1,5 +1,172 @@
 # Changelog
 
+## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.41...python-openinference-instrumentation-bedrock-v0.1.42) (2026-06-24)
+
+
+### Bug Fixes
+
+* **bedrock:** make aioresponses test mock compatible with aiohttp 3.14 ([#3277](https://github.com/Arize-ai/openinference/issues/3277)) ([e057959](https://github.com/Arize-ai/openinference/commit/e057959edec296e6c20b2283f26bc11348034876))
+
+## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.40...python-openinference-instrumentation-bedrock-v0.1.41) (2026-06-03)
+
+
+### Features
+
+* **bedrock:** add Amazon Nova model support for invoke_model ([#3039](https://github.com/Arize-ai/openinference/issues/3039)) ([4f5e1f4](https://github.com/Arize-ai/openinference/commit/4f5e1f45dd399d6b295f16bdcbf00a762b953384))
+
+## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.39...python-openinference-instrumentation-bedrock-v0.1.40) (2026-05-22)
+
+
+### Bug Fixes
+
+* **bedrock:** set clean text from routing classifier output and set action group tool description ([#3125](https://github.com/Arize-ai/openinference/issues/3125)) ([0fd6f6c](https://github.com/Arize-ai/openinference/commit/0fd6f6c57fa26f055ab96fb3120a90b99a5b6ff3))
+
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.38...python-openinference-instrumentation-bedrock-v0.1.39) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.37...python-openinference-instrumentation-bedrock-v0.1.38) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.36...python-openinference-instrumentation-bedrock-v0.1.37) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.35...python-openinference-instrumentation-bedrock-v0.1.36) (2026-04-30)
+
+
+### Bug Fixes
+
+* **bedrock:** capture toolUse output attributes in converse ([#3022](https://github.com/Arize-ai/openinference/issues/3022)) ([282a67b](https://github.com/Arize-ai/openinference/commit/282a67befc578b4ca083145b6bf9b5517335da24))
+
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.34...python-openinference-instrumentation-bedrock-v0.1.35) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.33...python-openinference-instrumentation-bedrock-v0.1.34) (2026-04-10)
+
+
+### Features
+
+* **bedrock:** bedrock-runtime apply_guardrail instrumentation ([#2949](https://github.com/Arize-ai/openinference/issues/2949)) ([ae6f78e](https://github.com/Arize-ai/openinference/commit/ae6f78e1dac8619e4c4e1c0b40a7e6307cd9e516))
+
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.32...python-openinference-instrumentation-bedrock-v0.1.33) (2026-02-24)
+
+
+### Features
+
+* bedrock instrumentation support for aioboto3 ([#2709](https://github.com/Arize-ai/openinference/issues/2709)) ([924bc02](https://github.com/Arize-ai/openinference/commit/924bc0273f78cef81a10d843105d9cb68aaad40b))
+
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.31...python-openinference-instrumentation-bedrock-v0.1.32) (2025-12-08)
+
+
+### Features
+
+* **bedrock:** Add Routing Classifier Trace event ([#2495](https://github.com/Arize-ai/openinference/issues/2495)) ([e878e1c](https://github.com/Arize-ai/openinference/commit/e878e1cdb7bf82601caf90ae8e7b66fbff23e02e))
+
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.30...python-openinference-instrumentation-bedrock-v0.1.31) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.29...python-openinference-instrumentation-bedrock-v0.1.30) (2025-10-03)
+
+
+### Features
+
+* **bedrock-agents:** Added Support for bedrock invoke inline agent ([#2256](https://github.com/Arize-ai/openinference/issues/2256)) ([2d4e27e](https://github.com/Arize-ai/openinference/commit/2d4e27eb29496154ef26754de36eb10a4312f4e5))
+
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.28...python-openinference-instrumentation-bedrock-v0.1.29) (2025-10-02)
+
+
+### Features
+
+* **bedrock:** Bedrock converse streaming support added ([#2172](https://github.com/Arize-ai/openinference/issues/2172)) ([5b9ba8f](https://github.com/Arize-ai/openinference/commit/5b9ba8f8739170cf1aa4e6ae359449382bcd9416))
+
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.27...python-openinference-instrumentation-bedrock-v0.1.28) (2025-10-01)
+
+
+### Bug Fixes
+
+* **bedrock:** fix test compatibility with boto3-latest ([#2243](https://github.com/Arize-ai/openinference/issues/2243)) ([7cf5760](https://github.com/Arize-ai/openinference/commit/7cf576059859e370a3f83b60d0e2c9ff6d6971b7))
+
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.26...python-openinference-instrumentation-bedrock-v0.1.27) (2025-08-22)
+
+
+### Features
+
+* **bedrock:** Add instrumentation for guardrailTrace ([#2058](https://github.com/Arize-ai/openinference/issues/2058)) ([8ea1eef](https://github.com/Arize-ai/openinference/commit/8ea1eef5db0a334c5ca66c77f7217246156d7ef0))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.25...python-openinference-instrumentation-bedrock-v0.1.26) (2025-06-19)
+
+
+### Features
+
+* **bedrock:** added support for retrieve, retrieve and generate ([#1786](https://github.com/Arize-ai/openinference/issues/1786)) ([2652fa7](https://github.com/Arize-ai/openinference/commit/2652fa7372a02980b55425591f16b61626db297c))
+
+
+### Bug Fixes
+
+* **bedrock:** fixing invoke model api calls ([#1760](https://github.com/Arize-ai/openinference/issues/1760)) ([0ce91a5](https://github.com/Arize-ai/openinference/commit/0ce91a5da29c36160b16da7194c4c59dca24bed4))
+
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.24...python-openinference-instrumentation-bedrock-v0.1.25) (2025-06-13)
+
+
+### Bug Fixes
+
+* **bedrock:** Included apipath into metadata ([#1775](https://github.com/Arize-ai/openinference/issues/1775)) ([081d630](https://github.com/Arize-ai/openinference/commit/081d630d2147134574cf2dd47630592d58e5f00d))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.23...python-openinference-instrumentation-bedrock-v0.1.24) (2025-06-03)
+
+
+### Bug Fixes
+
+* Added exception to span when invoke_agent throws an exception  ([#1742](https://github.com/Arize-ai/openinference/issues/1742)) ([1027d18](https://github.com/Arize-ai/openinference/commit/1027d185ed233edacf8cfc76993c761a3b6a8afe))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.22...python-openinference-instrumentation-bedrock-v0.1.23) (2025-05-22)
+
+
+### Features
+
+* **bedrock:** Multi Agent Support, capturing time metrics from metadata ([#1656](https://github.com/Arize-ai/openinference/issues/1656)) ([ed367a2](https://github.com/Arize-ai/openinference/commit/ed367a2707dd00d1e2fd9b7249deecd08ddd466f))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.21...python-openinference-instrumentation-bedrock-v0.1.22) (2025-05-11)
+
+
+### Bug Fixes
+
+* ruff formating fix & bump ruff version in dev requirements ([#1600](https://github.com/Arize-ai/openinference/issues/1600)) ([076bb79](https://github.com/Arize-ai/openinference/commit/076bb7966d44fccdb2ab94e6f379ef4ae22c39b1))
+
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.20...python-openinference-instrumentation-bedrock-v0.1.21) (2025-04-28)
+
+
+### Bug Fixes
+
+* update lower bound on openinference-semantic-conventions ([#1567](https://github.com/Arize-ai/openinference/issues/1567)) ([c2f428c](https://github.com/Arize-ai/openinference/commit/c2f428c5916c3dd62cf6670358f37111d4f7fd25))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.19...python-openinference-instrumentation-bedrock-v0.1.20) (2025-04-18)
+
+
+### Features
+
+* Add bedrock-agent instrumentation ([#1363](https://github.com/Arize-ai/openinference/issues/1363)) ([e174240](https://github.com/Arize-ai/openinference/commit/e174240a09db59c74b816efb3bc3176cc581d31e))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.18...python-openinference-instrumentation-bedrock-v0.1.19) (2025-04-11)
 
 

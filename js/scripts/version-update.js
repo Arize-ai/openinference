@@ -1,6 +1,6 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const appRoot = process.cwd();

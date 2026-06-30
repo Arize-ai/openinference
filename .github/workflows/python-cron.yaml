@@ -5,6 +5,20 @@ on:
     - cron: "0 18 * * 1-5"
   workflow_dispatch:
 
+# Serialize runs so an in-flight auto-fix can't race a second run (e.g. a
+# manual dispatch overlapping the schedule) into opening duplicate PRs.
+# Queue rather than cancel: don't kill an auto-fix that may be mid-push.
+concurrency:
+  group: python-canary-cron
+  cancel-in-progress: false
+
+# Least-privilege default; the auto-fix job opts into what it needs.
+permissions:
+  contents: read
+
+env:
+  UV_EXCLUDE_NEWER: "3 days"
+
 jobs:
   find-tox-testenv:
     name: Find tox testenv
@@ -12,12 +26,13 @@ jobs:
     outputs:
       list: ${{ steps.testenv.outputs.list }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@v5
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
-          version: 0.6.3
+          version: 0.11.2
           enable-cache: false
       - name: Extract testenv into JSON list
         run: >-
@@ -33,62 +48,402 @@ jobs:
     needs: find-tox-testenv
     if: ${{ needs.find-tox-testenv.outputs.list != '[]' }}
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         testenv: ${{ fromJSON(needs.find-tox-testenv.outputs.list) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@v5
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
-          version: 0.6.3
+          version: 0.11.2
           enable-cache: false
-      - run: uvx --with tox-uv tox r -e ${{ matrix.testenv }} -- -ra -x
+      - name: Run tox latest env
+        env:
+          TOX_ENV: ${{ matrix.testenv }}
+          CANARY_LOG: ${{ runner.temp }}/canary-logs/${{ matrix.testenv }}.log
+        run: |
+          mkdir -p "$(dirname "$CANARY_LOG")"
+          set -o pipefail
+          uvx --with tox-uv tox r -e "$TOX_ENV" -- -ra -x 2>&1 | tee "$CANARY_LOG"
         working-directory: python
-      - run: touch ${{ runner.temp }}/${{ matrix.testenv }}
-        if: failure()
-      - uses: actions/upload-artifact@v4
+        timeout-minutes: 15
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
           name: ${{ matrix.testenv }}
-          path: ${{ runner.temp }}/${{ matrix.testenv }}
+          path: ${{ runner.temp }}/canary-logs/${{ matrix.testenv }}.log
+          if-no-files-found: warn
           retention-days: 1
+
+  collect-failures:
+    name: Collect failures
+    needs: canary
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.failures.outputs.list }}
+      packages: ${{ steps.failures.outputs.packages }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: ${{ needs.canary.result == 'failure' }}
+      - name: List failures
+        id: failures
+        env:
+          CANARY_RESULT: ${{ needs.canary.result }}
+        run: |
+          if [ "$CANARY_RESULT" != "failure" ]; then
+            {
+              echo "list<<EOF"
+              echo "EOF"
+              echo "packages=[]"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mkdir -p .scratch
+          find . -maxdepth 1 -type d ! -name '.' ! -name '.scratch' | sed 's|^\./||' | sort > .scratch/failed-testenvs.txt
+
+          if [ ! -s .scratch/failed-testenvs.txt ]; then
+            {
+              echo "list<<EOF"
+              echo "EOF"
+              echo "packages=[]"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          packages=$(
+            sed -E 's/^py[0-9]+-ci-(.*)-latest$/\1/' .scratch/failed-testenvs.txt \
+              | sort -u \
+              | jq -R -s -c 'split("\n")[:-1]'
+          )
+
+          {
+            echo "list<<EOF"
+            nl -w2 -s'. ' .scratch/failed-testenvs.txt
+            echo "EOF"
+            echo "packages=$packages"
+          } >> "$GITHUB_OUTPUT"
 
   slack:
     name: Slack notification
-    needs: canary
+    needs: [canary, collect-failures]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
+    env:
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      - uses: actions/download-artifact@v4
-      - name: List failures as markdown
+      - name: Build message
+        env:
+          CANARY_RESULT: ${{ needs.canary.result }}
+          FAILURE_LIST: ${{ needs.collect-failures.outputs.list }}
         run: |
-          {
-            echo "list<<EOF"
-            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | rev | sort -u | rev | nl -w2 -s'. '
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-        id: failures
-      - name: Create message text
-        if: ${{ steps.failures.outputs.list != '' }}
-        run: |
+          if [ "$CANARY_RESULT" = "failure" ]; then
+            MSG="Python canary cron failed:
+          $FAILURE_LIST
+          $RUN_URL"
+          else
+            MSG="Python canary cron passed: $RUN_URL"
+          fi
           {
             echo "text<<EOF"
-            echo "CI Failures for Python Packages:"
-            echo "${{ steps.failures.outputs.list }}"
+            echo "$MSG"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
         id: message
       - name: Send message to Slack
-        if: ${{ steps.failures.outputs.list != '' }}
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
             {
-              "type": "mrkdwn",
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
+
+  auto-fix:
+    name: Propose fix for ${{ matrix.package }}
+    needs: [canary, collect-failures]
+    if: ${{ always() && needs.canary.result == 'failure' && needs.collect-failures.result == 'success' && needs.collect-failures.outputs.packages != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      # Cap concurrent Claude runs so a broad upstream break (many failing
+      # packages) can't fan out into dozens of simultaneous paid agent jobs.
+      max-parallel: 3
+      matrix:
+        package: ${{ fromJSON(needs.collect-failures.outputs.packages) }}
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # Dedup preflight: skip the expensive Claude run when an auto-fix PR for
+      # this package is already open. This is what breaks the daily retry loop.
+      # Open-only by design — a merged PR must NOT suppress a fresh attempt on a
+      # new break. Match on the head branch (deterministic, workflow-produced);
+      # the trailing '-' avoids matching e.g. claude/canary-openai_agents-* when
+      # PACKAGE is "openai". Note: a human closing (not merging) an auto-fix PR
+      # will not durably suppress regeneration; that needs a separate sticky
+      # signal (e.g. a label) which is not implemented here.
+      - name: Check for existing auto-fix PR
+        id: preflight
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          existing=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --limit 200 \
+            --json url,headRefName \
+            --jq "[.[] | select(.headRefName | startswith(\"claude/canary-${PACKAGE}-\"))][0].url // empty")
+          if [ -n "$existing" ]; then
+            echo "An open auto-fix PR already exists for ${PACKAGE}: ${existing}"
+            {
+              echo "skip=true"
+              echo "existing_pr=$existing"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Canary auto-fix for ${PACKAGE}"
+              echo
+              echo "**Status:** skipped; an open auto-fix PR already exists: ${existing}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create branch
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          BRANCH="claude/canary-${PACKAGE}-${{ github.run_id }}-${{ github.run_attempt }}"
+          git fetch --no-tags --depth=1 origin "$DEFAULT_BRANCH"
+          git checkout -B "$BRANCH" FETCH_HEAD
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+          mkdir -p .scratch
+
+      - name: Download failure logs
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: "*-ci-${{ matrix.package }}-latest"
+          path: .scratch/failure-logs
+          merge-multiple: true
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
+        with:
+          version: 0.11.2
+          enable-cache: false
+
+      - name: Install subprocess isolation deps
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      - uses: anthropics/claude-code-action@2fee15510437d71399d9139ed60433470484a8fb # v1.0.153
+        id: auto-fix
+        if: ${{ steps.preflight.outputs.skip != 'true' }}
+        env:
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          show_full_output: 'true'
+          prompt: |
+            The Python canary cron has failures for package `${{ matrix.package }}`.
+
+            Use the `python-canary-fix` skill to investigate and patch only this package.
+
+            The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
+            Start by reading local failure logs in `.scratch/failure-logs/`.
+            Do not use `gh run view` for this run unless those files are missing.
+
+            Failed testenvs reported by this run:
+            ${{ needs.collect-failures.outputs.list }}
+
+            To reproduce, prefer one command at a time from the repository root, for example:
+            `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package }}-latest -- -ra -x`.
+            Avoid shell pipelines, redirects, command substitution, and polling loops when a
+            Read, Write, Glob, Grep, or single Bash command can do the same work.
+
+            Apply fixes directly to the working tree. Do not commit, push, or open a PR;
+            the workflow will do that after you exit.
+
+            Keep the diff scoped to the package `${{ matrix.package }}`. If the failure
+            is transient or an open PR already addresses it, leave the working tree
+            unchanged and write the reason to `.scratch/pr-body.md`.
+
+            Before exiting, write:
+              - `.scratch/pr-title.txt`: a one-line conventional-commit PR title.
+              - `.scratch/pr-body.md`: a concise PR body with the root cause, fix, and
+                exact commands you ran.
+
+            Do not modify automation or agent-instruction files such as `.github/`,
+            `.claude/`, `.agents/`, `AGENTS.md`, or `CLAUDE.md`.
+          claude_args: '--allowedTools Skill,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,"Bash(gh run list:*)","Bash(gh run view:*)","Bash(gh pr list:*)","Bash(gh pr view:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(uv:*)","Bash(uvx:*)","Bash(tox:*)","Bash(python:*)","Bash(python3:*)","Bash(pip show:*)","Bash(pip list:*)","Bash(curl -s:*)","Bash(cd:*)","Bash(ls:*)","Bash(find:*)","Bash(grep:*)","Bash(sed:*)","Bash(awk:*)","Bash(jq:*)","Bash(cat:*)","Bash(head:*)","Bash(tail:*)","Bash(sort:*)","Bash(nl:*)","Bash(mkdir:*)","Bash(date:*)","Bash(echo:*)","Bash(printf:*)"'
+
+      - name: Upload Claude execution log
+        if: ${{ always() && steps.auto-fix.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: claude-auto-fix-${{ matrix.package }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Commit and open PR
+        id: publish
+        if: ${{ steps.preflight.outputs.skip != 'true' && steps.auto-fix.outcome == 'success' }}
+        env:
+          # PAT is present only in this git/gh-only step. No package code or tox
+          # runs here, so freshly installed upstream deps never see the token.
+          GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          gh auth setup-git
+          git remote set-url origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Hard guard: never let the agent modify automation / agent-instruction
+          # files. Restore them from the branch base before committing.
+          blocked_files=$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u | awk '
+            /^\.github\// ||
+            /^\.cursor\// ||
+            /^\.claude\// ||
+            /^\.agents\// ||
+            /(^|\/)AGENTS\.md$/ ||
+            /(^|\/)CLAUDE\.md$/
+          ')
+          if [ -n "$blocked_files" ]; then
+            echo "::warning::Canary auto-fix changed automation or agent-instruction files; restoring them from checked-out main."
+            printf '%s\n' "$blocked_files"
+            while IFS= read -r file; do
+              if git cat-file -e "HEAD:$file" 2>/dev/null; then
+                git restore --source=HEAD --worktree --staged -- "$file"
+              else
+                git restore --staged -- "$file" 2>/dev/null || true
+                rm -f -- "$file"
+              fi
+            done <<< "$blocked_files"
+          fi
+
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+            echo "Claude produced no package changes; skipping PR."
+            {
+              echo "status=no_changes"
+              echo "message<<EOF"
+              echo "Claude completed without tracked package changes."
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Canary auto-fix for ${PACKAGE}"
+              echo
+              echo "**Status:** no PR opened; Claude completed without tracked package changes."
+              echo
+              if [ -s .scratch/pr-body.md ]; then
+                cat .scratch/pr-body.md
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          DEFAULT_TITLE="fix(${PACKAGE}): resolve latest dependency canary failure"
+          PR_TITLE="$DEFAULT_TITLE"
+          if [ -s .scratch/pr-title.txt ]; then
+            CANDIDATE=$(head -n 1 .scratch/pr-title.txt | tr -d '\r')
+            if printf '%s' "$CANDIDATE" | grep -qE '^(feat|fix|chore|docs|refactor|test|ci|perf|style|build)(\([^)]+\))?!?: .+'; then
+              PR_TITLE="$CANDIDATE"
+            else
+              echo "::warning::.scratch/pr-title.txt did not match conventional-commit format; falling back to '$DEFAULT_TITLE'."
+            fi
+          else
+            echo "::warning::Claude did not write .scratch/pr-title.txt; falling back to '$DEFAULT_TITLE'."
+          fi
+
+          if [ -s .scratch/pr-body.md ]; then
+            BODY_FILE=.scratch/pr-body.md
+          else
+            BODY_FILE=$(mktemp)
+            echo "Automated fix for Python canary failures in ${PACKAGE}. Review the diff and CI checks for details." > "$BODY_FILE"
+          fi
+
+          git add -A
+          git commit -m "$PR_TITLE"
+          git push -u origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --base "$DEFAULT_BRANCH" \
+            --head "$BRANCH" \
+            --title "$PR_TITLE" \
+            --body-file "$BODY_FILE")
+          {
+            echo "status=pr_opened"
+            echo "pr_url=$PR_URL"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Canary auto-fix for ${PACKAGE}"
+            echo
+            echo "**Status:** PR opened: ${PR_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify Slack of auto-fix PR
+        if: ${{ steps.publish.outputs.pr_url != '' }}
+        env:
+          PACKAGE: ${{ matrix.package }}
+          PR_URL: ${{ steps.publish.outputs.pr_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          MSG="Auto-fix PR opened for ${PACKAGE} canary failures (verify its CI): ${PR_URL}
+          ${RUN_URL}"
+          echo "$MSG"
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"
+
+      - name: Notify Slack of no auto-fix PR
+        if: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.pr_url == '' && steps.publish.outputs.status != '' }}
+        env:
+          PACKAGE: ${{ matrix.package }}
+          STATUS: ${{ steps.publish.outputs.status }}
+          MESSAGE: ${{ steps.publish.outputs.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          MSG="Auto-fix did not open a PR for ${PACKAGE} (${STATUS}): ${MESSAGE}
+          ${RUN_URL}"
+          echo "$MSG"
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"
+
+      - name: Notify Slack of auto-fix job failure
+        # Catch-all so a crash in the Claude step or the publish step (which
+        # would otherwise leave no output written, and thus no Slack message)
+        # is still surfaced. Skipped runs are not failures, so they don't fire.
+        if: ${{ failure() }}
+        env:
+          PACKAGE: ${{ matrix.package }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          MSG="Canary auto-fix job failed for ${PACKAGE} (no PR opened); see logs: ${RUN_URL}"
+          echo "$MSG"
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"

@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": [{"text": "What is the most popular
+      song on WZPZ?"}]}], "toolConfig": {"tools": [{"toolSpec": {"name": "top_song",
+      "description": "Get the most popular song played on a radio station.", "inputSchema":
+      {"json": {"type": "object", "properties": {"sign": {"type": "string", "description":
+      "The call sign for the radio station"}}, "required": ["sign"]}}}}]}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-haiku-20240307-v1%3A0/converse-stream
+  response:
+    body:
+      string: !!binary |
+        AAAApwAAAFIiQKw3CzpldmVudC10eXBlBwAMbWVzc2FnZVN0YXJ0DTpjb250ZW50LXR5cGUHABBh
+        cHBsaWNhdGlvbi9qc29uDTptZXNzYWdlLXR5cGUHAAVldmVudHsicCI6ImFiY2RlZmdoaWprbG1u
+        b3BxcnN0dXZ3eHl6QUJDREVGR0hJSktMTU5PUCIsInJvbGUiOiJhc3Npc3RhbnQife5dZ08AAAEK
+        AAAAVxHB0DoLOmV2ZW50LXR5cGUHABFjb250ZW50QmxvY2tTdGFydA06Y29udGVudC10eXBlBwAQ
+        YXBwbGljYXRpb24vanNvbg06bWVzc2FnZS10eXBlBwAFZXZlbnR7ImNvbnRlbnRCbG9ja0luZGV4
+        IjowLCJwIjoiYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXpBQkNERUZHSElKS0xNTk9QUVJTVFVW
+        Iiwic3RhcnQiOnsidG9vbFVzZSI6eyJuYW1lIjoidG9wX3NvbmciLCJ0b29sVXNlSWQiOiJ0b29s
+        dXNlX3AwWDAwMnVZUTl5XzBmRmtCc3lZUmcifX19hTckQwAAALAAAABXgOoTKgs6ZXZlbnQtdHlw
+        ZQcAEWNvbnRlbnRCbG9ja0RlbHRhDTpjb250ZW50LXR5cGUHABBhcHBsaWNhdGlvbi9qc29uDTpt
+        ZXNzYWdlLXR5cGUHAAVldmVudHsiY29udGVudEJsb2NrSW5kZXgiOjAsImRlbHRhIjp7InRvb2xV
+        c2UiOnsiaW5wdXQiOiIifX0sInAiOiJhYmNkZWZnaGlqIn3jP5B9AAAAuAAAAFewmljrCzpldmVu
+        dC10eXBlBwARY29udGVudEJsb2NrRGVsdGENOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0aW9uL2pz
+        b24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJjb250ZW50QmxvY2tJbmRleCI6MCwiZGVsdGEiOnsi
+        dG9vbFVzZSI6eyJpbnB1dCI6IntcIiJ9fSwicCI6ImFiY2RlZmdoaWprbG1ubyJ9uVExtAAAAMoA
+        AABXM4jrRAs6ZXZlbnQtdHlwZQcAEWNvbnRlbnRCbG9ja0RlbHRhDTpjb250ZW50LXR5cGUHABBh
+        cHBsaWNhdGlvbi9qc29uDTptZXNzYWdlLXR5cGUHAAVldmVudHsiY29udGVudEJsb2NrSW5kZXgi
+        OjAsImRlbHRhIjp7InRvb2xVc2UiOnsiaW5wdXQiOiJzaWduXCI6IFwiVyJ9fSwicCI6ImFiY2Rl
+        ZmdoaWprbG1ub3BxcnN0dXZ3eHkifSITOzoAAACuAAAAV186OskLOmV2ZW50LXR5cGUHABFjb250
+        ZW50QmxvY2tEZWx0YQ06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24vanNvbg06bWVzc2FnZS10
+        eXBlBwAFZXZlbnR7ImNvbnRlbnRCbG9ja0luZGV4IjowLCJkZWx0YSI6eyJ0b29sVXNlIjp7Imlu
+        cHV0IjoiWlBaXCJ9In19LCJwIjoiYWIifQaKzeEAAACsAAAAVlL9WT8LOmV2ZW50LXR5cGUHABBj
+        b250ZW50QmxvY2tTdG9wDTpjb250ZW50LXR5cGUHABBhcHBsaWNhdGlvbi9qc29uDTptZXNzYWdl
+        LXR5cGUHAAVldmVudHsiY29udGVudEJsb2NrSW5kZXgiOjAsInAiOiJhYmNkZWZnaGlqa2xtbm9w
+        cXJzdHV2d3h5ekFCQ0RFRkdISUpLTE1OIn0xkM9dAAAAigAAAFGCGBY4CzpldmVudC10eXBlBwAL
+        bWVzc2FnZVN0b3ANOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0aW9uL2pzb24NOm1lc3NhZ2UtdHlw
+        ZQcABWV2ZW50eyJwIjoiYWJjZGVmZ2hpIiwic3RvcFJlYXNvbiI6InRvb2xfdXNlIn0zhIx7AAAA
+        +wAAAE7LotKyCzpldmVudC10eXBlBwAIbWV0YWRhdGENOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0
+        aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6OTI0
+        fSwicCI6ImFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6QUJDREVGR0hJSktMTU5PUFFSU1RVVldY
+        WVowMTIzNCIsInVzYWdlIjp7ImlucHV0VG9rZW5zIjozNTMsIm91dHB1dFRva2VucyI6MzgsInRv
+        dGFsVG9rZW5zIjozOTF9fb6v464=
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

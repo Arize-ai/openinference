@@ -1,3 +1,5 @@
+import { describe, expect, it } from "vitest";
+
 import {
   DefaultTraceConfig,
   OPENINFERENCE_HIDE_INPUT_TEXT,

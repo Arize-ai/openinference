@@ -51,6 +51,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -124,6 +126,8 @@ async def test_instrumentor(
     assert isinstance(response_json_str, str)
     assert json.loads(response_json_str) == FunctionResponse.to_dict(function_response)["response"]
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     status = span.status
     if has_error:
         assert not status.is_ok
@@ -146,17 +150,21 @@ async def test_instrumentor(
     candidates = response.candidates
     for i, candidate in enumerate(candidates):
         assert attributes.pop(message_role(prefix, i), None) == "assistant"
+        tc_idx = 0
         for j, part in enumerate(candidate.content.parts):
             if part.text:
                 assert attributes.pop(message_contents_text(prefix, i, j), None) == part.text
             elif part.function_call.name:
                 assert (
-                    attributes.pop(tool_call_function_name(prefix, i, j), None)
+                    attributes.pop(tool_call_function_name(prefix, i, tc_idx), None)
                     == part.function_call.name
                 )
-                args_json_str = attributes.pop(tool_call_function_arguments(prefix, i, j), None)
+                args_json_str = attributes.pop(
+                    tool_call_function_arguments(prefix, i, tc_idx), None
+                )
                 assert isinstance(args_json_str, str)
                 assert json.loads(args_json_str) == FunctionCall.to_dict(part.function_call)["args"]
+                tc_idx += 1
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == usage_metadata.prompt_token_count
@@ -222,6 +230,8 @@ async def test_instrumentor_config_hiding_inputs(
     assert json.loads(metadata_json_str) == metadata
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
@@ -281,17 +291,21 @@ async def test_instrumentor_config_hiding_inputs(
     candidates = response.candidates
     for i, candidate in enumerate(candidates):
         assert attributes.pop(message_role(prefix, i), None) == "assistant"
+        tc_idx = 0
         for j, part in enumerate(candidate.content.parts):
             if part.text:
                 assert attributes.pop(message_contents_text(prefix, i, j), None) == part.text
             elif part.function_call.name:
                 assert (
-                    attributes.pop(tool_call_function_name(prefix, i, j), None)
+                    attributes.pop(tool_call_function_name(prefix, i, tc_idx), None)
                     == part.function_call.name
                 )
-                args_json_str = attributes.pop(tool_call_function_arguments(prefix, i, j), None)
+                args_json_str = attributes.pop(
+                    tool_call_function_arguments(prefix, i, tc_idx), None
+                )
                 assert isinstance(args_json_str, str)
                 assert json.loads(args_json_str) == FunctionCall.to_dict(part.function_call)["args"]
+                tc_idx += 1
     assert attributes == {}
 
     assert len(spans) > 1
@@ -345,6 +359,8 @@ async def test_instrumentor_config_hiding_outputs(
     assert json.loads(metadata_json_str) == metadata
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
@@ -394,6 +410,7 @@ async def test_instrumentor_config_hiding_outputs(
         candidates = response.candidates
         for i, candidate in enumerate(candidates):
             assert attributes.pop(message_role(prefix, i), None) == "assistant"
+            tc_idx = 0
             for j, part in enumerate(candidate.content.parts):
                 if part.text:
                     expected = REDACTED_VALUE if hide_output_text else part.text
@@ -401,14 +418,18 @@ async def test_instrumentor_config_hiding_outputs(
                 elif part.function_call.name:
                     expected_name = part.function_call.name
                     assert (
-                        attributes.pop(tool_call_function_name(prefix, i, j), None) == expected_name
+                        attributes.pop(tool_call_function_name(prefix, i, tc_idx), None)
+                        == expected_name
                     )
-                    args_json_str = attributes.pop(tool_call_function_arguments(prefix, i, j), None)
+                    args_json_str = attributes.pop(
+                        tool_call_function_arguments(prefix, i, tc_idx), None
+                    )
                     assert isinstance(args_json_str, str)
                     assert (
                         json.loads(args_json_str)
                         == FunctionCall.to_dict(part.function_call)["args"]
                     )
+                    tc_idx += 1
     assert attributes == {}
 
     assert len(spans) > 1
@@ -528,7 +549,27 @@ def usage_metadata() -> Dict[str, int]:
 def candidates() -> List[Candidate]:
     return [
         Candidate(dict(index=0, content=dict(role="model", parts=[dict(text="1 2 3")]))),
-        Candidate(dict(index=1, content=dict(role="model", parts=[dict(text="a b c")]))),
+        Candidate(
+            dict(
+                index=1,
+                content=dict(
+                    role="model",
+                    parts=[
+                        dict(text="a b c"),
+                        dict(
+                            function_call=FunctionCall.from_json(
+                                json.dumps(dict(name="abc", args=dict(a=1, b=2, c=3)))
+                            )
+                        ),
+                        dict(
+                            function_call=FunctionCall.from_json(
+                                json.dumps(dict(name="cba", args=dict(a=1, b=2, c=3)))
+                            )
+                        ),
+                    ],
+                ),
+            )
+        ),
         Candidate(
             dict(
                 index=2,
@@ -930,6 +971,8 @@ JSON = OpenInferenceMimeTypeValues.JSON.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

@@ -1,0 +1,138 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-sonnet-20240229-v1%3A0/invoke",
+    "body": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 100,
+      "tools": [
+        {
+          "name": "get_weather",
+          "description": "Get current weather for a location",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string",
+                "description": "The city and state, e.g. San Francisco, CA"
+              },
+              "unit": {
+                "type": "string",
+                "enum": ["celsius", "fahrenheit"],
+                "description": "Temperature unit"
+              }
+            },
+            "required": ["location"]
+          }
+        },
+        {
+          "name": "calculate",
+          "description": "Perform mathematical calculations",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "expression": {
+                "type": "string",
+                "description": "Mathematical expression to evaluate"
+              }
+            },
+            "required": ["expression"]
+          }
+        },
+        {
+          "name": "web_search",
+          "description": "Search the web for information",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "Search query"
+              },
+              "num_results": {
+                "type": "integer",
+                "description": "Number of results to return",
+                "minimum": 1,
+                "maximum": 10
+              }
+            },
+            "required": ["query"]
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "What's the weather in San Francisco and what's 15 * 23?"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "msg_bdrk_01VGSSxYibWoHmna5zwvqqCt",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-sonnet-20240229",
+      "content": [
+        {
+          "type": "text",
+          "text": "Okay, let's get the weather and do that calculation."
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_bdrk_01FqpV1qX3bJ4bczkdtMhdGz",
+          "name": "get_weather",
+          "input": {
+            "location": "San Francisco, CA",
+            "unit": "fahrenheit"
+          }
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_bdrk_01KMAmxrwkK8jh8h6YNQ495y",
+          "name": "calculate",
+          "input": {}
+        }
+      ],
+      "stop_reason": "max_tokens",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 435,
+        "output_tokens": 100
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 10 Jul 2025 02:51:35 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "538",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "e41ce51a-b434-4480-af13-c7c89fe4ca55",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "2057",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "100",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "435"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "1013",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "945bb141-3b50-426d-a956-4f0c73f31306",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "c7c548426e8dc5dd2d852d134f8184b634561e41dad98bdb6c046ba18ec56f28",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

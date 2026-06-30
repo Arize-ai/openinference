@@ -1,7 +1,9 @@
-import { AttributeValue } from "@opentelemetry/api";
-import { REDACTED_VALUE } from "./constants";
+import type { AttributeValue } from "@opentelemetry/api";
+
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
-import { MaskingRule, MaskingRuleArgs } from "./types";
+
+import { REDACTED_VALUE } from "./constants";
+import type { MaskingRule, MaskingRuleArgs } from "./types";
 
 /**
  * Masks (redacts) input text in LLM input messages.
@@ -95,11 +97,7 @@ const maskInputImagesRule: MaskingRule = {
 };
 
 function isBase64Url(url?: AttributeValue): boolean {
-  return (
-    typeof url === "string" &&
-    url.startsWith("data:image/") &&
-    url.includes("base64")
-  );
+  return typeof url === "string" && url.startsWith("data:image/") && url.includes("base64");
 }
 
 /**
@@ -141,14 +139,46 @@ const maskEmbeddingVectorsRule: MaskingRule = {
 };
 
 /**
+ * Masks (redacts) llm.prompts if hidePrompts is true.
+ * @example
+ * ```typescript
+ *  maskPromptsRule.condition({
+ *      config: {hidePrompts: true},
+ *      key: "llm.prompts"
+ *  }) // returns true so the rule applies and the value will be redacted
+ */
+const maskPromptsRule: MaskingRule = {
+  condition: ({ config, key }) => config.hidePrompts && key === SemanticConventions.LLM_PROMPTS,
+  action: () => REDACTED_VALUE,
+};
+
+/**
+ * Masks (removes) the tool definitions advertised to the LLM.
+ * Will mask information stored under keys that include `llm.tools` such as
+ * `llm.tools.[i].tool.json_schema`. Tool definitions are part of the request sent
+ * to the LLM, so they are also hidden when `hideInputs` is true.
+ * @example
+ * ```typescript
+ *  maskLLMToolsRule.condition({
+ *      config: {hideLLMTools: true},
+ *      key: "llm.tools.0.tool.json_schema"
+ *  }) // returns true so the rule applies and the value will be removed
+ * ```
+ */
+const maskLLMToolsRule: MaskingRule = {
+  condition: ({ config, key }) =>
+    (config.hideInputs || config.hideLLMTools) && key.includes(SemanticConventions.LLM_TOOLS),
+  action: () => undefined,
+};
+
+/**
  * A list of {@link MaskingRule}s that are applied to span attributes to either redact or remove sensitive information.
  * The order of these rules is important as it can ensure appropriate masking of information
  * Rules should go from more specific to more general so that things like `llm.input_messages.[i].message.content` are masked with {@link REDACTED_VALUE} before the more generic masking of `llm.input_messages` might happen with `undefined` might happen.
  */
 const maskingRules: MaskingRule[] = [
   {
-    condition: ({ config, key }) =>
-      config.hideInputs && key === SemanticConventions.INPUT_VALUE,
+    condition: ({ config, key }) => config.hideInputs && key === SemanticConventions.INPUT_VALUE,
     action: () => REDACTED_VALUE,
   },
   {
@@ -157,8 +187,7 @@ const maskingRules: MaskingRule[] = [
     action: () => undefined,
   },
   {
-    condition: ({ config, key }) =>
-      config.hideOutputs && key === SemanticConventions.OUTPUT_VALUE,
+    condition: ({ config, key }) => config.hideOutputs && key === SemanticConventions.OUTPUT_VALUE,
     action: () => REDACTED_VALUE,
   },
   {
@@ -185,20 +214,19 @@ const maskingRules: MaskingRule[] = [
   maskInputImagesRule,
   maskLongBase64ImageRule,
   maskEmbeddingVectorsRule,
+  maskPromptsRule,
+  maskLLMToolsRule,
 ];
 
 /**
  * A function that masks (redacts or removes) sensitive information from span attributes based on the trace config.
- * @param config The {@link TraceConfig} to use to determine if the value should be masked
- * @param key The key of the attribute to mask
- * @param value The value of the attribute to mask
+ * @param params - The masking parameters
+ * @param params.config - The TraceConfig to use to determine if the value should be masked
+ * @param params.key - The key of the attribute to mask
+ * @param params.value - The value of the attribute to mask
  * @returns The redacted value or undefined if the value should be masked, otherwise the original value
  */
-export function mask({
-  config,
-  key,
-  value,
-}: MaskingRuleArgs): AttributeValue | undefined {
+export function mask({ config, key, value }: MaskingRuleArgs): AttributeValue | undefined {
   for (const rule of maskingRules) {
     if (rule.condition({ config, key, value })) {
       return rule.action();

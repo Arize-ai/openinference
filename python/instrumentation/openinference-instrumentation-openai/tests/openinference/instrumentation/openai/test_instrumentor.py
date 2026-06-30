@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import uuid
 from contextlib import suppress
 from importlib import import_module
 from importlib.metadata import version
@@ -15,7 +16,6 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Sequence,
     Tuple,
     Union,
     cast,
@@ -58,7 +58,10 @@ _AZURE_BASE_URL = "https://aoairesource.openai.azure.com"
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="openai")
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+            group="opentelemetry_instrumentor",
+            name="openai",
+        )
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, OpenAIInstrumentor)
 
@@ -223,6 +226,11 @@ def test_chat_completions(
             OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
             == OpenInferenceMimeTypeValues.JSON
         )
+        # finish_reason is captured only for the first choice. The non-streaming
+        # mock returns "stop" for every choice; the streaming mock sets
+        # "tool_calls" on the choice at index 0.
+        expected_finish_reason = "tool_calls" if is_stream else "stop"
+        assert attributes.pop(LLM_FINISH_REASON, None) == expected_finish_reason
         if not is_stream:
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
@@ -233,15 +241,6 @@ def test_chat_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-        elif _openai_version() >= (1, 12, 0):
-            assert (
-                attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.id")
-                == "call_amGrubFmr2FSPHeC5OPgwcNs"
-            )
-            assert (
-                attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.id")
-                == "call_6QTP4mLSYYzZwt3ZWj77vfZf"
-            )
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -268,6 +267,13 @@ def test_chat_completions(
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
 @pytest.mark.parametrize("use_context_attributes", [False, True])
+@pytest.mark.parametrize(
+    "prompt_input",
+    [
+        pytest.param("single_prompt", id="single-prompt"),
+        pytest.param(["batch_prompt_1", "batch_prompt_2"], id="batch-prompts"),
+    ],
+)
 def test_completions(
     base_url: str,
     is_async: bool,
@@ -275,6 +281,7 @@ def test_completions(
     is_stream: bool,
     status_code: int,
     use_context_attributes: bool,
+    prompt_input: Union[str, List[str]],
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
@@ -288,7 +295,8 @@ def test_completions(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    prompt: List[str] = get_texts()
+    # Normalize prompt_input (string or list) to a list for iteration
+    prompts = prompt_input if isinstance(prompt_input, list) else [prompt_input]
     output_texts: List[str] = completion_mock_stream[1] if is_stream else get_texts()
     invocation_parameters = {
         "stream": is_stream,
@@ -314,7 +322,8 @@ def test_completions(
         ),
     }
     respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
-    create_kwargs = {"prompt": prompt, **invocation_parameters}
+    # Pass prompt_input as-is to test both single string and list of strings
+    create_kwargs = {"prompt": prompt_input, **invocation_parameters}
     openai = import_module("openai")
     completions = (
         openai.AsyncOpenAI(api_key="sk-", base_url=base_url).completions
@@ -384,10 +393,19 @@ def test_completions(
     )
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
+    # Prompts are recorded in request phase, so present regardless of status
+    for i, prompt_text in enumerate(prompts):
+        assert attributes.pop(f"{LLM_PROMPTS}.{i}.prompt.text", None) == prompt_text
     if status_code == 200:
         assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
         assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
-        assert list(cast(Sequence[str], attributes.pop(LLM_PROMPTS, None))) == prompt
+        # Check output completions
+        for i, text in enumerate(output_texts):
+            assert attributes.pop(f"{LLM_CHOICES}.{i}.completion.text", None) == text
+        # finish_reason is captured only for the first choice. The streaming
+        # mock sets "length" on each choice; the non-streaming mock sets "stop".
+        expected_finish_reason = "length" if is_stream else "stop"
+        assert attributes.pop(LLM_FINISH_REASON, None) == expected_finish_reason
         if not is_stream:
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
@@ -444,7 +462,15 @@ def test_embeddings(
         "prompt_tokens": random.randint(10, 100),
         "total_tokens": random.randint(10, 100),
     }
-    output_embeddings = [("AACAPwAAAEA=", (1.0, 2.0)), ((2.0, 3.0), (2.0, 3.0))]
+    # Match output structure to input structure
+    num_inputs = len(input_text) if isinstance(input_text, list) else 1
+    # First element is for API response, second is for verification
+    output_embeddings: list[tuple[Any, tuple[float, ...]]]
+    if encoding_format == "base64":
+        output_embeddings = [("AACAPwAAAEA=", (1.0, 2.0)) for _ in range(num_inputs)]
+    else:
+        # API returns list, verification expects tuple
+        output_embeddings = [([1.0 + i, 2.0 + i], (1.0 + i, 2.0 + i)) for i in range(num_inputs)]
     url = urljoin(base_url, "embeddings")
     respx_mock.post(url).mock(
         return_value=Response(
@@ -497,29 +523,506 @@ def test_embeddings(
     assert (
         attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.EMBEDDING.value
     )
-    assert attributes.pop(LLM_PROVIDER, None) == (
-        LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
-    )
+
+    # Check provider/system values
+    if base_url == _AZURE_BASE_URL:
+        assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_AZURE
+    elif base_url == _OPENAI_BASE_URL:
+        assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+
     assert (
-        json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+        json.loads(cast(str, attributes.pop(EMBEDDING_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
     )
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
+    # Text attributes are recorded in request phase, so they're present regardless of status
+    for i, text in enumerate(input_text if isinstance(input_text, list) else [input_text]):
+        assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}", None) == text
     if status_code == 200:
         assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
         assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
         assert attributes.pop(EMBEDDING_MODEL_NAME, None) == embedding_model_name
         assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == embedding_usage["total_tokens"]
         assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == embedding_usage["prompt_tokens"]
-        for i, text in enumerate(input_text if isinstance(input_text, list) else [input_text]):
-            assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}", None) == text
         for i, embedding in enumerate(output_embeddings):
             assert (
                 attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}", None)
                 == embedding[1]
             )
+    assert attributes == {}  # test should account for all span attributes
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_raw", [False, True])
+@pytest.mark.parametrize("encoding_format", ["float", "base64"])
+def test_embeddings_out_of_order(
+    is_async: bool,
+    is_raw: bool,
+    encoding_format: str,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    model_name: str,
+) -> None:
+    """Test that embeddings are correctly indexed when returned out of order."""
+    invocation_parameters = {
+        "model": randstr(),
+        "encoding_format": encoding_format,
+    }
+    embedding_model_name = randstr()
+    embedding_usage = {
+        "prompt_tokens": random.randint(10, 100),
+        "total_tokens": random.randint(10, 100),
+    }
+
+    # Create embeddings with specific values that we can verify
+    # API format (for response) and verification format (tuple)
+    output_embeddings: List[Tuple[Any, Tuple[float, ...]]]
+    if encoding_format == "base64":
+        # Base64 encoded vectors with different values
+        output_embeddings = [
+            ("AACAPwAAAEA=", (1.0, 2.0)),  # index 0
+            ("AABAQAAAgEA=", (3.0, 4.0)),  # index 1
+            ("AACgQAAAwEA=", (5.0, 6.0)),  # index 2
+        ]
+    else:
+        # Float vectors with different values
+        output_embeddings = [
+            ([1.0, 2.0], (1.0, 2.0)),  # index 0
+            ([3.0, 4.0], (3.0, 4.0)),  # index 1
+            ([5.0, 6.0], (5.0, 6.0)),  # index 2
+        ]
+
+    # Input texts that correspond to the indices
+    input_texts = ["first", "second", "third"]
+
+    # Return embeddings OUT OF ORDER: indices 2, 0, 1
+    base_url = _OPENAI_BASE_URL
+    url = urljoin(base_url, "embeddings")
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "object": "list",
+                "data": [
+                    # Deliberately out of order to test index handling
+                    {"object": "embedding", "index": 2, "embedding": output_embeddings[2][0]},
+                    {"object": "embedding", "index": 0, "embedding": output_embeddings[0][0]},
+                    {"object": "embedding", "index": 1, "embedding": output_embeddings[1][0]},
+                ],
+                "model": embedding_model_name,
+                "usage": embedding_usage,
+            },
+        )
+    )
+
+    create_kwargs = {"input": input_texts, **invocation_parameters}
+    openai = import_module("openai")
+    completions = (
+        openai.AsyncOpenAI(api_key="sk-", base_url=base_url).embeddings
+        if is_async
+        else openai.OpenAI(api_key="sk-", base_url=base_url).embeddings
+    )
+    create = completions.with_raw_response.create if is_raw else completions.create
+
+    if is_async:
+
+        async def task() -> None:
+            response = await create(**create_kwargs)
+            _ = response.parse() if is_raw else response
+
+        asyncio.run(task())
+    else:
+        response = create(**create_kwargs)
+        _ = response.parse() if is_raw else response
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2  # first span should be from the httpx instrumentor
+    span: ReadableSpan = spans[1]
+    assert span.status.is_ok
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Check span kind
+    assert (
+        attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
+
+    # Check provider/system values
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+
+    # Check invocation parameters
+    assert (
+        json.loads(cast(str, attributes.pop(EMBEDDING_INVOCATION_PARAMETERS, None)))
+        == invocation_parameters
+    )
+
+    # Check input/output values
+    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+    assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
+    assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
+    assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
+
+    # Check model name and token counts
+    assert attributes.pop(EMBEDDING_MODEL_NAME, None) == embedding_model_name
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == embedding_usage["total_tokens"]
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == embedding_usage["prompt_tokens"]
+
+    # Verify that vectors are attributed to correct indices despite out-of-order response
+    assert (
+        attributes.pop(f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}") == output_embeddings[0][1]
+    ), "Index 0 should have the first embedding's vector"
+    assert (
+        attributes.pop(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}") == output_embeddings[1][1]
+    ), "Index 1 should have the second embedding's vector"
+    assert (
+        attributes.pop(f"{EMBEDDING_EMBEDDINGS}.2.{EMBEDDING_VECTOR}") == output_embeddings[2][1]
+    ), "Index 2 should have the third embedding's vector"
+
+    # Verify text attributes are correctly mapped
+    for i, text in enumerate(input_texts):
+        assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}") == text
+
+    # All attributes should be accounted for
+    assert attributes == {}
+
+
+def randstr() -> str:
+    return str(random.random())
+
+
+def randid() -> str:
+    return str(uuid.uuid4().hex)
+
+
+def responses_tool_call_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
+    return (
+        [
+            b'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_67ef8ea7bdc081918bdbb89a4b85b593012c75bf9895c7d1","object":"response","created_at":1743752871,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-2024-08-06","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[{"type":"function","description":"Get current temperature for provided coordinates in celsius.","name":"get_weather","parameters":{"type":"object","properties":{"latitude":{"type":"number"},"longitude":{"type":"number"}},"required":["latitude","longitude"],"additionalProperties":false},"strict":true}],"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}\n\n',  # noqa# noqa: E501
+            b'event: response.in_progress\ndata: {"type":"response.in_progress","response":{"id":"resp_67ef8ea7bdc081918bdbb89a4b85b593012c75bf9895c7d1","object":"response","created_at":1743752871,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-2024-08-06","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[{"type":"function","description":"Get current temperature for provided coordinates in celsius.","name":"get_weather","parameters":{"type":"object","properties":{"latitude":{"type":"number"},"longitude":{"type":"number"}},"required":["latitude","longitude"],"additionalProperties":false},"strict":true}],"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}\n\n',  # noqa: E501
+            b'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"call_caea3f3962f34170b06d77f8f69da8e1","call_id":"call_h9tDOJkqPEKgq4igvAJgBseP","name":"get_weather","arguments":"","status":"in_progress"}}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","item_id":"call_caea3f3962f34170b06d77f8f69da8e1","output_index":0,"delta":"{"}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","item_id":"call_caea3f3962f34170b06d77f8f69da8e1","output_index":0,"delta":"77.209}"}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.done\ndata: {"type":"response.function_call_arguments.done","item_id":"call_caea3f3962f34170b06d77f8f69da8e1","output_index":0,"arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}"}\n\n',  # noqa: E501
+            b'event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","id":"call_caea3f3962f34170b06d77f8f69da8e1","call_id":"call_h9tDOJkqPEKgq4igvAJgBseP","name":"get_weather","arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}","status":"completed"}}\n\n',  # noqa: E501
+            b'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":1,"item":{"type":"function_call","id":"fc_67ef8ea883d08191ab2c4d310776ed53012c75bf9895c7d1","call_id":"call_FBQqz6pucj5sAQ0rcID0NiWR","name":"get_weather","arguments":"","status":"in_progress"}}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","item_id":"fc_67ef8ea883d08191ab2c4d310776ed53012c75bf9895c7d1","output_index":1,"delta":"{"}\n\n',  # noqa: E501
+            b'event: response.function_call_arguments.done\ndata: {"type":"response.function_call_arguments.done","item_id":"fc_67ef8ea883d08191ab2c4d310776ed53012c75bf9895c7d1","output_index":1,"arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}"}\n\n',  # noqa: E501
+            b'event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":1,"item":{"type":"function_call","id":"fc_67ef8ea883d08191ab2c4d310776ed53012c75bf9895c7d1","call_id":"call_FBQqz6pucj5sAQ0rcID0NiWR","name":"get_weather","arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}","status":"completed"}}\n\n',  # noqa: E501
+            b'event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp_67ef8ea7bdc081918bdbb89a4b85b593012c75bf9895c7d1","object":"response","created_at":1743752871,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-2024-08-06","output":[{"type":"function_call","id":"call_caea3f3962","call_id":"call_f34170b06d77f8f69da8e1","name":"get_weather","arguments":"{\\"latitude\\":28.6139,\\"longitude\\":77.209}","status":"completed"},{"type":"function_call","id":"fc_67ef8ea883d08191","call_id":"call_FBQqz6pucj5sAQ0rcID0NiWR","name":"get_weather","arguments":"{\\"latitude\\":28.01,\\"longitude\\":77.01}","status":"completed"}],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[{"type":"function","description":"Get current temperature for provided coordinates in celsius.","name":"get_weather","parameters":{"type":"object","properties":{"latitude":{"type":"number"},"longitude":{"type":"number"}},"required":["latitude","longitude"],"additionalProperties":false},"strict":true}],"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":0,"input_tokens_details":{"cached_tokens":0},"output_tokens":0,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":0},"user":null,"metadata":{}}}\n\n',  # noqa: E501
+            b"data: [DONE]\n",
+        ],
+        [
+            {
+                "arguments": '{"latitude":28.6139,"longitude":77.209}',
+                "call_id": "call_f34170b06d77f8f69da8e1",
+                "name": "get_weather",
+                "role": "assistant",
+                "type": "function_call",
+                "id": "call_caea3f3962",
+                "status": "completed",
+            },
+            {
+                "arguments": '{"latitude":28.01,"longitude":77.01}',
+                "call_id": "call_FBQqz6pucj5sAQ0rcID0NiWR",
+                "name": "get_weather",
+                "role": "assistant",
+                "type": "function_call",
+                "id": "fc_67ef8ea883d08191",
+                "status": "completed",
+            },
+        ],
+    )
+
+
+def responses_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
+    return (
+        [
+            b'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_67ee874802","object":"response","created_at":1743685448,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-mini-2024-07-18","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}\n\n',  # noqa: E501
+            b'event: response.in_progress\ndata: {"type":"response.in_progress","response":{"id":"resp_67ee8748023c8191b66511f9a23c0a5f0e88ccd2557cf7b7","object":"response","created_at":1743685448,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-mini-2024-07-18","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}\n\n',  # noqa: E501
+            b'event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":0,"item":{"type":"message","id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","status":"in_progress","role":"assistant","content":[]}}\n\n',  # noqa: E501
+            b'event: response.content_part.added\ndata: {"type":"response.content_part.added","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}\n\n',  # noqa: E501
+            b'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"delta":"As"}\n\n',  # noqa: E501
+            b'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"delta":"."}\n\n',  # noqa: E501
+            b'event: response.output_text.done\ndata: {"type":"response.output_text.done","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"text":"As the moonlight"}\n\n',  # noqa: E501
+            b'event: response.content_part.done\ndata: {"type":"response.content_part.done","item_id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","output_index":0,"content_index":0,"part":{"type":"output_text","text":"As the moonlight.","annotations":[]}}\n\n',  # noqa: E501
+            b'event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","status":"completed","role":"assistant","content":[{"type":"output_text","text":"As the moonlight","annotations":[]}]}}\n\n',  # noqa: E501
+            b'event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp_67ee8748023c8191b66511f9a23c0a5f0e88ccd2557cf7b7","object":"response","created_at":1743685448,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4o-mini-2024-07-18","output":[{"type":"message","id":"msg_67ee87484e8081919e2ef00d11467fed0e88ccd2557cf7b7","status":"completed","role":"assistant","content":[{"type":"output_text","text":"As the moonlight","annotations":[]}]}],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"generate_summary":null},"store":true,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":18,"input_tokens_details":{"cached_tokens":0},"output_tokens":30,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":48},"user":null,"metadata":{}}}\n\n'  # noqa: E501
+            b"data: [DONE]\n",
+        ],
+        [
+            {
+                "id": f"msg_{randid()}",
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "As the moonlight", "annotations": []}],
+            }
+        ],
+    )
+
+
+def get_response_messages() -> List[
+    Tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Tuple[List[bytes], List[Dict[str, Any]]],
+    ]
+]:
+    messages: List[
+        Tuple[
+            List[Dict[str, Any]],
+            List[Dict[str, Any]],
+            Tuple[List[bytes], List[Dict[str, Any]]],
+        ]
+    ] = [
+        (
+            [{"role": "user", "content": f"{randstr()}"}],
+            [
+                {
+                    "id": f"msg_{randid()}",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": f"{randstr()}", "annotations": []}],
+                }
+            ],
+            responses_mock_stream(),
+        ),
+        (
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": f"{randstr()}"},
+                        {
+                            "type": "input_image",
+                            "image_url": "https:///cdn.pixabay.com/photo/2015/04/23/22/00/boardwalk.jpg",
+                        },
+                    ],
+                }
+            ],
+            [
+                {
+                    "id": f"msg_{randid()}",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": f"{randstr()}", "annotations": []}],
+                }
+            ],
+            responses_mock_stream(),
+        ),
+        (
+            [{"content": "What's the weather like in Paris & Delhi today?", "role": "user"}],
+            [
+                {
+                    "arguments": '{"latitude":28.6139,"longitude":77.209}',
+                    "call_id": f"call_{randid()}",
+                    "name": f"{randstr()}",
+                    "role": "assistant",
+                    "type": "function_call",
+                    "id": "call_caea3f3962f34170b06d77f8f69da8e1",
+                    "status": "completed",
+                }
+            ],
+            responses_tool_call_mock_stream(),
+        ),
+    ]
+    return messages
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        pytest.param(_OPENAI_BASE_URL, id="openai-base-url"),
+        pytest.param(_AZURE_BASE_URL, id="azure-base-url"),
+    ),
+)
+@pytest.mark.parametrize("message_data", get_response_messages())
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_stream", [False, True])
+@pytest.mark.parametrize("status_code", [200, 400])
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+def test_responses(
+    base_url: str,
+    message_data: Tuple[List[Any], List[Any], Tuple[Any, Any]],
+    is_async: bool,
+    is_stream: bool,
+    status_code: int,
+    use_context_attributes: bool,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    responses_usage: Dict[str, Any],
+    model_name: str,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    input_messages: List[Any] = message_data[0]
+    output_messages: List[Dict[str, Any]] = message_data[2][1] if is_stream else message_data[1]
+    invocation_parameters = {
+        "stream": is_stream,
+        "model": model_name,
+        "temperature": random.random(),
+    }
+    url = urljoin(base_url, "responses")
+    response_model_name = randstr()
+    respx_kwargs: Dict[str, Any] = {
+        **(
+            {"stream": MockAsyncByteStream(message_data[2][0])}
+            if is_stream
+            else {
+                "json": {
+                    "id": randstr(),
+                    "status": "completed",
+                    "object": "response",
+                    "output": output_messages,
+                    "model": response_model_name,
+                    "usage": responses_usage,
+                }
+            }
+        ),
+    }
+    respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
+    create_kwargs = {"input": input_messages, **invocation_parameters}
+    openai = import_module("openai")
+    create = (
+        openai.AsyncOpenAI(api_key="sk-", base_url=base_url).responses.create
+        if is_async
+        else openai.OpenAI(api_key="sk-", base_url=base_url).responses.create
+    )
+
+    async def task() -> None:
+        response = await create(**create_kwargs)
+        if is_stream:
+            if _openai_version() >= (1, 6, 0):
+                async with response as iterator:
+                    async for _ in iterator:
+                        pass
+            else:
+                async for _ in response:
+                    pass
+
+    with suppress(openai.BadRequestError):
+        if use_context_attributes:
+            with using_attributes(
+                session_id=session_id,
+                user_id=user_id,
+                metadata=metadata,
+                tags=tags,
+                prompt_template=prompt_template,
+                prompt_template_version=prompt_template_version,
+                prompt_template_variables=prompt_template_variables,
+            ):
+                if is_async:
+                    asyncio.run(task())
+                else:
+                    response = create(**create_kwargs)
+                    if is_stream:
+                        if _openai_version() >= (1, 6, 0):
+                            with response as iterator:
+                                for _ in iterator:
+                                    pass
+                        else:
+                            for _ in response:
+                                pass
+        else:
+            if is_async:
+                asyncio.run(task())
+            else:
+                response = create(**create_kwargs)
+                if is_stream:
+                    if _openai_version() >= (1, 6, 0):
+                        with response as iterator:
+                            for _ in iterator:
+                                pass
+                    else:
+                        for _ in response:
+                            pass
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2  # first span should be from the httpx instrumentor
+    span: ReadableSpan = spans[1]
+    if status_code == 200:
+        assert span.status.is_ok
+        assert not span.status.description
+    elif status_code == 400:
+        assert not span.status.is_ok and not span.status.is_unset
+        assert span.status.description and span.status.description.startswith(
+            openai.BadRequestError.__name__
+        )
+        assert len(span.events) == 1
+        event = span.events[0]
+        assert event.name == "exception"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == (
+        LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
+    )
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+    assert (
+        OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
+        == OpenInferenceMimeTypeValues.JSON
+    )
+    assert (
+        json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+        == invocation_parameters
+    )
+    for i, message in enumerate(input_messages, 1):
+        _check_llm_message(LLM_INPUT_MESSAGES, i, attributes, message)
+
+    if status_code == 200:
+        for i, message in enumerate(output_messages):
+            _check_llm_message(LLM_OUTPUT_MESSAGES, i, attributes, message)
+            if message.get("type") == "function_call":
+                assert attributes.pop(
+                    f"llm.output_messages.{i}.message.tool_calls.0.tool_call.id"
+                ) == message.get("call_id")
+                assert attributes.pop(
+                    f"llm.output_messages.{i}.message.tool_calls.0.tool_call.function.arguments"
+                ) == message.get("arguments")
+                assert attributes.pop(
+                    f"llm.output_messages.{i}.message.tool_calls.0.tool_call.function.name"
+                ) == message.get("name")
+        assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
+        assert (
+            OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
+            == OpenInferenceMimeTypeValues.JSON
+        )
+        if not is_stream:
+            assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == responses_usage["total_tokens"]
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == responses_usage["input_tokens"]
+            assert (
+                attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == responses_usage["output_tokens"]
+            )
+            assert attributes.pop(LLM_MODEL_NAME, None) == response_model_name
+            assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, None) is not None
+        else:
+            assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) is not None
+            assert attributes.pop(LLM_MODEL_NAME, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, None) is not None
+            assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, None) is not None
+            attributes.pop("llm.tools.0.tool.json_schema", None)
+    else:
+        assert attributes.pop(LLM_MODEL_NAME, None) == model_name
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
     assert attributes == {}  # test should account for all span attributes
 
 
@@ -658,6 +1161,9 @@ def test_chat_completions_with_multiple_message_contents(
             OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
             == OpenInferenceMimeTypeValues.JSON
         )
+        # finish_reason is captured only for the first choice.
+        expected_finish_reason = "tool_calls" if is_stream else "stop"
+        assert attributes.pop(LLM_FINISH_REASON, None) == expected_finish_reason
         if not is_stream:
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
@@ -668,15 +1174,6 @@ def test_chat_completions_with_multiple_message_contents(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-        elif _openai_version() >= (1, 12, 0):
-            assert (
-                attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.id")
-                == "call_amGrubFmr2FSPHeC5OPgwcNs"
-            )
-            assert (
-                attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.id")
-                == "call_6QTP4mLSYYzZwt3ZWj77vfZf"
-            )
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -793,6 +1290,8 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
         == OpenInferenceMimeTypeValues.JSON
     )
+    # finish_reason is captured only for the first choice.
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
     # Usage is not available for streaming in general.
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == completion_usage["prompt_tokens"]
@@ -802,6 +1301,79 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
     assert attributes == {}  # test should account for all span attributes
     OpenAIInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
+
+
+@pytest.mark.parametrize("image_url_format", ["string", "dict"])
+def test_chat_completions_with_image_url_formats_issue_2188(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
+    model_name: str,
+    image_url_format: str,
+) -> None:
+    """
+    This test ensures that both string and dict formats for image_url are handled correctly:
+    - String format: "image_url": "https://example.com/image.png"
+    - Dict format: "image_url": {"url": "https://example.com/image.png"}
+    """
+    image_url_content: Union[str, Dict[str, str]]
+    if image_url_format == "string":
+        image_url_content = "https://example.com/test-image.png"
+    else:
+        image_url_content = {"url": "https://example.com/test-image.png"}
+
+    input_messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What's in this image?"},
+                {"type": "image_url", "image_url": image_url_content},
+            ],
+        },
+    ]
+
+    output_messages = [{"role": "assistant", "content": "I can see an image."}]
+    invocation_parameters = {
+        "model": model_name,
+        "temperature": 0.7,
+        "n": 1,
+    }
+
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "choices": [{"index": 0, "message": output_messages[0], "finish_reason": "stop"}],
+                "model": model_name,
+                "usage": completion_usage,
+            },
+        )
+    )
+
+    openai = import_module("openai")
+    client = openai.OpenAI(api_key="sk-test")
+    client.chat.completions.create(messages=input_messages, **invocation_parameters)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2  # httpx instrumentor + openai instrumentor
+    span = spans[1]
+
+    assert span.status.is_ok
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    image_url_key = "llm.input_messages.1.message.contents.1.message_content.image.image.url"
+    image_url_attr = attributes.get(image_url_key)
+    assert image_url_attr == "https://example.com/test-image.png"
+
+    content_type_key = "llm.input_messages.1.message.contents.1.message_content.type"
+    content_type_attr = attributes.get(content_type_key)
+    assert content_type_attr == "image"
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
 
 
 @pytest.mark.parametrize("hide_outputs", [False, True])
@@ -903,6 +1475,8 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
             OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
             == OpenInferenceMimeTypeValues.JSON
         )
+    # finish_reason is captured only for the first choice.
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
     # Usage is not available for streaming in general.
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == completion_usage["prompt_tokens"]
@@ -928,11 +1502,20 @@ def _check_llm_message(
     if isinstance(expected_content, list):
         for j, expected_content_item in enumerate(expected_content):
             content_item_type = attributes.pop(message_contents_type(prefix, i, j), None)
-            expected_content_item_type = expected_content_item.get("type")
-            if expected_content_item_type == "image_url":
+            if expected_content_item.get("type") in ("input_text", "output_text"):
+                expected_content_item_type = "text"
+            else:
+                expected_content_item_type = expected_content_item.get("type")
+            if expected_content_item_type in ("image_url", "input_image"):
                 expected_content_item_type = "image"
             assert content_item_type == expected_content_item_type
             if content_item_type == "text":
+                content_item_text = attributes.pop(message_contents_text(prefix, i, j), None)
+                if hide_text:
+                    assert content_item_text == REDACTED_VALUE
+                else:
+                    assert content_item_text == expected_content_item.get("text")
+            elif content_item_type == "output_text":
                 content_item_text = attributes.pop(message_contents_text(prefix, i, j), None)
                 if hide_text:
                     assert content_item_text == REDACTED_VALUE
@@ -945,7 +1528,10 @@ def _check_llm_message(
                 if hide_images:
                     assert content_item_image_url is None
                 else:
-                    expected_url = expected_content_item.get("image_url").get("url")
+                    expected_url = expected_content_item.get("image_url")
+                    if isinstance(expected_url, dict):
+                        expected_url = expected_url.get("url")
+                    assert isinstance(expected_url, str)
                     if image_limit is not None and len(expected_url) > image_limit:
                         assert content_item_image_url == REDACTED_VALUE
                     else:
@@ -966,6 +1552,7 @@ def _check_llm_message(
         ) == function_call.get("arguments")
     if _openai_version() >= (1, 1, 0) and (tool_calls := message.get("tool_calls")):
         for j, tool_call in enumerate(tool_calls):
+            assert attributes.pop(tool_call_id(prefix, i, j), None) == tool_call.get("id")
             if function := tool_call.get("function"):
                 assert attributes.pop(tool_call_function_name(prefix, i, j), None) == function.get(
                     "name"
@@ -1071,6 +1658,19 @@ def set_seed(seed: Iterator[int]) -> Iterator[None]:
 
 
 @pytest.fixture
+def responses_usage() -> Dict[str, Any]:
+    prompt_tokens = random.randint(1, 1000)
+    completion_tokens = random.randint(1, 1000)
+    return {
+        "input_tokens": prompt_tokens,
+        "input_tokens_details": {"cached_tokens": 0},
+        "output_tokens": completion_tokens,
+        "output_tokens_details": {"reasoning_tokens": 0},
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
+
+
+@pytest.fixture
 def completion_usage() -> Dict[str, Any]:
     prompt_tokens = random.randint(1, 1000)
     completion_tokens = random.randint(1, 1000)
@@ -1145,6 +1745,7 @@ def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
             b'data: {"choices": [{"delta": {"tool_calls": [{"index": 1, "function": {"arguments": "}"}}]}, "index": 0}]}\n\n',  # noqa: E501
             b'data: {"choices": [{"delta": {"content": "}"}, "index": 1}]}\n\n',
             b'data: {"choices": [{"finish_reason": "tool_calls", "index": 0}]}\n\n',  # noqa: E501
+            b'data: {"choices": [{"finish_reason": "stop", "index": 1}]}\n\n',
             b"data: [DONE]\n",
         ],
         [
@@ -1205,6 +1806,8 @@ def completion_mock_stream() -> Tuple[List[bytes], List[str]]:
             b'data: {"choices": [{"text": "t\\"}", "index": 0}]}\n\n',
             b'data: {"choices": [{"text": "heit\\"", "index": 1}]}\n\n',
             b'data: {"choices": [{"text": "}", "index": 1}]}\n\n',
+            b'data: {"choices": [{"finish_reason": "length", "index": 0}]}\n\n',
+            b'data: {"choices": [{"finish_reason": "stop", "index": 1}]}\n\n',
             b"data: [DONE]\n",
         ],
         [
@@ -1227,12 +1830,29 @@ class MockAsyncByteStream(AsyncByteStream):
             yield byte_string
 
 
-def randstr() -> str:
-    return str(random.random())
-
-
 def get_texts() -> List[str]:
     return [randstr() for _ in range(2)]
+
+
+def rand_tool_call() -> Dict[str, Any]:
+    return {
+        "type": "function_call",
+        "id": "fc_afa15b16dc044e4ea94697ab427dd59a",
+        "call_id": "call_caea3f3962f34170b06d77f8f69da8e1",
+        "name": "get_weather",
+        "arguments": f"{randstr()}",
+        "status": "completed",
+    }
+
+
+def rand_message() -> Dict[str, Any]:
+    return {
+        "type": "message",
+        "id": f"msg_{randid()}",
+        "status": "completed",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": randstr(), "annotations": []}],
+    }
 
 
 def get_messages() -> List[Dict[str, Any]]:
@@ -1250,7 +1870,12 @@ def get_messages() -> List[Dict[str, Any]]:
                 {
                     "role": randstr(),
                     "tool_calls": [
-                        {"function": {"arguments": randstr(), "name": randstr()}} for _ in range(2)
+                        {
+                            "id": randstr(),
+                            "type": "function",
+                            "function": {"arguments": randstr(), "name": randstr()},
+                        }
+                        for _ in range(2)
                     ],
                 }
                 for _ in range(2)
@@ -1333,6 +1958,10 @@ def message_function_call_arguments(prefix: str, i: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}"
 
 
+def tool_call_id(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_ID}"
+
+
 def tool_call_function_name(prefix: str, i: int, j: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_FUNCTION_NAME}"
 
@@ -1351,9 +1980,15 @@ LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
+    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
+)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_CHOICES = SpanAttributes.LLM_CHOICES
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
@@ -1364,10 +1999,14 @@ IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS after
+# https://github.com/Arize-ai/openinference/pull/2162 is merged
+EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 SESSION_ID = SpanAttributes.SESSION_ID

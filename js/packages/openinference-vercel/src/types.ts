@@ -1,6 +1,8 @@
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
-import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { Mutable, ValueOf } from "./typeUtils";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+
+import type { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
+import type { Mutable, ValueOf } from "./typeUtils.js";
 
 /**
  * A ReadWriteSpan is a mutable {@link ReadableSpan}.
@@ -10,14 +12,11 @@ import { Mutable, ValueOf } from "./typeUtils";
  */
 export type ReadWriteSpan = Mutable<ReadableSpan>;
 
-export type OpenInferenceSemanticConventionKey = ValueOf<
-  typeof SemanticConventions
->;
+export type OpenInferenceSemanticConventionKey = ValueOf<typeof SemanticConventions>;
 
 export type OpenInferenceIOConventionKey = Extract<
   OpenInferenceSemanticConventionKey,
-  | typeof SemanticConventions.OUTPUT_VALUE
-  | typeof SemanticConventions.INPUT_VALUE
+  typeof SemanticConventions.OUTPUT_VALUE | typeof SemanticConventions.INPUT_VALUE
 >;
 
 /**

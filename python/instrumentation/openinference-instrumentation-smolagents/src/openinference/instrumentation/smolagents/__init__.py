@@ -1,3 +1,6 @@
+from contextvars import copy_context
+from importlib import import_module
+from types import ModuleType
 from typing import Any, Callable, Collection, Optional
 
 from opentelemetry import trace as trace_api
@@ -22,11 +25,13 @@ _instruments = ("smolagents >= 1.2.2.dev0",)
 class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_run_method",
-        "_original_step_methods",
+        "_original_step_stream_methods",
         "_original_tool_call_method",
-        "_original_model_call_methods",
+        "_original_model_generate_methods",
+        "_original_executor",
         "_tracer",
     )
+    _original_executor: Optional[type]
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -46,25 +51,25 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
-        run_wrapper = _RunWrapper(tracer=self._tracer)
+        run_wrapper = _RunWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         self._original_run_method = getattr(MultiStepAgent, "run", None)
         wrap_function_wrapper(
-            module="smolagents",
-            name="MultiStepAgent.run",
-            wrapper=run_wrapper,
+            "smolagents",
+            "MultiStepAgent.run",
+            run_wrapper,
         )
 
-        self._original_step_methods: Optional[dict[type, Optional[Callable[..., Any]]]] = {}
-        step_wrapper = _StepWrapper(tracer=self._tracer)
+        self._original_step_stream_methods: Optional[dict[type, Optional[Callable[..., Any]]]] = {}
+        step_wrapper = _StepWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         for step_cls in [CodeAgent, ToolCallingAgent]:
-            self._original_step_methods[step_cls] = getattr(step_cls, "step", None)
+            self._original_step_stream_methods[step_cls] = getattr(step_cls, "_step_stream", None)
             wrap_function_wrapper(
-                module="smolagents",
-                name=f"{step_cls.__name__}.step",
-                wrapper=step_wrapper,
+                "smolagents",
+                f"{step_cls.__name__}._step_stream",
+                step_wrapper,
             )
 
-        self._original_model_call_methods: Optional[dict[type, Callable[..., Any]]] = {}
+        self._original_model_generate_methods: Optional[dict[type, Callable[..., Any]]] = {}
 
         exported_model_subclasses = [
             attr
@@ -73,20 +78,44 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         ]
 
         for model_subclass in exported_model_subclasses:
-            model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
-            self._original_model_call_methods[model_subclass] = getattr(model_subclass, "__call__")
-            wrap_function_wrapper(
-                module="smolagents",
-                name=model_subclass.__name__ + ".__call__",
-                wrapper=model_subclass_wrapper,
-            )
+            model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)  # type: ignore[arg-type]
 
-        tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
+            self._original_model_generate_methods[model_subclass] = getattr(
+                model_subclass, "generate"
+            )
+            wrap_function_wrapper(
+                "smolagents",
+                model_subclass.__name__ + ".generate",
+                model_subclass_wrapper,
+            )
+        self._original_executor: Optional[type] = None
+
+        module: ModuleType = import_module("smolagents.local_python_executor")
+
+        _OriginalThreadPoolExecutor: type = getattr(module, "ThreadPoolExecutor")
+        self._original_executor = _OriginalThreadPoolExecutor
+
+        def _make_context_aware_executor(*args: Any, **_kwargs: Any) -> Any:
+            executor = _OriginalThreadPoolExecutor(*args, **_kwargs)
+            original_submit = executor.submit
+
+            def context_preserving_submit(
+                fn: Callable[..., Any], *fn_args: Any, **fn_kwargs: Any
+            ) -> Any:
+                ctx = copy_context()
+                return original_submit(lambda: ctx.run(fn, *fn_args, **fn_kwargs))
+
+            executor.submit = context_preserving_submit
+            return executor
+
+        setattr(module, "ThreadPoolExecutor", _make_context_aware_executor)
+
+        tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         self._original_tool_call_method = getattr(Tool, "__call__", None)
         wrap_function_wrapper(
-            module="smolagents",
-            name="Tool.__call__",
-            wrapper=tool_call_wrapper,
+            "smolagents",
+            "Tool.__call__",
+            tool_call_wrapper,
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -96,19 +125,24 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             MultiStepAgent.run = self._original_run_method
             self._original_run_method = None
 
-        if self._original_step_methods is not None:
-            for step_cls, original_step_method in self._original_step_methods.items():
-                setattr(step_cls, "step", original_step_method)
-            self._original_step_methods = None
+        if self._original_step_stream_methods is not None:
+            for step_cls, original_step_method in self._original_step_stream_methods.items():
+                setattr(step_cls, "_step_stream", original_step_method)
+            self._original_step_stream_methods = None
 
-        if self._original_model_call_methods is not None:
+        if self._original_model_generate_methods is not None:
             for (
                 model_subclass,
-                original_model_call_method,
-            ) in self._original_model_call_methods.items():
-                setattr(model_subclass, "__call__", original_model_call_method)
-            self._original_model_call_methods = None
+                original_model_generate_method,
+            ) in self._original_model_generate_methods.items():
+                setattr(model_subclass, "generate", original_model_generate_method)
+            self._original_model_generate_methods = None
 
         if self._original_tool_call_method is not None:
             Tool.__call__ = self._original_tool_call_method
             self._original_tool_call_method = None
+
+        if self._original_executor is not None:
+            module: ModuleType = import_module("smolagents.local_python_executor")
+            setattr(module, "ThreadPoolExecutor", self._original_executor)
+            self._original_executor = None

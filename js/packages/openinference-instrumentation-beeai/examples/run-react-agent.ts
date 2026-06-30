@@ -1,6 +1,7 @@
 import "./instrumentation";
-import { ReActAgent } from "beeai-framework/agents/react/agent";
+
 import { OllamaChatModel } from "beeai-framework/adapters/ollama/backend/chat";
+import { ReActAgent } from "beeai-framework/agents/react/agent";
 import { TokenMemory } from "beeai-framework/memory/tokenMemory";
 import { DuckDuckGoSearchTool } from "beeai-framework/tools/search/duckDuckGoSearch";
 import { OpenMeteoTool } from "beeai-framework/tools/weather/openMeteo";

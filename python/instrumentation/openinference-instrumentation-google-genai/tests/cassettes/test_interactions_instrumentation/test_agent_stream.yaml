@@ -1,0 +1,17 @@
+interactions:
+- request:
+    body: '{"input":"Research the history of the Google TPUs with a focus on 2025
+      and 2026.","background":true,"agent":"deep-research-pro-preview-12-2025"}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: '{"id":"v1_Chd0OWNFYXR6Y0lyRG1xdHNQMkpydnlRcxIXdDljRWF0emNJckRtcXRzUDJKcnZ5UXM","status":"in_progress","created":"2026-05-13T19:57:43Z","updated":"2026-05-13T19:57:43Z","object":"interaction","agent":"deep-research-pro-preview-12-2025"}'
+    headers:
+      content-type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+version: 1

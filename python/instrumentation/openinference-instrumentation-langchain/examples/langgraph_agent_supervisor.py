@@ -2,13 +2,16 @@
 Based on https://colab.research.google.com/drive/1xDEPe2i_2rRqs7o6oNTtqA4J7Orsnvx1?usp=sharing
 
 Requires Tavily API Key https://github.com/tavily-ai/tavily-python
+
+This example uses LangChain Classic for legacy agent patterns (AgentExecutor).
+For new projects, consider using LangChain 1.x with the new agent framework.
 """
 
 import functools
 import operator
 from typing import Annotated, Sequence, TypedDict
 
-from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain_classic.agents import AgentExecutor, create_openai_tools_agent
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.output_parsers.openai_functions import JsonOutputFunctionsParser

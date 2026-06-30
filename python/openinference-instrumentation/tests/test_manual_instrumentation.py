@@ -1,9 +1,11 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import (
     Any,
     AsyncGenerator,
+    Callable,
     Dict,
     Generator,
     List,
@@ -15,6 +17,7 @@ from typing import (
     TypedDict,
     Union,
 )
+from uuid import UUID
 
 import jsonschema
 import pydantic
@@ -37,26 +40,39 @@ from openinference.instrumentation import (
     ImageMessageContent,
     Message,
     OITracer,
+    PromptDetails,
     TextMessageContent,
     TokenCount,
     Tool,
     ToolCall,
     ToolCallFunction,
     get_llm_attributes,
+    get_output_attributes,
+    infer_llm_provider_from_host,
+    infer_llm_system_from_model_name,
     suppress_tracing,
     using_session,
+)
+from openinference.instrumentation._attributes import (
+    _HOST_SUFFIX_TO_PROVIDER,
+    _MODEL_PREFIX_TO_SYSTEM,
 )
 from openinference.instrumentation._tracers import _infer_tool_parameters
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
 )
+
+ALL_PROVIDER_VALUES: set[str] = {p.value for p in OpenInferenceLLMProviderValues}
+ALL_SYSTEM_VALUES: set[str] = {s.value for s in OpenInferenceLLMSystemValues}
 
 
 def remove_all_vcr_request_headers(request: Any) -> Any:
@@ -2235,7 +2251,16 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
             contents=[TextMessageContent(type="text", text="Hi there!")],
         )
     ]
-    token_count: TokenCount = TokenCount(prompt=10, completion=5, total=15)
+    token_count: TokenCount = TokenCount(
+        prompt=10,
+        completion=5,
+        total=15,
+        prompt_details=PromptDetails(
+            audio=3,
+            cache_read=2,
+            cache_write=1,
+        ),
+    )
     tools: Sequence[Tool] = [
         Tool(
             json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}})
@@ -2252,7 +2277,6 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         token_count=token_count,
         tools=tools,
     )
-
     assert attributes.pop(LLM_PROVIDER) == "openai"
     assert attributes.pop(LLM_SYSTEM) == "openai"
     assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
@@ -2319,6 +2343,9 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         == "Hi there!"
     )
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO) == 3
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 2
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 1
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 5
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 15
     assert (
@@ -2705,6 +2732,11 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
@@ -2734,3 +2766,340 @@ TOOL = OpenInferenceSpanKindValues.TOOL.value
 
 # Session ID
 SESSION_ID = SpanAttributes.SESSION_ID
+
+
+class TestSamplerAttributeAccess:
+    """Test that samplers receive attributes during span creation for sampling decisions."""
+
+    def test_sampler_receives_all_attributes(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        captured_attributes: Dict[str, Any] = {}
+
+        from typing import Optional, Sequence
+
+        # Import the actual types used in the signature
+        import opentelemetry.trace
+        from opentelemetry.context import Context
+        from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
+        from opentelemetry.trace import Link
+        from opentelemetry.util.types import Attributes
+
+        class AttributeCapturingSampler(Sampler):
+            def should_sample(
+                self,
+                parent_context: Optional[Context],
+                trace_id: int,
+                name: str,
+                kind: Optional[opentelemetry.trace.SpanKind] = None,
+                attributes: Optional[Attributes] = None,
+                links: Optional[Sequence[Link]] = None,
+                trace_state: Optional[opentelemetry.trace.TraceState] = None,
+            ) -> SamplingResult:
+                print(f"SAMPLER CALLED: name={name}, attributes={attributes}")
+                if attributes:
+                    captured_attributes.update(attributes)
+                    print(f"CAPTURED: {captured_attributes}")
+                return SamplingResult(Decision.RECORD_AND_SAMPLE)
+
+            def get_description(self) -> str:
+                return "AttributeCapturingSampler"
+
+        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+        from openinference.instrumentation import TraceConfig, TracerProvider, using_attributes
+
+        # Create TracerProvider with custom sampler
+        tracer_provider = TracerProvider(config=TraceConfig(), sampler=AttributeCapturingSampler())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+        tracer = tracer_provider.get_tracer(__name__)
+
+        user_attributes = {"user.custom": "user_value", "user.id": "123"}
+
+        with using_attributes(session_id="session_123", metadata={"key": "value"}):
+            with tracer.start_as_current_span(
+                "test-span",
+                openinference_span_kind="chain",
+                attributes=user_attributes,
+            ) as span:
+                span.set_input("test input")
+                span.set_output("test output")
+                print(f"SPAN ATTRIBUTES: {getattr(span, 'attributes', 'no attributes attr')}")
+
+        print(f"FINAL CAPTURED ATTRIBUTES: {captured_attributes}")
+        spans = in_memory_span_exporter.get_finished_spans()
+        print(f"EXPORTED SPANS: {len(spans)}")
+        if spans:
+            print(f"EXPORTED SPAN ATTRIBUTES: {dict(spans[0].attributes or {})}")
+
+        assert "user.custom" in captured_attributes
+        assert captured_attributes["user.custom"] == "user_value"
+        assert "user.id" in captured_attributes
+        assert captured_attributes["user.id"] == "123"
+        assert "openinference.span.kind" in captured_attributes
+        assert captured_attributes["openinference.span.kind"] == "CHAIN"
+        assert "session.id" in captured_attributes
+        assert captured_attributes["session.id"] == "session_123"
+        assert "metadata" in captured_attributes  # metadata is JSON-encoded
+
+    def test_sampler_receives_masked_attributes(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        captured_attributes: Dict[str, Any] = {}
+
+        from typing import Optional, Sequence, Union
+
+        import opentelemetry.trace
+        from opentelemetry.context import Context
+        from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
+        from opentelemetry.trace import Link
+        from opentelemetry.util.types import Attributes
+
+        class AttributeCapturingSampler(Sampler):
+            def should_sample(
+                self,
+                parent_context: Optional[Context],
+                trace_id: int,
+                name: str,
+                kind: Optional[opentelemetry.trace.SpanKind] = None,
+                attributes: Optional[Attributes] = None,
+                links: Optional[Sequence[Link]] = None,
+                trace_state: Optional[opentelemetry.trace.TraceState] = None,
+            ) -> SamplingResult:
+                print(f"SAMPLER CALLED: name={name}, attributes={attributes}")
+                if attributes:
+                    captured_attributes.update(attributes)
+                    print(f"CAPTURED: {captured_attributes}")
+                return SamplingResult(Decision.RECORD_AND_SAMPLE)
+
+            def get_description(self) -> str:
+                return "AttributeCapturingSampler"
+
+        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+        from opentelemetry.util.types import AttributeValue
+
+        from openinference.instrumentation import TraceConfig, TracerProvider
+
+        class CustomTraceConfig(TraceConfig):
+            def mask(
+                self,
+                key: str,
+                value: Union[AttributeValue, Callable[[], AttributeValue]],
+            ) -> Optional[AttributeValue]:
+                if "sensitive" in key.lower() or "password" in key.lower():
+                    return "[MASKED]"
+                return super().mask(key, value)
+
+        trace_config = CustomTraceConfig()
+
+        # Create TracerProvider with custom sampler and config
+        tracer_provider = TracerProvider(config=trace_config, sampler=AttributeCapturingSampler())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+        tracer = tracer_provider.get_tracer(__name__)
+
+        sensitive_attributes = {
+            "user.password": "secret123",
+            "sensitive_data": "private_info",
+            "normal_attribute": "normal_value",
+        }
+
+        with tracer.start_as_current_span(
+            "test-span",
+            openinference_span_kind="llm",
+            attributes=sensitive_attributes,
+        ):
+            pass
+
+        assert "user.password" in captured_attributes
+        assert captured_attributes["user.password"] == "[MASKED]"
+        assert "sensitive_data" in captured_attributes
+        assert captured_attributes["sensitive_data"] == "[MASKED]"
+        assert "normal_attribute" in captured_attributes
+        assert captured_attributes["normal_attribute"] == "normal_value"
+        assert "openinference.span.kind" in captured_attributes
+        assert captured_attributes["openinference.span.kind"] == "LLM"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+
+
+class _DictKeyEnum(Enum):
+    INTEGER_ENUM = 2
+    STRING_ENUM = "str_enum"
+
+
+class _ModelWithDictAttributes(BaseModel):
+    attributes: dict[Any, Any]
+
+
+class TestGetOutputAttributes:
+    def test_pydantic_model_with_non_json_dict_keys(self) -> None:
+        model = _ModelWithDictAttributes(
+            attributes={
+                _DictKeyEnum.INTEGER_ENUM: "an integer enum key",
+                _DictKeyEnum.STRING_ENUM: "a string enum key",
+                UUID("00000000-0000-0000-0000-000000000011"): "a uuid key",
+                "str": "a string key",
+                9: "an integer key",
+                0.1: "a float key",
+                True: "a boolean key",
+                None: "a null key",
+            },
+        )
+
+        result = get_output_attributes(model)
+        output_value = result["output.value"]
+        assert isinstance(output_value, str)
+        parsed = json.loads(output_value)
+
+        expected = {
+            "attributes": {
+                "2": "an integer enum key",
+                "str_enum": "a string enum key",
+                "00000000-0000-0000-0000-000000000011": "a uuid key",
+                "str": "a string key",
+                "9": "an integer key",
+                "0.1": "a float key",
+                "true": "a boolean key",
+                "None": "a null key",
+            },
+        }
+
+        assert parsed == expected
+        assert result["output.mime_type"] == "application/json"
+
+
+class TestGetProviderFromHost:
+    @pytest.mark.parametrize(
+        "host, expected",
+        [
+            ("api.openai.com", OpenInferenceLLMProviderValues.OPENAI),
+            ("openai.azure.com", OpenInferenceLLMProviderValues.AZURE),
+            ("services.ai.azure.com", OpenInferenceLLMProviderValues.AZURE),
+            ("cognitiveservices.azure.com", OpenInferenceLLMProviderValues.AZURE),
+            ("api.anthropic.com", OpenInferenceLLMProviderValues.ANTHROPIC),
+            ("api.cohere.com", OpenInferenceLLMProviderValues.COHERE),
+            ("api.cohere.ai", OpenInferenceLLMProviderValues.COHERE),
+            ("api.mistral.ai", OpenInferenceLLMProviderValues.MISTRALAI),
+            ("generativelanguage.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE),
+            ("aiplatform.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE),
+            ("bedrock-runtime.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            ("bedrock-runtime.us-east-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            ("bedrock-runtime.eu-west-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            ("api.x.ai", OpenInferenceLLMProviderValues.XAI),
+            ("api.deepseek.com", OpenInferenceLLMProviderValues.DEEPSEEK),
+            ("api.groq.com", OpenInferenceLLMProviderValues.GROQ),
+            ("api.fireworks.ai", OpenInferenceLLMProviderValues.FIREWORKS),
+            ("api.moonshot.cn", OpenInferenceLLMProviderValues.MOONSHOT),
+            ("api.cerebras.ai", OpenInferenceLLMProviderValues.CEREBRAS),
+            ("api.perplexity.ai", OpenInferenceLLMProviderValues.PERPLEXITY),
+            ("api.together.ai", OpenInferenceLLMProviderValues.TOGETHER),
+            ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER),
+        ],
+    )
+    def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:
+        assert infer_llm_provider_from_host(host) == expected
+
+    @pytest.mark.parametrize("host", ["API.OPENAI.COM", "Api.Openai.Com"])
+    def test_case_insensitive(self, host: str) -> None:
+        assert infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
+
+    @pytest.mark.parametrize("host", ["  api.openai.com  ", "\tapi.openai.com\t"])
+    def test_whitespace_stripped(self, host: str) -> None:
+        assert infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
+
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "api.unknown-provider.com",
+            "storage.googleapis.com",
+            "",
+        ],
+    )
+    def test_unrecognised_host_returns_none(self, host: str) -> None:
+        assert infer_llm_provider_from_host(host) is None
+
+    def test_every_provider_has_at_least_one_host_entry(self) -> None:
+        mapped = {provider.value for provider in _HOST_SUFFIX_TO_PROVIDER.values()}
+        missing = ALL_PROVIDER_VALUES - mapped
+        assert not missing, f"Providers without a hostname entry: {missing}"
+
+    def test_all_suffix_values_are_valid_provider_values(self) -> None:
+        mapped = {provider.value for provider in _HOST_SUFFIX_TO_PROVIDER.values()}
+        invalid = mapped - ALL_PROVIDER_VALUES
+        assert not invalid, f"Suffixes map to unknown provider values: {invalid}"
+
+
+class TestGetSystemFromModel:
+    @pytest.mark.parametrize(
+        "model_name, expected",
+        [
+            ("gpt-4o", OpenInferenceLLMSystemValues.OPENAI),
+            ("gpt-3.5-turbo", OpenInferenceLLMSystemValues.OPENAI),
+            ("o1-preview", OpenInferenceLLMSystemValues.OPENAI),
+            ("o3-mini", OpenInferenceLLMSystemValues.OPENAI),
+            ("o4-mini", OpenInferenceLLMSystemValues.OPENAI),
+            ("text-embedding-ada-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("text-embedding-3-large", OpenInferenceLLMSystemValues.OPENAI),
+            ("davinci-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("curie", OpenInferenceLLMSystemValues.OPENAI),
+            ("babbage-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("ada", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure-gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("openai-gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("claude-3-5-sonnet-20241022", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("claude-3-haiku", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("anthropic.claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("google_anthropic_vertex.claude", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE),
+            ("command-r-plus", OpenInferenceLLMSystemValues.COHERE),
+            ("command-light", OpenInferenceLLMSystemValues.COHERE),
+            ("mistral-large-latest", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mistral-7b-instruct", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("gemini-2.0-flash", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertex-ai-model", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("google-palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+        ],
+    )
+    def test_known_models(self, model_name: str, expected: OpenInferenceLLMSystemValues) -> None:
+        assert infer_llm_system_from_model_name(model_name) == expected
+
+    @pytest.mark.parametrize("model_name", ["GPT-4O", "Claude-3-Haiku", "GEMINI-1.5-PRO"])
+    def test_case_insensitive(self, model_name: str) -> None:
+        assert infer_llm_system_from_model_name(model_name) is not None
+
+    @pytest.mark.parametrize("model_name", ["  gpt-4o  ", "\tclaude-3\t"])
+    def test_whitespace_stripped(self, model_name: str) -> None:
+        assert infer_llm_system_from_model_name(model_name) is not None
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "unknown-model-xyz",
+            "llama-3-70b",
+            "",
+        ],
+    )
+    def test_unrecognised_model_returns_none(self, model_name: str) -> None:
+        assert infer_llm_system_from_model_name(model_name) is None
+
+    def test_every_system_has_at_least_one_prefix_entry(self) -> None:
+        mapped = {system.value for system in _MODEL_PREFIX_TO_SYSTEM.values()}
+        missing = ALL_SYSTEM_VALUES - mapped
+        assert not missing, f"Systems without a prefix entry: {missing}"
+
+    def test_all_prefix_values_are_valid_system_values(self) -> None:
+        mapped = {system.value for system in _MODEL_PREFIX_TO_SYSTEM.values()}
+        invalid = mapped - ALL_SYSTEM_VALUES
+        assert not invalid, f"Prefixes map to unknown system values: {invalid}"
+
+    def test_google_anthropic_vertex_resolves_to_anthropic_not_vertexai(self) -> None:
+        assert (
+            infer_llm_system_from_model_name("google_anthropic_vertex.claude-3")
+            == OpenInferenceLLMSystemValues.ANTHROPIC
+        )

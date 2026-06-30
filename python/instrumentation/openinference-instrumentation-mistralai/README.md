@@ -5,6 +5,13 @@ Python autoinstrumentation library for MistralAI's Python SDK.
 
 The traces emitted by this instrumentation are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix)
 
+## Compatibility
+
+| `openinference-instrumentation-mistralai` | `mistralai` |
+|-------------------------------------------|-------------|
+| `<2.0.0`                                  | `>=1.0.2, <2.0.0` |
+| `>=2.0.0`                                 | `>=2.0.0`   |
+
 ## Installation
 
 ```shell

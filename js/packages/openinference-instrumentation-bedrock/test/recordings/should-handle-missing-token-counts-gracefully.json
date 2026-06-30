@@ -1,0 +1,64 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/invoke",
+    "body": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 100,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Tell me a short fact."
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "msg_bdrk_01WnczgPLNeFxGoqRLQnmKQR",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-5-sonnet-20240620",
+      "content": [
+        {
+          "type": "text",
+          "text": "Here's a short fact for you:\n\nHoneybees can recognize human faces."
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 10 Jul 2025 01:07:32 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "314",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "91814662-7973-4c39-98dc-6c0fc49e46b5",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "759",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "21",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "13"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "122",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "a8d395d0-1a44-403c-ab97-eed49e773fbc",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "048577bb64f6dbff5e65fcba39fb3e434dfc383f18857bc83231d1b458eb7b83",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

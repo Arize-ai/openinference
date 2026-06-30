@@ -25,7 +25,6 @@ from llama_index.core.base.llms.types import ChatMessage, MessageRole
 from llama_index.core.multi_modal_llms.generic_utils import load_image_urls
 from llama_index.llms.openai import OpenAI
 from llama_index.multi_modal_llms.openai import OpenAIMultiModal  # type: ignore
-from llama_index.multi_modal_llms.openai import utils as openai_utils
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
@@ -93,7 +92,13 @@ def test_chat_with_config_hiding_inputs(
     n = 10  # number of concurrent queries
     image_documents = load_image_urls([base64_image_url])
     chat_prompt = "Describe the images as an alternative text"
-    chat_msg = openai_utils.generate_openai_multi_modal_chat_message(
+    llm_model_name = "gpt-4o"
+    llm = OpenAIMultiModal(
+        model=llm_model_name,
+        max_retries=0,
+        timeout=0.01,
+    )
+    chat_msg = llm._get_multi_modal_chat_message(
         prompt=chat_prompt,
         role="user",
         image_documents=image_documents,
@@ -106,12 +111,6 @@ def test_chat_with_config_hiding_inputs(
         "including tall grasses and bushes, and trees in the background. "
         "This peaceful and open setting is suggestive of a nature reserve "
         "or park."
-    )
-    llm_model_name = "gpt-4o"
-    llm = OpenAIMultiModal(
-        model=llm_model_name,
-        max_retries=0,
-        timeout=0.01,
     )
     respx_kwargs: Dict[str, Any] = {
         "json": {
@@ -225,7 +224,13 @@ def test_chat_with_config_hiding_outputs(
     n = 10  # number of concurrent queries
     image_documents = load_image_urls([base64_image_url])
     chat_prompt = "Describe the images as an alternative text"
-    chat_msg = openai_utils.generate_openai_multi_modal_chat_message(
+    llm_model_name = "gpt-4o"
+    llm = OpenAIMultiModal(
+        model=llm_model_name,
+        max_retries=0,
+        timeout=0.01,
+    )
+    chat_msg = llm.generate_openai_multi_modal_chat_message(
         prompt=chat_prompt,
         role="user",
         image_documents=image_documents,
@@ -238,12 +243,6 @@ def test_chat_with_config_hiding_outputs(
         "including tall grasses and bushes, and trees in the background. "
         "This peaceful and open setting is suggestive of a nature reserve "
         "or park."
-    )
-    llm_model_name = "gpt-4o"
-    llm = OpenAIMultiModal(
-        model=llm_model_name,
-        max_retries=0,
-        timeout=0.01,
     )
     respx_kwargs: Dict[str, Any] = {
         "json": {

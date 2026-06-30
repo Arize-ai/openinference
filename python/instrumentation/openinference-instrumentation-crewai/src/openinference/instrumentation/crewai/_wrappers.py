@@ -1,7 +1,23 @@
+from __future__ import annotations
+
+import contextvars
 import json
+import logging
+import time
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    cast,
+)
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -9,10 +25,37 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     get_attributes_from_context,
+    get_input_attributes,
     get_output_attributes,
     safe_json_dumps,
 )
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+
+if TYPE_CHECKING:
+    from crewai import Flow
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+# Contextvar used to coordinate between the sync Flow.kickoff wrapper and the
+# async Flow.kickoff_async wrapper.  When the sync wrapper creates the FLOW span
+# BEFORE calling asyncio.run(), it stores the flow_id so that the async wrapper
+# (which is called inside asyncio.run()) can skip creating a duplicate span for
+# that specific flow while still creating spans for any nested flows.
+_flow_span_in_progress: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "_oi_flow_span_in_progress", default=None
+)
+
+# Contextvar used to suppress the internal Flow span created by Agent.kickoff()
+# when it internally spins up a Flow. Set to True while an _AgentKickoffWrapper
+# span is active so that Flow spans don't double-wrap standalone agent calls.
+_agent_kickoff_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_oi_agent_kickoff_active", default=False
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -29,6 +72,94 @@ class SafeJSONEncoder(json.JSONEncoder):
             return repr(o)
 
 
+# Prefer CrewAI's own Pydantic serialization so span input tracks the agent schema
+# that callers see, but trim fields that are cyclic, runtime-only, or not JSON-safe.
+_AGENT_MODEL_DUMP_EXCLUDE: Dict[str, Any] = {
+    # Cyclic graph back to the crew/task graph.
+    "crew": True,
+    # Runtime model/client objects rather than declarative agent input.
+    "llm": True,
+    "function_calling_llm": True,
+    # Executor state includes live objects that are not useful in telemetry.
+    "agent_executor": True,
+    "executor_class": True,
+    "tools_handler": True,
+    # Callback and guardrail hooks are runtime callables/configuration, not user input.
+    "callbacks": True,
+    "step_callback": True,
+    "guardrail": True,
+    # BaseTool embeds class/function objects by default, which do not survive JSON
+    # serialization and add noise to the span payload.
+    "tools": {"__all__": {"args_schema": True, "cache_function": True}},
+}
+
+
+def _serialize_agent_input_fallback(agent: Any) -> Dict[str, Any]:
+    serialized_agent: Dict[str, Any] = {
+        "role": str(getattr(agent, "role", "") or ""),
+        "goal": str(getattr(agent, "goal", "") or ""),
+        "backstory": str(getattr(agent, "backstory", "") or ""),
+        "verbose": bool(getattr(agent, "verbose", False)),
+        "allow_delegation": bool(getattr(agent, "allow_delegation", False)),
+        "max_iter": getattr(agent, "max_iter", None),
+        "max_rpm": getattr(agent, "max_rpm", None),
+    }
+
+    agent_id = getattr(agent, "id", None)
+    if agent_id is not None:
+        serialized_agent["id"] = str(agent_id)
+
+    agent_key = getattr(agent, "key", None)
+    if agent_key is not None:
+        serialized_agent["key"] = str(agent_key)
+
+    return serialized_agent
+
+
+def _serialize_agent_input(agent: Any) -> Dict[str, Any]:
+    model_dump = getattr(agent, "model_dump", None)
+    if callable(model_dump):
+        try:
+            # `mode="json"` normalizes values like UUIDs into JSON-safe primitives.
+            serialized_agent = cast(
+                Dict[str, Any],
+                model_dump(mode="json", exclude=_AGENT_MODEL_DUMP_EXCLUDE),
+            )
+            # Pydantic's exclude may not strip these from tool items in newer
+            # crewai versions (e.g. 1.14+) where BaseTool serializes args_schema
+            # as an instance field rather than a ClassVar. Post-process to ensure
+            # non-JSON-safe and noisy fields are always removed.
+            tools = serialized_agent.get("tools")
+            if isinstance(tools, list):
+                for tool in tools:
+                    if isinstance(tool, dict):
+                        tool.pop("args_schema", None)
+                        tool.pop("cache_function", None)
+            # `key` is useful for debugging span payloads, but is not guaranteed to be
+            # part of CrewAI's dumped schema across versions, so attach it explicitly.
+            agent_key = getattr(agent, "key", None)
+            if agent_key is not None:
+                serialized_agent["key"] = str(agent_key)
+            return serialized_agent
+        except Exception:
+            logger.debug("Failed to serialize CrewAI agent input via model_dump", exc_info=True)
+    return _serialize_agent_input_fallback(agent)
+
+
+def _serialize_input_argument(argument_name: str, argument_value: Any) -> Any:
+    if argument_name != "agent" or argument_value is None:
+        return argument_value
+
+    if not all(hasattr(argument_value, attr) for attr in ("role", "goal", "backstory")):
+        return argument_value
+
+    try:
+        return _serialize_agent_input(argument_value)
+    except Exception:
+        logger.debug("Failed to serialize CrewAI agent input", exc_info=True)
+        return argument_value
+
+
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
         return
@@ -42,6 +173,8 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
             for index, sub_mapping in enumerate(value):
                 for sub_key, sub_value in _flatten(sub_mapping):
                     yield f"{key}.{index}.{sub_key}", sub_value
+        elif isinstance(value, List) and any(isinstance(item, str) for item in value):
+            value = ", ".join(map(str, value))
         else:
             if isinstance(value, Enum):
                 value = value.value
@@ -70,17 +203,139 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         *args,
         **kwargs,
     )
+    serialized_arguments = {
+        argument_name: _serialize_input_argument(argument_name, argument_value)
+        for argument_name, argument_value in bound_arguments.arguments.items()
+        if argument_name not in ["self", "kwargs"]
+    }
     return safe_json_dumps(
         {
+            **serialized_arguments,
             **{
-                argument_name: argument_value
-                for argument_name, argument_value in bound_arguments.arguments.items()
-                if argument_name not in ["self", "kwargs"]
+                argument_name: _serialize_input_argument(argument_name, argument_value)
+                for argument_name, argument_value in (
+                    bound_arguments.arguments.get("kwargs", {}).items()
+                )
             },
-            **bound_arguments.arguments.get("kwargs", {}),
         },
         cls=SafeJSONEncoder,
     )
+
+
+def _get_crew_name(crew: Any) -> str:
+    """Generate a meaningful crew name for span naming."""
+    # First try to use crew.name attribute (user-friendly name)
+    if hasattr(crew, "name") and crew.name and crew.name.strip():
+        crew_name = str(crew.name).strip()
+        # If it's not just the default "crew", use it
+        if crew_name.lower() != "crew":
+            return crew_name
+
+    # Fallback to Crew with ID
+    if hasattr(crew, "id") and crew.id is not None:
+        return f"Crew_{str(crew.id)}"
+
+    # Final fallback
+    return "Crew"
+
+
+def _get_flow_name(flow: Any) -> str:
+    """Generate a meaningful flow name for span naming."""
+    # First try to use flow.name attribute (user-friendly name)
+    if hasattr(flow, "name") and flow.name and flow.name.strip():
+        flow_name = str(flow.name).strip()
+        # If it's not just the default "flow", use it
+        if flow_name.lower() != "flow":
+            return flow_name
+
+    # Fallback to Flow with ID
+    if hasattr(flow, "flow_id") and flow.flow_id is not None:
+        return f"Flow_{str(flow.flow_id)}"
+
+    # Final fallback
+    return "Flow"
+
+
+def _get_flow_method_type(flow: Any, method_name: Any) -> str:
+    methods = getattr(flow, "_methods", None)
+    if isinstance(methods, Mapping):
+        method = methods.get(method_name)
+        method_type = type(method).__name__
+        if method_type == "StartMethod":
+            return "start"
+        if method_type == "RouterMethod":
+            return "router"
+        if method_type == "ListenMethod":
+            return "listen"
+
+    actual_method = getattr(flow, str(method_name), None)
+    if actual_method is None:
+        return "unknown"
+    if getattr(actual_method, "__is_start_method__", False):
+        return "start"
+    if getattr(actual_method, "__is_router__", False):
+        return "router"
+    return "listen"
+
+
+def _get_tool_span_name(instance: Any, wrapped: Callable[..., Any]) -> str:
+    """Generate a meaningful tool span name including tool name."""
+    base_method = wrapped.__name__
+
+    # Try to get the tool name from instance
+    if instance and hasattr(instance, "name"):
+        tool_name = getattr(instance, "name", None)
+        if tool_name:
+            return f"{tool_name}.{str(base_method)}"
+
+    # Fallback to original naming if no tool name available
+    if instance:
+        return f"{instance.__class__.__name__}.{str(base_method)}"
+    else:
+        return str(base_method)
+
+
+def _get_execute_core_span_name(instance: Any, wrapped: Callable[..., Any], agent: Any) -> str:
+    """Generate a meaningful task span name using agent role."""
+    base_method = wrapped.__name__
+
+    if not instance:
+        return str(base_method)
+
+    agent_role = str(getattr(agent, "role", "") or "").strip()
+    task_name = str(getattr(instance, "name", "") or "").strip()
+
+    if agent_role and task_name:
+        return f"{agent_role}.{task_name}.{base_method}"
+    if agent_role:
+        return f"{agent_role}.{base_method}"
+    if instance:
+        return f"{instance.__class__.__name__}.{base_method}"
+    return base_method
+
+
+def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
+    for i, a in enumerate(agents):
+        if a.role == current_role and i != 0:
+            parent_agent = agents[i - 1]
+            if parent_agent.role:
+                return cast(str, parent_agent.role)
+    return None
+
+
+def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
+    """Add a structured event with flattened attributes to the current active span."""
+    span = trace_api.get_current_span()
+    if not (span and span.is_recording()):
+        return
+
+    flattened_attributes = dict(_flatten(attributes))
+    span.add_event(event_name, flattened_attributes)
+
+    prefixed_attributes = {
+        f"{event_name}.{key}": value for key, value in flattened_attributes.items()
+    }
+    span.set_attributes(prefixed_attributes)
 
 
 class _ExecuteCoreWrapper:
@@ -96,53 +351,83 @@ class _ExecuteCoreWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        if instance:
-            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
-        else:
-            span_name = wrapped.__name__
+        # Enhanced task naming - use meaningful agent role instead of generic "Task._execute_core"
+        agent = args[0] if args else kwargs.get("agent")
+        span_name = _get_execute_core_span_name(instance, wrapped, agent)
+        input_value = _get_input_value(wrapped, *args, **kwargs)
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
+            attributes=dict(_flatten({OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT})),
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
+            span.set_attributes(
+                dict(get_input_attributes(input_value, mime_type=OpenInferenceMimeTypeValues.JSON))
+            )
+            span.set_attribute("task_key", instance.key)
+            span.set_attribute("task_id", str(instance.id))
+            task_name = getattr(instance, "name", None)
+            if task_name is not None:
+                span.set_attribute("task_name", task_name)
+
             agent = args[0] if args else None
-            crew = agent.crew if agent else None
-            task = instance
+            # Conditionally set attributes for the agent, crew, and task
+            if agent:
+                span.set_attribute(SpanAttributes.GRAPH_NODE_ID, agent.role)
+                crew = agent.crew
+                if crew:
+                    span.set_attribute("crew_key", crew.key)
+                    span.set_attribute("crew_id", str(crew.id))
 
-            if crew:
-                span.set_attribute("crew_key", crew.key)
-                span.set_attribute("crew_id", str(crew.id))
-            span.set_attribute("task_key", task.key)
-            span.set_attribute("task_id", str(task.id))
+                    # Find the current agent, the previous agent is the parent node
+                    parent_agent_role = _find_parent_agent(agent.role, crew.agents)
+                    if parent_agent_role:
+                        span.set_attribute(SpanAttributes.GRAPH_NODE_PARENT_ID, parent_agent_role)
 
-            if crew and crew.share_crew:
-                span.set_attribute("formatted_description", task.description)
-                span.set_attribute("formatted_expected_output", task.expected_output)
+                    if crew.share_crew:
+                        span.set_attribute("formatted_description", instance.description)
+                        span.set_attribute("formatted_expected_output", instance.expected_output)
+
+            # Run the wrapped function, and capture errors before re-raising
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+
             span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(dict(get_output_attributes(response)))
             span.set_attributes(dict(get_attributes_from_context()))
         return response
 
 
-class _KickoffWrapper:
+class _ExecuteWithoutTimeoutContextDescriptor:
+    """Descriptor placed on Agent._execute_without_timeout (class patch, no instance mutation).
+
+    Each access to self._execute_without_timeout (e.g. in executor.submit(...)) runs
+    __get__ in the calling thread, captures contextvars, and returns a callable that
+    runs the original method in that context when invoked in the worker thread.
+    Concurrency-safe and aligned with wrapt's "patch the class with a descriptor"
+    guidance (see wrap_object_attribute in wrapt/patches.py).
+    """
+
+    def __init__(self, original: Any) -> None:
+        self._original = original
+
+    def __get__(self, instance: Any, owner: Any) -> Any:
+        if instance is None:
+            return self
+        ctx = contextvars.copy_context()
+        bound = self._original.__get__(instance, owner)
+
+        def run_in_context(*args: Any, **kwargs: Any) -> Any:
+            return ctx.run(bound, *args, **kwargs)
+
+        return run_in_context
+
+
+class _CrewKickoffWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -155,7 +440,9 @@ class _KickoffWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        span_name = f"{instance.__class__.__name__}.kickoff"
+        # Enhanced crew naming - use meaningful crew name instead of generic "Crew.kickoff"
+        crew_name = _get_crew_name(instance)
+        span_name = f"{crew_name}.kickoff"
         with self._tracer.start_as_current_span(
             span_name,
             record_exception=False,
@@ -170,6 +457,12 @@ class _KickoffWrapper:
         ) as span:
             crew = instance
             inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+
+            if inputs is not None:
+                span.set_attributes(dict(get_input_attributes(inputs)))
+                # Extract Kickoff ID (Only available when using CrewAI AMP API)
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("crew_key", crew.key)
             span.set_attribute("crew_id", str(crew.id))
@@ -187,7 +480,6 @@ class _KickoffWrapper:
                             "verbose?": agent.verbose,
                             "max_iter": agent.max_iter,
                             "max_rpm": agent.max_rpm,
-                            "i18n": agent.i18n.prompt_file,
                             "delegation_enabled": agent.allow_delegation,
                             "tools_names": [tool.name.casefold() for tool in agent.tools or []],
                         }
@@ -208,7 +500,7 @@ class _KickoffWrapper:
                             "agent_role": task.agent.role if task.agent else "None",
                             "agent_key": task.agent.key if task.agent else None,
                             "context": [task.description for task in task.context]
-                            if task.context
+                            if isinstance(task.context, list)
                             else None,
                             "tools_names": [tool.name.casefold() for tool in task.tools or []],
                         }
@@ -229,7 +521,203 @@ class _KickoffWrapper:
         return crew_output
 
 
-class _ToolUseWrapper:
+class _FlowKickoffWrapper:
+    """Sync wrapper for Flow.kickoff().
+
+    Creates the FLOW CHAIN span *before* ``asyncio.run()`` is invoked so that
+    the span lives in the calling thread's context for the entire duration of
+    the synchronous call.  It sets ``_flow_span_in_progress`` so the inner
+    async wrapper (``_FlowKickoffAsyncWrapper``) knows to skip creating a
+    duplicate span.
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Flow[Any],
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        if _agent_kickoff_active.get():
+            return wrapped(*args, **kwargs)
+        # CrewAI 1.x AgentExecutor subclasses Flow internally to drive task
+        # execution; it sets suppress_flow_events=True to opt out of CrewAI's
+        # own event emission. Use the same signal to skip our spans so we don't
+        # emit dozens of internal node CHAIN spans per task.
+        if getattr(instance, "suppress_flow_events", False):
+            return wrapped(*args, **kwargs)
+        flow_name = _get_flow_name(instance)
+        span_name = f"{flow_name}.kickoff"
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                    }
+                )
+            ),
+        ) as span:
+            flow = instance
+            inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+
+            if inputs is not None:
+                span.set_attributes(dict(get_input_attributes(inputs)))
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
+
+            span.set_attribute("flow_id", str(flow.flow_id))
+            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+
+            # Signal to the async wrapper that the span already exists for this flow.
+            # Store the flow_id (not a plain boolean) so that nested flows with different
+            # flow_ids still get their own spans.
+            token = _flow_span_in_progress.set(str(flow.flow_id))
+            try:
+                flow_output = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            finally:
+                _flow_span_in_progress.reset(token)
+
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(dict(get_output_attributes(flow_output)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return flow_output
+
+
+class _FlowKickoffAsyncWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Flow[Any],
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        if _agent_kickoff_active.get():
+            return await wrapped(*args, **kwargs)
+        if getattr(instance, "suppress_flow_events", False):
+            return await wrapped(*args, **kwargs)
+        # When called from the sync Flow.kickoff() wrapper via asyncio.run(),
+        # the FLOW span was already created in the calling thread's context and
+        # propagated into this task via contextvars.  Skip creating a duplicate
+        # only for this specific flow (matched by flow_id); nested flows with a
+        # different flow_id still get their own span.
+        if _flow_span_in_progress.get() == str(instance.flow_id):
+            return await wrapped(*args, **kwargs)
+        # Enhanced flow naming - use meaningful flow name instead of generic "Flow.kickoff"
+        flow_name = _get_flow_name(instance)
+        span_name = f"{flow_name}.kickoff"
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                    }
+                )
+            ),
+        ) as span:
+            flow = instance
+            inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+
+            if inputs is not None:
+                span.set_attributes(dict(get_input_attributes(inputs)))
+                # Extract Kickoff ID (Only available when using CrewAI AMP API)
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
+
+            span.set_attribute("flow_id", str(flow.flow_id))
+            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+
+            try:
+                flow_output = await wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+
+            span.set_attributes(dict(get_output_attributes(flow_output)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return flow_output
+
+
+class _FlowExecuteMethodWrapper:
+    """Async wrapper for Flow._execute_method().
+
+    Creates a CHAIN span for each individual flow node (start, listen, router)
+    so users can see which nodes ran, their outputs, and their timings.
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        if _agent_kickoff_active.get():
+            return await wrapped(*args, **kwargs)
+        if getattr(instance, "suppress_flow_events", False):
+            return await wrapped(*args, **kwargs)
+
+        # args = (method_name, method, *original_method_args)
+        method_name = args[0] if args else kwargs.get("method_name", "unknown")
+        node_type = _get_flow_method_type(instance, method_name)
+
+        flow_name = _get_flow_name(instance)
+        span_name = f"{flow_name}.{method_name}"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(_flatten({OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN})),
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            span.set_attribute("flow.node.name", str(method_name))
+            span.set_attribute("flow.node.type", node_type)
+            try:
+                response = await wrapped(*args, **kwargs)
+            except Exception as exc:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exc)))
+                span.record_exception(exc)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+            # response is tuple[Any, str | None] — first element is the actual result
+            node_result = response[0] if isinstance(response, tuple) else response
+            if node_result is not None:
+                span.set_attributes(dict(get_output_attributes(node_result)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return response
+
+
+class _AgentKickoffWrapper:
+    """Sync wrapper for Agent.kickoff().
+
+    Creates an AGENT span for standalone agent invocations (outside a Crew).
+    """
+
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -242,39 +730,316 @@ class _ToolUseWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        if instance:
-            span_name = f"{instance.__class__.__name__}.{wrapped.__name__}"
-        else:
-            span_name = wrapped.__name__
+        role = getattr(instance, "role", None)
+        span_name = f"{role}.kickoff" if role else "Agent.kickoff"
+        input_value = _get_input_value(wrapped, *args, **kwargs)
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
+            attributes=dict(_flatten({OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT})),
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            tool = kwargs.get("tool")
-            tool_name = ""
-            if tool:
-                tool_name = tool.name
-            span.set_attribute("function_calling_llm", instance.function_calling_llm)
-            span.set_attribute(SpanAttributes.TOOL_NAME, tool_name)
+            span.set_attributes(
+                dict(get_input_attributes(input_value, mime_type=OpenInferenceMimeTypeValues.JSON))
+            )
+            if role:
+                span.set_attribute(SpanAttributes.GRAPH_NODE_ID, role)
+            if getattr(instance, "goal", None):
+                span.set_attribute("agent.goal", str(instance.goal))
+            if getattr(instance, "backstory", None):
+                span.set_attribute("agent.backstory", str(instance.backstory))
+            if getattr(instance, "tools", None):
+                try:
+                    span.set_attribute(
+                        "agent.tools",
+                        json.dumps([t.name for t in instance.tools if hasattr(t, "name")]),
+                    )
+                except Exception:
+                    pass
+            token = _agent_kickoff_active.set(True)
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exc:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exc)))
+                span.record_exception(exc)
+                raise
+            finally:
+                _agent_kickoff_active.reset(token)
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(dict(get_output_attributes(response)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return response
+
+
+class _LongTermMemorySaveWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        attributes: Dict[str, Any] = {}
+        try:
+            start_time = time.time()
+            response = wrapped(*args, **kwargs)
+            save_time_ms = (time.time() - start_time) * 1000
+
+            if args is not None:
+                item = args[0]
+                attributes.update(
+                    {
+                        "agent_role": getattr(item, "agent", None),
+                        "value": getattr(item, "task", None),
+                        "expected_output": getattr(item, "expected_output", None),
+                        "datetime": getattr(item, "datetime", None),
+                        "quality": getattr(item, "quality", None),
+                        "metadata": getattr(item, "metadata", None),
+                        "source_type": "long_term_memory",
+                        "save_time_ms": save_time_ms,
+                    }
+                )
+        except Exception as exception:
+            attributes.update(
+                {
+                    "agent_role": getattr(item, "agent", None),
+                    "value": getattr(item, "task", None),
+                    "metadata": getattr(item, "metadata", None),
+                    "error": str(exception),
+                    "source_type": "long_term_memory",
+                }
+            )
+            raise
+
+        _log_span_event("long_term_memory.save", attributes)
+        return response
+
+
+class _LongTermMemorySearchWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        attributes: Dict[str, Any] = {}
+        try:
+            start_time = time.time()
+            response = wrapped(*args, **kwargs)
+            query_time_ms = (time.time() - start_time) * 1000
+
+            if args is not None:
+                query = args[0]
+                limit = kwargs.get("latest_n", 3)
+                attributes.update(
+                    {
+                        "task": query,
+                        "latest_n": limit,
+                        "results": response,
+                        "source_type": "long_term_memory",
+                        "query_time_ms": query_time_ms,
+                    }
+                )
+        except Exception as exception:
+            attributes.update(
+                {
+                    "task": query,
+                    "latest_n": limit,
+                    "error": str(exception),
+                    "source_type": "long_term_memory",
+                }
+            )
+            raise
+
+        _log_span_event("long_term_memory.search", attributes)
+        return response
+
+
+class _ShortTermMemorySaveWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        attributes: Dict[str, Any] = {}
+        try:
+            start_time = time.time()
+            response = wrapped(*args, **kwargs)
+            save_time_ms = (time.time() - start_time) * 1000
+
+            if kwargs is not None:
+                attributes.update(
+                    {
+                        **kwargs,
+                        "source_type": "short_term_memory",
+                        "save_time_ms": save_time_ms,
+                    }
+                )
+        except Exception as exception:
+            attributes.update(
+                {
+                    **kwargs,
+                    "error": str(exception),
+                    "source_type": "short_term_memory",
+                }
+            )
+            raise
+
+        _log_span_event("short_term_memory.save", attributes)
+        return response
+
+
+class _ShortTermMemorySearchWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        attributes: Dict[str, Any] = {}
+        try:
+            start_time = time.time()
+            response = wrapped(*args, **kwargs)
+            query_time_ms = (time.time() - start_time) * 1000
+
+            if args is not None:
+                try:
+                    query = args[0]
+                except IndexError:
+                    query = ""
+                try:
+                    limit = args[1]
+                except IndexError:
+                    limit = 5
+                try:
+                    score_threshold = args[2]
+                except IndexError:
+                    score_threshold = 0.6
+                attributes.update(
+                    {
+                        "query": query,
+                        "limit": limit,
+                        "score_threshold": score_threshold,
+                        "results": response,
+                        "source_type": "short_term_memory",
+                        "query_time_ms": query_time_ms,
+                    }
+                )
+        except Exception as exception:
+            attributes.update(
+                {
+                    "query": query,
+                    "limit": limit,
+                    "score_threshold": score_threshold,
+                    "error": str(exception),
+                    "source_type": "short_term_memory",
+                }
+            )
+            raise
+
+        _log_span_event("short_term_memory.search", attributes)
+        return response
+
+
+class _BaseToolRunWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        # Enhanced tool naming - use meaningful tool name instead of generic "BaseTool.run"
+        span_name = _get_tool_span_name(instance, wrapped)
+        input_value = _get_input_value(wrapped, *args, **kwargs)
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(_flatten({OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL})),
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            span.set_attributes(
+                dict(get_input_attributes(input_value, mime_type=OpenInferenceMimeTypeValues.JSON))
+            )
+            # See https://github.com/crewAIInc/crewAI/blob/main/lib/crewai/src/crewai/tools/base_tool.py#L55
+            # The unique name of the tool that clearly communicates its purpose.
+            if hasattr(instance, "name") and instance.name:
+                span.set_attribute(SpanAttributes.TOOL_NAME, str(instance.name))
+            # Used to tell the model how/when/why to use the tool.
+            if hasattr(instance, "description") and instance.description:
+                span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, str(instance.description))
+            # The schema for the arguments that the tool accepts.
+            if hasattr(instance, "args_schema") and instance.args_schema is not None:
+                try:
+                    if hasattr(instance.args_schema, "model_json_schema"):
+                        span.set_attribute(
+                            SpanAttributes.TOOL_PARAMETERS,
+                            safe_json_dumps(instance.args_schema.model_json_schema()),
+                        )
+                except Exception:
+                    logger.exception("Failed to extract the tool parameters schema.")
+            # Flag to check if the description has been updated.
+            if hasattr(instance, "description_updated"):
+                span.set_attribute("tool.description_updated", bool(instance.description_updated))
+            # Function that will be used to determine if the tool should be cached.
+            if hasattr(instance, "cache_function") and instance.cache_function is not None:
+                try:
+                    span.set_attribute("tool.cache_function", str(instance.cache_function.__name__))
+                except Exception:
+                    logger.exception("Failed to get the cache function name.")
+            # Flag to check if the tool should be the final agent answer.
+            if hasattr(instance, "result_as_answer"):
+                span.set_attribute("tool.result_as_answer", bool(instance.result_as_answer))
+            # Maximum number of times this tool can be used.
+            if hasattr(instance, "max_usage_count") and instance.max_usage_count is not None:
+                span.set_attribute("tool.max_usage_count", int(instance.max_usage_count))
+            # Current number of times this tool has been used.
+            if (
+                hasattr(instance, "current_usage_count")
+                and instance.current_usage_count is not None
+            ):
+                span.set_attribute("tool.current_usage_count", int(instance.current_usage_count))
+
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+
             span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(dict(get_output_attributes(response)))
             span.set_attributes(dict(get_attributes_from_context()))
@@ -283,5 +1048,3 @@ class _ToolUseWrapper:
 
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
-OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
-OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE

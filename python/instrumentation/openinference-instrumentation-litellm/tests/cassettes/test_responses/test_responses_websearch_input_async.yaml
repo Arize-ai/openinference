@@ -1,0 +1,72 @@
+interactions:
+- request:
+    body: '{"model":"gpt-4.1","input":"What was a positive news story from today?","tools":[{"type":"web_search_preview"}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"id\": \"resp_010b3666a1e6d78400699ec454f5e481a2858443f347ac296b\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1772012629,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1772012634,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-4.1-2025-04-14\",\n  \"output\": [\n    {\n      \"id\": \"ws_010b3666a1e6d78400699ec455a9c481a2b6fa6b5d8e690656\",\n
+        \     \"type\": \"web_search_call\",\n      \"status\": \"completed\",\n      \"action\":
+        {\n        \"type\": \"search\",\n        \"queries\": [\n          \"positive
+        news stories June 8 2024\"\n        ],\n        \"query\": \"positive news
+        stories June 8 2024\"\n      }\n    },\n    {\n      \"id\": \"msg_010b3666a1e6d78400699ec4574a8c81a2bdbd9f0f2d2f6c94\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [\n            {\n              \"type\": \"url_citation\",\n              \"end_index\":
+        583,\n              \"start_index\": 452,\n              \"title\": \"7 stories
+        of optimism this week (17.02.26-23.02.26) - Conservation Optimism\",\n              \"url\":
+        \"https://conservationoptimism.org/7-stories-of-optimism-this-week-17-02-26-23-02-26/?utm_source=openai\"\n
+        \           },\n            {\n              \"type\": \"url_citation\",\n
+        \             \"end_index\": 1036,\n              \"start_index\": 905,\n
+        \             \"title\": \"7 stories of optimism this week (17.02.26-23.02.26)
+        - Conservation Optimism\",\n              \"url\": \"https://conservationoptimism.org/7-stories-of-optimism-this-week-17-02-26-23-02-26/?utm_source=openai\"\n
+        \           },\n            {\n              \"type\": \"url_citation\",\n
+        \             \"end_index\": 1447,\n              \"start_index\": 1362,\n
+        \             \"title\": \"2026 in science\",\n              \"url\": \"https://en.wikipedia.org/wiki/2026_in_science?utm_source=openai\"\n
+        \           }\n          ],\n          \"logprobs\": [],\n          \"text\":
+        \"As of February 25, 2026, a notable positive news story is the return of
+        giant tortoises to Floreana Island in the Gal\\u00e1pagos after nearly two
+        centuries. On February 20, 2026, 156 endangered tortoises were released on
+        the island, marking a significant conservation milestone. This effort was
+        supported by local residents and a consortium of partners, aiming to restore
+        the island's ecosystem and reintroduce a species that had been absent for
+        180 years. ([conservationoptimism.org](https://conservationoptimism.org/7-stories-of-optimism-this-week-17-02-26-23-02-26/?utm_source=openai))\\n\\nAdditionally,
+        the critically endangered North Atlantic right whale population has experienced
+        a baby boom, with 22 new calves spotted this season. Each calf represents
+        hope for the recovery of this species, which faces numerous challenges during
+        migration, including navigating through fishing lines and vessel traffic.
+        ([conservationoptimism.org](https://conservationoptimism.org/7-stories-of-optimism-this-week-17-02-26-23-02-26/?utm_source=openai))\\n\\nIn
+        the field of science, on February 12, 2026, scientists using ESA's CHEOPS
+        telescope described a unique planetary system around the star LHS 1903. This
+        system features rocky inner and outer planets, with two middle planets possessing
+        extended atmospheres, providing support for the \\\"inside-out\\\" model of
+        planet formation. ([en.wikipedia.org](https://en.wikipedia.org/wiki/2026_in_science?utm_source=openai))\\n\\nThese
+        developments highlight significant progress in conservation and scientific
+        research, offering hope and inspiration. \"\n        }\n      ],\n      \"role\":
+        \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\": true,\n  \"presence_penalty\":
+        0.0,\n  \"previous_response_id\": null,\n  \"prompt_cache_key\": null,\n  \"prompt_cache_retention\":
+        null,\n  \"reasoning\": {\n    \"effort\": null,\n    \"summary\": null\n
+        \ },\n  \"safety_identifier\": null,\n  \"service_tier\": \"default\",\n  \"store\":
+        true,\n  \"temperature\": 1.0,\n  \"text\": {\n    \"format\": {\n      \"type\":
+        \"text\"\n    },\n    \"verbosity\": \"medium\"\n  },\n  \"tool_choice\":
+        \"auto\",\n  \"tools\": [\n    {\n      \"type\": \"web_search_preview\",\n
+        \     \"search_context_size\": \"medium\",\n      \"user_location\": {\n        \"type\":
+        \"approximate\",\n        \"city\": null,\n        \"country\": \"US\",\n
+        \       \"region\": null,\n        \"timezone\": null\n      }\n    }\n  ],\n
+        \ \"top_logprobs\": 0,\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n
+        \ \"usage\": {\n    \"input_tokens\": 310,\n    \"input_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"output_tokens\": 364,\n    \"output_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 674\n  },\n
+        \ \"user\": null,\n  \"metadata\": {}\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
