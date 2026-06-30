@@ -138,8 +138,13 @@ class _RunnerRunAsync(_WithTracer):
                     ):
                         stack.enter_context(using_session(session_id))
 
+                    has_output_with_content = False
                     async for event in self.__wrapped__:
                         if event.is_final_response():
+                            event_has_content = _event_has_content(event)
+                            if has_output_with_content and not event_has_content:
+                                yield event
+                                continue
                             try:
                                 span.set_attribute(
                                     SpanAttributes.OUTPUT_VALUE,
@@ -152,6 +157,10 @@ class _RunnerRunAsync(_WithTracer):
                             except Exception:
                                 logger.exception(
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                )
+                            else:
+                                has_output_with_content = (
+                                    has_output_with_content or event_has_content
                                 )
                         yield event
                     span.set_status(StatusCode.OK)
@@ -185,8 +194,13 @@ class _BaseAgentRunAsync(_WithTracer):
                     name=name,
                     attributes=attributes,
                 ) as span:
+                    has_output_with_content = False
                     async for event in self.__wrapped__:
                         if event.is_final_response():
+                            event_has_content = _event_has_content(event)
+                            if has_output_with_content and not event_has_content:
+                                yield event
+                                continue
                             try:
                                 span.set_attribute(
                                     SpanAttributes.OUTPUT_VALUE,
@@ -199,6 +213,10 @@ class _BaseAgentRunAsync(_WithTracer):
                             except Exception:
                                 logger.exception(
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                )
+                            else:
+                                has_output_with_content = (
+                                    has_output_with_content or event_has_content
                                 )
                         yield event
                     span.set_status(StatusCode.OK)
@@ -583,6 +601,10 @@ def bind_args_kwargs(func: Any, *args: Any, **kwargs: Any) -> OrderedDict[str, A
     bound = sig.bind(*args, **kwargs)
     bound.apply_defaults()
     return bound.arguments
+
+
+def _event_has_content(event: Event) -> bool:
+    return bool(event.content and event.content.parts)
 
 
 def _default(obj: Any) -> Any:
