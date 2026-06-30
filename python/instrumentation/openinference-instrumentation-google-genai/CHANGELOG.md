@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.1.1...python-openinference-instrumentation-google-genai-v1.2.0) (2026-06-30)
+
+
+### Features
+
+* add support for reasoning content and signatures in attributes and types ([#3226](https://github.com/Arize-ai/openinference/issues/3226)) ([7ce4027](https://github.com/Arize-ai/openinference/commit/7ce4027d4ac6bb24bb2da0af085433cbfabb28b5))
+
 ## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.1.0...python-openinference-instrumentation-google-genai-v1.1.1) (2026-06-24)
 
 

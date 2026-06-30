@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.42...python-openinference-instrumentation-bedrock-v0.1.43) (2026-06-30)
+
+
+### Bug Fixes
+
+* **bedrock:** record tool json_schema verbatim with Converse envelope ([#3310](https://github.com/Arize-ai/openinference/issues/3310)) ([3f8daa5](https://github.com/Arize-ai/openinference/commit/3f8daa5eb620af0f9f2df2f65e370feb30e85924))
+
 ## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.41...python-openinference-instrumentation-bedrock-v0.1.42) (2026-06-24)
 
 
