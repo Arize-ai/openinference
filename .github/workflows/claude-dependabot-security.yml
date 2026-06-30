@@ -167,15 +167,10 @@ jobs:
           TARGET_MANIFEST: ${{ steps.alerts.outputs.manifest }}
         run: |
           set -euo pipefail
-          # Pipe to standalone jq (gh's built-in --jq does not accept --arg);
-          # read the prefix from the environment via jq's env.* to keep the
-          # filter in single quotes (no shell interpolation).
-          existing=$(gh pr list \
-              --repo "$GITHUB_REPOSITORY" \
-              --state open \
-              --limit 200 \
-              --json url,headRefName \
-            | jq -r '[.[] | select(.headRefName | startswith(env.SLICE_PREFIX))][0].url // empty')
+          # Paginate so a high open-PR count cannot hide an existing auto-fix
+          # branch for this manifest slice.
+          existing=$(gh api --paginate "/repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" \
+            | jq -sr --arg prefix "$SLICE_PREFIX" '[.[][] | select(.head.ref | startswith($prefix))][0].html_url // empty')
           if [ -n "$existing" ]; then
             echo "An open Claude Dependabot security PR for this manifest already exists: $existing"
             {
