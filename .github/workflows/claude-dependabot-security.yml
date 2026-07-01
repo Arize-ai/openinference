@@ -588,16 +588,20 @@ jobs:
           fi
 
           release_triggering_title() {
-            printf '%s' "$1" | grep -qE '^(feat|fix|perf)(\([^)]+\))?!?: .+'
+            printf '%s' "$1" | grep -qE '^([a-z]+)(\([^)]+\))?!: .+|^(feat|fix)(\([^)]+\))?: .+'
           }
 
           release_neutral_dependency_change() {
             local non_release_neutral_files
+            # js/package.json is the private JS workspace root where pnpm
+            # overrides live. Published package manifests intentionally remain
+            # release-triggering because they can change runtime dependency
+            # constraints.
             non_release_neutral_files=$(changed_files | awk '
               /(^|\/)([^\/]*(test|dev)[^\/]*requirements[^\/]*|[^\/]*requirements[^\/]*(test|dev)[^\/]*|constraints[^\/]*(test|dev)[^\/]*|[^\/]*(test|dev)[^\/]*constraints[^\/]*)\.txt$/ { next }
               /(^|\/)(poetry\.lock|uv\.lock|Pipfile\.lock)$/ { next }
               /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|npm-shrinkwrap\.json)$/ { next }
-              /^package\.json$/ { next }
+              /^js\/package\.json$/ { next }
               /(^|\/)(go\.sum|Cargo\.lock|Gemfile\.lock|composer\.lock|gradle\.lockfile)$/ { next }
               { print }
             ')
@@ -694,14 +698,21 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "::warning::SLACK_WEBHOOK_URL not set; skipping Slack notification."
+            exit 0
+          fi
+
           MSG=$(printf "🛡️ OpenInference cron opened a Dependabot security fix PR: <%s|review + approve>\n📦 Manifest: \`%s\`\n👀 Next: verify CI, then approve if it looks good\n🔎 Workflow: <%s|run logs>" \
             "$PR_URL" \
             "$MANIFEST" \
             "$RUN_URL")
           echo "$MSG"
-          curl -sf -X POST -H 'Content-type: application/json' \
+          if ! curl -sf -X POST -H 'Content-type: application/json' \
             --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
-            "$SLACK_WEBHOOK_URL"
+            "$SLACK_WEBHOOK_URL"; then
+            echo "::warning::Slack notification failed; PR was still opened."
+          fi
 
       - name: Upload proposed diff (dry run)
         if: ${{ steps.publish.outputs.status == 'dry_run' }}
