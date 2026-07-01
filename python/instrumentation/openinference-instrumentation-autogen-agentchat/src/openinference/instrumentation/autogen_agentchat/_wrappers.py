@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import json
 import logging
 from abc import ABC
 from enum import Enum
 from inspect import signature
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncGenerator,
     Callable,
@@ -22,7 +25,6 @@ from autogen_core.models import (
     LLMMessage,
 )
 from autogen_core.tools import Tool
-from autogen_ext.models.openai import BaseOpenAIChatCompletionClient
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _RUNTIME_CONTEXT
@@ -50,6 +52,13 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+if TYPE_CHECKING:
+    # Imported for type hints only. `autogen_ext.models.openai` pulls in the `openai` package;
+    # importing it at runtime would break autogen apps that use a different model client
+    # (e.g. autogen-ext[anthropic]) and don't have `openai` installed. Annotations are lazy via
+    # `from __future__ import annotations`, so the runtime never needs this symbol.
+    from autogen_ext.models.openai import BaseOpenAIChatCompletionClient
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
