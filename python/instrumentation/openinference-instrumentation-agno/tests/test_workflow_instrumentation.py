@@ -667,7 +667,6 @@ class TestExtractOutputPydanticContent:
 
 
 class TestWorkflowBackgroundRuns:
-
     async def test_background_run_does_not_span_arun(
         self,
         tracer_provider: TracerProvider,
@@ -743,8 +742,7 @@ class TestWorkflowBackgroundRuns:
                 break
 
         assert execute_span is not None, (
-            "Expected a span for Workflow._aexecute carrying the real "
-            "background-run execution"
+            "Expected a span for Workflow._aexecute carrying the real background-run execution"
         )
 
         attrs = dict(execute_span.attributes or {})
