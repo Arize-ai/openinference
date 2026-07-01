@@ -35,13 +35,15 @@ jobs:
       matrix: ${{ steps.slices.outputs.matrix }}
       total: ${{ steps.slices.outputs.total }}
     env:
-      GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
 
     steps:
       - name: Collect Dependabot manifest slices
         id: slices
         env:
+          # The default GITHUB_TOKEN cannot read the Dependabot alerts API in this repo.
+          # Keep the PAT scoped to alert collection, before any repository code runs.
+          GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
           # Empty on scheduled runs; set only via workflow_dispatch to force a
           # specific slice for cheap test runs.
           FORCE_MANIFEST: ${{ inputs.manifest }}
@@ -195,6 +197,9 @@ jobs:
       - name: Prepare selected Dependabot slice
         id: slice
         env:
+          # Step-scoped PAT for the Dependabot alerts API only. Later Claude and
+          # package/test steps use the job-level github.token instead.
+          GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
           TARGET_MANIFEST: ${{ matrix.manifest }}
         run: |
           set -euo pipefail
