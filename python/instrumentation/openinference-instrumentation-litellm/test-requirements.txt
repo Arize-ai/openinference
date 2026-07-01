@@ -1,4 +1,4 @@
-litellm==1.83.11
+litellm==1.84.0
 fastapi
 orjson
 opentelemetry-sdk
