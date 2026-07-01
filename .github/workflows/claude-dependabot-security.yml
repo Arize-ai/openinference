@@ -457,9 +457,6 @@ jobs:
             exit 0
           fi
 
-          DEFAULT_TITLE="chore(deps): resolve Dependabot security alerts in $TARGET_MANIFEST"
-          PR_TITLE="$DEFAULT_TITLE"
-
           release_triggering_title() {
             printf '%s' "$1" | grep -qE '^(feat|fix|perf)(\([^)]+\))?!?: .+'
           }
@@ -476,6 +473,13 @@ jobs:
             ')
             [ -z "$non_release_neutral_files" ]
           }
+
+          if release_neutral_dependency_change; then
+            DEFAULT_TITLE="chore(deps): resolve Dependabot security alerts in $TARGET_MANIFEST"
+          else
+            DEFAULT_TITLE="fix(deps): resolve Dependabot security alerts in $TARGET_MANIFEST"
+          fi
+          PR_TITLE="$DEFAULT_TITLE"
 
           if [ -s .scratch/pr-title.txt ]; then
             CANDIDATE=$(head -n 1 .scratch/pr-title.txt | tr -d '\r')
