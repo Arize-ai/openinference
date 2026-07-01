@@ -318,12 +318,93 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
 
+      - name: Create target restore helper
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        env:
+          TARGET_MANIFEST: ${{ matrix.manifest }}
+        run: |
+          set -euo pipefail
+          mkdir -p .scratch
+          cat > .scratch/restore-target-from-head.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          target="${CLAUDE_DEPENDABOT_TARGET_MANIFEST:-${TARGET_MANIFEST:-}}"
+          if [ -z "$target" ]; then
+            echo "TARGET_MANIFEST is required." >&2
+            exit 2
+          fi
+          if [[ "$target" == *$'\n'* || "$target" == *$'\r'* ]]; then
+            echo "Refusing to restore unsafe target: $target" >&2
+            exit 2
+          fi
+
+          case "$target" in
+            /*|*..*|:*|*[\*\?\[\]]*|.git/*|.github/*|.cursor/*|.claude/*|.agents/*|AGENTS.md|CLAUDE.md|*/AGENTS.md|*/CLAUDE.md)
+              echo "Refusing to restore unsafe target: $target" >&2
+              exit 2
+              ;;
+          esac
+
+          files=("$target")
+          case "$target" in
+            js/package.json|js/pnpm-lock.yaml)
+              files=("js/package.json" "js/pnpm-lock.yaml")
+              ;;
+            */package.json)
+              dir="${target%/*}"
+              files=("$target" "$dir/package-lock.json" "$dir/pnpm-lock.yaml" "$dir/yarn.lock")
+              ;;
+            */pyproject.toml)
+              dir="${target%/*}"
+              files=("$target" "$dir/poetry.lock" "$dir/uv.lock")
+              ;;
+            */Cargo.toml)
+              dir="${target%/*}"
+              files=("$target" "$dir/Cargo.lock")
+              ;;
+            */go.mod)
+              dir="${target%/*}"
+              files=("$target" "$dir/go.sum")
+              ;;
+          esac
+
+          repo_root="${GITHUB_WORKSPACE:-}"
+          if [ -z "$repo_root" ]; then
+            repo_root="$(git rev-parse --show-toplevel)"
+          fi
+          cd "$repo_root"
+
+          restored=0
+          for file in "${files[@]}"; do
+            if [[ "$file" == *$'\n'* || "$file" == *$'\r'* ]]; then
+              continue
+            fi
+            case "$file" in
+              ""|/*|*..*|:*|*[\*\?\[\]]*) continue ;;
+            esac
+            if git cat-file -e "HEAD:$file" 2>/dev/null; then
+              git restore --source=HEAD --worktree --staged -- "$file"
+              printf 'restored %s\n' "$file"
+              restored=$((restored + 1))
+            fi
+          done
+
+          if [ "$restored" -eq 0 ]; then
+            echo "No tracked files were restored for target: $target" >&2
+            exit 1
+          fi
+          EOF
+          chmod +x .scratch/restore-target-from-head.sh
+          printf '%s\n' "$PWD/.scratch" >> "$GITHUB_PATH"
+
       - name: Run Claude Code
         id: dependabot-fix
         if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
         uses: anthropics/claude-code-action@2fee15510437d71399d9139ed60433470484a8fb # v1.0.153
         env:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          CLAUDE_DEPENDABOT_TARGET_MANIFEST: ${{ matrix.manifest }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
@@ -361,6 +442,11 @@ jobs:
                explain the coverage in the PR body.
             7. If nothing in this manifest can be fixed safely, leave the working tree
                unchanged and write a clear reason to `.scratch/pr-body.md`.
+            8. If a package-manager experiment causes broad or unrelated lockfile
+               churn, run `restore-target-from-head.sh` to reset only the target
+               manifest and associated lockfile(s) to HEAD, then retry a focused
+               fix. Use this helper instead of `git checkout`, `git restore`,
+               shell redirection, `rm`, or `cp` for lockfile recovery.
 
             Apply fixes directly to the working tree. Do not commit, push, or open a PR; the workflow will do that after you exit.
 
@@ -379,7 +465,7 @@ jobs:
               - `.scratch/pr-body.md`: a concise PR body with the Dependabot alert numbers addressed, dependency or lockfile changes, validation commands run, and any follow-up needed.
 
             Do not modify automation or agent-instruction files such as `.github/`, `.claude/`, `.agents/`, `AGENTS.md`, or `CLAUDE.md`.
-          claude_args: '--allowedTools Skill,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,"Bash(gh api:*)","Bash(gh pr list:*)","Bash(gh pr view:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(uv:*)","Bash(uvx:*)","Bash(tox:*)","Bash(python:*)","Bash(python3:*)","Bash(pip:*)","Bash(pip3:*)","Bash(pipx:*)","Bash(poetry:*)","Bash(corepack:*)","Bash(pnpm:*)","Bash(npm:*)","Bash(npx:*)","Bash(make:*)","Bash(cd:*)","Bash(ls:*)","Bash(find:*)","Bash(grep:*)","Bash(sed:*)","Bash(awk:*)","Bash(jq:*)","Bash(cat:*)","Bash(head:*)","Bash(tail:*)","Bash(sort:*)","Bash(nl:*)","Bash(mkdir:*)","Bash(date:*)","Bash(echo:*)","Bash(printf:*)"'
+          claude_args: '--allowedTools Skill,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,"Bash(gh api:*)","Bash(gh pr list:*)","Bash(gh pr view:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(restore-target-from-head.sh:*)","Bash(uv:*)","Bash(uvx:*)","Bash(tox:*)","Bash(python:*)","Bash(python3:*)","Bash(pip:*)","Bash(pip3:*)","Bash(pipx:*)","Bash(poetry:*)","Bash(corepack:*)","Bash(pnpm:*)","Bash(npm:*)","Bash(npx:*)","Bash(make:*)","Bash(cd:*)","Bash(ls:*)","Bash(find:*)","Bash(grep:*)","Bash(sed:*)","Bash(awk:*)","Bash(jq:*)","Bash(cat:*)","Bash(head:*)","Bash(tail:*)","Bash(sort:*)","Bash(nl:*)","Bash(mkdir:*)","Bash(date:*)","Bash(echo:*)","Bash(printf:*)"'
 
       - name: Upload Claude execution log
         if: ${{ always() && steps.dependabot-fix.outcome != 'skipped' }}
