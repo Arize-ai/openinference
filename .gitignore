@@ -21,6 +21,7 @@ uv.lock
 # Generated docs
 js/**/docs
 !js/packages/openinference-core/docs
+!js/packages/openinference-eve/docs
 
 # Data files
 *.csv

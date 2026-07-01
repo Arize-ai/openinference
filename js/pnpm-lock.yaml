@@ -133,6 +133,37 @@ importers:
         specifier: ^4.0.3
         version: 4.0.4(@types/debug@4.1.12)(@types/node@20.19.23)(esbuild@0.27.2)(jiti@2.6.1)(msw@2.12.1(@types/node@20.19.23)(typescript@5.9.3))(tsx@4.20.6)(yaml@2.8.4)
 
+  packages/openinference-eve:
+    dependencies:
+      '@arizeai/openinference-semantic-conventions':
+        specifier: workspace:*
+        version: link:../openinference-semantic-conventions
+      '@arizeai/openinference-vercel':
+        specifier: workspace:*
+        version: link:../openinference-vercel
+    devDependencies:
+      '@opentelemetry/api':
+        specifier: '>=1.7.0 <2.0.0'
+        version: 1.9.0
+      '@opentelemetry/exporter-trace-otlp-proto':
+        specifier: ^0.50.0
+        version: 0.50.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources':
+        specifier: ^1.25.1
+        version: 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-base':
+        specifier: '>=1.19.0 <2.0.0'
+        version: 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^1.25.1
+        version: 1.30.1(@opentelemetry/api@1.9.0)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.3
+        version: 4.0.4(@types/debug@4.1.12)(@types/node@24.9.1)(esbuild@0.27.2)(jiti@2.6.1)(msw@2.12.1(@types/node@24.9.1)(typescript@5.9.3))(tsx@4.20.6)(yaml@2.8.4)
+
   packages/openinference-genai:
     dependencies:
       '@arizeai/openinference-semantic-conventions':
@@ -7733,7 +7764,7 @@ snapshots:
       '@opentelemetry/propagator-b3': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/propagator-jaeger': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
-      semver: 7.7.1
+      semver: 7.7.3
 
   '@opentelemetry/sdk-trace-node@2.2.0(@opentelemetry/api@1.9.0)':
     dependencies:
