@@ -564,7 +564,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           set -euo pipefail
-          MSG=$(printf "🛡️ OpenInference cron opened a Dependabot security fix PR: <%s|review + approve>\n📦 Manifest: \`%s\`\n✅ Next: verify CI, then approve if it looks good\n🔎 Workflow: <%s|run logs>" \
+          MSG=$(printf "🛡️ OpenInference cron opened a Dependabot security fix PR: <%s|review + approve>\n📦 Manifest: \`%s\`\n👀 Next: verify CI, then approve if it looks good\n🔎 Workflow: <%s|run logs>" \
             "$PR_URL" \
             "$MANIFEST" \
             "$RUN_URL")
