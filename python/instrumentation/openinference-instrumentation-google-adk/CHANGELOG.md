@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.16...python-openinference-instrumentation-google-adk-v0.1.17) (2026-07-01)
+
+
+### Bug Fixes
+
+* **google_adk:** Preserve Final Response Content Output ([#3298](https://github.com/Arize-ai/openinference/issues/3298)) ([af24f54](https://github.com/Arize-ai/openinference/commit/af24f54e14060d40a78a3c67f30a17d9a919b671))
+
 ## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.15...python-openinference-instrumentation-google-adk-v0.1.16) (2026-06-30)
 
 
