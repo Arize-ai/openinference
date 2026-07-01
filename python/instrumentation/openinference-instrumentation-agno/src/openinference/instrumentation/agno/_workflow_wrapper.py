@@ -172,7 +172,9 @@ class _WorkflowWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
+        workflow_name = (
+            (getattr(instance, "name", None) or "Workflow").replace(" ", "_").replace("-", "_")
+        )
         # Use the actual method name for consistency
         method_name = getattr(wrapped, "__name__", "run")
         span_name = f"{workflow_name}.{method_name}"
@@ -338,7 +340,9 @@ class _WorkflowWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
+        workflow_name = (
+            (getattr(instance, "name", None) or "Workflow").replace(" ", "_").replace("-", "_")
+        )
         # Use the actual method name for consistency
         method_name = getattr(wrapped, "__name__", "arun")
         span_name = f"{workflow_name}.{method_name}"
@@ -512,7 +516,7 @@ class _StepWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        step_name = getattr(instance, "name", "Step").replace(" ", "_").replace("-", "_")
+        step_name = (getattr(instance, "name", None) or "Step").replace(" ", "_").replace("-", "_")
         # Detect if this is execute_stream or execute by checking the wrapped method name
         method_name = getattr(wrapped, "__name__", "execute")
         span_name = f"{step_name}.{method_name}"
@@ -654,7 +658,7 @@ class _StepWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        step_name = getattr(instance, "name", "Step").replace(" ", "_").replace("-", "_")
+        step_name = (getattr(instance, "name", None) or "Step").replace(" ", "_").replace("-", "_")
         # Detect if this is aexecute_stream or aexecute by checking the wrapped method name
         method_name = getattr(wrapped, "__name__", "aexecute")
         span_name = f"{step_name}.{method_name}"
@@ -813,7 +817,9 @@ class _ParallelWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        parallel_name = getattr(instance, "name", "Parallel").replace(" ", "_").replace("-", "_")
+        parallel_name = (
+            (getattr(instance, "name", None) or "Parallel").replace(" ", "_").replace("-", "_")
+        )
         span_name = f"{parallel_name}.execute"
 
         # Generate unique node ID for this parallel container
@@ -956,7 +962,9 @@ class _ParallelWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        parallel_name = getattr(instance, "name", "Parallel").replace(" ", "_").replace("-", "_")
+        parallel_name = (
+            (getattr(instance, "name", None) or "Parallel").replace(" ", "_").replace("-", "_")
+        )
         span_name = f"{parallel_name}.aexecute"
 
         # Generate unique node ID for this parallel container
