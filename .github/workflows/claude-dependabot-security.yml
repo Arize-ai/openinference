@@ -398,6 +398,24 @@ jobs:
           chmod +x .scratch/restore-target-from-head.sh
           printf '%s\n' "$PWD/.scratch" >> "$GITHUB_PATH"
 
+      - name: Write dependency tooling context
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo "# Dependency tooling context"
+            echo
+            printf '%s\n' "- Repository root: $GITHUB_WORKSPACE"
+            printf '%s\n' "- Node: $(node --version 2>/dev/null || echo unavailable)"
+            printf '%s\n' "- npm: $(npm --version 2>/dev/null || echo unavailable)"
+            printf '%s\n' "- pnpm: $(pnpm --version 2>/dev/null || echo unavailable)"
+            printf '%s\n' "- uv: $(uv --version 2>/dev/null || echo unavailable)"
+            printf '%s\n' "- PNPM_HOME: ${PNPM_HOME:-not set}"
+            echo
+            echo "Use project files and package-manager commands for fixes."
+            echo "Do not inspect runner home dotfiles such as ~/.npmrc; no registry credentials are required."
+          } > .scratch/dependabot-tooling-context.md
+
       - name: Run Claude Code
         id: dependabot-fix
         if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
@@ -417,6 +435,8 @@ jobs:
 
             Start by reading the alert JSON in `.scratch/dependabot-alerts.json`. It is
             already filtered to this one manifest; do not pull in alerts from elsewhere.
+            Also read `.scratch/dependabot-tooling-context.md` for precomputed
+            Node/pnpm/uv runner context.
 
             Requirements:
             1. Confine dependency edits to the target manifest above and the lockfile it
@@ -447,6 +467,12 @@ jobs:
                manifest and associated lockfile(s) to HEAD, then retry a focused
                fix. Use this helper instead of `git checkout`, `git restore`,
                shell redirection, `rm`, or `cp` for lockfile recovery.
+            9. Do not inspect runner home files or broad environment state. In
+               particular, do not run `cat ~/.npmrc`, `npm config list`,
+               `printenv`, or `env`; the needed tooling facts are already in
+               `.scratch/dependabot-tooling-context.md`. Run package-manager
+               commands as single focused commands instead of chaining unrelated
+               probes together.
 
             Apply fixes directly to the working tree. Do not commit, push, or open a PR; the workflow will do that after you exit.
 
