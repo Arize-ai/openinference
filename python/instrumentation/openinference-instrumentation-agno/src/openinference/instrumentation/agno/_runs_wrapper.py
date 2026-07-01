@@ -93,8 +93,9 @@ def _extract_run_response_output(run_response: Union[RunOutput, TeamRunOutput]) 
     if run_response and run_response.content:
         if isinstance(run_response.content, str):
             return run_response.content
-        else:
+        if hasattr(run_response.content, "model_dump_json"):
             return str(run_response.content.model_dump_json())
+        return str(run_response.content)
     return ""
 
 
