@@ -519,6 +519,22 @@ jobs:
             echo "**Status:** PR opened: $PR_URL"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Notify Slack of auto-fix PR
+        if: ${{ steps.publish.outputs.pr_url != '' }}
+        env:
+          MANIFEST: ${{ matrix.manifest }}
+          PR_URL: ${{ steps.publish.outputs.pr_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          MSG="Dependabot security auto-fix PR opened for ${MANIFEST} (verify its CI): ${PR_URL}
+          ${RUN_URL}"
+          echo "$MSG"
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
+            "$SLACK_WEBHOOK_URL"
+
       - name: Upload proposed diff (dry run)
         if: ${{ steps.publish.outputs.status == 'dry_run' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
