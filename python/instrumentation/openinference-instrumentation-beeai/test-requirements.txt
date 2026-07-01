@@ -5,3 +5,7 @@ vcrpy
 beeai-framework[duckduckgo]==0.1.51
 pytest-asyncio
 pytest
+# Security floors for transitive dependencies pulled in via beeai-framework.
+aiohttp>=3.14.1
+litellm>=1.84.0
+python-dotenv>=1.2.2
