@@ -365,7 +365,17 @@ jobs:
             Apply fixes directly to the working tree. Do not commit, push, or open a PR; the workflow will do that after you exit.
 
             Before exiting, write:
-              - `.scratch/pr-title.txt`: a one-line conventional-commit PR title.
+              - `.scratch/pr-title.txt`: a one-line conventional-commit PR title
+                that is safe for release-please.
+                - Use `chore(deps): ...` for release-neutral dependency
+                  maintenance, including test/dev requirement bumps,
+                  lockfile-only updates, package-manager overrides, or changes
+                  that do not alter runtime behavior.
+                - Use `fix(<package-or-area>): ...` only when the diff changes
+                  runtime/source code or public dependency constraints and
+                  should trigger a package release.
+                - Do not use `fix`, `feat`, or `perf` for test-requirements-only
+                  or lockfile-only changes.
               - `.scratch/pr-body.md`: a concise PR body with the Dependabot alert numbers addressed, dependency or lockfile changes, validation commands run, and any follow-up needed.
 
             Do not modify automation or agent-instruction files such as `.github/`, `.claude/`, `.agents/`, `AGENTS.md`, or `CLAUDE.md`.
@@ -447,12 +457,34 @@ jobs:
             exit 0
           fi
 
-          DEFAULT_TITLE="fix(deps): resolve Dependabot security alerts in $TARGET_MANIFEST"
+          DEFAULT_TITLE="chore(deps): resolve Dependabot security alerts in $TARGET_MANIFEST"
           PR_TITLE="$DEFAULT_TITLE"
+
+          release_triggering_title() {
+            printf '%s' "$1" | grep -qE '^(feat|fix|perf)(\([^)]+\))?!?: .+'
+          }
+
+          release_neutral_dependency_change() {
+            local non_release_neutral_files
+            non_release_neutral_files=$(changed_files | awk '
+              /(^|\/)([^\/]*(test|dev)[^\/]*requirements[^\/]*|[^\/]*requirements[^\/]*(test|dev)[^\/]*|constraints[^\/]*(test|dev)[^\/]*|[^\/]*(test|dev)[^\/]*constraints[^\/]*)\.txt$/ { next }
+              /(^|\/)(poetry\.lock|uv\.lock|Pipfile\.lock)$/ { next }
+              /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|npm-shrinkwrap\.json)$/ { next }
+              /^package\.json$/ { next }
+              /(^|\/)(go\.sum|Cargo\.lock|Gemfile\.lock|composer\.lock|gradle\.lockfile)$/ { next }
+              { print }
+            ')
+            [ -z "$non_release_neutral_files" ]
+          }
+
           if [ -s .scratch/pr-title.txt ]; then
             CANDIDATE=$(head -n 1 .scratch/pr-title.txt | tr -d '\r')
             if printf '%s' "$CANDIDATE" | grep -qE '^(feat|fix|chore|docs|refactor|test|ci|perf|style|build)(\([^)]+\))?!?: .+'; then
-              PR_TITLE="$CANDIDATE"
+              if release_triggering_title "$CANDIDATE" && release_neutral_dependency_change; then
+                echo "::warning::.scratch/pr-title.txt would trigger release-please for a release-neutral dependency change; falling back to '$DEFAULT_TITLE'."
+              else
+                PR_TITLE="$CANDIDATE"
+              fi
             else
               echo "::warning::.scratch/pr-title.txt did not match conventional-commit format; falling back to '$DEFAULT_TITLE'."
             fi
@@ -528,8 +560,10 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           set -euo pipefail
-          MSG="Dependabot security auto-fix PR opened for ${MANIFEST} (verify its CI): ${PR_URL}
-          ${RUN_URL}"
+          MSG=$(printf "🛡️ OpenInference cron opened a Dependabot security fix PR: <%s|review + approve>\n📦 Manifest: \`%s\`\n✅ Next: verify CI, then approve if it looks good\n🔎 Workflow: <%s|run logs>" \
+            "$PR_URL" \
+            "$MANIFEST" \
+            "$RUN_URL")
           echo "$MSG"
           curl -sf -X POST -H 'Content-type: application/json' \
             --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
