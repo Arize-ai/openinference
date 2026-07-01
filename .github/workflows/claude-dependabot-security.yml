@@ -186,6 +186,7 @@ jobs:
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      NPM_CONFIG_STORE_DIR: ${{ github.workspace }}/.pnpm-store
 
     steps:
       - name: Checkout repository
@@ -402,6 +403,7 @@ jobs:
         if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
         run: |
           set -euo pipefail
+          mkdir -p .scratch "$NPM_CONFIG_STORE_DIR"
           {
             echo "# Dependency tooling context"
             echo
@@ -411,10 +413,12 @@ jobs:
             printf '%s\n' "- pnpm: $(pnpm --version 2>/dev/null || echo unavailable)"
             printf '%s\n' "- uv: $(uv --version 2>/dev/null || echo unavailable)"
             printf '%s\n' "- PNPM_HOME: ${PNPM_HOME:-not set}"
+            printf '%s\n' "- PNPM store dir: $NPM_CONFIG_STORE_DIR"
             printf '%s\n' "- GITHUB_STEP_SUMMARY: $GITHUB_WORKSPACE/.scratch/claude-step-summary.md"
             echo
             echo "Use project files and package-manager commands for fixes."
             echo "Do not inspect runner home dotfiles such as ~/.npmrc; no registry credentials are required."
+            echo "The pnpm store directory is preconfigured in the workspace; do not change PNPM_HOME or inspect .npmrc files to debug store path."
             echo "Subprocesses use the workspace-local GITHUB_STEP_SUMMARY path above because the runner summary file is read-only inside Claude's sandbox."
           } > .scratch/dependabot-tooling-context.md
 
@@ -478,6 +482,10 @@ jobs:
                `.scratch/dependabot-tooling-context.md`. Run package-manager
                commands as single focused commands instead of chaining unrelated
                probes together.
+            10. The pnpm store directory is already configured through the
+                workflow environment. Use normal `pnpm` commands; do not change
+                `PNPM_HOME`, inspect `.npmrc`, or reroute the store unless the
+                preconfigured store path itself fails.
 
             Apply fixes directly to the working tree. Do not commit, push, or open a PR; the workflow will do that after you exit.
 
