@@ -26,7 +26,7 @@ Then, run an example like this:
 dotenv run -- opentelemetry-instrument python managed_agent.py
 ```
 
-Finally, browse for your trace in Phoenix at `http://localhost:6006`!
+Finally, browse for your trace in Phoenix at `http://localhost:6006`, or view it in [Arize AX](https://arize.com/docs/ax) if you configured that as your collector instead.
 
 ## Manual instrumentation
 

@@ -20,7 +20,7 @@ java -javaagent:./instrumentation/openinference-instrumentation-annotation/build
 
 The example installs the agent at runtime via `OpenInferenceAgentInstaller`, registers an
 `OITracer`, and emits spans for the annotated `QAService`. View the resulting trace tree at
-`http://localhost:6006` (Phoenix) or in your Arize workspace if the relevant environment
+`http://localhost:6006` (Phoenix) or in your [Arize AX](https://arize.com/docs/ax) workspace if the relevant environment
 variables are set. When running with `-javaagent` the ByteBuddy bootstrap happens automatically,
 but your application still needs to call `OpenInferenceAgent.register(...)` so the agent receives
 an `OITracer`.
