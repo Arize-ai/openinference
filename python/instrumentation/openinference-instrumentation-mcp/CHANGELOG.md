@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.3...python-openinference-instrumentation-mcp-v2.0.4) (2026-07-02)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [2.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.2...python-openinference-instrumentation-mcp-v2.0.3) (2026-05-18)
 
 
