@@ -364,6 +364,8 @@ class _TraceToolCall(_WithTracer):
         if event := next((arg for arg in arguments.values() if isinstance(arg, Event)), None):
             if responses := event.get_function_responses():
                 try:
+                    if responses[0].id:
+                        span.set_attribute(SpanAttributes.TOOL_ID, responses[0].id)
                     span.set_attribute(
                         SpanAttributes.OUTPUT_VALUE,
                         responses[0].model_dump_json(exclude_none=True),
@@ -524,6 +526,8 @@ def _get_attributes_from_parts(
             yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
             if function_response.name:
                 yield f"{prefix}{MessageAttributes.MESSAGE_NAME}", function_response.name
+            if function_response.id:
+                yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", function_response.id
             if function_response.response:
                 yield (
                     f"{prefix}{MessageAttributes.MESSAGE_CONTENT}",
@@ -561,24 +565,6 @@ def _get_attributes_from_function_call(
         yield (
             f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
             safe_json_dumps(function_arguments),
-        )
-
-
-@stop_on_exception
-def _get_attributes_from_function_response(
-    obj: types.FunctionResponse,
-    /,
-    *,
-    prefix: str = "",
-) -> Iterator[tuple[str, AttributeValue]]:
-    if id_ := obj.id:
-        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", id_
-    if name := obj.name:
-        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", name
-    if response := obj.response:
-        yield (
-            f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-            safe_json_dumps(response),
         )
 
 
