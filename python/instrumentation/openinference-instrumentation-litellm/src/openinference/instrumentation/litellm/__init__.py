@@ -127,14 +127,82 @@ def _get_attributes_from_message_param(
             MessageAttributes.MESSAGE_ROLE,
             role.value if isinstance(role, Enum) else role,
         )
+    reasoning_content = message.get("reasoning_content")
+    thinking_blocks = message.get("thinking_blocks")
+    content = message.get("content")
 
-    if content := message.get("content"):
-        if isinstance(content, str):
-            yield MessageAttributes.MESSAGE_CONTENT, content
-        elif is_iterable_of(content, dict):
-            for index, c in list(enumerate(content)):
+    has_thinking_blocks = isinstance(thinking_blocks, list) and bool(thinking_blocks)
+    # Skip reasoning_content when thinking_blocks is present — both carry the same text;
+    # thinking_blocks also has signature, so it takes priority.
+    has_reasoning_content = (
+        not has_thinking_blocks and isinstance(reasoning_content, str) and bool(reasoning_content)
+    )
+    has_list_content = isinstance(content, list) and is_iterable_of(content, dict)
+
+    if has_thinking_blocks or has_reasoning_content or has_list_content:
+        block_index = 0
+
+        if has_reasoning_content:
+            yield (
+                f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                "reasoning",
+            )
+            yield (
+                f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                reasoning_content,
+            )
+            block_index += 1
+
+        if has_thinking_blocks:
+            for tb in thinking_blocks:
+                if not isinstance(tb, dict):
+                    continue
+                tb_type = tb.get("type")
+                if tb_type == "thinking":
+                    yield (
+                        f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                        "reasoning",
+                    )
+                    if thinking_text := tb.get("thinking"):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                            thinking_text,
+                        )
+                    if sig := tb.get("signature"):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                            sig,
+                        )
+                    block_index += 1
+                elif tb_type == "redacted_thinking":
+                    yield (
+                        f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                        "reasoning",
+                    )
+                    if data := tb.get("data"):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{MessageContentAttributes.MESSAGE_CONTENT_DATA}",
+                            data,
+                        )
+                    block_index += 1
+
+        if has_list_content:
+            for c in content:
                 for key, value in _get_attributes_from_message_content(c):
-                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
+                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{key}", value
+                block_index += 1
+        elif isinstance(content, str) and content:
+            yield (
+                f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                "text",
+            )
+            yield (
+                f"{MessageAttributes.MESSAGE_CONTENTS}.{block_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                content,
+            )
+
+    elif isinstance(content, str) and content:
+        yield MessageAttributes.MESSAGE_CONTENT, content
 
     if tool_calls := message.get("tool_calls"):
         if isinstance(tool_calls, Iterable):
@@ -166,6 +234,20 @@ def _get_attributes_from_message_content(
         if image := content.pop("image_url"):
             for key, value in _get_attributes_from_image(image):
                 yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+    elif type_ == "thinking":
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+        if thinking := content.pop("thinking", None):
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", thinking
+        if signature := content.pop("signature", None):
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}", signature
+    elif type_ == "reasoning":
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+        if text := content.pop("text", None):
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+    elif type_ == "redacted_thinking":
+        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+        if data := content.pop("data", None):
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_DATA}", data
 
 
 def _get_attributes_from_image(
@@ -566,10 +648,12 @@ def _build_message_from_accumulated(msg: Dict[str, Any]) -> Dict[str, Any]:
         "role": msg.get("role"),
         "content": msg.get("content"),
     }
-
+    if reasoning_content := msg.get("reasoning_content"):
+        message["reasoning_content"] = reasoning_content
+    if thinking_blocks := msg.get("thinking_blocks"):
+        message["thinking_blocks"] = thinking_blocks
     if tool_calls_dict := msg.get("tool_calls"):
         message["tool_calls"] = [tool_calls_dict[idx] for idx in sorted(tool_calls_dict.keys())]
-
     return message
 
 
@@ -584,7 +668,12 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                     idx = choice.index
                     entry = output_messages.get(idx)
                     if entry is None:
-                        entry = output_messages[idx] = {"role": None, "content": ""}
+                        entry = output_messages[idx] = {
+                            "role": None,
+                            "content": "",
+                            "reasoning_content": "",
+                            "thinking_blocks": [],
+                        }
                     delta = choice.delta
                     if delta:
                         role = getattr(delta, "role", None)
@@ -593,6 +682,15 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                             entry["role"] = role
                         if content is not None:
                             entry["content"] += content
+                        reasoning_chunk = getattr(delta, "reasoning_content", None)
+                        if reasoning_chunk is not None and isinstance(reasoning_chunk, str):
+                            entry["reasoning_content"] += reasoning_chunk
+                        # Only collect redacted_thinking blocks from delta.thinking_blocks.
+                        # Regular thinking text arrives via delta.reasoning_content above;
+                        # collecting type="thinking" here would cause duplicates.
+                        for tb in getattr(delta, "thinking_blocks", None) or []:
+                            if isinstance(tb, dict) and tb.get("type") == "redacted_thinking":
+                                entry["thinking_blocks"].append(tb)
                         if tool_calls := getattr(delta, "tool_calls", None):
                             _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)
@@ -629,7 +727,12 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                     idx = choice.index
                     entry = output_messages.get(idx)
                     if entry is None:
-                        entry = output_messages[idx] = {"role": None, "content": ""}
+                        entry = output_messages[idx] = {
+                            "role": None,
+                            "content": "",
+                            "reasoning_content": "",
+                            "thinking_blocks": [],
+                        }
                     delta = choice.delta
                     if delta:
                         role = getattr(delta, "role", None)
@@ -638,6 +741,15 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                             entry["role"] = role
                         if content is not None:
                             entry["content"] += content
+                        reasoning_chunk = getattr(delta, "reasoning_content", None)
+                        if reasoning_chunk is not None and isinstance(reasoning_chunk, str):
+                            entry["reasoning_content"] += reasoning_chunk
+                        # Only collect redacted_thinking blocks from delta.thinking_blocks.
+                        # Regular thinking text arrives via delta.reasoning_content above;
+                        # collecting type="thinking" here would cause duplicates.
+                        for tb in getattr(delta, "thinking_blocks", None) or []:
+                            if isinstance(tb, dict) and tb.get("type") == "redacted_thinking":
+                                entry["thinking_blocks"].append(tb)
                         if tool_calls := getattr(delta, "tool_calls", None):
                             _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)

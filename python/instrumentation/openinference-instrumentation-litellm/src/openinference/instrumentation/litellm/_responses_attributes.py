@@ -108,14 +108,14 @@ def _get_attributes_from_response_input_item_param(obj: Any) -> Optional[Message
     elif obj_type == "reasoning":
         summary = obj.get("summary")
         if isinstance(summary, Iterable):
-            contents = []
+            contents: List[Any] = []
             for item in summary:
                 if "type" not in item:
                     continue
                 if item["type"] == "summary_text":
-                    contents.append(TextMessageContent(text=item.get("text", ""), type="text"))
+                    contents.append({"type": "reasoning", "text": item.get("text", "")})
                 else:
-                    contents.append(TextMessageContent(text=safe_json_dumps(item), type="text"))
+                    contents.append({"type": "reasoning", "text": safe_json_dumps(item)})
             return Message(role="assistant", contents=contents)
     elif obj_type in ["file_search_call", "web_search_call"]:
         function = ToolCallFunction(name=obj_type)
@@ -213,7 +213,7 @@ def _get_attributes_from_response_output_item(obj: Any) -> Message:
         if summary and isinstance(summary, Iterable):
             message_obj["role"] = "assistant"
             for item in summary:
-                contents.append(TextMessageContent(text=getattr(item, "text", ""), type="text"))
+                contents.append({"type": "reasoning", "text": getattr(item, "text", "")})
             message_obj["contents"] = contents
     elif obj_type == "web_search_call":
         message_obj["role"] = "assistant"
