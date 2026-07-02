@@ -62,6 +62,23 @@ def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
                 else:
                     return str(input_value)
 
+    execution_input = arguments.get("execution_input")
+    if execution_input is not None and hasattr(execution_input, "input"):
+        input_value = execution_input.input
+        if input_value is not None:
+            if isinstance(input_value, str):
+                return input_value
+            elif isinstance(input_value, list):
+                return "\n".join(str(item) for item in input_value)
+            elif hasattr(input_value, "model_dump_json"):
+                return str(input_value.model_dump_json(indent=2, exclude_none=True))
+            elif isinstance(input_value, dict):
+                import json
+
+                return json.dumps(input_value, indent=2, ensure_ascii=False)
+            else:
+                return str(input_value)
+
     for key in ["input", "message", "messages"]:
         if value := arguments.get(key):
             if isinstance(value, str):
@@ -159,6 +176,8 @@ def _workflow_run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str,
 
 
 class _WorkflowWrapper:
+    _ARUN_SPANNED_ATTR = "_oi_arun_spanned"
+
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -327,6 +346,8 @@ class _WorkflowWrapper:
 
         finally:
             span.end()
+            if instance is not None and getattr(instance, "_oi_arun_spanned", False):
+                delattr(instance, "_oi_arun_spanned")
 
     def arun(
         self,
@@ -369,6 +390,8 @@ class _WorkflowWrapper:
                 )
             ),
         )
+
+        setattr(instance, self._ARUN_SPANNED_ATTR, True)
 
         # Setup context and call wrapped to detect streaming
         workflow_token = None
@@ -440,6 +463,9 @@ class _WorkflowWrapper:
                     context_api.detach(ctx_token)
                 span.end()
 
+                if getattr(instance, self._ARUN_SPANNED_ATTR, False):
+                    delattr(instance, self._ARUN_SPANNED_ATTR)
+
         return non_stream_wrapper()
 
     async def _arun_stream_continue(
@@ -501,6 +527,8 @@ class _WorkflowWrapper:
 
         finally:
             span.end()
+            if instance is not None and getattr(instance, "_oi_arun_spanned", False):
+                delattr(instance, "_oi_arun_spanned")
 
 
 class _WorkflowExecuteWrapper:
@@ -513,8 +541,8 @@ class _WorkflowExecuteWrapper:
         self._tracer = tracer
 
     @staticmethod
-    def _already_spanned() -> bool:
-        return context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY) is not None
+    def _already_spanned(instance: Any) -> bool:
+        return bool(getattr(instance, "_oi_arun_spanned", False))
 
     async def aexecute(
         self,
@@ -526,7 +554,7 @@ class _WorkflowExecuteWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        if self._already_spanned():
+        if self._already_spanned(instance):
             return await wrapped(*args, **kwargs)
 
         workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
@@ -575,7 +603,8 @@ class _WorkflowExecuteWrapper:
             if hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
 
-            run_id = getattr(response, "run_id", None)
+            # Prefer the run ID the caller passed in over whatever the response reports.
+            run_id = arguments.get("run_id") or getattr(response, "run_id", None)
             if run_id:
                 span.set_attribute("agno.run.id", run_id)
 
@@ -673,7 +702,8 @@ class _WorkflowExecuteWrapper:
             if hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
 
-            run_id = getattr(final_response, "run_id", None)
+            # Prefer the run ID the caller passed in over whatever the response reports.
+            run_id = arguments.get("run_id") or getattr(final_response, "run_id", None)
             if run_id:
                 span.set_attribute("agno.run.id", run_id)
 
