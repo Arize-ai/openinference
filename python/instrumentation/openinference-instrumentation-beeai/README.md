@@ -114,5 +114,6 @@ if __name__ == "__main__":
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [More info on OpenInference and Arize AX](https://arize.com/)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

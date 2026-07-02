@@ -1,7 +1,7 @@
 # OpenInference OpenLLMetry (Traceloop)
 
 
-Python auto-instrumentation library for OpenLLMetry. This library allows you to convert OpenLLMetry traces to OpenInference, which is OpenTelemetry compatible, and view those traces in [Arize Phoenix](https://github.com/Arize-ai/phoenix).
+Python auto-instrumentation library for OpenLLMetry. This library allows you to convert OpenLLMetry traces to OpenInference, which is OpenTelemetry compatible, and view those traces in [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/).
 
 ## Installation
 
@@ -85,5 +85,6 @@ The traces will be visible in the Phoenix UI at `http://localhost:6006`.
 ## More Info
 
 -   [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+-   [More info on OpenInference and Arize AX](https://arize.com/)
 -   [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 -   [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

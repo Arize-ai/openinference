@@ -1,6 +1,6 @@
 # OpenInference Pipecat Instrumentation
 
-Python auto-instrumentation library for Pipecat. This library allows you to convert Pipecat traces to OpenInference, which is OpenTelemetry compatible, and view those traces in [Arize Phoenix](https://github.com/Arize-ai/phoenix).
+Python auto-instrumentation library for Pipecat. This library allows you to convert Pipecat traces to OpenInference, which is OpenTelemetry compatible, and view those traces in [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/).
 
 ## Compatibility
 
@@ -68,8 +68,7 @@ runner = PipelineRunner(handle_sigint=runner_args.handle_sigint)
 await runner.run(worker)
 ```
 
-After configuring tracing, exchanges in the running application are logged to your project in Phoenix or Arize AX.
-
+After configuring tracing, exchanges in the running application are logged to your project in [Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/).
 
 ## Example
 
@@ -88,3 +87,10 @@ uv pip install -r examples/trace/requirements.txt
 ```bash
 uv run python examples/trace/001-trace.py
 ```
+
+## More Info
+
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [More info on OpenInference and Arize AX](https://arize.com/)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

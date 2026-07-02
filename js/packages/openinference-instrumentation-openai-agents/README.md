@@ -1,6 +1,6 @@
 # OpenInference Instrumentation for OpenAI Agents SDK (Node.js)
 
-OpenTelemetry-based instrumentation for the [OpenAI Agents SDK](https://www.npmjs.com/package/@openai/agents) (`@openai/agents`). Bridges the SDK's native tracing events to OpenTelemetry spans following the [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md), so agent runs can be observed in any OpenTelemetry-compatible backend such as [Arize Phoenix](https://github.com/Arize-ai/phoenix), Arize AX, Jaeger, or your collector of choice.
+OpenTelemetry-based instrumentation for the [OpenAI Agents SDK](https://www.npmjs.com/package/@openai/agents) (`@openai/agents`). Bridges the SDK's native tracing events to OpenTelemetry spans following the [OpenInference semantic conventions](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md), so agent runs can be observed in any OpenTelemetry-compatible backend such as [Arize Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/), Jaeger, or your collector of choice.
 
 ## Installation
 

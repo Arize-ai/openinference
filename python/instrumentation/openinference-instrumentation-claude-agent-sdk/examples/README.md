@@ -8,7 +8,7 @@ pip install -r examples/requirements.txt
 
 Set `ANTHROPIC_API_KEY` for the example.
 
-You can view traces in **[Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing)** (no local server) or run Phoenix locally (`python -m phoenix.server.main serve`) and view at http://127.0.0.1:6006.
+You can view traces in **[Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing)** (no local server), run Phoenix locally (`python -m phoenix.server.main serve`) and view at http://127.0.0.1:6006, or send them to **[Arize AX](https://arize.com/)**.
 
 | Example | Description |
 |--------|-------------|
@@ -20,4 +20,4 @@ Run any example:
 python examples/example.py
 ```
 
-View traces in [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing) or at http://127.0.0.1:6006 when using local Phoenix.
+View traces in [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing), at http://127.0.0.1:6006 when using local Phoenix, or in [Arize AX](https://arize.com/).

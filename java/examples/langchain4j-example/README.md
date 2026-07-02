@@ -1,6 +1,6 @@
 # LangChain4j OpenInference Example with Phoenix
 
-This example demonstrates how to use OpenInference instrumentation with LangChain4j and export traces to Arize Phoenix.
+This example demonstrates how to use OpenInference instrumentation with LangChain4j and export traces to [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/).
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ This command:
 - Exposes port 6006 for the Phoenix web UI
 - Exposes port 4317 for the OTLP gRPC endpoint (where traces are sent)
 
-Once started, you can access Phoenix at http://localhost:6006
+Once started, you can access Phoenix at http://localhost:6006. To use [Arize AX](https://arize.com/) instead, point the OTLP exporter at your AX endpoint.
 
 ### Step 2: Set your OpenAI API Key
 

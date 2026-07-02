@@ -64,7 +64,7 @@ pip install openinference-instrumentation-bedrock arize-phoenix aioboto3
 
 Ensure that `boto3` is [configured with AWS credentials](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html).
 
-## Tracing Setup (Phoenix)
+## Tracing Setup (Phoenix or Arize AX)
 The tracing setup below is shared for both sync (`boto3`) and async (`aioboto3`) usage.
 
 ```python
@@ -264,5 +264,6 @@ asyncio.run(main())
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [More info on OpenInference and Arize AX](https://arize.com/)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)
