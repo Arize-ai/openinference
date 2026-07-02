@@ -195,3 +195,51 @@ class TestStrandsAgentsToOpenInferenceProcessor:
 
         # Should not raise an exception
         processor.on_end(span)  # type: ignore[arg-type]
+
+    def test_processor_skips_non_strands_span(self) -> None:
+        """Non-Strands spans (e.g. botocore, httpx, gRPC) must not have their
+        attributes destroyed and packed into a metadata JSON blob.
+
+        A span with only non-Strands attributes and a generic name should exit
+        on_end() with its original top-level attributes intact.
+        """
+        processor = StrandsAgentsToOpenInferenceProcessor()
+        original_attrs: Dict[str, Any] = {
+            "rpc.system": "grpc",
+            "http.status_code": 200,
+        }
+        span = MockReadableSpan(
+            name="non-framework-span",
+            attributes=dict(original_attrs),
+        )
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        # Original attributes must still be present at the top level
+        assert span._attributes.get("rpc.system") == "grpc"
+        assert span._attributes.get("http.status_code") == 200
+        # The processor must NOT have injected OpenInference span-kind
+        assert SpanAttributes.OPENINFERENCE_SPAN_KIND not in span._attributes
+        # The processor must NOT have packed attributes into a metadata blob
+        assert SpanAttributes.METADATA not in span._attributes
+
+    def test_processor_processes_strands_span_with_gen_ai_attrs(self) -> None:
+        """A span carrying a gen_ai.* attribute must still be transformed normally
+        (the guard must not over-filter genuine Strands spans).
+        """
+        processor = StrandsAgentsToOpenInferenceProcessor()
+        span = MockReadableSpan(
+            name="chat",
+            attributes={
+                "gen_ai.request.model": "claude-3",
+                "gen_ai.usage.input_tokens": 10,
+                "gen_ai.usage.output_tokens": 5,
+            },
+        )
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        # The span must have been transformed: OpenInference span kind must be set
+        assert span._attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+        # Model name must be mapped
+        assert span._attributes.get(SpanAttributes.LLM_MODEL_NAME) == "claude-3"
