@@ -28,7 +28,7 @@ Tests the Bedrock Converse API instrumentation with 6 comprehensive scenarios th
    export AWS_PROFILE="your-profile"
    ```
 
-2. **Phoenix Setup**: Configure Phoenix (or [Arize AX](https://arize.com/docs/ax), pointing at its OTLP endpoint instead) for trace collection:
+2. **Phoenix Setup**: Configure Phoenix for trace collection:
 
    ```bash
    export PHOENIX_ENDPOINT="https://your-phoenix-instance.com/v1/traces"

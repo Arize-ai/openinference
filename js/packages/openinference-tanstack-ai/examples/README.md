@@ -11,8 +11,6 @@ Phoenix defaults used by these examples:
 - `PHOENIX_COLLECTOR_ENDPOINT` (default: `http://localhost:6006/v1/traces`)
 - `PHOENIX_PROJECT_NAME` (default: `openinference-tanstack-ai-examples`)
 
-To send traces to [Arize AX](https://arize.com/docs/ax) instead of a local Phoenix instance, point `PHOENIX_COLLECTOR_ENDPOINT` at your AX OTLP endpoint.
-
 ## Run
 
 From `packages/openinference-tanstack-ai`:
