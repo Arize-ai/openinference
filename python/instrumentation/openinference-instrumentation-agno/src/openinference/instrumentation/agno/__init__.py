@@ -90,6 +90,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         from openinference.instrumentation.agno._workflow_wrapper import (
             _ParallelWrapper,
             _StepWrapper,
+            _WorkflowExecuteWrapper,
             _WorkflowWrapper,
         )
 
@@ -240,6 +241,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             from agno.workflow.workflow import Workflow
 
             workflow_wrapper = _WorkflowWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+            execute_wrapper = _WorkflowExecuteWrapper(tracer=self._tracer)  # type: ignore[arg-type]
             step_wrapper = _StepWrapper(tracer=self._tracer)  # type: ignore[arg-type]
 
             # Store original methods
@@ -262,6 +264,28 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                     Workflow,
                     "arun",
                     workflow_wrapper.arun,
+                )
+
+            # These do the real work for foreground & background runs to get the final output.
+
+            # Wrap Workflow.aexecute (async)
+            if hasattr(Workflow, "_aexecute") and callable(getattr(Workflow, "_aexecute", None)):
+                self._original_workflow_methods["_aexecute"] = Workflow._aexecute  # type: ignore[assignment]
+                wrap_function_wrapper(
+                    Workflow,
+                    "_aexecute",
+                    execute_wrapper.aexecute,
+                )
+
+            # Wrap Workflow.aexecute_stream (async streaming)
+            if hasattr(Workflow, "_aexecute_stream") and callable(
+                getattr(Workflow, "_aexecute_stream", None)
+            ):
+                self._original_workflow_methods["_aexecute_stream"] = Workflow._aexecute_stream  # type: ignore[assignment]
+                wrap_function_wrapper(
+                    Workflow,
+                    "_aexecute_stream",
+                    execute_wrapper.aexecute_stream,
                 )
 
             # Wrap Step.execute (sync)
