@@ -81,6 +81,23 @@ describe("ClaudeAgentSDKInstrumentation", () => {
     }).not.toThrow();
   });
 
+  it("returns a patched copy for native ESM namespace modules", async () => {
+    const nativeModule =
+      (await import("data:text/javascript,export function query(){return { [Symbol.asyncIterator](){return { async next(){return { done: true } } } } }}")) as unknown as {
+        query: () => AsyncIterable<unknown>;
+      };
+
+    expect(Object.getOwnPropertyDescriptor(nativeModule, "query")?.writable).toBe(true);
+    expect(() => {
+      nativeModule.query = nativeModule.query;
+    }).toThrow(TypeError);
+
+    const patchedModule = instrumentation.manuallyInstrument(nativeModule);
+
+    expect(patchedModule).not.toBe(nativeModule);
+    expect(patchedModule.query).not.toBe(nativeModule.query);
+  });
+
   it("should not double-patch the module", () => {
     const callCount = { value: 0 };
     const mockModule = {

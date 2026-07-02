@@ -54,7 +54,7 @@ export function _resetPatchState() {
  * Typed interface for the Claude Agent SDK module exports.
  * Uses SDK types directly for compile-time safety.
  */
-interface ClaudeAgentSDKModule {
+export interface ClaudeAgentSDKModule {
   query?: (params: {
     prompt: string | AsyncIterable<SDKUserMessage>;
     options?: SDKOptions;
@@ -65,15 +65,32 @@ interface ClaudeAgentSDKModule {
   openInferencePatched?: boolean;
 }
 
+const PATCHABLE_EXPORTS = [
+  "query",
+  "unstable_v2_prompt",
+  "unstable_v2_createSession",
+  "unstable_v2_resumeSession",
+] as const satisfies readonly (keyof ClaudeAgentSDKModule)[];
+
 /**
- * Returns true if a property on the given object can be assigned to.
- * ESM namespace objects have getter-only, non-configurable descriptors.
+ * Returns true if function exports can be assigned in place.
+ * Native ESM namespace descriptors can report writable: true while [[Set]]
+ * still rejects assignment, so this must probe assignment instead.
  */
-function isPropertyWritable(obj: object, prop: string): boolean {
-  const desc = Object.getOwnPropertyDescriptor(obj, prop);
-  if (!desc) return true; // no descriptor → assignment will create it
-  if (desc.get && !desc.set && !desc.configurable) return false;
-  return desc.writable !== false;
+function canPatchInPlace(module: ClaudeAgentSDKModule): boolean {
+  const exports = module as Record<(typeof PATCHABLE_EXPORTS)[number], unknown>;
+  return PATCHABLE_EXPORTS.every((name) => {
+    const current = exports[name];
+    if (typeof current !== "function") {
+      return true;
+    }
+    try {
+      exports[name] = current;
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 /**
@@ -132,11 +149,11 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
 
   /**
    * Manually instruments the Claude Agent SDK module.
-   * Needed when the module is not loaded via require (commonjs).
+   * Returns a patched copy when the supplied module is a native ESM namespace.
    */
-  manuallyInstrument(module: ClaudeAgentSDKModule) {
+  manuallyInstrument<TModule extends ClaudeAgentSDKModule>(module: TModule): TModule {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
-    this.patch(module);
+    return this.patch(module) as TModule;
   }
 
   get tracer(): Tracer {
@@ -168,20 +185,16 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
 
     if (module?.openInferencePatched || _isOpenInferencePatched) {
-      return module;
+      return this._patchedModule ?? module;
     }
 
     // Handle ES module default export structure
     const sdkModule =
       (module as ClaudeAgentSDKModule & { default?: ClaudeAgentSDKModule }).default || module;
 
-    // Check if the module is mutable (CJS / plain objects) or frozen (ESM).
-    const isMutable =
-      isPropertyWritable(sdkModule, "query") ||
-      !Object.getOwnPropertyDescriptor(sdkModule, "query");
-
-    // Target is either the original module (mutable) or a shallow copy (frozen ESM).
-    const target: ClaudeAgentSDKModule = isMutable
+    // Target is either the original module (CJS / IITM proxy) or a shallow copy
+    // for native ESM namespaces whose exports cannot be reassigned.
+    const target: ClaudeAgentSDKModule = canPatchInPlace(sdkModule)
       ? sdkModule
       : ({ ...sdkModule } as ClaudeAgentSDKModule);
 
