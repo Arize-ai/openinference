@@ -15,11 +15,12 @@ AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
 client = Anthropic()
 
 response = client.messages.create(
-    max_tokens=1024,
+    max_tokens=2048,
+    thinking={"type": "enabled", "budget_tokens": 1024},
     messages=[
         {
             "role": "user",
-            "content": "Hello!",
+            "content": "What is 27 * 453? Think it through step by step.",
         }
     ],
     model="claude-sonnet-4-6",
