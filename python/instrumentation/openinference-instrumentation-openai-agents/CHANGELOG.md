@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.6.1...python-openinference-instrumentation-openai-agents-v1.6.2) (2026-07-02)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [1.6.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.6.0...python-openinference-instrumentation-openai-agents-v1.6.1) (2026-06-05)
 
 

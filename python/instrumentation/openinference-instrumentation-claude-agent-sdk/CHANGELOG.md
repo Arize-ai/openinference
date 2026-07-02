@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.7...python-openinference-instrumentation-claude-agent-sdk-v0.1.8) (2026-07-02)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.6...python-openinference-instrumentation-claude-agent-sdk-v0.1.7) (2026-06-24)
 
 

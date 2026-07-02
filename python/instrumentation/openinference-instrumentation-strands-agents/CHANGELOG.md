@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.3...python-openinference-instrumentation-strands-agents-v0.1.4) (2026-07-02)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.2...python-openinference-instrumentation-strands-agents-v0.1.3) (2026-06-11)
 
 

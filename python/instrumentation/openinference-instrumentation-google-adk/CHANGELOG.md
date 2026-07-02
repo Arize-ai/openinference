@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.17...python-openinference-instrumentation-google-adk-v0.1.18) (2026-07-02)
+
+
+### Bug Fixes
+
+* **google_adk:** Map Tool Call IDs to OI Attributes ([#3281](https://github.com/Arize-ai/openinference/issues/3281)) ([a5c0ef8](https://github.com/Arize-ai/openinference/commit/a5c0ef8f7db3dbc886713781ad503de82589942e))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.16...python-openinference-instrumentation-google-adk-v0.1.17) (2026-07-01)
 
 
