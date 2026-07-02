@@ -9,7 +9,7 @@ This is a simple example of setting up BeeAI auto instrumentation in a node appl
 
 ## Instrumentation
 
-Checkout the [instrumentation.ts](./instrumentation.ts) file to see how to auto-instrument Beeai and export spans to a locally running [Phoenix](https://github.com/Arize-ai/phoenix) server, or to [Arize AX](https://arize.com/).
+Checkout the [instrumentation.ts](./instrumentation.ts) file to see how to auto-instrument Beeai and export spans to a locally running [Phoenix](https://github.com/Arize-ai/phoenix) server, or to [Arize AX](https://arize.com/docs/ax).
 
 ### Environment Variable
 

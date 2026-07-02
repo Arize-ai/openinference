@@ -92,7 +92,7 @@ OpenInference extends OpenTelemetry, so a few OTel concepts are essential:
 - **Attributes** -- key-value pairs attached to spans. OpenInference defines
   semantic conventions for attribute keys (e.g., `input.value`, `llm.model_name`).
 - **Exporter** -- sends completed spans to a backend. Common choices:
-  `ConsoleSpanExporter` (stdout), `OTLPTraceExporter` (to [Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/), Jaeger, etc.).
+  `ConsoleSpanExporter` (stdout), `OTLPTraceExporter` (to [Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/docs/ax), Jaeger, etc.).
 
 ### OpenInference Span Kinds
 

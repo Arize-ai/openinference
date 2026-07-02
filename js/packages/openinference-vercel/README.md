@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel)
 
-This package provides utilities to transform [Vercel AI SDK](https://github.com/vercel/ai) OpenTelemetry spans into OpenInference spans for platforms like [Arize AX](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
+This package provides utilities to transform [Vercel AI SDK](https://github.com/vercel/ai) OpenTelemetry spans into OpenInference spans for platforms like [Arize AX](https://arize.com/docs/ax) and [Phoenix](https://phoenix.arize.com/).
 
 > Note: This package targets AI SDK v7 telemetry. Use `@arizeai/openinference-vercel` v2.x for AI SDK v6.
 

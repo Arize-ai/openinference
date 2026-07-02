@@ -4,7 +4,7 @@
 
 Python auto-instrumentation library for LLM applications implemented with Guardrails
 
-Guards are fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for monitoring, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/).
+Guards are fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for monitoring, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax).
 
 ## Installation
 
@@ -76,6 +76,6 @@ print(response)
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
-* [More info on OpenInference and Arize AX](https://arize.com/)
+* [More info on OpenInference and Arize AX](https://arize.com/docs/ax)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

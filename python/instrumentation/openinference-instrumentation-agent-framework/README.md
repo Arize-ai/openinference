@@ -1,6 +1,6 @@
 # OpenInference Microsoft Agent Framework Instrumentation
 
-OpenInference span processor for Microsoft Agent Framework that transforms native OpenTelemetry spans to OpenInference format for compatibility with OpenInference-compliant backends like [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/).
+OpenInference span processor for Microsoft Agent Framework that transforms native OpenTelemetry spans to OpenInference format for compatibility with OpenInference-compliant backends like [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax).
 
 **Tested with Agent Framework core/OpenAI packages `1.0.0`**
 
@@ -189,7 +189,7 @@ pytest tests/test_processor.py -v --record-mode=rewrite
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
-* [More info on OpenInference and Arize AX](https://arize.com/)
+* [More info on OpenInference and Arize AX](https://arize.com/docs/ax)
 
 ## License
 
