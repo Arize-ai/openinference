@@ -1,0 +1,63 @@
+name: regression-test
+
+# Auto-installed by oss-support-agent to support the regression-guard agent.
+# Safe to delete if you do not use the agent's GHA sandbox runner.
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_command:
+        description: Test command to run on the checked-out branch
+        required: true
+        type: string
+      branch:
+        description: Branch to test (set automatically by the agent)
+        required: true
+        type: string
+      timeout_minutes:
+        description: Per-job timeout in minutes
+        required: false
+        type: string
+        default: "15"
+      sandbox_services:
+        description: Comma-separated list of services the test command needs
+        required: false
+        type: string
+        default: ""
+      network_policy:
+        description: Network policy hint ("none" or "allow:<services>")
+        required: false
+        type: string
+        default: "none"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run test command
+        shell: bash
+        run: |
+          set +e
+          echo "::group::Running test command"
+          echo "Command: ${{ inputs.test_command }}"
+          echo "::endgroup::"
+          bash -c "${{ inputs.test_command }}"
+          exit_code=$?
+          echo "Test exit code: $exit_code"
+          exit $exit_code
