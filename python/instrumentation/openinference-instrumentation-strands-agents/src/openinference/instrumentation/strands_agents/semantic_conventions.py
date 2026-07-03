@@ -14,7 +14,9 @@ import json
 from typing import Any
 
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
+    GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MODEL,
+    GEN_AI_SYSTEM,
     GEN_AI_TOOL_CALL_ID,
     GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_INPUT_TOKENS,
@@ -23,7 +25,9 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
 
 # Re-export official OTEL constants
 __all__ = [
+    "GEN_AI_PROVIDER_NAME",
     "GEN_AI_REQUEST_MODEL",
+    "GEN_AI_SYSTEM",
     "GEN_AI_TOOL_CALL_ID",
     "GEN_AI_TOOL_NAME",
     "GEN_AI_USAGE_INPUT_TOKENS",

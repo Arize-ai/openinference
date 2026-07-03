@@ -13,15 +13,26 @@ The processor transforms:
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    List,
+    Optional,
+    Tuple,
+)
 
+from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
+from opentelemetry.trace import Span, Status, StatusCode
 
 from openinference.instrumentation.strands_agents.semantic_conventions import (
+    GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_P,
+    GEN_AI_SYSTEM,
     GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
@@ -37,6 +48,29 @@ from openinference.semconv.trace import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Rules for identifying spans emitted by the Strands Agents SDK.
+_STRANDS_SDK_NAME: str = "strands-agents"
+_STRANDS_EXACT_SPAN_NAMES: FrozenSet[str] = frozenset(
+    {
+        "chat",
+        "execute_event_loop_cycle",
+    }
+)
+_STRANDS_SPAN_PREFIXES: Tuple[str, ...] = (
+    "execute_tool ",
+    "invoke_agent",
+    "Tool:",
+)
+_STRANDS_SPAN_SUBSTRINGS: Tuple[str, ...] = (
+    "Model invoke",
+    "Cycle",
+)
+_STRANDS_FALLBACK_ATTRIBUTES: Tuple[str, ...] = (
+    GenAIAttributes.AGENT_NAME,
+    "agent.name",
+    "event_loop.cycle_id",
+)
 
 
 class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
@@ -63,7 +97,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         super().__init__()
         self.debug = debug
 
-    def on_start(self, span: ReadableSpan, parent_context: Any = None) -> None:
+    def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
         """Called when a span is started."""
         pass
 
@@ -72,7 +106,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         Called when a span ends. Transform the span attributes from Strands format
         to OpenInference format.
         """
-        if not hasattr(span, "_attributes") or not span._attributes:
+        if not self._is_strands_span(span):
             return
 
         original_attrs = dict(span._attributes)
@@ -84,8 +118,13 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             elif hasattr(span, "events"):
                 events = list(span.events)
 
+            # Get the OpenInference attributes from the span.
             transformed_attrs = self._transform_attributes(original_attrs, span, events)
-            span._attributes = transformed_attrs
+
+            # Combine the original attributes with the OpenInference attributes.
+            span._attributes = {**original_attrs, **transformed_attrs}
+            if not span.status.status_code == StatusCode.ERROR:
+                span._status = Status(status_code=StatusCode.OK)
 
             # Strip gen_ai.* events after transformation since their content has been
             # extracted into OpenInference attributes. Keeping them would show empty
@@ -104,6 +143,29 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         except Exception as e:
             logger.error(f"Failed to transform span '{span.name}': {e}", exc_info=True)
             span._attributes = original_attrs
+
+    def _is_strands_span(self, span: ReadableSpan) -> bool:
+        """Return True if the span was emitted by Strands Agents SDK."""
+        attrs = getattr(span, "_attributes", None) or {}
+
+        if (
+            attrs.get(GEN_AI_SYSTEM) == _STRANDS_SDK_NAME
+            or attrs.get(GEN_AI_PROVIDER_NAME) == _STRANDS_SDK_NAME
+        ):
+            return True
+
+        name = span.name
+
+        if name in _STRANDS_EXACT_SPAN_NAMES:
+            return True
+
+        if any(name.startswith(prefix) for prefix in _STRANDS_SPAN_PREFIXES):
+            return True
+
+        if any(substring in name for substring in _STRANDS_SPAN_SUBSTRINGS):
+            return True
+
+        return any(attribute in attrs for attribute in _STRANDS_FALLBACK_ATTRIBUTES)
 
     def _strip_genai_events(self, span: ReadableSpan) -> None:
         """Remove gen_ai.* prefixed events from the span after transformation.

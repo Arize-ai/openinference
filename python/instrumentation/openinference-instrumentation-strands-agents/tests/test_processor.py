@@ -2,7 +2,8 @@
 
 from typing import Any, Dict, List, Optional
 
-from opentelemetry.trace import SpanKind
+import pytest
+from opentelemetry.trace import SpanKind, Status, StatusCode
 
 from openinference.instrumentation.strands_agents.processor import (
     StrandsAgentsToOpenInferenceProcessor,
@@ -22,8 +23,13 @@ class MockReadableSpan:
         self.name = name
         self._attributes = attributes or {}
         self._events = events or []
+        self._status = Status(status_code=StatusCode.OK)
         self.kind = SpanKind.INTERNAL
         self.parent = None
+
+    @property
+    def status(self) -> Status:
+        return self._status
 
     def get_span_context(self) -> Any:
         """Mock get_span_context."""
@@ -174,6 +180,89 @@ class TestStrandsAgentsToOpenInferenceProcessor:
             span._attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
             == OpenInferenceSpanKindValues.CHAIN.value
         )
+
+    @pytest.mark.parametrize(
+        ("span_name", "attributes"),
+        [
+            # Generic HTTP span
+            (
+                "http.request",
+                {
+                    "http.method": "GET",
+                    "http.url": "https://example.com/api",
+                    "http.status_code": 200,
+                },
+            ),
+            # RPC span
+            (
+                "rpc.call",
+                {
+                    "rpc.system": "grpc",
+                    "rpc.service": "my.Service",
+                    "rpc.method": "DoWork",
+                },
+            ),
+            # Botocore/AWS span
+            (
+                "aws.request",
+                {
+                    "rpc.system": "aws-api",
+                    "rpc.service": "S3",
+                    "rpc.method": "GetObject",
+                },
+            ),
+            # GenAI SDK
+            (
+                "openai.chat",
+                {
+                    "gen_ai.system": "openai",
+                    "gen_ai.request.model": "gpt-4o",
+                    "gen_ai.usage.input_tokens": 42,
+                },
+            ),
+        ],
+    )
+    def test_processor_leaves_non_strands_spans_unchanged(
+        self,
+        span_name: str,
+        attributes: Dict[str, Any],
+    ) -> None:
+        """Test that non-Strands spans are not modified by the processor."""
+        processor = StrandsAgentsToOpenInferenceProcessor()
+        span = MockReadableSpan(name=span_name, attributes=dict(attributes))
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        assert span._attributes == attributes
+
+    def test_processor_does_not_overwrite_error_status(self) -> None:
+        """Processor must not overwrite ERROR spans."""
+        processor = StrandsAgentsToOpenInferenceProcessor()
+
+        span = MockReadableSpan(
+            name="chat",
+            attributes={"gen_ai.request.model": "gpt-4"},
+        )
+        span._status = Status(StatusCode.ERROR)
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        assert span._status.status_code == StatusCode.ERROR
+
+    def test_processor_sets_ok_status_when_not_error(self) -> None:
+        """Spans without errors should be normalized to OK."""
+        processor = StrandsAgentsToOpenInferenceProcessor()
+
+        span = MockReadableSpan(
+            name="chat",
+            attributes={"gen_ai.request.model": "gpt-4"},
+        )
+
+        span._status = Status(StatusCode.UNSET)
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        assert span._status.status_code == StatusCode.OK
 
     def test_processor_handles_empty_attributes(self) -> None:
         """Test that the processor handles spans with no attributes."""
