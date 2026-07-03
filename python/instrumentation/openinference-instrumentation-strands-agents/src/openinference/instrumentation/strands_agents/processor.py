@@ -109,7 +109,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         if not self._is_strands_span(span):
             return
 
-        original_attrs = dict(span._attributes)
+        original_attrs = dict(span._attributes)  # type: ignore[arg-type]
 
         try:
             events: List[Any] = []
