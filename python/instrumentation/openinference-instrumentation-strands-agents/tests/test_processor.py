@@ -235,10 +235,33 @@ class TestStrandsAgentsToOpenInferenceProcessor:
 
         assert span._attributes == attributes
 
-    def test_processor_does_not_overwrite_error_status(self) -> None:
-        """Processor must not overwrite ERROR spans."""
+    def test_mixed_trace_only_transforms_strands_spans(self) -> None:
+        """Test that only Strands spans are transformed in mixed traces."""
         processor = StrandsAgentsToOpenInferenceProcessor()
+        http_span = MockReadableSpan(
+            name="http.request",
+            attributes={
+                "http.method": "GET",
+                "http.url": "https://example.com",
+            },
+        )
+        strands_span = MockReadableSpan(
+            name="chat",
+            attributes={
+                "gen_ai.system": "strands-agents",
+                "gen_ai.request.model": "gpt-4",
+            },
+        )
 
+        processor.on_end(http_span)  # type: ignore[arg-type]
+        processor.on_end(strands_span)  # type: ignore[arg-type]
+
+        assert http_span._attributes.get("http.method") == "GET"
+        assert SpanAttributes.LLM_MODEL_NAME in strands_span._attributes
+
+    def test_processor_does_not_overwrite_error_status(self) -> None:
+        """Test that processor does not overwrite ERROR spans."""
+        processor = StrandsAgentsToOpenInferenceProcessor()
         span = MockReadableSpan(
             name="chat",
             attributes={"gen_ai.request.model": "gpt-4"},
@@ -250,14 +273,12 @@ class TestStrandsAgentsToOpenInferenceProcessor:
         assert span._status.status_code == StatusCode.ERROR
 
     def test_processor_sets_ok_status_when_not_error(self) -> None:
-        """Spans without errors should be normalized to OK."""
+        """Test that spans without errors are normalized to OK."""
         processor = StrandsAgentsToOpenInferenceProcessor()
-
         span = MockReadableSpan(
             name="chat",
             attributes={"gen_ai.request.model": "gpt-4"},
         )
-
         span._status = Status(StatusCode.UNSET)
 
         processor.on_end(span)  # type: ignore[arg-type]

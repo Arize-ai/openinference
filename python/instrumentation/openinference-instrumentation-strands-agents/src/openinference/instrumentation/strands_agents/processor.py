@@ -147,7 +147,6 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
     def _is_strands_span(self, span: ReadableSpan) -> bool:
         """Return True if the span was emitted by Strands Agents SDK."""
         attrs = getattr(span, "_attributes", None) or {}
-
         if (
             attrs.get(GEN_AI_SYSTEM) == _STRANDS_SDK_NAME
             or attrs.get(GEN_AI_PROVIDER_NAME) == _STRANDS_SDK_NAME
@@ -155,13 +154,10 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             return True
 
         name = span.name
-
         if name in _STRANDS_EXACT_SPAN_NAMES:
             return True
-
         if any(name.startswith(prefix) for prefix in _STRANDS_SPAN_PREFIXES):
             return True
-
         if any(substring in name for substring in _STRANDS_SPAN_SUBSTRINGS):
             return True
 
