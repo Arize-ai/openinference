@@ -205,6 +205,18 @@ updates:
     interval: weekly
 - cooldown:
     default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-together
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: pip
+  schedule:
+    interval: weekly
+- cooldown:
+    default-days: 7
   directory: python/instrumentation/openinference-instrumentation-guardrails
   ignore:
   - dependency-name: '*'
