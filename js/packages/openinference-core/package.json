@@ -43,7 +43,7 @@
   "dependencies": {
     "@arizeai/openinference-semantic-conventions": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/core": "^1.25.1"
+    "@opentelemetry/core": "^2.8.0"
   },
   "devDependencies": {
     "@opentelemetry/context-async-hooks": "^1.25.1",
