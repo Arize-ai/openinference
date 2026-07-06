@@ -754,7 +754,7 @@ class TestWorkflowBackgroundRuns:
 
         captured_run_id = attrs.get("agno.run.id")
         assert captured_run_id is not None
-        assert re.match(r"^[0-9a-f-]{36}$", captured_run_id), captured_run_id
+        assert re.match(r"^[0-9a-f-]{36}$", captured_run_id), captured_run_id  # type: ignore[call-overload]
 
         # Span should have real, non-trivial duration.
         assert execute_span.start_time is not None
