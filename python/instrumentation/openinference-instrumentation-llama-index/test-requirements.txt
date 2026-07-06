@@ -1,4 +1,4 @@
-anthropic<0.103
+anthropic<0.113
 llama-index-core==0.14.19
 llama_index-llms-anthropic<0.11.0
 llama-index-llms-groq
