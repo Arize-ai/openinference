@@ -666,6 +666,643 @@ async def test_acompletion_streaming_with_tool_calls(
     assert attributes.get(tool_call_1_args) == '{"x": 1, "y": 2}'
 
 
+def _assert_no_message_content_id(attributes: Mapping[str, AttributeValue]) -> None:
+    assert not any(
+        key.endswith(f".{MessageContentAttributes.MESSAGE_CONTENT_ID}") for key in attributes
+    )
+
+
+def _reasoning_content_key(prefix: str, message_index: int, content_index: int, attr: str) -> str:
+    return f"{prefix}.{message_index}.{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{attr}"
+
+
+def _pop_reasoning_content(
+    attributes: Dict[str, AttributeValue],
+    prefix: str,
+    message_index: int,
+    content_index: int,
+    *,
+    text: Optional[str] = None,
+    signature: Optional[str] = None,
+    data: Optional[str] = None,
+    encrypted_content: Optional[str] = None,
+) -> None:
+    """Pop and validate a single reasoning ``message_content`` block. Only the
+    fields passed in are expected; the block type is always asserted."""
+
+    def key(attr: str) -> str:
+        return _reasoning_content_key(prefix, message_index, content_index, attr)
+
+    assert attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_TYPE)) == "reasoning"
+    if text is not None:
+        assert attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_TEXT)) == text
+    if signature is not None:
+        assert attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE)) == signature
+    if data is not None:
+        assert attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_DATA)) == data
+    if encrypted_content is not None:
+        assert (
+            attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT))
+            == encrypted_content
+        )
+
+
+def _pop_text_content(
+    attributes: Dict[str, AttributeValue],
+    prefix: str,
+    message_index: int,
+    content_index: int,
+    text: str,
+) -> None:
+    """Pop and validate a single text ``message_content`` block."""
+    key = _reasoning_content_key(
+        prefix, message_index, content_index, MessageContentAttributes.MESSAGE_CONTENT_TYPE
+    )
+    assert attributes.pop(key) == "text"
+    key = _reasoning_content_key(
+        prefix, message_index, content_index, MessageContentAttributes.MESSAGE_CONTENT_TEXT
+    )
+    assert attributes.pop(key) == text
+
+
+def _pop_tool_use_content(
+    attributes: Dict[str, AttributeValue],
+    prefix: str,
+    message_index: int,
+    content_index: int,
+    *,
+    tool_call_id: str,
+    name: str,
+    arguments: str,
+) -> None:
+    """Pop and validate a single tool_use ``message_content`` block."""
+
+    def key(attr: str) -> str:
+        return _reasoning_content_key(prefix, message_index, content_index, attr)
+
+    assert attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_TYPE)) == "tool_use"
+    assert attributes.pop(key(ToolCallAttributes.TOOL_CALL_ID)) == tool_call_id
+    assert attributes.pop(key(ToolCallAttributes.TOOL_CALL_FUNCTION_NAME)) == name
+    assert attributes.pop(key(ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON)) == arguments
+
+
+def _make_thinking_blocks_response() -> Any:
+    from litellm.types.utils import Choices, ModelResponse, Usage
+
+    return ModelResponse(
+        id="chatcmpl-thinking",
+        model="claude-sonnet-4-5",
+        choices=[
+            Choices(
+                index=0,
+                finish_reason="stop",
+                message=LitellmMessage(
+                    role="assistant",
+                    content="Paris.",
+                    reasoning_content="First thought.Second thought.",
+                    thinking_blocks=[
+                        {
+                            "type": "thinking",
+                            "thinking": "First thought.",
+                            "signature": "sig-first",
+                        },
+                        {
+                            "type": "thinking",
+                            "thinking": "Second thought.",
+                            "signature": "sig-second",
+                        },
+                    ],
+                ),
+            )
+        ],
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+
+def _assert_thinking_blocks_attributes(
+    attributes: Dict[str, AttributeValue],
+    input_messages: List[Dict[str, Any]],
+) -> None:
+    """Exhaustively pop and validate every attribute produced for the
+    thinking-blocks mock response; nothing unexpected may remain."""
+    _assert_no_message_content_id(attributes)
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "anthropic/claude-sonnet-4-5"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "anthropic"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
+        {"model": "anthropic/claude-sonnet-4-5"}
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Paris."
+
+    in_prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    assert attributes.pop(f"{in_prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{in_prefix}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "What's the capital of France?"
+    )
+
+    out_prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    assert attributes.pop(f"{out_prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    _pop_reasoning_content(
+        attributes, out_prefix, 0, 0, text="First thought.", signature="sig-first"
+    )
+    _pop_reasoning_content(
+        attributes, out_prefix, 0, 1, text="Second thought.", signature="sig-second"
+    )
+    _pop_text_content(attributes, out_prefix, 0, 2, "Paris.")
+
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert attributes == {}
+
+
+def test_completion_with_thinking_blocks(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Non-streaming completion captures thinking_blocks as ordered reasoning contents."""
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of France?", "role": "user"}]
+    mock_response = _make_thinking_blocks_response()
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: mock_response
+        )
+        litellm.completion(
+            model="anthropic/claude-sonnet-4-5",
+            messages=input_messages,
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    _assert_thinking_blocks_attributes(attributes, input_messages)
+
+
+@pytest.mark.asyncio
+async def test_acompletion_with_thinking_blocks(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Non-streaming acompletion captures thinking_blocks as ordered reasoning contents."""
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of France?", "role": "user"}]
+    mock_response = _make_thinking_blocks_response()
+
+    async def mock_acompletion(*args: Any, **kwargs: Any) -> Any:
+        return mock_response
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = mock_acompletion
+        await litellm.acompletion(
+            model="anthropic/claude-sonnet-4-5",
+            messages=input_messages,
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    _assert_thinking_blocks_attributes(attributes, input_messages)
+
+
+def test_completion_with_reasoning_content_only(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """reasoning_content without thinking_blocks yields a single reasoning content."""
+    from litellm.types.utils import Choices, ModelResponse, Usage
+
+    in_memory_span_exporter.clear()
+
+    mock_response = ModelResponse(
+        id="chatcmpl-reasoning",
+        model="deepseek-reasoner",
+        choices=[
+            Choices(
+                index=0,
+                finish_reason="stop",
+                message=LitellmMessage(
+                    role="assistant",
+                    content="Paris.",
+                    reasoning_content="The user asks about France.",
+                ),
+            )
+        ],
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: mock_response
+        )
+        litellm.completion(
+            model="deepseek/deepseek-reasoner",
+            messages=[{"content": "What's the capital of France?", "role": "user"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    _assert_no_message_content_id(attributes)
+
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "deepseek/deepseek-reasoner"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "deepseek"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
+        {"model": "deepseek/deepseek-reasoner"}
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": [{"content": "What's the capital of France?", "role": "user"}]}
+    )
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Paris."
+
+    in_prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    assert attributes.pop(f"{in_prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{in_prefix}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "What's the capital of France?"
+    )
+
+    out_prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    assert attributes.pop(f"{out_prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    # A single reasoning block with no signature, followed by the text content
+    _pop_reasoning_content(attributes, out_prefix, 0, 0, text="The user asks about France.")
+    _pop_text_content(attributes, out_prefix, 0, 1, "Paris.")
+
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert attributes == {}
+
+
+def test_completion_tool_flow_with_input_thinking_blocks(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Assistant input messages carrying thinking_blocks in a tool-calling flow
+    are captured as reasoning contents alongside existing tool call attributes."""
+    in_memory_span_exporter.clear()
+
+    input_messages: List[Dict[str, Any]] = [
+        {"content": "What's the weather like in New York?", "role": "user"},
+        {
+            "role": "assistant",
+            "content": "Let me check the weather for you.",
+            "reasoning_content": "I need to call the weather tool.",
+            "thinking_blocks": [
+                {
+                    "type": "thinking",
+                    "thinking": "I need to call the weather tool.",
+                    "signature": "sig-tool-flow",
+                }
+            ],
+            "tool_calls": [
+                {
+                    "index": 1,
+                    "id": "call_abc123",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": '{"location": "New York"}',
+                    },
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_abc123",
+            "content": "22C and sunny",
+        },
+    ]
+    litellm.completion(
+        model="anthropic/claude-sonnet-4-5",
+        messages=input_messages,
+        mock_response="The weather in New York is 22C and sunny.",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    _assert_no_message_content_id(attributes)
+
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "anthropic/claude-sonnet-4-5"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "anthropic"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
+        {
+            "model": "anthropic/claude-sonnet-4-5",
+            "mock_response": "The weather in New York is 22C and sunny.",
+        }
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert (
+        attributes.pop(SpanAttributes.OUTPUT_VALUE) == "The weather in New York is 22C and sunny."
+    )
+
+    prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    assert attributes.pop(f"{prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{prefix}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "What's the weather like in New York?"
+    )
+
+    # Assistant message with reasoning: ordered contents (reasoning -> text -> tool_use)
+    assert attributes.pop(f"{prefix}.1.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    _pop_reasoning_content(
+        attributes, prefix, 1, 0, text="I need to call the weather tool.", signature="sig-tool-flow"
+    )
+    _pop_text_content(attributes, prefix, 1, 1, "Let me check the weather for you.")
+    _pop_tool_use_content(
+        attributes,
+        prefix,
+        1,
+        2,
+        tool_call_id="call_abc123",
+        name="get_weather",
+        arguments='{"location": "New York"}',
+    )
+    tool_call_prefix = f"{prefix}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    assert attributes.pop(f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_ID}") == "call_abc123"
+    assert (
+        attributes.pop(f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert (
+        attributes.pop(f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}")
+        == '{"location": "New York"}'
+    )
+
+    assert attributes.pop(f"{prefix}.2.{MessageAttributes.MESSAGE_ROLE}") == "tool"
+    assert attributes.pop(f"{prefix}.2.{MessageAttributes.MESSAGE_CONTENT}") == "22C and sunny"
+
+    out_prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    assert attributes.pop(f"{out_prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{out_prefix}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "The weather in New York is 22C and sunny."
+    )
+
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert cast(float, attributes.pop(SpanAttributes.LLM_COST_TOTAL)) > 0
+    assert attributes == {}
+
+
+def _make_reasoning_stream_chunks() -> List[Any]:
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+
+    return [
+        ModelResponseStream(
+            id="chatcmpl-reasoning-stream",
+            model="claude-sonnet-4-5",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(
+                        role="assistant",
+                        content=None,
+                        reasoning_content="First ",
+                        thinking_blocks=[
+                            {"type": "thinking", "thinking": "First ", "signature": ""}
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-reasoning-stream",
+            model="claude-sonnet-4-5",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(
+                        content=None,
+                        reasoning_content="thought.",
+                        thinking_blocks=[
+                            {"type": "thinking", "thinking": "thought.", "signature": ""}
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-reasoning-stream",
+            model="claude-sonnet-4-5",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(
+                        content=None,
+                        thinking_blocks=[
+                            {"type": "thinking", "thinking": "", "signature": "sig-stream"}
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-reasoning-stream",
+            model="claude-sonnet-4-5",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(
+                        content=None,
+                        thinking_blocks=[{"type": "redacted_thinking", "data": "redacted-data"}],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-reasoning-stream",
+            model="claude-sonnet-4-5",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(content="Paris."),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-reasoning-stream",
+            model="claude-sonnet-4-5",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(content=None),
+                    finish_reason="stop",
+                )
+            ],
+        ),
+    ]
+
+
+def _assert_streaming_reasoning_attributes(attributes: Dict[str, AttributeValue]) -> None:
+    """Exhaustively pop and validate every attribute produced for the reasoning
+    stream chunks; nothing unexpected may remain."""
+    _assert_no_message_content_id(attributes)
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "anthropic/claude-sonnet-4-5"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "anthropic"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
+        {"model": "anthropic/claude-sonnet-4-5", "stream": True}
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": [{"content": "What's the capital of France?", "role": "user"}]}
+    )
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Paris."
+
+    in_prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    assert attributes.pop(f"{in_prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{in_prefix}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "What's the capital of France?"
+    )
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    assert attributes.pop(f"{prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    # Ordered contents: thinking block, redacted block, then text
+    _pop_reasoning_content(attributes, prefix, 0, 0, text="First thought.", signature="sig-stream")
+    _pop_reasoning_content(attributes, prefix, 0, 1, data="redacted-data")
+    _pop_text_content(attributes, prefix, 0, 2, "Paris.")
+    assert attributes == {}
+
+
+def test_completion_streaming_with_reasoning(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Sync streaming accumulates delta.reasoning_content and delta.thinking_blocks."""
+    from litellm.types.utils import ModelResponseStream
+
+    in_memory_span_exporter.clear()
+
+    chunks = _make_reasoning_stream_chunks()
+
+    class MockStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __iter__(self) -> "MockStreamWrapper":
+            return self
+
+        def __next__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: MockStreamWrapper(chunks)
+        )
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            MockStreamWrapper,
+        ):
+            response = litellm.completion(
+                model="anthropic/claude-sonnet-4-5",
+                messages=[{"content": "What's the capital of France?", "role": "user"}],
+                stream=True,
+            )
+            chunks_received = list(response)
+            assert len(chunks_received) == 6
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    _assert_streaming_reasoning_attributes(attributes)
+
+
+@pytest.mark.asyncio
+async def test_acompletion_streaming_with_reasoning(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Async streaming accumulates delta.reasoning_content and delta.thinking_blocks."""
+    from litellm.types.utils import ModelResponseStream
+
+    in_memory_span_exporter.clear()
+
+    chunks = _make_reasoning_stream_chunks()
+
+    class MockAsyncStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __aiter__(self) -> "MockAsyncStreamWrapper":
+            return self
+
+        async def __anext__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopAsyncIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+
+    async def mock_acompletion(*args: Any, **kwargs: Any) -> MockAsyncStreamWrapper:
+        return MockAsyncStreamWrapper(chunks)
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = mock_acompletion
+        response = await litellm.acompletion(
+            model="anthropic/claude-sonnet-4-5",
+            messages=[{"content": "What's the capital of France?", "role": "user"}],
+            stream=True,
+        )
+        chunks_received = [chunk async for chunk in response]
+        assert len(chunks_received) == 6
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    _assert_streaming_reasoning_attributes(attributes)
+
+
 def test_completion_with_tool_schema_capture(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,

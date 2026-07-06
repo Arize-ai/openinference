@@ -5,6 +5,7 @@ from openinference.instrumentation import (
     Image,
     ImageMessageContent,
     Message,
+    ReasoningMessageContent,
     TextMessageContent,
     Tool,
     ToolCall,
@@ -106,17 +107,21 @@ def _get_attributes_from_response_input_item_param(obj: Any) -> Optional[Message
             message_obj["content"] = output
         return message_obj
     elif obj_type == "reasoning":
+        reasoning_content = ReasoningMessageContent(type="reasoning")
         summary = obj.get("summary")
         if isinstance(summary, Iterable):
-            contents = []
-            for item in summary:
-                if "type" not in item:
-                    continue
-                if item["type"] == "summary_text":
-                    contents.append(TextMessageContent(text=item.get("text", ""), type="text"))
-                else:
-                    contents.append(TextMessageContent(text=safe_json_dumps(item), type="text"))
-            return Message(role="assistant", contents=contents)
+            texts = [
+                text
+                for item in summary
+                if isinstance(item, Mapping)
+                and item.get("type") == "summary_text"
+                and (text := item.get("text"))
+            ]
+            if texts:
+                reasoning_content["text"] = "\n".join(texts)
+        if (encrypted := obj.get("encrypted_content")) is not None:
+            reasoning_content["encrypted_content"] = encrypted
+        return Message(role="assistant", contents=[reasoning_content])
     elif obj_type in ["file_search_call", "web_search_call"]:
         function = ToolCallFunction(name=obj_type)
         return Message(
@@ -209,12 +214,17 @@ def _get_attributes_from_response_output_item(obj: Any) -> Message:
         function = ToolCallFunction(name=obj_type)
         tool_calls.append(ToolCall(id=getattr(obj, "id", ""), function=function))
     elif obj_type == "reasoning":
+        message_obj["role"] = "assistant"
+        reasoning_content = ReasoningMessageContent(type="reasoning")
         summary = getattr(obj, "summary", None)
-        if summary and isinstance(summary, Iterable):
-            message_obj["role"] = "assistant"
-            for item in summary:
-                contents.append(TextMessageContent(text=getattr(item, "text", ""), type="text"))
-            message_obj["contents"] = contents
+        if isinstance(summary, Iterable):
+            texts = [text for item in summary if (text := getattr(item, "text", ""))]
+            if texts:
+                reasoning_content["text"] = "\n".join(texts)
+        if (encrypted := getattr(obj, "encrypted_content", None)) is not None:
+            reasoning_content["encrypted_content"] = encrypted
+        if reasoning_content.get("text") or reasoning_content.get("encrypted_content"):
+            contents.append(reasoning_content)
     elif obj_type == "web_search_call":
         message_obj["role"] = "assistant"
         function = ToolCallFunction(name=obj_type)
