@@ -391,7 +391,7 @@ class _WorkflowWrapper:
             ),
         )
 
-        setattr(instance, self._ARUN_SPANNED_ATTR, True)
+        setattr(instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR, True)
 
         # Setup context and call wrapped to detect streaming
         workflow_token = None
@@ -462,9 +462,8 @@ class _WorkflowWrapper:
                 if ctx_token is not None:
                     context_api.detach(ctx_token)
                 span.end()
-
-                if getattr(instance, self._ARUN_SPANNED_ATTR, False):
-                    delattr(instance, self._ARUN_SPANNED_ATTR)
+                if getattr(instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR, False):
+                    delattr(instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR)
 
         return non_stream_wrapper()
 
@@ -527,8 +526,10 @@ class _WorkflowWrapper:
 
         finally:
             span.end()
-            if instance is not None and getattr(instance, "_oi_arun_spanned", False):
-                delattr(instance, "_oi_arun_spanned")
+            if instance is not None and getattr(
+                instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR, False
+            ):
+                delattr(instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR)
 
 
 class _WorkflowExecuteWrapper:
@@ -537,12 +538,34 @@ class _WorkflowExecuteWrapper:
     WorkflowRunOutput, regardless of whether the run was started (via arun or _arun_background).
     """
 
+    _ARUN_SPANNED_ATTR = "_oi_arun_spanned"
+
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
+    @classmethod
+    def _already_spanned(cls, instance: Any) -> bool:
+        return bool(getattr(instance, cls._ARUN_SPANNED_ATTR, False))
+
     @staticmethod
-    def _already_spanned(instance: Any) -> bool:
-        return bool(getattr(instance, "_oi_arun_spanned", False))
+    def _apply_run_output_attributes(span: Any, instance: Any, run_output: Any) -> None:
+        if run_output is None:
+            return
+        output, mime_type = _extract_output(run_output)
+        if output:
+            span.set_attribute(OUTPUT_VALUE, output)
+            span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
+
+        if hasattr(instance, "id") and instance.id:
+            span.set_attribute("agno.workflow.id", instance.id)
+
+        run_id = getattr(run_output, "run_id", None)
+        if run_id:
+            span.set_attribute("agno.run.id", run_id)
+
+        user_id = getattr(run_output, "user_id", None)
+        if user_id:
+            span.set_attribute(USER_ID, user_id)
 
     async def aexecute(
         self,
@@ -563,6 +586,7 @@ class _WorkflowExecuteWrapper:
 
         node_id = _generate_node_id()
         arguments = _bind_arguments(wrapped, *args, **kwargs)
+        workflow_run_response = arguments.get("workflow_run_response")
 
         span = self._tracer.start_span(
             span_name,
@@ -595,21 +619,11 @@ class _WorkflowExecuteWrapper:
                 ctx_token = None
 
             span.set_status(trace_api.StatusCode.OK)
-            output, mime_type = _extract_output(response)
-            if output:
-                span.set_attribute(OUTPUT_VALUE, output)
-                span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
-
-            if hasattr(instance, "id") and instance.id:
-                span.set_attribute("agno.workflow.id", instance.id)
-
-            # Prefer the run ID the caller passed in over whatever the response reports.
-            run_id = arguments.get("run_id") or getattr(response, "run_id", None)
-            if run_id:
-                span.set_attribute("agno.run.id", run_id)
-
-            if hasattr(instance, "user_id") and instance.user_id:
-                span.set_attribute(USER_ID, instance.user_id)
+            self._apply_run_output_attributes(
+                span,
+                instance,
+                workflow_run_response if workflow_run_response is not None else response,
+            )
 
             return response
 
@@ -643,7 +657,7 @@ class _WorkflowExecuteWrapper:
                 yield item
             return
 
-        if self._already_spanned():
+        if self._already_spanned(instance):
             async for item in wrapped(*args, **kwargs):
                 yield item
             return
@@ -654,6 +668,7 @@ class _WorkflowExecuteWrapper:
 
         node_id = _generate_node_id()
         arguments = _bind_arguments(wrapped, *args, **kwargs)
+        workflow_run_response = arguments.get("workflow_run_response")
 
         span = self._tracer.start_span(
             span_name,
@@ -671,7 +686,6 @@ class _WorkflowExecuteWrapper:
             ),
         )
 
-        final_response = None
         async_iter = wrapped(*args, **kwargs).__aiter__()
         try:
             while True:
@@ -680,7 +694,7 @@ class _WorkflowExecuteWrapper:
                 try:
                     ctx_token = context_api.attach(trace_api.set_span_in_context(span))
                     workflow_token = _setup_node_context(node_id)
-                    response = await anext(async_iter)
+                    event = await anext(async_iter)
                 except StopAsyncIteration:
                     break
                 finally:
@@ -689,26 +703,10 @@ class _WorkflowExecuteWrapper:
                     if ctx_token is not None:
                         context_api.detach(ctx_token)
 
-                final_response = response
-                yield response
+                yield event
 
             span.set_status(trace_api.StatusCode.OK)
-            if final_response is not None:
-                output, mime_type = _extract_output(final_response)
-                if output:
-                    span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
-
-            if hasattr(instance, "id") and instance.id:
-                span.set_attribute("agno.workflow.id", instance.id)
-
-            # Prefer the run ID the caller passed in over whatever the response reports.
-            run_id = arguments.get("run_id") or getattr(final_response, "run_id", None)
-            if run_id:
-                span.set_attribute("agno.run.id", run_id)
-
-            if hasattr(instance, "user_id") and instance.user_id:
-                span.set_attribute(USER_ID, instance.user_id)
+            self._apply_run_output_attributes(span, instance, workflow_run_response)
 
         except (StopIteration, StopAsyncIteration):
             raise
