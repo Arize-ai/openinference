@@ -19,13 +19,20 @@ from opentelemetry.context import (
 from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
+    AudioAttributes,
     EmbeddingAttributes,
+    FileAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
 )
 
+from ._blob_upload import (
+    DEFAULT_BLOB_UPLOAD_MAX_QUEUE_SIZE,
+    BlobUploader,
+    decode_base64_data_uri_to_blob,
+)
 from .logging import logger
 
 
@@ -77,6 +84,12 @@ OPENINFERENCE_HIDE_OUTPUT_MESSAGES = "OPENINFERENCE_HIDE_OUTPUT_MESSAGES"
 # Hides all output messages
 OPENINFERENCE_HIDE_INPUT_IMAGES = "OPENINFERENCE_HIDE_INPUT_IMAGES"
 # Hides images from input messages
+OPENINFERENCE_HIDE_INPUT_AUDIO = "OPENINFERENCE_HIDE_INPUT_AUDIO"
+# Hides audio from input messages
+OPENINFERENCE_HIDE_OUTPUT_AUDIO = "OPENINFERENCE_HIDE_OUTPUT_AUDIO"
+# Hides audio from output messages
+OPENINFERENCE_HIDE_INPUT_FILES = "OPENINFERENCE_HIDE_INPUT_FILES"
+# Hides files (e.g. PDF documents) from input messages
 OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT"
 # Hides text from input messages
 OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT"
@@ -89,6 +102,13 @@ OPENINFERENCE_HIDE_EMBEDDINGS_TEXT = "OPENINFERENCE_HIDE_EMBEDDINGS_TEXT"
 # Hides embedding text
 OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"
 # Limits characters of a base64 encoding of an image
+OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH = "OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH"
+# Limits characters of a base64 data URI carrying non-image media (audio, files, video)
+OPENINFERENCE_BLOB_UPLOAD_BASE_PATH = "OPENINFERENCE_BLOB_UPLOAD_BASE_PATH"
+# Experimental: when set, base64 media exceeding the max-length limits is uploaded
+# to this location (an fsspec-style URI) and the attribute records the destination URI
+OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE = "OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE"
+# Experimental: maximum number of pending blob uploads before falling back to redaction
 OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
 # Hides LLM prompts (completions API)
 OPENINFERENCE_HIDE_CHOICES = "OPENINFERENCE_HIDE_CHOICES"
@@ -110,6 +130,9 @@ DEFAULT_HIDE_INPUT_MESSAGES = False
 DEFAULT_HIDE_OUTPUT_MESSAGES = False
 
 DEFAULT_HIDE_INPUT_IMAGES = False
+DEFAULT_HIDE_INPUT_AUDIO = False
+DEFAULT_HIDE_OUTPUT_AUDIO = False
+DEFAULT_HIDE_INPUT_FILES = False
 DEFAULT_HIDE_INPUT_TEXT = False
 DEFAULT_HIDE_OUTPUT_TEXT = False
 
@@ -117,6 +140,7 @@ DEFAULT_HIDE_EMBEDDING_VECTORS = False  # Deprecated
 DEFAULT_HIDE_EMBEDDINGS_VECTORS = False
 DEFAULT_HIDE_EMBEDDINGS_TEXT = False
 DEFAULT_BASE64_IMAGE_MAX_LENGTH = 32_000
+DEFAULT_BASE64_MEDIA_MAX_LENGTH = 32_000
 
 
 @dataclass(frozen=True)
@@ -187,6 +211,30 @@ class TraceConfig:
         },
     )
     """Hides images from input messages"""
+    hide_input_audio: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_INPUT_AUDIO,
+            "default_value": DEFAULT_HIDE_INPUT_AUDIO,
+        },
+    )
+    """Hides audio from input messages"""
+    hide_output_audio: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_OUTPUT_AUDIO,
+            "default_value": DEFAULT_HIDE_OUTPUT_AUDIO,
+        },
+    )
+    """Hides audio from output messages"""
+    hide_input_files: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_INPUT_FILES,
+            "default_value": DEFAULT_HIDE_INPUT_FILES,
+        },
+    )
+    """Hides files (e.g. PDF documents) from input messages"""
     hide_input_text: Optional[bool] = field(
         default=None,
         metadata={
@@ -259,9 +307,28 @@ class TraceConfig:
         },
     )
     """Limits characters of a base64 encoding of an image"""
+    base64_media_max_length: Optional[int] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH,
+            "default_value": DEFAULT_BASE64_MEDIA_MAX_LENGTH,
+        },
+    )
+    """Limits characters of a base64 data URI carrying non-image media
+    (audio, files, video)"""
+    blob_uploader: Optional[BlobUploader] = field(
+        default=None,
+        metadata={"env_var": None, "default_value": None},
+    )
+    """Experimental: uploads base64 media exceeding the max-length limits to
+    external storage and records the destination URI in the span attribute
+    instead of redacting. When not set in code, the uploader is constructed
+    from the OPENINFERENCE_BLOB_UPLOAD_BASE_PATH environment variable."""
 
     def __post_init__(self) -> None:
         for f in fields(self):
+            if f.metadata.get("env_var") is None:
+                continue
             expected_type = get_args(f.type)[0]
             # Optional is Union[T,NoneType]. get_args()returns (T, NoneType).
             # We collect the first type
@@ -270,6 +337,36 @@ class TraceConfig:
                 expected_type,
                 f.metadata["env_var"],
                 f.metadata["default_value"],
+            )
+        if self.blob_uploader is None:
+            self._init_blob_uploader_from_env()
+
+    def _init_blob_uploader_from_env(self) -> None:
+        base_path = os.getenv(OPENINFERENCE_BLOB_UPLOAD_BASE_PATH)
+        if not base_path:
+            return
+        max_queue_size = DEFAULT_BLOB_UPLOAD_MAX_QUEUE_SIZE
+        if raw_max_queue_size := os.getenv(OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE):
+            try:
+                max_queue_size = int(raw_max_queue_size)
+            except ValueError:
+                logger.warning(
+                    f"Could not parse '{raw_max_queue_size}' to int for the environment "
+                    f"variable '{OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE}'. "
+                    f"Using default value instead: {max_queue_size}."
+                )
+        try:
+            from ._blob_upload import FsspecBlobUploader
+
+            object.__setattr__(
+                self,
+                "blob_uploader",
+                FsspecBlobUploader(base_path=base_path, max_queue_size=max_queue_size),
+            )
+        except Exception:
+            logger.exception(
+                f"Failed to initialize blob uploader for base path '{base_path}'. "
+                "Oversized base64 media will be redacted instead."
             )
 
     def mask(
@@ -334,13 +431,50 @@ class TraceConfig:
         ):
             return None
         elif (
+            self.hide_input_audio
+            and SpanAttributes.LLM_INPUT_MESSAGES in key
+            and MessageContentAttributes.MESSAGE_CONTENT_AUDIO in key
+        ):
+            return None
+        elif (
+            self.hide_output_audio
+            and SpanAttributes.LLM_OUTPUT_MESSAGES in key
+            and MessageContentAttributes.MESSAGE_CONTENT_AUDIO in key
+        ):
+            return None
+        elif (
+            self.hide_input_files
+            and SpanAttributes.LLM_INPUT_MESSAGES in key
+            and MessageContentAttributes.MESSAGE_CONTENT_FILE in key
+        ):
+            return None
+        elif (
             is_base64_url(value)  # type:ignore
             and len(value) > self.base64_image_max_length  # type:ignore
             and SpanAttributes.LLM_INPUT_MESSAGES in key
             and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
             and key.endswith(ImageAttributes.IMAGE_URL)
         ):
-            value = REDACTED_VALUE
+            value = self._externalize_or_redact(key, value)  # type:ignore
+        elif (
+            is_base64_media_url(value)
+            and len(value) > self.base64_media_max_length  # type:ignore
+            and (
+                SpanAttributes.LLM_INPUT_MESSAGES in key
+                or SpanAttributes.LLM_OUTPUT_MESSAGES in key
+            )
+            and (
+                (
+                    MessageContentAttributes.MESSAGE_CONTENT_AUDIO in key
+                    and key.endswith(AudioAttributes.AUDIO_URL)
+                )
+                or (
+                    MessageContentAttributes.MESSAGE_CONTENT_FILE in key
+                    and key.endswith(FileAttributes.FILE_URL)
+                )
+            )
+        ):
+            value = self._externalize_or_redact(key, value)  # type:ignore
         elif (
             (self.hide_embedding_vectors or self.hide_embeddings_vectors)
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key
@@ -354,6 +488,21 @@ class TraceConfig:
         ):
             value = REDACTED_VALUE
         return value() if callable(value) else value
+
+    def _externalize_or_redact(self, key: str, value: str) -> AttributeValue:
+        """
+        Uploads an oversized base64 data URI to external storage and returns
+        the destination URI, falling back to redaction when no uploader is
+        configured or the upload cannot be accepted.
+        """
+        if self.blob_uploader is not None:
+            try:
+                if blob := decode_base64_data_uri_to_blob(value, attribute_key=key):
+                    if uri := self.blob_uploader.upload(blob):
+                        return uri
+            except Exception:
+                logger.exception(f"Failed to externalize media for attribute '{key}'.")
+        return REDACTED_VALUE
 
     def _parse_value(
         self,
@@ -405,3 +554,10 @@ def is_base64_url(url: str) -> bool:
     if not isinstance(url, str):
         return False
     return url.startswith("data:image/") and "base64" in url
+
+
+def is_base64_media_url(url: Any) -> bool:
+    """True for a base64 data URI of any media type (audio, file, video, image)."""
+    if not isinstance(url, str):
+        return False
+    return url.startswith("data:") and ";base64," in url

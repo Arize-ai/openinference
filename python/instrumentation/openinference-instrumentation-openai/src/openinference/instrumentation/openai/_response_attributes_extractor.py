@@ -10,6 +10,7 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    Optional,
     Tuple,
     Type,
 )
@@ -17,11 +18,17 @@ from typing import (
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
+from openinference.instrumentation.openai._media import (
+    get_audio_data_uri,
+    get_audio_mime_type,
+)
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
+    AudioAttributes,
     ChoiceAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -97,12 +104,17 @@ class _ResponseAttributesExtractor:
         if usage := getattr(completion, "usage", None):
             yield from self._get_attributes_from_completion_usage(usage)
 
+        # The response audio object does not carry its format; it is set in the request.
+        request_audio = request_parameters.get("audio")
+        audio_format = request_audio.get("format") if isinstance(request_audio, Mapping) else None
         if (choices := getattr(completion, "choices", None)) and isinstance(choices, Iterable):
             for choice in choices:
                 if (index := getattr(choice, "index", None)) is None:
                     continue
                 if message := getattr(choice, "message", None):
-                    for key, value in self._get_attributes_from_chat_completion_message(message):
+                    for key, value in self._get_attributes_from_chat_completion_message(
+                        message, audio_format=audio_format
+                    ):
                         yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
                 # Only capture finish_reason for the first choice.
                 if index == 0:
@@ -181,6 +193,7 @@ class _ResponseAttributesExtractor:
     def _get_attributes_from_chat_completion_message(
         self,
         message: object,
+        audio_format: Optional[str] = None,
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # openai.types.chat.ChatCompletionMessage
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_message.py#L25  # noqa: E501
@@ -188,6 +201,30 @@ class _ResponseAttributesExtractor:
             yield MessageAttributes.MESSAGE_ROLE, role
         if content := getattr(message, "content", None):
             yield MessageAttributes.MESSAGE_CONTENT, content
+        if audio := getattr(message, "audio", None):
+            # openai.types.chat.ChatCompletionAudio (audio-modality responses)
+            # See https://github.com/openai/openai-python/blob/main/src/openai/types/chat/chat_completion_audio.py  # noqa: E501
+            prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "audio"
+            if audio_id := getattr(audio, "id", None):
+                yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_ID}", audio_id
+            if data := getattr(audio, "data", None):
+                yield (
+                    f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}."
+                    f"{AudioAttributes.AUDIO_URL}",
+                    get_audio_data_uri(data, audio_format),
+                )
+                yield (
+                    f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}."
+                    f"{AudioAttributes.AUDIO_MIME_TYPE}",
+                    get_audio_mime_type(audio_format),
+                )
+            if transcript := getattr(audio, "transcript", None):
+                yield (
+                    f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}."
+                    f"{AudioAttributes.AUDIO_TRANSCRIPT}",
+                    transcript,
+                )
         if function_call := getattr(message, "function_call", None):
             # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_message.py#L12  # noqa: E501
             if name := getattr(function_call, "name", None):

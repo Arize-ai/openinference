@@ -222,6 +222,69 @@ def test_get_genai_attributes_maps_llm_chat_attributes() -> None:
     ]
 
 
+def test_get_genai_attributes_maps_audio_and_file_parts() -> None:
+    input_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message"
+    output_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.message"
+    openinference_attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        f"{input_prefix}.role": "user",
+        f"{input_prefix}.contents.0.message_content.type": "audio",
+        f"{input_prefix}.contents.0.message_content.audio.audio.url": (
+            "data:audio/wav;base64,UklGRg=="
+        ),
+        f"{input_prefix}.contents.0.message_content.audio.audio.mime_type": "audio/wav",
+        f"{input_prefix}.contents.1.message_content.type": "file",
+        f"{input_prefix}.contents.1.message_content.file.file.url": "s3://bucket/report.pdf",
+        f"{input_prefix}.contents.1.message_content.file.file.mime_type": "application/pdf",
+        f"{input_prefix}.contents.2.message_content.type": "file",
+        f"{input_prefix}.contents.2.message_content.file.file.id": "file-abc123",
+        f"{output_prefix}.role": "assistant",
+        f"{output_prefix}.contents.0.message_content.type": "audio",
+        f"{output_prefix}.contents.0.message_content.audio.audio.url": (
+            "https://storage.example.com/3a7b.wav"
+        ),
+        f"{output_prefix}.contents.0.message_content.audio.audio.mime_type": "audio/wav",
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    input_messages = _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_INPUT_MESSAGES)
+    assert input_messages == [
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "type": "blob",
+                    "modality": GenAIModalityValues.AUDIO.value,
+                    "mime_type": "audio/wav",
+                    "content": "UklGRg==",
+                },
+                {
+                    "type": "uri",
+                    "modality": GenAIModalityValues.DOCUMENT.value,
+                    "mime_type": "application/pdf",
+                    "uri": "s3://bucket/report.pdf",
+                },
+                {
+                    "type": "file",
+                    "modality": GenAIModalityValues.DOCUMENT.value,
+                    "file_id": "file-abc123",
+                },
+            ],
+        }
+    ]
+
+    output_messages = _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_OUTPUT_MESSAGES)
+    assert output_messages[0]["parts"] == [
+        {
+            "type": "uri",
+            "modality": GenAIModalityValues.AUDIO.value,
+            "mime_type": "audio/wav",
+            "uri": "https://storage.example.com/3a7b.wav",
+        }
+    ]
+
+
 def test_get_genai_attributes_maps_text_completion_prompts_and_choices() -> None:
     openinference_attributes: Dict[str, Any] = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,

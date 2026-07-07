@@ -7,9 +7,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
+    AudioAttributes,
     ChoiceAttributes,
     DocumentAttributes,
     EmbeddingAttributes,
+    FileAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -620,6 +622,29 @@ def _convert_marshaled_contents(contents: Sequence[Any]) -> List[Dict[str, Any]]
                 )
             ):
                 parts.append(image_part)
+        elif content_type == "audio":
+            audio = content.get("audio")
+            if isinstance(audio, Mapping):
+                if audio_part := _media_part_from_url(
+                    _as_optional_str(audio.get(AudioAttributes.AUDIO_URL)),
+                    GenAIModalityValues.AUDIO.value,
+                    mime_type=_as_optional_str(audio.get(AudioAttributes.AUDIO_MIME_TYPE)),
+                ):
+                    parts.append(audio_part)
+        elif content_type == "file":
+            file = content.get("file")
+            if isinstance(file, Mapping):
+                if file_part := _media_part_from_url(
+                    _as_optional_str(file.get(FileAttributes.FILE_URL)),
+                    GenAIModalityValues.DOCUMENT.value,
+                    mime_type=_as_optional_str(file.get(FileAttributes.FILE_MIME_TYPE)),
+                ):
+                    parts.append(file_part)
+                elif file_part := _file_part_from_id(
+                    _as_optional_str(file.get(FileAttributes.FILE_ID)),
+                    GenAIModalityValues.DOCUMENT.value,
+                ):
+                    parts.append(file_part)
     return parts
 
 
@@ -690,6 +715,33 @@ def _get_message_contents(bucket: Mapping[str, Any]) -> List[Dict[str, Any]]:
             )
             if image_part := _image_part_from_url(_as_optional_str(contents[index].get(image_key))):
                 parts.append(image_part)
+        elif content_type == "audio":
+            audio_prefix = MessageContentAttributes.MESSAGE_CONTENT_AUDIO
+            if audio_part := _media_part_from_url(
+                _as_optional_str(
+                    contents[index].get(f"{audio_prefix}.{AudioAttributes.AUDIO_URL}")
+                ),
+                GenAIModalityValues.AUDIO.value,
+                mime_type=_as_optional_str(
+                    contents[index].get(f"{audio_prefix}.{AudioAttributes.AUDIO_MIME_TYPE}")
+                ),
+            ):
+                parts.append(audio_part)
+        elif content_type == "file":
+            file_prefix = MessageContentAttributes.MESSAGE_CONTENT_FILE
+            if file_part := _media_part_from_url(
+                _as_optional_str(contents[index].get(f"{file_prefix}.{FileAttributes.FILE_URL}")),
+                GenAIModalityValues.DOCUMENT.value,
+                mime_type=_as_optional_str(
+                    contents[index].get(f"{file_prefix}.{FileAttributes.FILE_MIME_TYPE}")
+                ),
+            ):
+                parts.append(file_part)
+            elif file_part := _file_part_from_id(
+                _as_optional_str(contents[index].get(f"{file_prefix}.{FileAttributes.FILE_ID}")),
+                GenAIModalityValues.DOCUMENT.value,
+            ):
+                parts.append(file_part)
     return parts
 
 
@@ -734,19 +786,45 @@ def _content_is_duplicate(content: str, parts: Sequence[Mapping[str, Any]]) -> b
 
 
 def _image_part_from_url(url: Optional[str]) -> Optional[Dict[str, Any]]:
+    return _media_part_from_url(url, GenAIModalityValues.IMAGE.value)
+
+
+def _media_part_from_url(
+    url: Optional[str],
+    modality: str,
+    mime_type: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Converts a media URL into a GenAI message part: inline base64 data URIs
+    become ``blob`` parts, anything else (http, s3, gs, ...) becomes a
+    ``uri`` part.
+    """
     if url is None:
         return None
     if data_url_match := _DATA_URL_PATTERN.match(url):
         return {
             "type": GenAIMessagePartTypeValues.BLOB.value,
-            "modality": GenAIModalityValues.IMAGE.value,
+            "modality": modality,
             "mime_type": data_url_match.group("mime"),
             "content": data_url_match.group("content"),
         }
-    return {
+    part: Dict[str, Any] = {
         "type": GenAIMessagePartTypeValues.URI.value,
-        "modality": GenAIModalityValues.IMAGE.value,
+        "modality": modality,
         "uri": url,
+    }
+    if mime_type:
+        part["mime_type"] = mime_type
+    return part
+
+
+def _file_part_from_id(file_id: Optional[str], modality: str) -> Optional[Dict[str, Any]]:
+    if file_id is None:
+        return None
+    return {
+        "type": GenAIMessagePartTypeValues.FILE.value,
+        "modality": modality,
+        "file_id": file_id,
     }
 
 

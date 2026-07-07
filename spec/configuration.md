@@ -15,6 +15,9 @@ The possible settings are:
 | OPENINFERENCE_HIDE_INPUT_MESSAGES            | Hides all input messages (independent of HIDE_INPUTS)                                                                          | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_MESSAGES           | Hides all output messages (independent of HIDE_OUTPUTS)                                                                        | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_IMAGES              | Hides images from input messages (only applies when input messages are not already hidden)                                     | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_AUDIO               | Hides audio from input messages (only applies when input messages are not already hidden)                                      | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUT_AUDIO              | Hides audio from output messages (only applies when output messages are not already hidden)                                    | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_FILES               | Hides files (e.g. PDF documents) from input messages (only applies when input messages are not already hidden)                 | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_TEXT                | Hides text from input messages (only applies when input messages are not already hidden)                                       | bool | False   |
 | OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts (completions API)                                                                                            | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_TEXT               | Hides text from output messages (only applies when output messages are not already hidden)                                     | bool | False   |
@@ -23,10 +26,29 @@ The possible settings are:
 | OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS        | Replaces embedding.embeddings.*.embedding.vector values with `"__REDACTED__"`                                                  | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDINGS_TEXT           | Replaces embedding.embeddings.*.embedding.text values with `"__REDACTED__"`                                                    | bool | False   |
 | OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
+| OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH        | Limits characters of a base64 data URI carrying non-image media (audio, files/documents, video)                                | int  | 32,000  |
+| OPENINFERENCE_BLOB_UPLOAD_BASE_PATH          | Experimental: when set, base64 media larger than the max-length limits is uploaded to this location (an fsspec-style URI such as `s3://bucket/prefix`, `gs://bucket/prefix`, or a local path) and the span attribute is replaced with the destination URI instead of being redacted | str  | unset   |
+| OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE     | Experimental: maximum number of pending blob uploads; when the queue is full, oversized media falls back to redaction          | int  | 20      |
 
 ## Redacted Content
 
 When content is hidden due to privacy configuration settings, the value `"__REDACTED__"` is used as a placeholder. This constant value allows consumers of the trace data to identify that content was intentionally hidden rather than missing or empty.
+
+## External Blob Upload (Experimental)
+
+Large binary content (audio, PDF documents, images) captured as base64 data URIs can exceed span attribute and OTLP payload limits. Instead of redacting oversized media, an instrumentation MAY upload the decoded bytes to external storage at capture time and record only a reference URI in the span attribute. See [Multimodal Attributes](./multimodal_attributes.md#external-storage-for-large-media) for the attribute-level semantics and the design rationale.
+
+In Python this is configured either with `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH` or in code with a `BlobUploader` implementation:
+
+```python
+from openinference.instrumentation import TraceConfig, FsspecBlobUploader
+
+config = TraceConfig(
+    blob_uploader=FsspecBlobUploader(base_path="s3://my-bucket/oi-media"),
+)
+```
+
+The upload never blocks the instrumented call: the destination URI is computed synchronously (content-addressed by SHA-256), the attribute is set to that URI, and the bytes are written by a background worker. If the upload queue is full, the value falls back to the standard redaction behavior.
 
 ## Usage
 
@@ -52,11 +74,16 @@ config = TraceConfig(
     hide_input_messages=...,
     hide_output_messages=...,
     hide_input_images=...,
+    hide_input_audio=...,
+    hide_output_audio=...,
+    hide_input_files=...,
     hide_input_text=...,
     hide_output_text=...,
     hide_embeddings_vectors=...,
     hide_embeddings_text=...,
     base64_image_max_length=...,
+    base64_media_max_length=...,
+    blob_uploader=...,  # Experimental: uploads oversized base64 media, records a URI
     hide_prompts=...,  # Hides LLM prompts (completions API)
     hide_choices=...,  # Hides LLM choices (completions API outputs)
 )
