@@ -297,8 +297,12 @@ llm.input_messages.0.message.contents.1.…audio.audio.mime_type     = "audio/wa
 and, with `enable_genai_semconv=True`, `gen_ai.input.messages` contains
 `{"type": "uri", "modality": "audio", "mime_type": "audio/wav", "uri": "s3://…/3a7bd3….wav"}`.
 
-Without an uploader the same span carries `__REDACTED__` (unchanged from today, except
-audio/files are now captured at all). Under the threshold, the data URI stays inline.
+Without an uploader the oversized audio carries `__REDACTED__` instead. That matches
+the existing over-limit behavior for images — with one caveat: for audio and files
+there is no "today" to compare against, since before this branch the OpenAI
+instrumentor did not capture them at all (`input_audio` / `input_file` were TODOs), so
+even the redacted fallback is new coverage. Under the threshold, the data URI stays
+inline in both cases.
 
 ## 8. Testing
 
