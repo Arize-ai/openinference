@@ -1,7 +1,23 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "openai",
+#     "httpx",
+#     "openinference-instrumentation",
+#     "openinference-instrumentation-openai",
+#     "openinference-semantic-conventions",
+#     "opentelemetry-sdk",
+# ]
+#
+# [tool.uv.sources]
+# openinference-instrumentation = { path = "../../../../python/openinference-instrumentation", editable = true }
+# openinference-instrumentation-openai = { path = "../../../../python/instrumentation/openinference-instrumentation-openai", editable = true }
+# openinference-semantic-conventions = { path = "../../../../python/openinference-semantic-conventions", editable = true }
+# ///
 """
 End-to-end walkthrough: capturing large audio content with blob upload.
 
-This example sends a chat completion containing base64 WAV audio (the
+This demo sends a chat completion containing base64 WAV audio (the
 ``input_audio`` content part of ``gpt-4o-audio-preview``-style models) and
 receives an audio response. Instead of recording multi-megabyte base64 data
 URIs in span attributes, the instrumentation uploads the decoded bytes to
@@ -18,11 +34,11 @@ It demonstrates, in order:
    the externalized audio appears as a spec-conformant ``uri`` part.
 
 The OpenAI HTTP layer is mocked with ``httpx.MockTransport``, so the script
-runs offline with no API key. Requires: ``pip install openai httpx
-openinference-instrumentation-openai`` (fsspec is NOT required for local
-paths).
+runs offline with no API key, and the local blob destinations need no
+fsspec install. The uv sources above point at this branch's editable
+packages, so the script always exercises the in-repo implementation.
 
-Run:  python chat_completions_audio_blob_upload.py
+Run:  uv run --script internal_docs/specs/multimodal_blob_upload/scripts/audio_blob_upload_demo.py
 """
 
 import base64
@@ -147,7 +163,9 @@ class ManifestBlobUploader:
     manifest: Dict[str, Dict[str, Optional[str]]] = field(default_factory=dict)
 
     def upload(self, blob: Blob) -> Optional[str]:
-        extension = {"audio/wav": ".wav", "application/pdf": ".pdf"}.get(blob.mime_type, ".bin")
+        extension = {"audio/wav": ".wav", "application/pdf": ".pdf"}.get(
+            blob.mime_type, ".bin"
+        )
         destination = self.directory / f"{blob.content_sha256[:16]}{extension}"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(blob.data)  # local write: cheap enough to do inline
@@ -157,7 +175,9 @@ class ManifestBlobUploader:
             "sha256": blob.content_sha256,
             "captured_from": blob.attribute_key,
         }
-        (self.directory / "manifest.json").write_text(json.dumps(self.manifest, indent=2))
+        (self.directory / "manifest.json").write_text(
+            json.dumps(self.manifest, indent=2)
+        )
         return destination.as_uri()  # file:///…/<sha>.wav
 
     def shutdown(self, timeout_sec: float = 10.0) -> None:

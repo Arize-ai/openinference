@@ -4,6 +4,17 @@
 **Scope:** Python (`openinference-instrumentation`, `openinference-semantic-conventions`, `openinference-instrumentation-openai`), `spec/`
 **Out of scope (this iteration):** JS/Java parity, Phoenix/backend rendering, URI resolution/proxying/signing
 
+Layout of this spec:
+
+```
+multimodal_blob_upload/
+├── techspec.md                     — this document: problem, design, API, decisions
+└── scripts/
+    ├── README.md                   — what the demo proves, how to run it
+    ├── audio_blob_upload_demo.py   — offline end-to-end demo (uv-runnable)
+    └── audio_blob_upload_demo.txt  — captured output from a full run
+```
+
 ## 1. Problem
 
 Modern LLM APIs accept and produce large binary content — audio (OpenAI chat completions
@@ -200,6 +211,12 @@ Output is validated in tests against the vendored OTel GenAI JSON schemas
 `BlobPart`/`UriPart`/`FilePart`.
 
 ## 7. End-to-end example
+
+A runnable, offline proof of the flow below lives in
+[`scripts/audio_blob_upload_demo.py`](./scripts/audio_blob_upload_demo.py)
+(`uv run --script …`; see [`scripts/README.md`](./scripts/README.md) for what it
+proves and [`scripts/audio_blob_upload_demo.txt`](./scripts/audio_blob_upload_demo.txt)
+for captured output).
 
 ```python
 from openinference.instrumentation import TraceConfig, FsspecBlobUploader

@@ -1,0 +1,137 @@
+demo audio as a data URI is 10750 chars; the config below externalizes anything over 1,000 chars
+
+==============================================================================
+Part 1 — FsspecBlobUploader (local directory)
+==============================================================================
+span: ChatCompletion
+  gen_ai.input.messages = [{"role": "user", "parts": [{"type": "text", "content": "What note is this?"}, {… (315 chars)
+  gen_ai.operation.name = chat
+  gen_ai.output.messages = [{"role": "assistant", "parts": [{"type": "uri", "modality": "audio", "uri": "/v… (294 chars)
+  gen_ai.provider.name = openai
+  gen_ai.request.model = gpt-4o-audio-preview
+  gen_ai.response.finish_reasons = ('stop',)
+  gen_ai.response.id = chatcmpl-demo
+  gen_ai.response.model = gpt-4o-audio-preview
+  gen_ai.usage.input_tokens = 42
+  gen_ai.usage.output_tokens = 30
+  input.mime_type = application/json
+  input.value = {"messages": [{"role": "user", "content": [{"type": "text", "text": "What note i… (436 chars)
+  llm.finish_reason = stop
+  llm.input_messages.0.message.contents.0.message_content.text = What note is this?
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.contents.1.message_content.audio.audio.mime_type = audio/wav
+  llm.input_messages.0.message.contents.1.message_content.audio.audio.url = /var/folders/9_/lgkrwsnj633bpjpj15sl5dcm0000gn/T/oi-blob-upload-demo-_ogkicb7/fs… (160 chars)
+  llm.input_messages.0.message.contents.1.message_content.type = audio
+  llm.input_messages.0.message.role = user
+  llm.invocation_parameters = {"model": "gpt-4o-audio-preview", "audio": {"voice": "alloy", "format": "wav"}, … (112 chars)
+  llm.model_name = gpt-4o-audio-preview
+  llm.output_messages.0.message.contents.0.message_content.audio.audio.mime_type = audio/wav
+  llm.output_messages.0.message.contents.0.message_content.audio.audio.transcript = That tone was an A above middle C (440 Hz).
+  llm.output_messages.0.message.contents.0.message_content.audio.audio.url = /var/folders/9_/lgkrwsnj633bpjpj15sl5dcm0000gn/T/oi-blob-upload-demo-_ogkicb7/fs… (160 chars)
+  llm.output_messages.0.message.contents.0.message_content.id = audio_demo123
+  llm.output_messages.0.message.contents.0.message_content.type = audio
+  llm.output_messages.0.message.role = assistant
+  llm.provider = openai
+  llm.system = openai
+  llm.token_count.completion = 30
+  llm.token_count.completion_details.audio = 20
+  llm.token_count.prompt = 42
+  llm.token_count.prompt_details.audio = 25
+  llm.token_count.total = 72
+  openinference.span.kind = LLM
+  output.mime_type = application/json
+  output.value = {"id":"chatcmpl-demo","choices":[{"finish_reason":"stop","index":0,"message":{"c… (11208 chars)
+
+gen_ai.input.messages (dual-write, externalized audio is a 'uri' part):
+[
+  {
+    "role": "user",
+    "parts": [
+      {
+        "type": "text",
+        "content": "What note is this?"
+      },
+      {
+        "type": "uri",
+        "modality": "audio",
+        "uri": "/var/folders/9_/lgkrwsnj633bpjpj15sl5dcm0000gn/T/oi-blob-upload-demo-_ogkicb7/fsspec-upload/fc736cfe011fb8fe0f85326a52321e803effd2d0577605e7373ffd47ec20c7ba.wav",
+        "mime_type": "audio/wav"
+      }
+    ]
+  }
+]
+
+gen_ai.output.messages (dual-write, externalized audio is a 'uri' part):
+[
+  {
+    "role": "assistant",
+    "parts": [
+      {
+        "type": "uri",
+        "modality": "audio",
+        "uri": "/var/folders/9_/lgkrwsnj633bpjpj15sl5dcm0000gn/T/oi-blob-upload-demo-_ogkicb7/fsspec-upload/38d4e6b6963d67d69d882f7e7561190426ab89edf80f7af82aa0534dd538e748.wav",
+        "mime_type": "audio/wav"
+      }
+    ],
+    "finish_reason": "stop"
+  }
+]
+
+files under /var/folders/9_/lgkrwsnj633bpjpj15sl5dcm0000gn/T/oi-blob-upload-demo-_ogkicb7/fsspec-upload:
+  38d4e6b6963d67d69d882f7e7561190426ab89edf80f7af82aa0534dd538e748.wav  (8044 bytes)
+  fc736cfe011fb8fe0f85326a52321e803effd2d0577605e7373ffd47ec20c7ba.wav  (8044 bytes)
+
+==============================================================================
+Part 2 — custom ManifestBlobUploader
+==============================================================================
+span: ChatCompletion
+  input.mime_type = application/json
+  input.value = {"messages": [{"role": "user", "content": [{"type": "text", "text": "What note i… (395 chars)
+  llm.finish_reason = stop
+  llm.input_messages.0.message.contents.0.message_content.text = What note is this?
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.contents.1.message_content.audio.audio.mime_type = audio/wav
+  llm.input_messages.0.message.contents.1.message_content.audio.audio.url = file:///var/folders/9_/lgkrwsnj633bpjpj15sl5dcm0000gn/T/oi-blob-upload-demo-_ogk… (119 chars)
+  llm.input_messages.0.message.contents.1.message_content.type = audio
+  llm.input_messages.0.message.role = user
+  llm.invocation_parameters = {"model": "gpt-4o-audio-preview", "audio": {"voice": "alloy", "format": "wav"}, … (112 chars)
+  llm.model_name = gpt-4o-audio-preview
+  llm.output_messages.0.message.contents.0.message_content.audio.audio.mime_type = audio/wav
+  llm.output_messages.0.message.contents.0.message_content.audio.audio.transcript = That tone was an A above middle C (440 Hz).
+  llm.output_messages.0.message.contents.0.message_content.audio.audio.url = file:///var/folders/9_/lgkrwsnj633bpjpj15sl5dcm0000gn/T/oi-blob-upload-demo-_ogk… (119 chars)
+  llm.output_messages.0.message.contents.0.message_content.id = audio_demo123
+  llm.output_messages.0.message.contents.0.message_content.type = audio
+  llm.output_messages.0.message.role = assistant
+  llm.provider = openai
+  llm.system = openai
+  llm.token_count.completion = 30
+  llm.token_count.completion_details.audio = 20
+  llm.token_count.prompt = 42
+  llm.token_count.prompt_details.audio = 25
+  llm.token_count.total = 72
+  openinference.span.kind = LLM
+  output.mime_type = application/json
+  output.value = {"id":"chatcmpl-demo","choices":[{"finish_reason":"stop","index":0,"message":{"c… (11208 chars)
+
+files under /var/folders/9_/lgkrwsnj633bpjpj15sl5dcm0000gn/T/oi-blob-upload-demo-_ogkicb7/custom-upload:
+  38d4e6b6963d67d6.wav  (8044 bytes)
+  fc736cfe011fb8fe.wav  (8044 bytes)
+  manifest.json  (533 bytes)
+
+manifest.json:
+{
+  "fc736cfe011fb8fe.wav": {
+    "mime_type": "audio/wav",
+    "modality": "audio",
+    "sha256": "fc736cfe011fb8fe0f85326a52321e803effd2d0577605e7373ffd47ec20c7ba",
+    "captured_from": "llm.input_messages.0.message.contents.1.message_content.audio.audio.url"
+  },
+  "38d4e6b6963d67d6.wav": {
+    "mime_type": "audio/wav",
+    "modality": "audio",
+    "sha256": "38d4e6b6963d67d69d882f7e7561190426ab89edf80f7af82aa0534dd538e748",
+    "captured_from": "llm.output_messages.0.message.contents.0.message_content.audio.audio.url"
+  }
+}
+
+All artifacts kept under /var/folders/9_/lgkrwsnj633bpjpj15sl5dcm0000gn/T/oi-blob-upload-demo-_ogkicb7 — the .wav files are playable.
