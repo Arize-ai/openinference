@@ -246,6 +246,14 @@ class FsspecBlobUploader:
 
     def _write(self, path: str, data: bytes) -> None:
         if self._filesystem is not None:
+            parent, _, _ = path.rpartition("/")
+            if parent:
+                try:
+                    self._filesystem.makedirs(parent, exist_ok=True)  # type: ignore[attr-defined]
+                except Exception:
+                    # Object stores (s3, gs) have no real directories; the
+                    # write itself is the authoritative operation.
+                    pass
             self._filesystem.pipe_file(path, data)  # type: ignore[attr-defined]
         else:
             destination = Path(path)
