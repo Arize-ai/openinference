@@ -115,18 +115,78 @@ class FsspecBlobUploader:  # implements BlobUploader
     def __init__(self, base_path: str, *, max_queue_size: int = 20): ...
 ```
 
-`FsspecBlobUploader` semantics:
+### FsspecBlobUploader in depth
 
-- **Content-addressed destinations:** `{base_path}/{sha256(data)}{ext}`. Identical
-  content deduplicates (an LRU-less digest set suppresses re-enqueue) and the URI is
-  computable synchronously, before the write completes.
-- **Non-blocking:** a single daemon worker thread drains a bounded queue
-  (`max_queue_size`, clamped to ≥1). On queue overflow `upload()` returns `None` and the
-  caller redacts — memory is bounded, the app hot path never waits on storage.
-- **Storage:** any fsspec-supported filesystem (`s3://`, `gs://`, `file://`, local
-  paths). fsspec is an optional extra (`openinference-instrumentation[blob-upload]`);
-  local paths work without it.
-- `shutdown(timeout_sec)` flushes pending writes; post-shutdown `upload()` returns `None`.
+**What fsspec is and why it was chosen.** [fsspec](https://filesystem-spec.readthedocs.io/)
+("filesystem spec") is the de-facto Python abstraction for file-like storage: one
+`AbstractFileSystem` API implemented by pluggable backends for local disk, S3, GCS,
+Azure, HTTP, in-memory, and dozens more. It is the same storage layer pandas, dask, and
+Hugging Face datasets use to accept `s3://…` paths anywhere a filename is expected — and,
+importantly for convergence, it is what OTel's experimental
+[`UploadCompletionHook`][upload-hook-src] in `opentelemetry-util-genai` builds on
+(`fsspec.url_to_fs(base_path)`). Building the default uploader on fsspec means:
+
+- one implementation covers every deployment target — the user changes a URI string,
+  not code;
+- credentials/config ride on each backend's standard mechanisms (e.g. `s3fs` honors
+  `AWS_*` env vars / `~/.aws`, `gcsfs` honors Application Default Credentials) — the
+  uploader itself never touches secrets;
+- the storage dependency stays optional and user-chosen: the core package does not pull
+  in boto3/google-cloud-storage; the user installs only the driver for their scheme.
+
+| `base_path` example | Backend package needed | Notes |
+|---|---|---|
+| `/var/oi-media`, `file:///var/oi-media` | none | works even without fsspec installed (plain-`pathlib` fallback) |
+| `s3://bucket/prefix` | `s3fs` | credentials via standard AWS config chain |
+| `gs://bucket/prefix` | `gcsfs` | credentials via Application Default Credentials |
+| `abfs://container/prefix` | `adlfs` | Azure Blob / Data Lake |
+| `memory://oi-media` | none (ships with fsspec) | useful in tests |
+
+fsspec itself is the `blob-upload` extra (`pip install
+openinference-instrumentation[blob-upload]`); at construction time
+`fsspec.url_to_fs(base_path)` resolves the URI scheme to a concrete filesystem object
+plus a root path. If fsspec is missing, local/`file://` destinations silently fall back
+to direct `pathlib` writes, while remote schemes raise an `ImportError` naming the extra
+— failing fast at setup rather than dropping blobs at runtime.
+
+**Upload path, step by step.** `upload(blob)` runs on the instrumented call path, so
+everything it does is O(hash) and memory-bounded:
+
+1. Compute the destination name from the content: `{sha256(data)}{ext}`, extension
+   mapped from the mime type (`audio/wav → .wav`, `application/pdf → .pdf`, …,
+   `.bin` fallback). The full URI `{base_path}/{name}` is therefore **deterministic
+   before any I/O happens** — this is what lets `upload()` return synchronously while
+   the bytes travel later.
+2. Dedup check: if this digest was already enqueued, return the same URI immediately
+   (identical prompts re-sent across spans upload once).
+3. Enqueue `(path, blob)` on a bounded queue (`max_queue_size`, default 20, clamped
+   to ≥1 because `Queue(0)` would mean *unbounded* in Python). If the queue is full —
+   storage slower than the app is producing media — `upload()` returns `None` and the
+   caller records `__REDACTED__` instead: bounded memory beats unbounded buffering of
+   multi-megabyte payloads.
+4. A single daemon worker thread drains the queue and writes via
+   `filesystem.pipe_file(path, data)` (an atomic whole-object write), creating missing
+   parent directories first for directory-like backends (object stores have no real
+   directories; a failed `makedirs` there is ignored and the write itself is
+   authoritative).
+5. `shutdown(timeout_sec)` flushes pending writes and stops the worker; afterwards
+   `upload()` returns `None` (→ redaction). Applications should call it at exit, e.g.
+   next to `TracerProvider.shutdown()`.
+
+**Failure semantics.** The guiding rule is that telemetry must never break or block the
+instrumented application:
+
+| Failure | Behavior |
+|---|---|
+| queue full at capture time | `upload()` → `None`; attribute records `__REDACTED__` |
+| backend write fails (network, permissions) | logged; the span keeps the already-recorded URI, which now dangles — bounded by `max_queue_size` in-flight blobs |
+| process dies before the queue drains | same as above: at most `max_queue_size` dangling URIs |
+| remote scheme without fsspec/driver installed | `ImportError` at uploader construction (fail-fast) |
+
+The dangling-URI window is the deliberate price of never blocking the hot path; a
+consumer resolving a URI should treat "object not (yet) there" as retryable. Deployments
+that cannot tolerate it can pass a custom `BlobUploader` that writes synchronously
+(see the demo script's `MyBlobUploader`).
 
 ### TraceConfig integration
 
@@ -337,6 +397,13 @@ OTel GenAI reference implementations:
 - [opentelemetry-python-contrib#3065][contrib-3065] — Google's `BlobUploader` proposal
   (`Blob`, `upload_async(blob) -> uri`, `BLOB_UPLOAD_URI_PREFIX`), the precedent for the
   synchronous-URI/asynchronous-write shape adopted here.
+
+Storage layer:
+
+- [fsspec documentation](https://filesystem-spec.readthedocs.io/) — the filesystem
+  abstraction behind `FsspecBlobUploader` (and OTel's `UploadCompletionHook`);
+  [built-in and third-party backend registry](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations)
+  lists the scheme → driver mapping (`s3fs`, `gcsfs`, `adlfs`, …).
 
 [genai-repo]: https://github.com/open-telemetry/semantic-conventions-genai
 [genai-spans]: https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md
