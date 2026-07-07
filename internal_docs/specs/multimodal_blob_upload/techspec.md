@@ -8,11 +8,11 @@ Layout of this spec:
 
 ```
 multimodal_blob_upload/
-├── techspec.md                     — this document: problem, design, API, decisions
+├── techspec.md                       — this document: problem, design, API, decisions
 └── scripts/
-    ├── README.md                   — what the demo proves, how to run it
-    ├── audio_blob_upload_demo.py   — offline end-to-end demo (uv-runnable)
-    └── audio_blob_upload_demo.txt  — captured output from a full run
+    ├── README.md                     — what the demo proves, how to run it
+    ├── openai_image_blob_upload.py   — live-API image demo, exports to Phoenix (uv-runnable)
+    └── openai_image_blob_upload.txt  — captured output from a real run
 ```
 
 ## 1. Problem
@@ -212,11 +212,10 @@ Output is validated in tests against the vendored OTel GenAI JSON schemas
 
 ## 7. End-to-end example
 
-A runnable, offline proof of the flow below lives in
-[`scripts/audio_blob_upload_demo.py`](./scripts/audio_blob_upload_demo.py)
-(`uv run --script …`; see [`scripts/README.md`](./scripts/README.md) for what it
-proves and [`scripts/audio_blob_upload_demo.txt`](./scripts/audio_blob_upload_demo.txt)
-for captured output).
+A runnable live-API proof of the flow below (image modality, exported to Phoenix)
+lives in [`scripts/openai_image_blob_upload.py`](./scripts/openai_image_blob_upload.py)
+(`uv run --script …`; see [`scripts/README.md`](./scripts/README.md) for prerequisites,
+scenarios, and assertions).
 
 ```python
 from openinference.instrumentation import TraceConfig, FsspecBlobUploader
