@@ -51,7 +51,7 @@ from openinference.instrumentation.google_adk._wrappers import _get_attributes_f
             id="gemini_api_style_inclusive_no_double_count",
         ),
         pytest.param(
-            # For Vertex AI and ADK's LiteLLM, thoughts are reported separately and are not part of candidates.
+            # For Vertex AI and ADK's LiteLLM, thoughts are separate from candidates.
             types.GenerateContentResponseUsageMetadata(
                 total_token_count=1707,
                 prompt_token_count=6,
