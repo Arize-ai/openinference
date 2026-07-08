@@ -50,6 +50,48 @@ Two concerns, handled separately (mirroring the OTel GenAI semconv model):
    destination URI instead. With no uploader, behavior degrades to today's redaction.
    Instrumentors never talk to storage.
 
+### Mental model — who decides what
+
+Background for readers who don't live in OpenTelemetry: each instrumented LLM call
+produces a **span** — one record of that call — carrying flat key/value **attributes**
+(the model name, every message, and every image/audio/file inside those messages). An
+**instrumentor** is the per-SDK library (here `openinference-instrumentation-openai`)
+that watches SDK calls and writes those attributes. On the way onto the span, every
+attribute passes through a single shared, config-driven checkpoint in the core library:
+`TraceConfig.mask()`. Blob upload is implemented as one more rule at that checkpoint —
+not as instrumentor logic and not as exporter logic.
+
+That yields three questions with three distinct owners:
+
+| # | Question | Owner | How it decides |
+|---|---|---|---|
+| 1 | Is this content captured at all? | the **instrumentor** | its extractors must emit the media as a `data:<mime>;base64,…` URI on the standard `*.url` attribute key; content that is never captured can never be uploaded |
+| 2 | Does it stay inline, get uploaded, or get redacted? | **core** (`TraceConfig.mask()`) | hide flags first (hidden content never reaches the uploader), then the size thresholds (`base64_image_max_length` / `base64_media_max_length`), then uploader presence |
+| 3 | Where does it land and how does it get there? | the **`BlobUploader`** | destination and naming scheme, credentials, sync vs. background write, queueing, retries |
+
+The division of labor is strict in one direction. The uploader holds a **one-way
+veto**: returning `None` from `upload()` (queue full, shut down, or a policy like
+"never store audio" keyed off `blob.mime_type`/`blob.modality`) causes the attribute
+to be redacted. But it cannot widen scope — it can't force below-threshold content to
+upload, can't restore something core hid, and never sees content core kept inline.
+"What qualifies" is configuration; "where and how" is the uploader.
+
+Practical consequences — what you touch to change what:
+
+| You want to… | You change |
+|---|---|
+| turn on blob upload for media an instrumentor already captures (e.g. images in the OpenAI instrumentor) | configuration only — `TraceConfig(blob_uploader=…)` or `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH`; zero code |
+| store blobs your own way (bucket layout, artifact store, per-modality routing, mime-type refusal) | a `BlobUploader` class only (~20 lines; see the demo script) — no core or instrumentor changes |
+| capture a modality an instrumentor doesn't emit yet (this branch: audio/files for OpenAI) | that instrumentor's extractors, normalizing to data URIs on the standard keys |
+| change *what qualifies* for upload (e.g. per-modality thresholds) | core `TraceConfig` — a feature request, not an uploader implementation detail |
+
+One structural exception to "instrumentors never deal with uploads": the `input.value`
+attribute. Instrumentors serialize the whole raw request into it as one JSON string
+*before* it reaches the checkpoint, and `mask()` won't parse arbitrary JSON to find
+base64 buried inside. So each instrumentor pre-processes that one payload itself
+(`_media_utils.redact_media_from_request_parameters` in the OpenAI package), applying
+the same hide → externalize → redact policy via the same shared uploader.
+
 ### Architecture — blob upload path (OpenAI instrumentor example)
 
 ```mermaid
@@ -94,13 +136,36 @@ flowchart TB
 ```
 
 Solid arrows are the synchronous hot path of the instrumented request; dotted arrows
-happen off it. Steps (3)–(4) are the crux: the URI is content-addressed
-(`sha256(bytes)`), so it is known before any storage I/O happens, and the request
-thread never waits on the blob store. The serialized `input.value` attribute takes an
-analogous pre-processing path (`_media_utils.redact_media_from_request_parameters` in
-the instrumentor calls the same uploader before serialization) — omitted above for
-clarity. If the uploader rejects the blob (queue full, shut down), step (4) yields
-`__REDACTED__` instead, identical to the no-uploader row.
+happen off it. Following the numbers:
+
+1. The app calls the OpenAI SDK normally — e.g. a vision chat completion with a
+   multi-megabyte image inlined as base64. Nothing about the app changes.
+2. The instrumentor's extractors turn the request into flat span attributes,
+   normalizing every piece of media to a `data:<mime>;base64,…` URI on its standard
+   attribute key. This is the instrumentor's whole job (question 1 of the mental
+   model); it neither knows nor cares whether an uploader is configured.
+3. On its way onto the span, each attribute hits `TraceConfig.mask()` — the shared
+   checkpoint (question 2). Hidden content is dropped; small media stays inline;
+   oversized base64 with no uploader becomes `__REDACTED__`; oversized base64 *with*
+   an uploader is decoded into a `Blob` and handed to `upload()`.
+4. `upload()` answers immediately with the destination URI (question 3). It can do so
+   before any storage I/O because the name is derived from the content itself —
+   `sha256(bytes)` — not from anything the write produces. The span attribute is set
+   to that URI. If the uploader rejects the blob instead (queue full, shut down, or
+   its own policy), this step yields `__REDACTED__`, identical to having no uploader.
+5. The actual bytes travel later: a bounded queue feeds a background worker that
+   writes to the blob store. The instrumented request never waits on storage — the
+   worst case for the app is redaction, never latency.
+6. When the span ends it exports over OTLP as usual. It carries the URI — a short
+   string — never the bytes, so OTLP message limits and backend storage are unaffected
+   by media size. The GenAI dual-write emits the same reference as a `uri` message
+   part.
+7. A consumer (Phoenix UI, an eval job) that wants the actual media resolves the URI
+   against the blob store — outside this branch's scope.
+
+The serialized `input.value` attribute takes an analogous pre-processing path
+(`_media_utils.redact_media_from_request_parameters` in the instrumentor calls the
+same uploader before serialization) — omitted above for clarity.
 
 This aligns exactly with the OTel GenAI semconv message-part model
 (`gen_ai.input.messages` / `gen_ai.output.messages`, status Development), defined in the
