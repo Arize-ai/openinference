@@ -3,16 +3,7 @@
 **Status:** Experimental (branch `experimental/multimodal-blob-upload`)
 **Scope:** Python (`openinference-instrumentation`, `openinference-semantic-conventions`, `openinference-instrumentation-openai`), `spec/`
 **Out of scope (this iteration):** JS/Java parity, Phoenix/backend rendering, URI resolution/proxying/signing
-
-Layout of this spec:
-
-```
-multimodal_blob_upload/
-├── techspec.md                       — this document: problem, design, API, decisions
-└── scripts/
-    ├── README.md                     — how to run the demo, what to look for
-    └── openai_image_blob_upload.py   — custom-uploader demo, live API + Phoenix (uv-runnable)
-```
+**Demo:** [`scripts/openai_image_blob_upload.py`](./scripts/openai_image_blob_upload.py) — a custom uploader on a live vision call, exported to Phoenix (`uv run --script …`; see [`scripts/README.md`](./scripts/README.md))
 
 ## 1. Problem
 
@@ -28,9 +19,9 @@ records multi-megabyte base64 strings in span attributes, which:
   `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` are replaced with `__REDACTED__`, so the
   content is unrecoverable.
 
-Separately, before this branch the OpenAI instrumentor simply did not capture audio or
-file content at all (`input_audio`, `input_file`, audio responses were TODOs), so there
-was no observability for audio/document workloads.
+Separately, before this branch the OpenAI instrumentor did not capture audio or file
+content at all (`input_audio`, `input_file`, audio responses were TODOs), so there was
+no observability for audio/document workloads.
 
 ## 2. Design overview
 
@@ -47,8 +38,7 @@ Two concerns, handled separately (mirroring the OTel GenAI semconv model):
    already passes through (`OpenInferenceSpan.set_attribute` → `TraceConfig.mask`). When
    an inline base64 data URI exceeds the size threshold and an uploader is configured,
    the decoded bytes are uploaded to external storage and the attribute records the
-   destination URI instead. With no uploader, behavior degrades to today's redaction.
-   Instrumentors never talk to storage.
+   destination URI instead. Instrumentors never talk to storage.
 
 ### Mental model — who decides what
 
@@ -58,23 +48,21 @@ produces a **span** — one record of that call — carrying flat key/value **at
 **instrumentor** is the per-SDK library (here `openinference-instrumentation-openai`)
 that watches SDK calls and writes those attributes. On the way onto the span, every
 attribute passes through a single shared, config-driven checkpoint in the core library:
-`TraceConfig.mask()`. Blob upload is implemented as one more rule at that checkpoint —
-not as instrumentor logic and not as exporter logic.
+`TraceConfig.mask()`. Blob upload is one more rule at that checkpoint — not instrumentor
+logic and not exporter logic.
 
-That yields three questions with three distinct owners:
+Three questions, three owners:
 
 | # | Question | Owner | How it decides |
 |---|---|---|---|
 | 1 | Is this content captured at all? | the **instrumentor** | its extractors must emit the media as a `data:<mime>;base64,…` URI on the standard `*.url` attribute key; content that is never captured can never be uploaded |
-| 2 | Does it stay inline, get uploaded, or get redacted? | **core** (`TraceConfig.mask()`) | hide flags first (hidden content never reaches the uploader), then the size thresholds (`base64_image_max_length` / `base64_media_max_length`), then uploader presence |
+| 2 | Does it stay inline, get uploaded, or get redacted? | **core** (`TraceConfig.mask()`) | hide flags first (hidden content never reaches the uploader), then the size thresholds, then uploader presence — see the decision table in §4 |
 | 3 | Where does it land and how does it get there? | the **`BlobUploader`** | destination and naming scheme, credentials, sync vs. background write, queueing, retries |
 
-The division of labor is strict in one direction. The uploader holds a **one-way
-veto**: returning `None` from `upload()` (queue full, shut down, or a policy like
-"never store audio" keyed off `blob.mime_type`/`blob.modality`) causes the attribute
-to be redacted. But it cannot widen scope — it can't force below-threshold content to
-upload, can't restore something core hid, and never sees content core kept inline.
-"What qualifies" is configuration; "where and how" is the uploader.
+The uploader can only narrow, never widen: returning `None` from `upload()` (queue
+full, shut down, or its own policy keyed off `blob.mime_type`/`blob.modality`) gets the
+attribute redacted, but it cannot force below-threshold content to upload and never
+sees content core hid or kept inline.
 
 Practical consequences — what you touch to change what:
 
@@ -85,12 +73,8 @@ Practical consequences — what you touch to change what:
 | capture a modality an instrumentor doesn't emit yet (this branch: audio/files for OpenAI) | that instrumentor's extractors, normalizing to data URIs on the standard keys |
 | change *what qualifies* for upload (e.g. per-modality thresholds) | core `TraceConfig` — a feature request, not an uploader implementation detail |
 
-One structural exception to "instrumentors never deal with uploads": the `input.value`
-attribute. Instrumentors serialize the whole raw request into it as one JSON string
-*before* it reaches the checkpoint, and `mask()` won't parse arbitrary JSON to find
-base64 buried inside. So each instrumentor pre-processes that one payload itself
-(`_media_utils.redact_media_from_request_parameters` in the OpenAI package), applying
-the same hide → externalize → redact policy via the same shared uploader.
+One structural exception to "instrumentors never deal with uploads": the serialized
+`input.value` attribute, which instrumentors pre-process themselves — see §5.
 
 ### Architecture — blob upload path (OpenAI instrumentor example)
 
@@ -111,7 +95,7 @@ flowchart TB
         end
 
         subgraph up["BlobUploader (FsspecBlobUploader or custom)"]
-            u1["upload(Blob)<br/>Blob = decoded bytes + mime_type +<br/>modality + sha256 + attribute_key<br/>URI = base_path/sha256.png — computed, no I/O"]
+            u1["upload(Blob)<br/>URI = base_path/sha256.png<br/>computed, no I/O"]
             q["bounded queue<br/>(max_queue_size)"]
             w["daemon worker thread<br/>fsspec pipe_file()"]
         end
@@ -136,45 +120,20 @@ flowchart TB
 ```
 
 Solid arrows are the synchronous hot path of the instrumented request; dotted arrows
-happen off it. Following the numbers:
+happen off it. The crux is (3)–(4): the destination name is derived from the content
+itself (`sha256(bytes)`, §4), so the URI exists before any storage I/O and the request
+thread never waits on the blob store — the bytes travel later through the bounded queue
+(5), and the exported span (6) carries a short URI string regardless of media size. The
+"GenAI dual-write" is an optional second emission of the same data under OTel `gen_ai.*`
+keys (§6). Consumer-side resolution (7) is out of scope for this branch.
 
-1. The app calls the OpenAI SDK normally — e.g. a vision chat completion with a
-   multi-megabyte image inlined as base64. Nothing about the app changes.
-2. The instrumentor's extractors turn the request into flat span attributes,
-   normalizing every piece of media to a `data:<mime>;base64,…` URI on its standard
-   attribute key. This is the instrumentor's whole job (question 1 of the mental
-   model); it neither knows nor cares whether an uploader is configured.
-3. On its way onto the span, each attribute hits `TraceConfig.mask()` — the shared
-   checkpoint (question 2). Hidden content is dropped; small media stays inline;
-   oversized base64 with no uploader becomes `__REDACTED__`; oversized base64 *with*
-   an uploader is decoded into a `Blob` and handed to `upload()`.
-4. `upload()` answers immediately with the destination URI (question 3). It can do so
-   before any storage I/O because the name is derived from the content itself —
-   `sha256(bytes)` — not from anything the write produces. The span attribute is set
-   to that URI. If the uploader rejects the blob instead (queue full, shut down, or
-   its own policy), this step yields `__REDACTED__`, identical to having no uploader.
-5. The actual bytes travel later: a bounded queue feeds a background worker that
-   writes to the blob store. The instrumented request never waits on storage — the
-   worst case for the app is redaction, never latency.
-6. When the span ends it exports over OTLP as usual. It carries the URI — a short
-   string — never the bytes, so OTLP message limits and backend storage are unaffected
-   by media size. The GenAI dual-write emits the same reference as a `uri` message
-   part.
-7. A consumer (Phoenix UI, an eval job) that wants the actual media resolves the URI
-   against the blob store — outside this branch's scope.
+### Alignment with the OTel GenAI conventions
 
-The serialized `input.value` attribute takes an analogous pre-processing path
-(`_media_utils.redact_media_from_request_parameters` in the instrumentor calls the
-same uploader before serialization) — omitted above for clarity.
-
-This aligns exactly with the OTel GenAI semconv message-part model
-(`gen_ai.input.messages` / `gen_ai.output.messages`, status Development), defined in the
-dedicated [semantic-conventions-genai][genai-repo] repo — prose in
-[`docs/gen-ai/gen-ai-spans.md`][genai-spans], normative part schemas in
-[`model/gen-ai/gen-ai-input-messages.json`][genai-input-schema] /
-[`gen-ai-output-messages.json`][genai-output-schema] (the `BlobPart`/`UriPart`/`FilePart`
-types were added via [semantic-conventions#2754][semconv-pr-2754], closing
-[semantic-conventions#1556][semconv-issue-1556]):
+The three media forms map 1:1 onto the message-part model of the
+[OTel GenAI semantic conventions][genai-repo] (maturity "Development", i.e. still
+evolving; normative part schemas in [gen-ai-input-messages.json][genai-input-schema] /
+[gen-ai-output-messages.json][genai-output-schema], added via
+[semantic-conventions#2754][semconv-pr-2754] closing [#1556][semconv-issue-1556]):
 
 | OpenInference representation | GenAI message part |
 |---|---|
@@ -182,13 +141,10 @@ types were added via [semantic-conventions#2754][semconv-pr-2754], closing
 | any other URI in `*.url` (https, s3, gs, …) | `{"type": "uri", "modality", "mime_type"?, "uri"}` |
 | `file.id` | `{"type": "file", "modality", "file_id"}` |
 
-The GenAI spec ([`gen-ai-spans.md`][genai-spans]) explicitly recommends "store content
-externally and record references on the spans" for production;
-[`opentelemetry-util-genai`][util-genai-pypi] ships an experimental fsspec
-[`UploadCompletionHook`][upload-hook-src] for whole-payload upload (in the
-[opentelemetry-python-genai][python-genai-repo] repo). This design is the per-part
-analog, and after externalization the existing dual-write conversion
-(`enable_genai_semconv`) emits spec-conformant `uri` parts with no extra work.
+The GenAI spec itself recommends "store content externally and record references on the
+spans" for production ([gen-ai-spans.md][genai-spans]); after externalization the
+dual-write emits spec-conformant `uri` parts with no extra work (§6; alternatives
+considered in §9).
 
 ## 3. Semantic convention additions (`spec/`, `openinference-semantic-conventions`)
 
@@ -196,8 +152,7 @@ analog, and after externalization the existing dual-write conversion
 - New constants:
   - `MessageContentAttributes.MESSAGE_CONTENT_AUDIO = "message_content.audio"`
   - `MessageContentAttributes.MESSAGE_CONTENT_FILE = "message_content.file"`
-  - `FileAttributes.FILE_URL = "file.url"` — http(s) URL, base64 data URI, or external
-    storage URI
+  - `FileAttributes.FILE_URL = "file.url"`
   - `FileAttributes.FILE_MIME_TYPE = "file.mime_type"`
   - `FileAttributes.FILE_NAME = "file.name"`
   - `FileAttributes.FILE_ID = "file.id"` — provider-assigned pre-uploaded file id
@@ -220,8 +175,8 @@ class Blob:
     attribute_key: Optional[str] = None   # span attribute the content came from
     content_sha256: str = ""       # hex digest of data; computed automatically
 
-@runtime_checkable
-class BlobUploader(Protocol):
+@runtime_checkable            # a Protocol: any object with these methods works,
+class BlobUploader(Protocol):  # no base class to inherit (rationale in §9)
     def upload(self, blob: Blob) -> Optional[str]:
         """Return the destination URI immediately; write asynchronously.
         Return None if the blob cannot be accepted (caller falls back to
@@ -238,10 +193,9 @@ class FsspecBlobUploader:  # implements BlobUploader
 ("filesystem spec") is the de-facto Python abstraction for file-like storage: one
 `AbstractFileSystem` API implemented by pluggable backends for local disk, S3, GCS,
 Azure, HTTP, in-memory, and dozens more. It is the same storage layer pandas, dask, and
-Hugging Face datasets use to accept `s3://…` paths anywhere a filename is expected — and,
-importantly for convergence, it is what OTel's experimental
-[`UploadCompletionHook`][upload-hook-src] in `opentelemetry-util-genai` builds on
-(`fsspec.url_to_fs(base_path)`). Building the default uploader on fsspec means:
+Hugging Face datasets use to accept `s3://…` paths anywhere a filename is expected, and
+what OTel's experimental [`UploadCompletionHook`][upload-hook-src] builds on. Building
+the default uploader on fsspec means:
 
 - one implementation covers every deployment target — the user changes a URI string,
   not code;
@@ -261,49 +215,41 @@ importantly for convergence, it is what OTel's experimental
 
 fsspec itself is the `blob-upload` extra (`pip install
 openinference-instrumentation[blob-upload]`); at construction time
-`fsspec.url_to_fs(base_path)` resolves the URI scheme to a concrete filesystem object
-plus a root path. If fsspec is missing, local/`file://` destinations silently fall back
-to direct `pathlib` writes, while remote schemes raise an `ImportError` naming the extra
-— failing fast at setup rather than dropping blobs at runtime.
+`fsspec.url_to_fs(base_path)` resolves the URI scheme to a concrete filesystem object.
+If fsspec is missing, local/`file://` destinations fall back to direct `pathlib` writes,
+while remote schemes raise an `ImportError` naming the extra — failing fast at setup
+rather than dropping blobs at runtime.
 
-**Upload path, step by step.** `upload(blob)` runs on the instrumented call path, so
-everything it does is O(hash) and memory-bounded:
+**Upload path.** `upload(blob)` runs on the instrumented call path, so everything it
+does is O(hash) and memory-bounded:
 
 1. Compute the destination name from the content: `{sha256(data)}{ext}`, extension
-   mapped from the mime type (`audio/wav → .wav`, `application/pdf → .pdf`, …,
-   `.bin` fallback). The full URI `{base_path}/{name}` is therefore **deterministic
-   before any I/O happens** — this is what lets `upload()` return synchronously while
-   the bytes travel later.
-2. Dedup check: if this digest was already enqueued, return the same URI immediately
-   (identical prompts re-sent across spans upload once).
-3. Enqueue `(path, blob)` on a bounded queue (`max_queue_size`, default 20, clamped
-   to ≥1 because `Queue(0)` would mean *unbounded* in Python). If the queue is full —
-   storage slower than the app is producing media — `upload()` returns `None` and the
-   caller records `__REDACTED__` instead: bounded memory beats unbounded buffering of
-   multi-megabyte payloads.
+   mapped from the mime type (`.bin` fallback). The full URI `{base_path}/{name}` is
+   therefore **deterministic before any I/O happens** — this is what lets `upload()`
+   return synchronously while the bytes travel later.
+2. Dedup: a digest set held for the uploader's lifetime means each unique payload is
+   enqueued once, however many spans carry it; repeats return the same URI immediately.
+3. Enqueue on a bounded queue (`max_queue_size`, default 20). If the queue is full —
+   storage slower than the app produces media — `upload()` returns `None`.
 4. A single daemon worker thread drains the queue and writes via
-   `filesystem.pipe_file(path, data)` (an atomic whole-object write), creating missing
-   parent directories first for directory-like backends (object stores have no real
-   directories; a failed `makedirs` there is ignored and the write itself is
-   authoritative).
+   `filesystem.pipe_file(path, data)` (an atomic whole-object write), creating parent
+   directories where the backend has them.
 5. `shutdown(timeout_sec)` flushes pending writes and stops the worker; afterwards
-   `upload()` returns `None` (→ redaction). Applications should call it at exit, e.g.
-   next to `TracerProvider.shutdown()`.
+   `upload()` returns `None`. Call it at exit, next to `TracerProvider.shutdown()`.
 
-**Failure semantics.** The guiding rule is that telemetry must never break or block the
-instrumented application:
+**Failure semantics.**
 
 | Failure | Behavior |
 |---|---|
 | queue full at capture time | `upload()` → `None`; attribute records `__REDACTED__` |
-| backend write fails (network, permissions) | logged; the span keeps the already-recorded URI, which now dangles — bounded by `max_queue_size` in-flight blobs |
-| process dies before the queue drains | same as above: at most `max_queue_size` dangling URIs |
+| backend write fails (network, permissions) | logged; the span keeps the already-recorded URI, which now dangles |
+| process dies before the queue drains | same: at most `max_queue_size` dangling URIs |
 | remote scheme without fsspec/driver installed | `ImportError` at uploader construction (fail-fast) |
 
-The dangling-URI window is the deliberate price of never blocking the hot path; a
-consumer resolving a URI should treat "object not (yet) there" as retryable. Deployments
-that cannot tolerate it can pass a custom `BlobUploader` that writes synchronously
-(see the demo script's `MyBlobUploader`).
+The dangling-URI window is the deliberate price of never blocking the hot path;
+consumers should treat "object not (yet) there" as retryable. Deployments that cannot
+tolerate it can pass a custom `BlobUploader` that writes synchronously (the demo
+script's `MyBlobUploader` does).
 
 ### TraceConfig integration
 
@@ -317,19 +263,26 @@ New fields / env vars (precedence: code > env > default, as with all existing fi
 | `base64_media_max_length` | `OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH` | `32_000` |
 | `blob_uploader` | `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH` (+ `OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE`) | `None` |
 
-`base64_image_max_length` is unchanged for images (back-compat); the new
-`base64_media_max_length` governs audio/file/video data URIs. Setting
-`OPENINFERENCE_BLOB_UPLOAD_BASE_PATH` constructs a default `FsspecBlobUploader`; passing
-`blob_uploader=` in code takes precedence and accepts any `BlobUploader` implementation.
+Notes:
 
-The env var names deliberately parallel OTel's experimental
-`OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH` / `..._UPLOAD_MAX_QUEUE_SIZE`
-(defined by [`opentelemetry-util-genai`][util-genai-pypi]'s upload hook,
-[source][upload-hook-src]) so a future aliasing is mechanical.
+- `base64_image_max_length` is unchanged for images (back-compat); the new
+  `base64_media_max_length` governs non-image media. It is *named* to cover video too,
+  but today only audio and file attribute keys exist for it to match — no instrumentor
+  captures video yet.
+- Files get only an input-side hide flag because OpenAI has no file *outputs*; an
+  output flag can be added when a surface exists. Audio has both directions
+  (chat-completions audio responses are real).
+- Setting `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH` constructs a default
+  `FsspecBlobUploader`; `blob_uploader=` in code takes precedence and accepts any
+  `BlobUploader` implementation.
+- The env var names deliberately parallel OTel's experimental
+  `OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH` / `..._UPLOAD_MAX_QUEUE_SIZE`
+  ([`opentelemetry-util-genai`][util-genai-pypi]) so a future aliasing is mechanical.
 
 ### mask() decision table
 
-Evaluated per attribute in `OpenInferenceSpan.set_attribute`, in order:
+Evaluated per attribute in `OpenInferenceSpan.set_attribute`, in order (pre-existing
+rules — image/text hiding, embeddings, etc. — are unchanged and elided):
 
 ```
 hide_input_audio  + input  message audio key            → drop (None)
@@ -341,10 +294,12 @@ media data URI > base64_media_max_length on audio.url
 otherwise                                               → unchanged
 ```
 
-Invariants:
+Invariants (the canonical statement of the fallback behavior):
+
 - Hide settings take precedence over externalization — hidden content is never uploaded.
 - Small payloads (≤ threshold) stay inline as data URIs (GenAI `blob` parts).
-- Upload failure/rejection degrades to `__REDACTED__` (today's behavior), never blocks.
+- No uploader, upload rejection, or upload failure all degrade to `__REDACTED__`
+  (today's over-limit behavior) — and never block the instrumented call.
 
 ## 5. OpenAI instrumentor capture (`openinference-instrumentation-openai`)
 
@@ -359,13 +314,15 @@ New helpers `_media.py` (format→mime maps, data-URI builders) and `_media_util
 | Responses API request | `input_audio` part | as chat `input_audio` |
 | Responses API request | `input_file` part | `file.url` (from `file_url`, else data URI from `file_data`), `file.mime_type`, `file.name`, `file.id` |
 
-Second path — `input.value`: the raw request params are also JSON-serialized into
-`input.value`. `redact_media_from_request_parameters` (analogous to the existing image
-redaction) walks chat `messages[].content[]` and Responses `input[].content[]`, and for
-`input_audio.data` / `file.file_data` / `input_file.file_data` payloads applies the same
-hide → externalize → redact policy before serialization. With an uploader configured the
-payload field inside `input.value` carries the destination URI. Content addressing makes
-the double touch (structured attribute + `input.value`) resolve to one upload and one URI.
+**The `input.value` exception.** Instrumentors also JSON-serialize the whole raw
+request into the `input.value` attribute *before* it reaches `mask()`, which won't
+parse arbitrary JSON to find base64 buried inside. So the instrumentor pre-processes
+that one payload itself: `redact_media_from_request_parameters` (analogous to the
+existing image redaction) walks chat `messages[].content[]` and Responses
+`input[].content[]`, and applies the same hide → externalize → redact policy to
+`input_audio.data` / `file.file_data` / `input_file.file_data` via the same shared
+uploader. Content addressing makes the double touch (structured attribute +
+`input.value`) resolve to one upload and one URI.
 
 ## 6. GenAI dual-write conversion (`_genai_conversion.py`)
 
@@ -382,16 +339,10 @@ marshaled-JSON path):
   [`Modality` enum][genai-input-schema]: `image | video | audio | document`).
 
 Output is validated in tests against the vendored OTel GenAI JSON schemas
-(`tests/fixtures/genai_schemas/gen-ai-{input,output}-messages.json`, vendored from
-[semantic-conventions v1.41.1][semconv-v1411]), which already define
-`BlobPart`/`UriPart`/`FilePart`.
+(`tests/fixtures/genai_schemas/`, from [semantic-conventions v1.41.1][semconv-v1411]),
+which already define `BlobPart`/`UriPart`/`FilePart`.
 
 ## 7. End-to-end example
-
-A short runnable demo of the flow below — a custom `BlobUploader` on a live vision
-call, exported to Phoenix — lives in
-[`scripts/openai_image_blob_upload.py`](./scripts/openai_image_blob_upload.py)
-(`uv run --script …`; see [`scripts/README.md`](./scripts/README.md)).
 
 ```python
 from openinference.instrumentation import TraceConfig, FsspecBlobUploader
@@ -403,7 +354,9 @@ config = TraceConfig(
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
 ```
 
-A chat completion with a 5 MB WAV input produces (audio over the 32k default threshold):
+A chat completion with a 5 MB WAV input produces (audio over the 32k default threshold;
+the doubled `audio.audio` segment is the flattening of `message_content.audio` +
+`audio.url`):
 
 ```
 llm.input_messages.0.message.contents.1.message_content.type       = "audio"
@@ -413,13 +366,9 @@ llm.input_messages.0.message.contents.1.…audio.audio.mime_type     = "audio/wa
 
 and, with `enable_genai_semconv=True`, `gen_ai.input.messages` contains
 `{"type": "uri", "modality": "audio", "mime_type": "audio/wav", "uri": "s3://…/3a7bd3….wav"}`.
-
-Without an uploader the oversized audio carries `__REDACTED__` instead. That matches
-the existing over-limit behavior for images — with one caveat: for audio and files
-there is no "today" to compare against, since before this branch the OpenAI
-instrumentor did not capture them at all (`input_audio` / `input_file` were TODOs), so
-even the redacted fallback is new coverage. Under the threshold, the data URI stays
-inline in both cases.
+Without an uploader the oversized audio is `__REDACTED__` per the §4 invariants; under
+the threshold it stays inline. (For audio/files even that fallback is new coverage —
+see §1.)
 
 ## 8. Testing
 
@@ -445,26 +394,19 @@ pollution from test ordering).
   substitution keeps text/tool-call content queryable inline, works with OpenInference's
   flattened attribute model, and produces registry-shaped `uri` parts. A whole-payload
   `input.value.ref` escape hatch remains a possible follow-up.
-- **Synchronous URI, asynchronous write.** Content addressing (SHA-256) makes the
-  destination deterministic, so the attribute can be set without waiting for storage.
-  Consequence: a URI may briefly dangle if the process dies before the queue drains
-  (bounded by `max_queue_size`); acceptable for telemetry.
 - **Protocol, not base class.** Any object with `upload`/`shutdown` works
   (`@runtime_checkable`), enabling adapters over OTel's BlobUploader work
   (Google's proposal in [opentelemetry-python-contrib#3065][contrib-3065]:
   `upload_async(blob) -> uri` returning the destination immediately with a background
   write — the same shape adopted here), OpenLLMetry-style image uploaders, or in-house
   stores without inheriting from us.
-- **Hide-wins ordering.** Privacy settings must not be weakened by externalization:
-  content the user asked to hide never leaves the process.
 - **`is_base64_url` untouched.** The image-only helper keeps its semantics for
   back-compat; a new generic `is_base64_media_url` covers all media data URIs.
 
 ## 10. Follow-ups (not in this branch)
 
 - **JS parity:** `blobUploader` on `@arizeai/openinference-core` TraceConfig + a masking
-  rule beside `maskLongBase64ImageRule`; destination URI computable synchronously from the
-  content hash while the upload promise runs in a bounded queue.
+  rule beside `maskLongBase64ImageRule`, with the same content-hash URI trick.
 - **openai-agents realtime migration:** `_realtime.py` has private audio env vars
   (`OPENINFERENCE_HIDE_INPUT_AUDIO`, `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH`) and custom
   `input.audio.url` attribute names; migrate onto the core config fields and
@@ -477,7 +419,7 @@ pollution from test ordering).
 - **Other instrumentors:** litellm image-gen `b64_json`, Anthropic document blocks,
   Google GenAI inline_data.
 - **Consumer support (Phoenix/Arize):** audio rendering from `message_content.audio`,
-  URI resolution/signing for `s3://`/`gs://` schemes — explicitly out of scope here.
+  URI resolution/signing for `s3://`/`gs://` schemes.
 - **Upstream convergence:** if/when OTel stabilizes upload env vars or a registry-blessed
   reference convention, alias `OPENINFERENCE_BLOB_UPLOAD_*` accordingly.
 
@@ -485,46 +427,26 @@ pollution from test ordering).
 
 OTel GenAI semantic conventions:
 
-- [semantic-conventions-genai repo][genai-repo] — dedicated home of the GenAI semconv
-  (spans, metrics, events, MCP, provider docs); the old location in
-  `open-telemetry/semantic-conventions` now points here
-  ([moved notice](https://opentelemetry.io/docs/specs/semconv/gen-ai/)).
-- [`docs/gen-ai/gen-ai-spans.md`][genai-spans] — `gen_ai.input.messages` /
-  `gen_ai.output.messages` definitions and the "store content externally and record
-  references on the spans" recording mode.
-- [`model/gen-ai/gen-ai-input-messages.json`][genai-input-schema] and
-  [`gen-ai-output-messages.json`][genai-output-schema] — normative JSON Schemas for
-  message parts (`TextPart`, `ToolCallRequestPart`, `ReasoningPart`, `BlobPart`,
-  `UriPart`, `FilePart`, `Modality`).
-- [semantic-conventions#1556][semconv-issue-1556] (multimodal content issue) and
-  [semantic-conventions#2754][semconv-pr-2754] (PR adding `blob`/`uri`/`file` parts).
-- [semantic-conventions#1521][semconv-pr-1521] — proposed generic `*.blob_ref.*`
-  convention; closed unmerged (why `*_ref` attribute names remain
-  implementation-defined).
-- [semantic-conventions v1.41.1 gen-ai docs][semconv-v1411] — source of the JSON schemas
-  vendored in `openinference-instrumentation/tests/fixtures/genai_schemas/`.
+- [semantic-conventions-genai repo][genai-repo] — home of the GenAI semconv
+  ([moved notice](https://opentelemetry.io/docs/specs/semconv/gen-ai/))
+- [gen-ai-spans.md][genai-spans] — message attributes and content-recording modes
+- [gen-ai-input-messages.json][genai-input-schema] / [gen-ai-output-messages.json][genai-output-schema] — normative message-part schemas
+- [semantic-conventions#1556][semconv-issue-1556] / [#2754][semconv-pr-2754] — multimodal part types (issue / merged PR)
+- [semantic-conventions#1521][semconv-pr-1521] — `*.blob_ref.*` proposal, closed unmerged (see §9)
+- [v1.41.1 gen-ai docs][semconv-v1411] — source of the vendored test schemas
 
-OTel GenAI reference implementations:
+OTel reference implementations:
 
-- [opentelemetry-python-genai repo][python-genai-repo] — GenAI instrumentations
-  (`opentelemetry-instrumentation-genai-openai` etc.) and `util/opentelemetry-util-genai`.
-- [`opentelemetry-util-genai` on PyPI][util-genai-pypi] — experimental package defining
-  `CompletionHook`, capture-mode env vars
-  (`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`), and the upload configuration
-  (`OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH`, `..._UPLOAD_FORMAT`,
-  `..._UPLOAD_MAX_QUEUE_SIZE`).
-- [`UploadCompletionHook` source][upload-hook-src] — fsspec-based whole-payload uploader
-  that stamps `gen_ai.input.messages_ref` / `gen_ai.output.messages_ref` span attributes.
-- [opentelemetry-python-contrib#3065][contrib-3065] — Google's `BlobUploader` proposal
-  (`Blob`, `upload_async(blob) -> uri`, `BLOB_UPLOAD_URI_PREFIX`), the precedent for the
-  synchronous-URI/asynchronous-write shape adopted here.
+- [opentelemetry-python-genai repo][python-genai-repo] — GenAI instrumentations and `util/opentelemetry-util-genai`
+- [opentelemetry-util-genai on PyPI][util-genai-pypi] — capture-mode and upload env vars
+- [UploadCompletionHook source][upload-hook-src] — whole-payload uploader (contrast in §9)
+- [opentelemetry-python-contrib#3065][contrib-3065] — Google's BlobUploader proposal (shape adopted here, §9)
 
 Storage layer:
 
-- [fsspec documentation](https://filesystem-spec.readthedocs.io/) — the filesystem
-  abstraction behind `FsspecBlobUploader` (and OTel's `UploadCompletionHook`);
-  [built-in and third-party backend registry](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations)
-  lists the scheme → driver mapping (`s3fs`, `gcsfs`, `adlfs`, …).
+- [fsspec documentation](https://filesystem-spec.readthedocs.io/) and its
+  [backend registry](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations)
+  (scheme → driver mapping: `s3fs`, `gcsfs`, `adlfs`, …)
 
 [genai-repo]: https://github.com/open-telemetry/semantic-conventions-genai
 [genai-spans]: https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md
