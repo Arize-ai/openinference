@@ -50,6 +50,58 @@ Two concerns, handled separately (mirroring the OTel GenAI semconv model):
    destination URI instead. With no uploader, behavior degrades to today's redaction.
    Instrumentors never talk to storage.
 
+### Architecture — blob upload path (OpenAI instrumentor example)
+
+```mermaid
+flowchart TB
+    subgraph proc["application process"]
+        app["app code<br/>client.chat.completions.create(...)<br/>image_url = data:image/png;base64,... (MBs)"]
+
+        subgraph oi["openinference-instrumentation-openai"]
+            ext["attribute extractors<br/>(_request_attributes_extractor.py, _responses_api.py, _media.py)<br/>normalize media to data URIs on<br/>llm.input_messages.*.message_content.image.image.url"]
+        end
+
+        subgraph core["openinference-instrumentation (core)"]
+            setattr["OpenInferenceSpan.set_attribute(key, value)"]
+            mask{"TraceConfig.mask()<br/>hide flag? base64 data URI over<br/>base64_image_max_length?"}
+            attr["final span attribute value"]
+            dual["span.end() GenAI dual-write:<br/>gen_ai.input.messages part<br/>{type: uri, modality: image, uri: ...}"]
+        end
+
+        subgraph up["BlobUploader (FsspecBlobUploader or custom)"]
+            u1["upload(Blob)<br/>Blob = decoded bytes + mime_type +<br/>modality + sha256 + attribute_key<br/>URI = base_path/sha256.png — computed, no I/O"]
+            q["bounded queue<br/>(max_queue_size)"]
+            w["daemon worker thread<br/>fsspec pipe_file()"]
+        end
+    end
+
+    blob[("blob store<br/>s3:// / gs:// / file:// / local dir")]
+    phx["Phoenix / OTLP collector<br/>span carries the URI, never the bytes"]
+
+    app -- "(1) instrumented request" --> ext
+    ext -- "(2) flattened OI attributes" --> setattr
+    setattr --> mask
+    mask -- "hidden: drop / under threshold: keep inline" --> attr
+    mask -- "over threshold, no uploader: __REDACTED__" --> attr
+    mask -- "(3) over threshold + uploader: Blob" --> u1
+    u1 -- "(4) destination URI, returned synchronously" --> attr
+    u1 -. enqueue .-> q
+    q -.-> w
+    w -. "(5) async write (never blocks the request)" .-> blob
+    attr --> dual
+    dual -- "(6) OTLP export" --> phx
+    phx -. "(7) consumer resolves media by URI" .-> blob
+```
+
+Solid arrows are the synchronous hot path of the instrumented request; dotted arrows
+happen off it. Steps (3)–(4) are the crux: the URI is content-addressed
+(`sha256(bytes)`), so it is known before any storage I/O happens, and the request
+thread never waits on the blob store. The serialized `input.value` attribute takes an
+analogous pre-processing path (`_media_utils.redact_media_from_request_parameters` in
+the instrumentor calls the same uploader before serialization) — omitted above for
+clarity. If the uploader rejects the blob (queue full, shut down), step (4) yields
+`__REDACTED__` instead, identical to the no-uploader row.
+
 This aligns exactly with the OTel GenAI semconv message-part model
 (`gen_ai.input.messages` / `gen_ai.output.messages`, status Development), defined in the
 dedicated [semantic-conventions-genai][genai-repo] repo — prose in
