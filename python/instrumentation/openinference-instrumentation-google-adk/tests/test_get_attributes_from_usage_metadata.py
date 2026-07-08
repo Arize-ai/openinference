@@ -27,27 +27,100 @@ from openinference.instrumentation.google_adk._wrappers import _get_attributes_f
             {
                 "llm.token_count.total": 110,
                 "llm.token_count.prompt": 10,
-                "llm.token_count.completion": 80,
+                "llm.token_count.completion": 100,
                 "llm.token_count.completion_details.reasoning": 20,
                 "llm.token_count.prompt_details.audio": 7,
                 "llm.token_count.completion_details.audio": 11,
             },
-            id="all_fields",
+            id="all_fields_vertex_style_not_inclusive",
         ),
         pytest.param(
+            # For Gemini Developer API and ADK's LiteLLM, candidates already includes thoughts.
             types.GenerateContentResponseUsageMetadata(
-                total_token_count=3703,
-                prompt_token_count=341,
-                candidates_token_count=3362,
-                thoughts_token_count=3347,
+                total_token_count=376,
+                prompt_token_count=46,
+                candidates_token_count=330,
+                thoughts_token_count=195,
             ),
             {
-                "llm.token_count.total": 3703,
-                "llm.token_count.prompt": 341,
-                "llm.token_count.completion": 3362,
-                "llm.token_count.completion_details.reasoning": 3347,
+                "llm.token_count.total": 376,
+                "llm.token_count.prompt": 46,
+                "llm.token_count.completion": 330,
+                "llm.token_count.completion_details.reasoning": 195,
             },
-            id="thoughts_not_double_counted",
+            id="gemini_api_style_inclusive_no_double_count",
+        ),
+        pytest.param(
+            # For Vertex AI, thoughts are reported separately and are not part of candidates.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=1707,
+                prompt_token_count=6,
+                candidates_token_count=569,
+                thoughts_token_count=1132,
+            ),
+            {
+                "llm.token_count.total": 1707,
+                "llm.token_count.prompt": 6,
+                "llm.token_count.completion": 569 + 1132,
+                "llm.token_count.completion_details.reasoning": 1132,
+            },
+            id="vertex_ai_style_not_inclusive_must_sum",
+        ),
+        pytest.param(
+            # For non-reasoning model, thoughts are absent entirely so no reasoning attribute.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=90,
+                prompt_token_count=10,
+                candidates_token_count=80,
+            ),
+            {
+                "llm.token_count.total": 90,
+                "llm.token_count.prompt": 10,
+                "llm.token_count.completion": 80,
+            },
+            id="no_thoughts_token_count",
+        ),
+        pytest.param(
+            # Do not under-report completion tokens when prompt tokens are missing.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=110,
+                candidates_token_count=80,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.total": 110,
+                "llm.token_count.completion": 100,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="missing_prompt_token_count_defaults_to_additive",
+        ),
+        pytest.param(
+            # Do not under-report completion tokens when total tokens are missing.
+            types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10,
+                candidates_token_count=80,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.prompt": 10,
+                "llm.token_count.completion": 100,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="missing_total_token_count_defaults_to_additive",
+        ),
+        pytest.param(
+            # Do not under-report completion tokens when candidates tokens are missing.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=20,
+                prompt_token_count=0,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.total": 20,
+                "llm.token_count.completion": 20,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="missing_candidates_token_count_prompt_zero_inclusive",
         ),
     ],
 )

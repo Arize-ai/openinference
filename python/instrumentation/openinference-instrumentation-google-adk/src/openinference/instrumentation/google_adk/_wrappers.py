@@ -434,6 +434,14 @@ def _get_attributes_from_usage_metadata(
         completion += candidates
     if thoughts := obj.thoughts_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
+        prompt = obj.prompt_token_count
+        total = obj.total_token_count
+        # Check whether thinking tokens are already folded into the candidates count.
+        candidates_already_include_thoughts = (
+            prompt is not None and total is not None and (prompt + (candidates or 0)) == total
+        )
+        if not candidates_already_include_thoughts:
+            completion += thoughts
     if completion:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion
 
