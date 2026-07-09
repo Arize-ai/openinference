@@ -53,12 +53,7 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
             AssistantAgent._execute_tool_call: _AssistantAgentExecuteToolCallWrapper(self._tracer),  # type: ignore[arg-type]
         }
 
-        # `autogen_ext.models.openai` imports the `openai` package. Only patch the OpenAI
-        # chat-completion client when it is importable, so autogen apps that use a different
-        # model client (e.g. `autogen-ext[anthropic]`) can be instrumented without installing
-        # `openai`. LLM spans for those providers come from their own instrumentors (e.g.
-        # `openinference-instrumentation-anthropic`); the agent/team/tool wrappers above are
-        # provider-agnostic and always applied.
+        # `autogen_ext.models.openai` imports `openai`; keep non-OpenAI clients usable.
         try:
             from autogen_ext.models.openai import BaseOpenAIChatCompletionClient
         except ImportError:

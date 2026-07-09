@@ -54,10 +54,6 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    # Imported for type hints only. `autogen_ext.models.openai` pulls in the `openai` package;
-    # importing it at runtime would break autogen apps that use a different model client
-    # (e.g. autogen-ext[anthropic]) and don't have `openai` installed. Annotations are lazy via
-    # `from __future__ import annotations`, so the runtime never needs this symbol.
     from autogen_ext.models.openai import BaseOpenAIChatCompletionClient
 
 logger = logging.getLogger(__name__)
