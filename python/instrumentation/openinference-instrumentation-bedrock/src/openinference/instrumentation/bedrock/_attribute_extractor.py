@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import uuid
@@ -16,6 +17,7 @@ from typing import (
     Sequence,
     Tuple,
     Union,
+    cast,
 )
 
 if TYPE_CHECKING:
@@ -217,6 +219,55 @@ class AttributeExtractor:
         return None
 
     @classmethod
+    def get_reasoning_message_from_reasoning_content(
+        cls, reasoning_content: Mapping[str, Any]
+    ) -> Optional[Message]:
+        if reasoning_text := reasoning_content.get("reasoningText"):
+            reasoning_message_content = ReasoningMessageContent(
+                type="reasoning", text=reasoning_text.get("text", "")
+            )
+            if signature := reasoning_text.get("signature"):
+                reasoning_message_content["signature"] = signature
+            return Message(role="assistant", contents=[reasoning_message_content])
+        if (redacted := reasoning_content.get("redactedContent")) is not None:
+            redacted_data = (
+                base64.b64encode(redacted).decode("utf-8")
+                if isinstance(redacted, (bytes, bytearray))
+                else str(redacted)
+            )
+            return Message(
+                role="assistant",
+                contents=[ReasoningMessageContent(type="reasoning", data=redacted_data)],
+            )
+        return None
+
+    @classmethod
+    def get_message_from_converse_style_block(
+        cls, block: Mapping[str, Any], role: str
+    ) -> Optional[Message]:
+        """
+        Build a Message from a Bedrock Converse-shaped content block.
+
+        Some non-Anthropic models (e.g. GPT-OSS) surface ``rawResponse.content`` as the
+        normalized Converse response shape (``output.message.content``) rather than the
+        provider-native Anthropic Messages API shape. Blocks here include every field
+        explicitly, with unset fields set to ``null`` rather than omitted, so fields must
+        be checked for truthiness rather than key presence.
+
+        Args:
+            block (Mapping[str, Any]): A single content block from ``output.message.content``.
+            role (str): The role of the containing message.
+
+        Returns:
+            Message | None: A Message object if the block could be parsed, None otherwise.
+        """
+        if text := block.get("text"):
+            return Message(content=text, role=role)
+        if reasoning_content := block.get("reasoningContent"):
+            return cls.get_reasoning_message_from_reasoning_content(reasoning_content)
+        return None
+
+    @classmethod
     def get_output_messages(cls, model_output: ModelInvocationOutputTypeDef) -> List[Message]:
         """
         Extract output messages from model output.
@@ -229,17 +280,52 @@ class AttributeExtractor:
             None otherwise.
         """
         messages = list()
+        has_structured_reasoning = False
+        if reasoning_content := model_output.get("reasoningContent"):
+            if reasoning_message := cls.get_reasoning_message_from_reasoning_content(
+                cast(Mapping[str, Any], reasoning_content)
+            ):
+                messages.append(reasoning_message)
+                has_structured_reasoning = True
         if "rawResponse" in model_output and (raw_response := model_output["rawResponse"]):
             if "content" in raw_response and (output_text := raw_response["content"]):
                 try:
                     data = json.loads(str(output_text))
-                    for content in data["content"] if "content" in data else []:
+                except Exception:
+                    messages.append(Message(content=str(output_text), role="assistant"))
+                    return messages
+                if isinstance(data, dict) and isinstance(data.get("content"), list):
+                    # Raw provider-native response, e.g. Anthropic Messages API, where
+                    # content blocks are tagged with a "type" field.
+                    for content in data["content"]:
+                        content_type = content.get("type") if isinstance(content, dict) else None
+                        if has_structured_reasoning and content_type in (
+                            "thinking",
+                            "redacted_thinking",
+                        ):
+                            # Avoid duplicating reasoning already captured via the
+                            # structured reasoningContent field above.
+                            continue
                         if message := cls.get_attributes_from_message(
                             content, content["role"] if "role" in content else "assistant"
                         ):
                             messages.append(message)
-                except Exception:
-                    messages.append(Message(content=str(output_text), role="assistant"))
+                elif isinstance(data, dict) and isinstance(
+                    output_message := data.get("output", {}).get("message"), dict
+                ):
+                    # Bedrock Converse-normalized raw response, used by some non-Anthropic
+                    # models (e.g. GPT-OSS). Content blocks include every field explicitly,
+                    # with unset fields set to null rather than omitted.
+                    role = output_message.get("role") or "assistant"
+                    for block in output_message.get("content") or []:
+                        if not isinstance(block, dict):
+                            continue
+                        if has_structured_reasoning and block.get("reasoningContent"):
+                            # Avoid duplicating reasoning already captured via the
+                            # structured reasoningContent field above.
+                            continue
+                        if message := cls.get_message_from_converse_style_block(block, role):
+                            messages.append(message)
         return messages
 
     @classmethod
