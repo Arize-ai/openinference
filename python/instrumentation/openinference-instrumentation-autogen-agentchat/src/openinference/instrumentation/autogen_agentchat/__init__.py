@@ -33,8 +33,6 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
-        from autogen_ext.models.openai import BaseOpenAIChatCompletionClient
-
         from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
         from autogen_agentchat.teams import BaseGroupChat
         from openinference.instrumentation.autogen_agentchat._wrappers import (
@@ -52,14 +50,24 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
             AssistantAgent.on_messages_stream: _AssistantAgentOnMessagesStreamWrapper(self._tracer),  # type: ignore[arg-type]
             BaseChatAgent.on_messages_stream: _BaseChatAgentOnMessagesStreamWrapper(self._tracer),  # type: ignore[arg-type]
             BaseGroupChat.run_stream: _BaseGroupChatRunStreamWrapper(self._tracer),  # type: ignore[arg-type]
-            BaseOpenAIChatCompletionClient.create: _BaseOpenAIChatCompletionClientCreateWrapper(
-                self._tracer  # type: ignore[arg-type]
-            ),
-            BaseOpenAIChatCompletionClient.create_stream: (
-                _BaseOpenAIChatCompletionClientCreateStreamWrapper(self._tracer)  # type: ignore[arg-type]
-            ),
             AssistantAgent._execute_tool_call: _AssistantAgentExecuteToolCallWrapper(self._tracer),  # type: ignore[arg-type]
         }
+
+        # `autogen_ext.models.openai` imports `openai`; keep non-OpenAI clients usable.
+        try:
+            from autogen_ext.models.openai import BaseOpenAIChatCompletionClient
+        except ImportError:
+            logger.debug(
+                "autogen_ext.models.openai is unavailable (openai not installed); "
+                "skipping OpenAI chat-completion client instrumentation."
+            )
+        else:
+            method_wrappers[BaseOpenAIChatCompletionClient.create] = (
+                _BaseOpenAIChatCompletionClientCreateWrapper(self._tracer)  # type: ignore[arg-type]
+            )
+            method_wrappers[BaseOpenAIChatCompletionClient.create_stream] = (
+                _BaseOpenAIChatCompletionClientCreateStreamWrapper(self._tracer)  # type: ignore[arg-type]
+            )
 
         for method, wrapper in method_wrappers.items():
             module, name = method.__module__, method.__qualname__
