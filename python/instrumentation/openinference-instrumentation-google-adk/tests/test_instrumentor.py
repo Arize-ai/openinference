@@ -1,12 +1,15 @@
 # ruff: noqa: E501
 import base64
+import json
 from collections import defaultdict
+from collections.abc import Mapping
 from secrets import token_hex
 from types import SimpleNamespace
 from typing import Any, AsyncGenerator, cast
 
 import pytest
 from google.adk import Agent, __version__
+from google.adk.code_executors.built_in_code_executor import BuiltInCodeExecutor
 from google.adk.events import Event, EventActions
 from google.adk.runners import InMemoryRunner
 from google.adk.tools.agent_tool import AgentTool
@@ -34,6 +37,10 @@ from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolC
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
 _WEATHER_QUESTION = "What is the weather in New York?"
+_CODE_EXECUTION_QUESTION = (
+    "What is the sum of the first 50 prime numbers? "
+    "Generate and run code for the calculation, and make sure you get all 50."
+)
 
 
 def _pop_input_message_tool_call_ids(attributes: dict[str, Any]) -> None:
@@ -89,6 +96,26 @@ async def _run_weather_query(runner: InMemoryRunner, user_id: str, session_id: s
         new_message=types.Content(role="user", parts=[types.Part(text=_WEATHER_QUESTION)]),
     ):
         ...
+
+
+def _get_usage_metadata_from_llm_response(attributes: Mapping[str, Any]) -> Mapping[str, Any]:
+    for key in (SpanAttributes.OUTPUT_VALUE, "gcp.vertex.agent.llm_response"):
+        payload = attributes.get(key)
+        if not isinstance(payload, str):
+            continue
+        try:
+            response = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        usage_metadata = response.get("usage_metadata") or response.get("usageMetadata")
+        if isinstance(usage_metadata, Mapping):
+            return usage_metadata
+    raise AssertionError("Expected LLM response usage metadata in span attributes.")
+
+
+def _get_count(metadata: Mapping[str, Any], snake_case: str, camel_case: str) -> int:
+    value = metadata.get(snake_case, metadata.get(camel_case))
+    return int(value or 0)
 
 
 def _content_event(text: str, *, timestamp: float) -> Event:
@@ -1000,6 +1027,80 @@ async def test_google_adk_instrumentor_multi_tool_call(
     call_llm_attributes2.pop("gen_ai.agent.version", None)
     _pop_input_message_tool_call_ids(call_llm_attributes2)
     assert not call_llm_attributes2
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_code_execution_token_counts(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model="gemini-2.5-flash",
+        description="Agent that solves arithmetic questions by running code.",
+        instruction="Use code execution for arithmetic questions.",
+        code_executor=BuiltInCodeExecutor(),
+    )
+
+    app_name = f"app{token_hex(4)}"
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+    runner = InMemoryRunner(agent=agent, app_name=app_name)
+    await runner.session_service.create_session(
+        app_name=app_name, user_id=user_id, session_id=session_id
+    )
+
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[types.Part(text=_CODE_EXECUTION_QUESTION)],
+        ),
+    ):
+        ...
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    call_llm_spans = [span for span in spans if span.name == "call_llm"]
+    assert len(call_llm_spans) == 1
+    call_llm_attributes = dict(call_llm_spans[0].attributes or {})
+    usage_metadata = _get_usage_metadata_from_llm_response(call_llm_attributes)
+
+    prompt_token_count = _get_count(usage_metadata, "prompt_token_count", "promptTokenCount")
+    tool_use_prompt_token_count = _get_count(
+        usage_metadata,
+        "tool_use_prompt_token_count",
+        "toolUsePromptTokenCount",
+    )
+    candidates_token_count = _get_count(
+        usage_metadata,
+        "candidates_token_count",
+        "candidatesTokenCount",
+    )
+    thoughts_token_count = _get_count(
+        usage_metadata,
+        "thoughts_token_count",
+        "thoughtsTokenCount",
+    )
+    total_token_count = _get_count(usage_metadata, "total_token_count", "totalTokenCount")
+
+    assert tool_use_prompt_token_count > 0
+    expected_prompt_token_count = prompt_token_count + tool_use_prompt_token_count
+    expected_completion_token_count = candidates_token_count
+    if expected_prompt_token_count + candidates_token_count != total_token_count:
+        expected_completion_token_count += thoughts_token_count
+
+    assert call_llm_attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == expected_prompt_token_count
+    assert (
+        call_llm_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION]
+        == expected_completion_token_count
+    )
+    assert (
+        call_llm_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]
+        == thoughts_token_count
+    )
+    assert call_llm_attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == total_token_count
 
 
 @pytest.mark.vcr
