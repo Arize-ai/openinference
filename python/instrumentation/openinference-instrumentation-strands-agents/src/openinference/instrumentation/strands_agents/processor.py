@@ -13,14 +13,7 @@ The processor transforms:
 
 import json
 import logging
-from typing import (
-    Any,
-    Dict,
-    FrozenSet,
-    List,
-    Optional,
-    Tuple,
-)
+from typing import Any, Dict, List, Optional
 
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
