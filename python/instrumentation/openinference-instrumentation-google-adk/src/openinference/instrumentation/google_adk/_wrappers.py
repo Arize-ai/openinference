@@ -414,7 +414,8 @@ def _get_attributes_from_usage_metadata(
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
                 prompt_details_audio,
             )
-    if prompt := obj.prompt_token_count:
+    prompt = (obj.prompt_token_count or 0) + (obj.tool_use_prompt_token_count or 0)
+    if prompt:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
     if obj.candidates_tokens_details:
         completion_details_audio = 0
@@ -434,11 +435,13 @@ def _get_attributes_from_usage_metadata(
         completion += candidates
     if thoughts := obj.thoughts_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
-        prompt = obj.prompt_token_count
         total = obj.total_token_count
+        has_prompt_side_count = (
+            obj.prompt_token_count is not None or obj.tool_use_prompt_token_count is not None
+        )
         # Check whether thinking tokens are already folded into the candidates count.
         candidates_already_include_thoughts = (
-            prompt is not None and total is not None and (prompt + (candidates or 0)) == total
+            has_prompt_side_count and total is not None and (prompt + (candidates or 0)) == total
         )
         if not candidates_already_include_thoughts:
             completion += thoughts

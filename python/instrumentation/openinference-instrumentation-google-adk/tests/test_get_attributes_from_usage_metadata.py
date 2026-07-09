@@ -51,6 +51,23 @@ from openinference.instrumentation.google_adk._wrappers import _get_attributes_f
             id="gemini_api_style_inclusive_no_double_count",
         ),
         pytest.param(
+            # Tool-use prompt tokens also count toward total tokens.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=116,
+                prompt_token_count=6,
+                tool_use_prompt_token_count=10,
+                candidates_token_count=100,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.total": 116,
+                "llm.token_count.prompt": 16,
+                "llm.token_count.completion": 100,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="gemini_api_style_inclusive_with_tool_use_prompt_no_double_count",
+        ),
+        pytest.param(
             # For Vertex AI and ADK's LiteLLM, thoughts are separate from candidates.
             types.GenerateContentResponseUsageMetadata(
                 total_token_count=1707,
@@ -65,6 +82,24 @@ from openinference.instrumentation.google_adk._wrappers import _get_attributes_f
                 "llm.token_count.completion_details.reasoning": 1132,
             },
             id="vertex_ai_style_not_inclusive_must_sum",
+        ),
+        pytest.param(
+            # Tool-use prompt tokens should not prevent additive counting
+            # when total includes thoughts.
+            types.GenerateContentResponseUsageMetadata(
+                total_token_count=136,
+                prompt_token_count=6,
+                tool_use_prompt_token_count=10,
+                candidates_token_count=100,
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.total": 136,
+                "llm.token_count.prompt": 16,
+                "llm.token_count.completion": 120,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="vertex_ai_style_not_inclusive_with_tool_use_prompt_must_sum",
         ),
         pytest.param(
             # For non-reasoning model, thoughts are absent entirely so no reasoning attribute.
