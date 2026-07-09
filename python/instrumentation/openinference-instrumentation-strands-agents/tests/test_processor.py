@@ -11,6 +11,14 @@ from openinference.instrumentation.strands_agents.processor import (
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
+class MockEvent:
+    """Mock event for testing."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.attributes: Dict[str, Any] = {}
+
+
 class MockReadableSpan:
     """Mock ReadableSpan for testing."""
 
@@ -66,6 +74,7 @@ class TestStrandsAgentsToOpenInferenceProcessor:
                 "gen_ai.request.model": "gpt-4",
                 "gen_ai.usage.input_tokens": 100,
                 "gen_ai.usage.output_tokens": 50,
+                "gen_ai.system": "strands-agents",
             },
         )
 
@@ -93,6 +102,7 @@ class TestStrandsAgentsToOpenInferenceProcessor:
                 "gen_ai.usage.cache_read_input_tokens": 35574,
                 "gen_ai.usage.cache_write_input_tokens": 17787,
                 "gen_ai.usage.total_tokens": 58291,
+                "gen_ai.system": "strands-agents",
             },
         )
 
@@ -118,6 +128,7 @@ class TestStrandsAgentsToOpenInferenceProcessor:
                 "gen_ai.usage.total_tokens": 150,
                 "gen_ai.usage.cache_read_input_tokens": 0,
                 "gen_ai.usage.cache_write_input_tokens": 0,
+                "gen_ai.system": "strands-agents",
             },
         )
 
@@ -136,6 +147,7 @@ class TestStrandsAgentsToOpenInferenceProcessor:
             name="invoke_agent test_agent",
             attributes={
                 "agent.name": "test_agent",
+                "gen_ai.provider.name": "strands-agents",
             },
         )
 
@@ -153,6 +165,7 @@ class TestStrandsAgentsToOpenInferenceProcessor:
             name="execute_tool calculator",
             attributes={
                 "gen_ai.tool.name": "calculator",
+                "gen_ai.provider.name": "strands-agents",
             },
         )
 
@@ -171,6 +184,7 @@ class TestStrandsAgentsToOpenInferenceProcessor:
             name="execute_event_loop_cycle",
             attributes={
                 "event_loop.cycle_id": "cycle-123",
+                "gen_ai.provider.name": "strands-agents",
             },
         )
 
@@ -184,7 +198,7 @@ class TestStrandsAgentsToOpenInferenceProcessor:
     @pytest.mark.parametrize(
         ("span_name", "attributes"),
         [
-            # Generic HTTP span
+            # HTTP span
             (
                 "http.request",
                 {
@@ -202,22 +216,13 @@ class TestStrandsAgentsToOpenInferenceProcessor:
                     "rpc.method": "DoWork",
                 },
             ),
-            # Botocore/AWS span
+            # AWS span
             (
                 "aws.request",
                 {
                     "rpc.system": "aws-api",
                     "rpc.service": "S3",
                     "rpc.method": "GetObject",
-                },
-            ),
-            # GenAI SDK
-            (
-                "openai.chat",
-                {
-                    "gen_ai.system": "openai",
-                    "gen_ai.request.model": "gpt-4o",
-                    "gen_ai.usage.input_tokens": 42,
                 },
             ),
         ],
@@ -248,8 +253,8 @@ class TestStrandsAgentsToOpenInferenceProcessor:
         strands_span = MockReadableSpan(
             name="chat",
             attributes={
-                "gen_ai.system": "strands-agents",
                 "gen_ai.request.model": "gpt-4",
+                "gen_ai.system": "strands-agents",
             },
         )
 
@@ -259,12 +264,53 @@ class TestStrandsAgentsToOpenInferenceProcessor:
         assert http_span._attributes.get("http.method") == "GET"
         assert SpanAttributes.LLM_MODEL_NAME in strands_span._attributes
 
+    def test_processor_ignores_non_strands_genai_span(self) -> None:
+        """Test that spans from other GenAI SDKs remain unchanged."""
+        processor = StrandsAgentsToOpenInferenceProcessor()
+
+        event = MockEvent("gen_ai.request")
+
+        span = MockReadableSpan(
+            name="chat",
+            attributes={
+                "gen_ai.request.model": "gpt-4",
+                "gen_ai.system": "openai",
+            },
+            events=[event],
+        )
+
+        original_attrs = dict(span._attributes)
+        original_events = list(span._events)
+        original_status = span._status
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        assert span._attributes == original_attrs
+        assert span._events == original_events
+        assert span._status is original_status
+
+    def test_processor_ignores_event_loop_span_without_cycle_id(self) -> None:
+        """Test that event loop spans without a cycle ID are ignored."""
+        processor = StrandsAgentsToOpenInferenceProcessor()
+
+        span = MockReadableSpan(
+            name="execute_event_loop_cycle",
+            attributes={},
+        )
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        assert SpanAttributes.OPENINFERENCE_SPAN_KIND not in span._attributes
+
     def test_processor_does_not_overwrite_error_status(self) -> None:
         """Test that processor does not overwrite ERROR spans."""
         processor = StrandsAgentsToOpenInferenceProcessor()
         span = MockReadableSpan(
             name="chat",
-            attributes={"gen_ai.request.model": "gpt-4"},
+            attributes={
+                "gen_ai.request.model": "gpt-4",
+                "gen_ai.system": "strands-agents",
+            },
         )
         span._status = Status(StatusCode.ERROR)
 
@@ -277,7 +323,10 @@ class TestStrandsAgentsToOpenInferenceProcessor:
         processor = StrandsAgentsToOpenInferenceProcessor()
         span = MockReadableSpan(
             name="chat",
-            attributes={"gen_ai.request.model": "gpt-4"},
+            attributes={
+                "gen_ai.request.model": "gpt-4",
+                "gen_ai.system": "strands-agents",
+            },
         )
         span._status = Status(StatusCode.UNSET)
 
@@ -300,6 +349,7 @@ class TestStrandsAgentsToOpenInferenceProcessor:
             name="chat",
             attributes={
                 "gen_ai.request.model": "gpt-4",
+                "gen_ai.system": "strands-agents",
             },
         )
 

@@ -50,27 +50,8 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 
 # Rules for identifying spans emitted by the Strands Agents SDK.
-_STRANDS_SDK_NAME: str = "strands-agents"
-_STRANDS_EXACT_SPAN_NAMES: FrozenSet[str] = frozenset(
-    {
-        "chat",
-        "execute_event_loop_cycle",
-    }
-)
-_STRANDS_SPAN_PREFIXES: Tuple[str, ...] = (
-    "execute_tool ",
-    "invoke_agent",
-    "Tool:",
-)
-_STRANDS_SPAN_SUBSTRINGS: Tuple[str, ...] = (
-    "Model invoke",
-    "Cycle",
-)
-_STRANDS_FALLBACK_ATTRIBUTES: Tuple[str, ...] = (
-    GenAIAttributes.AGENT_NAME,
-    "agent.name",
-    "event_loop.cycle_id",
-)
+_STRANDS_SDK_NAME = "strands-agents"
+_EVENT_LOOP_CYCLE_ID = "event_loop.cycle_id"
 
 
 class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
@@ -147,21 +128,16 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
     def _is_strands_span(self, span: ReadableSpan) -> bool:
         """Return True if the span was emitted by Strands Agents SDK."""
         attrs = getattr(span, "_attributes", None) or {}
-        if (
-            attrs.get(GEN_AI_SYSTEM) == _STRANDS_SDK_NAME
-            or attrs.get(GEN_AI_PROVIDER_NAME) == _STRANDS_SDK_NAME
-        ):
-            return True
 
-        name = span.name
-        if name in _STRANDS_EXACT_SPAN_NAMES:
-            return True
-        if any(name.startswith(prefix) for prefix in _STRANDS_SPAN_PREFIXES):
-            return True
-        if any(substring in name for substring in _STRANDS_SPAN_SUBSTRINGS):
-            return True
+        system = attrs.get(GEN_AI_SYSTEM)
+        provider = attrs.get(GEN_AI_PROVIDER_NAME)
 
-        return any(attribute in attrs for attribute in _STRANDS_FALLBACK_ATTRIBUTES)
+        # If the span identifies its SDK, trust that identifier.
+        if system is not None or provider is not None:
+            return system == _STRANDS_SDK_NAME or provider == _STRANDS_SDK_NAME
+
+        # Current Strands event loop spans do not emit SDK identifiers.
+        return span.name == "execute_event_loop_cycle" and _EVENT_LOOP_CYCLE_ID in attrs
 
     def _strip_genai_events(self, span: ReadableSpan) -> None:
         """Remove gen_ai.* prefixed events from the span after transformation.
