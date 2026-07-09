@@ -184,7 +184,6 @@ class TestStrandsAgentsToOpenInferenceProcessor:
             name="execute_event_loop_cycle",
             attributes={
                 "event_loop.cycle_id": "cycle-123",
-                "gen_ai.provider.name": "strands-agents",
             },
         )
 
@@ -309,7 +308,6 @@ class TestStrandsAgentsToOpenInferenceProcessor:
             name="chat",
             attributes={
                 "gen_ai.request.model": "gpt-4",
-                "gen_ai.system": "strands-agents",
             },
         )
         span._status = Status(StatusCode.ERROR)
@@ -349,7 +347,6 @@ class TestStrandsAgentsToOpenInferenceProcessor:
             name="chat",
             attributes={
                 "gen_ai.request.model": "gpt-4",
-                "gen_ai.system": "strands-agents",
             },
         )
 
