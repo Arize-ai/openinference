@@ -73,20 +73,26 @@ def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
     return ""
 
 
-def _extract_output(response: Any) -> str:
+def _extract_output(response: Any) -> tuple[str, str]:
     """Extract output from workflow/step response."""
     if response is None:
-        return ""
+        return "", TEXT
     if isinstance(response, str):
-        return response
-    if hasattr(response, "content"):
-        return str(response.content)
+        return response, TEXT
+    content = getattr(response, "content", None)
+    if content is not None:
+        if hasattr(content, "model_dump_json"):
+            try:
+                return str(content.model_dump_json()), JSON
+            except Exception:
+                pass
+        return str(content), TEXT
     if hasattr(response, "model_dump_json"):
         try:
-            return str(response.model_dump_json())
+            return str(response.model_dump_json()), JSON
         except Exception:
             pass
-    return ""
+    return str(response), TEXT
 
 
 def _workflow_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
@@ -152,18 +158,6 @@ def _workflow_run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str,
         yield USER_ID, user_id
 
 
-def _setup_workflow_context(node_id: str) -> Any:
-    """Set up context for workflow to propagate to children."""
-    workflow_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
-    return context_api.attach(workflow_ctx)
-
-
-def _setup_step_context(node_id: str) -> Any:
-    """Set up context for step to propagate to children."""
-    step_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
-    return context_api.attach(step_ctx)
-
-
 class _WorkflowWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -209,15 +203,20 @@ class _WorkflowWrapper:
         result = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
-                workflow_token = _setup_workflow_context(node_id)
+                workflow_token = _setup_node_context(node_id)
                 result = wrapped(*args, **kwargs)
 
                 # Check if result is an iterator (streaming)
                 is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
 
                 if is_streaming:
-                    # For streaming, keep token attached and handle in stream continuation
-                    return self._run_stream_continue(result, span, workflow_token, instance)
+                    if workflow_token:
+                        try:
+                            context_api.detach(workflow_token)
+                            workflow_token = None
+                        except Exception:
+                            pass
+                    return self._run_stream_continue(result, span, node_id, instance)
 
                 # Non-streaming mode - detach token immediately while still in span context
                 if workflow_token:
@@ -229,14 +228,19 @@ class _WorkflowWrapper:
 
             # Set output and workflow ID (outside use_span but token already detached)
             span.set_status(trace_api.StatusCode.OK)
-            output = _extract_output(result)
+            output, mime_type = _extract_output(result)
             if output:
                 span.set_attribute(OUTPUT_VALUE, output)
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
+
+            # Capture the workflow run_id
+            run_id = getattr(result, "run_id", None)
+            if run_id:
+                span.set_attribute("agno.run.id", run_id)
 
             # Check instance user_id
             if hasattr(instance, "user_id") and instance.user_id:
@@ -268,52 +272,60 @@ class _WorkflowWrapper:
         self,
         iterator: Any,
         span: Any,
-        workflow_token: Any,
+        node_id: str,
         instance: Any = None,
     ) -> Any:
         """Continue streaming workflow with existing span"""
         final_response = None
+        iterator = iter(iterator)
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            while True:
+                ctx_token = None
+                workflow_token = None
                 try:
-                    for response in iterator:
-                        final_response = response
-                        yield response
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    workflow_token = _setup_node_context(node_id)
+                    response = next(iterator)
+                except StopIteration:
+                    break
                 finally:
-                    if workflow_token:
-                        try:
-                            context_api.detach(workflow_token)
-                            workflow_token = None
-                        except Exception:
-                            pass
+                    if workflow_token is not None:
+                        context_api.detach(workflow_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
+                final_response = response
+                yield response
 
             span.set_status(trace_api.StatusCode.OK)
             # Extract output only from the final response
             if final_response is not None:
-                output = _extract_output(final_response)
+                output, mime_type = _extract_output(final_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
 
+            # Capture the workflow run_id
+            run_id = getattr(final_response, "run_id", None)
+            if run_id:
+                span.set_attribute("agno.run.id", run_id)
+
             # Capture user_id from instance if available
             if instance and hasattr(instance, "user_id") and instance.user_id:
                 span.set_attribute(USER_ID, instance.user_id)
 
+        except (StopIteration, StopAsyncIteration):
+            raise
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
             raise
 
         finally:
-            if workflow_token:
-                try:
-                    context_api.detach(workflow_token)
-                except Exception:
-                    pass
             span.end()
 
     def arun(
@@ -355,40 +367,55 @@ class _WorkflowWrapper:
 
         # Setup context and call wrapped to detect streaming
         workflow_token = None
+        is_streaming = False
         with trace_api.use_span(span, end_on_exit=False):
-            workflow_token = _setup_workflow_context(node_id)
+            workflow_token = _setup_node_context(node_id)
             result = wrapped(*args, **kwargs)
 
-        # Check if result is an async iterator (streaming)
-        if hasattr(result, "__aiter__"):
-            # Streaming mode - return async generator that continues with this span
-            return self._arun_stream_continue(result, span, workflow_token, instance)
+            # Check if result is an async iterator (streaming)
+            is_streaming = hasattr(result, "__aiter__")
+            if is_streaming and workflow_token:
+                try:
+                    context_api.detach(workflow_token)
+                    workflow_token = None
+                except Exception:
+                    pass
+
+        if is_streaming:
+            return self._arun_stream_continue(result, span, node_id, instance)
 
         # Non-streaming mode - return coroutine that handles it
         async def non_stream_wrapper() -> Any:
             nonlocal workflow_token
+            ctx_token = None
             try:
-                # Await the coroutine inside span context
-                with trace_api.use_span(span, end_on_exit=False):
-                    response = await result
+                ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                if workflow_token is None:
+                    workflow_token = _setup_node_context(node_id)
+                response = await result
 
-                    # Detach token immediately after execution, while still in span context
-                    if workflow_token:
-                        try:
-                            context_api.detach(workflow_token)
-                            workflow_token = None
-                        except Exception:
-                            pass
+                # Detach tokens immediately after execution completes
+                if workflow_token is not None:
+                    context_api.detach(workflow_token)
+                    workflow_token = None
+                if ctx_token is not None:
+                    context_api.detach(ctx_token)
+                    ctx_token = None
 
                 span.set_status(trace_api.StatusCode.OK)
-                output = _extract_output(response)
+                output, mime_type = _extract_output(response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
                 # Set workflow ID after execution (it's initialized inside the wrapped method)
                 if hasattr(instance, "id") and instance.id:
                     span.set_attribute("agno.workflow.id", instance.id)
+
+                # Capture the workflow run_id
+                run_id = getattr(response, "run_id", None)
+                if run_id:
+                    span.set_attribute("agno.run.id", run_id)
 
                 # Capture user_id from instance if available
                 if hasattr(instance, "user_id") and instance.user_id:
@@ -402,11 +429,10 @@ class _WorkflowWrapper:
                 raise
 
             finally:
-                if workflow_token:
-                    try:
-                        context_api.detach(workflow_token)
-                    except Exception:
-                        pass
+                if workflow_token is not None:
+                    context_api.detach(workflow_token)
+                if ctx_token is not None:
+                    context_api.detach(ctx_token)
                 span.end()
 
         return non_stream_wrapper()
@@ -415,52 +441,60 @@ class _WorkflowWrapper:
         self,
         async_iter: Any,
         span: Any,
-        workflow_token: Any,
+        node_id: str,
         instance: Any = None,
     ) -> Any:
         """Continue streaming async workflow with existing span"""
         final_response = None
+        iterator = async_iter.__aiter__()
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            while True:
+                ctx_token = None
+                workflow_token = None
                 try:
-                    async for response in async_iter:
-                        final_response = response
-                        yield response
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    workflow_token = _setup_node_context(node_id)
+                    response = await anext(iterator)
+                except StopAsyncIteration:
+                    break
                 finally:
-                    if workflow_token:
-                        try:
-                            context_api.detach(workflow_token)
-                            workflow_token = None
-                        except Exception:
-                            pass
+                    if workflow_token is not None:
+                        context_api.detach(workflow_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
+                final_response = response
+                yield response
 
             span.set_status(trace_api.StatusCode.OK)
             # Extract output only from the final response
             if final_response is not None:
-                output = _extract_output(final_response)
+                output, mime_type = _extract_output(final_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
 
+            # Capture the workflow run_id
+            run_id = getattr(final_response, "run_id", None)
+            if run_id:
+                span.set_attribute("agno.run.id", run_id)
+
             # Capture user_id from instance if available
             if instance and hasattr(instance, "user_id") and instance.user_id:
                 span.set_attribute(USER_ID, instance.user_id)
 
+        except (StopIteration, StopAsyncIteration):
+            raise
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
             raise
 
         finally:
-            if workflow_token:
-                try:
-                    context_api.detach(workflow_token)
-                except Exception:
-                    pass
             span.end()
 
 
@@ -512,15 +546,20 @@ class _StepWrapper:
         result = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
-                step_token = _setup_step_context(node_id)
+                step_token = _setup_node_context(node_id)
                 result = wrapped(*args, **kwargs)
 
                 # Check if result is an iterator (streaming)
                 is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
 
                 if is_streaming:
-                    # For streaming, keep token attached and handle in stream continuation
-                    return self._run_stream_continue(result, span, step_token)
+                    if step_token:
+                        try:
+                            context_api.detach(step_token)
+                            step_token = None
+                        except Exception:
+                            pass
+                    return self._run_stream_continue(result, span, node_id)
 
                 # Non-streaming mode - detach token immediately while still in span context
                 if step_token:
@@ -532,10 +571,10 @@ class _StepWrapper:
 
             # Set output and return (outside use_span but token already detached)
             span.set_status(trace_api.StatusCode.OK)
-            output = _extract_output(result)
+            output, mime_type = _extract_output(result)
             if output:
                 span.set_attribute(OUTPUT_VALUE, output)
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             return result
 
@@ -563,43 +602,46 @@ class _StepWrapper:
         self,
         iterator: Any,
         span: Any,
-        step_token: Any,
+        node_id: str,
     ) -> Any:
         """Continue streaming step with existing span"""
         final_response = None
+        iterator = iter(iterator)
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            while True:
+                ctx_token = None
+                step_token = None
                 try:
-                    for response in iterator:
-                        final_response = response
-                        yield response
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    step_token = _setup_node_context(node_id)
+                    response = next(iterator)
+                except StopIteration:
+                    break
                 finally:
-                    if step_token:
-                        try:
-                            context_api.detach(step_token)
-                            step_token = None
-                        except Exception:
-                            pass
+                    if step_token is not None:
+                        context_api.detach(step_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
+                final_response = response
+                yield response
 
             span.set_status(trace_api.StatusCode.OK)
             # Extract output only from the final response
             if final_response is not None:
-                output = _extract_output(final_response)
+                output, mime_type = _extract_output(final_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
+        except (StopIteration, StopAsyncIteration):
+            raise
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
             raise
 
         finally:
-            if step_token:
-                try:
-                    context_api.detach(step_token)
-                except Exception:
-                    pass
             span.end()
 
     def arun(
@@ -644,36 +686,46 @@ class _StepWrapper:
 
         # Setup context and call wrapped to detect streaming
         step_token = None
+        is_streaming = False
         with trace_api.use_span(span, end_on_exit=False):
-            step_token = _setup_step_context(node_id)
+            step_token = _setup_node_context(node_id)
             result = wrapped(*args, **kwargs)
 
-        # Check if result is an async iterator (streaming)
-        if hasattr(result, "__aiter__"):
-            # Streaming mode - return async generator that continues with this span
-            return self._arun_stream_continue(result, span, step_token)
+            # Check if result is an async iterator (streaming)
+            is_streaming = hasattr(result, "__aiter__")
+            if is_streaming and step_token:
+                try:
+                    context_api.detach(step_token)
+                    step_token = None
+                except Exception:
+                    pass
+
+        if is_streaming:
+            return self._arun_stream_continue(result, span, node_id)
 
         # Non-streaming mode - return coroutine that handles it
         async def non_stream_wrapper() -> Any:
             nonlocal step_token
+            ctx_token = None
             try:
-                # Await the coroutine inside span context
-                with trace_api.use_span(span, end_on_exit=False):
-                    response = await result
+                ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                if step_token is None:
+                    step_token = _setup_node_context(node_id)
+                response = await result
 
-                    # Detach token immediately after execution, while still in span context
-                    if step_token:
-                        try:
-                            context_api.detach(step_token)
-                            step_token = None
-                        except Exception:
-                            pass
+                # Detach tokens immediately after execution completes
+                if step_token is not None:
+                    context_api.detach(step_token)
+                    step_token = None
+                if ctx_token is not None:
+                    context_api.detach(ctx_token)
+                    ctx_token = None
 
                 span.set_status(trace_api.StatusCode.OK)
-                output = _extract_output(response)
+                output, mime_type = _extract_output(response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
                 return response
 
@@ -683,11 +735,10 @@ class _StepWrapper:
                 raise
 
             finally:
-                if step_token:
-                    try:
-                        context_api.detach(step_token)
-                    except Exception:
-                        pass
+                if step_token is not None:
+                    context_api.detach(step_token)
+                if ctx_token is not None:
+                    context_api.detach(ctx_token)
                 span.end()
 
         return non_stream_wrapper()
@@ -696,43 +747,46 @@ class _StepWrapper:
         self,
         async_iter: Any,
         span: Any,
-        step_token: Any,
+        node_id: str,
     ) -> Any:
         """Continue streaming async step with existing span"""
         final_response = None
+        iterator = async_iter.__aiter__()
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            while True:
+                ctx_token = None
+                step_token = None
                 try:
-                    async for response in async_iter:
-                        final_response = response
-                        yield response
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    step_token = _setup_node_context(node_id)
+                    response = await anext(iterator)
+                except StopAsyncIteration:
+                    break
                 finally:
-                    if step_token:
-                        try:
-                            context_api.detach(step_token)
-                            step_token = None
-                        except Exception:
-                            pass
+                    if step_token is not None:
+                        context_api.detach(step_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
+                final_response = response
+                yield response
 
             span.set_status(trace_api.StatusCode.OK)
             # Extract output only from the final response
             if final_response is not None:
-                output = _extract_output(final_response)
+                output, mime_type = _extract_output(final_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
+        except (StopIteration, StopAsyncIteration):
+            raise
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
             raise
 
         finally:
-            if step_token:
-                try:
-                    context_api.detach(step_token)
-                except Exception:
-                    pass
             span.end()
 
 
@@ -792,7 +846,7 @@ class _ParallelWrapper:
         result = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
-                parallel_token = _setup_parallel_context(node_id)
+                parallel_token = _setup_node_context(node_id)
 
                 # Context propagation is now handled by Agno's copy_context().run
                 result = wrapped(*args, **kwargs)
@@ -801,8 +855,13 @@ class _ParallelWrapper:
                 is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
 
                 if is_streaming:
-                    # Sync streaming mode - return sync generator continuation
-                    return self._execute_stream_continue(result, span, parallel_token)
+                    if parallel_token:
+                        try:
+                            context_api.detach(parallel_token)
+                            parallel_token = None
+                        except Exception:
+                            pass
+                    return self._execute_stream_continue(result, span, node_id)
 
                 # Non-streaming mode - detach token immediately
                 if parallel_token:
@@ -814,10 +873,10 @@ class _ParallelWrapper:
 
             # Set output
             span.set_status(trace_api.StatusCode.OK)
-            output = _extract_output(result)
+            output, mime_type = _extract_output(result)
             if output:
                 span.set_attribute(OUTPUT_VALUE, output)
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
             return result
 
@@ -846,41 +905,44 @@ class _ParallelWrapper:
         self,
         iterator: Any,
         span: Any,
-        parallel_token: Any,
+        node_id: str,
     ) -> Any:
         """Continue streaming parallel execution with existing span"""
         accumulated_output = []
+        iterator = iter(iterator)
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            while True:
+                ctx_token = None
+                parallel_token = None
                 try:
-                    for response in iterator:
-                        if hasattr(response, "content") and response.content:
-                            accumulated_output.append(str(response.content))
-                        yield response
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    parallel_token = _setup_node_context(node_id)
+                    response = next(iterator)
+                except StopIteration:
+                    break
                 finally:
-                    if parallel_token:
-                        try:
-                            context_api.detach(parallel_token)
-                            parallel_token = None
-                        except Exception:
-                            pass
+                    if parallel_token is not None:
+                        context_api.detach(parallel_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
+                if hasattr(response, "content") and response.content:
+                    accumulated_output.append(str(response.content))
+                yield response
 
             span.set_status(trace_api.StatusCode.OK)
             if accumulated_output:
                 span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
 
+        except (StopIteration, StopAsyncIteration):
+            raise
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
             raise
 
         finally:
-            if parallel_token:
-                try:
-                    context_api.detach(parallel_token)
-                except Exception:
-                    pass
             span.end()
 
     def aexecute(
@@ -925,37 +987,47 @@ class _ParallelWrapper:
 
         # Setup context and call wrapped to detect streaming
         parallel_token = None
+        is_streaming = False
         with trace_api.use_span(span, end_on_exit=False):
-            parallel_token = _setup_parallel_context(node_id)
+            parallel_token = _setup_node_context(node_id)
 
             result = wrapped(*args, **kwargs)
 
-        # Check if result is an async iterator (streaming)
-        if hasattr(result, "__aiter__"):
-            # Async streaming mode - return async generator continuation
-            return self._aexecute_stream_continue(result, span, parallel_token)
+            # Check if result is an async iterator (streaming)
+            is_streaming = hasattr(result, "__aiter__")
+            if is_streaming and parallel_token:
+                try:
+                    context_api.detach(parallel_token)
+                    parallel_token = None
+                except Exception:
+                    pass
+
+        if is_streaming:
+            return self._aexecute_stream_continue(result, span, node_id)
 
         # Non-streaming async mode - return coroutine that handles it
         async def non_stream_wrapper() -> Any:
             nonlocal parallel_token
+            ctx_token = None
             try:
-                # Await the coroutine inside span context
-                with trace_api.use_span(span, end_on_exit=False):
-                    response = await result
+                ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                if parallel_token is None:
+                    parallel_token = _setup_node_context(node_id)
+                response = await result
 
-                    # Detach token immediately after execution
-                    if parallel_token:
-                        try:
-                            context_api.detach(parallel_token)
-                            parallel_token = None
-                        except Exception:
-                            pass
+                # Detach tokens immediately after execution completes
+                if parallel_token is not None:
+                    context_api.detach(parallel_token)
+                    parallel_token = None
+                if ctx_token is not None:
+                    context_api.detach(ctx_token)
+                    ctx_token = None
 
                 span.set_status(trace_api.StatusCode.OK)
-                output = _extract_output(response)
+                output, mime_type = _extract_output(response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
-                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                    span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
 
                 return response
 
@@ -965,11 +1037,10 @@ class _ParallelWrapper:
                 raise
 
             finally:
-                if parallel_token:
-                    try:
-                        context_api.detach(parallel_token)
-                    except Exception:
-                        pass
+                if parallel_token is not None:
+                    context_api.detach(parallel_token)
+                if ctx_token is not None:
+                    context_api.detach(ctx_token)
                 span.end()
 
         return non_stream_wrapper()
@@ -978,46 +1049,49 @@ class _ParallelWrapper:
         self,
         async_iter: Any,
         span: Any,
-        parallel_token: Any,
+        node_id: str,
     ) -> Any:
         """Continue streaming async parallel execution with existing span"""
         accumulated_output = []
+        iterator = async_iter.__aiter__()
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            while True:
+                ctx_token = None
+                parallel_token = None
                 try:
-                    async for response in async_iter:
-                        if hasattr(response, "content") and response.content:
-                            accumulated_output.append(str(response.content))
-                        yield response
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    parallel_token = _setup_node_context(node_id)
+                    response = await anext(iterator)
+                except StopAsyncIteration:
+                    break
                 finally:
-                    if parallel_token:
-                        try:
-                            context_api.detach(parallel_token)
-                            parallel_token = None
-                        except Exception:
-                            pass
+                    if parallel_token is not None:
+                        context_api.detach(parallel_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
+                if hasattr(response, "content") and response.content:
+                    accumulated_output.append(str(response.content))
+                yield response
 
             span.set_status(trace_api.StatusCode.OK)
             if accumulated_output:
                 span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
 
+        except (StopIteration, StopAsyncIteration):
+            raise
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
             raise
 
         finally:
-            if parallel_token:
-                try:
-                    context_api.detach(parallel_token)
-                except Exception:
-                    pass
             span.end()
 
 
-def _setup_parallel_context(node_id: str) -> Any:
-    """Set up context for parallel container to propagate to child steps."""
+def _setup_node_context(node_id: str) -> Any:
+    """Set up context for different nodes to propagate to child steps."""
     parallel_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
     return context_api.attach(parallel_ctx)
 

@@ -26,7 +26,7 @@ import pytest
 from httpx import AsyncByteStream, Response, SyncByteStream
 from llama_index.core import Document, ListIndex, Settings
 from llama_index.core.base.response.schema import StreamingResponse
-from llama_index.core.callbacks import CallbackManager
+from llama_index.core.callbacks import CallbackManager, CBEventType, EventPayload
 from llama_index.core.schema import TextNode
 from llama_index.llms.openai import OpenAI
 from opentelemetry import trace as trace_api
@@ -39,6 +39,7 @@ from tenacity import wait_none
 
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from openinference.instrumentation.llama_index._callback import payload_to_semantic_attributes
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -60,6 +61,26 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.addHandler(logging.StreamHandler())
 
 LLAMA_INDEX_VERSION = tuple(map(int, version("llama-index-core").split(".")[:3]))
+
+
+@pytest.mark.parametrize(
+    "serialized, expected_model_name",
+    [
+        ({"model": "gpt-4o"}, "gpt-4o"),
+        ({"class_name": "OpenAI", "model_name": "gpt-4o-mini"}, "gpt-4o-mini"),
+    ],
+)
+def test_payload_to_semantic_attributes_sets_llm_model_name(
+    serialized: Dict[str, Any],
+    expected_model_name: str,
+) -> None:
+    payload: Dict[str, Any] = {EventPayload.SERIALIZED: serialized}
+
+    attributes = payload_to_semantic_attributes(CBEventType.LLM, payload)
+
+    assert attributes[LLM_MODEL_NAME] == expected_model_name
+    invocation_parameters = json.loads(cast(str, attributes[LLM_INVOCATION_PARAMETERS]))
+    assert invocation_parameters["model"] == expected_model_name
 
 
 @pytest.mark.parametrize("is_stream", [False, True])

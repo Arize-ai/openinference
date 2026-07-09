@@ -138,8 +138,13 @@ class _RunnerRunAsync(_WithTracer):
                     ):
                         stack.enter_context(using_session(session_id))
 
+                    has_output_with_content = False
                     async for event in self.__wrapped__:
                         if event.is_final_response():
+                            event_has_content = _event_has_content(event)
+                            if has_output_with_content and not event_has_content:
+                                yield event
+                                continue
                             try:
                                 span.set_attribute(
                                     SpanAttributes.OUTPUT_VALUE,
@@ -152,6 +157,10 @@ class _RunnerRunAsync(_WithTracer):
                             except Exception:
                                 logger.exception(
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                )
+                            else:
+                                has_output_with_content = (
+                                    has_output_with_content or event_has_content
                                 )
                         yield event
                     span.set_status(StatusCode.OK)
@@ -185,8 +194,13 @@ class _BaseAgentRunAsync(_WithTracer):
                     name=name,
                     attributes=attributes,
                 ) as span:
+                    has_output_with_content = False
                     async for event in self.__wrapped__:
                         if event.is_final_response():
+                            event_has_content = _event_has_content(event)
+                            if has_output_with_content and not event_has_content:
+                                yield event
+                                continue
                             try:
                                 span.set_attribute(
                                     SpanAttributes.OUTPUT_VALUE,
@@ -199,6 +213,10 @@ class _BaseAgentRunAsync(_WithTracer):
                             except Exception:
                                 logger.exception(
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                )
+                            else:
+                                has_output_with_content = (
+                                    has_output_with_content or event_has_content
                                 )
                         yield event
                     span.set_status(StatusCode.OK)
@@ -346,6 +364,8 @@ class _TraceToolCall(_WithTracer):
         if event := next((arg for arg in arguments.values() if isinstance(arg, Event)), None):
             if responses := event.get_function_responses():
                 try:
+                    if responses[0].id:
+                        span.set_attribute(SpanAttributes.TOOL_ID, responses[0].id)
                     span.set_attribute(
                         SpanAttributes.OUTPUT_VALUE,
                         responses[0].model_dump_json(exclude_none=True),
@@ -516,6 +536,8 @@ def _get_attributes_from_parts(
             yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
             if function_response.name:
                 yield f"{prefix}{MessageAttributes.MESSAGE_NAME}", function_response.name
+            if function_response.id:
+                yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", function_response.id
             if function_response.response:
                 yield (
                     f"{prefix}{MessageAttributes.MESSAGE_CONTENT}",
@@ -557,24 +579,6 @@ def _get_attributes_from_function_call(
 
 
 @stop_on_exception
-def _get_attributes_from_function_response(
-    obj: types.FunctionResponse,
-    /,
-    *,
-    prefix: str = "",
-) -> Iterator[tuple[str, AttributeValue]]:
-    if id_ := obj.id:
-        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", id_
-    if name := obj.name:
-        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", name
-    if response := obj.response:
-        yield (
-            f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-            safe_json_dumps(response),
-        )
-
-
-@stop_on_exception
 def _get_attributes_from_base_tool(
     obj: BaseTool,
     /,
@@ -593,6 +597,10 @@ def bind_args_kwargs(func: Any, *args: Any, **kwargs: Any) -> OrderedDict[str, A
     bound = sig.bind(*args, **kwargs)
     bound.apply_defaults()
     return bound.arguments
+
+
+def _event_has_content(event: Event) -> bool:
+    return bool(event.content and event.content.parts)
 
 
 def _default(obj: Any) -> Any:

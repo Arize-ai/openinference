@@ -4,7 +4,7 @@
 
 Python auto-instrumentation library for OpenAI Agents python SDK.
 
-The traces emitted by this instrumentation are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix)
+The traces emitted by this instrumentation are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax).
 
 ## Installation
 
@@ -63,3 +63,36 @@ Now simply run the python file and observe the traces in Phoenix.
 ```shell
 python your_file.py
 ```
+
+## Realtime audio
+
+`OpenAIAgentsInstrumentor().instrument(...)` also traces `agents.realtime.RealtimeSession` (the OpenAI Agents SDK's voice/audio runtime) when the realtime extras are installed. No additional setup is required — `instrument(...)` applies the realtime patches whenever `agents.realtime` is importable.
+
+For each turn the instrumentor produces this span tree:
+
+```
+AUDIO   "conversation.turn"     ← parent; aggregated input/output transcripts, llm.model_name, llm.invocation_parameters
+├─ USER  "user"                 ← input.audio.url (WAV data URI), input.audio.transcript, or input.value for text input
+├─ LLM   "assistant"            ← output.audio.url, output.audio.transcript, token counts, time_to_first_token_ms
+│  └─ TOOL "<tool_name>"        ← one per function call within the turn
+└─ ...                          ← additional USER / LLM siblings for split input or tool round-trips
+```
+
+A runnable mic/speaker example with two function tools lives at [`examples/realtime_with_tools.py`](./examples/realtime_with_tools.py).
+
+### Audio redaction
+
+The realtime instrumentor recognizes three environment variables for redacting captured audio:
+
+- `OPENINFERENCE_HIDE_INPUT_AUDIO` — when truthy (`1` / `true` / `yes` / `on`), drops `input.audio.url`, `input.audio.mime_type`, and `input.audio.transcript` from `USER` spans. Default: `false`.
+- `OPENINFERENCE_HIDE_OUTPUT_AUDIO` — same shape, drops the `output.audio.*` attributes from `LLM` spans. Default: `false`.
+- `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` — caps the base64 payload length of audio `data:` URIs. The `data:audio/wav;base64,` prefix is always preserved. Default: `32000`.
+
+`TraceConfig(hide_inputs=True)` and `TraceConfig(hide_outputs=True)` also cascade to the corresponding audio attributes.
+
+## More Info
+
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [More info on OpenInference and Arize AX](https://arize.com/docs/ax)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

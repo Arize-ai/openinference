@@ -4,11 +4,13 @@ import json
 from collections import defaultdict
 from collections.abc import Mapping
 from secrets import token_hex
-from typing import Any, cast
+from types import SimpleNamespace
+from typing import Any, AsyncGenerator, cast
 
 import pytest
 from google.adk import Agent, __version__
 from google.adk.code_executors.built_in_code_executor import BuiltInCodeExecutor
+from google.adk.events import Event, EventActions
 from google.adk.runners import InMemoryRunner
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool as load_artifacts
@@ -26,7 +28,11 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
-from openinference.semconv.trace import SpanAttributes
+from openinference.instrumentation.google_adk._wrappers import (
+    _BaseAgentRunAsync,
+    _RunnerRunAsync,
+)
+from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
@@ -35,6 +41,18 @@ _CODE_EXECUTION_QUESTION = (
     "What is the sum of the first 50 prime numbers? "
     "Generate and run code for the calculation, and make sure you get all 50."
 )
+
+
+def _pop_input_message_tool_call_ids(attributes: dict[str, Any]) -> None:
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}."
+    suffix = f".{MessageAttributes.MESSAGE_TOOL_CALL_ID}"
+    for key in list(attributes):
+        if key.startswith(prefix) and key.endswith(suffix):
+            attributes.pop(key)
+
+
+def _pop_tool_span_id(attributes: dict[str, Any]) -> None:
+    attributes.pop(SpanAttributes.TOOL_ID, None)
 
 
 def _get_weather(city: str) -> dict[str, str]:
@@ -98,6 +116,95 @@ def _get_usage_metadata_from_llm_response(attributes: Mapping[str, Any]) -> Mapp
 def _get_count(metadata: Mapping[str, Any], snake_case: str, camel_case: str) -> int:
     value = metadata.get(snake_case, metadata.get(camel_case))
     return int(value or 0)
+
+
+def _content_event(text: str, *, timestamp: float) -> Event:
+    return Event(
+        author="test-agent",
+        invocation_id="test-invocation",
+        actions=EventActions(),
+        timestamp=timestamp,
+        content=types.Content(role="model", parts=[types.Part(text=text)]),
+    )
+
+
+def _state_delta_event(*, timestamp: float) -> Event:
+    return Event(
+        author="test-agent",
+        invocation_id="test-invocation",
+        actions=EventActions(state_delta={"latest_state": "synced"}),
+        timestamp=timestamp,
+    )
+
+
+async def _event_stream(events: list[Event]) -> AsyncGenerator[Event, None]:
+    for event in events:
+        yield event
+
+
+async def test_runner_run_async_keeps_content_output_after_state_delta_final_event(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    content_event = _content_event("final answer", timestamp=1.0)
+    state_delta_event = _state_delta_event(timestamp=2.0)
+
+    async def run_async(
+        *,
+        user_id: str,
+        session_id: str,
+        new_message: types.Content,
+    ) -> AsyncGenerator[Event, None]:
+        async for event in _event_stream([content_event, state_delta_event]):
+            yield event
+
+    wrapped = _RunnerRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(Any, SimpleNamespace(app_name="test-app")),
+        (),
+        {
+            "user_id": "test-user",
+            "session_id": "test-session",
+            "new_message": types.Content(role="user", parts=[types.Part(text="hi")]),
+        },
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [content_event, state_delta_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes
+    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
+        exclude_none=True
+    )
+
+
+async def test_base_agent_run_async_keeps_content_output_after_state_delta_final_event(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    content_event = _content_event("agent answer", timestamp=1.0)
+    state_delta_event = _state_delta_event(timestamp=2.0)
+
+    async def run_async() -> AsyncGenerator[Event, None]:
+        async for event in _event_stream([content_event, state_delta_event]):
+            yield event
+
+    wrapped = _BaseAgentRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(Any, SimpleNamespace(name="test-agent")),
+        (),
+        {},
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [content_event, state_delta_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes
+    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
+        exclude_none=True
+    )
 
 
 @pytest.mark.skipif(
@@ -402,6 +509,7 @@ async def test_google_adk_instrumentor(
         tool_attributes.pop("gcp.vertex.agent.tool_response", None)
         == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
+    _pop_tool_span_id(tool_attributes)
     # GenAI attributes set by google-adk library
     tool_attributes.pop("gen_ai.operation.name", None)
     tool_attributes.pop("gen_ai.system", None)
@@ -493,6 +601,7 @@ async def test_google_adk_instrumentor(
     call_llm_attributes1.pop("gen_ai.conversation.id", None)
     call_llm_attributes1.pop("gen_ai.operation.name", None)
     call_llm_attributes1.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes1)
     assert not call_llm_attributes1
 
 
@@ -638,8 +747,17 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
         assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 136
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 16
-        assert call_llm_attributes0.pop("gen_ai.usage.experimental.reasoning_tokens", None) == 76
+        if _VERSION >= (2, 3, 0):
+            # google-adk >= 2.3.0 includes reasoning (thoughts) tokens in
+            # gen_ai.usage.output_tokens and renamed the reasoning attribute from
+            # gen_ai.usage.experimental.reasoning_tokens to gen_ai.usage.reasoning.output_tokens
+            assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 92
+            assert call_llm_attributes0.pop("gen_ai.usage.reasoning.output_tokens", None) == 76
+        else:
+            assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 16
+            assert (
+                call_llm_attributes0.pop("gen_ai.usage.experimental.reasoning_tokens", None) == 76
+            )
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
     call_llm_attributes0.pop("gen_ai.agent.name", None)
     call_llm_attributes0.pop("gen_ai.conversation.id", None)
@@ -673,6 +791,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
         tool_attributes.pop("gcp.vertex.agent.tool_response", None)
         == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
+    _pop_tool_span_id(tool_attributes)
     # GenAI attributes set by google-adk library
     tool_attributes.pop("gen_ai.operation.name", None)
     tool_attributes.pop("gen_ai.system", None)
@@ -765,6 +884,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     call_llm_attributes1.pop("gen_ai.conversation.id", None)
     call_llm_attributes1.pop("gen_ai.operation.name", None)
     call_llm_attributes1.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes1)
     assert not call_llm_attributes1
 
     tool_span1 = spans_by_name["execute_tool get_weather"][1]
@@ -793,6 +913,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
         tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
         == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
+    _pop_tool_span_id(tool_attributes1)
     # GenAI attributes set by google-adk library
     tool_attributes1.pop("gen_ai.operation.name", None)
     tool_attributes1.pop("gen_ai.system", None)
@@ -904,6 +1025,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     call_llm_attributes2.pop("gen_ai.conversation.id", None)
     call_llm_attributes2.pop("gen_ai.operation.name", None)
     call_llm_attributes2.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes2)
     assert not call_llm_attributes2
 
 
@@ -1199,6 +1321,7 @@ async def test_google_adk_instrumentor_multi_agent(
     assert (
         transfer_tool_attributes.pop("gcp.vertex.agent.tool_response", None) == '{"result": null}'
     )
+    _pop_tool_span_id(transfer_tool_attributes)
     # GenAI attributes set by google-adk library
     transfer_tool_attributes.pop("gen_ai.operation.name", None)
     transfer_tool_attributes.pop("gen_ai.system", None)
@@ -1347,6 +1470,7 @@ async def test_google_adk_instrumentor_multi_agent(
     call_llm_attributes1.pop("gen_ai.conversation.id", None)
     call_llm_attributes1.pop("gen_ai.operation.name", None)
     call_llm_attributes1.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes1)
     assert not call_llm_attributes1
 
     # 7. execute_tool get_weather
@@ -1379,6 +1503,7 @@ async def test_google_adk_instrumentor_multi_agent(
         get_weather_tool_attributes.pop("gcp.vertex.agent.tool_response", None)
         == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
+    _pop_tool_span_id(get_weather_tool_attributes)
     # GenAI attributes set by google-adk library
     get_weather_tool_attributes.pop("gen_ai.operation.name", None)
     get_weather_tool_attributes.pop("gen_ai.system", None)
@@ -1521,6 +1646,7 @@ async def test_google_adk_instrumentor_multi_agent(
     call_llm_attributes2.pop("gen_ai.conversation.id", None)
     call_llm_attributes2.pop("gen_ai.operation.name", None)
     call_llm_attributes2.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes2)
     assert not call_llm_attributes2
 
 
@@ -1740,6 +1866,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     call_llm_attributes.pop("gen_ai.conversation.id", None)
     call_llm_attributes.pop("gen_ai.operation.name", None)
     call_llm_attributes.pop("gen_ai.agent.version", None)
+    _pop_input_message_tool_call_ids(call_llm_attributes)
     assert not call_llm_attributes
 
     tool_span = spans_by_name["execute_tool load_remote_image"][0]
@@ -1764,6 +1891,7 @@ async def test_google_adk_instrumentor_image_artifacts(
         == '{"file_path": "sample.png"}'
     )
     assert tool_attributes.pop("gcp.vertex.agent.tool_response", None)
+    _pop_tool_span_id(tool_attributes)
     # GenAI attributes set by google-adk library
     tool_attributes.pop("gen_ai.operation.name", None)
     tool_attributes.pop("gen_ai.system", None)
@@ -1795,6 +1923,7 @@ async def test_google_adk_instrumentor_image_artifacts(
         == '{"artifact_names": ["sample.png"]}'
     )
     assert tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
+    _pop_tool_span_id(tool_attributes1)
     # GenAI attributes set by google-adk library
     tool_attributes1.pop("gen_ai.operation.name", None)
     tool_attributes1.pop("gen_ai.system", None)
@@ -1803,6 +1932,114 @@ async def test_google_adk_instrumentor_image_artifacts(
     tool_attributes1.pop("gen_ai.tool.name", None)
     tool_attributes1.pop("gen_ai.tool.type", None)
     assert not tool_attributes1
+
+
+async def test_google_adk_instrumentor_tool_call_id_correlation(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Same ADK-native call id on output tool_call, execute_tool span, and tool message."""
+    from typing import AsyncGenerator
+
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    tool_call_id = "call_ny_abc123"
+
+    def get_weather(city: str) -> dict[str, str]:
+        return {
+            "status": "success",
+            "report": f"The weather in {city} is sunny.",
+        }
+
+    tool_call_response = LlmResponse(
+        content=types.Content(
+            role="model",
+            parts=[
+                types.Part(
+                    function_call=types.FunctionCall(
+                        id=tool_call_id,
+                        name="get_weather",
+                        args={"city": "New York"},
+                    )
+                ),
+            ],
+        )
+    )
+    final_text_response = LlmResponse(
+        content=types.Content(
+            role="model",
+            parts=[types.Part(text="The weather in New York is sunny.")],
+        )
+    )
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+        _index: int = 0
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            responses = [tool_call_response, final_text_response]
+            response = responses[min(self._index, len(responses) - 1)]
+            object.__setattr__(self, "_index", self._index + 1)
+            yield response
+
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model=_StubLlm(),
+        description="Agent to answer questions using tools.",
+        instruction="You must use the available tools to find an answer.",
+        tools=[get_weather],
+    )
+
+    app_name = f"app{token_hex(4)}"
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+    runner = InMemoryRunner(agent=agent, app_name=app_name)
+    await runner.session_service.create_session(
+        app_name=app_name, user_id=user_id, session_id=session_id
+    )
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[types.Part(text="What is the weather in New York?")],
+        ),
+    ):
+        ...
+
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in in_memory_span_exporter.get_finished_spans():
+        spans_by_name[span.name].append(span)
+
+    call_llm_spans = sorted(spans_by_name["call_llm"], key=lambda s: s.start_time or 0)
+    assert len(call_llm_spans) == 2
+
+    turn1_attrs = dict(call_llm_spans[0].attributes or {})
+    assert (
+        turn1_attrs.get(
+            f"llm.output_messages.0.message.tool_calls.0.{ToolCallAttributes.TOOL_CALL_ID}"
+        )
+        == tool_call_id
+    )
+
+    tool_span = spans_by_name["execute_tool get_weather"][0]
+    tool_attrs = dict(tool_span.attributes or {})
+    assert tool_attrs.get(SpanAttributes.TOOL_ID) == tool_call_id
+
+    turn2_attrs = dict(call_llm_spans[1].attributes or {})
+    tool_call_id_suffix = f".{MessageAttributes.MESSAGE_TOOL_CALL_ID}"
+    tool_message_tool_call_ids = {
+        k: v
+        for k, v in turn2_attrs.items()
+        if k.startswith(SpanAttributes.LLM_INPUT_MESSAGES) and k.endswith(tool_call_id_suffix)
+    }
+    assert len(tool_message_tool_call_ids) == 1
+    assert next(iter(tool_message_tool_call_ids.values())) == tool_call_id
 
 
 async def test_google_adk_instrumentor_parallel_tool_calls(

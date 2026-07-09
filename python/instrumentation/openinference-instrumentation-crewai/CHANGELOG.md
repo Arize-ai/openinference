@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.9...python-openinference-instrumentation-crewai-v1.1.10) (2026-06-17)
+
+
+### Bug Fixes
+
+* **crewai:** handle latest flow method events ([#3250](https://github.com/Arize-ai/openinference/issues/3250)) ([e8e1ce8](https://github.com/Arize-ai/openinference/commit/e8e1ce8222a79533f3a772c4708ed7224b92ea42))
+
+## [1.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.8...python-openinference-instrumentation-crewai-v1.1.9) (2026-06-02)
+
+
+### Bug Fixes
+
+* **crewai:** post-process tool payload to strip args_schema and cache_function ([#3192](https://github.com/Arize-ai/openinference/issues/3192)) ([76c797c](https://github.com/Arize-ai/openinference/commit/76c797c75035bf65225fe9e2025e63b97a384905))
+
 ## [1.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.7...python-openinference-instrumentation-crewai-v1.1.8) (2026-05-22)
 
 

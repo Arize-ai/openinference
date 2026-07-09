@@ -30,8 +30,11 @@ def select_tox_environments(
 
     selected_environments = []
     for instrumentor in instrumentors_with_diff:
+        # Match the instrumentor against whole dash-delimited segments of the
+        # environment name (e.g. "py310-ci-openai", "py310-ci-openai-latest")
+        # so that "openai" does not erroneously match "openai_agents".
         selected_environments.extend(
-            [env for env in instrumentor_environments if instrumentor in env]
+            [env for env in instrumentor_environments if instrumentor in env.split("-")]
         )
     # Remove duplicates while preserving order
     return list(dict.fromkeys(selected_environments))

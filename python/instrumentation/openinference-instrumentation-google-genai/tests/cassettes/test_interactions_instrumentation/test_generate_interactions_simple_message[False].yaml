@@ -8,7 +8,9 @@ interactions:
     body:
       string: '{"id":"v1_ChdvdGNFYXNDa09LdW1tdGtQbnFydHdRcxIXb3RjRWFzQ2tPS3VtbXRrUG5xcnR3UXM","status":"completed","usage":{"total_tokens":233,"total_input_tokens":9,"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_output_tokens":13,"total_tool_use_tokens":0,"total_thought_tokens":211},"created":"2026-05-13T19:57:25Z","updated":"2026-05-13T19:57:25Z","service_tier":"standard","steps":[{"signature":"CqAGAQw51sewEUfxtBEEj2j4taqencc8wm4/KB9YVpkUOfK/9lbVxUKA2CYr8i8SMCXBlAbBVh2recJ/hoSt2AX/l0q04UKeQ73hUZpIlECagkCLwcSlETB5NDYC84CnZIwbvn+ovSPc2gfgzbyqG8hIGyjE4A/KarxqJuHMuy7qBU8i+Ji1AlutDXktaLPMIBTLvlASIqpnTWg7L5GO28Q6l3NhwDdF0NjtNjkQ0MaoeVqt9MHH6ATEfhFVvCrT43PyZn4uwu9hAkmuf4UHY4SNgieo5Q/m7lbWI63cNPmhddiHyNDcOMz7SPWoQtnUXYhgl658Jkmu73us+5Mr7gSj7P20IJLfkmuVCL68xKRlwRmupcprnvs/uzlH/DwFxsdrWgbU8EynadLywODvdhPRpQEkAtnqnlioTeP64OhSV3wMS6HjGgPoDcADO/mwiK/pfSY5wV63TXP7CEJTm5E1XRRYrJjHJ10VRID44FpzmaAtE4yOyALgVWdM8Oy2M2zdptKI+Hj0Y+h2Gqdgui/d/Y7ISnKbLPwpNEJ1Y0YGMJ1pXOe2/eiyeVMk8u8McWwtl9mAwF2coZyHTGQMQCXu4+15Y5PRDr4AoNN9TJF4Apfxa/OmjIE1DZ14OKwNoQrayszaDDEoSejp0mGwIuBZa7wRnavousTrFS8g25OSx+sxG4ntWPBCHKsrsA5JnagSyeBS98qXJPtFPuRP1sDNSD9IcXb+q1co7SkPp2k9876ZK36TQ7ZN2sV0nRUCJFjbFajGsOffEadi+qdodZld3f0wkvFpWDccRKamVnc1ZMQtCS1Dx6GwJGKyp25RtL1W+BcxFZzNaW+2MaPt8VdCFJbvWXGgVMIz+Uj1fsOaRr1zm1sgERDMAVhVqjIRv13pCNMe1gHTJKfSG9QvIMg1YTyKWQ+PJWH+Ff2fHQdAUK/FPHyixEeTp7b66qqWhaUfUsW8f/VzNnR2x2JtSfWCJ9F493prscAvk+5m8EmcDfom3Ujp4kqStrcZbjW2SMHt3g7wGeIPNuA5kGeGrNOnODKy+uKDGCNp3SV+E59GZA8=","type":"thought"},{"content":[{"text":"Why
         do programmers prefer dark mode?\n\nBecause light attracts bugs!","type":"text"}],"type":"model_output"}],"object":"interaction","model":"gemini-2.5-flash"}'
-    headers: {}
+    headers:
+      content-type:
+      - application/json
     status:
       code: 200
       message: OK

@@ -8,7 +8,7 @@ Python auto-instrumentation for the [Claude Agent SDK](https://platform.claude.c
 
 For detailed LLM and tool spans inside agent runs, use [openinference-instrumentation-anthropic](https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-anthropic) together with this package; the Agent SDK uses the Anthropic API under the hood.
 
-Traces are OpenTelemetry-compatible and can be sent to any OTLP collector, [Arize Phoenix](https://github.com/Arize-ai/phoenix) (local), or [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing).
+Traces are OpenTelemetry-compatible and can be sent to any OTLP collector, [Arize Phoenix](https://github.com/Arize-ai/phoenix) (local), [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing), or [Arize AX](https://arize.com/docs/ax).
 
 ## Installation
 
@@ -58,7 +58,7 @@ async def main():
 asyncio.run(main())
 ```
 
-View traces in [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing) or at `http://localhost:6006` when running Phoenix locally.
+View traces in [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing), at `http://localhost:6006` when running Phoenix locally, or in [Arize AX](https://arize.com/docs/ax).
 
 ## Examples
 
@@ -93,3 +93,8 @@ See [examples/README.md](examples/README.md) for details.
   - Each **`receive_response()`** iteration is wrapped in an AGENT span named `ClaudeAgentSDK.ClaudeSDKClient.receive_response` with the same input/output/metadata/tool spans as above.
 
 Child LLM/tool spans (from the SDK’s internal Anthropic usage) are not created by this package; add `openinference-instrumentation-anthropic` and instrument Anthropic for that.
+
+## More Info
+
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [More info on OpenInference and Arize AX](https://arize.com/docs/ax)

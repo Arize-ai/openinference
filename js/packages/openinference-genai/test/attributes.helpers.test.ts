@@ -2,6 +2,7 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 
 import {
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
+  mapAgentAttributes,
   mapInputMessages,
   mapInputValue,
   mapInvocationParameters,
@@ -10,6 +11,7 @@ import {
   mapOutputValue,
   mapProviderAndSystem,
   mapSpanKind,
+  mapSystemInstructions,
   mapTokenCounts,
   mapToolExecution,
 } from "../src/attributes.js";
@@ -84,6 +86,73 @@ describe("attributes helpers", () => {
     it("remains LLM for unrelated attributes (malformed)", () => {
       const attrs = mapSpanKind({ any: "thing" });
       expect(attrs["openinference.span.kind"]).toBe("LLM");
+    });
+
+    it.each(["create_agent", "invoke_agent", "plan"])(
+      "maps %s operations to AGENT without requiring agent markers",
+      (operationName) => {
+        const attrs = mapSpanKind({
+          "gen_ai.operation.name": operationName,
+        });
+        expect(attrs["openinference.span.kind"]).toBe("AGENT");
+      },
+    );
+
+    it("maps invoke_workflow operations to CHAIN without agent markers", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "invoke_workflow",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("CHAIN");
+    });
+
+    it("prefers AGENT over CHAIN when invoke_workflow carries agent markers", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "invoke_workflow",
+        "gen_ai.agent.name": "research_agent",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("AGENT");
+    });
+
+    it.each([
+      ["chat", "LLM"],
+      ["text_completion", "LLM"],
+      ["generate_content", "LLM"],
+      ["embeddings", "EMBEDDING"],
+      ["retrieval", "RETRIEVER"],
+      ["execute_tool", "TOOL"],
+    ])(
+      "classifies terminal operation %s by operation name even with agent markers (%s)",
+      (operationName, expected) => {
+        const attrs = mapSpanKind({
+          "gen_ai.operation.name": operationName,
+          "gen_ai.agent.name": "research_agent",
+        });
+        expect(attrs["openinference.span.kind"]).toBe(expected);
+      },
+    );
+
+    it("prefers TOOL over an agent-class operation when tool markers are present", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "plan",
+        "gen_ai.tool.name": "web_search",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("TOOL");
+    });
+  });
+
+  describe("mapAgentAttributes", () => {
+    it("maps agent name", () => {
+      const attrs = mapAgentAttributes({
+        "gen_ai.agent.name": "research_planner",
+      });
+      expect(attrs["agent.name"]).toBe("research_planner");
+    });
+
+    it("ignores non-string agent name", () => {
+      const attrs = mapAgentAttributes({
+        "gen_ai.agent.name": 42,
+      });
+      expect(attrs).toEqual({});
     });
   });
 
@@ -175,7 +244,52 @@ describe("attributes helpers", () => {
     });
   });
 
+  describe("mapSystemInstructions", () => {
+    it("maps system instructions to metadata and a system input message", () => {
+      const systemInstructions = JSON.stringify([
+        { type: "text", content: "You are a helpful assistant." },
+      ]);
+      const attrs = mapSystemInstructions({
+        "gen_ai.system_instructions": systemInstructions,
+      });
+
+      expect(attrs[`${SemanticConventions.METADATA}.gen_ai.system_instructions`]).toBe(
+        systemInstructions,
+      );
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.type"]).toBe("text");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "You are a helpful assistant.",
+      );
+    });
+  });
+
   describe("mapInputMessagesAndInputValue", () => {
+    it("starts input messages after system instructions when both are present", () => {
+      const attrs = {
+        ...mapSystemInstructions({
+          "gen_ai.system_instructions": JSON.stringify([
+            { type: "text", content: "You are concise." },
+          ]),
+        }),
+        ...mapInputMessages({
+          "gen_ai.system_instructions": JSON.stringify([
+            { type: "text", content: "You are concise." },
+          ]),
+          "gen_ai.input.messages": JSON.stringify([
+            { role: "user", parts: [{ type: "text", content: "Hello" }] },
+          ]),
+        }),
+      };
+
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "You are concise.",
+      );
+      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe("Hello");
+    });
+
     it("maps structured input messages and forwards input.value", () => {
       const input = [
         {
@@ -255,6 +369,60 @@ describe("attributes helpers", () => {
 
       expect(inOutAttrs["input.value"]).toBe(spanAttrs["input"]);
       expect(inOutAttrs["input.mime_type"]).toBe("application/json");
+    });
+
+    it("expands multiple tool call responses into separate input messages", () => {
+      const attrs = mapInputMessages({
+        "gen_ai.input.messages": JSON.stringify([
+          {
+            role: "user",
+            parts: [{ type: "text", content: "Use both tools." }],
+          },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "tool_call",
+                id: "call_weather",
+                name: "weather",
+                arguments: { location: "Boston" },
+              },
+              {
+                type: "tool_call",
+                id: "call_calculator",
+                name: "calculator",
+                arguments: { expression: "100 * 25 + 3" },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            parts: [
+              {
+                type: "tool_call_response",
+                id: "call_weather",
+                response: { location: "Boston", forecast: "sunny" },
+              },
+              {
+                type: "tool_call_response",
+                id: "call_calculator",
+                response: { expression: "100 * 25 + 3", value: 2503 },
+              },
+            ],
+          },
+        ]),
+      });
+
+      expect(attrs["llm.input_messages.2.message.role"]).toBe("tool");
+      expect(attrs["llm.input_messages.2.message.tool_call_id"]).toBe("call_weather");
+      expect(attrs["llm.input_messages.2.message.content"]).toBe(
+        JSON.stringify({ location: "Boston", forecast: "sunny" }),
+      );
+      expect(attrs["llm.input_messages.3.message.role"]).toBe("tool");
+      expect(attrs["llm.input_messages.3.message.tool_call_id"]).toBe("call_calculator");
+      expect(attrs["llm.input_messages.3.message.content"]).toBe(
+        JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }),
+      );
     });
 
     it("falls back to deprecated prompt when input messages missing", () => {
@@ -404,6 +572,17 @@ describe("attributes helpers", () => {
     it("returns minimal defaults for empty attributes (span kind only)", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({});
       expect(attrs).toEqual({ "openinference.span.kind": "LLM" });
+    });
+
+    it("converts plan operation attributes to an agent span", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        "gen_ai.operation.name": "plan",
+        "gen_ai.agent.name": "research_planner",
+      });
+      expect(attrs).toEqual({
+        "agent.name": "research_planner",
+        "openinference.span.kind": "AGENT",
+      });
     });
   });
 });

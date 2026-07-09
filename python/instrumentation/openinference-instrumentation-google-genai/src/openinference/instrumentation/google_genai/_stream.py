@@ -1,3 +1,4 @@
+import base64
 import logging
 from collections import defaultdict
 from copy import deepcopy
@@ -37,6 +38,7 @@ from openinference.instrumentation.google_genai._utils import (
 from openinference.instrumentation.google_genai._with_span import _WithSpan
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -152,12 +154,7 @@ class _ResponseAccumulator:
             candidates=_IndexedAccumulator(
                 lambda: _ValuesAccumulator(
                     content=_ValuesAccumulator(
-                        parts=_IndexedAccumulator(
-                            lambda: _ValuesAccumulator(
-                                text=_StringAccumulator(),
-                                function_call=_DictReplace(),
-                            ),
-                        ),
+                        parts=_PartsAccumulator(),
                         role=_SimpleStringReplace(),
                     ),
                     finish_reason=_SimpleStringReplace(),
@@ -222,13 +219,61 @@ class _ResponseExtractor:
                         is_single_part = len(parts) == 1
                         tool_call_index = 0
                         for part in parts:
-                            if text := part.get("text"):
-                                for key, value in _get_attributes_from_content_text(
-                                    text,
-                                    content_index,
-                                    is_single_part,
-                                ):
-                                    yield f"{prefix}.{key}", value
+                            increment_content_index = False
+                            sig_str: Optional[str] = None
+                            if thought_signature := part.get("thought_signature"):
+                                sig_str = (
+                                    base64.b64encode(thought_signature).decode()
+                                    if isinstance(thought_signature, bytes)
+                                    else str(thought_signature)
+                                )
+                            if part.get("thought"):
+                                text = part.get("text")
+                                if text or sig_str is not None:
+                                    cp = (
+                                        f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}."
+                                        f"{content_index}"
+                                    )
+                                    yield (
+                                        f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                                        "reasoning",
+                                    )
+                                    if text:
+                                        yield (
+                                            f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                                            text,
+                                        )
+                                    if sig_str is not None:
+                                        yield (
+                                            f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                                            sig_str,
+                                        )
+                                    increment_content_index = True
+                            elif (text := part.get("text")) is not None:
+                                cp = (
+                                    f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                                )
+                                if sig_str is not None:
+                                    yield (
+                                        f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                                        "text",
+                                    )
+                                    if text:
+                                        yield (
+                                            f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                                            text,
+                                        )
+                                    yield (
+                                        f"{cp}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                                        sig_str,
+                                    )
+                                    increment_content_index = True
+                                elif text:
+                                    for key, value in _get_attributes_from_content_text(
+                                        text, content_index, is_single_part
+                                    ):
+                                        yield f"{prefix}.{key}", value
+                                    increment_content_index = True
                             elif function_call := part.get("function_call"):
                                 tc = (
                                     f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}."
@@ -244,18 +289,25 @@ class _ResponseExtractor:
                                         f"{tc}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                                         safe_json_dumps(function_args),
                                     )
+                                if sig_str is not None:
+                                    yield (
+                                        f"{tc}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                                        sig_str,
+                                    )
                                 tool_call_index += 1
                             if inline_data := part.get("inline_data"):
                                 for key, value in _get_attributes_from_inline_data(
                                     inline_data, content_index
                                 ):
                                     yield f"{prefix}.{key}", value
+                                increment_content_index = True
                             if file_data := part.get("file_data"):
                                 for key, value in _get_attributes_from_file_data(
                                     file_data, content_index
                                 ):
                                     yield f"{prefix}.{key}", value
-                            if part.get("text") or part.get("inline_data") or part.get("file_data"):
+                                increment_content_index = True
+                            if increment_content_index:
                                 content_index += 1
 
 
@@ -278,7 +330,7 @@ class _ValuesAccumulator:
             elif isinstance(value, _StringAccumulator):
                 if str_value := str(value):
                     yield key, str_value
-            elif isinstance(value, _IndexedAccumulator):
+            elif isinstance(value, (_IndexedAccumulator, _PartsAccumulator)):
                 yield key, list(value)
             elif isinstance(value, _DictReplace):
                 if dict_value := dict(value):
@@ -302,7 +354,7 @@ class _ValuesAccumulator:
             elif isinstance(self_value, _SimpleStringReplace):
                 if isinstance(value, str):
                     self_value += value
-            elif isinstance(self_value, _IndexedAccumulator):
+            elif isinstance(self_value, (_IndexedAccumulator, _PartsAccumulator)):
                 self_value += value
             elif isinstance(self_value, _DictReplace):
                 if isinstance(value, Mapping):
@@ -318,6 +370,89 @@ class _ValuesAccumulator:
             if isinstance(value, Mapping):
                 value = _ValuesAccumulator(**value)
             self._values[key] = value  # new entry
+        return self
+
+
+_PART_KIND_FIELDS = (
+    "function_call",
+    "function_response",
+    "inline_data",
+    "file_data",
+    "executable_code",
+    "code_execution_result",
+)
+
+_STREAMING_KINDS = frozenset(("text", "reasoning"))
+
+
+def _part_kind(part: Mapping[str, Any]) -> str:
+    for field in _PART_KIND_FIELDS:
+        if field in part:
+            return field
+    return "reasoning" if part.get("thought") else "text"
+
+
+def _starts_new_slot(part: Mapping[str, Any], kind: str, last_kind: Optional[str]) -> bool:
+    if last_kind is None:
+        return True
+    if kind != last_kind:
+        return True
+    if kind in _STREAMING_KINDS:
+        return False
+    if kind == "function_call":
+        function_call = part.get("function_call") or {}
+        return "name" in function_call
+    return True
+
+
+class _PartsAccumulator:
+    __slots__ = ("_indexed", "_next_slot", "_position_state")
+
+    def __init__(self) -> None:
+        self._indexed: defaultdict[int, _ValuesAccumulator] = defaultdict(
+            lambda: _ValuesAccumulator(
+                text=_StringAccumulator(),
+                function_call=_DictReplace(),
+                function_response=_DictReplace(),
+                inline_data=_DictReplace(),
+                file_data=_DictReplace(),
+                executable_code=_DictReplace(),
+                code_execution_result=_DictReplace(),
+            )
+        )
+        self._next_slot = 0
+        self._position_state: dict[int, tuple[int, str]] = {}
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        for _, values in sorted(self._indexed.items()):
+            if d := dict(values):
+                yield d
+
+    def __iadd__(
+        self, values: Optional[Union[Mapping[str, Any], list[Any]]]
+    ) -> "_PartsAccumulator":
+        if not values:
+            return self
+        if isinstance(values, Mapping):
+            values = [values]
+        for position, part in enumerate(values):
+            if not part or not hasattr(part, "get"):
+                continue
+            kind = _part_kind(part)
+            explicit_index = part.get("index")
+            if explicit_index is not None:
+                slot = explicit_index
+            elif position in self._position_state and not _starts_new_slot(
+                part, kind, self._position_state[position][1]
+            ):
+                slot = self._position_state[position][0]
+            else:
+                slot = self._next_slot
+                self._next_slot += 1
+            self._indexed[slot] += part
+            self._position_state[position] = (slot, kind)
+            if slot >= self._next_slot:
+                self._next_slot = slot + 1
         return self
 
 

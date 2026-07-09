@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.42...python-openinference-instrumentation-bedrock-v0.1.43) (2026-06-30)
+
+
+### Bug Fixes
+
+* **bedrock:** record tool json_schema verbatim with Converse envelope ([#3310](https://github.com/Arize-ai/openinference/issues/3310)) ([3f8daa5](https://github.com/Arize-ai/openinference/commit/3f8daa5eb620af0f9f2df2f65e370feb30e85924))
+
+## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.41...python-openinference-instrumentation-bedrock-v0.1.42) (2026-06-24)
+
+
+### Bug Fixes
+
+* **bedrock:** make aioresponses test mock compatible with aiohttp 3.14 ([#3277](https://github.com/Arize-ai/openinference/issues/3277)) ([e057959](https://github.com/Arize-ai/openinference/commit/e057959edec296e6c20b2283f26bc11348034876))
+
+## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.40...python-openinference-instrumentation-bedrock-v0.1.41) (2026-06-03)
+
+
+### Features
+
+* **bedrock:** add Amazon Nova model support for invoke_model ([#3039](https://github.com/Arize-ai/openinference/issues/3039)) ([4f5e1f4](https://github.com/Arize-ai/openinference/commit/4f5e1f45dd399d6b295f16bdcbf00a762b953384))
+
 ## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.39...python-openinference-instrumentation-bedrock-v0.1.40) (2026-05-22)
 
 

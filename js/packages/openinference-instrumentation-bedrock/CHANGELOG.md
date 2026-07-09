@@ -1,5 +1,34 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.4.17
+
+### Patch Changes
+
+- 3f8daa5: Record Bedrock Nova `invoke_model` tool definitions verbatim on `tool.json_schema`, keeping the Converse tagged-union envelope (`toolSpec`/`systemTool`/`cachePoint`) instead of unwrapping to the inner `toolSpec` body and dropping non-`toolSpec` members. This matches the Converse extractor and the OpenAI/Anthropic instrumentors (which all record the whole provider-native tool element), preserves `systemTool`/`cachePoint` entries, and keeps the recorded schema replayable against the Converse API.
+
+## 0.4.16
+
+### Patch Changes
+
+- Updated dependencies [d0f5a88]
+  - @arizeai/openinference-core@2.4.0
+
+## 0.4.15
+
+### Patch Changes
+
+- Updated dependencies [1fe7927]
+  - @arizeai/openinference-core@2.3.0
+
+## 0.4.14
+
+### Patch Changes
+
+- Updated dependencies [0f0242c]
+- Updated dependencies [26733d8]
+  - @arizeai/openinference-semantic-conventions@2.5.0
+  - @arizeai/openinference-core@2.2.0
+
 ## 0.4.13
 
 ### Patch Changes

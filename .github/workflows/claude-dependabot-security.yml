@@ -1,0 +1,785 @@
+name: Claude Dependabot Security
+
+on:
+  schedule:
+    - cron: "0 14 * * 1-5" # Weekdays 14:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run end-to-end but DO NOT push or open a PR; upload the proposed diff as an artifact instead."
+        type: boolean
+        default: true
+      manifest:
+        description: "Force a specific manifest_path to fix (instead of the highest-severity auto-pick). Useful for cheap test runs against a small slice."
+        type: string
+        default: ""
+
+# Queue rather than cancel: don't kill an auto-fix that may be mid-push.
+concurrency:
+  group: claude-dependabot-security
+  cancel-in-progress: false
+
+# Least-privilege default; the job below opts into what it needs.
+permissions:
+  contents: read
+
+jobs:
+  collect-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: read
+    outputs:
+      count: ${{ steps.slices.outputs.count }}
+      matrix: ${{ steps.slices.outputs.matrix }}
+      total: ${{ steps.slices.outputs.total }}
+    env:
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Collect Dependabot manifest slices
+        id: slices
+        env:
+          # The default GITHUB_TOKEN cannot read the Dependabot alerts API in this repo.
+          # Keep the PAT scoped to alert collection, before any repository code runs.
+          GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
+          # Empty on scheduled runs; set only via workflow_dispatch to force a
+          # specific slice for cheap test runs.
+          FORCE_MANIFEST: ${{ inputs.manifest }}
+          MAX_SLICES: 3
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2016
+          mkdir -p .scratch
+
+          gh api --paginate "/repos/$GH_REPO/dependabot/alerts?state=open&sort=created&direction=asc&per_page=100" \
+            | jq -s '[add[] | {
+                number,
+                state,
+                severity: .security_vulnerability.severity,
+                package: .dependency.package.name,
+                ecosystem: .dependency.package.ecosystem,
+                manifest_path: .dependency.manifest_path,
+                vulnerable_range: .security_vulnerability.vulnerable_version_range,
+                first_patched_version: .security_vulnerability.first_patched_version.identifier,
+                ghsa_id: .security_advisory.ghsa_id,
+                cve_id: .security_advisory.cve_id,
+                summary: .security_advisory.summary,
+                html_url
+              }]' > .scratch/all-alerts.json
+
+          total=$(jq length .scratch/all-alerts.json)
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo '{"include":[]}' > .scratch/matrix.json
+
+          if [ "$total" -eq 0 ]; then
+            echo "No open Dependabot security alerts found."
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "matrix=$(cat .scratch/matrix.json)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Slice the queue by exact Dependabot manifest_path. Each selected
+          # manifest becomes one independent matrix worker/PR, and each worker
+          # still sees every open alert sharing that manifest_path. Excluding
+          # no-patch alerts from auto-selection matters: an unfixable top-severity
+          # alert should not starve every other manifest. A workflow_dispatch
+          # manifest override remains useful for cheap dry-run validation.
+          if [ -n "${FORCE_MANIFEST:-}" ]; then
+            # Test override: only honored if it actually has open alerts.
+            if [ "$(jq --arg m "$FORCE_MANIFEST" '[.[] | select(.manifest_path == $m)] | length' .scratch/all-alerts.json)" -gt 0 ]; then
+              printf '%s\n' "$FORCE_MANIFEST" | jq -R -s 'split("\n")[:-1]' > .scratch/selected-manifests.json
+              echo "Forced manifest via workflow input: $FORCE_MANIFEST"
+            else
+              echo "::error::Forced manifest '$FORCE_MANIFEST' has no open alerts."
+              exit 1
+            fi
+          else
+            jq --argjson max "${MAX_SLICES:-3}" '
+              def rank: {"critical":0,"high":1,"medium":2,"low":3}[.] // 4;
+              [ .[] | select(.first_patched_version != null)
+                | {manifest_path, severity_rank: (.severity | rank), number}
+              ]
+              | sort_by(.severity_rank, .number)
+              | reduce .[] as $alert ([];
+                  if any(.[]; . == $alert.manifest_path) then .
+                  else . + [$alert.manifest_path]
+                  end
+                )
+              | .[:$max]
+            ' .scratch/all-alerts.json > .scratch/selected-manifests.json
+          fi
+
+          slice_count=$(jq length .scratch/selected-manifests.json)
+          if [ "$slice_count" -eq 0 ]; then
+            echo "No auto-fixable alerts (none have a published patched version)."
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "matrix=$(cat .scratch/matrix.json)" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dependabot security alerts"
+              echo
+              echo "**Status:** $total open alert(s), but none have a patched version available; nothing to auto-fix."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          : > .scratch/slices.jsonl
+          while IFS= read -r target_manifest; do
+            jq --arg m "$target_manifest" '[.[] | select(.manifest_path == $m)]' \
+              .scratch/all-alerts.json > .scratch/slice-alerts.json
+
+            count=$(jq length .scratch/slice-alerts.json)
+
+            # Branch-/dedup-safe slug. Manifest paths share a long common PREFIX
+            # (python/instrumentation/openinference-instrumentation-*), and two
+            # files in one package differ only by SUFFIX, so a front-truncated slug
+            # would collide. Use the distinguishing tail plus a content hash of the
+            # full path for guaranteed, deterministic uniqueness.
+            path_hash=$(printf '%s' "$target_manifest" | sha1sum | cut -c1-8)
+            path_tail=$(printf '%s' "$target_manifest" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
+              | tail -c 40 \
+              | sed -E 's/^-+//')
+            slug="${path_tail}-${path_hash}"
+
+            jq -cn \
+              --arg manifest "$target_manifest" \
+              --arg slug "$slug" \
+              --argjson count "$count" \
+              '{manifest: $manifest, slug: $slug, count: $count}' \
+              >> .scratch/slices.jsonl
+          done < <(jq -r '.[]' .scratch/selected-manifests.json)
+
+          jq -cs '{include: .}' .scratch/slices.jsonl > .scratch/matrix.json
+          selected_alerts=$(jq '[.include[].count] | add // 0' .scratch/matrix.json)
+          remaining=$((total - selected_alerts))
+          echo "count=$(jq '.include | length' .scratch/matrix.json)" >> "$GITHUB_OUTPUT"
+          echo "matrix=$(cat .scratch/matrix.json)" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Dependabot security alerts"
+            echo
+            echo "Selected $(jq '.include | length' .scratch/matrix.json) manifest slice(s) for this run (max ${MAX_SLICES:-3})."
+            echo "Remaining open alerts in other manifests: $remaining."
+            echo
+            jq -r '.include[] | "- `\(.manifest)` (\(.count) alert(s), slug `\(.slug)`)"' .scratch/matrix.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  fix-alerts:
+    needs: collect-alerts
+    if: needs.collect-alerts.outputs.count != '0'
+    name: Fix ${{ matrix.manifest }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJSON(needs.collect-alerts.outputs.matrix) }}
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+      security-events: read
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      NPM_CONFIG_STORE_DIR: ${{ github.workspace }}/.pnpm-store
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare selected Dependabot slice
+        id: slice
+        env:
+          # Step-scoped PAT for the Dependabot alerts API only. Later Claude and
+          # package/test steps use the job-level github.token instead.
+          GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
+          TARGET_MANIFEST: ${{ matrix.manifest }}
+        run: |
+          set -euo pipefail
+          mkdir -p .scratch
+
+          gh api --paginate "/repos/$GH_REPO/dependabot/alerts?state=open&sort=created&direction=asc&per_page=100" \
+            | jq -s '[add[] | {
+                number,
+                state,
+                severity: .security_vulnerability.severity,
+                package: .dependency.package.name,
+                ecosystem: .dependency.package.ecosystem,
+                manifest_path: .dependency.manifest_path,
+                vulnerable_range: .security_vulnerability.vulnerable_version_range,
+                first_patched_version: .security_vulnerability.first_patched_version.identifier,
+                ghsa_id: .security_advisory.ghsa_id,
+                cve_id: .security_advisory.cve_id,
+                summary: .security_advisory.summary,
+                html_url
+              }]' > .scratch/all-alerts.json
+
+          jq --arg m "$TARGET_MANIFEST" "[.[] | select(.manifest_path == \$m)]" \
+            .scratch/all-alerts.json > .scratch/dependabot-alerts.json
+
+          count=$(jq length .scratch/dependabot-alerts.json)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+          if [ "$count" -eq 0 ]; then
+            {
+              echo "## Dependabot security alerts"
+              echo
+              printf "**Status:** skipped; \`%s\` no longer has open alerts.\n" "$TARGET_MANIFEST"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "## Dependabot security alerts"
+            echo
+            printf "Selected manifest for this worker: \`%s\` (%s alert(s)).\n" "$TARGET_MANIFEST" "$count"
+            echo
+            echo "### Alerts in this slice"
+            jq -r ".[] | \"- #\" + (.number | tostring) + \" [\" + .severity + \"] \" + .ecosystem + \":\" + .package + \" in \`\" + .manifest_path + \"\` -> patched: \" + (.first_patched_version // \"unknown\")" .scratch/dependabot-alerts.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Dedup preflight: skip only when an auto-fix PR for THIS manifest slice is
+      # already open, so other manifests can still get their own PR concurrently.
+      # Open-only by design — a merged PR must not suppress a fresh attempt if
+      # Dependabot reports a new alert in the same manifest later.
+      - name: Check for existing Claude Dependabot PR
+        if: steps.slice.outputs.count != '0'
+        id: preflight
+        env:
+          SLICE_PREFIX: claude/dependabot-security-${{ matrix.slug }}--
+          TARGET_MANIFEST: ${{ matrix.manifest }}
+        run: |
+          set -euo pipefail
+          # Paginate so a high open-PR count cannot hide an existing auto-fix
+          # branch for this manifest slice.
+          existing=$(gh api --paginate "/repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" \
+            | jq -sr --arg prefix "$SLICE_PREFIX" "[.[][] | select(.head.ref | startswith(\$prefix))][0].html_url // empty")
+          if [ -n "$existing" ]; then
+            echo "An open Claude Dependabot security PR for this manifest already exists: $existing"
+            {
+              echo "skip=true"
+              echo "existing_pr=$existing"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dependabot security auto-fix"
+              echo
+              printf "**Status:** skipped; an open auto-fix PR for \`%s\` already exists: %s\n" "$TARGET_MANIFEST" "$existing"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create branch
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+          SLICE_SLUG: ${{ matrix.slug }}
+        run: |
+          set -euo pipefail
+          BRANCH="claude/dependabot-security-${SLICE_SLUG}--${RUN_ID}-${RUN_ATTEMPT}"
+          git fetch --no-tags --depth=1 origin "$DEFAULT_BRANCH"
+          git checkout -B "$BRANCH" FETCH_HEAD
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+          mkdir -p .scratch
+
+      - name: Set up Node.js
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: js/.nvmrc
+
+      - name: Setup PNPM
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 10.29.3
+
+      - name: Setup uv
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          version: 0.11.2
+          enable-cache: false
+
+      - name: Install subprocess isolation deps
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      - name: Create target restore helper
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        env:
+          TARGET_MANIFEST: ${{ matrix.manifest }}
+        run: |
+          set -euo pipefail
+          mkdir -p .scratch
+          cat > .scratch/restore-target-from-head.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          target="${CLAUDE_DEPENDABOT_TARGET_MANIFEST:-${TARGET_MANIFEST:-}}"
+          if [ -z "$target" ]; then
+            echo "TARGET_MANIFEST is required." >&2
+            exit 2
+          fi
+          if [[ "$target" == *$'\n'* || "$target" == *$'\r'* ]]; then
+            echo "Refusing to restore unsafe target: $target" >&2
+            exit 2
+          fi
+
+          case "$target" in
+            /*|*..*|:*|*[\*\?\[\]]*|.git/*|.github/*|.cursor/*|.claude/*|.agents/*|AGENTS.md|CLAUDE.md|*/AGENTS.md|*/CLAUDE.md)
+              echo "Refusing to restore unsafe target: $target" >&2
+              exit 2
+              ;;
+          esac
+
+          files=("$target")
+          case "$target" in
+            js/package.json|js/pnpm-lock.yaml)
+              files=("js/package.json" "js/pnpm-lock.yaml")
+              ;;
+            */package.json)
+              dir="${target%/*}"
+              files=("$target" "$dir/package-lock.json" "$dir/pnpm-lock.yaml" "$dir/yarn.lock")
+              ;;
+            */pyproject.toml)
+              dir="${target%/*}"
+              files=("$target" "$dir/poetry.lock" "$dir/uv.lock")
+              ;;
+            */Cargo.toml)
+              dir="${target%/*}"
+              files=("$target" "$dir/Cargo.lock")
+              ;;
+            */go.mod)
+              dir="${target%/*}"
+              files=("$target" "$dir/go.sum")
+              ;;
+          esac
+
+          repo_root="${GITHUB_WORKSPACE:-}"
+          if [ -z "$repo_root" ]; then
+            repo_root="$(git rev-parse --show-toplevel)"
+          fi
+          cd "$repo_root"
+
+          restored=0
+          for file in "${files[@]}"; do
+            if [[ "$file" == *$'\n'* || "$file" == *$'\r'* ]]; then
+              continue
+            fi
+            case "$file" in
+              ""|/*|*..*|:*|*[\*\?\[\]]*) continue ;;
+            esac
+            if git cat-file -e "HEAD:$file" 2>/dev/null; then
+              git restore --source=HEAD --worktree --staged -- "$file"
+              printf 'restored %s\n' "$file"
+              restored=$((restored + 1))
+            fi
+          done
+
+          if [ "$restored" -eq 0 ]; then
+            echo "No tracked files were restored for target: $target" >&2
+            exit 1
+          fi
+          EOF
+          chmod +x .scratch/restore-target-from-head.sh
+          printf '%s\n' "$PWD/.scratch" >> "$GITHUB_PATH"
+
+      - name: Write dependency tooling context
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p .scratch "$NPM_CONFIG_STORE_DIR"
+          {
+            echo "# Dependency tooling context"
+            echo
+            printf '%s\n' "- Repository root: $GITHUB_WORKSPACE"
+            printf '%s\n' "- Node: $(node --version 2>/dev/null || echo unavailable)"
+            printf '%s\n' "- npm: $(npm --version 2>/dev/null || echo unavailable)"
+            printf '%s\n' "- pnpm: $(pnpm --version 2>/dev/null || echo unavailable)"
+            printf '%s\n' "- uv: $(uv --version 2>/dev/null || echo unavailable)"
+            printf '%s\n' "- PNPM_HOME: ${PNPM_HOME:-not set}"
+            printf '%s\n' "- PNPM store dir: $NPM_CONFIG_STORE_DIR"
+            printf '%s\n' "- GITHUB_STEP_SUMMARY: $GITHUB_WORKSPACE/.scratch/claude-step-summary.md"
+            echo
+            echo "Use project files and package-manager commands for fixes."
+            echo "Do not inspect runner home dotfiles such as ~/.npmrc; no registry credentials are required."
+            echo "The pnpm store directory is preconfigured in the workspace; do not change PNPM_HOME or inspect .npmrc files to debug store path."
+            echo "Run simple, single-purpose Bash commands. Avoid pipes, command separators, shell loops, inline environment assignments, redirections, and command substitutions; use separate tool calls instead."
+            echo "For Vitest package scripts, pass '-- --reporter=default' (for example, 'pnpm --filter <pkg> run test -- --reporter=default') so Vitest does not auto-add the GitHub Actions reporter inside Claude's sandbox."
+          } > .scratch/dependabot-tooling-context.md
+
+      - name: Run Claude Code
+        id: dependabot-fix
+        if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
+        uses: anthropics/claude-code-action@2fee15510437d71399d9139ed60433470484a8fb # v1.0.153
+        env:
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          CLAUDE_DEPENDABOT_TARGET_MANIFEST: ${{ matrix.manifest }}
+          # Keep GitHub-aware test reporters from writing to the runner summary
+          # file, which is read-only inside Claude's subprocess sandbox.
+          GITHUB_STEP_SUMMARY: ${{ github.workspace }}/.scratch/claude-step-summary.md
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          show_full_output: 'true'
+          prompt: |
+            Fix the open Dependabot security alerts in a SINGLE manifest of ${{ github.repository }}.
+
+            Target manifest (the only one you may change deps for):
+            `${{ matrix.manifest }}`
+
+            Start by reading the alert JSON in `.scratch/dependabot-alerts.json`. It is
+            already filtered to this one manifest; do not pull in alerts from elsewhere.
+            Also read `.scratch/dependabot-tooling-context.md` for precomputed
+            Node/pnpm/uv runner context.
+
+            Requirements:
+            1. Confine dependency edits to the target manifest above and the lockfile it
+               drives. Inspect both before editing. Update each vulnerable dependency to the
+               first patched version or the smallest safe compatible version that resolves
+               the alert.
+            2. For a TRANSITIVE dependency (not directly listed in the manifest), prefer the
+               ecosystem's override mechanism over adding a new direct dependency: pnpm
+               `overrides` in the workspace root `package.json`, or the narrowest pin that
+               the project already uses for that ecosystem. Do not change the package's
+               public/runtime dependency surface to fix a transitive test/dev advisory.
+            3. Pick the right tool by lockfile, not just ecosystem: pnpm workspaces use
+               `pnpm` against `pnpm-lock.yaml`; a standalone `package-lock.json` uses `npm`.
+               Regenerate lockfiles with that tool; do not hand-edit them.
+            4. If the alert has no patched version, or fixing it would require an unrelated
+               major bump, breaking change, or edits outside the target manifest, DO NOT
+               force it. Leave that alert unfixed and explain why in `.scratch/pr-body.md`.
+               Still apply any sibling alerts in this manifest that you can fix safely.
+            5. Keep the change focused. Do not edit CHANGELOG.md, release notes, or unrelated
+               dependency pins.
+            6. Run the most relevant formatting, lockfile, and test checks for the touched
+               package path. If a full test run is too expensive, run targeted checks and
+               explain the coverage in the PR body. When running Vitest through a package
+               script, append `-- --reporter=default` so the GitHub Actions reporter does
+               not try to write a job summary from inside Claude's sandbox.
+            7. If nothing in this manifest can be fixed safely, leave the working tree
+               unchanged and write a clear reason to `.scratch/pr-body.md`.
+            8. If a package-manager experiment causes broad or unrelated lockfile
+               churn, run `restore-target-from-head.sh` to reset only the target
+               manifest and associated lockfile(s) to HEAD, then retry a focused
+               fix. Use this helper instead of `git checkout`, `git restore`,
+               shell redirection, `rm`, or `cp` for lockfile recovery.
+            9. Do not inspect runner home files or broad environment state. In
+               particular, do not run `cat ~/.npmrc`, `npm config list`,
+               `printenv`, or `env`; the needed tooling facts are already in
+               `.scratch/dependabot-tooling-context.md`. Run simple, single-purpose
+               Bash commands instead of chaining probes together. Avoid pipes,
+               command separators (`;`, `&&`, `||`), shell loops, inline environment
+               assignments, redirections (`>`, `2>&1`), and command substitutions;
+               use separate Bash calls and file-reading tools instead.
+            10. The pnpm store directory is already configured through the
+                workflow environment. Use normal `pnpm` commands; do not change
+                `PNPM_HOME`, inspect `.npmrc`, or reroute the store unless the
+                preconfigured store path itself fails.
+
+            Apply fixes directly to the working tree. Do not commit, push, or open a PR; the workflow will do that after you exit.
+
+            Before exiting, write:
+              - `.scratch/pr-title.txt`: a one-line conventional-commit PR title
+                that is safe for release-please.
+                - Use `chore(deps): ...` for release-neutral dependency
+                  maintenance, including test/dev requirement bumps,
+                  lockfile-only updates, package-manager overrides, or changes
+                  that do not alter runtime behavior.
+                - Use `fix(<package-or-area>): ...` only when the diff changes
+                  runtime/source code or public dependency constraints and
+                  should trigger a package release.
+                - Do not use `fix`, `feat`, or `perf` for test-requirements-only
+                  or lockfile-only changes.
+              - `.scratch/pr-body.md`: a concise PR body with the Dependabot alert
+                numbers addressed, dependency or lockfile changes, validation
+                commands run, and any follow-up needed. Link Dependabot alert
+                numbers using each alert's `html_url` from
+                `.scratch/dependabot-alerts.json`; do not write bare `#123`
+                references because GitHub auto-links those to repository issues
+                or PRs instead of security alerts. If several alerts are fixed,
+                list each linked alert number explicitly instead of using an
+                unlinked numeric range.
+
+            Do not modify automation or agent-instruction files such as `.github/`, `.claude/`, `.agents/`, `AGENTS.md`, or `CLAUDE.md`.
+          claude_args: '--allowedTools Skill,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,"Bash(gh api:*)","Bash(gh pr list:*)","Bash(gh pr view:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(restore-target-from-head.sh:*)","Bash(uv:*)","Bash(uvx:*)","Bash(tox:*)","Bash(python:*)","Bash(python3:*)","Bash(pip:*)","Bash(pip3:*)","Bash(pipx:*)","Bash(poetry:*)","Bash(corepack:*)","Bash(pnpm:*)","Bash(npm:*)","Bash(npx:*)","Bash(make:*)","Bash(cd:*)","Bash(ls:*)","Bash(find:*)","Bash(grep:*)","Bash(sed:*)","Bash(awk:*)","Bash(jq:*)","Bash(cat:*)","Bash(head:*)","Bash(tail:*)","Bash(sort:*)","Bash(nl:*)","Bash(mkdir:*)","Bash(date:*)","Bash(echo:*)","Bash(printf:*)"'
+
+      - name: Upload Claude execution log
+        if: ${{ always() && steps.dependabot-fix.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: claude-dependabot-security-${{ matrix.slug }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Commit and open PR
+        id: publish
+        if: ${{ steps.preflight.outputs.skip != 'true' && steps.dependabot-fix.outcome == 'success' }}
+        env:
+          # PAT (not the default GITHUB_TOKEN) so the opened PR triggers
+          # pull_request CI; GITHUB_TOKEN-authored PRs do not. The PAT is present
+          # only in this git/gh-only step. No package code or dependency test
+          # command runs here, so updated third-party deps never see the token.
+          GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE }}
+          # Empty on scheduled runs (-> real publish). Set true via dispatch to
+          # commit locally and emit the diff as an artifact without pushing/PRing.
+          DRY_RUN: ${{ inputs.dry_run }}
+          TARGET_MANIFEST: ${{ matrix.manifest }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          changed_files() {
+            { git diff --name-only; git ls-files --others --exclude-standard; } \
+              | sort -u \
+              | grep -v '^\.scratch/' || true
+          }
+
+          # Hard guard: never let the agent modify automation / agent-instruction
+          # files. Restore them from the branch base before committing.
+          blocked_files=$(changed_files | awk '
+            /^\.github\// ||
+            /^\.cursor\// ||
+            /^\.claude\// ||
+            /^\.agents\// ||
+            /(^|\/)AGENTS\.md$/ ||
+            /(^|\/)CLAUDE\.md$/
+          ')
+          if [ -n "$blocked_files" ]; then
+            echo "::warning::Dependabot auto-fix changed automation or agent-instruction files; restoring them from checked-out main."
+            printf '%s\n' "$blocked_files"
+            while IFS= read -r file; do
+              if git cat-file -e "HEAD:$file" 2>/dev/null; then
+                git restore --source=HEAD --worktree --staged -- "$file"
+              else
+                git restore --staged -- "$file" 2>/dev/null || true
+                rm -f -- "$file"
+              fi
+            done <<< "$blocked_files"
+          fi
+
+          if [ -z "$(changed_files)" ]; then
+            echo "Claude produced no package changes; skipping PR."
+            {
+              echo "status=no_changes"
+              echo "message<<EOF"
+              echo "Claude completed without tracked package changes."
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dependabot security auto-fix"
+              echo
+              echo "**Status:** no PR opened; Claude completed without tracked package changes."
+              echo
+              if [ -s .scratch/pr-body.md ]; then
+                cat .scratch/pr-body.md
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          release_triggering_title() {
+            printf '%s' "$1" | grep -qE '^([a-z]+)(\([^)]+\))?!: .+|^(feat|fix)(\([^)]+\))?: .+'
+          }
+
+          release_neutral_dependency_change() {
+            local non_release_neutral_files
+            # js/package.json is the private JS workspace root where pnpm
+            # overrides live. Published package manifests intentionally remain
+            # release-triggering because they can change runtime dependency
+            # constraints.
+            non_release_neutral_files=$(changed_files | awk '
+              /(^|\/)([^\/]*(test|dev)[^\/]*requirements[^\/]*|[^\/]*requirements[^\/]*(test|dev)[^\/]*|constraints[^\/]*(test|dev)[^\/]*|[^\/]*(test|dev)[^\/]*constraints[^\/]*)\.txt$/ { next }
+              /(^|\/)(poetry\.lock|uv\.lock|Pipfile\.lock)$/ { next }
+              /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|npm-shrinkwrap\.json)$/ { next }
+              /^js\/package\.json$/ { next }
+              /(^|\/)(go\.sum|Cargo\.lock|Gemfile\.lock|composer\.lock|gradle\.lockfile)$/ { next }
+              { print }
+            ')
+            [ -z "$non_release_neutral_files" ]
+          }
+
+          if release_neutral_dependency_change; then
+            DEFAULT_TITLE="chore(deps): resolve Dependabot security alerts in $TARGET_MANIFEST"
+          else
+            DEFAULT_TITLE="fix(deps): resolve Dependabot security alerts in $TARGET_MANIFEST"
+          fi
+          PR_TITLE="$DEFAULT_TITLE"
+
+          if [ -s .scratch/pr-title.txt ]; then
+            CANDIDATE=$(head -n 1 .scratch/pr-title.txt | tr -d '\r')
+            if printf '%s' "$CANDIDATE" | grep -qE '^(feat|fix|chore|docs|refactor|test|ci|perf|style|build)(\([^)]+\))?!?: .+'; then
+              if release_triggering_title "$CANDIDATE" && release_neutral_dependency_change; then
+                echo "::warning::.scratch/pr-title.txt would trigger release-please for a release-neutral dependency change; falling back to '$DEFAULT_TITLE'."
+              else
+                PR_TITLE="$CANDIDATE"
+              fi
+            else
+              echo "::warning::.scratch/pr-title.txt did not match conventional-commit format; falling back to '$DEFAULT_TITLE'."
+            fi
+          else
+            echo "::warning::Claude did not write .scratch/pr-title.txt; falling back to '$DEFAULT_TITLE'."
+          fi
+
+          if [ -s .scratch/pr-body.md ]; then
+            BODY_FILE=.scratch/pr-body.md
+          else
+            BODY_FILE=$(mktemp)
+            echo "Automated fix for Dependabot security alerts. Review the diff and CI checks for details." > "$BODY_FILE"
+          fi
+
+          link_dependabot_alerts() {
+            local input_file="$1"
+            local output_file
+            output_file=$(mktemp)
+            python3 - "$input_file" "$output_file" .scratch/dependabot-alerts.json <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          body_path, output_path, alerts_path = map(Path, sys.argv[1:4])
+          text = body_path.read_text()
+
+          try:
+              alerts = json.loads(alerts_path.read_text())
+          except FileNotFoundError:
+              output_path.write_text(text)
+              raise SystemExit(0)
+
+          alert_urls = {
+              str(alert["number"]): alert["html_url"]
+              for alert in alerts
+              if alert.get("number") is not None and alert.get("html_url")
+          }
+          if not alert_urls:
+              output_path.write_text(text)
+              raise SystemExit(0)
+
+          numbers = "|".join(sorted(map(re.escape, alert_urls), key=len, reverse=True))
+          bare_alert = re.compile(rf"(?<![\w\[-])#({numbers})\b")
+
+          def replace(match):
+              number = match.group(1)
+              return f"[#{number}][dependabot-alert-{number}]"
+
+          text = bare_alert.sub(replace, text)
+          existing_labels = set(re.findall(r"^\[([^\]]+)\]:", text, flags=re.MULTILINE))
+          definitions = []
+          for number in sorted(alert_urls, key=int):
+              for prefix in ("dependabot-alert", "alert"):
+                  label = f"{prefix}-{number}"
+                  if label not in existing_labels:
+                      definitions.append(f"[{label}]: {alert_urls[number]}")
+          if definitions:
+              text = text.rstrip() + "\n\n" + "\n".join(definitions) + "\n"
+
+          output_path.write_text(text)
+          PY
+            printf '%s\n' "$output_file"
+          }
+
+          BODY_FILE=$(link_dependabot_alerts "$BODY_FILE")
+
+          git add -A
+          git restore --staged -- .scratch 2>/dev/null || true
+          git commit -m "$PR_TITLE"
+
+          if [ "${DRY_RUN:-}" = "true" ]; then
+            # No PAT use, no network mutation: emit the proposed commit for review.
+            git show --stat HEAD > "$RUNNER_TEMP/proposed-changes.diff"
+            echo "---" >> "$RUNNER_TEMP/proposed-changes.diff"
+            git show HEAD >> "$RUNNER_TEMP/proposed-changes.diff"
+            {
+              echo "status=dry_run"
+              echo "pr_title<<EOF"
+              echo "$PR_TITLE"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dependabot security auto-fix (DRY RUN)"
+              echo
+              echo "No branch pushed and no PR opened. Proposed change below; full diff is in the **proposed-changes** artifact."
+              echo
+              echo "**Proposed title:** \`$PR_TITLE\`"
+              echo
+              echo "**Diffstat:**"
+              echo '```'
+              git show --stat --oneline HEAD
+              echo '```'
+              echo
+              echo "**Proposed body:**"
+              echo
+              cat "$BODY_FILE"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          gh auth setup-git
+          git remote set-url origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git push -u origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --base "$DEFAULT_BRANCH" \
+            --head "$BRANCH" \
+            --title "$PR_TITLE" \
+            --body-file "$BODY_FILE")
+          {
+            echo "status=pr_opened"
+            echo "pr_url=$PR_URL"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Dependabot security auto-fix"
+            echo
+            echo "**Status:** PR opened: $PR_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify Slack of auto-fix PR
+        if: ${{ steps.publish.outputs.pr_url != '' }}
+        env:
+          MANIFEST: ${{ matrix.manifest }}
+          PR_URL: ${{ steps.publish.outputs.pr_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "::warning::SLACK_WEBHOOK_URL not set; skipping Slack notification."
+            exit 0
+          fi
+
+          MSG=$(printf "🛡️ OpenInference cron opened a Dependabot security fix PR: <%s|review + approve>\n📦 Manifest: \`%s\`\n👀 Next: verify CI, then approve if it looks good\n🔎 Workflow: <%s|run logs>" \
+            "$PR_URL" \
+            "$MANIFEST" \
+            "$RUN_URL")
+          echo "$MSG"
+          if ! curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$(jq -n --arg text "$MSG" '{text: $text}')" \
+            "$SLACK_WEBHOOK_URL"; then
+            echo "::warning::Slack notification failed; PR was still opened."
+          fi
+
+      - name: Upload proposed diff (dry run)
+        if: ${{ steps.publish.outputs.status == 'dry_run' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proposed-changes-${{ matrix.slug }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proposed-changes.diff
+          if-no-files-found: warn
+          retention-days: 7

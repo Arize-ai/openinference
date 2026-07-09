@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.6...python-openinference-instrumentation-claude-agent-sdk-v0.1.7) (2026-06-24)
+
+
+### Bug Fixes
+
+* **claude_agent_sdk:** Capture Thinking Blocks as Reasoning Message Content ([#3201](https://github.com/Arize-ai/openinference/issues/3201)) ([5b49859](https://github.com/Arize-ai/openinference/commit/5b49859f020189bf0835abde44f751c2a732ba8a))
+* **claude_agent_sdk:** Invalid Parent for Subagent Tool in PreToolUse Hook ([#3266](https://github.com/Arize-ai/openinference/issues/3266)) ([86ac843](https://github.com/Arize-ai/openinference/commit/86ac84328f457c4aa2e4bf5356460dc03ba14003))
+
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.5...python-openinference-instrumentation-claude-agent-sdk-v0.1.6) (2026-06-11)
+
+
+### Bug Fixes
+
+* **claude_agent_sdk:** Preserve Propagated Session ID ([#3233](https://github.com/Arize-ai/openinference/issues/3233)) ([35738c0](https://github.com/Arize-ai/openinference/commit/35738c0a13323298b62e6bbc0192a34157135171))
+* **claude_agent_sdk:** Record Real Tool Error Content on Failed Tool Spans ([#3139](https://github.com/Arize-ai/openinference/issues/3139)) ([06d8eed](https://github.com/Arize-ai/openinference/commit/06d8eedae5e8c7425547c1be5d7f62c72cdb14b6))
+
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.4...python-openinference-instrumentation-claude-agent-sdk-v0.1.5) (2026-05-29)
+
+
+### Bug Fixes
+
+* **claude_agent_sdk:** pick max-output-tokens model from modelUsage ([#3140](https://github.com/Arize-ai/openinference/issues/3140)) ([5ed6344](https://github.com/Arize-ai/openinference/commit/5ed6344a516bc434338a19b385576ebce0cdf130))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.3...python-openinference-instrumentation-claude-agent-sdk-v0.1.4) (2026-05-18)
 
 

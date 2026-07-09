@@ -2,6 +2,7 @@ import os
 
 from google import genai
 from google.genai import types
+from google.genai.types import ThinkingLevel
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -14,6 +15,8 @@ endpoint = "http://0.0.0.0:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+
+GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 def get_current_weather(location: str) -> str:
@@ -28,10 +31,14 @@ def get_current_weather(location: str) -> str:
 def run_weather_example() -> None:
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     response = client.models.generate_content_stream(
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash",
         contents="What is the weather like in Boston & new Delhi?",
         config=types.GenerateContentConfig(
             tools=[get_current_weather],
+            thinking_config=types.ThinkingConfig(
+                include_thoughts=True,
+                thinking_level=ThinkingLevel.LOW,
+            ),
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         ),
     )
@@ -39,5 +46,4 @@ def run_weather_example() -> None:
 
 
 if __name__ == "__main__":
-    GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     run_weather_example()

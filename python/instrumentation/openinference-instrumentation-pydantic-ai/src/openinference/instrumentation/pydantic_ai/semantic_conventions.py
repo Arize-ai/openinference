@@ -39,6 +39,9 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+_GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
+_GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
+
 
 # Many event related conventions are not in the opentelemetry-python package yet
 class OTELConventions:
@@ -124,6 +127,9 @@ class PydanticGenAIAttribute:
     GEN_AI = "gen_ai"
 
 
+_AGENT_OPERATION_NAMES = frozenset({"invoke_agent", "create_agent"})
+
+
 class PydanticGenAITool:
     TOOL = "tool"
 
@@ -143,6 +149,10 @@ class PydanticModelRequestParameters:
 class PydanticModelRequestParametersTool:
     NAME = "name"
     DESCRIPTION = "description"
+    # pydantic-ai serializes ToolDefinition with the JSON schema under
+    # ``parameters_json_schema`` (both instrumentation v2 and v5). ``properties`` is
+    # kept only as a defensive fallback for older/alternate shapes.
+    PARAMETERS_JSON_SCHEMA = "parameters_json_schema"
     PARAMETERS = "properties"
 
 
@@ -180,9 +190,11 @@ def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]
 
 def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract attributes common to all operation types."""
-
     # We want to ignore token counts on non LLM spans. Pydantic adds token counts to agents
-    ignore_token_counts = PydanticAgentName.AGENT in gen_ai_attrs
+    ignore_token_counts = (
+        PydanticAgentName.AGENT in gen_ai_attrs
+        or gen_ai_attrs.get(GEN_AI_OPERATION_NAME) in _AGENT_OPERATION_NAMES
+    )
     if GEN_AI_OPERATION_NAME in gen_ai_attrs:
         try:
             operation = gen_ai_attrs[GEN_AI_OPERATION_NAME]
@@ -338,17 +350,22 @@ def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[
     if GEN_AI_TOOL_NAME in gen_ai_attrs:
         yield SpanAttributes.TOOL_NAME, gen_ai_attrs[GEN_AI_TOOL_NAME]
 
-    if GEN_AI_TOOL_DESCRIPTION in gen_ai_attrs:
+    if gen_ai_attrs.get(GEN_AI_TOOL_DESCRIPTION) is not None:
         yield SpanAttributes.TOOL_DESCRIPTION, gen_ai_attrs[GEN_AI_TOOL_DESCRIPTION]
 
     if GEN_AI_TOOL_CALL_ID in gen_ai_attrs:
         yield ToolCallAttributes.TOOL_CALL_ID, gen_ai_attrs[GEN_AI_TOOL_CALL_ID]
-    if PydanticTools.TOOL_ARGUMENTS in gen_ai_attrs:
+    if _GEN_AI_TOOL_CALL_ARGUMENTS in gen_ai_attrs:
+        yield SpanAttributes.TOOL_PARAMETERS, gen_ai_attrs[_GEN_AI_TOOL_CALL_ARGUMENTS]
+    elif PydanticTools.TOOL_ARGUMENTS in gen_ai_attrs:
         yield (
             SpanAttributes.TOOL_PARAMETERS,
             gen_ai_attrs[PydanticTools.TOOL_ARGUMENTS],
         )
-    if PydanticTools.TOOL_RESPONSE in gen_ai_attrs:
+
+    if _GEN_AI_TOOL_CALL_RESULT in gen_ai_attrs:
+        yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[_GEN_AI_TOOL_CALL_RESULT]
+    elif PydanticTools.TOOL_RESPONSE in gen_ai_attrs:
         yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[PydanticTools.TOOL_RESPONSE]
 
     if OTELConventions.EVENTS in gen_ai_attrs:
@@ -395,16 +412,14 @@ def _extract_tools(output_tools: List[Dict[str, Any]]) -> Any:
         tool_info: Dict[str, Any] = {}
         if PydanticModelRequestParametersTool.NAME in tool:
             tool_info[SpanAttributes.TOOL_NAME] = tool[PydanticModelRequestParametersTool.NAME]
-        if PydanticModelRequestParametersTool.DESCRIPTION in tool:
-            tool_info[SpanAttributes.TOOL_DESCRIPTION] = tool[
-                PydanticModelRequestParametersTool.DESCRIPTION
-            ]
-        if PydanticModelRequestParametersTool.PARAMETERS in tool and isinstance(
-            tool[PydanticModelRequestParametersTool.PARAMETERS], dict
-        ):
-            tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(
-                tool[PydanticModelRequestParametersTool.PARAMETERS]
-            )
+        description = tool.get(PydanticModelRequestParametersTool.DESCRIPTION)
+        if description is not None:
+            tool_info[SpanAttributes.TOOL_DESCRIPTION] = description
+        json_schema = tool.get(
+            PydanticModelRequestParametersTool.PARAMETERS_JSON_SCHEMA
+        ) or tool.get(PydanticModelRequestParametersTool.PARAMETERS)
+        if isinstance(json_schema, dict):
+            tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(json_schema)
 
         if tool_info:
             tools.append(tool_info)

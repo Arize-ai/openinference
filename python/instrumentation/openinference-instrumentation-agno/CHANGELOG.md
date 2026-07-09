@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.37...python-openinference-instrumentation-agno-v0.1.38) (2026-06-19)
+
+
+### Bug Fixes
+
+* **agno:** Serialize Pydantic Content With Correct Mime Type ([#3238](https://github.com/Arize-ai/openinference/issues/3238)) ([73cb6a7](https://github.com/Arize-ai/openinference/commit/73cb6a7d1cdd93890c11b4ecca279e3b11afec48))
+* **agno:** use valid vcr record_mode "none" for cassette replay ([#3258](https://github.com/Arize-ai/openinference/issues/3258)) ([f668990](https://github.com/Arize-ai/openinference/commit/f6689903599ad17fc985e976fffc12a7775929e6))
+
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.36...python-openinference-instrumentation-agno-v0.1.37) (2026-06-11)
+
+
+### Bug Fixes
+
+* **agno:** Stream Context Leak In Workflow, Step, & Parallel Wrappers ([#3195](https://github.com/Arize-ai/openinference/issues/3195)) ([5cb64e4](https://github.com/Arize-ai/openinference/commit/5cb64e430241d7b1a1989a09cc387b810e006d39))
+
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.35...python-openinference-instrumentation-agno-v0.1.36) (2026-06-09)
+
+
+### Bug Fixes
+
+* **agno:** capture workflow run-id properly ([#3221](https://github.com/Arize-ai/openinference/issues/3221)) ([49f536a](https://github.com/Arize-ai/openinference/commit/49f536adf8fb515d58edcae0b276be5bf222c0bc))
+
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.34...python-openinference-instrumentation-agno-v0.1.35) (2026-05-29)
+
+
+### Bug Fixes
+
+* **agno:** agno streaming tool call fix ([#3155](https://github.com/Arize-ai/openinference/issues/3155)) ([8fd49ac](https://github.com/Arize-ai/openinference/commit/8fd49ac66406e2544cd9b9e13336056c694bc499))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.33...python-openinference-instrumentation-agno-v0.1.34) (2026-05-18)
 
 

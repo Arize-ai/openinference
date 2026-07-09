@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.52](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.51...python-openinference-instrumentation-openai-v0.1.52) (2026-06-11)
+
+
+### Features
+
+* **openai:** capture reasonging blocks ([584dff2](https://github.com/Arize-ai/openinference/commit/584dff2c250903bf46e763d215e54557d5b310c8))
+
+## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.50...python-openinference-instrumentation-openai-v0.1.51) (2026-06-05)
+
+
+### Bug Fixes
+
+* **openai:** handle additional_tools type in assert_never chain ([#3205](https://github.com/Arize-ai/openinference/issues/3205)) ([361ee07](https://github.com/Arize-ai/openinference/commit/361ee072c384b01a75623e9c073897e70e3339ab))
+
+## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.49...python-openinference-instrumentation-openai-v0.1.50) (2026-06-02)
+
+
+### Features
+
+* support OTel GenAI plan operation ([#3165](https://github.com/Arize-ai/openinference/issues/3165)) ([52f368d](https://github.com/Arize-ai/openinference/commit/52f368d6d37ec4aaf6b38c796995d576fe37ca49))
+
 ## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.48...python-openinference-instrumentation-openai-v0.1.49) (2026-05-18)
 
 

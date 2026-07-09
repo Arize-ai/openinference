@@ -82,6 +82,7 @@ _AUDIT_TIMING = False
 IGNORED_EXCEPTION_PATTERNS = [
     r"^Command\(",
     r"^ParentCommand\(",
+    r"^GraphInterrupt\(",
 ]
 
 
@@ -238,6 +239,22 @@ class OpenInferenceTracer(BaseTracer):
         if span := self._spans_by_run.get(run_id):
             _record_exception(span, error)
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
+
+    def on_interrupt(self, event: Any) -> None:
+        # LangGraph dispatches its graph-level lifecycle callbacks (`on_interrupt`
+        # and `on_resume`) to every registered handler. Because the LangChain
+        # instrumentor injects this tracer into every callback manager, the tracer
+        # receives these events even though they are not part of the `BaseTracer`
+        # interface. Without these no-ops, `langchain_core` would call
+        # `getattr(handler, "on_interrupt")`, raise `AttributeError`, and log a
+        # warning on every interrupt. The tracer has no span work to do here, so
+        # the handlers intentionally do nothing.
+        pass
+
+    def on_resume(self, event: Any) -> None:
+        # See `on_interrupt`: no-op handler for LangGraph's graph-level resume
+        # lifecycle callback.
+        pass
 
     def on_chat_model_start(self, *args: Any, **kwargs: Any) -> Run:
         """

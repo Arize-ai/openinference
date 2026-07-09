@@ -1,13 +1,18 @@
 # OpenInference Pipecat Instrumentation
 
-Python auto-instrumentation library for Pipecat. This library allows you to convert Pipecat traces to OpenInference, which is OpenTelemetry compatible, and view those traces in [Arize Phoenix](https://github.com/Arize-ai/phoenix).
+Python auto-instrumentation library for Pipecat. This library allows you to convert Pipecat traces to OpenInference, which is OpenTelemetry compatible, and view those traces in [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax).
 
 ## Compatibility
 
-| `openinference-instrumentation-pipecat` | `pipecat-ai`     | Python   |
-| --------------------------------------- | ---------------- | -------- |
-| `>=1.0`                                 | `>=1.0`          | `>=3.11` |
+| `openinference-instrumentation-pipecat` | `pipecat-ai`           | Python   |
+|-----------------------------------------| ---------------------- | -------- |
+| `>=2.0`                                 | `>=1.3`                | `>=3.11` |
+| `>=1.0, <2.0`                           | `>=1.0, <1.3`          | `>=3.11` |
 | `<=0.1.4`                               | `<1.0` (e.g. `0.0.99`) | `>=3.10` |
+
+Pipecat 1.3 deprecated `PipelineTask` in favor of `PipelineWorker`. Instrumentor
+versions `<2.0` only wrap `PipelineTask`, so bots built on `PipelineWorker` get
+no observer injection and emit no spans. Use `>=2.0` with `pipecat-ai>=1.3`.
 
 Pipecat 1.0 introduced breaking changes (renamed observers, removed
 `LLMMessagesFrame`, dropped Python 3.10). If you're still on `pipecat-ai<1.0`,
@@ -47,8 +52,8 @@ PipecatInstrumentor().instrument(tracer_provider=tracer_provider)
 ### PIPELINE ###
 pipeline = Pipeline(...)
 
-### TASK ###
-task = PipelineTask(
+### WORKER ###
+worker = PipelineWorker(
     pipeline,
     conversation_id=conversation_id,  # conversation id is used for session tracking in Arize or Phoenix
 )
@@ -56,15 +61,14 @@ task = PipelineTask(
 ### EVENT HANDLING
 @transport.event_handler("on_client_connected")
 async def on_client_connected(transport, client):
-    await task.queue_frames([LLMRunFrame()])
+    await worker.queue_frames([LLMRunFrame()])
 
 ### PIPELINE RUNNER ###
 runner = PipelineRunner(handle_sigint=runner_args.handle_sigint)
-await runner.run(task)
+await runner.run(worker)
 ```
 
-After configuring tracing, exchanges in the running application are logged to your project in Phoenix or Arize AX.
-
+After configuring tracing, exchanges in the running application are logged to your project in [Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax).
 
 ## Example
 
@@ -83,3 +87,10 @@ uv pip install -r examples/trace/requirements.txt
 ```bash
 uv run python examples/trace/001-trace.py
 ```
+
+## More Info
+
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [More info on OpenInference and Arize AX](https://arize.com/docs/ax)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

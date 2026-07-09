@@ -20,14 +20,17 @@ from openinference.instrumentation import OITracer
 from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 TOOL_KIND = OpenInferenceSpanKindValues.TOOL.value
 AGENT_KIND = OpenInferenceSpanKindValues.AGENT.value
+SESSION_ID = SpanAttributes.SESSION_ID
 
 
 def _span_by_name(spans: Sequence[Any], name: str) -> Any:
@@ -123,6 +126,243 @@ def test_oitracer(tracer_provider: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_propagated_session_id_not_overwritten_by_sdk_session(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Session ID set via using_session() must not be overwritten by the internal
+    Claude CLI session UUID emitted in init/result messages."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.instrumentation import using_session
+    from openinference.semconv.trace import SpanAttributes
+
+    APPLICATION_SESSION_ID = "dedf7759-99ee-46ad-a5fc-3837892a0d78"
+    CLI_SESSION_ID = "4e00c355-0cb1-4a44-a7ec-50739f9aabcd"
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": CLI_SESSION_ID,
+            "model": "claude-test",
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "done",
+            "usage": {"input_tokens": 5, "output_tokens": 3},
+            "total_cost_usd": 0.01,
+            "session_id": CLI_SESSION_ID,
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+
+    with using_session(APPLICATION_SESSION_ID):
+        async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(agent_span.attributes or {})
+
+    assert attrs.get(SpanAttributes.SESSION_ID) == APPLICATION_SESSION_ID, (
+        f"Expected propagated session ID {APPLICATION_SESSION_ID!r} to be preserved, "
+        f"but got {attrs.get(SpanAttributes.SESSION_ID)!r}. "
+        "The instrumentor is overwriting application session IDs with internal CLI UUIDs."
+    )
+
+
+@pytest.mark.asyncio
+async def test_sdk_session_id_set_when_none_propagated(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """When no session ID is propagated via OTel context, the SDK session UUID
+    should still be written to the span."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
+
+    CLI_SESSION_ID = "4e00c355-0cb1-4a44-a7ec-50739f9aabcd"
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": CLI_SESSION_ID,
+            "model": "claude-test",
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "done",
+            "usage": {"input_tokens": 5, "output_tokens": 3},
+            "total_cost_usd": 0.01,
+            "session_id": CLI_SESSION_ID,
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+
+    async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(agent_span.attributes or {})
+
+    assert attrs.get(SpanAttributes.SESSION_ID) == CLI_SESSION_ID, (
+        f"Expected SDK session ID {CLI_SESSION_ID!r} to be set when none was propagated, "
+        f"but got {attrs.get(SpanAttributes.SESSION_ID)!r}."
+    )
+
+
+@pytest.mark.asyncio
+async def test_propagated_session_id_not_overwritten_on_error_result(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Propagated session ID must be preserved even when the result message is an error."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.instrumentation import using_session
+    from openinference.semconv.trace import SpanAttributes
+
+    APPLICATION_SESSION_ID = "app-session-error-path"
+    CLI_SESSION_ID = "cli-session-error-path"
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": CLI_SESSION_ID,
+            "model": "claude-test",
+        },
+        {
+            "type": "result",
+            "subtype": "error:tool",
+            "errors": [{"code": "tool_error", "message": "boom"}],
+            "usage": {"input_tokens": 2, "output_tokens": 1},
+            "total_cost_usd": 0.005,
+            "session_id": CLI_SESSION_ID,
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+
+    with using_session(APPLICATION_SESSION_ID):
+        async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(agent_span.attributes or {})
+
+    assert attrs.get(SpanAttributes.SESSION_ID) == APPLICATION_SESSION_ID, (
+        f"Expected propagated session ID {APPLICATION_SESSION_ID!r} on error path, "
+        f"but got {attrs.get(SpanAttributes.SESSION_ID)!r}."
+    )
+
+
+@pytest.mark.asyncio
+async def test_receive_response_preserves_session_id_set_by_span_processor(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Span processors can set session.id on span start; SDK session IDs must not clobber it."""
+    from opentelemetry.sdk.trace import SpanProcessor
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from openinference.semconv.trace import SpanAttributes
+
+    APPLICATION_SESSION_ID = "dedf7759-99ee-46ad-a5fc-3837892a0d78"
+    CLI_SESSION_ID = "4e00c355-0cb1-4a44-a7ec-50739f9aabcd"
+
+    class SessionOnStart(SpanProcessor):
+        def on_start(self, span: Any, parent_context: Any = None) -> None:
+            del parent_context
+            span.set_attribute(SpanAttributes.SESSION_ID, APPLICATION_SESSION_ID)
+
+        def on_end(self, span: Any) -> None:
+            del span
+
+        def shutdown(self) -> None:
+            pass
+
+        def force_flush(self, timeout_millis: int = 30000) -> bool:
+            del timeout_millis
+            return True
+
+    class Client:
+        pass
+
+    tracer_provider.add_span_processor(SessionOnStart())
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": CLI_SESSION_ID,
+            "model": "claude-test",
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "done",
+            "usage": {"input_tokens": 5, "output_tokens": 3},
+            "total_cost_usd": 0.01,
+            "session_id": CLI_SESSION_ID,
+        },
+    ]
+
+    async def fake_receive_response(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._ClientReceiveResponseWrapper(tracer)
+
+    async for _ in wrapper(fake_receive_response, Client(), (), {}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    agent_span = _span_by_name(spans, "ClaudeAgentSDK.ClaudeSDKClient.receive_response")
+    attrs = dict(agent_span.attributes or {})
+
+    assert attrs.get(SpanAttributes.SESSION_ID) == APPLICATION_SESSION_ID, (
+        f"Expected span-processor session ID {APPLICATION_SESSION_ID!r} to be preserved, "
+        f"but got {attrs.get(SpanAttributes.SESSION_ID)!r}."
+    )
+
+
+@pytest.mark.asyncio
 async def test_result_error_message_sets_status_and_output(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: Any,
@@ -214,6 +454,136 @@ async def test_query_exception_sets_error_status(
     assert "Simulated failure" in str(span.status.description)
 
 
+@pytest.mark.asyncio
+async def test_tool_error_records_real_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Tool result blocks with is_error=True record the real content, not a hardcoded string."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    real_error_text = "Permission denied: /etc/shadow"
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-tool-err",
+            "model": "claude-test",
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_err_1",
+                        "name": "Bash",
+                        "input": {"command": "cat /etc/shadow"},
+                    }
+                ]
+            },
+        },
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_err_1",
+                        "content": [{"type": "text", "text": real_error_text}],
+                        "is_error": True,
+                    }
+                ]
+            },
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "I could not complete the task due to a tool error.",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "total_cost_usd": 0.001,
+            "session_id": "sess-tool-err",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "read the shadow file"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    tool_spans = _tool_spans(spans)
+    bash_spans = [s for s in tool_spans if s.name == "Bash"]
+    assert bash_spans, "Expected a Bash tool span"
+
+    bash_span = bash_spans[0]
+    assert bash_span.status.status_code == StatusCode.ERROR
+
+    # The real error content must appear in the status description, not a hardcoded string.
+    assert real_error_text in bash_span.status.description, (
+        f"Expected real error text in status description, got: {bash_span.status.description!r}"
+    )
+    assert "Tool execution error" not in bash_span.status.description, (
+        "Hardcoded generic string must not appear when real content is available"
+    )
+
+    # The real error content must also appear in the recorded exception.
+    error_events = [e for e in bash_span.events if e.name == "exception"]
+    assert error_events, "Expected an exception event on the tool span"
+    exception_msg = error_events[0].attributes.get("exception.message", "")
+    assert real_error_text in exception_msg, (
+        f"Expected real error in exception.message, got: {exception_msg!r}"
+    )
+
+    # The real error content must NOT be set as output attributes.
+    attrs = dict(bash_span.attributes or {})
+    assert SpanAttributes.OUTPUT_VALUE not in attrs, (
+        "output.value must not be set on a failed tool span"
+    )
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attrs, (
+        "output.mime_type must not be set on a failed tool span"
+    )
+
+
+def test_tool_error_string_remains_unquoted(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Hook-based string errors should remain human-readable, not JSON-quoted."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+    tracker = wrappers._ToolSpanTracker(tracer, None)
+
+    tracker.start_tool_span(
+        tool_name="Bash",
+        tool_input={"command": "cat /etc/shadow"},
+        tool_use_id="toolu_err_2",
+    )
+    tracker.end_tool_span_with_error("toolu_err_2", "permission denied")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    bash_span = _span_by_name(spans, "Bash")
+
+    assert bash_span.status.status_code == StatusCode.ERROR
+    assert bash_span.status.description == "permission denied"
+
+    error_events = [e for e in bash_span.events if e.name == "exception"]
+    assert error_events, "Expected an exception event on the tool span"
+    assert error_events[0].attributes.get("exception.message") == "permission denied"
+
+
 def test_merge_hooks_preserves_user_hooks(monkeypatch: pytest.MonkeyPatch) -> None:
     """User hooks should be preserved when instrumentation merges hooks."""
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
@@ -234,8 +604,13 @@ def test_merge_hooks_preserves_user_hooks(monkeypatch: pytest.MonkeyPatch) -> No
 
     class _NoopTracker(wrappers._ToolSpanTrackerBase):
         def start_tool_span(
-            self, tool_name: Any, tool_input: Any, tool_use_id: Any, parent_tool_use_id: Any = None
+            self,
+            tool_name: Any,
+            tool_input: Any,
+            tool_use_id: Any,
+            parent_tool_use_id: Any = None,
         ) -> None:
+            del tool_name, tool_input, tool_use_id, parent_tool_use_id
             return None
 
         def end_tool_span(self, tool_use_id: Any, tool_response: Any) -> None:
@@ -778,3 +1153,504 @@ async def test_client_real_agent_span(
     )
     assert output_msg_role == "assistant"
     assert not attrs
+
+
+@pytest.mark.asyncio
+async def test_thinking_blocks_mixed_sequence_uses_unified_contents_index(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Mixed output sequence uses a single message.contents index preserving order."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    # Provider Output Sequence: thinking -> tool_use -> redacted_thinking -> text
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-thinking",
+            "model": "claude-sonnet-4-6",
+        },
+        {
+            "type": "assistant",
+            "role": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "thinking",
+                        "thinking": "Let me reason through this carefully.",
+                        "signature": "sig_abc123",
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_001",
+                        "name": "Bash",
+                        "input": {"command": "echo hi"},
+                    },
+                    {
+                        "type": "redacted_thinking",
+                        "data": "redacted_blob_xyz",
+                    },
+                    {
+                        "type": "text",
+                        "text": "The answer is 42.",
+                    },
+                ],
+            },
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "The answer is 42.",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "total_cost_usd": 0.01,
+            "session_id": "sess-thinking",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "Think and use a tool"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(span.attributes or {})
+
+    msg_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    contents_prefix = f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENTS}"
+
+    assert attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+
+    # Index 0 has thinking block
+    assert (
+        attrs.get(f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    )
+    assert (
+        attrs.get(f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "Let me reason through this carefully."
+    )
+    assert (
+        attrs.get(f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}")
+        == "sig_abc123"
+    )
+    assert f"{contents_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_ID}" not in attrs
+
+    # Index 1 has tool_use block
+    assert (
+        attrs.get(f"{contents_prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert attrs.get(f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_ID}") == "toolu_001"
+    assert attrs.get(f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}") == "Bash"
+    tool_args = attrs.get(
+        f"{contents_prefix}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert isinstance(tool_args, str)
+    assert json.loads(tool_args) == {"command": "echo hi"}
+
+    # Index 2 has redacted_thinking block
+    assert (
+        attrs.get(f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    )
+    assert (
+        attrs.get(f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_DATA}")
+        == "redacted_blob_xyz"
+    )
+    assert f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}" not in attrs
+    assert f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}" not in attrs
+    assert f"{contents_prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_ID}" not in attrs
+
+    # Index 3 has text block
+    assert (
+        attrs.get(f"{contents_prefix}.3.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    )
+    assert (
+        attrs.get(f"{contents_prefix}.3.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "The answer is 42."
+    )
+
+    # Legacy keys must NOT be present when thinking blocks are in the message
+    assert f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENT}.0" not in attrs
+    assert (
+        f"{msg_prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}"
+        not in attrs
+    )
+
+
+@pytest.mark.asyncio
+async def test_text_only_message_uses_legacy_content_keys(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Messages without thinking blocks continue to use legacy message.content keys."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-text",
+            "model": "claude-sonnet-4-6",
+        },
+        {
+            "type": "assistant",
+            "role": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Just a plain reply."}],
+            },
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "Just a plain reply.",
+            "usage": {"input_tokens": 5, "output_tokens": 3},
+            "total_cost_usd": 0.001,
+            "session_id": "sess-text",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "Say something"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = _span_by_name(spans, "ClaudeAgentSDK.query")
+    attrs = dict(span.attributes or {})
+
+    msg_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+
+    # Legacy path with no thinking blocks should work
+    assert attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert attrs.get(f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENT}.0") == "Just a plain reply."
+
+    # message.contents must NOT be present for non-thinking messages
+    assert not any(
+        k.startswith(f"{msg_prefix}.{MessageAttributes.MESSAGE_CONTENTS}") for k in attrs
+    )
+
+
+@pytest.mark.asyncio
+async def test_missing_parent_hook_defers_to_message_parent_for_multiple_agents(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """When hooks omit parent ids, message parent ids remain authoritative."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+
+    subagent_spans: dict[str, Any] = {}
+    tracker_holder: dict[str, Any] = {}
+
+    def _resolve_parent_span(parent_tool_use_id: Any) -> Any:
+        key = str(parent_tool_use_id)
+        if key not in subagent_spans:
+            tracker = tracker_holder["tracker"]
+            parent_tool_span = tracker.get_in_flight_span(parent_tool_use_id)
+            ctx = trace_api.set_span_in_context(parent_tool_span or root_span)
+            subagent_spans[key] = tracer.start_span(
+                "ClaudeAgentSDK.Task",
+                context=ctx,
+            )
+        return subagent_spans[key]
+
+    tracker = wrappers._ToolSpanTracker(
+        tracer,
+        root_span,
+        parent_span_resolver=_resolve_parent_span,
+    )
+    tracker_holder["tracker"] = tracker
+
+    options = _DummyOptions()
+    options.hooks = wrappers._create_tool_hook_matchers(tracker)
+
+    # Two root-level subagent tools can be in flight at the same time. Both have
+    # no parent in the root assistant message and must remain root-level siblings.
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_agent_1",
+                        "name": "Agent",
+                        "input": {"prompt": "delegate one"},
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_agent_2",
+                        "name": "Agent",
+                        "input": {"prompt": "delegate two"},
+                    },
+                ]
+            },
+            "parent_tool_use_id": None,
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+
+    # The hook payload is missing the parent, so it must not create a span by
+    # guessing from whichever Agent tool is most recently active.
+    await _run_hooks(
+        options,
+        "PreToolUse",
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo from agent one"},
+            "tool_use_id": "toolu_bash_1",
+            "parent_tool_use_id": None,
+        },
+    )
+    assert tracker.get_in_flight_span("toolu_bash_1") is None
+
+    # The message stream later carries the actual parent id for this Bash call.
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_bash_1",
+                        "name": "Bash",
+                        "input": {"command": "echo from agent one"},
+                    },
+                ]
+            },
+            "parent_tool_use_id": "toolu_agent_1",
+        },
+        tracker,
+        parent_tool_use_id="toolu_agent_1",
+    )
+    tracker.end_tool_span("toolu_bash_1", "alpha")
+    tracker.end_tool_span("toolu_agent_1", "agent one")
+    tracker.end_tool_span("toolu_agent_2", "agent two")
+
+    for span in subagent_spans.values():
+        span.end()
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    agent_spans = [
+        s
+        for s in spans
+        if s.name == "Agent"
+        and dict(s.attributes or {}).get(SpanAttributes.TOOL_ID)
+        in {"toolu_agent_1", "toolu_agent_2"}
+    ]
+    assert len(agent_spans) == 2
+    agent_by_tool_id = {dict(s.attributes or {})[SpanAttributes.TOOL_ID]: s for s in agent_spans}
+    subagent_span = subagent_spans["toolu_agent_1"]
+    bash_span = _span_by_name(spans, "Bash")
+
+    for agent_span in agent_spans:
+        assert agent_span.parent is not None
+        assert agent_span.parent.span_id == root.context.span_id
+
+    assert subagent_span.parent is not None
+    assert subagent_span.parent.span_id == agent_by_tool_id["toolu_agent_1"].context.span_id
+    assert bash_span.parent is not None
+    assert bash_span.parent.span_id == subagent_span.context.span_id
+    assert "toolu_agent_2" not in subagent_spans
+
+
+@pytest.mark.asyncio
+async def test_missing_parent_hook_keeps_root_tool_sibling_at_root(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Root-level message tools stay at root when their hook payload has no parent."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+    subagent_spans: dict[str, Any] = {}
+
+    def _resolve_parent_span(parent_tool_use_id: Any) -> Any:
+        key = str(parent_tool_use_id)
+        if key not in subagent_spans:
+            subagent_spans[key] = tracer.start_span(
+                "ClaudeAgentSDK.Agent",
+                context=trace_api.set_span_in_context(root_span),
+            )
+        return subagent_spans[key]
+
+    tracker = wrappers._ToolSpanTracker(
+        tracer,
+        root_span,
+        parent_span_resolver=_resolve_parent_span,
+    )
+
+    options = _DummyOptions()
+    options.hooks = wrappers._create_tool_hook_matchers(tracker)
+
+    await _run_hooks(
+        options,
+        "PreToolUse",
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo root"},
+            "tool_use_id": "toolu_bash_root",
+            "parent_tool_use_id": None,
+        },
+    )
+    assert tracker.get_in_flight_span("toolu_bash_root") is None
+
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_agent_1",
+                        "name": "Agent",
+                        "input": {"prompt": "delegate"},
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_bash_root",
+                        "name": "Bash",
+                        "input": {"command": "echo root"},
+                    },
+                ]
+            },
+            "parent_tool_use_id": None,
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+    tracker.end_tool_span("toolu_bash_root", "root")
+    tracker.end_tool_span("toolu_agent_1", "agent")
+    for span in subagent_spans.values():
+        span.end()
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    agent_span = _span_by_name(spans, "Agent")
+    bash_span = _span_by_name(spans, "Bash")
+
+    assert agent_span.parent is not None
+    assert agent_span.parent.span_id == root.context.span_id
+    assert bash_span.parent is not None
+    assert bash_span.parent.span_id == root.context.span_id
+    assert not subagent_spans
+
+
+@pytest.mark.asyncio
+async def test_missing_parent_hook_end_before_message_result_still_closes_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    """Deferred hook spans can still be closed by the later message result."""
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    root_span = tracer.start_span("root")
+    tracker = wrappers._ToolSpanTracker(tracer, root_span)
+    options = _DummyOptions()
+    options.hooks = wrappers._create_tool_hook_matchers(tracker)
+
+    await _run_hooks(
+        options,
+        "PreToolUse",
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo late"},
+            "tool_use_id": "toolu_bash_late",
+            "parent_tool_use_id": None,
+        },
+    )
+    await _run_hooks(
+        options,
+        "PostToolUse",
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_use_id": "toolu_bash_late",
+            "tool_response": "hook output",
+        },
+    )
+    assert tracker.get_in_flight_span("toolu_bash_late") is None
+
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_bash_late",
+                        "name": "Bash",
+                        "input": {"command": "echo late"},
+                    }
+                ]
+            },
+            "parent_tool_use_id": None,
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+    wrappers._update_tool_spans_from_messages(
+        {
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_bash_late",
+                        "content": "message output",
+                        "is_error": False,
+                    }
+                ]
+            }
+        },
+        tracker,
+        parent_tool_use_id=None,
+    )
+    root_span.end()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    root = _span_by_name(spans, "root")
+    bash_span = _span_by_name(spans, "Bash")
+    attrs = dict(bash_span.attributes or {})
+
+    assert bash_span.parent is not None
+    assert bash_span.parent.span_id == root.context.span_id
+    assert json.loads(str(attrs.get(SpanAttributes.OUTPUT_VALUE))) == "message output"

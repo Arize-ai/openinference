@@ -1,0 +1,219 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Tell bed storey for 5 years old boy."}],
+      "role": "user"}], "generationConfig": {"thinkingConfig": {"include_thoughts":
+      true, "thinking_budget": 512}}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse
+  response:
+    body:
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"**Defining
+        the Narrative Parameters**\\n\\nI've zeroed in on the core request: a bedtime
+        story geared towards a 5-year-old. My focus is now on ensuring the genre is
+        calming, gentle, and imaginative, with an emphasis on leading to sleep. The
+        required tone is warm, soothing, and simple, tinged with a little magic.\\n\\n\\n\",\"thought\":
+        true}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        11,\"totalTokenCount\": 11,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"**Refining the Protagonist/Setting**\\n\\nI've decided
+        on \\\"The Sleepy Little Train\\\" as the title, as it best embodies the core
+        concept. The focus is now on Leo, the protagonist. I am focusing on the setting
+        - a nighttime world, with a dark blue sky full of twinkling stars. The plan
+        is to start with Leo already in bed.\\n\\n\\n\",\"thought\": true}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"totalTokenCount\":
+        11,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Here is\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        2,\"totalTokenCount\": 726,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" a cozy, calming
+        bedtime story perfect for a 5-year-old boy. \\n\\n***\\n\\n### The Sleepy
+        Little Star\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        11,\"candidatesTokenCount\": 29,\"totalTokenCount\": 753,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\": 713,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" Train\\n\\nOnce
+        upon a time, in a bedroom very much like yours, it was time for bed. \\n\\nThe\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        53,\"totalTokenCount\": 777,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" sun had gone down,
+        painting the sky in deep shades of blue and purple. The moon was shining like
+        a nightlight\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        11,\"candidatesTokenCount\": 77,\"totalTokenCount\": 801,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\": 713,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \", and the tiny stars
+        were starting to blink and twinkle, whispering, *\u201CShhh\u2026 it\u2019s
+        time to rest\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        11,\"candidatesTokenCount\": 102,\"totalTokenCount\": 826,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\": 713,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \".\u201D*\\n\\nA
+        little boy named Leo (just like you!) climbed into his warm, cozy bed. He
+        pulled his soft\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 127,\"totalTokenCount\":
+        851,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" blankets all the way up to his chin. He took a
+        big, deep breath in\u2026 and let it out with a long, happy\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        154,\"totalTokenCount\": 878,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" sigh. *\u201CAhhh.\u201D*\\n\\nJust
+        as Leo closed his eyes, he heard a very quiet, very gentle\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        178,\"totalTokenCount\": 902,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" sound from outside
+        his window. \\n\\n*Chug-a-chug-a\u2026 chug-a-chug-\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        205,\"totalTokenCount\": 929,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"a\u2026*\\n\\nIt
+        wasn\u2019t a loud train. It was the **Dream Train**, and it was made entirely\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        229,\"totalTokenCount\": 953,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" of soft, fluffy
+        silver clouds. \\n\\nLeo looked out the window and saw the train floating
+        right outside! The tracks\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 253,\"totalTokenCount\":
+        977,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" were made of golden starlight, stretching all the
+        way up into the sky. \\n\\nThe conductor of the train was a\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        278,\"totalTokenCount\": 1002,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" very friendly,
+        very sleepy little owl named Barnaby. Barnaby wore a tiny blue conductor\u2019s
+        hat and had big\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 302,\"totalTokenCount\":
+        1026,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \", warm eyes. He looked at Leo and gave a soft, sleepy
+        hoot. *\u201CWhooo-whooo. Would you\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 329,\"totalTokenCount\":
+        1053,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" like to go for a bedtime ride?\u201D*\\n\\nLeo
+        nodded and, in his imagination, he climbed aboard the train. The\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        354,\"totalTokenCount\": 1078,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" seats inside were
+        made of the softest velvet cushions. There were lots of other sleepy passengers,
+        too. A little bear cub was already\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 381,\"totalTokenCount\":
+        1105,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" curled up fast asleep in the corner, and a baby
+        deer was snoring a tiny, gentle snore. \\n\\nThe\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        405,\"totalTokenCount\": 1129,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" train began to
+        move. *Chug-a-chug-a\u2026 chug-a-chug-a\u2026\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        431,\"totalTokenCount\": 1155,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"* \\n\\nIt rolled
+        slowly up the starlight tracks, higher and higher into the peaceful night
+        sky. It felt like\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 455,\"totalTokenCount\":
+        1179,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" rocking in a hammock. *Rock\u2026 rock\u2026 rock\u2026*\\n\\nFirst,
+        they passed the silver Moon. The Moon looked down\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        481,\"totalTokenCount\": 1205,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" with a kind smile
+        and whispered, *\u201CGoodnight, little traveler.\u201D* \\n\\nNext, the train
+        glided past\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        11,\"candidatesTokenCount\": 506,\"totalTokenCount\": 1230,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\": 713,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" the Cloud Kingdom,
+        where sleepy sheep were jumping over fences made of cotton candy. \\n\\nThen,
+        the train began to slow down.\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 533,\"totalTokenCount\":
+        1257,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" \\n*Chug\u2026*\\n*Chug\u2026*\\n*Chug\u2026*\\n\\nThe
+        starlight tracks gently\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 558,\"totalTokenCount\":
+        1282,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" curved back down, right toward Leo's cozy bedroom.
+        The Dream Train stopped softly by his window. \\n\\nBarnaby the\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        584,\"totalTokenCount\": 1308,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" owl smiled and
+        whispered, *\u201CTime for sleep, little adventurer. Your bed is waiting,
+        and it\u2019s the co\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 609,\"totalTokenCount\":
+        1333,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"ziest place in the whole wide world.\u201D*\\n\\nLeo
+        climbed back under his warm blankets. He snuggled his head\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        633,\"totalTokenCount\": 1357,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" deep into his pillow.
+        It felt as soft as the cloud train. \\n\\nHe closed his heavy eyes. The stars\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        657,\"totalTokenCount\": 1381,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" outside whispered,
+        *\u201CSleep tight, sleep tight.\u201D* \\n\\nAnd with one more deep, slow
+        breath, Leo fell\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 11,\"candidatesTokenCount\": 682,\"totalTokenCount\":
+        1406,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\":
+        713,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\":
+        \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" fast asleep, ready for beautiful, happy dreams.
+        \\n\\nGoodnight, little adventurer. Sleep tight.\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 11,\"candidatesTokenCount\":
+        703,\"totalTokenCount\": 1427,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        11}],\"thoughtsTokenCount\": 713,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\",\"thoughtSignature\":
+        \"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\"}],\"role\":
+        \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        11,\"candidatesTokenCount\": 703,\"totalTokenCount\": 1427,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 11}],\"thoughtsTokenCount\": 713,\"serviceTier\":
+        \"standard\"},\"modelVersion\": \"gemini-3.5-flash\",\"responseId\": \"iCUhao2zJ-LHjuMP1vvH2Qk\"}\r\n\r\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

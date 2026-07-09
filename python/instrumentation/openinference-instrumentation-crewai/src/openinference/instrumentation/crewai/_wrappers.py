@@ -125,6 +125,16 @@ def _serialize_agent_input(agent: Any) -> Dict[str, Any]:
                 Dict[str, Any],
                 model_dump(mode="json", exclude=_AGENT_MODEL_DUMP_EXCLUDE),
             )
+            # Pydantic's exclude may not strip these from tool items in newer
+            # crewai versions (e.g. 1.14+) where BaseTool serializes args_schema
+            # as an instance field rather than a ClassVar. Post-process to ensure
+            # non-JSON-safe and noisy fields are always removed.
+            tools = serialized_agent.get("tools")
+            if isinstance(tools, list):
+                for tool in tools:
+                    if isinstance(tool, dict):
+                        tool.pop("args_schema", None)
+                        tool.pop("cache_function", None)
             # `key` is useful for debugging span payloads, but is not guaranteed to be
             # part of CrewAI's dumped schema across versions, so attach it explicitly.
             agent_key = getattr(agent, "key", None)
@@ -244,6 +254,28 @@ def _get_flow_name(flow: Any) -> str:
 
     # Final fallback
     return "Flow"
+
+
+def _get_flow_method_type(flow: Any, method_name: Any) -> str:
+    methods = getattr(flow, "_methods", None)
+    if isinstance(methods, Mapping):
+        method = methods.get(method_name)
+        method_type = type(method).__name__
+        if method_type == "StartMethod":
+            return "start"
+        if method_type == "RouterMethod":
+            return "router"
+        if method_type == "ListenMethod":
+            return "listen"
+
+    actual_method = getattr(flow, str(method_name), None)
+    if actual_method is None:
+        return "unknown"
+    if getattr(actual_method, "__is_start_method__", False):
+        return "start"
+    if getattr(actual_method, "__is_router__", False):
+        return "router"
+    return "listen"
 
 
 def _get_tool_span_name(instance: Any, wrapped: Callable[..., Any]) -> str:
@@ -653,18 +685,7 @@ class _FlowExecuteMethodWrapper:
 
         # args = (method_name, method, *original_method_args)
         method_name = args[0] if args else kwargs.get("method_name", "unknown")
-        # Look up the decorated method on the instance (the 'method' arg in args[1]
-        # is the unwrapped function, not the @start/@listen/@router wrapper).
-        actual_method = getattr(instance, method_name, None)
-        if actual_method is not None:
-            if getattr(actual_method, "__is_start_method__", False):
-                node_type = "start"
-            elif getattr(actual_method, "__is_router__", False):
-                node_type = "router"
-            else:
-                node_type = "listen"
-        else:
-            node_type = "unknown"
+        node_type = _get_flow_method_type(instance, method_name)
 
         flow_name = _get_flow_name(instance)
         span_name = f"{flow_name}.{method_name}"

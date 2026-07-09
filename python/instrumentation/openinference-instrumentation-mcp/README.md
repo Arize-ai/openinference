@@ -14,3 +14,4 @@ pip install openinference-instrumentation-mcp
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [More info on OpenInference and Arize AX](https://arize.com/docs/ax)
