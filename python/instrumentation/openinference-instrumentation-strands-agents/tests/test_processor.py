@@ -26,7 +26,7 @@ class MockReadableSpan:
         self,
         name: str,
         attributes: Optional[Dict[str, Any]] = None,
-        events: Optional[List[Dict[str, Any]]] = None,
+        events: Optional[List[Any]] = None,
     ) -> None:
         self.name = name
         self._attributes = attributes or {}
