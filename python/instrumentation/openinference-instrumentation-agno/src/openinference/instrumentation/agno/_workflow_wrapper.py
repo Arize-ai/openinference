@@ -13,6 +13,7 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.agno.utils import (
+    _AGNO_ARUN_SPANNED_CONTEXT_KEY,
     _AGNO_PARENT_NODE_CONTEXT_KEY,
     _bind_arguments,
     _flatten,
@@ -176,8 +177,6 @@ def _workflow_run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str,
 
 
 class _WorkflowWrapper:
-    _ARUN_SPANNED_ATTR = "_oi_arun_spanned"
-
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -391,8 +390,6 @@ class _WorkflowWrapper:
             ),
         )
 
-        setattr(instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR, True)
-
         # Setup context and call wrapped to detect streaming
         workflow_token = None
         is_streaming = False
@@ -416,16 +413,25 @@ class _WorkflowWrapper:
         async def non_stream_wrapper() -> Any:
             nonlocal workflow_token
             ctx_token = None
+            spanned_token = None
             try:
                 ctx_token = context_api.attach(trace_api.set_span_in_context(span))
                 if workflow_token is None:
                     workflow_token = _setup_node_context(node_id)
+                # Set the context-local marker so _WorkflowExecuteWrapper.aexecute
+                # skips creating its own span. This token is scoped to this coroutine's
+                # context and never leaks into background tasks created by _arun_background.
+                spanned_token = _setup_arun_spanned_context()
+
                 response = await result
 
                 # Detach tokens immediately after execution completes
                 if workflow_token is not None:
                     context_api.detach(workflow_token)
                     workflow_token = None
+                if spanned_token is not None:
+                    context_api.detach(spanned_token)
+                    spanned_token = None
                 if ctx_token is not None:
                     context_api.detach(ctx_token)
                     ctx_token = None
@@ -457,13 +463,13 @@ class _WorkflowWrapper:
                 raise
 
             finally:
+                if spanned_token is not None:
+                    context_api.detach(spanned_token)
                 if workflow_token is not None:
                     context_api.detach(workflow_token)
                 if ctx_token is not None:
                     context_api.detach(ctx_token)
                 span.end()
-                if getattr(instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR, False):
-                    delattr(instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR)
 
         return non_stream_wrapper()
 
@@ -481,13 +487,17 @@ class _WorkflowWrapper:
             while True:
                 ctx_token = None
                 workflow_token = None
+                spanned_token = None
                 try:
                     ctx_token = context_api.attach(trace_api.set_span_in_context(span))
                     workflow_token = _setup_node_context(node_id)
+                    spanned_token = _setup_arun_spanned_context()
                     response = await anext(iterator)
                 except StopAsyncIteration:
                     break
                 finally:
+                    if spanned_token is not None:
+                        context_api.detach(spanned_token)
                     if workflow_token is not None:
                         context_api.detach(workflow_token)
                     if ctx_token is not None:
@@ -526,10 +536,6 @@ class _WorkflowWrapper:
 
         finally:
             span.end()
-            if instance is not None and getattr(
-                instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR, False
-            ):
-                delattr(instance, _WorkflowExecuteWrapper._ARUN_SPANNED_ATTR)
 
 
 class _WorkflowExecuteWrapper:
@@ -537,15 +543,14 @@ class _WorkflowExecuteWrapper:
     Wrapper for coroutines that do the actual step execution and write the real output onto the
     WorkflowRunOutput, regardless of whether the run was started (via arun or _arun_background).
     """
-
-    _ARUN_SPANNED_ATTR = "_oi_arun_spanned"
-
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
-    @classmethod
-    def _already_spanned(cls, instance: Any) -> bool:
-        return bool(getattr(instance, cls._ARUN_SPANNED_ATTR, False))
+    @staticmethod
+    def _already_spanned() -> bool:
+        # Returns True only inside the foreground coroutine/stream that owns the arun span.
+        # The background tasks get their own context copy where this key is absent.
+        return bool(context_api.get_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY))
 
     @staticmethod
     def _apply_run_output_attributes(span: Any, instance: Any, run_output: Any) -> None:
@@ -577,7 +582,7 @@ class _WorkflowExecuteWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        if self._already_spanned(instance):
+        if self._already_spanned():
             return await wrapped(*args, **kwargs)
 
         workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
@@ -657,7 +662,7 @@ class _WorkflowExecuteWrapper:
                 yield item
             return
 
-        if self._already_spanned(instance):
+        if self._already_spanned():
             async for item in wrapped(*args, **kwargs):
                 yield item
             return
@@ -1312,8 +1317,16 @@ class _ParallelWrapper:
 
 def _setup_node_context(node_id: str) -> Any:
     """Set up context for different nodes to propagate to child steps."""
-    parallel_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
-    return context_api.attach(parallel_ctx)
+    return context_api.attach(
+        context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
+    )
+
+
+def _setup_arun_spanned_context() -> Any:
+    """Mark the current async context as already covered by a Workflow.arun span."""
+    return context_api.attach(
+        context_api.set_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY, True)
+    )
 
 
 # span attributes

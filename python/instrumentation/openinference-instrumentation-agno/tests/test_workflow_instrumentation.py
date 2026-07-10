@@ -836,6 +836,85 @@ class TestWorkflowBackgroundRuns:
             "under arun's span (would double-span the foreground path)"
         )
 
+    async def test_concurrent_foreground_and_background_runs_do_not_interfere(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        # Slow executor gives the background run time to start and reach
+        # _aexecute while the foreground run is still in flight.
+        async def slow_step(step_input: Any) -> Any:
+            await asyncio.sleep(0.05)
+            from agno.workflow.types import StepOutput
+
+            return StepOutput(step_name="fg_step", content="foreground done", success=True)
+
+        workflow = Workflow(
+            name="ConcurrentWorkflow",
+            steps=[Step(name="fg_step", executor=slow_step)],
+        )
+
+        # Start foreground run as a task so it runs concurrently.
+        foreground_task = asyncio.create_task(
+            workflow.arun(input="foreground input", run_id="RUN-FG-CONCURRENT")
+        )
+
+        # Yield briefly so the foreground task has started and set its context marker.
+        await asyncio.sleep(0.01)
+
+        # Start background run on the same workflow instance while the foreground
+        # is still in flight. With the instance-attribute approach this would race.
+        # With the contextvar approach each task has its own context copy.
+        before_bg_tasks = asyncio.all_tasks()
+        await workflow.arun(
+            input="background input",
+            background=True,
+        )
+
+        # Wait for background task to finish.
+        new_bg_tasks = asyncio.all_tasks() - before_bg_tasks - {asyncio.current_task()}
+        for task in new_bg_tasks:
+            try:
+                await asyncio.wait_for(task, timeout=5)
+            except Exception:
+                pass
+
+        # Wait for foreground task to finish.
+        try:
+            await asyncio.wait_for(foreground_task, timeout=5)
+        except Exception:
+            pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+
+        arun_spans = [s for s in spans if s.name == "ConcurrentWorkflow.arun"]
+        execute_spans = [
+            s
+            for s in spans
+            if "ConcurrentWorkflow._aexecute" in s.name and "stream" not in s.name
+        ]
+
+        # Foreground path: exactly one arun span, no _aexecute span.
+        assert len(arun_spans) == 1, (
+            f"Expected 1 foreground arun span, got {len(arun_spans)}"
+        )
+
+        # Background path: exactly one _aexecute span.
+        assert len(execute_spans) == 1, (
+            f"Expected 1 background _aexecute span, got {len(execute_spans)}. "
+            "The foreground run's span marker may have leaked into the background "
+            "task via the instance attribute (regression of the contextvar fix)."
+        )
+
+        # The _aexecute span should carry a real run_id.
+        execute_attrs = dict(execute_spans[0].attributes or {})
+        captured_run_id = execute_attrs.get("agno.run.id")
+        assert captured_run_id is not None
+        assert re.match(r"^[0-9a-f-]{36}$", captured_run_id), (
+            f"agno.run.id should be a UUID, got {captured_run_id!r}"
+        )
+
 
 # mime types
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
