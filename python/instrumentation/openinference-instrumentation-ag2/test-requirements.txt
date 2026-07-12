@@ -1,2 +1,4 @@
 ag2==0.14.0
 opentelemetry-sdk
+pytest
+pytest-asyncio

@@ -1,5 +1,6 @@
 from opentelemetry.util._importlib_metadata import entry_points
 
+from openinference.instrumentation.ag2 import AG2Instrumentor
 from openinference.instrumentation.autogen import AutogenInstrumentor
 
 
@@ -10,3 +11,7 @@ class TestInstrumentor:
         )
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, AutogenInstrumentor)
+
+    def test_compatibility_alias_uses_same_instrumentor_singleton(self) -> None:
+        assert AutogenInstrumentor is AG2Instrumentor
+        assert AutogenInstrumentor() is AG2Instrumentor()
