@@ -708,7 +708,10 @@ def _accumulate_thinking_blocks(
                 last = {"type": "thinking", "thinking": "", "signature": ""}
                 accumulated.append(last)
             if thinking := block.get("thinking"):
-                last["thinking"] += thinking
+                if thinking.startswith(last["thinking"]):
+                    last["thinking"] = thinking
+                else:
+                    last["thinking"] += thinking
             if signature := block.get("signature"):
                 last["signature"] = signature
 

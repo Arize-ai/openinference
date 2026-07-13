@@ -1322,6 +1322,38 @@ def _make_reasoning_stream_chunks() -> List[Any]:
     ]
 
 
+@pytest.mark.vcr
+def test_completion_streaming_with_extended_thinking_anthropic(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    chunks = list(
+        litellm.completion(
+            model="anthropic/claude-sonnet-4-5",
+            api_key=os.getenv("ANTHROPIC_API_KEY", "sk-"),
+            messages=[{"role": "user", "content": "What is 2 + 2? Think before you answer."}],
+            thinking={"type": "enabled", "budget_tokens": 1024},
+            stream=True,
+        )
+    )
+    assert len(chunks) > 0
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    c = f"{prefix}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attributes.pop(f"{c}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "reasoning"
+    assert attributes.pop(f"{c}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}") == (
+        "This is a simple arithmetic question. Let me think through it:\n\n"
+        "2 + 2 = 4\n\n"
+        "This is a basic addition problem. When you add 2 and 2 together, you get 4."
+    )
+    signature = attributes.pop(f"{c}.0.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}")
+    assert isinstance(signature, str) and signature
+
+
 def _assert_streaming_reasoning_attributes(attributes: Dict[str, AttributeValue]) -> None:
     """Exhaustively pop and validate every attribute produced for the reasoning
     stream chunks; nothing unexpected may remain."""
