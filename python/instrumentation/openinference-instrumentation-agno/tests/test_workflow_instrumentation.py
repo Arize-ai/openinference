@@ -890,15 +890,11 @@ class TestWorkflowBackgroundRuns:
 
         arun_spans = [s for s in spans if s.name == "ConcurrentWorkflow.arun"]
         execute_spans = [
-            s
-            for s in spans
-            if "ConcurrentWorkflow._aexecute" in s.name and "stream" not in s.name
+            s for s in spans if "ConcurrentWorkflow._aexecute" in s.name and "stream" not in s.name
         ]
 
         # Foreground path: exactly one arun span, no _aexecute span.
-        assert len(arun_spans) == 1, (
-            f"Expected 1 foreground arun span, got {len(arun_spans)}"
-        )
+        assert len(arun_spans) == 1, f"Expected 1 foreground arun span, got {len(arun_spans)}"
 
         # Background path: exactly one _aexecute span.
         assert len(execute_spans) == 1, (

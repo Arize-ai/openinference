@@ -543,6 +543,7 @@ class _WorkflowExecuteWrapper:
     Wrapper for coroutines that do the actual step execution and write the real output onto the
     WorkflowRunOutput, regardless of whether the run was started (via arun or _arun_background).
     """
+
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -1317,16 +1318,12 @@ class _ParallelWrapper:
 
 def _setup_node_context(node_id: str) -> Any:
     """Set up context for different nodes to propagate to child steps."""
-    return context_api.attach(
-        context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
-    )
+    return context_api.attach(context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id))
 
 
 def _setup_arun_spanned_context() -> Any:
     """Mark the current async context as already covered by a Workflow.arun span."""
-    return context_api.attach(
-        context_api.set_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY, True)
-    )
+    return context_api.attach(context_api.set_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY, True))
 
 
 # span attributes
