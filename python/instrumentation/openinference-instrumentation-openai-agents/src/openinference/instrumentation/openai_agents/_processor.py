@@ -324,7 +324,10 @@ def _get_attributes_from_input(
         elif item["type"] == "additional_tools":
             # TODO: Handle additional tools
             continue
-        elif item["type"] in ("program", "program_output"):
+        elif item["type"] == "program":
+            # TODO: Handle program execution items
+            continue
+        elif item["type"] == "program_output":
             # TODO: Handle program execution items
             continue
         elif TYPE_CHECKING and item["type"] is not None:
@@ -701,7 +704,9 @@ def _get_attributes_from_response_output(
             ...  # TODO
         elif item.type == "additional_tools":
             ...  # TODO
-        elif item.type in ("program", "program_output"):
+        elif item.type == "program":
+            ...  # TODO: Handle program execution items
+        elif item.type == "program_output":
             ...  # TODO: Handle program execution items
         elif TYPE_CHECKING:
             assert_never(item)
