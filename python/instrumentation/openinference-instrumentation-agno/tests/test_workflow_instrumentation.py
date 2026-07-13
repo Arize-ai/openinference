@@ -907,7 +907,7 @@ class TestWorkflowBackgroundRuns:
         execute_attrs = dict(execute_spans[0].attributes or {})
         captured_run_id = execute_attrs.get("agno.run.id")
         assert captured_run_id is not None
-        assert re.match(r"^[0-9a-f-]{36}$", captured_run_id), (
+        assert re.match(r"^[0-9a-f-]{36}$", captured_run_id), (  # type: ignore[call-overload]
             f"agno.run.id should be a UUID, got {captured_run_id!r}"
         )
 
