@@ -293,6 +293,8 @@ def _get_attributes_from_message_content(
         if image := content.pop("image_url"):
             for key, value in _get_attributes_from_image(image):
                 yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+    elif type_ in ("thinking", "redacted_thinking"):
+        yield from _get_attributes_from_reasoning_block(_normalize_thinking_block(content))
 
 
 def _get_attributes_from_image(

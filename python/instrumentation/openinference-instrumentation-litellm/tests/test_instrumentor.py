@@ -1157,6 +1157,51 @@ def test_completion_tool_flow_with_input_thinking_blocks(
     assert attributes == {}
 
 
+def test_completion_input_message_content_list_with_thinking_blocks(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages: List[Dict[str, Any]] = [
+        {"content": "What's the capital of France?", "role": "user"},
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "thinking",
+                    "thinking": "The user is asking about France's capital.",
+                    "signature": "sig-content-list",
+                },
+                {"type": "redacted_thinking", "data": "redacted-data"},
+                {"type": "text", "text": "Paris."},
+            ],
+        },
+    ]
+    litellm.completion(
+        model="anthropic/claude-sonnet-4-5",
+        messages=input_messages,
+        mock_response="Paris is the capital of France.",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+
+    prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    assert attributes.pop(f"{prefix}.1.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    _pop_reasoning_content(
+        attributes,
+        prefix,
+        1,
+        0,
+        text="The user is asking about France's capital.",
+        signature="sig-content-list",
+    )
+    _pop_reasoning_content(attributes, prefix, 1, 1, data="redacted-data")
+    _pop_text_content(attributes, prefix, 1, 2, "Paris.")
+
+
 def test_completion_gemini_tool_call_id_thought_signature(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
