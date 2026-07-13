@@ -1531,6 +1531,7 @@ def test_get_attributes_from_message_content_list(
                 "llm.token_count.completion_details.reasoning": 0,
                 "llm.token_count.prompt": 10,
                 "llm.token_count.prompt_details.cache_read": 0,
+                "llm.token_count.prompt_details.cache_write": 0,
                 "llm.token_count.total": 15,
                 "llm.tools.0.tool.json_schema": json.dumps(
                     {
@@ -1796,6 +1797,7 @@ def test_get_attributes_from_message_content_list(
                 "llm.token_count.completion_details.reasoning": 50,
                 "llm.token_count.prompt": 1000,
                 "llm.token_count.prompt_details.cache_read": 100,
+                "llm.token_count.prompt_details.cache_write": 0,
                 "llm.token_count.total": 1500,
                 "llm.tools.0.tool.json_schema": json.dumps(
                     {
@@ -3459,6 +3461,7 @@ def test_get_attributes_from_message(
                 "llm.token_count.completion_details.reasoning": 0,
                 "llm.token_count.completion": 0,
                 "llm.token_count.prompt_details.cache_read": 0,
+                "llm.token_count.prompt_details.cache_write": 0,
                 "llm.token_count.total": 0,
             },
             id="zero_tokens",
@@ -3483,6 +3486,7 @@ def test_get_attributes_from_message(
                 "llm.token_count.completion_details.reasoning": 50,
                 "llm.token_count.prompt": 1000,
                 "llm.token_count.prompt_details.cache_read": 100,
+                "llm.token_count.prompt_details.cache_write": 0,
                 "llm.token_count.total": 1500,
             },
             id="large_token_counts",
