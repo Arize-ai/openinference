@@ -2091,8 +2091,9 @@ def test_get_attributes_from_message(
                 input_tokens=10,
                 output_tokens=5,
                 total_tokens=15,
-                input_tokens_details=InputTokensDetails(
+                input_tokens_details=InputTokensDetails.model_construct(
                     cached_tokens=0,
+                    cache_write_tokens=10,
                 ),
                 output_tokens_details=OutputTokensDetails(
                     reasoning_tokens=0,
@@ -2103,6 +2104,7 @@ def test_get_attributes_from_message(
                 "llm.token_count.completion_details.reasoning": 0,
                 "llm.token_count.completion": 5,
                 "llm.token_count.prompt_details.cache_read": 0,
+                "llm.token_count.prompt_details.cache_write": 10,
                 "llm.token_count.total": 15,
             },
             id="complete_usage",

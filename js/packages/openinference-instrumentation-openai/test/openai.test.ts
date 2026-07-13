@@ -195,6 +195,7 @@ describe("OpenAIInstrumentation", () => {
         total_tokens: 17,
         prompt_tokens_details: {
           cached_tokens: 1,
+          cache_write_tokens: 2,
         },
       },
     };
@@ -229,10 +230,11 @@ describe("OpenAIInstrumentation", () => {
         "llm.token_count.completion": 5,
         "llm.token_count.prompt": 12,
         "llm.token_count.prompt_details.cache_read": 1,
+        "llm.token_count.prompt_details.cache_write": 2,
         "llm.token_count.total": 17,
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
-        "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17,"prompt_tokens_details":{"cached_tokens":1}}}",
+        "output.value": "{"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p","object":"chat.completion","created":1703743645,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"This is a test."},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17,"prompt_tokens_details":{"cached_tokens":1,"cache_write_tokens":2}}}",
       }
     `);
   });
