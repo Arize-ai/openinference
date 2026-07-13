@@ -10,6 +10,8 @@ This package implements OpenInference tracing for the following LiteLLM function
 - aembedding()
 - image_generation()
 - aimage_generation()
+- anthropic.messages.create()
+- anthropic.messages.acreate()
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax).
 
