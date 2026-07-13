@@ -760,9 +760,9 @@ function getUsageAttributes(completion: ChatCompletion | Completion): Attributes
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: completion.usage.total_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]:
         completion.usage.prompt_tokens_details?.cached_tokens,
-      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]:
-        (completion.usage.prompt_tokens_details as { cache_write_tokens?: number } | undefined)
-          ?.cache_write_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: (
+        completion.usage.prompt_tokens_details as { cache_write_tokens?: number } | undefined
+      )?.cache_write_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO]:
         completion.usage.prompt_tokens_details?.audio_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO]:
