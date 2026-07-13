@@ -734,6 +734,7 @@ def _pop_tool_use_content(
     tool_call_id: str,
     name: str,
     arguments: str,
+    reasoning_signature: Optional[str] = None,
 ) -> None:
     """Pop and validate a single tool_use ``message_content`` block."""
 
@@ -742,6 +743,11 @@ def _pop_tool_use_content(
 
     assert attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_TYPE)) == "tool_use"
     assert attributes.pop(key(ToolCallAttributes.TOOL_CALL_ID)) == tool_call_id
+    if reasoning_signature is not None:
+        assert (
+            attributes.pop(key(ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE))
+            == reasoning_signature
+        )
     assert attributes.pop(key(ToolCallAttributes.TOOL_CALL_FUNCTION_NAME)) == name
     assert attributes.pop(key(ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON)) == arguments
 
@@ -956,6 +962,83 @@ def test_completion_with_reasoning_content_only(
     assert attributes == {}
 
 
+@pytest.mark.asyncio
+async def test_acompletion_with_reasoning_content_only(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """reasoning_content without thinking_blocks yields a single reasoning content."""
+    from litellm.types.utils import Choices, ModelResponse, Usage
+
+    in_memory_span_exporter.clear()
+
+    mock_response = ModelResponse(
+        id="chatcmpl-reasoning",
+        model="deepseek-reasoner",
+        choices=[
+            Choices(
+                index=0,
+                finish_reason="stop",
+                message=LitellmMessage(
+                    role="assistant",
+                    content="Paris.",
+                    reasoning_content="The user asks about France.",
+                ),
+            )
+        ],
+        usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+    )
+
+    async def mock_acompletion(*args: Any, **kwargs: Any) -> Any:
+        return mock_response
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = mock_acompletion
+        await litellm.acompletion(
+            model="deepseek/deepseek-reasoner",
+            messages=[{"content": "What's the capital of France?", "role": "user"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    _assert_no_message_content_id(attributes)
+
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "deepseek/deepseek-reasoner"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "deepseek"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
+        {"model": "deepseek/deepseek-reasoner"}
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": [{"content": "What's the capital of France?", "role": "user"}]}
+    )
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Paris."
+
+    in_prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    assert attributes.pop(f"{in_prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{in_prefix}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "What's the capital of France?"
+    )
+
+    out_prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    assert attributes.pop(f"{out_prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    # A single reasoning block with no signature, followed by the text content
+    _pop_reasoning_content(attributes, out_prefix, 0, 0, text="The user asks about France.")
+    _pop_text_content(attributes, out_prefix, 0, 1, "Paris.")
+
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
+    assert attributes == {}
+
+
 def test_completion_tool_flow_with_input_thinking_blocks(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
@@ -1072,6 +1155,77 @@ def test_completion_tool_flow_with_input_thinking_blocks(
     assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
     assert cast(float, attributes.pop(SpanAttributes.LLM_COST_TOTAL)) > 0
     assert attributes == {}
+
+
+def test_completion_gemini_tool_call_id_thought_signature(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages: List[Dict[str, Any]] = [
+        {"content": "What's the weather like in New York?", "role": "user"},
+        {
+            "role": "assistant",
+            "reasoning_content": "I need to call the weather tool.",
+            "thinking_blocks": [
+                {
+                    "type": "thinking",
+                    "thinking": "I need to call the weather tool.",
+                    "signature": "sig-tool-flow",
+                }
+            ],
+            "tool_calls": [
+                {
+                    "index": 1,
+                    "id": "call_abc__thought__CiQBsig",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": '{"location": "New York"}',
+                    },
+                }
+            ],
+        },
+    ]
+    litellm.completion(
+        model="gemini/gemini-2.5-flash",
+        messages=input_messages,
+        mock_response="The weather in New York is 22C and sunny.",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+
+    prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    _pop_reasoning_content(
+        attributes, prefix, 1, 0, text="I need to call the weather tool.", signature="sig-tool-flow"
+    )
+    _pop_tool_use_content(
+        attributes,
+        prefix,
+        1,
+        1,
+        tool_call_id="call_abc",
+        name="get_weather",
+        arguments='{"location": "New York"}',
+        reasoning_signature="CiQBsig",
+    )
+    tool_call_prefix = f"{prefix}.1.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    assert attributes.pop(f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_ID}") == "call_abc"
+    assert (
+        attributes.pop(f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}")
+        == "CiQBsig"
+    )
+    assert (
+        attributes.pop(f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert (
+        attributes.pop(f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}")
+        == '{"location": "New York"}'
+    )
 
 
 def _make_reasoning_stream_chunks() -> List[Any]:

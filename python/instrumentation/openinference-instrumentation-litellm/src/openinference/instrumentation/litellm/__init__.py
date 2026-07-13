@@ -156,11 +156,18 @@ def _get_attributes_from_message_param(
             for tool_call_index, tool_call in enumerate(tool_calls):
                 tool_call_prefix = f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}"
                 tool_call_id = tool_call.get("id")
+                reasoning_signature = None
                 if tool_call_id:
+                    tool_call_id, reasoning_signature = _split_litellm_tool_call_id(tool_call_id)
                     yield (
                         f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_ID}",
                         tool_call_id,
                     )
+                    if reasoning_signature:
+                        yield (
+                            f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                            reasoning_signature,
+                        )
                 function_name = None
                 function_arguments = None
                 if function := tool_call.get("function"):
@@ -179,6 +186,11 @@ def _get_attributes_from_message_param(
                     yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "tool_use"
                     if tool_call_id:
                         yield f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}", tool_call_id
+                    if reasoning_signature:
+                        yield (
+                            f"{prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                            reasoning_signature,
+                        )
                     if function_name:
                         yield (
                             f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
@@ -190,6 +202,19 @@ def _get_attributes_from_message_param(
                             function_arguments,
                         )
                     content_index += 1
+
+
+_THOUGHT_SIGNATURE_ID_SEPARATOR = "__thought__"
+
+
+def _split_litellm_tool_call_id(tool_call_id: str) -> Tuple[str, Optional[str]]:
+    """
+    LiteLLM encodes a Gemini functionCall's thoughtSignature into the tool call id
+    as ``<id>__thought__<signature>`` for OpenAI-client compatibility. Split it back
+    into the clean id and the signature, if present.
+    """
+    call_id, separator, signature = tool_call_id.partition(_THOUGHT_SIGNATURE_ID_SEPARATOR)
+    return (call_id, signature) if separator else (tool_call_id, None)
 
 
 def _normalize_thinking_block(block: Mapping[str, Any]) -> Dict[str, Any]:
