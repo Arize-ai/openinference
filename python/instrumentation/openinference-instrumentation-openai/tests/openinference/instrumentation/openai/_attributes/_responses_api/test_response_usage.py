@@ -15,8 +15,9 @@ class TestResponseUsage:
                     input_tokens=100,
                     output_tokens=50,
                     total_tokens=150,
-                    input_tokens_details=InputTokensDetails(
+                    input_tokens_details=InputTokensDetails.model_construct(
                         cached_tokens=20,
+                        cache_write_tokens=10,
                     ),
                     output_tokens_details=OutputTokensDetails(
                         reasoning_tokens=10,
@@ -27,6 +28,7 @@ class TestResponseUsage:
                     "llm.token_count.prompt": 100,
                     "llm.token_count.completion": 50,
                     "llm.token_count.prompt_details.cache_read": 20,
+                    "llm.token_count.prompt_details.cache_write": 10,
                     "llm.token_count.completion_details.reasoning": 10,
                 },
                 id="with_token_details",

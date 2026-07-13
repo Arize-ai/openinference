@@ -1241,8 +1241,9 @@ def test_get_attributes_from_message_content_list(
                     input_tokens=10,
                     output_tokens=5,
                     total_tokens=15,
-                    input_tokens_details=InputTokensDetails(
+                    input_tokens_details=InputTokensDetails.model_construct(
                         cached_tokens=0,
+                        cache_write_tokens=0,
                     ),
                     output_tokens_details=OutputTokensDetails(
                         reasoning_tokens=0,
@@ -1284,6 +1285,7 @@ def test_get_attributes_from_message_content_list(
                 "llm.token_count.completion_details.reasoning": 0,
                 "llm.token_count.prompt": 10,
                 "llm.token_count.prompt_details.cache_read": 0,
+                "llm.token_count.prompt_details.cache_write": 0,
                 "llm.token_count.total": 15,
                 "llm.tools.0.tool.json_schema": json.dumps(
                     {
@@ -1434,8 +1436,9 @@ def test_get_attributes_from_message_content_list(
                     input_tokens=1000,
                     output_tokens=500,
                     total_tokens=1500,
-                    input_tokens_details=InputTokensDetails(
+                    input_tokens_details=InputTokensDetails.model_construct(
                         cached_tokens=100,
+                        cache_write_tokens=0,
                     ),
                     output_tokens_details=OutputTokensDetails(
                         reasoning_tokens=50,
@@ -1483,6 +1486,7 @@ def test_get_attributes_from_message_content_list(
                 "llm.token_count.completion_details.reasoning": 50,
                 "llm.token_count.prompt": 1000,
                 "llm.token_count.prompt_details.cache_read": 100,
+                "llm.token_count.prompt_details.cache_write": 0,
                 "llm.token_count.total": 1500,
                 "llm.tools.0.tool.json_schema": json.dumps(
                     {
@@ -2091,8 +2095,9 @@ def test_get_attributes_from_message(
                 input_tokens=10,
                 output_tokens=5,
                 total_tokens=15,
-                input_tokens_details=InputTokensDetails(
+                input_tokens_details=InputTokensDetails.model_construct(
                     cached_tokens=0,
+                    cache_write_tokens=10,
                 ),
                 output_tokens_details=OutputTokensDetails(
                     reasoning_tokens=0,
@@ -2103,6 +2108,7 @@ def test_get_attributes_from_message(
                 "llm.token_count.completion_details.reasoning": 0,
                 "llm.token_count.completion": 5,
                 "llm.token_count.prompt_details.cache_read": 0,
+                "llm.token_count.prompt_details.cache_write": 10,
                 "llm.token_count.total": 15,
             },
             id="complete_usage",
@@ -2117,8 +2123,9 @@ def test_get_attributes_from_message(
                 input_tokens=0,
                 output_tokens=0,
                 total_tokens=0,
-                input_tokens_details=InputTokensDetails(
+                input_tokens_details=InputTokensDetails.model_construct(
                     cached_tokens=0,
+                    cache_write_tokens=0,
                 ),
                 output_tokens_details=OutputTokensDetails(
                     reasoning_tokens=0,
@@ -2129,6 +2136,7 @@ def test_get_attributes_from_message(
                 "llm.token_count.completion_details.reasoning": 0,
                 "llm.token_count.completion": 0,
                 "llm.token_count.prompt_details.cache_read": 0,
+                "llm.token_count.prompt_details.cache_write": 0,
                 "llm.token_count.total": 0,
             },
             id="zero_tokens",
@@ -2138,8 +2146,9 @@ def test_get_attributes_from_message(
                 input_tokens=1000,
                 output_tokens=500,
                 total_tokens=1500,
-                input_tokens_details=InputTokensDetails(
+                input_tokens_details=InputTokensDetails.model_construct(
                     cached_tokens=100,
+                    cache_write_tokens=0,
                 ),
                 output_tokens_details=OutputTokensDetails(
                     reasoning_tokens=50,
@@ -2150,6 +2159,7 @@ def test_get_attributes_from_message(
                 "llm.token_count.completion_details.reasoning": 50,
                 "llm.token_count.prompt": 1000,
                 "llm.token_count.prompt_details.cache_read": 100,
+                "llm.token_count.prompt_details.cache_write": 0,
                 "llm.token_count.total": 1500,
             },
             id="large_token_counts",

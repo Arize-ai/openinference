@@ -324,6 +324,12 @@ def _get_attributes_from_input(
         elif item["type"] == "additional_tools":
             # TODO: Handle additional tools
             continue
+        elif item["type"] == "program":
+            # TODO: Handle program execution items
+            continue
+        elif item["type"] == "program_output":
+            # TODO: Handle program execution items
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
 
@@ -698,6 +704,10 @@ def _get_attributes_from_response_output(
             ...  # TODO
         elif item.type == "additional_tools":
             ...  # TODO
+        elif item.type == "program":
+            ...  # TODO: Handle program execution items
+        elif item.type == "program_output":
+            ...  # TODO: Handle program execution items
         elif TYPE_CHECKING:
             assert_never(item)
 
@@ -762,6 +772,10 @@ def _get_attributes_from_usage(
     yield LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
     if obj.input_tokens_details:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, obj.input_tokens_details.cached_tokens
+        if (
+            cache_write_tokens := getattr(obj.input_tokens_details, "cache_write_tokens", None)
+        ) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
     if obj.output_tokens_details:
         yield (
             LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
@@ -803,6 +817,9 @@ LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
     SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
 )

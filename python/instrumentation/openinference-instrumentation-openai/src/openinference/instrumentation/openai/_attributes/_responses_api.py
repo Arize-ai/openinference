@@ -473,6 +473,12 @@ class _ResponsesApiAttributes:
         elif obj["type"] == "additional_tools":
             # TODO: Handle additional tools
             pass
+        elif obj["type"] == "program":
+            # TODO: Handle program execution items
+            pass
+        elif obj["type"] == "program_output":
+            # TODO: Handle program execution items
+            pass
         elif TYPE_CHECKING and obj["type"] is not None:
             assert_never(obj["type"])
 
@@ -638,6 +644,12 @@ class _ResponsesApiAttributes:
         elif obj.type == "additional_tools":
             # TODO: Handle additional tools
             pass
+        elif obj.type == "program":
+            # TODO: Handle program execution items
+            pass
+        elif obj.type == "program_output":
+            # TODO: Handle program execution items
+            pass
         elif TYPE_CHECKING:
             assert_never(obj.type)
 
@@ -761,3 +773,10 @@ class _ResponsesApiAttributes:
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
                 obj.input_tokens_details.cached_tokens,
             )
+            if (
+                cache_write_tokens := getattr(obj.input_tokens_details, "cache_write_tokens", None)
+            ) is not None:
+                yield (
+                    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+                    cache_write_tokens,
+                )

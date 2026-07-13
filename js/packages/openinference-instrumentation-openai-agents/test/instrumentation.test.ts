@@ -784,7 +784,7 @@ describe("OpenInferenceTracingProcessor", () => {
           input_tokens: 12,
           output_tokens: 3,
           total_tokens: 15,
-          input_tokens_details: { cached_tokens: 4 },
+          input_tokens_details: { cached_tokens: 4, cache_write_tokens: 2 },
           output_tokens_details: { reasoning_tokens: 1 },
         },
         output: [
@@ -817,6 +817,7 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(3);
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(15);
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(4);
+    expect(respSpan!.attributes["llm.token_count.prompt_details.cache_write"]).toBe(2);
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]).toBe(1);
     // System instructions become input message 0
     expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.role`]).toBe("system");
