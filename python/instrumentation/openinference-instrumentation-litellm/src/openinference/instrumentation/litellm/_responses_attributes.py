@@ -110,13 +110,19 @@ def _get_attributes_from_response_input_item_param(obj: Any) -> Optional[Message
         reasoning_content = ReasoningMessageContent(type="reasoning")
         summary = obj.get("summary")
         if isinstance(summary, Iterable):
-            texts = [
-                text
-                for item in summary
-                if isinstance(item, Mapping)
-                and item.get("type") == "summary_text"
-                and (text := item.get("text"))
-            ]
+            texts = []
+            for item in summary:
+                if isinstance(item, Mapping):
+                    item_type = item.get("type")
+                    text = item.get("text")
+                else:
+                    # LiteLLM docs show follow-up calls passing input=response1.output,
+                    # where summary entries are typed objects (e.g. ResponseReasoningItem
+                    # from the OpenAI SDK), not Mappings.
+                    item_type = getattr(item, "type", None)
+                    text = getattr(item, "text", None)
+                if item_type == "summary_text" and text:
+                    texts.append(text)
             if texts:
                 reasoning_content["text"] = "\n".join(texts)
         if (encrypted := obj.get("encrypted_content")) is not None:
@@ -223,8 +229,7 @@ def _get_attributes_from_response_output_item(obj: Any) -> Message:
                 reasoning_content["text"] = "\n".join(texts)
         if (encrypted := getattr(obj, "encrypted_content", None)) is not None:
             reasoning_content["encrypted_content"] = encrypted
-        if reasoning_content.get("text") or reasoning_content.get("encrypted_content"):
-            contents.append(reasoning_content)
+        contents.append(reasoning_content)
     elif obj_type == "web_search_call":
         message_obj["role"] = "assistant"
         function = ToolCallFunction(name=obj_type)

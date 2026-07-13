@@ -710,10 +710,7 @@ def _accumulate_thinking_blocks(
                 last = {"type": "thinking", "thinking": "", "signature": ""}
                 accumulated.append(last)
             if thinking := block.get("thinking"):
-                if thinking.startswith(last["thinking"]):
-                    last["thinking"] = thinking
-                else:
-                    last["thinking"] += thinking
+                last["thinking"] += thinking
             if signature := block.get("signature"):
                 last["signature"] = signature
 
@@ -730,10 +727,33 @@ def _build_message_from_accumulated(msg: Dict[str, Any]) -> Dict[str, Any]:
     if thinking_blocks := msg.get("thinking_blocks"):
         message["thinking_blocks"] = thinking_blocks
 
+    if reasoning_items := msg.get("reasoning_items"):
+        message["reasoning_items"] = reasoning_items
+
     if tool_calls_dict := msg.get("tool_calls"):
         message["tool_calls"] = [tool_calls_dict[idx] for idx in sorted(tool_calls_dict.keys())]
 
     return message
+
+
+def _remove_redundant_reasoning_entries(
+    output_messages: Dict[int, Dict[str, Any]],
+    reasoning_items: List[Mapping[str, Any]],
+) -> None:
+    authoritative_texts = {
+        text
+        for item in reasoning_items
+        for part in (item.get("summary") or [])
+        if isinstance(part, Mapping)
+        and part.get("type") == "summary_text"
+        and (text := part.get("text"))
+    }
+    for index, message in list(output_messages.items()):
+        if index == 0:
+            continue
+        if set(message) <= {"role", "content", "reasoning_content"}:
+            if message.get("reasoning_content") in authoritative_texts:
+                del output_messages[index]
 
 
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
@@ -764,12 +784,19 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                             _accumulate_thinking_blocks(
                                 thinking_blocks, entry.setdefault("thinking_blocks", [])
                             )
+                        if reasoning_items := getattr(delta, "reasoning_items", None):
+                            # Emitted once, as a full list, on the final response.completed
+                            # chunk (see litellm's litellm_responses_transformation), so this
+                            # is a replace, not an incremental accumulation like the above.
+                            entry["reasoning_items"] = reasoning_items
                         if tool_calls := getattr(delta, "tool_calls", None):
                             _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
+        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
+            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
         for idx, msg in output_messages.items():
@@ -817,12 +844,19 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                             _accumulate_thinking_blocks(
                                 thinking_blocks, entry.setdefault("thinking_blocks", [])
                             )
+                        if reasoning_items := getattr(delta, "reasoning_items", None):
+                            # Emitted once, as a full list, on the final response.completed
+                            # chunk (see litellm's litellm_responses_transformation), so this
+                            # is a replace, not an incremental accumulation like the above.
+                            entry["reasoning_items"] = reasoning_items
                         if tool_calls := getattr(delta, "tool_calls", None):
                             _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
+        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
+            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
         for idx, msg in output_messages.items():

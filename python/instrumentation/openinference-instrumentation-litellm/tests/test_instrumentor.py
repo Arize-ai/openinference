@@ -1534,6 +1534,410 @@ async def test_acompletion_streaming_with_reasoning(
     _assert_streaming_reasoning_attributes(attributes)
 
 
+def _make_prefix_collision_thinking_stream_chunks() -> List[Any]:
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+
+    return [
+        ModelResponseStream(
+            id="chatcmpl-prefix-collision-stream",
+            model="claude-sonnet-4-5",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(
+                        role="assistant",
+                        content=None,
+                        thinking_blocks=[{"type": "thinking", "thinking": "The", "signature": ""}],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-prefix-collision-stream",
+            model="claude-sonnet-4-5",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(
+                        content=None,
+                        thinking_blocks=[
+                            {"type": "thinking", "thinking": "There", "signature": "sig-prefix"}
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-prefix-collision-stream",
+            model="claude-sonnet-4-5",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(content=None),
+                    finish_reason="stop",
+                )
+            ],
+        ),
+    ]
+
+
+def test_completion_streaming_with_reasoning_prefix_collision(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import ModelResponseStream
+
+    in_memory_span_exporter.clear()
+
+    chunks = _make_prefix_collision_thinking_stream_chunks()
+
+    class MockStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __iter__(self) -> "MockStreamWrapper":
+            return self
+
+        def __next__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: MockStreamWrapper(chunks)
+        )
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            MockStreamWrapper,
+        ):
+            response = litellm.completion(
+                model="anthropic/claude-sonnet-4-5",
+                messages=[{"content": "Say a word.", "role": "user"}],
+                stream=True,
+            )
+            list(response)
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    _pop_reasoning_content(attributes, prefix, 0, 0, text="TheThere", signature="sig-prefix")
+
+
+@pytest.mark.asyncio
+async def test_acompletion_streaming_with_reasoning_prefix_collision(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import ModelResponseStream
+
+    in_memory_span_exporter.clear()
+
+    chunks = _make_prefix_collision_thinking_stream_chunks()
+
+    class MockAsyncStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __aiter__(self) -> "MockAsyncStreamWrapper":
+            return self
+
+        async def __anext__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopAsyncIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+
+    async def mock_acompletion(*args: Any, **kwargs: Any) -> MockAsyncStreamWrapper:
+        return MockAsyncStreamWrapper(chunks)
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = mock_acompletion
+        response = await litellm.acompletion(
+            model="anthropic/claude-sonnet-4-5",
+            messages=[{"content": "Say a word.", "role": "user"}],
+            stream=True,
+        )
+        [chunk async for chunk in response]
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    _pop_reasoning_content(attributes, prefix, 0, 0, text="TheThere", signature="sig-prefix")
+
+
+def _make_reasoning_items_stream_chunks() -> List[Any]:
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+
+    return [
+        ModelResponseStream(
+            id="chatcmpl-reasoning-items-stream",
+            model="o4-mini",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(role="assistant", content="The answer is 4."),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-reasoning-items-stream",
+            model="o4-mini",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(
+                        content="",
+                        reasoning_items=[
+                            {
+                                "id": "rs_123",
+                                "type": "reasoning",
+                                "encrypted_content": "enc-stream",
+                                "summary": [{"type": "summary_text", "text": "Adding 2 and 2."}],
+                            }
+                        ],
+                    ),
+                    finish_reason="stop",
+                )
+            ],
+        ),
+    ]
+
+
+def test_completion_streaming_with_reasoning_items(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import ModelResponseStream
+
+    in_memory_span_exporter.clear()
+
+    chunks = _make_reasoning_items_stream_chunks()
+
+    class MockStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __iter__(self) -> "MockStreamWrapper":
+            return self
+
+        def __next__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: MockStreamWrapper(chunks)
+        )
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            MockStreamWrapper,
+        ):
+            response = litellm.completion(
+                model="openai/o4-mini",
+                messages=[{"content": "What is 2 + 2?", "role": "user"}],
+                stream=True,
+            )
+            chunks_received = list(response)
+            assert len(chunks_received) == 2
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    _pop_reasoning_content(
+        attributes, prefix, 0, 0, text="Adding 2 and 2.", encrypted_content="enc-stream"
+    )
+
+
+@pytest.mark.asyncio
+async def test_acompletion_streaming_with_reasoning_items(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import ModelResponseStream
+
+    in_memory_span_exporter.clear()
+
+    chunks = _make_reasoning_items_stream_chunks()
+
+    class MockAsyncStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __aiter__(self) -> "MockAsyncStreamWrapper":
+            return self
+
+        async def __anext__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopAsyncIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+
+    async def mock_acompletion(*args: Any, **kwargs: Any) -> MockAsyncStreamWrapper:
+        return MockAsyncStreamWrapper(chunks)
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = mock_acompletion
+        response = await litellm.acompletion(
+            model="openai/o4-mini",
+            messages=[{"content": "What is 2 + 2?", "role": "user"}],
+            stream=True,
+        )
+        chunks_received = [chunk async for chunk in response]
+        assert len(chunks_received) == 2
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    _pop_reasoning_content(
+        attributes, prefix, 0, 0, text="Adding 2 and 2.", encrypted_content="enc-stream"
+    )
+
+
+def _make_multi_part_reasoning_summary_stream_chunks() -> List[Any]:
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+
+    return [
+        ModelResponseStream(
+            id="chatcmpl-reasoning-summary-stream",
+            model="o4-mini",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(role="assistant", reasoning_content="First part."),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-reasoning-summary-stream",
+            model="o4-mini",
+            choices=[
+                StreamingChoices(
+                    index=1,
+                    delta=Delta(reasoning_content="Second part."),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        ModelResponseStream(
+            id="chatcmpl-reasoning-summary-stream",
+            model="o4-mini",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=Delta(
+                        content="",
+                        reasoning_items=[
+                            {
+                                "id": "rs_multi",
+                                "type": "reasoning",
+                                "encrypted_content": "enc-multi",
+                                "summary": [
+                                    {"type": "summary_text", "text": "First part."},
+                                    {"type": "summary_text", "text": "Second part."},
+                                ],
+                            }
+                        ],
+                    ),
+                    finish_reason="stop",
+                )
+            ],
+        ),
+    ]
+
+
+def test_completion_streaming_with_multi_part_reasoning_summary(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import ModelResponseStream
+
+    in_memory_span_exporter.clear()
+
+    chunks = _make_multi_part_reasoning_summary_stream_chunks()
+
+    class MockStreamWrapper:
+        def __init__(self, chunks: List[ModelResponseStream]) -> None:
+            self._chunks = chunks
+            self._index = 0
+
+        def __iter__(self) -> "MockStreamWrapper":
+            return self
+
+        def __next__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: MockStreamWrapper(chunks)
+        )
+        with patch(
+            "litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper",
+            MockStreamWrapper,
+        ):
+            response = litellm.completion(
+                model="openai/o4-mini",
+                messages=[{"content": "What is 2 + 2?", "role": "user"}],
+                stream=True,
+            )
+            list(response)
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
+    assert not any(key.startswith(f"{prefix}.1.") for key in attributes)
+    _pop_reasoning_content(
+        attributes,
+        prefix,
+        0,
+        0,
+        text="First part.\nSecond part.",
+        encrypted_content="enc-multi",
+    )
+    assert attributes.pop(f"{prefix}.0.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+
+
 def test_completion_with_tool_schema_capture(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,

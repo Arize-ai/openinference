@@ -1,0 +1,107 @@
+interactions:
+- request:
+    body: '{"model":"gpt-5-mini","input":"What is 2 + 2?","reasoning":{"summary":"auto"}}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"id\": \"resp_08094a8a3f5c077d006a5536c80420819e9df4d976e0148f7c\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1783969480,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1783969482,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-5-mini-2025-08-07\",\n  \"moderation\": null,\n  \"output\": [\n    {\n
+        \     \"id\": \"rs_08094a8a3f5c077d006a5536c878f0819e97dcf82e5c3fe2db\",\n
+        \     \"type\": \"reasoning\",\n      \"content\": [],\n      \"encrypted_content\":
+        \"gAAAAABqVTbLJNwj-nlYdUOBcJh57SA1pp2GESX3l97oqqZS4xH7-z6nrpFAvQu1dfNcqNSJR7E_edwqcp8wK1rpJ8WJnnileZgLX7EkHsHQ7wMYmqNj4sG5eN5l6bYHR8I9sWLWVTWgIQCOl-KhdO8zhRf0bnUV-k8coO3lB3OWlLAYllwXXhuylZ4NDQ5RiNU9nnQ5Bubfiw1-n6TRSye6zaGtGV0aH75rCCS0S9CqZTdzV8ndnzOo9_DPqkUXdTt0waagd9Em0k59wRBiUHYvrtto64ZBODKIsrn7UFpBgN24uQ4CDLa6GG_EjFr-yHFI1DelzKHIG-Z8wzrmWCOxBYHTVjfeqlzyQ2B7sUWjI6W0yza1PXApTmnMnj1GIjz7THNkJNl14Wfu-qwIaHqqp5vmTqJbeRwU3p8P8x6spzukO20hFFdUE6hpM9Ms6uHCQzkPtWjYKK6npSeC1QoVsq2Yjb3LknqcslL2Ea0S0RSMOW_wYREuvk1XdLNqYT1EzXGnwCjw3IjOli0PLWFnYAhQ1Kl-I2YjoK6_GzDZi2WrJjqJw5tJ4K0aYItOCVFwx0e3uMjjAlmJinyqwOBT9eqPZafnpQCSq05kMNO2NfRZR7NFYZzGrjji0uKHB2bJ_aqml03q3tblQiCr4ip25c-CMH2QlvVdV7VGhjapg99LzatCb97Bz6IoJH_MdAi6qHiRLNmVllZENXRfb19ykd19l-AsIHMtEkHEt5EddR8_PsPQvI71k4nrewK83C9_7lcTbn6jHikbk2o3otsaN1azcGmOrL-EaqP3foG8Sj98okp6PCZk68GBc5kmrnIjhpDKS6K9aY6L0Hi_0GNwbTw2Vm6dEgvWYUT_s5ivzusW0zICBsSupy5_fToh1zOhKFHnBcoEHHxdh7tDzP6lJ_pAXpREilURn5cQeIHfR9n69cTqPmAYP17TEn2D4FC2OmYdsmnb5mjLcCN-Oq72Ulh2o_jVaFCTVKcQ_1N3id7DmZb2e22OMlDMI5PeBy_2vuknEhUNQqdpdSLZjD-lm83XCPktGcDUOWzcAyt1Aq2bfu2pvGq-KXuT1vkv9r4kz5gMVA_rbn3iIBmtIR8ooMwecBZ6xQ==\",\n
+        \     \"summary\": [\n        {\n          \"type\": \"summary_text\",\n          \"text\":
+        \"**Providing a concise answer**\\n\\nOkay, I need to keep this simple and
+        say the answer is 4. I should think about mentioning context, but maybe I
+        should just stick to the direct answer. I can add a little reasoning to make
+        it clear, like saying 2 + 2 equals 4. Keeping it straightforward seems like
+        the best approach here, so I think I'm ready to finalize that response.\"\n
+        \       }\n      ]\n    },\n    {\n      \"id\": \"msg_08094a8a3f5c077d006a5536cab1dc819ea32dc4984bbe69f2\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [],\n          \"logprobs\": [],\n          \"text\": \"4\"\n        }\n      ],\n
+        \     \"role\": \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\": true,\n
+        \ \"presence_penalty\": 0.0,\n  \"previous_response_id\": null,\n  \"prompt_cache_key\":
+        null,\n  \"prompt_cache_retention\": \"in_memory\",\n  \"reasoning\": {\n
+        \   \"context\": \"current_turn\",\n    \"effort\": \"medium\",\n    \"mode\":
+        \"standard\",\n    \"summary\": \"detailed\"\n  },\n  \"safety_identifier\":
+        null,\n  \"service_tier\": \"default\",\n  \"store\": true,\n  \"temperature\":
+        1.0,\n  \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    },\n
+        \   \"verbosity\": \"medium\"\n  },\n  \"tool_choice\": \"auto\",\n  \"tool_usage\":
+        {\n    \"image_gen\": {\n      \"input_tokens\": 0,\n      \"input_tokens_details\":
+        {\n        \"image_tokens\": 0,\n        \"text_tokens\": 0\n      },\n      \"output_tokens\":
+        0,\n      \"output_tokens_details\": {\n        \"image_tokens\": 0,\n        \"text_tokens\":
+        0\n      },\n      \"total_tokens\": 0\n    },\n    \"web_search\": {\n      \"num_requests\":
+        0\n    }\n  },\n  \"tools\": [],\n  \"top_logprobs\": 0,\n  \"top_p\": 1.0,\n
+        \ \"truncation\": \"disabled\",\n  \"usage\": {\n    \"input_tokens\": 14,\n
+        \   \"input_tokens_details\": {\n      \"cache_write_tokens\": 0,\n      \"cached_tokens\":
+        0\n    },\n    \"output_tokens\": 48,\n    \"output_tokens_details\": {\n
+        \     \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 62\n  },\n  \"user\":
+        null,\n  \"metadata\": {}\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"model":"gpt-5-mini","input":[{"id":"rs_08094a8a3f5c077d006a5536c878f0819e97dcf82e5c3fe2db","summary":[{"text":"**Providing
+      a concise answer**\n\nOkay, I need to keep this simple and say the answer is
+      4. I should think about mentioning context, but maybe I should just stick to
+      the direct answer. I can add a little reasoning to make it clear, like saying
+      2 + 2 equals 4. Keeping it straightforward seems like the best approach here,
+      so I think I''m ready to finalize that response.","type":"summary_text"}],"type":"reasoning","content":[],"encrypted_content":"gAAAAABqVTbLJNwj-nlYdUOBcJh57SA1pp2GESX3l97oqqZS4xH7-z6nrpFAvQu1dfNcqNSJR7E_edwqcp8wK1rpJ8WJnnileZgLX7EkHsHQ7wMYmqNj4sG5eN5l6bYHR8I9sWLWVTWgIQCOl-KhdO8zhRf0bnUV-k8coO3lB3OWlLAYllwXXhuylZ4NDQ5RiNU9nnQ5Bubfiw1-n6TRSye6zaGtGV0aH75rCCS0S9CqZTdzV8ndnzOo9_DPqkUXdTt0waagd9Em0k59wRBiUHYvrtto64ZBODKIsrn7UFpBgN24uQ4CDLa6GG_EjFr-yHFI1DelzKHIG-Z8wzrmWCOxBYHTVjfeqlzyQ2B7sUWjI6W0yza1PXApTmnMnj1GIjz7THNkJNl14Wfu-qwIaHqqp5vmTqJbeRwU3p8P8x6spzukO20hFFdUE6hpM9Ms6uHCQzkPtWjYKK6npSeC1QoVsq2Yjb3LknqcslL2Ea0S0RSMOW_wYREuvk1XdLNqYT1EzXGnwCjw3IjOli0PLWFnYAhQ1Kl-I2YjoK6_GzDZi2WrJjqJw5tJ4K0aYItOCVFwx0e3uMjjAlmJinyqwOBT9eqPZafnpQCSq05kMNO2NfRZR7NFYZzGrjji0uKHB2bJ_aqml03q3tblQiCr4ip25c-CMH2QlvVdV7VGhjapg99LzatCb97Bz6IoJH_MdAi6qHiRLNmVllZENXRfb19ykd19l-AsIHMtEkHEt5EddR8_PsPQvI71k4nrewK83C9_7lcTbn6jHikbk2o3otsaN1azcGmOrL-EaqP3foG8Sj98okp6PCZk68GBc5kmrnIjhpDKS6K9aY6L0Hi_0GNwbTw2Vm6dEgvWYUT_s5ivzusW0zICBsSupy5_fToh1zOhKFHnBcoEHHxdh7tDzP6lJ_pAXpREilURn5cQeIHfR9n69cTqPmAYP17TEn2D4FC2OmYdsmnb5mjLcCN-Oq72Ulh2o_jVaFCTVKcQ_1N3id7DmZb2e22OMlDMI5PeBy_2vuknEhUNQqdpdSLZjD-lm83XCPktGcDUOWzcAyt1Aq2bfu2pvGq-KXuT1vkv9r4kz5gMVA_rbn3iIBmtIR8ooMwecBZ6xQ=="},{"id":"msg_08094a8a3f5c077d006a5536cab1dc819ea32dc4984bbe69f2","content":[{"annotations":[],"text":"4","type":"output_text","logprobs":[]}],"role":"assistant","status":"completed","type":"message"},{"role":"user","content":"Now
+      multiply that by 10."}],"reasoning":{"summary":"auto"}}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"id\": \"resp_08094a8a3f5c077d006a5536cbc51c819eabbf67acbe963033\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1783969483,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1783969486,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-5-mini-2025-08-07\",\n  \"moderation\": null,\n  \"output\": [\n    {\n
+        \     \"id\": \"rs_08094a8a3f5c077d006a5536cc4568819e893caba3766fc105\",\n
+        \     \"type\": \"reasoning\",\n      \"content\": [],\n      \"encrypted_content\":
+        \"gAAAAABqVTbOrIXU9cemvIUGzn3o41TI39ph3Ws6ib6AzPaLgXoWLbm215TanPsITPAQPLG-JB3sCGFSYlOHNaoROlpJ23ICigeDbiCObU4usZ2qsxUDivbefxmvMAFUffxoLgeYZVWquWm9GAqd3uiWda9slssgEdMkM8OmSicbu430Mje8BT7a3GYliQaVHxjXLM7QICfHJ1dBxOX2UHUEY3Ag7Hvlr7F18qiuZkZE-TyWYJEQLZ4B1FLyaXOWlhMHhr8lEKg_Z6x0lXnc5wkUgMCeFtNk9dN0fXlz_m_xJMY9zC4kTPJebBzf4onSL9H33pBEtRFTq4GzXL4AqUJShtRj4cz-Dzr3bhh2SN63U3HijESR0EMT_-PbrpVeZZc8vjZyCve5zzHc5DYsT7T3sEinSYESqnlIKQlgtlZbNFjeky8zuXJ0RdsVVKFDlalT8UFKmFwd3-5AMxg7gEUFWrNhxlhv_6Am1DCw1RSbByTRqClD2sNmGg_9oie2p0DdKdCgdWNt1GbjoI9Qa-qr6aN3HZfl9i3RISqex5ogZVNdS0fTvVpduCsw9anEeaNgnw1Cz84J4G86VpFhd8-pBWr7P28oyRgxoxzcFr_Mj0VCApN0VpXVHm3HhPAf4ux5Obga7WIHjlp4Tt2ePs46I7EzGiIufZgaNqfLnX-dkaTJFh_qSbzSCMMtIfq5Xu9Uufd0vomCMMEVSJUB3nvQ_L1UPQOB-rOqMZx9kcD3oTvA2zQc1GTkzef6qh8XPJtJDyMHAiBCaKUF16iGd5tMZlmtOEwmkNAIMe1Aj9i_uJVpRBrR9YxxnQQfoqUWWUChmR7XtvN5KSuq-07RL8olVZiGNEYLYOcLQ7fi7SSGcRUv9gbSigpv1m2haOGYu0Y5zfBGSVR_NS5ylreRbzi5jdofJptnYh_6gqb_JUqfBACiqP7agrAJWx2x9xRtpflm93gEdjvUYp2ZM-pQwfJMVZVYqaG_q0gtBOGI9rXMNlgBNlF7w_GDu90C7al2uwk3DTlpFnvexAsQakdnt3f_gkbLed56jOyfCOKVnfWXJUOS6jMN7iyJWDvopeAPm0eBHXE037S26JMh3n-zDv88j3vMBPfMHB2YLHR1Mb19SK4WTs-l0BBXEszTxNFUZBkkJ_L64Y9yIvDMmqnAB6MKxMxiPyxHh3av8G8Ou-qsmi4NUzhTwYQqLYRQtH-a2FJML041iNDy_w6fE0REcESC9sLyaEBMd2qY3-mxCAwHDy-WiTrPwSs0TQf5WiaTpc7wcxtEVQZ-0hQRnhR2M9ls5j3CeV8TST5zreuGxZz-SBoC5UCDS14=\",\n
+        \     \"summary\": [\n        {\n          \"type\": \"summary_text\",\n          \"text\":
+        \"**Calculating multiplication**\\n\\nI need to interpret the conversation
+        correctly. The system output was \\\"4\\\", and the user is asking me to multiply
+        that by 10. So, I calculate \\\"4\\\" times 10, which equals 40. I want to
+        keep my reply concise, so I'll simply respond with \\\"40\\\". It seems straightforward,
+        but I want to make sure I include the step: \\\"4 \\u00d7 10 = 40\\\" in my
+        thought process. Alright, final answer confirmed!\"\n        }\n      ]\n
+        \   },\n    {\n      \"id\": \"msg_08094a8a3f5c077d006a5536ce5d44819e89b633fcf4b3362e\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [],\n          \"logprobs\": [],\n          \"text\": \"40\"\n        }\n
+        \     ],\n      \"role\": \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\":
+        true,\n  \"presence_penalty\": 0.0,\n  \"previous_response_id\": null,\n  \"prompt_cache_key\":
+        null,\n  \"prompt_cache_retention\": \"in_memory\",\n  \"reasoning\": {\n
+        \   \"context\": \"current_turn\",\n    \"effort\": \"medium\",\n    \"mode\":
+        \"standard\",\n    \"summary\": \"detailed\"\n  },\n  \"safety_identifier\":
+        null,\n  \"service_tier\": \"default\",\n  \"store\": true,\n  \"temperature\":
+        1.0,\n  \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    },\n
+        \   \"verbosity\": \"medium\"\n  },\n  \"tool_choice\": \"auto\",\n  \"tool_usage\":
+        {\n    \"image_gen\": {\n      \"input_tokens\": 0,\n      \"input_tokens_details\":
+        {\n        \"image_tokens\": 0,\n        \"text_tokens\": 0\n      },\n      \"output_tokens\":
+        0,\n      \"output_tokens_details\": {\n        \"image_tokens\": 0,\n        \"text_tokens\":
+        0\n      },\n      \"total_tokens\": 0\n    },\n    \"web_search\": {\n      \"num_requests\":
+        0\n    }\n  },\n  \"tools\": [],\n  \"top_logprobs\": 0,\n  \"top_p\": 1.0,\n
+        \ \"truncation\": \"disabled\",\n  \"usage\": {\n    \"input_tokens\": 20,\n
+        \   \"input_tokens_details\": {\n      \"cache_write_tokens\": 0,\n      \"cached_tokens\":
+        0\n    },\n    \"output_tokens\": 82,\n    \"output_tokens_details\": {\n
+        \     \"reasoning_tokens\": 64\n    },\n    \"total_tokens\": 102\n  },\n
+        \ \"user\": null,\n  \"metadata\": {}\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
