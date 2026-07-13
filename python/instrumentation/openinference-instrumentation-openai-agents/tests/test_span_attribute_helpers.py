@@ -1241,7 +1241,7 @@ def test_get_attributes_from_message_content_list(
                     input_tokens=10,
                     output_tokens=5,
                     total_tokens=15,
-                    input_tokens_details=InputTokensDetails(
+                    input_tokens_details=InputTokensDetails.model_construct(
                         cached_tokens=0,
                         cache_write_tokens=0,
                     ),
@@ -1436,7 +1436,7 @@ def test_get_attributes_from_message_content_list(
                     input_tokens=1000,
                     output_tokens=500,
                     total_tokens=1500,
-                    input_tokens_details=InputTokensDetails(
+                    input_tokens_details=InputTokensDetails.model_construct(
                         cached_tokens=100,
                         cache_write_tokens=0,
                     ),
@@ -2123,7 +2123,7 @@ def test_get_attributes_from_message(
                 input_tokens=0,
                 output_tokens=0,
                 total_tokens=0,
-                input_tokens_details=InputTokensDetails(
+                input_tokens_details=InputTokensDetails.model_construct(
                     cached_tokens=0,
                     cache_write_tokens=0,
                 ),
@@ -2146,7 +2146,7 @@ def test_get_attributes_from_message(
                 input_tokens=1000,
                 output_tokens=500,
                 total_tokens=1500,
-                input_tokens_details=InputTokensDetails(
+                input_tokens_details=InputTokensDetails.model_construct(
                     cached_tokens=100,
                     cache_write_tokens=0,
                 ),
