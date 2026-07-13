@@ -1243,6 +1243,7 @@ def test_get_attributes_from_message_content_list(
                     total_tokens=15,
                     input_tokens_details=InputTokensDetails(
                         cached_tokens=0,
+                        cache_write_tokens=0,
                     ),
                     output_tokens_details=OutputTokensDetails(
                         reasoning_tokens=0,
@@ -1436,6 +1437,7 @@ def test_get_attributes_from_message_content_list(
                     total_tokens=1500,
                     input_tokens_details=InputTokensDetails(
                         cached_tokens=100,
+                        cache_write_tokens=0,
                     ),
                     output_tokens_details=OutputTokensDetails(
                         reasoning_tokens=50,
@@ -2093,6 +2095,7 @@ def test_get_attributes_from_message(
                 total_tokens=15,
                 input_tokens_details=InputTokensDetails(
                     cached_tokens=0,
+                    cache_write_tokens=0,
                 ),
                 output_tokens_details=OutputTokensDetails(
                     reasoning_tokens=0,
@@ -2119,6 +2122,7 @@ def test_get_attributes_from_message(
                 total_tokens=0,
                 input_tokens_details=InputTokensDetails(
                     cached_tokens=0,
+                    cache_write_tokens=0,
                 ),
                 output_tokens_details=OutputTokensDetails(
                     reasoning_tokens=0,
@@ -2140,6 +2144,7 @@ def test_get_attributes_from_message(
                 total_tokens=1500,
                 input_tokens_details=InputTokensDetails(
                     cached_tokens=100,
+                    cache_write_tokens=0,
                 ),
                 output_tokens_details=OutputTokensDetails(
                     reasoning_tokens=50,
