@@ -28,6 +28,10 @@ from typing import (  # type: ignore[attr-defined]
 )
 
 import wrapt
+from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, Context, get_value
 from opentelemetry.sdk.trace.id_generator import IdGenerator, RandomIdGenerator
 from opentelemetry.trace import (
@@ -44,11 +48,6 @@ from opentelemetry.trace import (
 )
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import ParamSpec, TypeVar, _AnnotatedAlias, overload
-
-from openinference.semconv.trace import (
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 
 from ._attributes import (
     get_input_attributes,
@@ -233,7 +232,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         /,
         *,
         name: Optional[str] = None,
-    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+    ) -> Callable[
+        [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+    ]: ...
 
     def agent(
         self,
@@ -243,7 +244,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         name: Optional[str] = None,
     ) -> Union[
         Callable[ParametersType, ReturnType],
-        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+        Callable[
+            [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+        ],
     ]:
         return self._chain(
             wrapped_function,
@@ -267,7 +270,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         /,
         *,
         name: Optional[str] = None,
-    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+    ) -> Callable[
+        [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+    ]: ...
 
     def chain(
         self,
@@ -277,9 +282,157 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         name: Optional[str] = None,
     ) -> Union[
         Callable[ParametersType, ReturnType],
-        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+        Callable[
+            [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+        ],
     ]:
-        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.CHAIN, name=name)
+        return self._chain(
+            wrapped_function, kind=OpenInferenceSpanKindValues.CHAIN, name=name
+        )
+
+    @overload  # for @tracer.retriever usage (no parameters)
+    def retriever(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.retriever(name="name") usage (with parameters)
+    def retriever(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[
+        [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+    ]: ...
+
+    def retriever(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[
+            [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+        ],
+    ]:
+        return self._chain(
+            wrapped_function, kind=OpenInferenceSpanKindValues.RETRIEVER, name=name
+        )
+
+    @overload  # for @tracer.reranker usage (no parameters)
+    def reranker(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.reranker(name="name") usage (with parameters)
+    def reranker(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[
+        [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+    ]: ...
+
+    def reranker(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[
+            [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+        ],
+    ]:
+        return self._chain(
+            wrapped_function, kind=OpenInferenceSpanKindValues.RERANKER, name=name
+        )
+
+    @overload  # for @tracer.guardrail usage (no parameters)
+    def guardrail(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.guardrail(name="name") usage (with parameters)
+    def guardrail(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[
+        [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+    ]: ...
+
+    def guardrail(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[
+            [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+        ],
+    ]:
+        return self._chain(
+            wrapped_function, kind=OpenInferenceSpanKindValues.GUARDRAIL, name=name
+        )
+
+    @overload  # for @tracer.evaluator usage (no parameters)
+    def evaluator(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.evaluator(name="name") usage (with parameters)
+    def evaluator(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[
+        [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+    ]: ...
+
+    def evaluator(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[
+            [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+        ],
+    ]:
+        return self._chain(
+            wrapped_function, kind=OpenInferenceSpanKindValues.EVALUATOR, name=name
+        )
 
     def _chain(
         self,
@@ -290,7 +443,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         name: Optional[str] = None,
     ) -> Union[
         Callable[ParametersType, ReturnType],
-        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+        Callable[
+            [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+        ],
     ]:
         @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_wrapper(
@@ -360,7 +515,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         name: Optional[str] = None,
         description: Optional[str] = None,
         parameters: Optional[Union[str, Dict[str, Any]]] = None,
-    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+    ) -> Callable[
+        [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+    ]: ...
 
     def tool(
         self,
@@ -372,7 +529,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         parameters: Optional[Union[str, Dict[str, Any]]] = None,
     ) -> Union[
         Callable[ParametersType, ReturnType],
-        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+        Callable[
+            [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+        ],
     ]:
         @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_wrapper(
@@ -442,7 +601,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         /,
         *,
         name: Optional[str] = None,
-        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_input: Optional[
+            Callable[ParametersType, "Mapping[str, AttributeValue]"]
+        ] = None,
         process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
     ) -> Callable[
         [Callable[ParametersType, ReturnType]],
@@ -455,11 +616,15 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         /,
         *,
         name: Optional[str] = None,
-        process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+        process_input: Optional[
+            Callable[ParametersType, "Mapping[str, AttributeValue]"]
+        ] = None,
         process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
     ) -> Union[
         Callable[ParametersType, ReturnType],
-        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+        Callable[
+            [Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]
+        ],
     ]:
         @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_function_wrapper(
@@ -638,7 +803,9 @@ class _LLMContext:
         self._process_output = process_output
 
     def process_output(self, output: Any) -> None:
-        attributes: "Mapping[str, AttributeValue]" = getattr(self._span, "attributes", {}) or {}
+        attributes: "Mapping[str, AttributeValue]" = (
+            getattr(self._span, "attributes", {}) or {}
+        )
         has_output = OUTPUT_VALUE in attributes
         if not has_output:
             if callable(self._process_output):
@@ -841,7 +1008,9 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
     if is_literal_type:
         enum_values = list(annotation_type_args)
         unique_enum_types = dict.fromkeys(type(value) for value in enum_values)
-        jsonschema_types = [_get_jsonschema_type(value_type) for value_type in unique_enum_types]
+        jsonschema_types = [
+            _get_jsonschema_type(value_type) for value_type in unique_enum_types
+        ]
         result = {}
         if len(jsonschema_types) == 1:
             result.update(jsonschema_types[0])
@@ -850,7 +1019,8 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
         result["enum"] = enum_values
         return result
     is_list_type = (
-        annotation_type_origin is list or annotation_type_origin is collections.abc.Sequence
+        annotation_type_origin is list
+        or annotation_type_origin is collections.abc.Sequence
     )
     if is_list_type:
         result = {"type": "array"}
@@ -874,7 +1044,8 @@ def _get_jsonschema_type(annotation_type: type) -> Dict[str, Any]:
             result["maxItems"] = len(annotation_type_args)
         return result
     is_dict_type = (
-        annotation_type_origin is dict or annotation_type_origin is collections.abc.Mapping
+        annotation_type_origin is dict
+        or annotation_type_origin is collections.abc.Mapping
     )
     if is_dict_type:
         result = {"type": "object"}
