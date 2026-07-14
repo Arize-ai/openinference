@@ -230,6 +230,8 @@ def _normalize_thinking_block(block: Mapping[str, Any]) -> Dict[str, Any]:
 
 def _normalize_reasoning_item(item: Mapping[str, Any]) -> Dict[str, Any]:
     normalized: Dict[str, Any] = {}
+    if item_id := item.get("id"):
+        normalized["id"] = item_id
     summary = item.get("summary") or []
     if is_iterable_of(summary, dict):
         texts = [
@@ -247,7 +249,13 @@ def _normalize_reasoning_item(item: Mapping[str, Any]) -> Dict[str, Any]:
 def _get_reasoning_content_blocks(message: Any) -> List[Mapping[str, Any]]:
     thinking_blocks = message.get("thinking_blocks")
     if thinking_blocks and is_iterable_of(thinking_blocks, dict):
-        return [_normalize_thinking_block(block) for block in thinking_blocks]
+        normalized_blocks: List[Mapping[str, Any]] = [
+            normalized
+            for block in thinking_blocks
+            if (normalized := _normalize_thinking_block(block))
+        ]
+        if normalized_blocks:
+            return normalized_blocks
 
     reasoning_items = message.get("reasoning_items")
     if reasoning_items and is_iterable_of(reasoning_items, dict):
@@ -269,6 +277,8 @@ def _get_attributes_from_reasoning_block(
     block: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "reasoning"
+    if block_id := block.get("id"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_ID, block_id
     if text := block.get("text"):
         yield MessageContentAttributes.MESSAGE_CONTENT_TEXT, text
     if data := block.get("data"):

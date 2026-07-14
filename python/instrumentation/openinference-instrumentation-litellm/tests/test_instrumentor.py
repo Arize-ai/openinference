@@ -19,6 +19,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
 from openinference.instrumentation.litellm import (
     LiteLLMInstrumentor,
+    _get_reasoning_content_blocks,
     _remove_redundant_reasoning_entries,
 )
 from openinference.semconv.trace import (
@@ -685,6 +686,7 @@ def _pop_reasoning_content(
     message_index: int,
     content_index: int,
     *,
+    content_id: Optional[str] = None,
     text: Optional[str] = None,
     signature: Optional[str] = None,
     data: Optional[str] = None,
@@ -697,6 +699,8 @@ def _pop_reasoning_content(
         return _reasoning_content_key(prefix, message_index, content_index, attr)
 
     assert attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_TYPE)) == "reasoning"
+    if content_id is not None:
+        assert attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_ID)) == content_id
     if text is not None:
         assert attributes.pop(key(MessageContentAttributes.MESSAGE_CONTENT_TEXT)) == text
     if signature is not None:
@@ -786,6 +790,34 @@ def _make_thinking_blocks_response() -> Any:
         ],
         usage=Usage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
     )
+
+
+@pytest.mark.parametrize(
+    "thinking_blocks,expected",
+    [
+        (
+            [{"type": "thinking", "thinking": "", "signature": ""}],
+            [{"text": "fallback reasoning"}],
+        ),
+        (
+            [
+                {"type": "thinking", "thinking": "", "signature": ""},
+                {"type": "thinking", "thinking": "kept reasoning", "signature": ""},
+            ],
+            [{"text": "kept reasoning"}],
+        ),
+    ],
+)
+def test_get_reasoning_content_blocks_filters_empty_thinking_blocks(
+    thinking_blocks: List[Dict[str, Any]],
+    expected: List[Mapping[str, Any]],
+) -> None:
+    message = {
+        "thinking_blocks": thinking_blocks,
+        "reasoning_content": "fallback reasoning",
+    }
+
+    assert _get_reasoning_content_blocks(message) == expected
 
 
 def _assert_thinking_blocks_attributes(
@@ -1773,7 +1805,13 @@ def test_completion_streaming_with_reasoning_items(
     attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
     prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
     _pop_reasoning_content(
-        attributes, prefix, 0, 0, text="Adding 2 and 2.", encrypted_content="enc-stream"
+        attributes,
+        prefix,
+        0,
+        0,
+        content_id="rs_123",
+        text="Adding 2 and 2.",
+        encrypted_content="enc-stream",
     )
 
 
@@ -1825,7 +1863,13 @@ async def test_acompletion_streaming_with_reasoning_items(
     attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
     prefix = SpanAttributes.LLM_OUTPUT_MESSAGES
     _pop_reasoning_content(
-        attributes, prefix, 0, 0, text="Adding 2 and 2.", encrypted_content="enc-stream"
+        attributes,
+        prefix,
+        0,
+        0,
+        content_id="rs_123",
+        text="Adding 2 and 2.",
+        encrypted_content="enc-stream",
     )
 
 
@@ -1956,6 +2000,7 @@ def test_completion_streaming_with_multi_part_reasoning_summary(
         prefix,
         0,
         0,
+        content_id="rs_multi",
         text="First part.\nSecond part.",
         encrypted_content="enc-multi",
     )
