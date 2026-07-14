@@ -660,7 +660,9 @@ def _get_attributes_from_response_output(
             ...  # TODO
         elif item.type == "reasoning":
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
-            if any(True for _ in (attrs := list(_get_attributes_from_reasoning_item(item, prefix)))):
+            if any(
+                True for _ in (attrs := list(_get_attributes_from_reasoning_item(item, prefix)))
+            ):
                 for k, v in attrs:
                     yield k, v
                 msg_idx += 1
@@ -784,9 +786,7 @@ def _get_attributes_from_reasoning_item(
     prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     summary_texts = [s.text for s in obj.summary if getattr(s, "text", None)]
-    content_texts = [
-        c.text for c in (obj.content or []) if getattr(c, "text", None)
-    ]
+    content_texts = [c.text for c in (obj.content or []) if getattr(c, "text", None)]
     texts = summary_texts or content_texts
     if not texts and not obj.encrypted_content:
         return
