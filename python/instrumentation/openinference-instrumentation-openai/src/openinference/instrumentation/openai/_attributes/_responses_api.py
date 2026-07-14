@@ -473,6 +473,12 @@ class _ResponsesApiAttributes:
         elif obj["type"] == "additional_tools":
             # TODO: Handle additional tools
             pass
+        elif obj["type"] == "program":
+            # TODO: Handle program
+            pass
+        elif obj["type"] == "program_output":
+            # TODO: Handle program output
+            pass
         elif TYPE_CHECKING and obj["type"] is not None:
             assert_never(obj["type"])
 
@@ -637,6 +643,12 @@ class _ResponsesApiAttributes:
             pass
         elif obj.type == "additional_tools":
             # TODO: Handle additional tools
+            pass
+        elif obj.type == "program":
+            # TODO: Handle program
+            pass
+        elif obj.type == "program_output":
+            # TODO: Handle program output
             pass
         elif TYPE_CHECKING:
             assert_never(obj.type)
