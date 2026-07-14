@@ -17,7 +17,10 @@ from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
-from openinference.instrumentation.litellm import LiteLLMInstrumentor
+from openinference.instrumentation.litellm import (
+    LiteLLMInstrumentor,
+    _remove_redundant_reasoning_entries,
+)
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -1877,6 +1880,27 @@ def _make_multi_part_reasoning_summary_stream_chunks() -> List[Any]:
             ],
         ),
     ]
+
+
+def test_remove_redundant_reasoning_entries_preserves_nonempty_content() -> None:
+    reasoning_items: List[Mapping[str, Any]] = [
+        {
+            "type": "reasoning",
+            "summary": [{"type": "summary_text", "text": "Second part."}],
+        }
+    ]
+    output_messages: Dict[int, Dict[str, Any]] = {
+        0: {"role": "assistant", "content": ""},
+        1: {
+            "role": "assistant",
+            "content": "A second answer.",
+            "reasoning_content": "Second part.",
+        },
+    }
+
+    _remove_redundant_reasoning_entries(output_messages, reasoning_items)
+
+    assert output_messages[1]["content"] == "A second answer."
 
 
 def test_completion_streaming_with_multi_part_reasoning_summary(

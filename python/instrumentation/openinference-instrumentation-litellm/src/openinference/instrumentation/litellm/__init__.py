@@ -751,7 +751,11 @@ def _remove_redundant_reasoning_entries(
     for index, message in list(output_messages.items()):
         if index == 0:
             continue
-        if set(message) <= {"role", "content", "reasoning_content"}:
+        if not message.get("content") and set(message) <= {
+            "role",
+            "content",
+            "reasoning_content",
+        }:
             if message.get("reasoning_content") in authoritative_texts:
                 del output_messages[index]
 
