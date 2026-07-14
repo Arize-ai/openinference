@@ -365,6 +365,57 @@ def test_create_context_attributes(
     )
 
 
+@pytest.mark.asyncio
+async def test_acreate_context_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    in_memory_span_exporter.clear()
+    original = LiteLLMInstrumentor.original_anthropic_funcs["acreate"]
+
+    async def mock_acreate(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        return _mock_anthropic_response()
+
+    LiteLLMInstrumentor.original_anthropic_funcs["acreate"] = mock_acreate
+    try:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            await litellm_anthropic.acreate(
+                model=MODEL,
+                messages=[{"role": "user", "content": "Hi"}],
+                max_tokens=16,
+            )
+    finally:
+        LiteLLMInstrumentor.original_anthropic_funcs["acreate"] = original
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.get(SpanAttributes.SESSION_ID) == session_id
+    assert attributes.get(SpanAttributes.USER_ID) == user_id
+    assert json.loads(str(attributes.get(SpanAttributes.METADATA))) == metadata
+    assert list(cast(Any, attributes.get(SpanAttributes.TAG_TAGS))) == tags
+    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+    assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+        prompt_template_variables
+    )
+
+
 def test_create_suppress_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
@@ -384,6 +435,32 @@ def test_create_suppress_instrumentation(
     finally:
         context_api.detach(token)
         LiteLLMInstrumentor.original_anthropic_funcs["create"] = original
+
+    assert len(in_memory_span_exporter.get_finished_spans()) == 0
+
+
+@pytest.mark.asyncio
+async def test_acreate_suppress_instrumentation(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    original = LiteLLMInstrumentor.original_anthropic_funcs["acreate"]
+
+    async def mock_acreate(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        return _mock_anthropic_response()
+
+    LiteLLMInstrumentor.original_anthropic_funcs["acreate"] = mock_acreate
+    token = context_api.attach(context_api.set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
+    try:
+        await litellm_anthropic.acreate(
+            model=MODEL,
+            messages=[{"role": "user", "content": "Hi"}],
+            max_tokens=16,
+        )
+    finally:
+        context_api.detach(token)
+        LiteLLMInstrumentor.original_anthropic_funcs["acreate"] = original
 
     assert len(in_memory_span_exporter.get_finished_spans()) == 0
 
@@ -669,6 +746,46 @@ def test_create_masking(
     assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert attributes[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
     # Per-message content is dropped entirely when inputs/outputs are hidden.
+    assert (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"
+        not in attributes
+    )
+    assert not any(key.startswith(SpanAttributes.LLM_OUTPUT_MESSAGES) for key in attributes)
+
+
+@pytest.mark.asyncio
+async def test_acreate_masking(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+) -> None:
+    in_memory_span_exporter.clear()
+    LiteLLMInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+    original = LiteLLMInstrumentor.original_anthropic_funcs["acreate"]
+
+    async def mock_acreate(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        return _mock_anthropic_response("secret answer")
+
+    LiteLLMInstrumentor.original_anthropic_funcs["acreate"] = mock_acreate
+    try:
+        await litellm_anthropic.acreate(
+            model=MODEL,
+            messages=[{"role": "user", "content": "secret question"}],
+            max_tokens=16,
+            system="secret system",
+        )
+    finally:
+        LiteLLMInstrumentor.original_anthropic_funcs["acreate"] = original
+
+    attributes = dict(
+        cast(
+            Mapping[str, AttributeValue], in_memory_span_exporter.get_finished_spans()[0].attributes
+        )
+    )
+    assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
     assert (
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"
         not in attributes
