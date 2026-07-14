@@ -1,3 +1,4 @@
+import asyncio
 from typing import (
     Any,
     Awaitable,
@@ -549,9 +550,9 @@ class _WorkflowExecuteWrapper:
 
     @staticmethod
     def _already_spanned() -> bool:
-        # Returns True only inside the foreground coroutine/stream that owns the arun span.
-        # The background tasks get their own context copy where this key is absent.
-        return bool(context_api.get_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY))
+        # Context values are copied into child tasks, so compare task identity to avoid
+        # suppressing background workflow spans created by a foreground workflow.
+        return context_api.get_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY) == id(asyncio.current_task())
 
     @staticmethod
     def _apply_run_output_attributes(span: Any, instance: Any, run_output: Any) -> None:
@@ -1323,7 +1324,9 @@ def _setup_node_context(node_id: str) -> Any:
 
 def _setup_arun_spanned_context() -> Any:
     """Mark the current async context as already covered by a Workflow.arun span."""
-    return context_api.attach(context_api.set_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY, True))
+    return context_api.attach(
+        context_api.set_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY, id(asyncio.current_task()))
+    )
 
 
 # span attributes

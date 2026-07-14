@@ -911,6 +911,59 @@ class TestWorkflowBackgroundRuns:
             f"agno.run.id should be a UUID, got {captured_run_id!r}"
         )
 
+    async def test_background_run_started_inside_foreground_gets_own_span(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        async def inner_step(step_input: Any) -> Any:
+            await asyncio.sleep(0.05)
+            from agno.workflow.types import StepOutput
+
+            return StepOutput(step_name="inner_step", content="inner done", success=True)
+
+        inner_workflow = Workflow(
+            name="InnerBackgroundWorkflow",
+            steps=[Step(name="inner_step", executor=inner_step)],
+        )
+
+        async def outer_step(step_input: Any) -> Any:
+            placeholder = await inner_workflow.arun(
+                input="nested background input",
+                background=True,
+            )
+            task_name = f"workflow-background-{placeholder.run_id}"
+            background_tasks = [
+                task for task in asyncio.all_tasks() if task.get_name() == task_name
+            ]
+            assert len(background_tasks) == 1
+            await asyncio.wait_for(background_tasks[0], timeout=5)
+
+            from agno.workflow.types import StepOutput
+
+            return StepOutput(step_name="outer_step", content="outer done", success=True)
+
+        outer_workflow = Workflow(
+            name="OuterForegroundWorkflow",
+            steps=[Step(name="outer_step", executor=outer_step)],
+        )
+
+        await outer_workflow.arun(input="start nested workflow")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        execute_spans = [span for span in spans if span.name == "InnerBackgroundWorkflow._aexecute"]
+        inner_step_spans = [span for span in spans if span.name == "inner_step.aexecute"]
+
+        assert len(execute_spans) == 1
+        assert len(inner_step_spans) == 1
+
+        execute_attrs = dict(execute_spans[0].attributes or {})
+        step_attrs = dict(inner_step_spans[0].attributes or {})
+        assert step_attrs.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == execute_attrs.get(
+            SpanAttributes.GRAPH_NODE_ID
+        )
+
 
 # mime types
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
