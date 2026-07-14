@@ -396,16 +396,15 @@ class _WorkflowWrapper:
         is_streaming = False
         with trace_api.use_span(span, end_on_exit=False):
             workflow_token = _setup_node_context(node_id)
-            result = wrapped(*args, **kwargs)
+            try:
+                result = wrapped(*args, **kwargs)
 
-            # Check if result is an async iterator (streaming)
-            is_streaming = hasattr(result, "__aiter__")
-            if is_streaming and workflow_token:
-                try:
+                # Check if result is an async iterator (streaming)
+                is_streaming = hasattr(result, "__aiter__")
+            finally:
+                if workflow_token is not None:
                     context_api.detach(workflow_token)
                     workflow_token = None
-                except Exception:
-                    pass
 
         if is_streaming:
             return self._arun_stream_continue(result, span, node_id, instance)

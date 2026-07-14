@@ -14,6 +14,7 @@ from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.agno._workflow_wrapper import (
     _ParallelWrapper,
     _StepWrapper,
+    _WorkflowExecuteWrapper,
     _WorkflowWrapper,
 )
 from openinference.instrumentation.agno.utils import _AGNO_PARENT_NODE_CONTEXT_KEY
@@ -101,6 +102,12 @@ STREAM_WRAPPER_CASES = (
 
 ASYNC_STREAM_WRAPPER_CASES = (
     pytest.param(_WorkflowWrapper, "arun", _WorkflowInstance(), id="workflow"),
+    pytest.param(
+        _WorkflowExecuteWrapper,
+        "aexecute_stream",
+        _WorkflowInstance(),
+        id="workflow-execute",
+    ),
     pytest.param(_StepWrapper, "arun", _StepInstance(), id="step"),
     pytest.param(_ParallelWrapper, "aexecute", _ParallelInstance(), id="parallel"),
 )

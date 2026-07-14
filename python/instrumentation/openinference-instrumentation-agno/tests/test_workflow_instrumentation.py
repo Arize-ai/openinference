@@ -6,6 +6,7 @@ from typing import Any, Generator
 
 import pytest
 from agno.agent import Agent
+from agno.db.in_memory import InMemoryDb
 from agno.models.openai.chat import OpenAIChat
 from agno.workflow.condition import Condition
 from agno.workflow.step import Step
@@ -15,6 +16,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation import suppress_tracing, using_tags
 from openinference.instrumentation.agno import AgnoInstrumentor
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
@@ -506,6 +508,18 @@ async def _afunction_step(step_input: Any) -> Any:
     return StepOutput(step_name="fn_step", content="ok", success=True)
 
 
+def _find_background_task(run_id: str | None) -> asyncio.Task[Any]:
+    assert run_id is not None
+    task_name = f"workflow-background-{run_id}"
+    tasks = [task for task in asyncio.all_tasks() if task.get_name() == task_name]
+    assert len(tasks) == 1, f"Expected one background task named {task_name!r}, got {len(tasks)}"
+    return tasks[0]
+
+
+async def _wait_for_background_run(run_id: str | None) -> None:
+    await asyncio.wait_for(_find_background_task(run_id), timeout=5)
+
+
 def _find_workflow_root_span(spans: Any, name_substr: str) -> Any:
     for span in spans:
         if name_substr in span.name:
@@ -677,34 +691,22 @@ class TestWorkflowBackgroundRuns:
             name="BackgroundWorkflow",
             steps=[Step(name="fn_step", executor=_afunction_step)],
         )
-        before_tasks = set(asyncio.all_tasks())
         placeholder = await workflow.arun(
             input="hello",
             run_id="RUN-BG-1",
             background=True,
         )
-        assert placeholder is not None
-
-        # Wait for the background tasks that agno scheduled to finish.
-        new_tasks = set(asyncio.all_tasks()) - before_tasks - {asyncio.current_task()}
-        for task in new_tasks:
-            try:
-                await asyncio.wait_for(task, timeout=5)
-            except asyncio.TimeoutError:
-                pytest.fail(
-                    "Background workflow task did not complete in time; "
-                    "test setup may not match the real agno background-run API"
-                )
-            except Exception:
-                pass
+        await _wait_for_background_run(placeholder.run_id)
 
         spans = in_memory_span_exporter.get_finished_spans()
 
         arun_spans = [s for s in spans if "BackgroundWorkflow.arun" == s.name]
+        execute_spans = [s for s in spans if "BackgroundWorkflow._aexecute" == s.name]
         assert len(arun_spans) == 0, (
             "Workflow.arun should not create a span when background=True; "
             "the real span should come from _aexecute instead"
         )
+        assert len(execute_spans) == 1
 
     async def test_background_run_aexecute_span_has_real_output_and_duration(
         self,
@@ -716,22 +718,12 @@ class TestWorkflowBackgroundRuns:
             name="BackgroundOutputWorkflow",
             steps=[Step(name="fn_step", executor=_afunction_step)],
         )
-        before_tasks = set(asyncio.all_tasks())
-        await workflow.arun(
+        placeholder = await workflow.arun(
             input="hello",
             run_id="RUN-BG-2",
             background=True,
         )
-
-        # Wait for the background tasks that agno scheduled to finish.
-        new_tasks = set(asyncio.all_tasks()) - before_tasks - {asyncio.current_task()}
-        for task in new_tasks:
-            try:
-                await asyncio.wait_for(task, timeout=5)
-            except asyncio.TimeoutError:
-                pytest.fail("Background workflow task did not complete in time")
-            except Exception:
-                pass
+        await _wait_for_background_run(placeholder.run_id)
 
         spans = in_memory_span_exporter.get_finished_spans()
 
@@ -771,43 +763,36 @@ class TestWorkflowBackgroundRuns:
             name="BackgroundParentWorkflow",
             steps=[Step(name="bg_fn_step", executor=_afunction_step)],
         )
-        before_tasks = set(asyncio.all_tasks())
-        await workflow.arun(
+        placeholder = await workflow.arun(
             input="hello",
             run_id="RUN-BG-3",
             background=True,
         )
-
-        # Wait for the background tasks that agno scheduled to finish.
-        new_tasks = set(asyncio.all_tasks()) - before_tasks - {asyncio.current_task()}
-        for task in new_tasks:
-            try:
-                await asyncio.wait_for(task, timeout=5)
-            except asyncio.TimeoutError:
-                pytest.fail("Background workflow task did not complete in time")
-            except Exception:
-                pass
+        await _wait_for_background_run(placeholder.run_id)
 
         spans = in_memory_span_exporter.get_finished_spans()
 
         execute_span = None
         step_span = None
         for span in spans:
-            attributes = dict(span.attributes or dict())
             if "BackgroundParentWorkflow._aexecute" in span.name and "stream" not in span.name:
-                execute_span = attributes
+                execute_span = span
             elif "bg_fn_step" in span.name:
-                step_span = attributes
+                step_span = span
 
         assert execute_span is not None
         assert step_span is not None, "Step span should exist under the background execution"
 
-        execute_node_id = execute_span.get(SpanAttributes.GRAPH_NODE_ID)
-        step_parent_id = step_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID)
+        execute_attrs = dict(execute_span.attributes or {})
+        step_attrs = dict(step_span.attributes or {})
+        execute_node_id = execute_attrs.get(SpanAttributes.GRAPH_NODE_ID)
+        step_parent_id = step_attrs.get(SpanAttributes.GRAPH_NODE_PARENT_ID)
         assert step_parent_id == execute_node_id, (
             "Step span should be parented to the _aexecute span, not orphaned "
             "under an already-closed arun span"
         )
+        assert step_span.parent is not None
+        assert step_span.parent.span_id == execute_span.context.span_id
 
     async def test_foreground_run_does_not_double_span(
         self,
@@ -835,6 +820,192 @@ class TestWorkflowBackgroundRuns:
             "_aexecute should not create its own span when already nested "
             "under arun's span (would double-span the foreground path)"
         )
+
+    async def test_foreground_async_step_has_workflow_parent_context(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        workflow = Workflow(
+            name="ForegroundParentWorkflow",
+            steps=[Step(name="foreground_parent_step", executor=_afunction_step)],
+        )
+        await workflow.arun(input="hello")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        workflow_spans = [span for span in spans if span.name == "ForegroundParentWorkflow.arun"]
+        step_spans = [span for span in spans if span.name == "foreground_parent_step.aexecute"]
+
+        assert len(workflow_spans) == 1
+        assert len(step_spans) == 1
+
+        workflow_span = workflow_spans[0]
+        step_span = step_spans[0]
+        workflow_attrs = dict(workflow_span.attributes or {})
+        step_attrs = dict(step_span.attributes or {})
+        assert step_attrs.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == workflow_attrs.get(
+            SpanAttributes.GRAPH_NODE_ID
+        )
+        assert step_span.parent is not None
+        assert step_span.parent.span_id == workflow_span.context.span_id
+
+    async def test_foreground_stream_does_not_double_span_and_has_parent_context(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        workflow = Workflow(
+            name="ForegroundStreamWorkflow",
+            steps=[Step(name="foreground_stream_step", executor=_afunction_step)],
+        )
+        responses = [response async for response in workflow.arun(input="hello", stream=True)]
+        assert responses
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        workflow_spans = [span for span in spans if span.name == "ForegroundStreamWorkflow.arun"]
+        execute_spans = [
+            span for span in spans if span.name == "ForegroundStreamWorkflow._aexecute_stream"
+        ]
+        step_spans = [
+            span for span in spans if span.name == "foreground_stream_step.aexecute_stream"
+        ]
+
+        assert len(workflow_spans) == 1
+        assert execute_spans == []
+        assert len(step_spans) == 1
+
+        workflow_span = workflow_spans[0]
+        step_span = step_spans[0]
+        workflow_attrs = dict(workflow_span.attributes or {})
+        step_attrs = dict(step_span.attributes or {})
+        assert step_attrs.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == workflow_attrs.get(
+            SpanAttributes.GRAPH_NODE_ID
+        )
+        assert step_span.parent is not None
+        assert step_span.parent.span_id == workflow_span.context.span_id
+
+    async def test_background_run_captures_detached_context_attributes(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        tags = ["detached", "background"]
+        workflow = Workflow(
+            name="BackgroundContextWorkflow",
+            steps=[Step(name="background_context_step", executor=_afunction_step)],
+        )
+
+        with using_tags(tags):
+            placeholder = await workflow.arun(input="hello", background=True)
+
+        await _wait_for_background_run(placeholder.run_id)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        execute_spans = [
+            span for span in spans if span.name == "BackgroundContextWorkflow._aexecute"
+        ]
+        step_spans = [span for span in spans if span.name == "background_context_step.aexecute"]
+        assert len(execute_spans) == 1
+        assert len(step_spans) == 1
+        assert (execute_spans[0].attributes or {}).get(SpanAttributes.TAG_TAGS) == tuple(tags)
+        assert (step_spans[0].attributes or {}).get(SpanAttributes.TAG_TAGS) == tuple(tags)
+
+    async def test_background_run_respects_suppress_tracing(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        workflow = Workflow(
+            name="SuppressedBackgroundWorkflow",
+            steps=[Step(name="suppressed_background_step", executor=_afunction_step)],
+        )
+
+        with suppress_tracing():
+            placeholder = await workflow.arun(input="hello", background=True)
+
+        await _wait_for_background_run(placeholder.run_id)
+        assert in_memory_span_exporter.get_finished_spans() == ()
+
+    async def test_background_stream_has_executor_span_and_context(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        tags = ["detached", "background-stream"]
+        workflow = Workflow(
+            name="BackgroundStreamWorkflow",
+            db=InMemoryDb(),  # type: ignore[no-untyped-call]
+            steps=[Step(name="background_stream_step", executor=_afunction_step)],
+        )
+
+        with using_tags(tags):
+            chunks = [
+                chunk
+                async for chunk in workflow.arun(
+                    input="hello",
+                    run_id="RUN-BG-STREAM-1",
+                    background=True,
+                    stream=True,
+                )
+            ]
+
+        assert chunks
+        spans = in_memory_span_exporter.get_finished_spans()
+        arun_spans = [span for span in spans if span.name == "BackgroundStreamWorkflow.arun"]
+        execute_spans = [
+            span for span in spans if span.name == "BackgroundStreamWorkflow._aexecute_stream"
+        ]
+        step_spans = [
+            span for span in spans if span.name == "background_stream_step.aexecute_stream"
+        ]
+
+        assert arun_spans == []
+        assert len(execute_spans) == 1
+        assert len(step_spans) == 1
+
+        execute_span = execute_spans[0]
+        step_span = step_spans[0]
+        execute_attrs = dict(execute_span.attributes or {})
+        step_attrs = dict(step_span.attributes or {})
+        assert execute_attrs.get("agno.run.id") == "RUN-BG-STREAM-1"
+        assert execute_attrs.get(SpanAttributes.OUTPUT_VALUE) not in (None, "")
+        assert execute_attrs.get(SpanAttributes.TAG_TAGS) == tuple(tags)
+        assert step_attrs.get(SpanAttributes.TAG_TAGS) == tuple(tags)
+        assert step_attrs.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == execute_attrs.get(
+            SpanAttributes.GRAPH_NODE_ID
+        )
+        assert step_span.parent is not None
+        assert step_span.parent.span_id == execute_span.context.span_id
+
+    async def test_background_stream_respects_suppress_tracing(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        setup_agno_instrumentation: Any,
+    ) -> None:
+        workflow = Workflow(
+            name="SuppressedBackgroundStreamWorkflow",
+            db=InMemoryDb(),  # type: ignore[no-untyped-call]
+            steps=[Step(name="suppressed_background_stream_step", executor=_afunction_step)],
+        )
+
+        with suppress_tracing():
+            chunks = [
+                chunk
+                async for chunk in workflow.arun(
+                    input="hello",
+                    background=True,
+                    stream=True,
+                )
+            ]
+
+        assert chunks
+        assert in_memory_span_exporter.get_finished_spans() == ()
 
     async def test_concurrent_foreground_and_background_runs_do_not_interfere(
         self,
@@ -866,25 +1037,12 @@ class TestWorkflowBackgroundRuns:
         # Start background run on the same workflow instance while the foreground
         # is still in flight. With the instance-attribute approach this would race.
         # With the contextvar approach each task has its own context copy.
-        before_bg_tasks = asyncio.all_tasks()
-        await workflow.arun(
+        placeholder = await workflow.arun(
             input="background input",
             background=True,
         )
-
-        # Wait for background task to finish.
-        new_bg_tasks = asyncio.all_tasks() - before_bg_tasks - {asyncio.current_task()}
-        for task in new_bg_tasks:
-            try:
-                await asyncio.wait_for(task, timeout=5)
-            except Exception:
-                pass
-
-        # Wait for foreground task to finish.
-        try:
-            await asyncio.wait_for(foreground_task, timeout=5)
-        except Exception:
-            pass
+        await _wait_for_background_run(placeholder.run_id)
+        await asyncio.wait_for(foreground_task, timeout=5)
 
         spans = in_memory_span_exporter.get_finished_spans()
 
@@ -933,12 +1091,7 @@ class TestWorkflowBackgroundRuns:
                 input="nested background input",
                 background=True,
             )
-            task_name = f"workflow-background-{placeholder.run_id}"
-            background_tasks = [
-                task for task in asyncio.all_tasks() if task.get_name() == task_name
-            ]
-            assert len(background_tasks) == 1
-            await asyncio.wait_for(background_tasks[0], timeout=5)
+            await _wait_for_background_run(placeholder.run_id)
 
             from agno.workflow.types import StepOutput
 
