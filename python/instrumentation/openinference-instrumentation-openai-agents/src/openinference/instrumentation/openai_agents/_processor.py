@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
@@ -73,6 +74,19 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         self._root_spans: dict[str, OtelSpan] = {}
         self._otel_spans: dict[str, OtelSpan] = {}
         self._tokens: dict[str, object] = {}
+        # Maps a span id to its parent span id (None for spans that sit directly
+        # under the trace root). Used to bubble a child LLM span's input/output up
+        # to its ancestor agent/workflow/turn spans, which the Agents SDK does
+        # not populate directly.
+        self._parent_ids: dict[str, Optional[str]] = {}
+        # Ancestor spans (and trace roots, keyed "trace:<trace_id>") whose
+        # input.value has already been recorded, so the *first* input observed
+        # within a parent wins while output is allowed to update to the latest.
+        self._io_input_recorded: set[str] = set()
+        # Tool schemas (description, parameters) captured from response spans and
+        # keyed by (trace_id, tool_name), so function/tool spans can carry
+        # tool.description and tool.parameters. Cleared per trace on trace end.
+        self._tool_schemas: dict[tuple[str, str], tuple[Optional[str], Any]] = {}
         # This captures in flight handoff. Once the handoff is complete, the entry is deleted
         # If the handoff does not complete, the entry stays in the dict.
         # Use an OrderedDict and _MAX_HANDOFFS_IN_FLIGHT to cap the size of the dict
@@ -102,6 +116,10 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         if root_span := self._root_spans.pop(trace.trace_id, None):
             root_span.set_status(Status(StatusCode.OK))
             root_span.end()
+        self._io_input_recorded.discard(f"trace:{trace.trace_id}")
+        self._tool_schemas = {
+            key: value for key, value in self._tool_schemas.items() if key[0] != trace.trace_id
+        }
 
     def on_span_start(self, span: Span[Any]) -> None:
         """Called when a span is started.
@@ -119,16 +137,20 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         )
         context = set_span_in_context(parent_span) if parent_span else None
         span_name = _get_span_name(span)
+        span_kind = _get_span_kind(span.span_data)
+        attributes: dict[str, AttributeValue] = {OPENINFERENCE_SPAN_KIND: span_kind}
+        # llm.system belongs on LLM spans only; it should not be stamped on the
+        # SDK's agent/chain/tool spans.
+        if span_kind == OpenInferenceSpanKindValues.LLM.value:
+            attributes[LLM_SYSTEM] = OpenInferenceLLMSystemValues.OPENAI.value
         otel_span = self._tracer.start_span(
             name=span_name,
             context=context,
             start_time=_as_utc_nano(start_time),
-            attributes={
-                OPENINFERENCE_SPAN_KIND: _get_span_kind(span.span_data),
-                LLM_SYSTEM: OpenInferenceLLMSystemValues.OPENAI.value,
-            },
+            attributes=attributes,
         )
         self._otel_spans[span.span_id] = otel_span
+        self._parent_ids[span.span_id] = span.parent_id
         self._tokens[span.span_id] = attach(set_span_in_context(otel_span))
 
     def on_span_end(self, span: Span[Any]) -> None:
@@ -145,16 +167,32 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         # flatten_attributes: dict[str, AttributeValue] = dict(_flatten(span.export()))
         # otel_span.set_attributes(flatten_attributes)
         data = span.span_data
+        # Input/output captured from LLM spans, propagated to ancestor spans below.
+        span_input: Optional[tuple[AttributeValue, Optional[str]]] = None
+        span_output: Optional[tuple[AttributeValue, Optional[str]]] = None
         if isinstance(data, ResponseSpanData):
             if hasattr(data, "response") and isinstance(response := data.response, Response):
                 otel_span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 otel_span.set_attribute(OUTPUT_VALUE, response.model_dump_json())
+                # Ancestor spans get the assistant's text, or the tool call(s) when
+                # a turn produced no text, rather than the full serialized Response.
+                span_output = _readable_response_output(response)
                 for k, v in _get_attributes_from_response(response):
                     otel_span.set_attribute(k, v)
+                # Cache each tool's schema. Function spans expose only a name, input
+                # and output, so they read tool.description and tool.parameters here.
+                for tool in response.tools or []:
+                    if isinstance(tool, FunctionTool):
+                        self._tool_schemas[(span.trace_id, tool.name)] = (
+                            tool.description,
+                            tool.parameters,
+                        )
             if hasattr(data, "input") and (input := data.input):
                 if isinstance(input, str):
+                    span_input = (input, None)
                     otel_span.set_attribute(INPUT_VALUE, input)
                 elif isinstance(input, list):
+                    span_input = (safe_json_dumps(input), JSON)
                     otel_span.set_attribute(INPUT_MIME_TYPE, JSON)
                     otel_span.set_attribute(INPUT_VALUE, safe_json_dumps(input))
                     for k, v in _get_attributes_from_input(input):
@@ -164,13 +202,34 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         elif isinstance(data, GenerationSpanData):
             for k, v in _get_attributes_from_generation_span_data(data):
                 otel_span.set_attribute(k, v)
+            if data.input:
+                span_input = (safe_json_dumps(data.input), JSON)
+            span_output = _readable_message_output(data.output)
         elif isinstance(data, FunctionSpanData):
             for k, v in _get_attributes_from_function_span_data(data):
                 otel_span.set_attribute(k, v)
+            # The SDK omits the tool's schema from function spans; fill it in from
+            # the schema captured on the response span.
+            if (schema := self._tool_schemas.get((span.trace_id, data.name))) is not None:
+                description, parameters = schema
+                if description is not None:
+                    otel_span.set_attribute(TOOL_DESCRIPTION, description)
+                if parameters is not None:
+                    otel_span.set_attribute(TOOL_PARAMETERS, safe_json_dumps(parameters))
         elif isinstance(data, MCPListToolsSpanData):
             for k, v in _get_attributes_from_mcp_list_tool_span_data(data):
                 otel_span.set_attribute(k, v)
         elif isinstance(data, HandoffSpanData):
+            # Handoffs are surfaced as TOOL spans; the SDK leaves them empty, so
+            # populate name/input/output from the from/to agent names.
+            if data.to_agent is not None:
+                # Match the tool the model actually called (the SDK's default
+                # handoff tool is "transfer_to_<agent>", function-style-cased), so
+                # this span's tool.name lines up with the LLM span's tool call.
+                otel_span.set_attribute(TOOL_NAME, _handoff_tool_name(data.to_agent))
+                otel_span.set_attribute(OUTPUT_VALUE, data.to_agent)
+            if data.from_agent is not None:
+                otel_span.set_attribute(INPUT_VALUE, data.from_agent)
             # Set this dict to find the parent node when the agent span starts
             if data.to_agent and data.from_agent:
                 key = f"{data.to_agent}:{span.trace_id}"
@@ -180,10 +239,17 @@ class OpenInferenceTracingProcessor(TracingProcessor):
                     self._reverse_handoffs_dict.popitem(last=False)
         elif isinstance(data, AgentSpanData):
             otel_span.set_attribute(GRAPH_NODE_ID, data.name)
+            otel_span.set_attribute(AGENT_NAME, data.name)
             # Lookup the parent node if exists
             key = f"{data.name}:{span.trace_id}"
             if parent_node := self._reverse_handoffs_dict.pop(key, None):
                 otel_span.set_attribute(GRAPH_NODE_PARENT_ID, parent_node)
+
+        # The Agents SDK leaves input/output off agent, task, turn, and handoff
+        # spans (including the trace root shown in the trace list), so bubble this
+        # LLM span's input/output up to its ancestors.
+        if span_input is not None or span_output is not None:
+            self._propagate_io_to_ancestors(span, span_input, span_output)
 
         end_time: Optional[int] = None
         if span.ended_at:
@@ -193,6 +259,50 @@ class OpenInferenceTracingProcessor(TracingProcessor):
                 pass
         otel_span.set_status(status=_get_span_status(span))
         otel_span.end(end_time)
+        self._parent_ids.pop(span.span_id, None)
+        self._io_input_recorded.discard(span.span_id)
+
+    def _iter_ancestor_ids(self, span_id: str) -> Iterator[str]:
+        """Yield the ids of ``span_id``'s ancestors, nearest first."""
+        seen: set[str] = set()
+        parent_id = self._parent_ids.get(span_id)
+        while parent_id is not None and parent_id not in seen:
+            seen.add(parent_id)
+            yield parent_id
+            parent_id = self._parent_ids.get(parent_id)
+
+    def _propagate_io_to_ancestors(
+        self,
+        span: Span[Any],
+        span_input: Optional[tuple[AttributeValue, Optional[str]]],
+        span_output: Optional[tuple[AttributeValue, Optional[str]]],
+    ) -> None:
+        """Copy a child LLM span's input/output onto its ancestor agent, task, and
+        turn spans, and onto the trace root.
+
+        The OpenAI Agents SDK does not attach input/output to these parent spans,
+        so without this they render with an empty Input/Output panel, including
+        the root span the trace list displays. Within each ancestor the first
+        input observed wins and the most recent output wins.
+        """
+        targets: list[tuple[str, OtelSpan]] = []
+        for ancestor_id in self._iter_ancestor_ids(span.span_id):
+            if (ancestor_span := self._otel_spans.get(ancestor_id)) is not None:
+                targets.append((ancestor_id, ancestor_span))
+        if (root_span := self._root_spans.get(span.trace_id)) is not None:
+            targets.append((f"trace:{span.trace_id}", root_span))
+        for key, otel_span in targets:
+            if span_input is not None and key not in self._io_input_recorded:
+                value, mime = span_input
+                otel_span.set_attribute(INPUT_VALUE, value)
+                if mime is not None:
+                    otel_span.set_attribute(INPUT_MIME_TYPE, mime)
+                self._io_input_recorded.add(key)
+            if span_output is not None:
+                value, mime = span_output
+                otel_span.set_attribute(OUTPUT_VALUE, value)
+                if mime is not None:
+                    otel_span.set_attribute(OUTPUT_MIME_TYPE, mime)
 
     def force_flush(self) -> None:
         """Forces an immediate flush of all queued spans/traces."""
@@ -215,6 +325,17 @@ def _get_span_name(obj: Span[Any]) -> str:
     if isinstance(obj.span_data, HandoffSpanData) and obj.span_data.to_agent:
         return f"handoff to {obj.span_data.to_agent}"
     return obj.span_data.type  # type: ignore[no-any-return]
+
+
+def _handoff_tool_name(to_agent: str) -> str:
+    """The SDK's default handoff tool name for ``to_agent`` (``transfer_to_<agent>``,
+    function-style-cased), matching the tool call the model makes for the handoff.
+
+    Mirrors the SDK's own ``transform_string_function_style`` so the value is stable
+    across versions without depending on that private helper.
+    """
+    name = re.sub(r"\s", "_", f"transfer_to_{to_agent}")
+    return re.sub(r"[^a-zA-Z0-9_]", "_", name).lower()
 
 
 def _get_span_kind(obj: SpanData) -> str:
@@ -405,6 +526,71 @@ def _get_attributes_from_function_call_output(
         else:
             output_value = safe_json_dumps(output)
         yield f"{prefix}{MESSAGE_CONTENT}", output_value
+
+
+def _output_text_from_messages(
+    messages: Optional[Iterable[Mapping[str, Any]]],
+) -> str:
+    """Concatenate the text content of chat-completion output messages."""
+    parts: list[str] = []
+    for message in messages or []:
+        if not isinstance(message, Mapping):
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, (list, tuple)):
+            for item in content:
+                if (
+                    isinstance(item, Mapping)
+                    and item.get("type") in ("text", "output_text")
+                    and item.get("text")
+                ):
+                    parts.append(str(item["text"]))
+    return "".join(parts)
+
+
+def _readable_response_output(
+    response: Response,
+) -> Optional[tuple[AttributeValue, Optional[str]]]:
+    """A readable (value, mime) output for ancestor spans from a Responses-API
+    response: the assistant's text, or the tool call(s) the model requested when a
+    turn produced no text. ``None`` when there is nothing to show.
+    """
+    if text := response.output_text:
+        return text, None
+    tool_calls: list[dict[str, Any]] = []
+    for item in response.output:
+        if item.type == "function_call":
+            tool_calls.append({"name": item.name, "arguments": item.arguments})
+        elif item.type == "custom_tool_call":
+            tool_calls.append({"name": item.name, "input": item.input})
+    if tool_calls:
+        return safe_json_dumps(tool_calls), JSON
+    return None
+
+
+def _readable_message_output(
+    messages: Optional[Iterable[Mapping[str, Any]]],
+) -> Optional[tuple[AttributeValue, Optional[str]]]:
+    """A readable (value, mime) output for ancestor spans from chat-completion
+    output messages: assistant text, or the tool call(s) when there is no text.
+    """
+    if text := _output_text_from_messages(messages):
+        return text, None
+    tool_calls: list[dict[str, Any]] = []
+    for message in messages or []:
+        if not isinstance(message, Mapping):
+            continue
+        for tool_call in message.get("tool_calls") or []:
+            if isinstance(tool_call, Mapping):
+                function = tool_call.get("function") or {}
+                tool_calls.append(
+                    {"name": function.get("name"), "arguments": function.get("arguments")}
+                )
+    if tool_calls:
+        return safe_json_dumps(tool_calls), JSON
+    return None
 
 
 def _get_attributes_from_generation_span_data(
@@ -826,6 +1012,7 @@ TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
+AGENT_NAME = SpanAttributes.AGENT_NAME
 
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
