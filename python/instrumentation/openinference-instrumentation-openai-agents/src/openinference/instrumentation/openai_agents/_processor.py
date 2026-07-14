@@ -660,9 +660,8 @@ def _get_attributes_from_response_output(
             ...  # TODO
         elif item.type == "reasoning":
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
-            if any(
-                True for _ in (attrs := list(_get_attributes_from_reasoning_item(item, prefix)))
-            ):
+            attrs = list(_get_attributes_from_reasoning_item(item, prefix))
+            if attrs:
                 for k, v in attrs:
                     yield k, v
                 msg_idx += 1
