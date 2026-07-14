@@ -1,3 +1,5 @@
+import asyncio
+import weakref
 from typing import (
     Any,
     Awaitable,
@@ -13,6 +15,7 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.agno.utils import (
+    _AGNO_ARUN_SPANNED_CONTEXT_KEY,
     _AGNO_PARENT_NODE_CONTEXT_KEY,
     _bind_arguments,
     _flatten,
@@ -61,6 +64,23 @@ def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
                     return json.dumps(input_value, indent=2, ensure_ascii=False)
                 else:
                     return str(input_value)
+
+    execution_input = arguments.get("execution_input")
+    if execution_input is not None and hasattr(execution_input, "input"):
+        input_value = execution_input.input
+        if input_value is not None:
+            if isinstance(input_value, str):
+                return input_value
+            elif isinstance(input_value, list):
+                return "\n".join(str(item) for item in input_value)
+            elif hasattr(input_value, "model_dump_json"):
+                return str(input_value.model_dump_json(indent=2, exclude_none=True))
+            elif isinstance(input_value, dict):
+                import json
+
+                return json.dumps(input_value, indent=2, ensure_ascii=False)
+            else:
+                return str(input_value)
 
     for key in ["input", "message", "messages"]:
         if value := arguments.get(key):
@@ -338,6 +358,14 @@ class _WorkflowWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        # Bind arguments to extract input
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+
+        # Background runs return a placeholder WorkflowRunOutput immediately while
+        # the real work happens later so we skip span creation here entirely.
+        if arguments.get("background"):
+            return wrapped(*args, **kwargs)
+
         workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
         # Use the actual method name for consistency
         method_name = getattr(wrapped, "__name__", "arun")
@@ -345,9 +373,6 @@ class _WorkflowWrapper:
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
-
-        # Bind arguments to extract input
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
 
         span = self._tracer.start_span(
             span_name,
@@ -370,16 +395,15 @@ class _WorkflowWrapper:
         is_streaming = False
         with trace_api.use_span(span, end_on_exit=False):
             workflow_token = _setup_node_context(node_id)
-            result = wrapped(*args, **kwargs)
+            try:
+                result = wrapped(*args, **kwargs)
 
-            # Check if result is an async iterator (streaming)
-            is_streaming = hasattr(result, "__aiter__")
-            if is_streaming and workflow_token:
-                try:
+                # Check if result is an async iterator (streaming)
+                is_streaming = hasattr(result, "__aiter__")
+            finally:
+                if workflow_token is not None:
                     context_api.detach(workflow_token)
                     workflow_token = None
-                except Exception:
-                    pass
 
         if is_streaming:
             return self._arun_stream_continue(result, span, node_id, instance)
@@ -388,16 +412,25 @@ class _WorkflowWrapper:
         async def non_stream_wrapper() -> Any:
             nonlocal workflow_token
             ctx_token = None
+            spanned_token = None
             try:
                 ctx_token = context_api.attach(trace_api.set_span_in_context(span))
                 if workflow_token is None:
                     workflow_token = _setup_node_context(node_id)
+                # Set the context-local marker so _WorkflowExecuteWrapper.aexecute
+                # skips creating its own span. This token is scoped to this coroutine's
+                # context and never leaks into background tasks created by _arun_background.
+                spanned_token = _setup_arun_spanned_context()
+
                 response = await result
 
                 # Detach tokens immediately after execution completes
                 if workflow_token is not None:
                     context_api.detach(workflow_token)
                     workflow_token = None
+                if spanned_token is not None:
+                    context_api.detach(spanned_token)
+                    spanned_token = None
                 if ctx_token is not None:
                     context_api.detach(ctx_token)
                     ctx_token = None
@@ -429,6 +462,8 @@ class _WorkflowWrapper:
                 raise
 
             finally:
+                if spanned_token is not None:
+                    context_api.detach(spanned_token)
                 if workflow_token is not None:
                     context_api.detach(workflow_token)
                 if ctx_token is not None:
@@ -451,13 +486,17 @@ class _WorkflowWrapper:
             while True:
                 ctx_token = None
                 workflow_token = None
+                spanned_token = None
                 try:
                     ctx_token = context_api.attach(trace_api.set_span_in_context(span))
                     workflow_token = _setup_node_context(node_id)
+                    spanned_token = _setup_arun_spanned_context()
                     response = await anext(iterator)
                 except StopAsyncIteration:
                     break
                 finally:
+                    if spanned_token is not None:
+                        context_api.detach(spanned_token)
                     if workflow_token is not None:
                         context_api.detach(workflow_token)
                     if ctx_token is not None:
@@ -494,6 +533,198 @@ class _WorkflowWrapper:
             span.record_exception(e)
             raise
 
+        finally:
+            span.end()
+
+
+class _WorkflowExecuteWrapper:
+    """
+    Wrapper for coroutines that do the actual step execution and write the real output onto the
+    WorkflowRunOutput, regardless of whether the run was started (via arun or _arun_background).
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    @staticmethod
+    def _already_spanned() -> bool:
+        # Context values are copied into child tasks, so compare task identity to avoid
+        # suppressing background workflow spans created by a foreground workflow.
+        marker = context_api.get_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY)
+        current_task = asyncio.current_task()
+        return (
+            isinstance(marker, weakref.ReferenceType)
+            and current_task is not None
+            and marker() is current_task
+        )
+
+    @staticmethod
+    def _apply_run_output_attributes(span: Any, instance: Any, run_output: Any) -> None:
+        if run_output is None:
+            return
+        output, mime_type = _extract_output(run_output)
+        if output:
+            span.set_attribute(OUTPUT_VALUE, output)
+            span.set_attribute(OUTPUT_MIME_TYPE, mime_type)
+
+        if hasattr(instance, "id") and instance.id:
+            span.set_attribute("agno.workflow.id", instance.id)
+
+        run_id = getattr(run_output, "run_id", None)
+        if run_id:
+            span.set_attribute("agno.run.id", run_id)
+
+        user_id = getattr(run_output, "user_id", None)
+        if user_id:
+            span.set_attribute(USER_ID, user_id)
+
+    async def aexecute(
+        self,
+        wrapped: Callable[..., Awaitable[Any]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        if self._already_spanned():
+            return await wrapped(*args, **kwargs)
+
+        workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
+        method_name = getattr(wrapped, "__name__", "_aexecute")
+        span_name = f"{workflow_name}.{method_name}"
+
+        node_id = _generate_node_id()
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        workflow_run_response = arguments.get("workflow_run_response")
+
+        span = self._tracer.start_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        GRAPH_NODE_ID: node_id,
+                        INPUT_VALUE: _get_input_from_args(arguments),
+                        **dict(_workflow_attributes(instance)),
+                        **dict(_workflow_run_arguments(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        )
+
+        workflow_token = None
+        ctx_token = None
+        try:
+            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+            workflow_token = _setup_node_context(node_id)
+            response = await wrapped(*args, **kwargs)
+
+            if workflow_token is not None:
+                context_api.detach(workflow_token)
+                workflow_token = None
+            if ctx_token is not None:
+                context_api.detach(ctx_token)
+                ctx_token = None
+
+            span.set_status(trace_api.StatusCode.OK)
+            self._apply_run_output_attributes(
+                span,
+                instance,
+                workflow_run_response if workflow_run_response is not None else response,
+            )
+
+            return response
+
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
+
+        finally:
+            if workflow_token is not None:
+                try:
+                    context_api.detach(workflow_token)
+                except Exception:
+                    pass
+            if ctx_token is not None:
+                try:
+                    context_api.detach(ctx_token)
+                except Exception:
+                    pass
+            span.end()
+
+    async def aexecute_stream(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            async for item in wrapped(*args, **kwargs):
+                yield item
+            return
+
+        if self._already_spanned():
+            async for item in wrapped(*args, **kwargs):
+                yield item
+            return
+
+        workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
+        method_name = getattr(wrapped, "__name__", "_aexecute_stream")
+        span_name = f"{workflow_name}.{method_name}"
+
+        node_id = _generate_node_id()
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        workflow_run_response = arguments.get("workflow_run_response")
+
+        span = self._tracer.start_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        GRAPH_NODE_ID: node_id,
+                        INPUT_VALUE: _get_input_from_args(arguments),
+                        **dict(_workflow_attributes(instance)),
+                        **dict(_workflow_run_arguments(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        )
+
+        async_iter = wrapped(*args, **kwargs).__aiter__()
+        try:
+            while True:
+                ctx_token = None
+                workflow_token = None
+                try:
+                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    workflow_token = _setup_node_context(node_id)
+                    event = await anext(async_iter)
+                except StopAsyncIteration:
+                    break
+                finally:
+                    if workflow_token is not None:
+                        context_api.detach(workflow_token)
+                    if ctx_token is not None:
+                        context_api.detach(ctx_token)
+
+                yield event
+
+            span.set_status(trace_api.StatusCode.OK)
+            self._apply_run_output_attributes(span, instance, workflow_run_response)
+
+        except (StopIteration, StopAsyncIteration):
+            raise
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
         finally:
             span.end()
 
@@ -1092,8 +1323,14 @@ class _ParallelWrapper:
 
 def _setup_node_context(node_id: str) -> Any:
     """Set up context for different nodes to propagate to child steps."""
-    parallel_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
-    return context_api.attach(parallel_ctx)
+    return context_api.attach(context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id))
+
+
+def _setup_arun_spanned_context() -> Any:
+    """Mark the current async context as already covered by a Workflow.arun span."""
+    task = asyncio.current_task()
+    marker = weakref.ref(task) if task is not None else None
+    return context_api.attach(context_api.set_value(_AGNO_ARUN_SPANNED_CONTEXT_KEY, marker))
 
 
 # span attributes
