@@ -760,7 +760,7 @@ def _get_attributes_from_message(
             assert_never(item)
     # Emit a flat message.content for consumers that don't read the multi-part form.
     if text_parts:
-        yield f"{prefix}{MESSAGE_CONTENT}", "".join(text_parts)
+        yield f"{prefix}{MESSAGE_CONTENT}", "\n".join(text_parts)
 
 
 def _get_attributes_from_usage(
