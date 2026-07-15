@@ -1475,6 +1475,24 @@ def test_routing_classifier_with_reasoning(in_memory_span_exporter: InMemorySpan
     # The key assertion: output must be the extracted routing decision, not the full JSON blob.
     assert routing_llm_attrs.pop("output.mime_type") == "text/plain"
     assert routing_llm_attrs.pop("output.value") == "<a>MathAgent</a>"
+    # rawResponse.content here is the Converse-normalized shape (output.message.content),
+    # not the Anthropic Messages API shape -- both the reasoning block and the final
+    # classification text must be captured as output messages.
+    assert routing_llm_attrs.pop("llm.output_messages.0.message.role") == "assistant"
+    assert (
+        routing_llm_attrs.pop("llm.output_messages.0.message.contents.0.message_content.type")
+        == "reasoning"
+    )
+    assert routing_llm_attrs.pop(
+        "llm.output_messages.0.message.contents.0.message_content.text"
+    ) == (
+        "We have a system about routing. There's agents: CodeReviewAgent and MathAgent. "
+        'Last user request: "Find all prime numbers between 10 and 50". That\'s definitely '
+        "Math. There's no ambiguity. So route to MathAgent. Provide classification result "
+        "wrapped in <a>. Output only <a>MathAgent</a>. No additional text."
+    )
+    assert routing_llm_attrs.pop("llm.output_messages.1.message.role") == "assistant"
+    assert routing_llm_attrs.pop("llm.output_messages.1.message.content") == "<a>MathAgent</a>"
     assert not routing_llm_attrs
 
     # action_group tool span
