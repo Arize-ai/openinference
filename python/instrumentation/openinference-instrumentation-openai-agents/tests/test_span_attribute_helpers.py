@@ -1873,7 +1873,7 @@ def test_get_attributes_from_tools(
                 "llm.output_messages.0.message.role": "assistant",
                 "llm.output_messages.0.message.tool_calls.0.tool_call.id": "custom-1",
                 "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "run_shell",
-                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": json.dumps(
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": json.dumps(  # noqa: E501
                     {"input": "echo hi"}
                 ),
             },
@@ -2002,7 +2002,7 @@ def test_get_attributes_from_tools(
             {
                 "llm.output_messages.0.message.role": "assistant",
                 "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
-                "llm.output_messages.0.message.contents.0.message_content.text": "Thinking it through",
+                "llm.output_messages.0.message.contents.0.message_content.text": "Thinking it through",  # noqa: E501
                 "llm.output_messages.0.message.contents.0.message_content.id": "reason-123",
                 "llm.output_messages.1.message.role": "assistant",
                 "llm.output_messages.1.message.contents.0.message_content.type": "text",
