@@ -50,6 +50,7 @@ from openai.types.responses.response_input_item_param import (
     ItemReference,
     Message,
 )
+from openai.types.responses.response_reasoning_item import Summary
 from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
 
 from openinference.instrumentation.openai_agents._processor import (
@@ -408,7 +409,7 @@ def test_get_attributes_from_message_param(
             ResponseReasoningItem(
                 id="reason-123",
                 type="reasoning",
-                summary=[{"type": "summary_text", "text": "Test reasoning"}],
+                summary=[Summary(type="summary_text", text="Test reasoning")],
             ),
             {
                 "message.role": "assistant",
@@ -423,8 +424,8 @@ def test_get_attributes_from_message_param(
                 id="reason-124",
                 type="reasoning",
                 summary=[
-                    {"type": "summary_text", "text": "Step one"},
-                    {"type": "summary_text", "text": "Step two"},
+                    Summary(type="summary_text", text="Step one"),
+                    Summary(type="summary_text", text="Step two"),
                 ],
             ),
             {
@@ -454,7 +455,7 @@ def test_get_attributes_from_message_param(
             ResponseReasoningItem(
                 id="reason-126",
                 type="reasoning",
-                summary=[{"type": "summary_text", "text": "Some reasoning"}],
+                summary=[Summary(type="summary_text", text="Some reasoning")],
                 encrypted_content="opaque-blob",
             ),
             {
@@ -1987,7 +1988,7 @@ def test_get_attributes_from_tools(
                 ResponseReasoningItem(
                     id="reason-123",
                     type="reasoning",
-                    summary=[{"type": "summary_text", "text": "Thinking it through"}],
+                    summary=[Summary(type="summary_text", text="Thinking it through")],
                 ),
                 ResponseOutputMessage(
                     id="msg-200",
