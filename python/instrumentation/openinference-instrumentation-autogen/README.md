@@ -4,8 +4,9 @@
 > This package is deprecated. Install `openinference-instrumentation-ag2` and import
 > `AG2Instrumentor` from `openinference.instrumentation.ag2` for new applications.
 
-`AutogenInstrumentor` remains available as a compatibility alias and delegates to the AG2
-instrumentor. Existing applications can migrate without changing tracing behavior:
+`AutogenInstrumentor` remains available for applications using the legacy `autogen`
+distribution and delegates tracing to the AG2 instrumentor singleton. New applications can
+migrate by changing the package and import:
 
 ```python
 from openinference.instrumentation.ag2 import AG2Instrumentor
