@@ -257,9 +257,13 @@ class _ToolWrapper:
         if call_id:
             attributes[ToolCallAttributes.TOOL_CALL_ID] = str(call_id)
         function = getattr(agent, "_function_map", {}).get(name)
-        annotations = getattr(function, "__annotations__", None)
-        if annotations:
-            attributes[SpanAttributes.TOOL_PARAMETERS] = safe_json_dumps(annotations)
+        parameters = {
+            parameter: getattr(annotation, "__name__", str(annotation))
+            for parameter, annotation in getattr(function, "__annotations__", {}).items()
+            if parameter != "return"
+        }
+        if parameters:
+            attributes[SpanAttributes.TOOL_PARAMETERS] = safe_json_dumps(parameters)
         return name, attributes
 
     def __call__(

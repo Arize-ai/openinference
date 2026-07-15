@@ -183,6 +183,10 @@ def test_tool_success_and_failure(
     assert json.loads(
         cast(str, attributes[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON])
     ) == {"a": 2, "b": 3}
+    assert json.loads(cast(str, attributes[SpanAttributes.TOOL_PARAMETERS])) == {
+        "a": "int",
+        "b": "int",
+    }
     assert add_span.status.status_code is StatusCode.OK
     assert missing_span.status.status_code is StatusCode.ERROR
 
