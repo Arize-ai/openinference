@@ -392,3 +392,31 @@ def test_embedding_vectors_env_var_backwards_compatibility(
         )
         == REDACTED_VALUE
     )
+
+
+@pytest.mark.parametrize(
+    "messages_prefix",
+    [SpanAttributes.LLM_INPUT_MESSAGES, SpanAttributes.LLM_OUTPUT_MESSAGES],
+)
+def test_base64_image_max_length_applies_to_input_and_output_messages(
+    messages_prefix: str,
+) -> None:
+    """base64_image_max_length must redact oversized base64 image URLs in both
+    input and output messages. Multimodal / image-generation models return
+    base64 images in output messages; previously the truncation guard only
+    matched LLM_INPUT_MESSAGES, so an oversized base64 image in an output
+    message was stored in full, ignoring the configured limit."""
+    from openinference.semconv.trace import ImageAttributes, MessageContentAttributes
+
+    config = TraceConfig(base64_image_max_length=100)
+    key = (
+        f"{messages_prefix}.0.message.contents.0."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    )
+
+    over_limit = "data:image/png;base64," + "A" * 200
+    under_limit = "data:image/png;base64," + "A" * 20
+
+    assert config.mask(key, over_limit) == REDACTED_VALUE
+    # A base64 image under the limit must pass through untouched.
+    assert config.mask(key, under_limit) == under_limit
