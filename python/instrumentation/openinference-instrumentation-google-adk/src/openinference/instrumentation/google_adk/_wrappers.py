@@ -570,9 +570,7 @@ def _get_attributes_from_text_part(
     if signature:
         yield (
             f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
-            base64.b64encode(signature).decode()
-            if isinstance(signature, bytes)
-            else signature,
+            base64.b64encode(signature).decode() if isinstance(signature, bytes) else signature,
         )
 
 
@@ -596,9 +594,7 @@ def _get_attributes_from_function_call(
     if signature:
         yield (
             f"{prefix}{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
-            base64.b64encode(signature).decode()
-            if isinstance(signature, bytes)
-            else signature,
+            base64.b64encode(signature).decode() if isinstance(signature, bytes) else signature,
         )
 
 
