@@ -66,6 +66,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import (
     Message,
     ReasoningMessageContent,
+    TextMessageContent,
     TokenCount,
     ToolCall,
     ToolCallFunction,
@@ -216,6 +217,26 @@ class AttributeExtractor:
                     )
                 ],
             )
+        if "type" not in message:
+            # Bedrock Converse normalized block shape, used by both Anthropic and
+            # non-Anthropic models.
+            if text := message.get("text"):
+                return Message(content=text, role=role)
+            if converse_reasoning_content := message.get("reasoningContent"):
+                return cls.get_reasoning_message_from_reasoning_content(converse_reasoning_content)
+            if tool_use := message.get("toolUse"):
+                tool_call_function = ToolCallFunction(
+                    name=tool_use.get("name", ""),
+                    arguments=tool_use.get("input", {}),
+                )
+                tool_calls = [
+                    ToolCall(id=tool_use.get("toolUseId", ""), function=tool_call_function)
+                ]
+                return Message(
+                    tool_call_id=tool_use.get("toolUseId", ""),
+                    role="tool",
+                    tool_calls=tool_calls,
+                )
         return None
 
     @classmethod
@@ -242,32 +263,6 @@ class AttributeExtractor:
         return None
 
     @classmethod
-    def get_message_from_converse_style_block(
-        cls, block: Mapping[str, Any], role: str
-    ) -> Optional[Message]:
-        """
-        Build a Message from a Bedrock Converse-shaped content block.
-
-        Some non-Anthropic models (e.g. GPT-OSS) surface ``rawResponse.content`` as the
-        normalized Converse response shape (``output.message.content``) rather than the
-        provider-native Anthropic Messages API shape. Blocks here include every field
-        explicitly, with unset fields set to ``null`` rather than omitted, so fields must
-        be checked for truthiness rather than key presence.
-
-        Args:
-            block (Mapping[str, Any]): A single content block from ``output.message.content``.
-            role (str): The role of the containing message.
-
-        Returns:
-            Message | None: A Message object if the block could be parsed, None otherwise.
-        """
-        if text := block.get("text"):
-            return Message(content=text, role=role)
-        if reasoning_content := block.get("reasoningContent"):
-            return cls.get_reasoning_message_from_reasoning_content(reasoning_content)
-        return None
-
-    @classmethod
     def get_output_messages(cls, model_output: ModelInvocationOutputTypeDef) -> List[Message]:
         """
         Extract output messages from model output.
@@ -276,57 +271,67 @@ class AttributeExtractor:
             model_output (ModelInvocationOutputTypeDef): The model output dictionary.
 
         Returns:
-            list[Message] | None: A list of Message objects if messages can be extracted,
-            None otherwise.
+            list[Message]: A single-element list containing the merged output message, or
+            an empty list if no content could be extracted.
         """
-        messages = list()
+        contents: List[Any] = []
+        tool_calls: List[ToolCall] = []
+        role = "assistant"
         has_structured_reasoning = False
         if reasoning_content := model_output.get("reasoningContent"):
             if reasoning_message := cls.get_reasoning_message_from_reasoning_content(
                 cast(Mapping[str, Any], reasoning_content)
             ):
-                messages.append(reasoning_message)
+                contents.extend(reasoning_message.get("contents") or [])
                 has_structured_reasoning = True
         if "rawResponse" in model_output and (raw_response := model_output["rawResponse"]):
             if "content" in raw_response and (output_text := raw_response["content"]):
                 try:
-                    data = json.loads(str(output_text))
+                    data: Any = json.loads(str(output_text))
                 except Exception:
-                    messages.append(Message(content=str(output_text), role="assistant"))
-                    return messages
-                if isinstance(data, dict) and isinstance(data.get("content"), list):
-                    # Raw provider-native response, e.g. Anthropic Messages API, where
-                    # content blocks are tagged with a "type" field.
-                    for content in data["content"]:
-                        content_type = content.get("type") if isinstance(content, dict) else None
-                        if has_structured_reasoning and content_type in (
+                    contents.append(TextMessageContent(type="text", text=str(output_text)))
+                    data = None
+                if data is not None:
+                    content_blocks: List[Any] = []
+                    if isinstance(data, dict) and isinstance(data.get("content"), list):
+                        # Provider-native response, e.g. Anthropic Messages API, where
+                        # content blocks are tagged with a "type" field.
+                        content_blocks = data["content"]
+                        role = data.get("role") or role
+                    elif isinstance(data, dict) and isinstance(
+                        output_message := data.get("output", {}).get("message"), dict
+                    ):
+                        content_blocks = output_message.get("content") or []
+                        role = output_message.get("role") or role
+                    for content in content_blocks:
+                        if not isinstance(content, dict):
+                            continue
+                        content_type = content.get("type")
+                        is_reasoning_block = content_type in (
                             "thinking",
                             "redacted_thinking",
-                        ):
-                            # Avoid duplicating reasoning already captured via the
-                            # structured reasoningContent field above.
+                        ) or bool(content.get("reasoningContent"))
+                        if has_structured_reasoning and is_reasoning_block:
                             continue
-                        if message := cls.get_attributes_from_message(
-                            content, content["role"] if "role" in content else "assistant"
-                        ):
-                            messages.append(message)
-                elif isinstance(data, dict) and isinstance(
-                    output_message := data.get("output", {}).get("message"), dict
-                ):
-                    # Bedrock Converse-normalized raw response, used by some non-Anthropic
-                    # models (e.g. GPT-OSS). Content blocks include every field explicitly,
-                    # with unset fields set to null rather than omitted.
-                    role = output_message.get("role") or "assistant"
-                    for block in output_message.get("content") or []:
-                        if not isinstance(block, dict):
+                        block_message = cls.get_attributes_from_message(content, role)
+                        if block_message is None:
                             continue
-                        if has_structured_reasoning and block.get("reasoningContent"):
-                            # Avoid duplicating reasoning already captured via the
-                            # structured reasoningContent field above.
-                            continue
-                        if message := cls.get_message_from_converse_style_block(block, role):
-                            messages.append(message)
-        return messages
+                        contents.extend(block_message.get("contents") or [])
+                        if "content" in block_message:
+                            contents.append(
+                                TextMessageContent(type="text", text=block_message["content"])
+                            )
+                        tool_calls.extend(block_message.get("tool_calls") or [])
+        if not contents and not tool_calls:
+            return []
+        message = Message(role=role)
+        if tool_calls:
+            message["tool_calls"] = tool_calls
+        if len(contents) == 1 and not tool_calls and contents[0].get("type") == "text":
+            message["content"] = contents[0]["text"]
+        elif contents:
+            message["contents"] = contents
+        return [message]
 
     @classmethod
     def get_attributes_from_model_invocation_input(

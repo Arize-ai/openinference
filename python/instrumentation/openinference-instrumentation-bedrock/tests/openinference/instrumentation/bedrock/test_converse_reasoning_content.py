@@ -169,6 +169,7 @@ def test_converse_stream_callback_accumulates_reasoning_content(
         attributes[f"llm.output_messages.0.message.contents.1.{MESSAGE_CONTENT_TEXT}"]
         == "Final answer."
     )
+    assert f"llm.output_messages.0.message.contents.0.{MESSAGE_CONTENT_ID}" not in attributes
 
 
 def test_converse_stream_callback_accumulates_redacted_reasoning_bytes(
@@ -202,6 +203,7 @@ def test_converse_stream_callback_accumulates_redacted_reasoning_bytes(
     assert attributes[
         f"llm.output_messages.0.message.contents.0.{MESSAGE_CONTENT_DATA}"
     ] == base64.b64encode(redacted_bytes).decode("utf-8")
+    assert f"llm.output_messages.0.message.contents.0.{MESSAGE_CONTENT_ID}" not in attributes
 
 
 def test_converse_stream_callback_accumulates_redacted_content_across_multiple_chunks(
@@ -240,6 +242,7 @@ def test_converse_stream_callback_accumulates_redacted_content_across_multiple_c
     assert attributes[
         f"llm.output_messages.0.message.contents.0.{MESSAGE_CONTENT_DATA}"
     ] == base64.b64encode(chunk_1 + chunk_2).decode("utf-8")
+    assert f"llm.output_messages.0.message.contents.0.{MESSAGE_CONTENT_ID}" not in attributes
 
 
 def test_converse_stream_callback_reasoning_then_tool_use(
@@ -306,3 +309,4 @@ def test_converse_stream_callback_reasoning_then_tool_use(
     assert attributes["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"] == (
         "lookup"
     )
+    assert f"llm.output_messages.0.message.contents.0.{MESSAGE_CONTENT_ID}" not in attributes

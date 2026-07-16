@@ -180,16 +180,15 @@ def _assert_tool_calls_without_input_params(events: list[Any], spans: Sequence[A
     assert llm_span_attributes.pop("llm.model_name") == "claude-3-5-sonnet-20240620"
     assert llm_span_attributes.pop("llm.provider") == "aws"
     assert starts_with(
-        llm_span_attributes.pop("llm.output_messages.0.message.content"),
+        llm_span_attributes.pop("llm.output_messages.0.message.contents.0.message_content.text"),
         "<thinking>To answer the que",
     )
-    assert llm_span_attributes.pop("llm.output_messages.0.message.role") == "assistant"
-    assert llm_span_attributes.pop("llm.output_messages.1.message.role") == "tool"
     assert (
-        llm_span_attributes.pop("llm.output_messages.1.message.tool_call_id")
-        == "toolu_bdrk_015fnHoQg33WC8XhG4TTXcZ2"
+        llm_span_attributes.pop("llm.output_messages.0.message.contents.0.message_content.type")
+        == "text"
     )
-    tool_prefix = "llm.output_messages.1.message.tool_calls.0.tool_call"
+    assert llm_span_attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    tool_prefix = "llm.output_messages.0.message.tool_calls.0.tool_call"
     assert llm_span_attributes.pop(f"{tool_prefix}.function.arguments") == "{}"
     assert (
         llm_span_attributes.pop(f"{tool_prefix}.function.name")
@@ -1409,33 +1408,7 @@ async def test_async_routing_classifier_trace(
     _assert_routing_classifier_trace(events, spans)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
-def test_routing_classifier_with_reasoning(in_memory_span_exporter: InMemorySpanExporter) -> None:
-    agent_id = "NMYOUF8KVT"
-    agent_alias_id = "0XYKVBNBYK"
-    session_id = "test-rc-reasoning-cassette"
-
-    client = boto3.client(
-        "bedrock-agent-runtime",
-        region_name="us-east-1",
-        aws_access_key_id="123",
-        aws_secret_access_key="321",
-    )
-
-    response = client.invoke_agent(
-        agentId=agent_id,
-        agentAliasId=agent_alias_id,
-        sessionId=session_id,
-        inputText="Find all prime numbers between 10 and 50",
-        enableTrace=True,
-    )
-    assert isinstance(response["completion"], EventStream)
-    events = [event for event in response["completion"]]
-    spans = in_memory_span_exporter.get_finished_spans()
+def _assert_routing_classifier_with_reasoning(events: list[Any], spans: Sequence[Any]) -> None:
     assert len(events) == 15
     assert len(spans) == 8
     span_names = [s.name for s in spans]
@@ -1476,8 +1449,6 @@ def test_routing_classifier_with_reasoning(in_memory_span_exporter: InMemorySpan
     assert routing_llm_attrs.pop("output.mime_type") == "text/plain"
     assert routing_llm_attrs.pop("output.value") == "<a>MathAgent</a>"
     # rawResponse.content here is the Converse-normalized shape (output.message.content),
-    # not the Anthropic Messages API shape -- both the reasoning block and the final
-    # classification text must be captured as output messages.
     assert routing_llm_attrs.pop("llm.output_messages.0.message.role") == "assistant"
     assert (
         routing_llm_attrs.pop("llm.output_messages.0.message.contents.0.message_content.type")
@@ -1491,8 +1462,14 @@ def test_routing_classifier_with_reasoning(in_memory_span_exporter: InMemorySpan
         "Math. There's no ambiguity. So route to MathAgent. Provide classification result "
         "wrapped in <a>. Output only <a>MathAgent</a>. No additional text."
     )
-    assert routing_llm_attrs.pop("llm.output_messages.1.message.role") == "assistant"
-    assert routing_llm_attrs.pop("llm.output_messages.1.message.content") == "<a>MathAgent</a>"
+    assert (
+        routing_llm_attrs.pop("llm.output_messages.0.message.contents.1.message_content.type")
+        == "text"
+    )
+    assert (
+        routing_llm_attrs.pop("llm.output_messages.0.message.contents.1.message_content.text")
+        == "<a>MathAgent</a>"
+    )
     assert not routing_llm_attrs
 
     # action_group tool span
@@ -1552,6 +1529,71 @@ def test_routing_classifier_with_reasoning(in_memory_span_exporter: InMemorySpan
     assert root_attrs.pop("output.mime_type") == "text/plain"
     assert starts_with(root_attrs.pop("output.value"), "The tool `")
     assert not root_attrs
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_routing_classifier_with_reasoning(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    agent_id = "NMYOUF8KVT"
+    agent_alias_id = "0XYKVBNBYK"
+    session_id = "test-rc-reasoning-cassette"
+
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+
+    response = client.invoke_agent(
+        agentId=agent_id,
+        agentAliasId=agent_alias_id,
+        sessionId=session_id,
+        inputText="Find all prime numbers between 10 and 50",
+        enableTrace=True,
+    )
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response["completion"]]
+    spans = in_memory_span_exporter.get_finished_spans()
+    _assert_routing_classifier_with_reasoning(events, spans)
+
+
+@pytest.mark.order(after="test_routing_classifier_with_reasoning")
+async def test_async_routing_classifier_with_reasoning(
+    in_memory_span_exporter: InMemorySpanExporter,
+    read_aio_cassette: Any,
+) -> None:
+    """Async version of test_routing_classifier_with_reasoning; same cassette and assertions."""
+    import aioboto3
+    from aioresponses import aioresponses
+
+    agent_id = "NMYOUF8KVT"
+    agent_alias_id = "0XYKVBNBYK"
+    session_id = "test-rc-reasoning-cassette"
+    with aioresponses() as m:
+        read_aio_cassette(str(_CASSETTES_DIR / "test_routing_classifier_with_reasoning.yaml"), m)
+        session = aioboto3.session.Session(region_name="us-east-1")
+        async with session.client(
+            "bedrock-agent-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        ) as client:
+            response = await client.invoke_agent(
+                agentId=agent_id,
+                agentAliasId=agent_alias_id,
+                sessionId=session_id,
+                inputText="Find all prime numbers between 10 and 50",
+                enableTrace=True,
+            )
+            events = []
+            async for event in response["completion"]:
+                events.append(event)
+    spans = in_memory_span_exporter.get_finished_spans()
+    _assert_routing_classifier_with_reasoning(events, spans)
 
 
 @pytest.mark.vcr(
