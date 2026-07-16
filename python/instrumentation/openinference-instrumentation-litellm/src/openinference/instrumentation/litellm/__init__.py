@@ -9,6 +9,7 @@ from typing import (
     Dict,
     Iterable,
     Iterator,
+    List,
     Mapping,
     Optional,
     Tuple,
@@ -128,28 +129,164 @@ def _get_attributes_from_message_param(
             role.value if isinstance(role, Enum) else role,
         )
 
+    reasoning_blocks = _get_reasoning_content_blocks(message)
+    content_index = 0
+    for block in reasoning_blocks:
+        for key, value in _get_attributes_from_reasoning_block(block):
+            yield f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{key}", value
+        content_index += 1
+
     if content := message.get("content"):
         if isinstance(content, str):
-            yield MessageAttributes.MESSAGE_CONTENT, content
+            if reasoning_blocks:
+                prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+                yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", content
+                content_index += 1
+            else:
+                yield MessageAttributes.MESSAGE_CONTENT, content
         elif is_iterable_of(content, dict):
-            for index, c in list(enumerate(content)):
+            for c in content:
                 for key, value in _get_attributes_from_message_content(c):
-                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
+                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{key}", value
+                content_index += 1
 
     if tool_calls := message.get("tool_calls"):
         if isinstance(tool_calls, Iterable):
             for tool_call_index, tool_call in enumerate(tool_calls):
+                tool_call_prefix = f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}"
+                tool_call_id = tool_call.get("id")
+                reasoning_signature = None
+                if tool_call_id:
+                    tool_call_id, reasoning_signature = _split_litellm_tool_call_id(tool_call_id)
+                    yield (
+                        f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_ID}",
+                        tool_call_id,
+                    )
+                    if reasoning_signature:
+                        yield (
+                            f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                            reasoning_signature,
+                        )
+                function_name = None
+                function_arguments = None
                 if function := tool_call.get("function"):
                     if function_name := function.get("name"):
                         yield (
-                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                            f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                             function_name,
                         )
                     if function_arguments := function.get("arguments"):
                         yield (
-                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             function_arguments,
                         )
+                if reasoning_blocks:
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                    yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "tool_use"
+                    if tool_call_id:
+                        yield f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}", tool_call_id
+                    if reasoning_signature:
+                        yield (
+                            f"{prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                            reasoning_signature,
+                        )
+                    if function_name:
+                        yield (
+                            f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                            function_name,
+                        )
+                    if function_arguments:
+                        yield (
+                            f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            function_arguments,
+                        )
+                    content_index += 1
+
+
+_THOUGHT_SIGNATURE_ID_SEPARATOR = "__thought__"
+
+
+def _split_litellm_tool_call_id(tool_call_id: str) -> Tuple[str, Optional[str]]:
+    """
+    LiteLLM encodes a Gemini functionCall's thoughtSignature into the tool call id
+    as ``<id>__thought__<signature>`` for OpenAI-client compatibility. Split it back
+    into the clean id and the signature, if present.
+    """
+    call_id, separator, signature = tool_call_id.partition(_THOUGHT_SIGNATURE_ID_SEPARATOR)
+    return (call_id, signature) if separator else (tool_call_id, None)
+
+
+def _normalize_thinking_block(block: Mapping[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    if thinking := block.get("thinking"):
+        normalized["text"] = thinking
+    if data := block.get("data"):  # redacted_thinking payload
+        normalized["data"] = data
+    if signature := block.get("signature"):
+        normalized["signature"] = signature
+    return normalized
+
+
+def _normalize_reasoning_item(item: Mapping[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    if item_id := item.get("id"):
+        normalized["id"] = item_id
+    summary = item.get("summary") or []
+    if is_iterable_of(summary, dict):
+        texts = [
+            text
+            for part in summary
+            if part.get("type") == "summary_text" and (text := part.get("text"))
+        ]
+        if texts:
+            normalized["text"] = "\n".join(texts)
+    if encrypted_content := item.get("encrypted_content"):
+        normalized["encrypted_content"] = encrypted_content
+    return normalized
+
+
+def _get_reasoning_content_blocks(message: Any) -> List[Mapping[str, Any]]:
+    thinking_blocks = message.get("thinking_blocks")
+    if thinking_blocks and is_iterable_of(thinking_blocks, dict):
+        normalized_blocks: List[Mapping[str, Any]] = [
+            normalized
+            for block in thinking_blocks
+            if (normalized := _normalize_thinking_block(block))
+        ]
+        if normalized_blocks:
+            return normalized_blocks
+
+    reasoning_items = message.get("reasoning_items")
+    if reasoning_items and is_iterable_of(reasoning_items, dict):
+        blocks: List[Mapping[str, Any]] = [
+            normalized
+            for item in reasoning_items
+            if (normalized := _normalize_reasoning_item(item))
+        ]
+        if blocks:
+            return blocks
+
+    reasoning_content = message.get("reasoning_content")
+    if isinstance(reasoning_content, str) and reasoning_content:
+        return [{"text": reasoning_content}]
+    return []
+
+
+def _get_attributes_from_reasoning_block(
+    block: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "reasoning"
+    if block_id := block.get("id"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_ID, block_id
+    if text := block.get("text"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_TEXT, text
+    if data := block.get("data"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_DATA, data
+    if signature := block.get("signature"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE, signature
+    if encrypted_content := block.get("encrypted_content"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT, encrypted_content
 
 
 def _get_attributes_from_message_content(
@@ -166,6 +303,8 @@ def _get_attributes_from_message_content(
         if image := content.pop("image_url"):
             for key, value in _get_attributes_from_image(image):
                 yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+    elif type_ in ("thinking", "redacted_thinking"):
+        yield from _get_attributes_from_reasoning_block(_normalize_thinking_block(content))
 
 
 def _get_attributes_from_image(
@@ -561,16 +700,74 @@ def _accumulate_tool_calls(
                 tool_call_entry["function"]["arguments"] += arguments
 
 
+def _accumulate_thinking_blocks(
+    thinking_blocks: Any,
+    accumulated: List[Dict[str, Any]],
+) -> None:
+    if not thinking_blocks:
+        return
+
+    for block in thinking_blocks:
+        if not hasattr(block, "get"):
+            continue
+        block_type = block.get("type")
+        if block_type == "redacted_thinking":
+            if data := block.get("data"):
+                accumulated.append({"type": "redacted_thinking", "data": data})
+        elif block_type == "thinking":
+            last = accumulated[-1] if accumulated else None
+            if last is None or last.get("type") != "thinking" or last.get("signature"):
+                last = {"type": "thinking", "thinking": "", "signature": ""}
+                accumulated.append(last)
+            if thinking := block.get("thinking"):
+                last["thinking"] += thinking
+            if signature := block.get("signature"):
+                last["signature"] = signature
+
+
 def _build_message_from_accumulated(msg: Dict[str, Any]) -> Dict[str, Any]:
     message: Dict[str, Any] = {
         "role": msg.get("role"),
         "content": msg.get("content"),
     }
 
+    if reasoning_content := msg.get("reasoning_content"):
+        message["reasoning_content"] = reasoning_content
+
+    if thinking_blocks := msg.get("thinking_blocks"):
+        message["thinking_blocks"] = thinking_blocks
+
+    if reasoning_items := msg.get("reasoning_items"):
+        message["reasoning_items"] = reasoning_items
+
     if tool_calls_dict := msg.get("tool_calls"):
         message["tool_calls"] = [tool_calls_dict[idx] for idx in sorted(tool_calls_dict.keys())]
 
     return message
+
+
+def _remove_redundant_reasoning_entries(
+    output_messages: Dict[int, Dict[str, Any]],
+    reasoning_items: List[Mapping[str, Any]],
+) -> None:
+    authoritative_texts = {
+        text
+        for item in reasoning_items
+        for part in (item.get("summary") or [])
+        if isinstance(part, Mapping)
+        and part.get("type") == "summary_text"
+        and (text := part.get("text"))
+    }
+    for index, message in list(output_messages.items()):
+        if index == 0:
+            continue
+        if not message.get("content") and set(message) <= {
+            "role",
+            "content",
+            "reasoning_content",
+        }:
+            if message.get("reasoning_content") in authoritative_texts:
+                del output_messages[index]
 
 
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
@@ -593,12 +790,27 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                             entry["role"] = role
                         if content is not None:
                             entry["content"] += content
+                        if reasoning_content := getattr(delta, "reasoning_content", None):
+                            entry["reasoning_content"] = (
+                                entry.get("reasoning_content", "") + reasoning_content
+                            )
+                        if thinking_blocks := getattr(delta, "thinking_blocks", None):
+                            _accumulate_thinking_blocks(
+                                thinking_blocks, entry.setdefault("thinking_blocks", [])
+                            )
+                        if reasoning_items := getattr(delta, "reasoning_items", None):
+                            # Emitted once, as a full list, on the final response.completed
+                            # chunk (see litellm's litellm_responses_transformation), so this
+                            # is a replace, not an incremental accumulation like the above.
+                            entry["reasoning_items"] = reasoning_items
                         if tool_calls := getattr(delta, "tool_calls", None):
                             _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
+        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
+            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
         for idx, msg in output_messages.items():
@@ -638,12 +850,27 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                             entry["role"] = role
                         if content is not None:
                             entry["content"] += content
+                        if reasoning_content := getattr(delta, "reasoning_content", None):
+                            entry["reasoning_content"] = (
+                                entry.get("reasoning_content", "") + reasoning_content
+                            )
+                        if thinking_blocks := getattr(delta, "thinking_blocks", None):
+                            _accumulate_thinking_blocks(
+                                thinking_blocks, entry.setdefault("thinking_blocks", [])
+                            )
+                        if reasoning_items := getattr(delta, "reasoning_items", None):
+                            # Emitted once, as a full list, on the final response.completed
+                            # chunk (see litellm's litellm_responses_transformation), so this
+                            # is a replace, not an incremental accumulation like the above.
+                            entry["reasoning_items"] = reasoning_items
                         if tool_calls := getattr(delta, "tool_calls", None):
                             _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
+        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
+            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
         for idx, msg in output_messages.items():
