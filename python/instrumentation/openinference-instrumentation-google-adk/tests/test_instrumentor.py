@@ -11,6 +11,7 @@ import pytest
 from google.adk import Agent, __version__
 from google.adk.code_executors.built_in_code_executor import BuiltInCodeExecutor
 from google.adk.events import Event, EventActions
+from google.adk.planners import BuiltInPlanner
 from google.adk.runners import InMemoryRunner
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool as load_artifacts
@@ -2236,7 +2237,7 @@ async def test_google_adk_instrumentor_reasoning_content(
         model="gemini-2.5-flash",
         description="Agent that reasons through arithmetic word problems.",
         instruction="Think step by step before answering.",
-        generate_content_config=types.GenerateContentConfig(
+        planner=BuiltInPlanner(
             thinking_config=types.ThinkingConfig(
                 include_thoughts=True,
                 thinking_budget=1024,
