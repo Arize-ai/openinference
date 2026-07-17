@@ -732,6 +732,9 @@ async def test_google_adk_instrumentor_multi_tool_call(
         )
         == "get_weather"
     )
+    assert call_llm_attributes0.pop(
+        "llm.output_messages.0.message.tool_calls.0.tool_call.reasoning_signature", None
+    )
     assert call_llm_attributes0.pop("llm.token_count.completion", None) == 92
     assert call_llm_attributes0.pop("llm.token_count.completion_details.reasoning", None) == 76
     assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 136
@@ -842,6 +845,9 @@ async def test_google_adk_instrumentor_multi_tool_call(
             "llm.input_messages.2.message.tool_calls.0.tool_call.function.name", None
         )
         == "get_weather"
+    )
+    assert call_llm_attributes1.pop(
+        "llm.input_messages.2.message.tool_calls.0.tool_call.reasoning_signature", None
     )
     assert (
         call_llm_attributes1.pop("llm.input_messages.3.message.content", None)
@@ -964,6 +970,9 @@ async def test_google_adk_instrumentor_multi_tool_call(
             "llm.input_messages.2.message.tool_calls.0.tool_call.function.name", None
         )
         == "get_weather"
+    )
+    assert call_llm_attributes2.pop(
+        "llm.input_messages.2.message.tool_calls.0.tool_call.reasoning_signature", None
     )
     assert (
         call_llm_attributes2.pop("llm.input_messages.3.message.content", None)
