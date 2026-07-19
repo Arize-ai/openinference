@@ -136,6 +136,7 @@ class TestSpanAttributes:
                     "completion_details": {
                         "audio": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
                         "reasoning": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+                        "text": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_TEXT,
                     },
                     "prompt": SpanAttributes.LLM_TOKEN_COUNT_PROMPT,
                     "prompt_details": {
