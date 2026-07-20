@@ -26,6 +26,7 @@ from openinference.instrumentation import (
     infer_llm_provider_from_host,
 )
 from openinference.instrumentation.openai._image_utils import redact_images_from_request_parameters
+from openinference.instrumentation.openai._media_utils import redact_media_from_request_parameters
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -180,6 +181,19 @@ class _WithOpenAI(ABC):
                 )
             else:
                 processed_params = dict(request_parameters)
+
+            # Apply audio/file redaction or externalization if configured
+            hide_audio = bool(config and getattr(config, "hide_input_audio", False))
+            hide_files = bool(config and getattr(config, "hide_input_files", False))
+            media_max_length = int(getattr(config, "base64_media_max_length", 0) if config else 0)
+            if hide_audio or hide_files or (config and media_max_length > 0):
+                processed_params = redact_media_from_request_parameters(
+                    dict(processed_params),
+                    hide_input_audio=hide_audio,
+                    hide_input_files=hide_files,
+                    base64_media_max_length=media_max_length,
+                    blob_uploader=getattr(config, "blob_uploader", None) if config else None,
+                )
 
             yield from _as_input_attributes(_io_value_and_type(processed_params))
         except Exception:
