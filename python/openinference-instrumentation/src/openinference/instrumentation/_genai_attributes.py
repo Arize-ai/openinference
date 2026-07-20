@@ -109,5 +109,6 @@ class GenAIMessagePartTypeValues(Enum):
 
 class GenAIModalityValues(Enum):
     AUDIO = "audio"
+    DOCUMENT = "document"
     IMAGE = "image"
     VIDEO = "video"

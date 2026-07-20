@@ -40,13 +40,23 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> None:
+        if key in _IMPORTANT_ATTRIBUTES:
+            # Always bookkeep important attributes (e.g. the OpenInference
+            # span kind) so helpers like set_input keep working even on
+            # non-recording spans.
+            masked_value = self._self_config.mask(key, value)
+            if masked_value is not None:
+                self._self_important_attributes[key] = masked_value
+            return
+        if not self.is_recording():
+            # Setting attributes on a non-recording span is a no-op anyway;
+            # returning early keeps masking side effects (notably blob
+            # uploads) from running for spans nobody will see.
+            return
         masked_value = self._self_config.mask(key, value)
         if masked_value is not None:
-            if key in _IMPORTANT_ATTRIBUTES:
-                self._self_important_attributes[key] = masked_value
-            else:
-                span = cast(Span, self.__wrapped__)
-                span.set_attribute(key, masked_value)
+            span = cast(Span, self.__wrapped__)
+            span.set_attribute(key, masked_value)
 
     def end(self, end_time: Optional[int] = None) -> None:
         span = cast(Span, self.__wrapped__)

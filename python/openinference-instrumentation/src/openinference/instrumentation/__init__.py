@@ -23,6 +23,11 @@ from ._attributes import (
     infer_llm_provider_from_host,
     infer_llm_system_from_model_name,
 )
+from ._blob_upload import (
+    Blob,
+    BlobUploader,
+    FsspecBlobUploader,
+)
 from ._capture import capture_span_context
 from ._projects import dangerously_using_project
 from ._tracer_providers import TracerProvider
@@ -78,6 +83,9 @@ __all__ = [
     "TraceConfig",
     "OITracer",
     "REDACTED_VALUE",
+    "Blob",
+    "BlobUploader",
+    "FsspecBlobUploader",
     "TracerProvider",
     "get_context_attributes",
     "get_embedding_attributes",

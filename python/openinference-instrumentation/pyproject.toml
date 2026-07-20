@@ -32,6 +32,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+blob-upload = [
+  "fsspec",
+]
 test = [
   "jsonschema",
   "openai",
