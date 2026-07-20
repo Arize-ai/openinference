@@ -26,7 +26,14 @@ import {
 } from "./attributeUtils";
 import type { ChunkType, TraceEventType } from "./constants";
 import { CHUNK_TYPES, PolicyFilterType, PolicyType, TRACE_EVENT_TYPES } from "./constants";
-import type { Message, TokenCount, ToolCall, ToolCallFunction } from "./types";
+import type {
+  Message,
+  MessageContent,
+  ReasoningMessageContent,
+  TokenCount,
+  ToolCall,
+  ToolCallFunction,
+} from "./types";
 
 /**
  * Return the first matching event type key discovered in {@link traceData}.
@@ -419,11 +426,20 @@ function getValueFromRawResponse(outputParams: StringKeyedObject): string | unde
     return stringContent;
   }
 
-  const messageContent =
-    Array.isArray(message.content) && message.content.length > 0
-      ? message.content[0]
-      : message.content;
-  return typeof messageContent?.text === "string" ? messageContent.text : undefined;
+  if (Array.isArray(message.content)) {
+    const textBlock = message.content.find(
+      (b: unknown) => isObjectWithStringKeys(b) && typeof b.text === "string",
+    );
+    if (isObjectWithStringKeys(textBlock) && typeof textBlock.text === "string") {
+      return textBlock.text;
+    }
+    return stringContent;
+  }
+  const messageContent = message.content;
+  if (isObjectWithStringKeys(messageContent) && typeof messageContent.text === "string") {
+    return messageContent.text;
+  }
+  return stringContent;
 }
 
 function getValueFromParsedResponse(outputParams: StringKeyedObject): string | undefined {
@@ -437,70 +453,133 @@ function getValueFromParsedResponse(outputParams: StringKeyedObject): string | u
 }
 
 /**
+ * Extracts a ReasoningMessageContent from a Converse-normalized reasoningContent object.
+ * Handles both reasoningText (text+signature) and redactedContent shapes.
+ * Fields may be null in Converse-normalized payloads; null is treated as absent.
+ */
+function extractReasoningContentFromConverseBlock(
+  reasoningContent: StringKeyedObject,
+): ReasoningMessageContent | null {
+  const reasoningText = reasoningContent.reasoningText;
+  if (isObjectWithStringKeys(reasoningText) && typeof reasoningText.text === "string") {
+    const block: ReasoningMessageContent = { type: "reasoning", text: reasoningText.text };
+    if (typeof reasoningText.signature === "string") {
+      block.signature = reasoningText.signature;
+    }
+    return block;
+  }
+  const redactedContent = reasoningContent.redactedContent;
+  if (redactedContent instanceof Uint8Array && redactedContent.length > 0) {
+    return { type: "reasoning", data: Buffer.from(redactedContent).toString("base64") };
+  }
+  if (typeof redactedContent === "string" && redactedContent) {
+    return { type: "reasoning", data: redactedContent };
+  }
+  return null;
+}
+
+/**
  * Get output messages from model invocation output.
+ * Handles both Anthropic-native ({content: [...]}) and Converse-normalized
+ * ({output: {message: {content: [...]}}}) rawResponse shapes.
+ * Also captures a structured top-level reasoningContent field (GPT-OSS style),
+ * deduplicating against any duplicate reasoning blocks inside rawResponse.
+ * All content blocks are merged into a single output Message.
  * @param modelInvocationOutput Model invocation output object.
- * @returns Array of output messages.
+ * @returns Single-element array containing the merged output message, or null.
  */
 function getOutputMessages(modelInvocationOutput: StringKeyedObject): Message[] | null {
-  const messages: Message[] = [];
+  const contentBlocks: MessageContent[] = [];
+  const toolCalls: ToolCall[] = [];
+  let role = "assistant";
+  const hasStructuredReasoning = false;
+
+  // Capture structured top-level reasoningContent first (e.g. GPT-OSS inline-agent traces).
+  // When present, any duplicate reasoning block inside rawResponse is skipped below.
+
+  // const topLevelReasoning = modelInvocationOutput.reasoningContent;
+  // if (isObjectWithStringKeys(topLevelReasoning)) {
+  //   const block = extractReasoningContentFromConverseBlock(topLevelReasoning);
+  //   if (block) {
+  //     contentBlocks.push(block);
+  //     hasStructuredReasoning = true;
+  //   }
+  // }
+
   const rawResponse = getObjectDataFromUnknown({
     data: modelInvocationOutput,
     key: "rawResponse",
   });
-
   const outputContent = rawResponse?.content;
-  if (outputContent == null) {
-    return null;
-  }
-  let parsedContent: unknown | null = null;
-  if (typeof outputContent === "string") {
-    parsedContent = parseSanitizedJson(outputContent) ?? outputContent;
-    if (!isObjectWithStringKeys(parsedContent)) {
-      messages.push({ content: outputContent, role: "assistant" });
-      return messages;
-    } else {
-      const stringifiedContent = getStringAttributeValueFromUnknown(parsedContent);
-      if (stringifiedContent) {
-        messages.push({ content: stringifiedContent, role: "assistant" });
+
+  if (outputContent != null) {
+    let parsedData: unknown = null;
+    if (typeof outputContent === "string") {
+      parsedData = parseSanitizedJson(outputContent);
+    }
+
+    if (!isObjectWithStringKeys(parsedData)) {
+      // JSON parse failed — treat entire content as plain text.
+      const str =
+        typeof outputContent === "string"
+          ? outputContent
+          : (safelyJSONStringify(outputContent) ?? undefined);
+      if (str) {
+        contentBlocks.push({ type: "text", text: str });
       }
-    }
-  }
+    } else {
+      // Extract the content block list from either rawResponse shape:
+      //   a. Anthropic-native:       { content: [...], role: "assistant" }
+      //   b. Converse-normalized:    { output: { message: { role: "assistant", content: [...] } } }
+      let rawContentBlocks: unknown[] = [];
+      if (Array.isArray(parsedData.content)) {
+        rawContentBlocks = parsedData.content;
+        if (typeof parsedData.role === "string") role = parsedData.role;
+      } else {
+        const outputObj = getObjectDataFromUnknown({ data: parsedData, key: "output" });
+        const messageObj = outputObj
+          ? getObjectDataFromUnknown({ data: outputObj, key: "message" })
+          : null;
+        if (messageObj && Array.isArray(messageObj.content)) {
+          rawContentBlocks = messageObj.content;
+          if (typeof messageObj.role === "string") role = messageObj.role;
+        }
+      }
 
-  if (!isObjectWithStringKeys(parsedContent)) {
-    const stringifiedContent = getStringAttributeValueFromUnknown(outputContent);
-    if (stringifiedContent) {
-      messages.push({ content: stringifiedContent, role: "assistant" });
-    }
-    return messages;
-  }
+      for (const rawBlock of rawContentBlocks) {
+        if (!isObjectWithStringKeys(rawBlock)) continue;
+        // Detect reasoning blocks across both rawResponse shapes for dedup.
+        const isReasoningBlock =
+          rawBlock.type === "thinking" ||
+          rawBlock.type === "redacted_thinking" ||
+          (rawBlock.reasoningContent != null && isObjectWithStringKeys(rawBlock.reasoningContent));
+        if (hasStructuredReasoning && isReasoningBlock) continue;
 
-  try {
-    const contents = parsedContent.content;
-    if (contents == null) {
-      return null;
-    }
-    if (!Array.isArray(contents)) {
-      return null;
-    }
-    for (const content of contents) {
-      if (isObjectWithStringKeys(content)) {
-        const message = getAttributesFromOutputMessage({
-          message: content,
-          role: typeof content.role === "string" ? content.role : "assistant",
-        });
-        if (message) {
-          messages.push(message);
+        const blockMessage = getAttributesFromOutputMessage({ message: rawBlock, role });
+        if (!blockMessage) continue;
+        if (Array.isArray(blockMessage.contents)) {
+          contentBlocks.push(...(blockMessage.contents as MessageContent[]));
+        } else if (typeof blockMessage.content === "string") {
+          contentBlocks.push({ type: "text", text: blockMessage.content });
+        }
+        if (Array.isArray(blockMessage.tool_calls)) {
+          toolCalls.push(...blockMessage.tool_calls);
         }
       }
     }
-    return messages;
-  } catch {
-    messages.push({
-      content: safelyJSONStringify(outputContent) ?? undefined,
-      role: "assistant",
-    });
-    return messages;
   }
+
+  if (contentBlocks.length === 0 && toolCalls.length === 0) return null;
+
+  const message: Message = { role };
+  if (toolCalls.length > 0) message.tool_calls = toolCalls;
+  // Single plain text with no tool calls → use flat content for compatibility.
+  if (contentBlocks.length === 1 && toolCalls.length === 0 && contentBlocks[0].type === "text") {
+    message.content = (contentBlocks[0] as { type: "text"; text: string }).text;
+  } else if (contentBlocks.length > 0) {
+    message.contents = contentBlocks;
+  }
+  return [message];
 }
 
 /**
@@ -991,6 +1070,68 @@ function getAttributesFromOutputMessage({
       role: "tool",
       tool_calls: toolCalls,
     };
+  }
+  if (message.type === "thinking") {
+    const thinkingText = getStringAttributeValueFromUnknown(message?.thinking) ?? undefined;
+    const signature = getStringAttributeValueFromUnknown(message?.signature) ?? undefined;
+    if (thinkingText != null || signature != null) {
+      return {
+        role,
+        contents: [
+          {
+            type: "reasoning",
+            ...(thinkingText != null ? { text: thinkingText } : {}),
+            ...(signature != null ? { signature } : {}),
+          },
+        ],
+      };
+    }
+  }
+  if (message.type === "redacted_thinking") {
+    const data = getStringAttributeValueFromUnknown(message?.data) ?? undefined;
+    if (data != null) {
+      return {
+        role,
+        contents: [
+          {
+            type: "reasoning",
+            data,
+          },
+        ],
+      };
+    }
+  }
+  // Converse-normalized block shape: no 'type' discriminator; fields may be null.
+  // Handles { text, reasoningContent, toolUse } where each field may be null/absent.
+  if (message.type == null) {
+    const textVal = message.text;
+    if (typeof textVal === "string" && textVal.length > 0) {
+      return { content: textVal, role };
+    }
+    const converseReasoning = message.reasoningContent;
+    if (isObjectWithStringKeys(converseReasoning)) {
+      const block = extractReasoningContentFromConverseBlock(converseReasoning);
+      if (block) return { role, contents: [block] };
+    }
+    const toolUseVal = message.toolUse;
+    if (isObjectWithStringKeys(toolUseVal)) {
+      const toolUseId = getStringAttributeValueFromUnknown(toolUseVal.toolUseId) ?? undefined;
+      const toolName = getStringAttributeValueFromUnknown(toolUseVal.name) ?? undefined;
+      if (toolUseId && toolName) {
+        const toolCallFunction: ToolCallFunction = {
+          name: toolName,
+          arguments:
+            toolUseVal.input != null && typeof toolUseVal.input === "object"
+              ? (toolUseVal.input as Record<string, unknown>)
+              : "{}",
+        };
+        return {
+          tool_call_id: toolUseId,
+          role: "tool",
+          tool_calls: [{ id: toolUseId, function: toolCallFunction }],
+        };
+      }
+    }
   }
   return null;
 }
