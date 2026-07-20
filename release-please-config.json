@@ -90,6 +90,10 @@
             "package-name": "python-openinference-instrumentation-smolagents",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-ag2": {
+            "package-name": "python-openinference-instrumentation-ag2",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-autogen": {
             "package-name": "python-openinference-instrumentation-autogen",
             "release-type": "python"
