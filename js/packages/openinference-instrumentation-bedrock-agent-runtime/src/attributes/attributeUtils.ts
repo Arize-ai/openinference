@@ -308,6 +308,13 @@ function assignMessageContentBlockAttributes({
     if (typeof contentBlock.text === "string") {
       attributes[`${baseKey}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = contentBlock.text;
     }
+    if (typeof contentBlock.signature === "string") {
+      attributes[`${baseKey}.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+        contentBlock.signature;
+    }
+    if (typeof contentBlock.data === "string") {
+      attributes[`${baseKey}.${SemanticConventions.MESSAGE_CONTENT_DATA}`] = contentBlock.data;
+    }
   }
   if (
     typeof contentBlock.image === "object" &&
