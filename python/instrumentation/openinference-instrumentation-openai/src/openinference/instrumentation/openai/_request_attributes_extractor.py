@@ -21,9 +21,17 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
+from openinference.instrumentation.openai._media import (
+    get_audio_data_uri,
+    get_audio_mime_type,
+    get_file_data_uri,
+    guess_file_mime_type,
+)
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
+    AudioAttributes,
     EmbeddingAttributes,
+    FileAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -194,6 +202,49 @@ class _RequestAttributesExtractor:
             if image := content.pop("image_url"):
                 for key, value in self._get_attributes_from_image(image):
                     yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+        elif type_ == "input_audio":
+            # See https://github.com/openai/openai-python/blob/main/src/openai/types/chat/chat_completion_content_part_input_audio_param.py  # noqa: E501
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "audio"
+            if (input_audio := content.pop("input_audio", None)) and hasattr(input_audio, "get"):
+                audio_format = input_audio.get("format")
+                if data := input_audio.get("data"):
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}."
+                        f"{AudioAttributes.AUDIO_URL}",
+                        get_audio_data_uri(data, audio_format),
+                    )
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}."
+                        f"{AudioAttributes.AUDIO_MIME_TYPE}",
+                        get_audio_mime_type(audio_format),
+                    )
+        elif type_ == "file":
+            # See https://github.com/openai/openai-python/blob/main/src/openai/types/chat/chat_completion_content_part_param.py  # noqa: E501
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "file"
+            if (file := content.pop("file", None)) and hasattr(file, "get"):
+                filename = file.get("filename")
+                if filename:
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_FILE}."
+                        f"{FileAttributes.FILE_NAME}",
+                        filename,
+                    )
+                if file_data := file.get("file_data"):
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_FILE}."
+                        f"{FileAttributes.FILE_URL}",
+                        get_file_data_uri(file_data, filename),
+                    )
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_FILE}."
+                        f"{FileAttributes.FILE_MIME_TYPE}",
+                        guess_file_mime_type(filename),
+                    )
+                if file_id := file.get("file_id"):
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_FILE}.{FileAttributes.FILE_ID}",
+                        file_id,
+                    )
 
     def _get_attributes_from_image(
         self,

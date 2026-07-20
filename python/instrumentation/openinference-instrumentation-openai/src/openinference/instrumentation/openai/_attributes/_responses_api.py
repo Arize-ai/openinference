@@ -7,7 +7,15 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.openai._media import (
+    get_audio_data_uri,
+    get_audio_mime_type,
+    get_file_data_uri,
+    guess_file_mime_type,
+)
 from openinference.semconv.trace import (
+    AudioAttributes,
+    FileAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -78,15 +86,14 @@ class _ResponsesApiAttributes:
             elif item["type"] == "input_image":
                 yield from cls._get_attributes_from_response_input_image_param(item, inner_prefix)
             elif item["type"] == "input_file":
-                # TODO: Handle input file
-                pass
+                yield from cls._get_attributes_from_response_input_file_param(item, inner_prefix)
             elif item["type"] == "refusal":
                 yield from cls._get_attributes_from_response_output_refusal_param(
                     item, inner_prefix
                 )
             elif item["type"] == "input_audio":
-                # TODO: Handle input audio (OpenAI 1.105.0+)
-                pass
+                # OpenAI 1.105.0+
+                yield from cls._get_attributes_from_response_input_audio_param(item, inner_prefix)
             elif TYPE_CHECKING:
                 assert_never(item["type"])
 
@@ -356,6 +363,71 @@ class _ResponsesApiAttributes:
             yield (
                 f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
                 image_url,
+            )
+
+    @classmethod
+    @stop_on_exception
+    def _get_attributes_from_response_input_audio_param(
+        cls,
+        obj: Any,
+        prefix: str = "",
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        # openai.types.responses.response_input_audio_param.ResponseInputAudioParam
+        # See https://github.com/openai/openai-python/blob/main/src/openai/types/responses/response_input_audio_param.py  # noqa: E501
+        input_audio = obj.get("input_audio")
+        if not hasattr(input_audio, "get"):
+            return
+        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "audio"
+        audio_format = input_audio.get("format")
+        if data := input_audio.get("data"):
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}."
+                f"{AudioAttributes.AUDIO_URL}",
+                get_audio_data_uri(data, audio_format),
+            )
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}."
+                f"{AudioAttributes.AUDIO_MIME_TYPE}",
+                get_audio_mime_type(audio_format),
+            )
+
+    @classmethod
+    @stop_on_exception
+    def _get_attributes_from_response_input_file_param(
+        cls,
+        obj: responses.response_input_file_param.ResponseInputFileParam,
+        prefix: str = "",
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        # See https://github.com/openai/openai-python/blob/main/src/openai/types/responses/response_input_file_param.py  # noqa: E501
+        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "file"
+        filename = obj.get("filename")
+        if filename:
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_FILE}."
+                f"{FileAttributes.FILE_NAME}",
+                filename,
+            )
+        if file_url := obj.get("file_url"):
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_FILE}."
+                f"{FileAttributes.FILE_URL}",
+                file_url,
+            )
+        elif file_data := obj.get("file_data"):
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_FILE}."
+                f"{FileAttributes.FILE_URL}",
+                get_file_data_uri(file_data, filename),
+            )
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_FILE}."
+                f"{FileAttributes.FILE_MIME_TYPE}",
+                guess_file_mime_type(filename),
+            )
+        if file_id := obj.get("file_id"):
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_FILE}.{FileAttributes.FILE_ID}",
+                file_id,
             )
 
     @classmethod
