@@ -999,8 +999,17 @@ class _BaseToolRunWrapper:
             if hasattr(instance, "name") and instance.name:
                 span.set_attribute(SpanAttributes.TOOL_NAME, str(instance.name))
             # Used to tell the model how/when/why to use the tool.
-            if hasattr(instance, "description") and instance.description:
-                span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, str(instance.description))
+            # crewai >= 1.15 preserves the authored ``description`` verbatim and
+            # exposes the LLM-facing composite (tool name + argument schema +
+            # description) via the new ``formatted_description`` property. Older
+            # versions rewrote ``description`` into that composite at construction
+            # time. Prefer the composite when available so the recorded value stays
+            # consistent across crewai versions.
+            tool_description = getattr(instance, "formatted_description", None) or getattr(
+                instance, "description", None
+            )
+            if tool_description:
+                span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, str(tool_description))
             # The schema for the arguments that the tool accepts.
             if hasattr(instance, "args_schema") and instance.args_schema is not None:
                 try:
