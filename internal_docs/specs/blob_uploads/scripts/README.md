@@ -1,118 +1,96 @@
-# Blob-upload before/after demo scripts
+# Blob-upload demo scripts
 
-Two self-contained scripts that **prove** the [blob-upload design](../blob_uploads.md):
-large multimodal content that today rides on spans as (truncated) base64 data URIs is
-instead handed to the proposed `BlobUploader` at capture time, and the span attribute
-records only the destination URI — with the bytes fully recoverable from the store.
+Two live demos of the [blob-upload design](../blob_uploads.md), each driving a **real
+instrumented OpenAI Agents SDK app** — no hand-built spans. Large multimodal content
+that today rides on spans as truncated or redacted base64 is handed to the proposed
+`BlobUploader` at capture time; the span attribute records only the destination URI.
+Each script prints the resulting spans and exports them to Phoenix.
 
-No API keys and no LLM calls are needed: the audio script synthesizes PCM16 in the
-exact openai-agents realtime wire form (PR #3173), and the image script generates a
-PNG locally and drives it through the *released* `OITracer`/`TraceConfig` masking
-pipeline.
-
-| script | before | after |
+| script | the app | what it shows |
 |---|---|---|
-| `audio_blob_demo.py` | `input.audio.url` / `output.audio.url` = `data:audio/wav;base64,...` truncated at 32,000 chars (~0.5 s survives, invalid WAV) | same keys = `http://127.0.0.1:8321/<sha>.wav`; full WAV round-trips byte-for-byte |
-| `image_blob_demo.py` | `message_content.image.image.url` = `__REDACTED__` (default config) or an ~884 KB inline base64 attribute (raised limit) | same key = `http://127.0.0.1:8321/<sha>.png`; PNG round-trips and renders in Phoenix |
+| `image_blob_demo.py` | a vision agent (`Agent` + `Runner.run` with an `input_image`), instrumented by openinference-instrumentation-openai-agents **and** openinference-instrumentation-openai (the Responses API call underneath) | the same run twice, changing only the `TraceConfig`: `message_content.image.image.url` = `__REDACTED__` (default) vs a blob-store path (blob-upload config) |
+| `audio_blob_demo.py` | a **live Realtime API session** (`RealtimeAgent` + `RealtimeRunner`): a TTS-spoken question goes in, the assistant answers in audio, the released realtime instrumentation produces the AUDIO/USER/LLM span tree | with the capture site patched per techspec §2.3, `input.audio.url` / `output.audio.url` are blob-store paths and the full WAVs survive; with `--inline`, today's released behavior (data URIs truncated at 32,000 chars) |
 
-Both scripts print PASS/FAIL per assertion and exit non-zero on failure.
+The demo store (`LocalBlobStore` in `common.py`) is deliberately simple: it writes
+content-addressed files under `scripts/blob_store/` (gitignored) and returns the
+file's **repo-root-relative path** as the URI, e.g.
+`internal_docs/specs/blob_uploads/scripts/blob_store/3a7bd3….wav`. Phoenix displays
+the URI as an ordinary string attribute — resolving or rendering it is the backend's
+responsibility. `common.py` holds only the proposed `Blob`/`BlobUploader` interface
+(the pieces that would move into `openinference-instrumentation`) plus this mock.
 
 ## Prerequisites
 
 ```bash
 # 1. Phoenix locally
 pip install arize-phoenix
-phoenix serve   # listens on http://localhost:6006
+phoenix serve                    # http://localhost:6006
 
-# 2. (optional) override endpoints
+# 2. OpenAI API key (both scripts make real API calls;
+#    the audio demo needs Realtime API access)
+export OPENAI_API_KEY=...
+
+# 3. (optional) overrides
 export PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006
-export BLOB_DEMO_PORT=8321   # port for the demo blob store's HTTP server
+export OPENAI_MODEL=gpt-4o-mini          # vision model (image demo)
+export OPENAI_TTS_MODEL=gpt-4o-mini-tts  # TTS voice for the spoken question (audio demo)
+export OPENAI_REALTIME_MODEL=gpt-realtime
+export REALTIME_DEMO_TIMEOUT_SEC=120     # hard deadline on the realtime session (audio demo)
 ```
 
 Only [`uv`](https://docs.astral.sh/uv/) is otherwise required — dependencies are PEP 723
-inline metadata, pinned to released packages (`openinference-instrumentation==0.1.54`,
-`openinference-semantic-conventions==0.1.30`).
+inline metadata resolved into ephemeral environments.
 
 ## Run
 
 ```bash
-uv run --script internal_docs/specs/blob_uploads/scripts/audio_blob_demo.py
 uv run --script internal_docs/specs/blob_uploads/scripts/image_blob_demo.py
+uv run --script internal_docs/specs/blob_uploads/scripts/audio_blob_demo.py
+uv run --script internal_docs/specs/blob_uploads/scripts/audio_blob_demo.py --inline  # today's behavior
 ```
 
-When run interactively, each script keeps its blob HTTP server alive after the PASS
-summary (press Enter to exit) so the Phoenix UI can resolve the blob URIs while you
-browse. Pass `--no-wait` (or pipe stdin) for CI-style runs; re-running either script
-re-serves everything in `blob_store/`.
-
-The demo blob store is a local directory (`scripts/blob_store/`, gitignored) served at
-`http://127.0.0.1:8321` — the stand-in for S3/GCS. Objects are content-addressed
-(`sha256[:20]` + mime extension), so identical payloads dedup across runs, and writes
-happen on a background worker fed by a bounded queue, exactly the async model the spec
-proposes.
+Each script prints the spans it produced (attribute by attribute, long values elided
+with their true size) and exits; the blobs stay under `scripts/blob_store/`.
 
 ## What to look at in Phoenix (http://localhost:6006)
 
-### Project `blob-upload-audio-demo` (audio path)
+**Project `blob-upload-image-demo`** — two agent traces from identical app code
+(`Agent workflow` → `Vision Assistant` → `turn` → `response` → `Response`; the image
+attribute lives on the innermost `Response` LLM span):
 
-Two traces, each a PR #3173-shaped realtime turn:
-`conversation.turn` (AUDIO) → `user` (USER) + `assistant` (LLM).
+1. First run (default config): the `Response` span's input messages show the image
+   part as `__REDACTED__` — today's released behavior for any input image whose
+   base64 exceeds 32,000 chars (the only alternative today is raising the budget and
+   carrying ~884 KB of base64 on the span).
+2. Second run (blob-upload config): the same attribute holds
+   `internal_docs/…/blob_store/<sha>.png` — a short path instead of a redaction
+   marker; the bytes are in that file, deduped by content hash.
+3. `input.value` is small in both — the instrumentor's existing pre-pass strips the
+   base64 image from the serialized request. Upgrading that redaction to a blob URI
+   is open question 1 in the techspec.
 
-1. Open **`conversation.turn — before (inline base64)`** → `user` span → attributes
-   pane: `input.audio.url` is a `data:audio/wav;base64,...` string that ends abruptly —
-   32,000 chars, ~0.5 s of the 3.2 s utterance, not decodable as WAV. Same for
-   `output.audio.url` on the `assistant` span.
-2. Open **`conversation.turn — after (blob upload)`**: the same attributes are now
-   short `http://127.0.0.1:8321/<sha>.wav` URIs. Click/copy one into the browser while
-   the script is serving — the full WAV downloads and plays. `input.audio.transcript`
-   and `input.audio.mime_type` are identical in both traces: only the payload moved.
-3. Note the span sizes: ~32 KB of attributes per audio span before, a few hundred
-   bytes after (the console prints the exact table).
+**Project `blob-upload-audio-demo`** — one realtime trace per run:
+`conversation.turn` (AUDIO) → `user` (USER) + `assistant` (LLM), produced by the
+released realtime instrumentation from a live session (real whisper transcripts,
+token counts, time-to-first-token):
 
-### Project `blob-upload-image-demo` (image path)
-
-Three LLM chat spans written by **identical code** — only the `TraceConfig` differs:
-
-1. **`before — default config (image redacted)`**: open the span's input messages —
-   the image part shows `__REDACTED__`. This is released behavior for any input image
-   whose base64 exceeds 32,000 chars: the content is destroyed.
-2. **`before — raised limit (inline base64)`**: the image renders inline (Phoenix
-   displays data-URI images), but the attributes pane shows the cost — an ~884 KB
-   attribute on one span.
-3. **`after — blob upload (external URI)`**: the image renders identically (Phoenix's
-   `<SpanImage>` takes any URL) while the attribute is a 46-char URI. The user text
-   part sits inline next to it, untouched.
-
-Audio caveat: Phoenix has no audio player in span details yet, so for the audio project
-the evidence is the attribute value itself (and fetching the URI); images render
-in-page for the full effect.
+1. Default run (capture site patched): `input.audio.url` / `output.audio.url` are
+   blob-store paths; the WAV files under `scripts/blob_store/` contain the full
+   spoken question and answer — play them.
+2. `--inline` run: the same attributes are `data:audio/wav;base64,…` cut off at
+   32,000 chars (~0.5 s of audio, not decodable) — the span carries ~32 KB per side
+   and the content is still lost.
 
 ## Layout
 
 ```
 scripts/
 ├── README.md
-├── common.py            — proposed Blob/BlobUploader interface (mirrors ../blob_uploads.md §3.1),
-│                          LocalHttpBlobUploader demo backend, WAV/data-URI helpers copied from
-│                          _realtime.py, OTel→Phoenix setup, PASS/FAIL + size-table helpers
-├── audio_blob_demo.py   — realtime turn wire form; integration point 2 (direct capture-time call)
-├── image_blob_demo.py   — multimodal chat span; integration point 1 (TraceConfig choke point,
-│                          via a BlobOffloadingTraceConfig subclass of the released TraceConfig)
+├── common.py            — proposed Blob/BlobUploader interface (../blob_uploads.md §2.1)
+│                          + LocalBlobStore, the repo-local mock store
+├── image_blob_demo.py   — integration point 1 (§2.2): TraceConfig choke point, driven by a
+│                          real Agents SDK vision run
+├── audio_blob_demo.py   — integration point 2 (§2.3): capture-site upload, driven by a
+│                          live Realtime API session
 └── blob_store/          — content-addressed demo storage (gitignored, created on first run)
-```
-
-## Knobs to experiment with
-
-The audio demo implements the techspec's offload policy (§3.4) and its PASS checks
-adapt, so the policy matrix can be explored directly:
-
-```bash
-# raise the inline budget above the payload size: audio stays inline on BOTH
-# variants — content that fits inline is never offloaded
-OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH=10000000 uv run --script .../audio_blob_demo.py
-
-# privacy wins over upload: no input.audio.* attribute is written and no blob
-# is uploaded, even with an uploader configured
-OPENINFERENCE_HIDE_INPUT_AUDIO=1 uv run --script .../audio_blob_demo.py
-OPENINFERENCE_HIDE_OUTPUT_AUDIO=1 uv run --script .../audio_blob_demo.py
 ```
