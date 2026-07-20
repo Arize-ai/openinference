@@ -553,6 +553,18 @@ updates:
     interval: weekly
 - cooldown:
     default-days: 7
+  directory: js/packages/openinference-instrumentation-openai-agents
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
+- cooldown:
+    default-days: 7
   directory: js/packages/openinference-semantic-conventions
   ignore:
   - dependency-name: '*'
