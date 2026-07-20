@@ -163,8 +163,8 @@ class FsspecBlobUploader:
         # Queue(maxsize=0) would mean unbounded; the queue must stay bounded
         # so a slow destination can never buffer unbounded memory.
         self._queue: "Queue[Optional[Tuple[str, Blob]]]" = Queue(maxsize=max(1, max_queue_size))
-        self._seen_digests: Set[str] = set()
-        self._seen_lock = threading.Lock()
+        self._seen_destinations: Set[str] = set()
+        self._state_lock = threading.Lock()
         self._filesystem, self._filesystem_root = self._open_filesystem(self._base_path)
         self._probe_destination()
         self._worker = threading.Thread(
@@ -216,30 +216,32 @@ class FsspecBlobUploader:
             ) from None
 
     def upload(self, blob: Blob) -> Optional[str]:
-        if self._stopped:
-            return None
         uri = self._destination_uri(blob)
-        with self._seen_lock:
-            if blob.content_sha256 in self._seen_digests:
+        path = self._destination_path(blob)
+        with self._state_lock:
+            if self._stopped:
+                return None
+            if path in self._seen_destinations:
                 return uri
-        try:
-            self._queue.put_nowait((self._destination_path(blob), blob))
-        except Full:
-            logger.warning(
-                "Blob upload queue is full; falling back to redaction for "
-                f"attribute {blob.attribute_key!r}."
-            )
-            return None
-        with self._seen_lock:
-            self._seen_digests.add(blob.content_sha256)
+            try:
+                self._queue.put_nowait((path, blob))
+            except Full:
+                logger.warning(
+                    "Blob upload queue is full; falling back to redaction for "
+                    f"attribute {blob.attribute_key!r}."
+                )
+                return None
+            self._seen_destinations.add(path)
         return uri
 
     def shutdown(self, timeout_sec: float = 10.0) -> None:
-        self._stopped = True
-        try:
-            self._queue.put_nowait(None)
-        except Full:
-            pass
+        with self._state_lock:
+            if not self._stopped:
+                self._stopped = True
+                try:
+                    self._queue.put_nowait(None)
+                except Full:
+                    pass
         self._worker.join(timeout=timeout_sec)
 
     def _destination_name(self, blob: Blob) -> str:
@@ -269,6 +271,10 @@ class FsspecBlobUploader:
                     self._write(path, blob.data)
             except Exception:
                 logger.exception(f"Failed to upload blob to {path!r}.")
+                # Let a later observation retry this destination. Without this,
+                # a transient failure permanently deduplicates to a missing URI.
+                with self._state_lock:
+                    self._seen_destinations.discard(path)
             finally:
                 self._queue.task_done()
 

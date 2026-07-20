@@ -65,6 +65,17 @@ def test_fsspec_uploader_writes_content_addressed_file(tmp_path: Path) -> None:
     assert Path(uri).read_bytes() == WAV_BYTES
 
 
+def test_fsspec_uploader_deduplicates_by_destination_path(tmp_path: Path) -> None:
+    uploader = FsspecBlobUploader(base_path=str(tmp_path))
+    wav_uri = uploader.upload(Blob(data=WAV_BYTES, mime_type="audio/wav"))
+    binary_uri = uploader.upload(Blob(data=WAV_BYTES, mime_type="application/octet-stream"))
+    uploader.shutdown()
+
+    assert wav_uri is not None and Path(wav_uri).read_bytes() == WAV_BYTES
+    assert binary_uri is not None and Path(binary_uri).read_bytes() == WAV_BYTES
+    assert wav_uri != binary_uri
+
+
 def test_fsspec_uploader_creates_missing_directories(tmp_path: Path) -> None:
     # The destination directory may not exist yet (e.g. a fresh base path).
     uploader = FsspecBlobUploader(base_path=str(tmp_path / "nested" / "media"))
