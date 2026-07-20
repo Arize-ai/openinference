@@ -67,12 +67,43 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         """Called when a span is started."""
         pass
 
+    def _is_strands_span(self, span: ReadableSpan, attrs: Dict[str, Any]) -> bool:
+        """Return True if this span was produced by the Strands Agents framework.
+
+        Uses two signals (either is sufficient):
+        1. Primary: any attribute key starts with ``gen_ai.`` — all Strands spans
+           carry at least one GenAI semantic-convention attribute.
+        2. Secondary: the span name matches a known Strands span-name pattern —
+           useful for spans that may not yet carry ``gen_ai.*`` attributes.
+        """
+        # Primary signal: any gen_ai.* attribute key
+        if any(k.startswith("gen_ai.") for k in attrs):
+            return True
+
+        # Secondary signal: known Strands span-name patterns
+        span_name = span.name
+        if span_name in ("chat", "execute_event_loop_cycle"):
+            return True
+        if (
+            span_name.startswith("execute_tool ")
+            or span_name.startswith("invoke_agent")
+            or span_name.startswith("Tool:")
+            or "Model invoke" in span_name
+            or "Cycle" in span_name
+        ):
+            return True
+
+        return False
+
     def on_end(self, span: ReadableSpan) -> None:
         """
         Called when a span ends. Transform the span attributes from Strands format
         to OpenInference format.
         """
         if not hasattr(span, "_attributes") or not span._attributes:
+            return
+
+        if not self._is_strands_span(span, span._attributes):
             return
 
         original_attrs = dict(span._attributes)
