@@ -225,13 +225,14 @@ class TestModels:
         usage_event.choices = []
 
         with patch.object(model, "retryer", return_value=[content_event, usage_event]):
-            output_deltas = list(
-                model.generate_stream(
-                    messages=[
-                        ChatMessage(role=MessageRole.USER, content=input_message_content),
-                    ]
-                )
+            output_stream = model.generate_stream(
+                messages=[
+                    ChatMessage(role=MessageRole.USER, content=input_message_content),
+                ]
             )
+            output_deltas = [next(output_stream)]
+            assert not trace_api.get_current_span().get_span_context().is_valid
+            output_deltas.extend(output_stream)
 
         assert [delta.content for delta in output_deltas] == ["Hello", ""]
         spans = in_memory_span_exporter.get_finished_spans()
@@ -264,6 +265,44 @@ class TestModels:
             == "text"
         )
         assert not attributes
+
+    def test_openai_server_model_closed_stream_has_partial_output_attributes(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        model = OpenAIServerModel(
+            model_id="gpt-4o",
+            api_key=openai_api_key,
+            api_base="https://api.openai.com/v1",
+        )
+        content_event = MagicMock()
+        content_event.usage = None
+        content_event.choices = [MagicMock()]
+        content_event.choices[0].delta.content = "Hello"
+        content_event.choices[0].delta.tool_calls = None
+
+        with patch.object(model, "retryer", return_value=[content_event]):
+            output_stream = model.generate_stream(
+                messages=[ChatMessage(role=MessageRole.USER, content="Say hello.")]
+            )
+            assert next(output_stream).content == "Hello"
+            output_stream.close()
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes[LLM_MODEL_NAME] == "gpt-4o"
+        assert attributes[LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes[LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+        assert attributes[OUTPUT_MIME_TYPE] == JSON
+        assert isinstance(attributes[OUTPUT_VALUE], str)
+        assert (
+            attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"]
+            == "Hello"
+        )
 
     @pytest.mark.vcr
     def test_openai_server_model_with_chatmessage_image_url_has_expected_attributes(

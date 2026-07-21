@@ -595,8 +595,8 @@ class _ModelStreamWrapper:
         def wrapped_generator() -> Generator[Any, None, None]:
             from smolagents.models import agglomerate_stream_deltas
 
-            output_deltas = []
-            with self._tracer.start_as_current_span(
+            output_deltas: list[Any] = []
+            span = self._tracer.start_span(
                 f"{instance.__class__.__name__}.generate_stream",
                 attributes={
                     OPENINFERENCE_SPAN_KIND: LLM,
@@ -605,12 +605,34 @@ class _ModelStreamWrapper:
                     **dict(_llm_input_messages(arguments)),
                     **dict(get_attributes_from_context()),
                 },
-            ) as span:
-                for output_delta in wrapped(*args, **kwargs):
-                    output_deltas.append(output_delta)
-                    yield output_delta
+            )
+
+            def finish_span() -> None:
                 output_message = agglomerate_stream_deltas(output_deltas)
                 _finish_model_span(span, instance, arguments, output_message)
+
+            try:
+                with trace_api.use_span(span, end_on_exit=False):
+                    output_stream = iter(wrapped(*args, **kwargs))
+                while True:
+                    with trace_api.use_span(span, end_on_exit=False):
+                        try:
+                            output_delta = next(output_stream)
+                        except StopIteration:
+                            break
+                    output_deltas.append(output_delta)
+                    yield output_delta
+            except GeneratorExit:
+                with trace_api.use_span(span, end_on_exit=False):
+                    if close := getattr(output_stream, "close", None):
+                        close()
+                    finish_span()
+                raise
+            else:
+                with trace_api.use_span(span, end_on_exit=False):
+                    finish_span()
+            finally:
+                span.end()
 
         return wrapped_generator()
 
