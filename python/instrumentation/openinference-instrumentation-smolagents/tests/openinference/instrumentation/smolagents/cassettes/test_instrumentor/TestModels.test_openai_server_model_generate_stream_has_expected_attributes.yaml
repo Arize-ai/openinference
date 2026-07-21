@@ -1,0 +1,30 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":[{"type":"text","text":"Who won the
+      World Cup in 2018? Answer in one word with no punctuation."}]}],"model":"gpt-4o","stream":true,"stream_options":{"include_usage":true}}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"chatcmpl-E3ssptzFBRRxntmw0IVd8JuqiEXWG","object":"chat.completion.chunk","created":1784594663,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6cd46c5087","choices":[{"index":0,"delta":{"role":"assistant","content":"","refusal":null},"logprobs":null,"finish_reason":null}],"usage":null,"obfuscation":"2lvPAB9edry9Ik"}
+
+
+        data: {"id":"chatcmpl-E3ssptzFBRRxntmw0IVd8JuqiEXWG","object":"chat.completion.chunk","created":1784594663,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6cd46c5087","choices":[{"index":0,"delta":{"content":"France"},"logprobs":null,"finish_reason":null}],"usage":null,"obfuscation":"b1rYYCjTrR"}
+
+
+        data: {"id":"chatcmpl-E3ssptzFBRRxntmw0IVd8JuqiEXWG","object":"chat.completion.chunk","created":1784594663,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6cd46c5087","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}],"usage":null,"obfuscation":"ncIfu1sZtm"}
+
+
+        data: {"id":"chatcmpl-E3ssptzFBRRxntmw0IVd8JuqiEXWG","object":"chat.completion.chunk","created":1784594663,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_6cd46c5087","choices":[],"usage":{"prompt_tokens":25,"completion_tokens":1,"total_tokens":26,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"obfuscation":""}
+
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -468,6 +468,76 @@ class TestModels:
         )
         assert not attributes
 
+    @pytest.mark.vcr
+    def test_openai_server_model_generate_stream_has_expected_attributes(
+        self,
+        openai_api_key: str,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        # `generate_stream` is used when the agent runs with `stream_outputs=True`.
+        # It must emit an LLM span just like the non-streaming `generate` path.
+        model = OpenAIServerModel(
+            model_id="gpt-4o",
+            api_key=openai_api_key,
+            api_base="https://api.openai.com/v1",
+        )
+        input_message_content = (
+            "Who won the World Cup in 2018? Answer in one word with no punctuation."
+        )
+        deltas = list(
+            model.generate_stream(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": input_message_content}],
+                    }
+                ]
+            )
+        )
+        output_message_content = "".join(delta.content for delta in deltas if delta.content)
+        assert output_message_content == "France"
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "OpenAIModel.generate_stream"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert "messages" in json.loads(input_value)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert isinstance(json.loads(output_value), dict)
+        assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == {}
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == output_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert not attributes
+
 
 class TestAgents:
     @pytest.mark.vcr
