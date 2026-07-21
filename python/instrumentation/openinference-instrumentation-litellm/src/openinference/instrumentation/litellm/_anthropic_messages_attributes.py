@@ -109,10 +109,15 @@ def _get_attributes_from_anthropic_content_blocks(
             yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
             if thinking := _get_block_field(block, "thinking"):
                 yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", thinking
+            if signature := _get_block_field(block, "signature"):
+                yield (
+                    f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                    signature,
+                )
         elif block_type == "redacted_thinking":
             yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
             if data := _get_block_field(block, "data"):
-                yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", data
+                yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_DATA}", data
 
 
 def _get_attributes_from_anthropic_input_messages(
@@ -299,6 +304,9 @@ class AnthropicMessagesStreamAccumulator:
             elif delta_type == "thinking_delta":
                 entry["type"] = "thinking"
                 entry["thinking"] = entry.get("thinking", "") + str(delta.get("thinking", ""))
+            elif delta_type == "signature_delta":
+                entry["type"] = "thinking"
+                entry["signature"] = entry.get("signature", "") + str(delta.get("signature", ""))
         elif event_type == "message_delta":
             if usage := event.get("usage"):
                 if isinstance(usage, Mapping):

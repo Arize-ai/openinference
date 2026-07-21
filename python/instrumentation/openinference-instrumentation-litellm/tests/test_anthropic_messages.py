@@ -99,6 +99,49 @@ def _streaming_events(text: str = "Hi") -> List[Dict[str, Any]]:
     ]
 
 
+def _reasoning_streaming_events() -> List[Dict[str, Any]]:
+    return [
+        {
+            "type": "message_start",
+            "message": {
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-haiku-20240307",
+                "content": [],
+                "usage": {"input_tokens": 8, "output_tokens": 0},
+            },
+        },
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "thinking_delta", "thinking": "considering"},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "signature_delta", "signature": "sig-123"},
+        },
+        {"type": "content_block_stop", "index": 0},
+        {
+            "type": "content_block_start",
+            "index": 1,
+            "content_block": {"type": "redacted_thinking", "data": "encrypted-blob"},
+        },
+        {"type": "content_block_stop", "index": 1},
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn"},
+            "usage": {"output_tokens": 4},
+        },
+        {"type": "message_stop"},
+    ]
+
+
 @pytest.fixture()
 def setup_litellm_instrumentation(
     tracer_provider: TracerProvider,
@@ -531,6 +574,47 @@ def test_create_streaming(
     assert span.status.status_code == StatusCode.OK
 
 
+def test_create_streaming_reasoning_content_blocks(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    original = LiteLLMInstrumentor.original_anthropic_funcs["create"]
+
+    def mock_create(*args: Any, **kwargs: Any) -> Iterator[Dict[str, Any]]:
+        yield from _reasoning_streaming_events()
+
+    LiteLLMInstrumentor.original_anthropic_funcs["create"] = mock_create
+    try:
+        stream = cast(
+            Iterator[Dict[str, Any]],
+            litellm_anthropic.create(
+                model=MODEL,
+                messages=[{"role": "user", "content": "Think carefully"}],
+                max_tokens=16,
+                stream=True,
+            ),
+        )
+        list(stream)
+    finally:
+        LiteLLMInstrumentor.original_anthropic_funcs["create"] = original
+
+    attributes = dict(
+        cast(
+            Mapping[str, AttributeValue], in_memory_span_exporter.get_finished_spans()[0].attributes
+        )
+    )
+    content_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert (
+        attributes[f"{content_prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}"]
+        == "sig-123"
+    )
+    assert (
+        attributes[f"{content_prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_DATA}"]
+        == "encrypted-blob"
+    )
+    assert f"{content_prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}" not in attributes
+
+
 @pytest.mark.asyncio
 async def test_acreate_streaming(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -809,7 +893,17 @@ def test_create_input_content_blocks(
                 },
             ],
         },
-        {"role": "assistant", "content": [{"type": "thinking", "thinking": "hmm"}]},
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "thinking",
+                    "thinking": "hmm",
+                    "signature": "sig-input",
+                },
+                {"type": "redacted_thinking", "data": "encrypted-input"},
+            ],
+        },
         {
             "role": "user",
             "content": [{"type": "tool_result", "tool_use_id": "toolu_9", "content": "42"}],
@@ -859,6 +953,20 @@ def test_create_input_content_blocks(
             f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
         ]
         == "hmm"
+    )
+    assert (
+        attributes[
+            f"{in_prefix}.1.{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}"
+        ]
+        == "sig-input"
+    )
+    assert (
+        attributes[
+            f"{in_prefix}.1.{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_DATA}"
+        ]
+        == "encrypted-input"
     )
     # tool_result block
     assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "toolu_9"
