@@ -791,24 +791,14 @@ def _get_attributes_from_reasoning_item(
         return
 
     yield f"{prefix}{MESSAGE_ROLE}", "assistant"
-    idx = 0
+    content_prefix = f"{prefix}{MESSAGE_CONTENTS}.0."
+    yield f"{content_prefix}{MESSAGE_CONTENT_TYPE}", "reasoning"
     if texts:
-        yield f"{prefix}{MESSAGE_CONTENTS}.{idx}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-        yield f"{prefix}{MESSAGE_CONTENTS}.{idx}.{MESSAGE_CONTENT_TEXT}", "\n\n".join(texts)
-        if obj.id:
-            yield f"{prefix}{MESSAGE_CONTENTS}.{idx}.{MESSAGE_CONTENT_ID}", obj.id
-        idx += 1
+        yield f"{content_prefix}{MESSAGE_CONTENT_TEXT}", "\n\n".join(texts)
     if obj.encrypted_content:
-        yield (
-            f"{prefix}{MESSAGE_CONTENTS}.{idx}.{MESSAGE_CONTENT_TYPE}",
-            "reasoning",
-        )
-        yield (
-            f"{prefix}{MESSAGE_CONTENTS}.{idx}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}",
-            obj.encrypted_content,
-        )
-        if obj.id:
-            yield f"{prefix}{MESSAGE_CONTENTS}.{idx}.{MESSAGE_CONTENT_ID}", obj.id
+        yield f"{content_prefix}{MESSAGE_CONTENT_ENCRYPTED_CONTENT}", obj.encrypted_content
+    if obj.id:
+        yield f"{content_prefix}{MESSAGE_CONTENT_ID}", obj.id
 
 
 def _get_span_status(obj: Span[Any]) -> Status:
