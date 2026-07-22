@@ -147,6 +147,25 @@ def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None
     )
 
 
+def _assert_multiply_tool_span(tool_span: Any) -> None:
+    """Exhaustively verify the TOOL span emitted for the ``multiply`` @tool."""
+    attributes = dict(tool_span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
+    assert attributes.pop(TOOL_NAME) == "multiply"
+    assert "Multiply two integers together." in str(attributes.pop(TOOL_DESCRIPTION))
+    parameters = json.loads(str(attributes.pop(TOOL_PARAMETERS)))
+    assert set(parameters["properties"]) == {"first_number", "second_number"}
+    assert json.loads(str(attributes.pop(INPUT_VALUE))) == {"first_number": 6, "second_number": 7}
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert attributes.pop(OUTPUT_VALUE) == "42"
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop("tool.description_updated") is False
+    assert attributes.pop("tool.cache_function") in {"<lambda>", "_default_cache_function"}
+    assert attributes.pop("tool.result_as_answer") is False
+    assert attributes.pop("tool.current_usage_count") == 0
+    assert not attributes
+
+
 def test_tool_decorator_run_emits_tool_span(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -164,19 +183,45 @@ def test_tool_decorator_run_emits_tool_span(
         """Multiply two integers together."""
         return first_number * second_number
 
-    result = multiply.run(first_number=6, second_number=7)
-    assert result == 42
+    assert multiply.run(first_number=6, second_number=7) == 42
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    tool_spans = get_spans_by_kind(
+        in_memory_span_exporter.get_finished_spans(),
+        OpenInferenceSpanKindValues.TOOL.value,
+    )
     assert len(tool_spans) == 1
+    _assert_multiply_tool_span(tool_spans[0])
 
-    attributes = dict(tool_spans[0].attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
-    assert attributes.pop(TOOL_NAME) == "multiply"
-    input_payload = json.loads(str(attributes.pop(INPUT_VALUE)))
-    assert input_payload == {"first_number": 6, "second_number": 7}
-    assert str(attributes.pop(OUTPUT_VALUE)) == "42"
+
+def test_nested_tool_run_on_different_instance_emits_both_spans(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """A tool whose body calls another tool's ``run`` yields a span for each.
+
+    The same-instance re-entrancy guard (which de-dupes Tool.run delegating to
+    BaseTool.run) must not suppress a genuine nested call to a *different* tool.
+    """
+    from crewai.tools import tool  # type: ignore[import-untyped, unused-ignore]
+
+    @tool("inner")
+    def inner() -> str:
+        """Return a fixed inner value."""
+        return "inner-result"
+
+    @tool("outer")
+    def outer() -> str:
+        """Call the inner tool and wrap its result."""
+        return f"outer:{inner.run()}"
+
+    assert outer.run() == "outer:inner-result"
+
+    tool_spans = get_spans_by_kind(
+        in_memory_span_exporter.get_finished_spans(),
+        OpenInferenceSpanKindValues.TOOL.value,
+    )
+    tool_names = {dict(span.attributes or {})[TOOL_NAME] for span in tool_spans}
+    assert tool_names == {"inner", "outer"}
+    assert len(tool_spans) == 2
 
 
 @pytest.mark.no_autoinstrument
@@ -219,9 +264,7 @@ def test_tool_run_delegating_to_base_run_emits_single_tool_span(
             OpenInferenceSpanKindValues.TOOL.value,
         )
         assert len(tool_spans) == 1
-        attributes = dict(tool_spans[0].attributes or {})
-        assert attributes[OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.TOOL.value
-        assert attributes[TOOL_NAME] == "multiply"
+        _assert_multiply_tool_span(tool_spans[0])
     finally:
         CrewAIInstrumentor().uninstrument()
 

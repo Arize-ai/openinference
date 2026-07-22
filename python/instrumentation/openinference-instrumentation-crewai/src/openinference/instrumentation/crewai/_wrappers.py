@@ -57,12 +57,14 @@ _agent_kickoff_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "_oi_agent_kickoff_active", default=False
 )
 
-# Contextvar used to suppress a nested, duplicate TOOL span. A tool's ``run`` may
-# delegate to ``BaseTool.run`` (e.g. via ``super().run()``); both are wrapped, so
-# this is set while a tool-run span is active and lets the inner wrapper skip
-# creating a second span for the same invocation.
-_tool_run_in_progress: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "_oi_tool_run_in_progress", default=False
+# Holds the id() of the tool instance whose run span is currently open on this
+# context. A tool's ``run`` may delegate to ``BaseTool.run`` (e.g. via
+# ``super().run()``) and both are wrapped, which would emit two spans for the
+# one invocation. The inner wrapper skips span creation only when re-entered for
+# the *same* instance, so a tool whose body legitimately calls another tool's
+# ``run`` still gets its own span.
+_tool_run_instance: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar(
+    "_oi_tool_run_instance", default=None
 )
 
 
@@ -990,15 +992,16 @@ class _BaseToolRunWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        # If a tool-run span is already open on this context (e.g. Tool.run
-        # delegating to a wrapped BaseTool.run), don't nest a duplicate span.
-        if _tool_run_in_progress.get():
+        # Skip only a re-entrant run on the SAME instance (Tool.run delegating to
+        # a wrapped BaseTool.run), which would otherwise emit a duplicate span. A
+        # nested run on a different tool instance still gets its own span.
+        if _tool_run_instance.get() == id(instance):
             return wrapped(*args, **kwargs)
-        token = _tool_run_in_progress.set(True)
+        token = _tool_run_instance.set(id(instance))
         try:
             return self._run_with_span(wrapped, instance, args, kwargs)
         finally:
-            _tool_run_in_progress.reset(token)
+            _tool_run_instance.reset(token)
 
     def _run_with_span(
         self,
