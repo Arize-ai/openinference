@@ -181,6 +181,7 @@ def test_tool_decorator_run_emits_tool_span(
 
 @pytest.mark.no_autoinstrument
 def test_tool_run_delegating_to_base_run_emits_single_tool_span(
+    monkeypatch: pytest.MonkeyPatch,
     tracer_provider: Any,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -197,36 +198,32 @@ def test_tool_run_delegating_to_base_run_emits_single_tool_span(
         Tool,
     )
 
-    original_tool_run = Tool.run
-
     def delegating_run(self: Any, *args: Any, **kwargs: Any) -> Any:
         return BaseTool.run(self, *args, **kwargs)
 
-    Tool.run = delegating_run
+    monkeypatch.setattr(Tool, "run", delegating_run)
+
+    CrewAIInstrumentor().instrument(tracer_provider=tracer_provider)
+    in_memory_span_exporter.clear()
     try:
-        CrewAIInstrumentor().instrument(tracer_provider=tracer_provider)
-        in_memory_span_exporter.clear()
-        try:
 
-            @tool("multiply")
-            def multiply(first_number: int, second_number: int) -> int:
-                """Multiply two integers together."""
-                return first_number * second_number
+        @tool("multiply")
+        def multiply(first_number: int, second_number: int) -> int:
+            """Multiply two integers together."""
+            return first_number * second_number
 
-            assert multiply.run(first_number=6, second_number=7) == 42
+        assert multiply.run(first_number=6, second_number=7) == 42
 
-            tool_spans = get_spans_by_kind(
-                in_memory_span_exporter.get_finished_spans(),
-                OpenInferenceSpanKindValues.TOOL.value,
-            )
-            assert len(tool_spans) == 1
-            attributes = dict(tool_spans[0].attributes or {})
-            assert attributes[OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.TOOL.value
-            assert attributes[TOOL_NAME] == "multiply"
-        finally:
-            CrewAIInstrumentor().uninstrument()
+        tool_spans = get_spans_by_kind(
+            in_memory_span_exporter.get_finished_spans(),
+            OpenInferenceSpanKindValues.TOOL.value,
+        )
+        assert len(tool_spans) == 1
+        attributes = dict(tool_spans[0].attributes or {})
+        assert attributes[OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.TOOL.value
+        assert attributes[TOOL_NAME] == "multiply"
     finally:
-        Tool.run = original_tool_run
+        CrewAIInstrumentor().uninstrument()
 
 
 @pytest.mark.vcr
