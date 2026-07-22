@@ -63,6 +63,10 @@ _agent_kickoff_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
 # one invocation. The inner wrapper skips span creation only when re-entered for
 # the *same* instance, so a tool whose body legitimately calls another tool's
 # ``run`` still gets its own span.
+#
+# Being a ContextVar, the guard is scoped to the running task/thread. If a tool's
+# run were dispatched to a different thread, the delegation would not be de-duped
+# there; the fallout is at worst one duplicate span, never a dropped one.
 _tool_run_instance: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar(
     "_oi_tool_run_instance", default=None
 )

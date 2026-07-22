@@ -219,9 +219,14 @@ def test_nested_tool_run_on_different_instance_emits_both_spans(
         in_memory_span_exporter.get_finished_spans(),
         OpenInferenceSpanKindValues.TOOL.value,
     )
-    tool_names = {dict(span.attributes or {})[TOOL_NAME] for span in tool_spans}
-    assert tool_names == {"inner", "outer"}
     assert len(tool_spans) == 2
+    spans_by_name = {dict(span.attributes or {})[TOOL_NAME]: span for span in tool_spans}
+    assert set(spans_by_name) == {"inner", "outer"}
+    # The inner tool span nests under the outer tool span, in one trace.
+    outer_span, inner_span = spans_by_name["outer"], spans_by_name["inner"]
+    assert inner_span.parent is not None
+    assert inner_span.parent.span_id == outer_span.context.span_id
+    assert inner_span.context.trace_id == outer_span.context.trace_id
 
 
 @pytest.mark.no_autoinstrument
