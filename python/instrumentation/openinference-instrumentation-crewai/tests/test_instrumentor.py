@@ -147,6 +147,38 @@ def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None
     )
 
 
+def test_tool_decorator_run_emits_tool_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Tools built with the ``@tool`` decorator must emit a TOOL span.
+
+    The decorator returns a ``crewai.tools.base_tool.Tool`` instance, which
+    overrides ``run`` and does not call ``BaseTool.run``. CrewAI's native
+    tool-calling loop registers the bound ``tool.run`` as the callable it
+    invokes, so instrumenting only ``BaseTool.run`` misses these tools.
+    """
+    from crewai.tools import tool  # type: ignore[import-untyped, unused-ignore]
+
+    @tool("multiply")
+    def multiply(first_number: int, second_number: int) -> int:
+        """Multiply two integers together."""
+        return first_number * second_number
+
+    result = multiply.run(first_number=6, second_number=7)
+    assert result == 42
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    assert len(tool_spans) == 1
+
+    attributes = dict(tool_spans[0].attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
+    assert attributes.pop(TOOL_NAME) == "multiply"
+    input_payload = json.loads(str(attributes.pop(INPUT_VALUE)))
+    assert input_payload == {"first_number": 6, "second_number": 7}
+    assert str(attributes.pop(OUTPUT_VALUE)) == "42"
+
+
 @pytest.mark.vcr
 def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -> None:
     """Verify spans are generated correctly for CrewAI Crews, Agents, Tasks & Flows."""
