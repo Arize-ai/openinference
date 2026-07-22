@@ -57,6 +57,14 @@ _agent_kickoff_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "_oi_agent_kickoff_active", default=False
 )
 
+# Contextvar used to suppress a nested, duplicate TOOL span. A tool's ``run`` may
+# delegate to ``BaseTool.run`` (e.g. via ``super().run()``); both are wrapped, so
+# this is set while a tool-run span is active and lets the inner wrapper skip
+# creating a second span for the same invocation.
+_tool_run_in_progress: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_oi_tool_run_in_progress", default=False
+)
+
 
 class SafeJSONEncoder(json.JSONEncoder):
     """
@@ -982,6 +990,23 @@ class _BaseToolRunWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+        # If a tool-run span is already open on this context (e.g. Tool.run
+        # delegating to a wrapped BaseTool.run), don't nest a duplicate span.
+        if _tool_run_in_progress.get():
+            return wrapped(*args, **kwargs)
+        token = _tool_run_in_progress.set(True)
+        try:
+            return self._run_with_span(wrapped, instance, args, kwargs)
+        finally:
+            _tool_run_in_progress.reset(token)
+
+    def _run_with_span(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
         # Enhanced tool naming - use meaningful tool name instead of generic "BaseTool.run"
         span_name = _get_tool_span_name(instance, wrapped)
         input_value = _get_input_value(wrapped, *args, **kwargs)
