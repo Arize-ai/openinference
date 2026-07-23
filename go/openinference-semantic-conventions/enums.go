@@ -56,4 +56,5 @@ const (
 	LLMProviderCerebras   = "cerebras"
 	LLMProviderPerplexity = "perplexity"
 	LLMProviderTogether   = "together"
+	LLMProviderMiniMax    = "minimax"
 )

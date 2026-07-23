@@ -811,4 +811,5 @@ export enum LLMProvider {
   CEREBRAS = "cerebras",
   PERPLEXITY = "perplexity",
   TOGETHER = "together",
+  MINIMAX = "minimax",
 }
