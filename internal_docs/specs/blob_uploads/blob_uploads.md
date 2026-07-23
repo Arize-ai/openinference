@@ -14,22 +14,29 @@ URI.
 
 ### What changes
 
-New public API in `openinference-instrumentation`:
+New public API in `openinference-instrumentation` — **interface and policy only, no
+transport** (per maintainer review, 2026-07-20: OI does not build or maintain upload
+machinery; implementations come from applications, vendor SDKs, or a future upstream
+OTel util-genai byte uploader):
 
 ```python
 Blob(data, mime_type, modality="", attribute_key=None, content_sha256="")  # frozen dataclass
-BlobUploader          # @runtime_checkable Protocol: upload(blob) -> Optional[str]; shutdown(timeout_sec)
-FsspecBlobUploader    # packaged default: content-addressed {base_path}/{sha256}.{ext},
-                      # bounded queue + background worker; s3:// gs:// file:// local
+BlobUploader              # @runtime_checkable Protocol: upload(blob) -> Optional[str]; shutdown(timeout_sec)
+load_blob_uploader(name)  # resolves the "openinference_blob_uploader" entry-point group
 ```
 
 New `TraceConfig` fields (each with an env var, precedence code > env > default):
 
 | field | env var | default |
 |---|---|---|
-| `blob_uploader` | `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH` builds the packaged `FsspecBlobUploader` (+ `OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE`, default 20) | `None` |
+| `blob_uploader` | `OPENINFERENCE_BLOB_UPLOADER=<name>` loads a registered `openinference_blob_uploader` entry point (mirrors util-genai's `opentelemetry_genai_completion_hook` mechanics) | `None` |
 | `base64_media_max_length` (audio/file/video budget; images keep `base64_image_max_length`) | `OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH` | `32_000` |
 | `hide_input_audio` / `hide_output_audio` / `hide_input_files` | `OPENINFERENCE_HIDE_INPUT_AUDIO` / `..._OUTPUT_AUDIO` / `..._INPUT_FILES` | `False` |
+
+The env vars are the whole configuration story (per review: instrumentation happens
+automatically at the edge, so env-first over declarative): budgets and hide flags say
+*what* offloads; the entry-point name says *who* moves the bytes. The offloadable
+attribute set itself is built in — users never enumerate fields.
 
 One policy, applied inside the existing `TraceConfig.mask()` choke point (and by a
 direct capture-time API for instrumentors that hold raw bytes):
@@ -80,7 +87,7 @@ extra work: `{"type": "uri", "modality": "audio", "mime_type": "audio/wav", "uri
 | "Uploading user content is a privacy risk." | Hide flags run **before** the upload gate — hidden bytes never leave the process. This deliberately diverges from gen_ai's "hook runs independently of capture flags". | §2.4 |
 | "What happens when storage is down / slow / misconfigured?" | Fail fast at construction; queue-full / shutdown / failure all degrade to today's `__REDACTED__`, synchronously, without ever blocking the app. The one residual is a bounded dangling-URI window. | §2.5 |
 | "Why not adopt OTel's `UploadCompletionHook`?" | It offloads the *whole* messages JSON under unregistered `*_ref` names, making text unqueryable. We keep parts inline and reuse its good ideas (fsspec, parallel env-var names); an adapter over it is trivial via the protocol. | §3.1, §3.3 |
-| "Can't the fsspec uploader at least reuse util-genai's upload code?" | No — it's a private module with no byte-level API (JSON-text writes, uuid naming, span-mutating). The *patterns* (write probe, bounded drop-on-full queue, fsspec, shutdown flush) are already adopted; env-var fallback interop is on offer. | §3.4 |
+| "Why not reuse util-genai's upload code instead of writing an uploader?" | Resolved by shipping **no uploader at all**: util-genai's is a private module with no byte-level API (JSON-text writes, uuid naming, span-mutating), so OI now ships only the interface + policy and lets implementations come from SDKs, apps, or a future upstream byte uploader. | §3.4 |
 | "Does Phoenix break? Who renders the URIs?" | URIs are ordinary string attributes — ingestion is unchanged and already renders URL-valued image attributes. Players/signing are consumer follow-ons. | §2.7 |
 
 ### Open questions (details in §7)
@@ -89,6 +96,7 @@ extra work: `{"type": "uri", "modality": "audio", "mime_type": "audio/wav", "uri
 2. Audio attributes `input.audio.*` / `output.audio.*` (today emitted only by the realtime instrumentor): promote to semconv, or migrate onto `message_content.audio`?
 3. Re-align if OTel GenAI standardizes external-reference recording.
 4. Optional "archive but don't show" flag for hidden content.
+5. Whole-payload *text* offload by driving util-genai's `CompletionHook` from the dual-write.
 
 ---
 
@@ -141,7 +149,7 @@ Two structural facts shape the design:
 ### 2.1 Interface
 
 New module in the core `openinference-instrumentation` package, public exports
-`Blob`, `BlobUploader`, `FsspecBlobUploader` (the demos carry a local copy in
+`Blob`, `BlobUploader`, `load_blob_uploader` (the demos carry a local copy in
 [`scripts/common.py`](./scripts/common.py) since released packages don't ship them yet):
 
 ```python
@@ -207,21 +215,21 @@ llm.input_messages.0.message.contents.3.message_content.file.file.url    = s3://
 Each part is judged against its own budget (image vs media, §2.4) and succeeds or
 falls back to `__REDACTED__` independently.
 
-`FsspecBlobUploader`, the packaged default, resolves one `base_path` for all mime
-types through [fsspec](https://filesystem-spec.readthedocs.io/) (`s3://` via `s3fs`,
-`gs://` via `gcsfs`, …; credentials ride each backend's standard mechanisms). fsspec
-is an optional extra (`openinference-instrumentation[blob-upload]`); plain local paths
-work without it, while remote schemes without the driver raise at construction rather
-than dropping blobs at runtime. Per-modality destinations = a ~10-line custom uploader
-dispatching on `blob.modality`.
+**OpenInference ships no implementation.** The demo scripts carry a ~40-line local
+store to prove the contract; real uploaders are expected from three sources — an
+application's own class (per-modality routing = ~10 lines dispatching on
+`blob.modality`), a vendor SDK registering an entry point (the Arize SDK will), and,
+if upstream grows a public byte-level uploader (see §3.4), a thin adapter over that.
+An implementation targeting generic object stores should build on
+[fsspec](https://filesystem-spec.readthedocs.io/) — the same transport layer
+util-genai's hook uses — rather than per-store SDKs.
 
 Configuration, in precedence order:
 
 | mechanism | proposal |
 |---|---|
 | programmatic | `TraceConfig(blob_uploader=my_uploader)` — new optional field accepting any `BlobUploader` |
-| entry point | group `openinference_blob_uploader`, selected by `OPENINFERENCE_BLOB_UPLOADER=<name>` (mirrors `opentelemetry_genai_completion_hook` mechanics) |
-| built-in default impl | `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH=<fsspec URI>` constructs the packaged `FsspecBlobUploader`; `OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE` (default 20) bounds it — names deliberately parallel OTel's `OTEL_INSTRUMENTATION_GENAI_UPLOAD_*` |
+| entry point | group `openinference_blob_uploader`, selected by `OPENINFERENCE_BLOB_UPLOADER=<name>` (mirrors `opentelemetry_genai_completion_hook` mechanics); resolves an instance, class, or factory |
 
 ### Two integration points, chosen per capture site
 
@@ -268,8 +276,8 @@ vision run (Responses API underneath, instrumented by the released OpenAI
 instrumentor) produces `__REDACTED__` or a short storage URI on the same attribute key
 depending only on the `TraceConfig` handed to the instrumentor. Any instrumentor that
 uses `OITracer` — which the project requires — gets image/audio/file offload without a
-diff. (The `blob_uploader` field isn't env-parseable, so when unset it is constructed
-separately from `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH`.)
+diff. (The `blob_uploader` field isn't env-parseable, so when unset it is resolved
+separately from the `OPENINFERENCE_BLOB_UPLOADER` entry-point name.)
 
 **The `input.value` copy.** Instrumentors also JSON-serialize the whole raw request
 into `input.value` *before* it reaches `mask()`, and `mask()` won't parse arbitrary
@@ -494,11 +502,12 @@ compatible follow-on work.
 
 ### 3.4 Code-reuse assessment: util-genai's uploader internals
 
-Maintainer question: can `FsspecBlobUploader` reuse
+Maintainer question: can OpenInference reuse
 [`opentelemetry-util-genai`'s `_upload/completion_hook.py`](https://github.com/open-telemetry/opentelemetry-python-genai/blob/main/util/opentelemetry-util-genai/src/opentelemetry/util/genai/_upload/completion_hook.py)
-instead of shipping its own fsspec plumbing? **Assessed: no for the code, yes for the
-patterns — which this design already adopts.** The class is wrong-shaped at five
-layers:
+instead of shipping its own fsspec plumbing? **Resolution (post-review): OI ships no
+plumbing at all — interface and policy only — because their class cannot carry
+per-part bytes and OI should not maintain a fork of what it can't reuse.** The
+class is wrong-shaped at five layers:
 
 | layer | `UploadCompletionHook` | what per-part blob upload needs |
 |---|---|---|
@@ -508,23 +517,22 @@ layers:
 | side effects | stamps `*_ref` attributes on the span itself | span-agnostic — core substitutes the value, which is what keeps integration point 1 a zero-diff path |
 | import stability | private module (`…util.genai._upload`) of an experimental 0.x package; only public access is the entry-point loader returning a `CompletionHook` | a dependency surface stable enough for OI's core package |
 
-What *is* shared — deliberately: the fsspec `url_to_fs` storage abstraction (same
-backends, same credential mechanisms), the startup write probe, bounded-queue
-drop-on-full semantics (their semaphore + executor ≙ our queue + worker),
-deadline-based `shutdown()` flush, the stamp-refs-before-bytes-land async model
-(upstream validation of §2.5), and the parallel env-var naming (§2.1). The divergence
-is granularity, argued on merits in §3.3 — not an accident of parallel implementation.
+What *is* shared — deliberately: the entry-point loading mechanics
+(`openinference_blob_uploader` mirrors `opentelemetry_genai_completion_hook`), the
+stamp-refs-before-bytes-land async model (upstream validation of §2.5), the
+contract requirements in §2.5 that any implementation must meet (write probe,
+bounded drop-on-full queue, shutdown flush — the behaviors their hook exhibits),
+and the recommendation that object-store implementations build on fsspec, their
+transport layer. The divergence is granularity, argued on merits in §3.3.
 
-Compatibility levers if maintainers want more: (a) honor
-`OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH` / `..._MAX_QUEUE_SIZE` as fallbacks when
-the `OPENINFERENCE_BLOB_UPLOAD_*` vars are unset, so one storage config drives both
-ecosystems (~10 lines); (b) if upstream ever exposes a *public* byte-level uploader
-(e.g. a [python-contrib#3065](https://github.com/open-telemetry/opentelemetry-python-contrib/issues/3065)
-revival — their `types.Blob` is already near-identical to ours), swap
-`FsspecBlobUploader`'s internals for it behind the unchanged `BlobUploader` protocol,
-a non-breaking substitution. The two systems also compose today: running their
-`CompletionHook` (whole-payload refs) alongside per-part substitution produces
-complementary artifacts, not conflicts.
+Convergence path: if upstream exposes a *public* byte-level uploader (e.g. a
+[python-contrib#3065](https://github.com/open-telemetry/opentelemetry-python-contrib/issues/3065)
+revival — their `types.Blob` is already near-identical to ours), it slots behind the
+unchanged `BlobUploader` protocol as the recommended implementation, non-breaking.
+The two systems also compose today: running their `CompletionHook` (whole-payload
+refs — the right tool for oversized *text*) alongside per-part substitution produces
+complementary artifacts, not conflicts; driving their hook from OI's dual-write is
+tracked as open question 5.
 
 ## 4. Demos
 
@@ -596,3 +604,14 @@ per-language work.
 4. **Should `hide_*` + uploader mean "archive but don't show"?** Deliberately answered
    "no" (privacy wins); a separate `archive_hidden_content` flag could add it later
    without breaking this design.
+5. **Whole-payload text offload via util-genai's `CompletionHook`.** Oversized *text*
+   (million-token contexts) is the same problem class (raised in maintainer review)
+   and is exactly what `UploadCompletionHook` was built for. OI's dual-write already
+   materializes `gen_ai.input.messages` / `output.messages` at span end; it could
+   construct util-genai's typed messages and drive `load_completion_hook()` directly —
+   their transport, their `*_ref` attributes, their env vars, zero OI upload code.
+   Two prerequisites: gate the call behind OI's `hide_*` flags (their hook
+   deliberately forces content capture, which conflicts with hide-wins), and decide
+   what searchable semantics remain on the span once text moves to storage
+   (Langsmith leaves the two span ends behind; raised by reviewers as a hard
+   requirement for session reconstruction).
