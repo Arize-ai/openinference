@@ -147,6 +147,133 @@ def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None
     )
 
 
+def _assert_multiply_tool_span(tool_span: Any) -> None:
+    """Exhaustively verify the TOOL span emitted for the ``multiply`` @tool."""
+    attributes = dict(tool_span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
+    assert attributes.pop(TOOL_NAME) == "multiply"
+    assert "Multiply two integers together." in str(attributes.pop(TOOL_DESCRIPTION))
+    parameters = json.loads(str(attributes.pop(TOOL_PARAMETERS)))
+    assert set(parameters["properties"]) == {"first_number", "second_number"}
+    assert json.loads(str(attributes.pop(INPUT_VALUE))) == {"first_number": 6, "second_number": 7}
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert attributes.pop(OUTPUT_VALUE) == "42"
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop("tool.description_updated") is False
+    assert attributes.pop("tool.cache_function") in {"<lambda>", "_default_cache_function"}
+    assert attributes.pop("tool.result_as_answer") is False
+    assert attributes.pop("tool.current_usage_count") == 0
+    assert not attributes
+
+
+def test_tool_decorator_run_emits_tool_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Tools built with the ``@tool`` decorator must emit a TOOL span.
+
+    The decorator returns a ``crewai.tools.base_tool.Tool`` instance, which
+    overrides ``run`` and does not call ``BaseTool.run``. CrewAI's native
+    tool-calling loop registers the bound ``tool.run`` as the callable it
+    invokes, so instrumenting only ``BaseTool.run`` misses these tools.
+    """
+    from crewai.tools import tool  # type: ignore[import-untyped, unused-ignore]
+
+    @tool("multiply")
+    def multiply(first_number: int, second_number: int) -> int:
+        """Multiply two integers together."""
+        return first_number * second_number
+
+    assert multiply.run(first_number=6, second_number=7) == 42
+
+    tool_spans = get_spans_by_kind(
+        in_memory_span_exporter.get_finished_spans(),
+        OpenInferenceSpanKindValues.TOOL.value,
+    )
+    assert len(tool_spans) == 1
+    _assert_multiply_tool_span(tool_spans[0])
+
+
+def test_nested_tool_run_on_different_instance_emits_both_spans(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """A tool whose body calls another tool's ``run`` yields a span for each.
+
+    The same-instance re-entrancy guard (which de-dupes Tool.run delegating to
+    BaseTool.run) must not suppress a genuine nested call to a *different* tool.
+    """
+    from crewai.tools import tool  # type: ignore[import-untyped, unused-ignore]
+
+    @tool("inner")
+    def inner() -> str:
+        """Return a fixed inner value."""
+        return "inner-result"
+
+    @tool("outer")
+    def outer() -> str:
+        """Call the inner tool and wrap its result."""
+        return f"outer:{inner.run()}"
+
+    assert outer.run() == "outer:inner-result"
+
+    tool_spans = get_spans_by_kind(
+        in_memory_span_exporter.get_finished_spans(),
+        OpenInferenceSpanKindValues.TOOL.value,
+    )
+    assert len(tool_spans) == 2
+    spans_by_name = {dict(span.attributes or {})[TOOL_NAME]: span for span in tool_spans}
+    assert set(spans_by_name) == {"inner", "outer"}
+    # The inner tool span nests under the outer tool span, in one trace.
+    outer_span, inner_span = spans_by_name["outer"], spans_by_name["inner"]
+    assert inner_span.parent is not None
+    assert inner_span.parent.span_id == outer_span.context.span_id
+    assert inner_span.context.trace_id == outer_span.context.trace_id
+
+
+@pytest.mark.no_autoinstrument
+def test_tool_run_delegating_to_base_run_emits_single_tool_span(
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """A tool whose ``run`` delegates to ``BaseTool.run`` yields a single TOOL span.
+
+    Both ``BaseTool.run`` and ``Tool.run`` are instrumented. If a future crewai
+    release makes ``Tool.run`` call ``super().run()``, the nested wrapped call
+    must not produce a second, duplicate TOOL span. This patches ``Tool.run`` to
+    delegate before instrumenting, reproducing that scenario.
+    """
+    from crewai.tools import tool  # type: ignore[import-untyped, unused-ignore]
+    from crewai.tools.base_tool import (  # type: ignore[import-untyped, unused-ignore]
+        BaseTool,
+        Tool,
+    )
+
+    def delegating_run(self: Any, *args: Any, **kwargs: Any) -> Any:
+        return BaseTool.run(self, *args, **kwargs)
+
+    monkeypatch.setattr(Tool, "run", delegating_run)
+
+    CrewAIInstrumentor().instrument(tracer_provider=tracer_provider)
+    in_memory_span_exporter.clear()
+    try:
+
+        @tool("multiply")
+        def multiply(first_number: int, second_number: int) -> int:
+            """Multiply two integers together."""
+            return first_number * second_number
+
+        assert multiply.run(first_number=6, second_number=7) == 42
+
+        tool_spans = get_spans_by_kind(
+            in_memory_span_exporter.get_finished_spans(),
+            OpenInferenceSpanKindValues.TOOL.value,
+        )
+        assert len(tool_spans) == 1
+        _assert_multiply_tool_span(tool_spans[0])
+    finally:
+        CrewAIInstrumentor().uninstrument()
+
+
 @pytest.mark.vcr
 def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -> None:
     """Verify spans are generated correctly for CrewAI Crews, Agents, Tasks & Flows."""
