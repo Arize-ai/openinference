@@ -4,6 +4,7 @@ import pytest
 import vcr  # type: ignore
 from agno.agent import Agent
 from agno.models.openai.chat import OpenAIChat
+from agno.models.openai.responses import OpenAIResponses
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
@@ -303,3 +304,59 @@ def test_agno_team_coordinate_instrumentation(
     assert web_agent_span is not None or finance_agent_span is not None, (
         "At least one agent span should be found"
     )
+
+
+def test_agno_reasoning_content_instrumentation(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Test that reasoning_content from models with thinking is captured on the LLM span."""
+    with test_vcr.use_cassette(
+        "agent_run_reasoning.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="Reasoning Agent",
+            model=OpenAIResponses(
+                id="o4-mini",
+                reasoning={
+                    "effort": "high",
+                    "summary": "detailed",
+                },
+            ),
+            instructions="Use internal reasoning before answering.",
+        )
+        agent.run(
+            "Count the number of letter 'r' in the word 'strawberry'. Use internal reasoning.",
+            session_id="test_session",
+            stream=False,
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_span = next((s for s in spans if s.name == "OpenAIResponses.invoke"), None)
+    assert llm_span is not None, "Expected an LLM span for OpenAIResponses.invoke"
+
+    attributes = dict(llm_span.attributes or dict())
+
+    assert attributes.get("openinference.span.kind") == "LLM"
+    assert attributes.get("llm.model_name") == "o4-mini"
+    assert attributes.get("llm.provider") == "OpenAI"
+    assert llm_span.status.is_ok
+
+    # Reasoning content part
+    assert (
+        attributes.get("llm.output_messages.0.message.contents.0.message_content.type")
+        == "reasoning"
+    )
+    reasoning_text = attributes.get("llm.output_messages.0.message.contents.0.message_content.text")
+    assert reasoning_text, "Reasoning content text should be present and non-empty"
+
+    # Final answer content part
+    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.type") == "text"
+    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.text")
+
+    # Flat message.content retained for backward compatibility
+    assert attributes.get("llm.output_messages.0.message.content")
