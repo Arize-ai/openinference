@@ -89,6 +89,12 @@ module = [
 module = "tests.test_span_attribute_helpers"
 warn_unused_ignores = false
 
+# TaskSpanData / TurnSpanData are absent from older pinned agents versions, so the
+# type: ignore on their import is required there but unused on newer versions.
+[[tool.mypy.overrides]]
+module = "tests.test_processor_span_attributes"
+warn_unused_ignores = false
+
 [tool.ruff]
 line-length = 100
 target-version = "py38"
