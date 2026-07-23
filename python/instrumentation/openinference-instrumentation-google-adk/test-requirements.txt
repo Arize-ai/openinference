@@ -1,4 +1,8 @@
 google-adk==1.2.1
+# google-adk -> opentelemetry-exporter-gcp-trace>=1.9.0 requires a pre-release of
+# opentelemetry-resourcedetector-gcp (>=1.5.0.dev0). Listing it directly with the
+# pre-release marker lets uv select that pre-release; otherwise resolution fails.
+opentelemetry-resourcedetector-gcp>=1.5.0.dev0
 opentelemetry-sdk
 pytest
 pytest-asyncio
