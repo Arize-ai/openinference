@@ -34,6 +34,7 @@ from openai.types.responses import (
     ResponseOutputMessageParam,
     ResponseOutputRefusal,
     ResponseOutputText,
+    ResponseReasoningItem,
     ResponseUsage,
     Tool,
 )
@@ -653,11 +654,10 @@ def _get_attributes_from_response_output(
             yield from _get_attributes_from_function_tool_call(item, prefix)
             tool_call_idx += 1
         elif item.type == "custom_tool_call":
-            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
-            yield from _get_attributes_from_response_custom_tool_call(
-                item,
-                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
-            )
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_custom_tool_call(item, prefix)
+            tool_call_idx += 1
         elif item.type == "file_search_call":
             ...  # TODO
         elif item.type == "web_search_call":
@@ -665,7 +665,12 @@ def _get_attributes_from_response_output(
         elif item.type == "computer_call":
             ...  # TODO
         elif item.type == "reasoning":
-            ...  # TODO
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
+            attrs = list(_get_attributes_from_reasoning_item(item, prefix))
+            if attrs:
+                for k, v in attrs:
+                    yield k, v
+                msg_idx += 1
         elif item.type == "image_generation_call":
             ...  # TODO
         elif item.type == "code_interpreter_call":
@@ -751,15 +756,21 @@ def _get_attributes_from_message(
     prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_ROLE}", obj.role
+    text_parts: list[str] = []
     for i, item in enumerate(obj.content):
         if isinstance(item, ResponseOutputText):
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item.text
+            text_parts.append(item.text)
         elif isinstance(item, ResponseOutputRefusal):
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item.refusal
+            text_parts.append(item.refusal)
         elif TYPE_CHECKING:
             assert_never(item)
+    # Emit a flat message.content for consumers that don't read the multi-part form.
+    if text_parts:
+        yield f"{prefix}{MESSAGE_CONTENT}", "\n".join(text_parts)
 
 
 def _get_attributes_from_usage(
@@ -777,6 +788,27 @@ def _get_attributes_from_usage(
             LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
             obj.output_tokens_details.reasoning_tokens,
         )
+
+
+def _get_attributes_from_reasoning_item(
+    obj: ResponseReasoningItem,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    summary_texts = [s.text for s in obj.summary if getattr(s, "text", None)]
+    content_texts = [c.text for c in (obj.content or []) if getattr(c, "text", None)]
+    texts = summary_texts or content_texts
+    if not texts and not obj.encrypted_content:
+        return
+
+    yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+    content_prefix = f"{prefix}{MESSAGE_CONTENTS}.0."
+    yield f"{content_prefix}{MESSAGE_CONTENT_TYPE}", "reasoning"
+    if texts:
+        yield f"{content_prefix}{MESSAGE_CONTENT_TEXT}", "\n\n".join(texts)
+    if obj.encrypted_content:
+        yield f"{content_prefix}{MESSAGE_CONTENT_ENCRYPTED_CONTENT}", obj.encrypted_content
+    if obj.id:
+        yield f"{content_prefix}{MESSAGE_CONTENT_ID}", obj.id
 
 
 def _get_span_status(obj: Span[Any]) -> Status:
@@ -829,6 +861,8 @@ GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_ID = MessageContentAttributes.MESSAGE_CONTENT_ID
+MESSAGE_CONTENT_ENCRYPTED_CONTENT = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
