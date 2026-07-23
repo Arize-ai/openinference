@@ -80,6 +80,7 @@ extra work: `{"type": "uri", "modality": "audio", "mime_type": "audio/wav", "uri
 | "Uploading user content is a privacy risk." | Hide flags run **before** the upload gate — hidden bytes never leave the process. This deliberately diverges from gen_ai's "hook runs independently of capture flags". | §2.4 |
 | "What happens when storage is down / slow / misconfigured?" | Fail fast at construction; queue-full / shutdown / failure all degrade to today's `__REDACTED__`, synchronously, without ever blocking the app. The one residual is a bounded dangling-URI window. | §2.5 |
 | "Why not adopt OTel's `UploadCompletionHook`?" | It offloads the *whole* messages JSON under unregistered `*_ref` names, making text unqueryable. We keep parts inline and reuse its good ideas (fsspec, parallel env-var names); an adapter over it is trivial via the protocol. | §3.1, §3.3 |
+| "Can't the fsspec uploader at least reuse util-genai's upload code?" | No — it's a private module with no byte-level API (JSON-text writes, uuid naming, span-mutating). The *patterns* (write probe, bounded drop-on-full queue, fsspec, shutdown flush) are already adopted; env-var fallback interop is on offer. | §3.4 |
 | "Does Phoenix break? Who renders the URIs?" | URIs are ordinary string attributes — ingestion is unchanged and already renders URL-valued image attributes. Players/signing are consumer follow-ons. | §2.7 |
 
 ### Open questions (details in §7)
@@ -490,6 +491,40 @@ Per-part rewrite wins because OI's attribute model is already flat per-part URL 
 that accept both `data:` and external URIs, and Phoenix renders them today. A
 whole-payload `messages_ref` equivalent (offloading entire conversations) is
 compatible follow-on work.
+
+### 3.4 Code-reuse assessment: util-genai's uploader internals
+
+Maintainer question: can `FsspecBlobUploader` reuse
+[`opentelemetry-util-genai`'s `_upload/completion_hook.py`](https://github.com/open-telemetry/opentelemetry-python-genai/blob/main/util/opentelemetry-util-genai/src/opentelemetry/util/genai/_upload/completion_hook.py)
+instead of shipping its own fsspec plumbing? **Assessed: no for the code, yes for the
+patterns — which this design already adopts.** The class is wrong-shaped at five
+layers:
+
+| layer | `UploadCompletionHook` | what per-part blob upload needs |
+|---|---|---|
+| entry point | `on_completion(inputs, outputs, …)` — typed *message lists*, serialized wholesale | raw bytes for one part; no byte-level API exists — their `types.Blob` parts get base64-encoded *inside* the messages JSON, relocating the inline-blob problem into a file |
+| write path | text-mode JSON only (`fs.open(path, "w", content_type="application/json…")` + `gen_ai_json_dump`) | binary writes with per-mime content types — a `.wav` written through their path is not a playable object |
+| naming | `uuid4()` for inputs/outputs refs (content hash only for *text* system instructions / tool defs) | content-addressed `{sha256}.{ext}` — required for dedup of resent media and deterministic in-place substitution |
+| side effects | stamps `*_ref` attributes on the span itself | span-agnostic — core substitutes the value, which is what keeps integration point 1 a zero-diff path |
+| import stability | private module (`…util.genai._upload`) of an experimental 0.x package; only public access is the entry-point loader returning a `CompletionHook` | a dependency surface stable enough for OI's core package |
+
+What *is* shared — deliberately: the fsspec `url_to_fs` storage abstraction (same
+backends, same credential mechanisms), the startup write probe, bounded-queue
+drop-on-full semantics (their semaphore + executor ≙ our queue + worker),
+deadline-based `shutdown()` flush, the stamp-refs-before-bytes-land async model
+(upstream validation of §2.5), and the parallel env-var naming (§2.1). The divergence
+is granularity, argued on merits in §3.3 — not an accident of parallel implementation.
+
+Compatibility levers if maintainers want more: (a) honor
+`OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH` / `..._MAX_QUEUE_SIZE` as fallbacks when
+the `OPENINFERENCE_BLOB_UPLOAD_*` vars are unset, so one storage config drives both
+ecosystems (~10 lines); (b) if upstream ever exposes a *public* byte-level uploader
+(e.g. a [python-contrib#3065](https://github.com/open-telemetry/opentelemetry-python-contrib/issues/3065)
+revival — their `types.Blob` is already near-identical to ours), swap
+`FsspecBlobUploader`'s internals for it behind the unchanged `BlobUploader` protocol,
+a non-breaking substitution. The two systems also compose today: running their
+`CompletionHook` (whole-payload refs) alongside per-part substitution produces
+complementary artifacts, not conflicts.
 
 ## 4. Demos
 
