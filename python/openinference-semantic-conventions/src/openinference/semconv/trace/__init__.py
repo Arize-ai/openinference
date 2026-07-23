@@ -555,3 +555,4 @@ class OpenInferenceLLMProviderValues(Enum):
     CEREBRAS = "cerebras"
     PERPLEXITY = "perplexity"
     TOGETHER = "together"
+    MINIMAX = "minimax"

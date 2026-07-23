@@ -792,7 +792,8 @@ public class SemanticConventions {
         MOONSHOT("moonshot"),
         CEREBRAS("cerebras"),
         PERPLEXITY("perplexity"),
-        TOGETHER("together");
+        TOGETHER("together"),
+        MINIMAX("minimax");
 
         private final String value;
 

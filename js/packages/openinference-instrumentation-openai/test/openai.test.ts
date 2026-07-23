@@ -1724,6 +1724,8 @@ describe("getProviderFromHost", () => {
     ["api.perplexity.ai", LLMProvider.PERPLEXITY],
     ["api.together.ai", LLMProvider.TOGETHER],
     ["api.together.xyz", LLMProvider.TOGETHER],
+    ["api.minimax.io", LLMProvider.MINIMAX],
+    ["api.minimaxi.com", LLMProvider.MINIMAX],
   ])("resolves %s to %s", (host, expected) => {
     expect(getProviderFromHost(host)).toBe(expected);
   });
