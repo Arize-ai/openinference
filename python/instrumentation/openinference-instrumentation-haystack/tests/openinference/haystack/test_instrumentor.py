@@ -10,15 +10,12 @@ from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.embedders.openai_document_embedder import OpenAIDocumentEmbedder
 from haystack.components.generators.chat.openai import OpenAIChatGenerator
-from haystack.components.generators.openai import OpenAIGenerator
 from haystack.components.retrievers.in_memory.bm25_retriever import InMemoryBM25Retriever
-from haystack.components.websearch.serper_dev import SerperDevWebSearch
 from haystack.core.errors import PipelineRuntimeError
-from haystack.core.pipeline.async_pipeline import AsyncPipeline
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack.document_stores.in_memory.document_store import InMemoryDocumentStore
-from haystack.tools import Tool
+from haystack.tools.tool import Tool
 from haystack_integrations.components.rankers.cohere import (
     CohereRanker,
 )
@@ -42,6 +39,51 @@ from openinference.semconv.trace import (
     RerankerAttributes,
     SpanAttributes,
     ToolCallAttributes,
+)
+
+# haystack-ai < 3.0.0 keeps async pipeline execution in a dedicated `AsyncPipeline` class;
+# 3.0.0 removed it and merged the async methods into `Pipeline`. Resolve whichever exists so the
+# async tests run on both, and derive the expected pipeline span-name prefix from it (spans are
+# named after the runtime class, e.g. `AsyncPipeline.run_async` vs `Pipeline.run_async`).
+AsyncPipeline: type[Any] = Pipeline
+_HAS_DEDICATED_ASYNC_PIPELINE = False
+try:
+    from haystack.core.pipeline.async_pipeline import AsyncPipeline as _AsyncPipeline
+
+    AsyncPipeline = _AsyncPipeline
+    _HAS_DEDICATED_ASYNC_PIPELINE = True
+except ImportError:
+    pass
+
+_ASYNC_PIPELINE_NAME = AsyncPipeline.__name__
+
+# The non-chat `OpenAIGenerator` was removed from haystack-ai in 3.0.0 (only chat generators
+# remain). Guard the import so the pinned env (haystack-ai < 3.0) still exercises these tests
+# while the latest env skips the OpenAIGenerator-specific ones.
+try:
+    from haystack.components.generators.openai import OpenAIGenerator
+
+    _HAS_OPENAI_GENERATOR = True
+except ImportError:
+    _HAS_OPENAI_GENERATOR = False
+
+skip_if_no_openai_generator = pytest.mark.skipif(
+    not _HAS_OPENAI_GENERATOR,
+    reason="haystack.components.generators.openai.OpenAIGenerator removed in haystack-ai>=3.0.0",
+)
+
+# `SerperDevWebSearch` (and the whole `haystack.components.websearch` package) was removed from
+# haystack-ai in 3.0.0. Guard it the same way so the pinned env keeps covering it.
+try:
+    from haystack.components.websearch.serper_dev import SerperDevWebSearch
+
+    _HAS_SERPERDEV_WEBSEARCH = True
+except ImportError:
+    _HAS_SERPERDEV_WEBSEARCH = False
+
+skip_if_no_serperdev_websearch = pytest.mark.skipif(
+    not _HAS_SERPERDEV_WEBSEARCH,
+    reason="haystack.components.websearch.SerperDevWebSearch removed in haystack-ai>=3.0.0",
 )
 
 
@@ -137,7 +179,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     span = spans[2]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "AsyncPipeline.run_async_generator"
+    assert span.name == f"{_ASYNC_PIPELINE_NAME}.run_async_generator"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -148,7 +190,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     span = spans[3]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "AsyncPipeline.run_async"
+    assert span.name == f"{_ASYNC_PIPELINE_NAME}.run_async"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -342,8 +384,8 @@ async def test_haystack_instrumentation_async_pipeline_filtering(
 
     assert [span.name for span in spans] == [
         "InMemoryBM25Retriever.run_async",
-        "AsyncPipeline.run_async_generator",
-        "AsyncPipeline.run_async",
+        f"{_ASYNC_PIPELINE_NAME}.run_async_generator",
+        f"{_ASYNC_PIPELINE_NAME}.run_async",
     ]
 
     assert [
@@ -481,15 +523,27 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     assert tool_call.tool_name == "get_current_weather"
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 4
-    assert [span.name for span in spans] == [
-        "OpenAIChatGenerator.run_async",
-        "AsyncPipeline.run_async_generator",
-        "AsyncPipeline.run_async",
-        "AsyncPipeline.run",
-    ]
+    if _HAS_DEDICATED_ASYNC_PIPELINE:
+        # haystack-ai < 3.0.0: AsyncPipeline.run drives the async execution internally, so the
+        # sync entrypoint also emits the async pipeline spans and the component's run_async span.
+        generator_span_name = "OpenAIChatGenerator.run_async"
+        expected_span_names = [
+            "OpenAIChatGenerator.run_async",
+            f"{_ASYNC_PIPELINE_NAME}.run_async_generator",
+            f"{_ASYNC_PIPELINE_NAME}.run_async",
+            f"{_ASYNC_PIPELINE_NAME}.run",
+        ]
+    else:
+        # haystack-ai >= 3.0.0: Pipeline.run is a purely synchronous entrypoint.
+        generator_span_name = "OpenAIChatGenerator.run"
+        expected_span_names = [
+            "OpenAIChatGenerator.run",
+            f"{_ASYNC_PIPELINE_NAME}.run",
+        ]
+    assert len(spans) == len(expected_span_names)
+    assert [span.name for span in spans] == expected_span_names
     span = spans[0]
-    assert span.name == "OpenAIChatGenerator.run_async"
+    assert span.name == generator_span_name
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -646,7 +700,7 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert len(spans) == 2
     assert [span.name for span in spans] == [
         "OpenAIChatGenerator.run_async",
-        "AsyncPipeline.run_async_generator",
+        f"{_ASYNC_PIPELINE_NAME}.run_async_generator",
     ]
     span = spans[0]
     assert span.status.is_ok
@@ -692,6 +746,7 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert not attributes
 
 
+@skip_if_no_openai_generator
 @pytest.mark.vcr
 def test_openai_generator_llm_span_has_expected_attributes(
     openai_api_key: str,
@@ -789,7 +844,11 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
 ) -> None:
-    prompt_builder = PromptBuilder(template=default_template or "")
+    # haystack-ai 3.0.0 changed PromptBuilder's `required_variables` default from `None`
+    # (all optional) to `"*"` (all required), which would reject inputs supplied only via
+    # `template_variables`. Pass an empty list to keep the template variables optional on all
+    # supported versions.
+    prompt_builder = PromptBuilder(template=default_template or "", required_variables=[])
     pipe = Pipeline()
     pipe.add_component("prompt_builder", prompt_builder)
     output = pipe.run({"prompt_builder": prompt_builder_inputs})
@@ -895,6 +954,7 @@ def test_cohere_reranker_span_has_expected_attributes(
     assert not attributes
 
 
+@skip_if_no_serperdev_websearch
 @pytest.mark.vcr
 def test_serperdev_websearch_retriever_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1019,6 +1079,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     assert not attributes
 
 
+@skip_if_no_openai_generator
 @pytest.mark.vcr
 def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     openai_api_key: str,
@@ -1041,6 +1102,7 @@ def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     assert len(spans) == 0
 
 
+@skip_if_no_openai_generator
 @pytest.mark.vcr
 def test_error_status_code_and_exception_events_with_invalid_api_key(
     openai_api_key: str,
@@ -1071,6 +1133,7 @@ def test_error_status_code_and_exception_events_with_invalid_api_key(
         assert "api key" in exception_message.lower()
 
 
+@skip_if_no_openai_generator
 @pytest.mark.vcr
 def test_pipeline_and_component_spans_contain_context_attributes(
     openai_api_key: str,
@@ -1155,7 +1218,15 @@ async def test_agent_run_component_spans(
         " more specific information about them?"
     )
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 4
+    # haystack-ai < 3.0.0 invokes tools through a `ToolInvoker` component (emitting its own span);
+    # 3.0.0 refactored the Agent to call tools via internal helper functions (`_run_tool`), so no
+    # `ToolInvoker` span is produced and the remaining spans shift down by one.
+    if _HAS_DEDICATED_ASYNC_PIPELINE:
+        assert len(spans) == 4
+        second_llm_index, agent_index = 2, 3
+    else:
+        assert len(spans) == 3
+        second_llm_index, agent_index = 1, 2
     openai_span = spans[0]
     assert openai_span.name == f"OpenAIChatGenerator.{run_method}"
     assert openai_span.status.is_ok
@@ -1188,17 +1259,18 @@ async def test_agent_run_component_spans(
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
     assert not attributes
-    tool_invoker_span = spans[1]
-    assert tool_invoker_span.name == f"ToolInvoker.{run_method}"
-    assert tool_invoker_span.status.is_ok
-    attributes = dict(tool_invoker_span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "CHAIN"
-    assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    assert isinstance(attributes.pop(INPUT_VALUE), str)
-    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert not attributes
-    openai_span = spans[2]
+    if _HAS_DEDICATED_ASYNC_PIPELINE:
+        tool_invoker_span = spans[1]
+        assert tool_invoker_span.name == f"ToolInvoker.{run_method}"
+        assert tool_invoker_span.status.is_ok
+        attributes = dict(tool_invoker_span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "CHAIN"
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(INPUT_VALUE), str)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert not attributes
+    openai_span = spans[second_llm_index]
     assert openai_span.name == f"OpenAIChatGenerator.{run_method}"
     assert openai_span.status.is_ok
     attributes = dict(openai_span.attributes or {})
@@ -1226,7 +1298,7 @@ async def test_agent_run_component_spans(
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
     assert not attributes
-    agent_run_span = spans[3]  # root span
+    agent_run_span = spans[agent_index]  # root span
     assert agent_run_span.name == f"Agent.{run_method}"
     assert agent_run_span.status.is_ok
     attributes = dict(agent_run_span.attributes or {})
