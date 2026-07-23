@@ -9,33 +9,36 @@ attribute records only the destination URI. This mirrors the OTel GenAI
 semantic conventions message model, where inline base64 is a ``blob`` part
 and an external reference is a ``uri`` part.
 
-The upload never blocks the instrumented call path: the destination URI is
-computed synchronously (content-addressed by SHA-256 of the decoded bytes)
-and the write happens on a background worker thread.
+OpenInference ships only the interface and the offload policy — no
+transport. Implementations are provided by applications, vendor SDKs, or a
+future upstream (OTel util-genai) byte uploader, either programmatically
+(``TraceConfig(blob_uploader=...)``) or via the ``openinference_blob_uploader``
+entry-point group selected with the ``OPENINFERENCE_BLOB_UPLOADER``
+environment variable.
+
+Implementations must never block the instrumented call path: return the
+destination URI immediately (content-addressed naming makes it computable
+before any I/O) and move the bytes on a background worker.
 """
 
-import atexit
 import base64
 import hashlib
+import inspect
 import re
-import threading
-import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
-from queue import Empty, Full, Queue
-from typing import Optional, Protocol, Set, Tuple, runtime_checkable
-from urllib.parse import urlparse
+from importlib.metadata import entry_points
+from typing import Optional, Protocol, Tuple, runtime_checkable
 
 from .logging import logger
 
 __all__ = (
     "Blob",
     "BlobUploader",
-    "FsspecBlobUploader",
+    "load_blob_uploader",
     "parse_base64_data_uri",
 )
 
-DEFAULT_BLOB_UPLOAD_MAX_QUEUE_SIZE = 20
+BLOB_UPLOADER_ENTRY_POINT_GROUP = "openinference_blob_uploader"
 
 _DATA_URI_PATTERN = re.compile(r"^data:(?P<mime>[^;,]+);base64,(?P<content>.+)$", re.DOTALL)
 
@@ -43,26 +46,6 @@ _MODALITY_BY_MIME_PREFIX = {
     "image/": "image",
     "audio/": "audio",
     "video/": "video",
-}
-
-_EXTENSION_BY_MIME = {
-    "application/json": ".json",
-    "application/pdf": ".pdf",
-    "audio/aac": ".aac",
-    "audio/flac": ".flac",
-    "audio/mp3": ".mp3",
-    "audio/mpeg": ".mp3",
-    "audio/ogg": ".ogg",
-    "audio/wav": ".wav",
-    "audio/webm": ".webm",
-    "audio/x-wav": ".wav",
-    "image/gif": ".gif",
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "text/plain": ".txt",
-    "video/mp4": ".mp4",
-    "video/webm": ".webm",
 }
 
 
@@ -84,14 +67,6 @@ def _modality_from_mime_type(mime_type: str) -> str:
         if mime_type.startswith(prefix):
             return modality
     return "document"
-
-
-def _extension_from_mime_type(mime_type: str) -> str:
-    if extension := _EXTENSION_BY_MIME.get(mime_type.lower()):
-        return extension
-    import mimetypes
-
-    return mimetypes.guess_extension(mime_type) or ".bin"
 
 
 @dataclass(frozen=True)
@@ -139,160 +114,41 @@ class BlobUploader(Protocol):
         ...
 
 
-class FsspecBlobUploader:
+def load_blob_uploader(name: str) -> Optional[BlobUploader]:
     """
-    A ``BlobUploader`` that writes blobs to any fsspec-supported filesystem
-    (``s3://``, ``gs://``, ``file://``, plain local paths, ...) from a
-    single background worker thread.
-
-    Destination URIs are content-addressed:
-    ``{base_path}/{sha256(data)}{extension}``, so identical content
-    deduplicates and the URI is known before the write completes.
-
-    Remote schemes require ``fsspec`` (and the matching filesystem
-    implementation, e.g. ``s3fs``); local paths work without fsspec.
+    Loads a ``BlobUploader`` registered under the
+    ``openinference_blob_uploader`` entry-point group (mirroring OTel
+    util-genai's ``opentelemetry_genai_completion_hook`` mechanics). The
+    entry point may resolve to an uploader instance or to a zero-argument
+    callable (e.g. a class) producing one. Returns None — and logs — when
+    the name is unknown or the loaded object does not satisfy the protocol.
     """
-
-    def __init__(
-        self,
-        base_path: str,
-        *,
-        max_queue_size: int = DEFAULT_BLOB_UPLOAD_MAX_QUEUE_SIZE,
-    ) -> None:
-        self._base_path = base_path.rstrip("/")
-        # Queue(maxsize=0) would mean unbounded; the queue must stay bounded
-        # so a slow destination can never buffer unbounded memory.
-        self._queue: "Queue[Optional[Tuple[str, Blob]]]" = Queue(maxsize=max(1, max_queue_size))
-        self._seen_destinations: Set[str] = set()
-        self._state_lock = threading.Lock()
-        self._filesystem, self._filesystem_root = self._open_filesystem(self._base_path)
-        self._probe_destination()
-        self._worker = threading.Thread(
-            target=self._work,
-            name="openinference-blob-uploader",
-            daemon=True,
-        )
-        self._stopped = False
-        self._worker.start()
-        # Flush pending writes at interpreter exit so late-turn blobs are not
-        # lost when the app never calls shutdown() explicitly.
-        atexit.register(self.shutdown)
-
-    def _probe_destination(self) -> None:
-        """Write-probe the destination so misconfiguration (bad credentials,
-        missing bucket, read-only path) fails fast and loud at construction
-        instead of silently dropping blobs at runtime."""
-        probe_path = f"{self._filesystem_root}/.openinference-blob-upload-probe-{uuid.uuid4().hex}"
-        try:
-            self._write(probe_path, b"")
-        except Exception as exception:
-            raise ValueError(
-                f"Blob upload destination {self._base_path!r} is not writable: {exception}"
-            ) from exception
-        try:  # best-effort cleanup; the probe object is empty and harmless
-            if self._filesystem is not None:
-                self._filesystem.rm_file(probe_path)  # type: ignore[attr-defined]
-            else:
-                Path(probe_path).unlink()
-        except Exception:
-            pass
-
-    @staticmethod
-    def _open_filesystem(base_path: str) -> Tuple[Optional[object], str]:
-        scheme = urlparse(base_path).scheme
-        try:
-            import fsspec  # type: ignore[import-untyped,import-not-found,unused-ignore]
-
-            filesystem, root = fsspec.url_to_fs(base_path)
-            return filesystem, str(root).rstrip("/")
-        except ImportError:
-            # Local destinations work without fsspec; remote schemes do not.
-            if scheme in ("", "file"):
-                root = base_path[len("file://") :] if scheme == "file" else base_path
-                return None, root.rstrip("/")
-            raise ImportError(
-                f"fsspec is required to upload blobs to '{base_path}'. "
-                "Install it with: pip install openinference-instrumentation[blob-upload]"
-            ) from None
-
-    def upload(self, blob: Blob) -> Optional[str]:
-        uri = self._destination_uri(blob)
-        path = self._destination_path(blob)
-        with self._state_lock:
-            if self._stopped:
-                return None
-            if path in self._seen_destinations:
-                return uri
-            try:
-                self._queue.put_nowait((path, blob))
-            except Full:
-                logger.warning(
-                    "Blob upload queue is full; falling back to redaction for "
-                    f"attribute {blob.attribute_key!r}."
-                )
-                return None
-            self._seen_destinations.add(path)
-        return uri
-
-    def shutdown(self, timeout_sec: float = 10.0) -> None:
-        with self._state_lock:
-            if not self._stopped:
-                self._stopped = True
-                try:
-                    self._queue.put_nowait(None)
-                except Full:
-                    pass
-        self._worker.join(timeout=timeout_sec)
-
-    def _destination_name(self, blob: Blob) -> str:
-        return f"{blob.content_sha256}{_extension_from_mime_type(blob.mime_type)}"
-
-    def _destination_uri(self, blob: Blob) -> str:
-        return f"{self._base_path}/{self._destination_name(blob)}"
-
-    def _destination_path(self, blob: Blob) -> str:
-        return f"{self._filesystem_root}/{self._destination_name(blob)}"
-
-    def _work(self) -> None:
-        while True:
-            try:
-                item = self._queue.get(timeout=0.2)
-            except Empty:
-                if self._stopped:
-                    return
+    try:
+        for entry_point in entry_points(group=BLOB_UPLOADER_ENTRY_POINT_GROUP):
+            if entry_point.name != name:
                 continue
-            if item is None:
-                return
-            path, blob = item
-            try:
-                try:
-                    self._write(path, blob.data)
-                except Exception:  # retry once — transient network blips are common
-                    self._write(path, blob.data)
-            except Exception:
-                logger.exception(f"Failed to upload blob to {path!r}.")
-                # Let a later observation retry this destination. Without this,
-                # a transient failure permanently deduplicates to a missing URI.
-                with self._state_lock:
-                    self._seen_destinations.discard(path)
-            finally:
-                self._queue.task_done()
-
-    def _write(self, path: str, data: bytes) -> None:
-        if self._filesystem is not None:
-            parent, _, _ = path.rpartition("/")
-            if parent:
-                try:
-                    self._filesystem.makedirs(parent, exist_ok=True)  # type: ignore[attr-defined]
-                except Exception:
-                    # Object stores (s3, gs) have no real directories; the
-                    # write itself is the authoritative operation.
-                    pass
-            self._filesystem.pipe_file(path, data)  # type: ignore[attr-defined]
-        else:
-            destination = Path(path)
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(data)
+            loaded = entry_point.load()
+            # runtime_checkable protocols match class objects too (the class
+            # itself has the methods as attributes), so check for classes and
+            # factories explicitly before the protocol check.
+            if inspect.isclass(loaded) or (
+                callable(loaded) and not isinstance(loaded, BlobUploader)
+            ):
+                loaded = loaded()
+            if isinstance(loaded, BlobUploader) and not inspect.isclass(loaded):
+                return loaded
+            logger.warning(
+                f"Entry point '{name}' in group '{BLOB_UPLOADER_ENTRY_POINT_GROUP}' "
+                "did not produce a BlobUploader; ignoring it."
+            )
+            return None
+        logger.warning(
+            f"No blob uploader entry point named '{name}' found in group "
+            f"'{BLOB_UPLOADER_ENTRY_POINT_GROUP}'. Oversized media will be redacted."
+        )
+    except Exception:
+        logger.exception(f"Failed to load blob uploader '{name}'.")
+    return None
 
 
 def decode_base64_data_uri_to_blob(url: str, attribute_key: Optional[str] = None) -> Optional[Blob]:

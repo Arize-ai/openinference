@@ -1,13 +1,18 @@
 import base64
-from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import pytest
 
-from openinference.instrumentation import Blob, BlobUploader, FsspecBlobUploader, TraceConfig
+from openinference.instrumentation import (
+    Blob,
+    BlobUploader,
+    TraceConfig,
+    _blob_upload,
+    load_blob_uploader,
+)
 from openinference.instrumentation.config import (
     OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH,
-    OPENINFERENCE_BLOB_UPLOAD_BASE_PATH,
+    OPENINFERENCE_BLOB_UPLOADER,
     REDACTED_VALUE,
 )
 from openinference.semconv.trace import (
@@ -45,6 +50,27 @@ INPUT_IMAGE_URL_KEY = (
 )
 
 
+class InMemoryUploader:
+    """A minimal BlobUploader implementation for tests — OpenInference ships
+    no implementation of its own."""
+
+    def __init__(self) -> None:
+        self.store: Dict[str, bytes] = {}
+        self.blobs: List[Blob] = []
+        self.accepting = True
+
+    def upload(self, blob: Blob) -> Optional[str]:
+        if not self.accepting:
+            return None
+        uri = f"memory://{blob.content_sha256}"
+        self.store[uri] = blob.data
+        self.blobs.append(blob)
+        return uri
+
+    def shutdown(self, timeout_sec: float = 10.0) -> None:
+        self.accepting = False
+
+
 def test_blob_derives_modality_and_digest() -> None:
     audio_blob = Blob(data=WAV_BYTES, mime_type="audio/wav")
     assert audio_blob.modality == "audio"
@@ -54,84 +80,42 @@ def test_blob_derives_modality_and_digest() -> None:
     assert Blob(data=b"", mime_type="video/mp4").modality == "video"
 
 
-def test_fsspec_uploader_writes_content_addressed_file(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
-    blob = Blob(data=WAV_BYTES, mime_type="audio/wav")
-    uri = uploader.upload(blob)
-    assert uri == f"{tmp_path}/{blob.content_sha256}.wav"
-    # Re-uploading identical content returns the same URI without re-enqueueing.
-    assert uploader.upload(Blob(data=WAV_BYTES, mime_type="audio/wav")) == uri
-    uploader.shutdown()
-    assert Path(uri).read_bytes() == WAV_BYTES
+def test_in_memory_uploader_satisfies_protocol() -> None:
+    assert isinstance(InMemoryUploader(), BlobUploader)
 
 
-def test_fsspec_uploader_deduplicates_by_destination_path(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
-    wav_uri = uploader.upload(Blob(data=WAV_BYTES, mime_type="audio/wav"))
-    binary_uri = uploader.upload(Blob(data=WAV_BYTES, mime_type="application/octet-stream"))
-    uploader.shutdown()
-
-    assert wav_uri is not None and Path(wav_uri).read_bytes() == WAV_BYTES
-    assert binary_uri is not None and Path(binary_uri).read_bytes() == WAV_BYTES
-    assert wav_uri != binary_uri
-
-
-def test_fsspec_uploader_creates_missing_directories(tmp_path: Path) -> None:
-    # The destination directory may not exist yet (e.g. a fresh base path).
-    uploader = FsspecBlobUploader(base_path=str(tmp_path / "nested" / "media"))
-    uri = uploader.upload(Blob(data=WAV_BYTES, mime_type="audio/wav"))
-    assert uri is not None
-    uploader.shutdown()
-    assert Path(uri).read_bytes() == WAV_BYTES
-
-
-def test_fsspec_uploader_rejects_after_shutdown(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
-    uploader.shutdown()
-    assert uploader.upload(Blob(data=WAV_BYTES, mime_type="audio/wav")) is None
-
-
-def test_uploader_satisfies_protocol(tmp_path: Path) -> None:
-    assert isinstance(FsspecBlobUploader(base_path=str(tmp_path)), BlobUploader)
-
-
-def test_mask_uploads_oversized_input_audio(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
+@pytest.mark.parametrize(
+    "key,data_uri,payload",
+    [
+        (INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI, WAV_BYTES),
+        (OUTPUT_AUDIO_URL_KEY, AUDIO_DATA_URI, WAV_BYTES),
+        (INPUT_FILE_URL_KEY, PDF_DATA_URI, PDF_BYTES),
+    ],
+)
+def test_mask_uploads_oversized_media(key: str, data_uri: str, payload: bytes) -> None:
+    uploader = InMemoryUploader()
     config = TraceConfig(blob_uploader=uploader, base64_media_max_length=100)
-    masked = config.mask(INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI)
-    assert isinstance(masked, str)
-    assert masked.startswith(str(tmp_path))
-    assert masked.endswith(".wav")
-    uploader.shutdown()
-    assert Path(masked).read_bytes() == WAV_BYTES
+    masked = config.mask(key, data_uri)
+    assert isinstance(masked, str) and masked.startswith("memory://")
+    assert uploader.store[masked] == payload
 
 
-def test_mask_uploads_oversized_output_audio(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
-    config = TraceConfig(blob_uploader=uploader, base64_media_max_length=100)
-    masked = config.mask(OUTPUT_AUDIO_URL_KEY, AUDIO_DATA_URI)
-    assert isinstance(masked, str) and masked.endswith(".wav")
-    uploader.shutdown()
-
-
-def test_mask_uploads_oversized_input_file(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
-    config = TraceConfig(blob_uploader=uploader, base64_media_max_length=100)
-    masked = config.mask(INPUT_FILE_URL_KEY, PDF_DATA_URI)
-    assert isinstance(masked, str)
-    assert masked.endswith(".pdf")
-    uploader.shutdown()
-    assert Path(masked).read_bytes() == PDF_BYTES
-
-
-def test_mask_uploads_oversized_input_image(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
+def test_mask_uploads_oversized_input_image() -> None:
+    uploader = InMemoryUploader()
     config = TraceConfig(blob_uploader=uploader, base64_image_max_length=100)
     masked = config.mask(INPUT_IMAGE_URL_KEY, PNG_DATA_URI)
-    assert isinstance(masked, str)
-    assert masked.endswith(".png")
-    uploader.shutdown()
-    assert Path(masked).read_bytes() == PNG_BYTES
+    assert isinstance(masked, str) and masked.startswith("memory://")
+    assert uploader.store[masked] == PNG_BYTES
+
+
+def test_mask_passes_blob_context_to_uploader() -> None:
+    uploader = InMemoryUploader()
+    config = TraceConfig(blob_uploader=uploader, base64_media_max_length=100)
+    config.mask(INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI)
+    assert len(uploader.blobs) == 1
+    assert uploader.blobs[0].mime_type == "audio/wav"
+    assert uploader.blobs[0].modality == "audio"
+    assert uploader.blobs[0].attribute_key == INPUT_AUDIO_URL_KEY
 
 
 def test_mask_redacts_oversized_audio_without_uploader() -> None:
@@ -139,8 +123,8 @@ def test_mask_redacts_oversized_audio_without_uploader() -> None:
     assert config.mask(INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI) == REDACTED_VALUE
 
 
-def test_mask_redacts_when_uploader_rejects(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
+def test_mask_redacts_when_uploader_rejects() -> None:
+    uploader = InMemoryUploader()
     uploader.shutdown()  # upload() now returns None
     config = TraceConfig(blob_uploader=uploader, base64_media_max_length=100)
     assert config.mask(INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI) == REDACTED_VALUE
@@ -170,95 +154,25 @@ def test_hide_settings_drop_media(param: str, key: str) -> None:
     assert config.mask(key, AUDIO_DATA_URI) is None
 
 
-def test_hide_takes_precedence_over_upload(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
+def test_hide_takes_precedence_over_upload() -> None:
+    uploader = InMemoryUploader()
     config = TraceConfig(
         blob_uploader=uploader,
         hide_input_audio=True,
         base64_media_max_length=100,
     )
     assert config.mask(INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI) is None
-    uploader.shutdown()
     # Hidden content must never reach storage.
-    assert not list(tmp_path.iterdir())
+    assert not uploader.store
 
 
-def test_blob_uploader_from_env_var(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(OPENINFERENCE_BLOB_UPLOAD_BASE_PATH, str(tmp_path))
-    monkeypatch.setenv(OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH, "100")
-    config = TraceConfig()
-    assert config.blob_uploader is not None
-    masked = config.mask(INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI)
-    assert isinstance(masked, str)
-    assert masked.startswith(str(tmp_path))
-    config.blob_uploader.shutdown()
-
-
-def test_custom_uploader_implementation() -> None:
-    class StaticUploader:
-        def __init__(self) -> None:
-            self.blobs: "list[Blob]" = []
-
-        def upload(self, blob: Blob) -> Optional[str]:
-            self.blobs.append(blob)
-            return f"memory://{blob.content_sha256}"
-
-        def shutdown(self, timeout_sec: float = 10.0) -> None:
-            pass
-
-    uploader = StaticUploader()
-    config = TraceConfig(blob_uploader=uploader, base64_media_max_length=100)
-    masked = config.mask(INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI)
-    assert isinstance(masked, str) and masked.startswith("memory://")
-    assert len(uploader.blobs) == 1
-    assert uploader.blobs[0].mime_type == "audio/wav"
-    assert uploader.blobs[0].modality == "audio"
-    assert uploader.blobs[0].attribute_key == INPUT_AUDIO_URL_KEY
-
-
-def test_probe_fails_fast_for_unwritable_destination(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # The startup write probe surfaces misconfiguration (bad credentials,
-    # read-only path) at construction instead of dropping blobs at runtime.
-    def unwritable(self: FsspecBlobUploader, path: str, data: bytes) -> None:
-        raise OSError("read-only destination")
-
-    monkeypatch.setattr(FsspecBlobUploader, "_write", unwritable)
-    with pytest.raises(ValueError, match="not writable"):
-        FsspecBlobUploader(base_path=str(tmp_path))
-
-
-def test_worker_retries_write_once(tmp_path: Path) -> None:
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
-    original_write = uploader._write
-    calls = {"count": 0}
-
-    def flaky_write(path: str, data: bytes) -> None:
-        calls["count"] += 1
-        if calls["count"] == 1:
-            raise OSError("transient network blip")
-        original_write(path, data)
-
-    uploader._write = flaky_write  # type: ignore[method-assign]
-    uri = uploader.upload(Blob(data=WAV_BYTES, mime_type="audio/wav"))
-    assert uri is not None
-    uploader.shutdown()
-    assert calls["count"] == 2
-    assert Path(uri).read_bytes() == WAV_BYTES
-
-
-def test_non_recording_span_skips_upload(tmp_path: Path) -> None:
+def test_non_recording_span_skips_upload() -> None:
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.sampling import ALWAYS_OFF
 
     from openinference.instrumentation import OITracer
 
-    uploader = FsspecBlobUploader(base_path=str(tmp_path))
+    uploader = InMemoryUploader()
     config = TraceConfig(blob_uploader=uploader, base64_media_max_length=100)
     tracer = OITracer(
         TracerProvider(sampler=ALWAYS_OFF).get_tracer(__name__),
@@ -267,6 +181,69 @@ def test_non_recording_span_skips_upload(tmp_path: Path) -> None:
     span = tracer.start_span("llm")
     span.set_attribute(INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI)
     span.end()
-    uploader.shutdown()
     # No blob was uploaded for the sampled-out span.
-    assert not [p for p in tmp_path.iterdir() if not p.name.startswith(".")]
+    assert not uploader.store
+
+
+class _FakeEntryPoint:
+    def __init__(self, name: str, target: Any) -> None:
+        self.name = name
+        self._target = target
+
+    def load(self) -> Any:
+        return self._target
+
+
+def _patch_entry_points(
+    monkeypatch: pytest.MonkeyPatch, entry_points_list: List[_FakeEntryPoint]
+) -> None:
+    def fake_entry_points(*, group: str) -> List[_FakeEntryPoint]:
+        assert group == _blob_upload.BLOB_UPLOADER_ENTRY_POINT_GROUP
+        return entry_points_list
+
+    monkeypatch.setattr(_blob_upload, "entry_points", fake_entry_points)
+
+
+def test_load_blob_uploader_from_instance_entry_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uploader = InMemoryUploader()
+    _patch_entry_points(monkeypatch, [_FakeEntryPoint("mem", uploader)])
+    assert load_blob_uploader("mem") is uploader
+
+
+def test_load_blob_uploader_instantiates_class_entry_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_entry_points(monkeypatch, [_FakeEntryPoint("mem", InMemoryUploader)])
+    loaded = load_blob_uploader("mem")
+    assert isinstance(loaded, InMemoryUploader)
+
+
+def test_load_blob_uploader_unknown_name_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_entry_points(monkeypatch, [_FakeEntryPoint("mem", InMemoryUploader)])
+    assert load_blob_uploader("nope") is None
+
+
+def test_load_blob_uploader_rejects_non_uploader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_entry_points(monkeypatch, [_FakeEntryPoint("bad", object())])
+    assert load_blob_uploader("bad") is None
+
+
+def test_blob_uploader_from_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_entry_points(monkeypatch, [_FakeEntryPoint("mem", InMemoryUploader)])
+    monkeypatch.setenv(OPENINFERENCE_BLOB_UPLOADER, "mem")
+    monkeypatch.setenv(OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH, "100")
+    config = TraceConfig()
+    assert isinstance(config.blob_uploader, InMemoryUploader)
+    masked = config.mask(INPUT_AUDIO_URL_KEY, AUDIO_DATA_URI)
+    assert isinstance(masked, str) and masked.startswith("memory://")
+
+
+def test_blob_uploader_env_var_unset_leaves_none() -> None:
+    config = TraceConfig()
+    assert config.blob_uploader is None

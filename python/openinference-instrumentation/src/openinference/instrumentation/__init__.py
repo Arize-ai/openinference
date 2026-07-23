@@ -26,7 +26,7 @@ from ._attributes import (
 from ._blob_upload import (
     Blob,
     BlobUploader,
-    FsspecBlobUploader,
+    load_blob_uploader,
 )
 from ._capture import capture_span_context
 from ._projects import dangerously_using_project
@@ -85,7 +85,7 @@ __all__ = [
     "REDACTED_VALUE",
     "Blob",
     "BlobUploader",
-    "FsspecBlobUploader",
+    "load_blob_uploader",
     "TracerProvider",
     "get_context_attributes",
     "get_embedding_attributes",

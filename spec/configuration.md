@@ -27,8 +27,7 @@ The possible settings are:
 | OPENINFERENCE_HIDE_EMBEDDINGS_TEXT           | Replaces embedding.embeddings.*.embedding.text values with `"__REDACTED__"`                                                    | bool | False   |
 | OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
 | OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH        | Limits characters of a base64 data URI carrying non-image media (audio, files/documents, video)                                | int  | 32,000  |
-| OPENINFERENCE_BLOB_UPLOAD_BASE_PATH          | Experimental: when set, base64 media larger than the max-length limits is uploaded to this location (an fsspec-style URI such as `s3://bucket/prefix`, `gs://bucket/prefix`, or a local path) and the span attribute is replaced with the destination URI instead of being redacted | str  | unset   |
-| OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE     | Experimental: maximum number of pending blob uploads; when the queue is full, oversized media falls back to redaction          | int  | 20      |
+| OPENINFERENCE_BLOB_UPLOADER                  | Experimental: names a `BlobUploader` registered under the `openinference_blob_uploader` entry-point group; base64 media larger than the max-length limits is handed to it and the span attribute records the returned URI instead of being redacted | str  | unset   |
 
 ## Redacted Content
 
@@ -38,17 +37,21 @@ When content is hidden due to privacy configuration settings, the value `"__REDA
 
 Large binary content (audio, PDF documents, images) captured as base64 data URIs can exceed span attribute and OTLP payload limits. Instead of redacting oversized media, an instrumentation MAY upload the decoded bytes to external storage at capture time and record only a reference URI in the span attribute. See [Multimodal Attributes](./multimodal_attributes.md#external-storage-for-large-media) for the attribute-level semantics and the design rationale.
 
-In Python this is configured either with `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH` or in code with a `BlobUploader` implementation:
+OpenInference defines the interface and the offload policy but ships no uploader implementation — implementations come from applications, vendor SDKs (e.g. the Arize SDK), or a future upstream (OTel util-genai) byte uploader. In Python an uploader is supplied either in code, or zero-code via an entry point:
 
 ```python
-from openinference.instrumentation import TraceConfig, FsspecBlobUploader
+from openinference.instrumentation import TraceConfig
 
-config = TraceConfig(
-    blob_uploader=FsspecBlobUploader(base_path="s3://my-bucket/oi-media"),
-)
+config = TraceConfig(blob_uploader=my_uploader)  # any object satisfying BlobUploader
 ```
 
-The upload never blocks the instrumented call: the destination URI is computed synchronously (content-addressed by SHA-256), the attribute is set to that URI, and the bytes are written by a background worker. If the upload queue is full, the value falls back to the standard redaction behavior.
+```bash
+# the package providing the uploader registers it under the
+# "openinference_blob_uploader" entry-point group, e.g. as "arize"
+export OPENINFERENCE_BLOB_UPLOADER=arize
+```
+
+Implementations MUST NOT block the instrumented call: return the destination URI immediately (content-addressed naming, e.g. SHA-256 of the bytes, makes it computable before any I/O) and move the bytes on a background worker. Returning `None` (backpressure, shutdown, policy) makes the caller fall back to the standard redaction behavior.
 
 ## Usage
 

@@ -29,9 +29,9 @@ from openinference.semconv.trace import (
 )
 
 from ._blob_upload import (
-    DEFAULT_BLOB_UPLOAD_MAX_QUEUE_SIZE,
     BlobUploader,
     decode_base64_data_uri_to_blob,
+    load_blob_uploader,
 )
 from .logging import logger
 
@@ -104,11 +104,10 @@ OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"
 # Limits characters of a base64 encoding of an image
 OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH = "OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH"
 # Limits characters of a base64 data URI carrying non-image media (audio, files, video)
-OPENINFERENCE_BLOB_UPLOAD_BASE_PATH = "OPENINFERENCE_BLOB_UPLOAD_BASE_PATH"
-# Experimental: when set, base64 media exceeding the max-length limits is uploaded
-# to this location (an fsspec-style URI) and the attribute records the destination URI
-OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE = "OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE"
-# Experimental: maximum number of pending blob uploads before falling back to redaction
+OPENINFERENCE_BLOB_UPLOADER = "OPENINFERENCE_BLOB_UPLOADER"
+# Experimental: names a BlobUploader registered under the
+# "openinference_blob_uploader" entry-point group; base64 media exceeding the
+# max-length limits is handed to it and the attribute records the returned URI
 OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
 # Hides LLM prompts (completions API)
 OPENINFERENCE_HIDE_CHOICES = "OPENINFERENCE_HIDE_CHOICES"
@@ -322,8 +321,11 @@ class TraceConfig:
     )
     """Experimental: uploads base64 media exceeding the max-length limits to
     external storage and records the destination URI in the span attribute
-    instead of redacting. When not set in code, the uploader is constructed
-    from the OPENINFERENCE_BLOB_UPLOAD_BASE_PATH environment variable."""
+    instead of redacting. OpenInference ships no implementation — pass any
+    object satisfying the BlobUploader protocol, or set the
+    OPENINFERENCE_BLOB_UPLOADER environment variable to the name of an
+    uploader registered under the "openinference_blob_uploader" entry-point
+    group."""
 
     def __post_init__(self) -> None:
         for f in fields(self):
@@ -342,32 +344,11 @@ class TraceConfig:
             self._init_blob_uploader_from_env()
 
     def _init_blob_uploader_from_env(self) -> None:
-        base_path = os.getenv(OPENINFERENCE_BLOB_UPLOAD_BASE_PATH)
-        if not base_path:
+        name = os.getenv(OPENINFERENCE_BLOB_UPLOADER)
+        if not name:
             return
-        max_queue_size = DEFAULT_BLOB_UPLOAD_MAX_QUEUE_SIZE
-        if raw_max_queue_size := os.getenv(OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE):
-            try:
-                max_queue_size = int(raw_max_queue_size)
-            except ValueError:
-                logger.warning(
-                    f"Could not parse '{raw_max_queue_size}' to int for the environment "
-                    f"variable '{OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE}'. "
-                    f"Using default value instead: {max_queue_size}."
-                )
-        try:
-            from ._blob_upload import FsspecBlobUploader
-
-            object.__setattr__(
-                self,
-                "blob_uploader",
-                FsspecBlobUploader(base_path=base_path, max_queue_size=max_queue_size),
-            )
-        except Exception:
-            logger.exception(
-                f"Failed to initialize blob uploader for base path '{base_path}'. "
-                "Oversized base64 media will be redacted instead."
-            )
+        if (uploader := load_blob_uploader(name)) is not None:
+            object.__setattr__(self, "blob_uploader", uploader)
 
     def mask(
         self,
