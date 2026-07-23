@@ -1,5 +1,6 @@
 import type {
   InvokeAgentCommand,
+  InvokeInlineAgentCommand,
   RetrieveAndGenerateCommand,
   RetrieveAndGenerateStreamCommand,
   RetrieveCommand,
@@ -95,6 +96,28 @@ export const safelyExtractBaseRequestAttributes = withSafety({
   onError: (err) => {
     diag.warn(
       `Openinference warning, unable to extract base request attributes, some spans may be missing or incomplete. Error: ${err instanceof Error ? err.message : err}`,
+    );
+  },
+});
+
+function extractInlineAgentBaseRequestAttributes(command: InvokeInlineAgentCommand): Attributes {
+  const attributes: Attributes = {
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+    [SemanticConventions.LLM_SYSTEM]: "bedrock",
+    [SemanticConventions.INPUT_MIME_TYPE]: MimeType.TEXT,
+    [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
+  };
+
+  const { inputText: _inputText, ...invocationParams } = command.input;
+  attributes[SemanticConventions.INPUT_VALUE] = command.input?.inputText || "";
+  return { ...attributes, ...getLLMInvocationParameterAttributes(invocationParams) };
+}
+
+export const safelyExtractBaseInlineAgentRequestAttributes = withSafety({
+  fn: extractInlineAgentBaseRequestAttributes,
+  onError: (err) => {
+    diag.warn(
+      `Openinference warning, unable to extract inline agent request attributes, some spans may be missing or incomplete. Error: ${err instanceof Error ? err.message : err}`,
     );
   },
 });
