@@ -38,13 +38,10 @@ direct capture-time API for instrumentors that hold raw bytes):
 > **upload** (attribute = storage URI) → **`__REDACTED__`** (uniform fallback —
 > no uploader, rejection, and failure all degrade to today's redaction, never block).
 
-Upload granularity: **one `Blob` per media content part**, whatever its mime type —
-the single configured uploader receives every part and can route or refuse per part;
-there is no per-mime-type registry (§2.1).
-
 Semconv additions: `MESSAGE_CONTENT_AUDIO`, `MESSAGE_CONTENT_FILE`, a `"file"`
 content type, `FileAttributes` (`file.url` / `file.mime_type` / `file.name` /
-`file.id`), and gen_ai modality `"document"`.
+`file.id`), and gen_ai modality `"document"`. Upload granularity is **one `Blob` per
+media content part** — contract details in §2.1.
 
 ### What the span looks like
 
@@ -74,6 +71,16 @@ input.audio.transcript = "What's the weather like in Paris right now?"
 
 With `enable_genai_semconv=True` the dual-write emits a spec-shaped part with no
 extra work: `{"type": "uri", "modality": "audio", "mime_type": "audio/wav", "uri": "s3://…"}`.
+
+### Likely objections, answered up front
+
+| Objection | Short answer | Details |
+|---|---|---|
+| "So every instrumentor needs changes?" | No. Any `OITracer` instrumentor gets offload for media it already captures with **zero diff** (proven against released packages). Only raw-bytes capture sites (realtime PCM) and the `input.value` copy need instrumentor-side calls. | §2.2–2.3 |
+| "Uploading user content is a privacy risk." | Hide flags run **before** the upload gate — hidden bytes never leave the process. This deliberately diverges from gen_ai's "hook runs independently of capture flags". | §2.4 |
+| "What happens when storage is down / slow / misconfigured?" | Fail fast at construction; queue-full / shutdown / failure all degrade to today's `__REDACTED__`, synchronously, without ever blocking the app. The one residual is a bounded dangling-URI window. | §2.5 |
+| "Why not adopt OTel's `UploadCompletionHook`?" | It offloads the *whole* messages JSON under unregistered `*_ref` names, making text unqueryable. We keep parts inline and reuse its good ideas (fsspec, parallel env-var names); an adapter over it is trivial via the protocol. | §3.1, §3.3 |
+| "Does Phoenix break? Who renders the URIs?" | URIs are ordinary string attributes — ingestion is unchanged and already renders URL-valued image attributes. Players/signing are consumer follow-ons. | §2.7 |
 
 ### Open questions (details in §7)
 
@@ -172,9 +179,8 @@ Contract for `upload`:
   websocket event path.
 - **`None` means "not uploaded — redact".** On backpressure (bounded queue full),
   after shutdown, or by uploader policy, the caller records `__REDACTED__` — the same
-  value oversized content gets with no uploader at all. One uniform invariant: *no
-  uploader, upload rejection, and upload failure all degrade to redaction and never
-  block the instrumented call.*
+  value oversized content gets with no uploader at all (the uniform fallback in the
+  TL;DR policy line).
 - **Errors never propagate.** Worker-side failures are logged (rate-limited); the app
   is unaffected. Implementations SHOULD fail fast at construction when the destination
   is unusable (missing fsspec driver → `ImportError`; a startup write probe is
@@ -216,6 +222,26 @@ Configuration, in precedence order:
 | entry point | group `openinference_blob_uploader`, selected by `OPENINFERENCE_BLOB_UPLOADER=<name>` (mirrors `opentelemetry_genai_completion_hook` mechanics) |
 | built-in default impl | `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH=<fsspec URI>` constructs the packaged `FsspecBlobUploader`; `OPENINFERENCE_BLOB_UPLOAD_MAX_QUEUE_SIZE` (default 20) bounds it — names deliberately parallel OTel's `OTEL_INSTRUMENTATION_GENAI_UPLOAD_*` |
 
+### Two integration points, chosen per capture site
+
+The uploader has two doors. They are **not deployment alternatives** — the door is
+picked per capture site by one question: *what form is the media in at the moment the
+instrumentor is about to record it?* One instrumentor routinely uses both; the OpenAI
+instrumentor does (point 1 for structured attributes, point 2 for the `input.value`
+copy). Point 1 is the default and costs nothing; point 2 is deliberate per-instrumentor
+work taken on only when the bytes-form or the JSON-blob situation forces it.
+
+| Media at the capture site | Door |
+|---|---|
+| SDK hands you base64 (`image_url`, `input_audio.data`, `file_data` — JSON APIs can't carry raw bytes) | **point 1** — emit a data URI on the standard key; `mask()` does the rest |
+| raw decoded bytes (realtime / websocket buffers) | **point 2** — `upload(Blob)` directly; skip the bytes → base64 → bytes round-trip |
+| payload inside an already-serialized JSON attribute (`input.value`) | **point 2** — pre-pass before serialization |
+| provider-hosted reference (`file.id`, `file_url`) | **neither** — record the reference verbatim; no bytes involved |
+
+Whichever door, §2.4's policy applies identically — same gate order, same uniform
+fallback, errors caught at both — so a payload's fate depends only on config, never on
+which door it entered through.
+
 ### 2.2 Integration point 1 — the `TraceConfig` choke point (zero instrumentor changes)
 
 `TraceConfig.mask()` already sees every `(key, value)` on `OITracer` spans and already
@@ -241,9 +267,8 @@ vision run (Responses API underneath, instrumented by the released OpenAI
 instrumentor) produces `__REDACTED__` or a short storage URI on the same attribute key
 depending only on the `TraceConfig` handed to the instrumentor. Any instrumentor that
 uses `OITracer` — which the project requires — gets image/audio/file offload without a
-diff. (Plumbing note: the `blob_uploader` field is not env-parseable, so it is skipped
-by `__post_init__`'s env parser and constructed separately from
-`OPENINFERENCE_BLOB_UPLOAD_BASE_PATH` when unset.)
+diff. (The `blob_uploader` field isn't env-parseable, so when unset it is constructed
+separately from `OPENINFERENCE_BLOB_UPLOAD_BASE_PATH`.)
 
 **The `input.value` copy.** Instrumentors also JSON-serialize the whole raw request
 into `input.value` *before* it reaches `mask()`, and `mask()` won't parse arbitrary
@@ -371,8 +396,7 @@ URIs are ordinary string attributes — no Phoenix changes are required to store
 
 - **Images:** `SpanDetails.tsx` already renders `message_content.image.image.url`
   through `<SpanImage>` for any URL; the after-state renders whenever the browser can
-  resolve the URI (https / signed URLs / same-origin proxy — out of scope here). The
-  demo store returns repo-relative file paths, which Phoenix displays as plain strings.
+  resolve the URI (https / signed URLs / same-origin proxy — out of scope here).
 - **Audio:** Phoenix has no span-details audio player yet (`isAudioUrl` in
   `urlUtils.ts` is unused); the URI shows in the attributes pane. A player is a
   natural follow-on once URIs are the norm.
