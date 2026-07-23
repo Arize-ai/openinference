@@ -85,7 +85,7 @@ extra work: `{"type": "uri", "modality": "audio", "mime_type": "audio/wav", "uri
 ### Open questions (details in §7)
 
 1. Externalize images inside `input.value` (today's pre-pass redacts them).
-2. Realtime `input.audio.*` keys: promote to semconv, or migrate onto `message_content.audio`?
+2. Audio attributes `input.audio.*` / `output.audio.*` (today emitted only by the realtime instrumentor): promote to semconv, or migrate onto `message_content.audio`?
 3. Re-align if OTel GenAI standardizes external-reference recording.
 4. Optional "archive but don't show" flag for hidden content.
 
@@ -456,8 +456,8 @@ Supporting details:
 
 - **Semconv additions this design ships** (so mask rules match constants, not
   strings): `MESSAGE_CONTENT_AUDIO`, `MESSAGE_CONTENT_FILE`, the `"file"` content
-  type, `FileAttributes`, and gen_ai modality `"document"`. Still open: the realtime
-  `input.audio.*` keys (open question 2).
+  type, `FileAttributes`, and gen_ai modality `"document"`. Still open: the
+  `input.audio.*` / `output.audio.*` audio attributes (open question 2).
 - **mime type:** audio and files carry `*.mime_type` fields; images embed mime in the
   data URI today, so uploaders MUST append a mime-derived extension (`….png`) to keep
   the URI self-describing. Add `image.mime_type` later only if that proves
@@ -547,13 +547,17 @@ per-language work.
    audio/file pre-pass (§2.2) externalizes through the uploader; unify by teaching the
    image pre-pass to do the same, so the `input.value` copy carries the URI instead of
    a redaction marker.
-2. **Realtime attribute keys.** Promote `input.audio.*` / `output.audio.*` to semconv
-   as-is, or migrate realtime onto the `message_content.audio` conventions — the same
-   motion PR #3173 anticipated ("promote to shared TraceConfig once stable").
+2. **Audio attribute keys.** `input.audio.*` / `output.audio.*` are audio attributes
+   (today emitted only by the GPT realtime instrumentor, but not realtime-specific).
+   Promote them to semconv as-is, or migrate their emitters onto the
+   `message_content.audio` conventions — the same motion PR #3173 anticipated
+   ("promote to shared TraceConfig once stable").
 3. **Upstream refs convention.** If
    [semantic-conventions-genai#45](https://github.com/open-telemetry/semantic-conventions-genai/issues/45)
    standardizes reference attributes (or #304 standardizes parts), revisit the §3.2
-   mapping before GA.
+   mapping before GA. The earlier generic uploader proposal,
+   [opentelemetry-python-contrib#3065](https://github.com/open-telemetry/opentelemetry-python-contrib/issues/3065)
+   (§3.1), is the prior art to reconcile with if it is revived upstream.
 4. **Should `hide_*` + uploader mean "archive but don't show"?** Deliberately answered
    "no" (privacy wins); a separate `archive_hidden_content` flag could add it later
    without breaking this design.
