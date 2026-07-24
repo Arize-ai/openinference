@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.9...python-openinference-instrumentation-autogen-agentchat-v0.1.10) (2026-07-24)
+
+
+### Bug Fixes
+
+* **autogen-agentchat:** make the OpenAI client dependency optional (support non-OpenAI model clients) ([#3329](https://github.com/Arize-ai/openinference/issues/3329)) ([a725263](https://github.com/Arize-ai/openinference/commit/a7252636338c48976be5a3f0a8dc615a9ce37b36))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.8...python-openinference-instrumentation-autogen-agentchat-v0.1.9) (2026-05-18)
 
 
