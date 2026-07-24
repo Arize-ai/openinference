@@ -22,6 +22,14 @@ This project and its packages are built using the following tools:
 - [Eslint](https://eslint.org/) for linting and best practices.
 - [Prettier](https://prettier.io/) for code formatting.
 
+> [!NOTE]
+> The repo compiles with TypeScript 7 (the native compiler), which no longer ships
+> `tsserver`, so do not set `typescript.tsdk`. For IntelliSense that matches the
+> compiler, install the [TypeScript (Native Preview)](https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.native-preview)
+> extension; otherwise VS Code's built-in TypeScript language service works fine for
+> editing. Tools that still need the JS compiler API (e.g. TypeDoc) resolve the
+> `@typescript/typescript6` bridge via `.pnpmfile.cjs`.
+
 ### Setup
 
 To get started, you will first need to install [Node.js](https://nodejs.org/en/). This project uses Node.js v20. We recommend using [nvm](https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating) to keep track of your Node.js versions.
