@@ -360,3 +360,65 @@ def test_agno_reasoning_content_instrumentation(
 
     # Flat message.content retained for backward compatibility
     assert attributes.get("llm.output_messages.0.message.content")
+
+
+def test_agno_reasoning_content_stream_instrumentation(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    with test_vcr.use_cassette(
+        "agent_run_reasoning_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="Reasoning Agent Stream",
+            model=OpenAIResponses(
+                id="o4-mini",
+                reasoning={
+                    "effort": "high",
+                    "summary": "detailed",
+                },
+            ),
+            instructions="Use internal reasoning before answering.",
+        )
+        for _ in agent.run(
+            "Count the number of letter 'r' in the word 'strawberry'. "
+            "Use internal reasoning.",
+            session_id="test_session",
+            stream=True,
+        ):
+            pass  # drain the stream
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_span = next((s for s in spans if s.name == "OpenAIResponses.invoke_stream"), None)
+    assert llm_span is not None, "Expected an LLM span for OpenAIResponses.invoke_stream"
+
+    attributes = dict(llm_span.attributes or dict())
+
+    assert attributes.get("openinference.span.kind") == "LLM"
+    assert attributes.get("llm.model_name") == "o4-mini"
+    assert attributes.get("llm.provider") == "OpenAI"
+    assert llm_span.status.is_ok
+
+    # Reasoning content part, accumulated across chunks
+    assert (
+        attributes.get("llm.output_messages.0.message.contents.0.message_content.type")
+        == "reasoning"
+    ), "Streamed reasoning_content was not captured on the LLM span"
+    reasoning_text = attributes.get(
+        "llm.output_messages.0.message.contents.0.message_content.text"
+    )
+    assert reasoning_text, "Reasoning content text should be present and non-empty"
+
+    # Final answer content part
+    assert (
+        attributes.get("llm.output_messages.0.message.contents.1.message_content.type")
+        == "text"
+    )
+    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.text")
+
+    # Flat message.content retained for backward compatibility
+    assert attributes.get("llm.output_messages.0.message.content")
