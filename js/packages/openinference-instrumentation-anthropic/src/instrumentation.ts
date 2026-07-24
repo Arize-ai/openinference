@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { APIPromise } from "@anthropic-ai/sdk";
 import type { Stream } from "@anthropic-ai/sdk/streaming";
 import type { Attributes, Span, Tracer, TracerProvider } from "@opentelemetry/api";
 import { context, diag, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
@@ -234,13 +235,28 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             return result;
           };
 
-          const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error: Error) => {
+          const recordError = (error: Error) => {
             span.recordException(error);
             span.setStatus({
               code: SpanStatusCode.ERROR,
               message: error.message,
             });
             span.end();
+          };
+
+          // Use _thenUnwrap so the result stays an APIPromise and keeps
+          // withResponse()/asResponse(). Plain .then() would drop them and break
+          // client.messages.stream().
+          if (hasThenUnwrap(execPromise)) {
+            const wrappedPromise = execPromise._thenUnwrap(wrappedPromiseThen);
+            // Record errors without touching the returned promise. Parsing is
+            // memoized, so this doesn't read the response twice.
+            wrappedPromise.then(undefined, recordError);
+            return context.bind(execContext, wrappedPromise);
+          }
+
+          const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error: Error) => {
+            recordError(error);
             throw error;
           });
           return context.bind(execContext, wrappedPromise);
@@ -277,6 +293,13 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
   }
+}
+
+/**
+ * True when create() returned an APIPromise we can transform with _thenUnwrap.
+ */
+function hasThenUnwrap<T>(promise: PromiseLike<T>): promise is APIPromise<T> {
+  return typeof (promise as Partial<APIPromise<T>>)._thenUnwrap === "function";
 }
 
 /**
