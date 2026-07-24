@@ -367,6 +367,7 @@ def test_agno_reasoning_content_stream_instrumentation(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_agno_instrumentation: Any,
 ) -> None:
+    """Test that reasoning_content accumulated in streamed chunks is captured on the LLM span."""
     with test_vcr.use_cassette(
         "agent_run_reasoning_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
     ):
@@ -385,8 +386,7 @@ def test_agno_reasoning_content_stream_instrumentation(
             instructions="Use internal reasoning before answering.",
         )
         for _ in agent.run(
-            "Count the number of letter 'r' in the word 'strawberry'. "
-            "Use internal reasoning.",
+            "Count the number of letter 'r' in the word 'strawberry'. Use internal reasoning.",
             session_id="test_session",
             stream=True,
         ):
@@ -408,16 +408,11 @@ def test_agno_reasoning_content_stream_instrumentation(
         attributes.get("llm.output_messages.0.message.contents.0.message_content.type")
         == "reasoning"
     ), "Streamed reasoning_content was not captured on the LLM span"
-    reasoning_text = attributes.get(
-        "llm.output_messages.0.message.contents.0.message_content.text"
-    )
+    reasoning_text = attributes.get("llm.output_messages.0.message.contents.0.message_content.text")
     assert reasoning_text, "Reasoning content text should be present and non-empty"
 
     # Final answer content part
-    assert (
-        attributes.get("llm.output_messages.0.message.contents.1.message_content.type")
-        == "text"
-    )
+    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.type") == "text"
     assert attributes.get("llm.output_messages.0.message.contents.1.message_content.text")
 
     # Flat message.content retained for backward compatibility
