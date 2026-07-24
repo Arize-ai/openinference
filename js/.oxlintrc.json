@@ -14,10 +14,7 @@
     "typescript/consistent-type-imports": "error",
     "eqeqeq": ["error", "smart"],
     "eslint/prefer-const": "error",
-    "eslint/no-implicit-coercion": [
-      "error",
-      { "boolean": false, "number": true, "string": false }
-    ],
+    "eslint/no-implicit-coercion": ["error", { "boolean": false, "number": true, "string": false }],
     "typescript/no-unused-vars": [
       "error",
       {
