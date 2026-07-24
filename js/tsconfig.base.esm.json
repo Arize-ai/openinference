@@ -2,7 +2,7 @@
   "extends": "./tsconfig.base.esnext.json",
   "compilerOptions": {
     "target": "ES2020",
-    "moduleResolution": "node10",
+    "moduleResolution": "bundler",
     "module": "ES2020"
   },
   "tsc-alias": {

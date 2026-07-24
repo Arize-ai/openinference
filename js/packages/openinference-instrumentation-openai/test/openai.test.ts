@@ -1120,7 +1120,6 @@ describe("OpenAIInstrumentation", () => {
           content: "Alice and Bob are going to a science fair on Friday.",
         },
       ],
-      // @ts-expect-error - Type instantiation is excessively deep with zod helper
       response_format: zodResponseFormat(CalendarEvent, "event"),
     });
 

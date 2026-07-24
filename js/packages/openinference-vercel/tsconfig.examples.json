@@ -9,8 +9,8 @@
     "sourceMap": false,
     "types": ["node"],
     "lib": ["ESNext", "DOM"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext"
+    "module": "ESNext",
+    "moduleResolution": "bundler"
   },
   "include": ["examples/**/*.ts"],
   "exclude": ["dist", "node_modules"]

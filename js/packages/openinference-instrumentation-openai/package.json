@@ -46,7 +46,7 @@
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "openai": "^6.7.0",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.3",
     "zod": "^3.24.3"
   }
