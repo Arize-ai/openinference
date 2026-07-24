@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-claude-agent-sdk",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "private": false,
   "description": "OpenInference instrumentation for Claude Agent SDK",
   "keywords": [

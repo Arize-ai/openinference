@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.4.18
+
+### Patch Changes
+
+- bafd80e: Update Bedrock instrumentation to use @opentelemetry/core ^2.8.0, which includes the W3C Baggage denial-of-service fix.
+
 ## 0.4.17
 
 ### Patch Changes
