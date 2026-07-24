@@ -28,7 +28,7 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "websockets>=13.1,<16.0",
+  "websockets>=13.1,<17.0",
 ]
 
 [project.optional-dependencies]
