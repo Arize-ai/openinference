@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.34...python-openinference-instrumentation-litellm-v0.1.35) (2026-07-24)
+
+
+### Features
+
+* **litellm:** instrument Anthropic messages create and acreate ([#3388](https://github.com/Arize-ai/openinference/issues/3388)) ([e1b6748](https://github.com/Arize-ai/openinference/commit/e1b67487fcbe918a9d6caae800a6d3655493eccc))
+* **litellm:** reasoning blocks implementation ([#3317](https://github.com/Arize-ai/openinference/issues/3317)) ([5d5efd0](https://github.com/Arize-ai/openinference/commit/5d5efd0e1217d84d3b899cbed3a40f9c606870c0))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.33...python-openinference-instrumentation-litellm-v0.1.34) (2026-05-18)
 
 

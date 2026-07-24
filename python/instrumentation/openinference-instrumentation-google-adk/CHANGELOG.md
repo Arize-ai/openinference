@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.17...python-openinference-instrumentation-google-adk-v0.1.18) (2026-07-24)
+
+
+### Bug Fixes
+
+* **google_adk:** Capture Reasoning Content ([#3398](https://github.com/Arize-ai/openinference/issues/3398)) ([6b1abf2](https://github.com/Arize-ai/openinference/commit/6b1abf22128618a9c0c988575d7c15aa5373ff91))
+* **google_adk:** Handle Thinking Token Inclusion Correctly ([#3178](https://github.com/Arize-ai/openinference/issues/3178)) ([cb07495](https://github.com/Arize-ai/openinference/commit/cb074959c3742477ed1dbb3f96da70ee50ab04c0))
+* **google_adk:** Map Tool Call IDs to OI Attributes ([#3281](https://github.com/Arize-ai/openinference/issues/3281)) ([a5c0ef8](https://github.com/Arize-ai/openinference/commit/a5c0ef8f7db3dbc886713781ad503de82589942e))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.16...python-openinference-instrumentation-google-adk-v0.1.17) (2026-07-01)
 
 

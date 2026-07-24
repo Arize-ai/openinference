@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.2.0...python-openinference-instrumentation-google-genai-v1.2.1) (2026-07-24)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.1.1...python-openinference-instrumentation-google-genai-v1.2.0) (2026-06-30)
 
 

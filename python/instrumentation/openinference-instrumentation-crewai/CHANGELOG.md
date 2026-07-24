@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.10...python-openinference-instrumentation-crewai-v1.1.11) (2026-07-24)
+
+
+### Bug Fixes
+
+* **crewai:** emit TOOL spans for [@tool-decorated](https://github.com/tool-decorated) tools ([#3420](https://github.com/Arize-ai/openinference/issues/3420)) ([a2896b7](https://github.com/Arize-ai/openinference/commit/a2896b7767d5a7de4f785a0ea7b2ae4d7eb72d34))
+* **crewai:** support crewai &gt;= 1.15 formatted_description for tool spans ([#3407](https://github.com/Arize-ai/openinference/issues/3407)) ([bbe5274](https://github.com/Arize-ai/openinference/commit/bbe52741fb029186e842d1e5008105bf81ffc902))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [1.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.9...python-openinference-instrumentation-crewai-v1.1.10) (2026-06-17)
 
 

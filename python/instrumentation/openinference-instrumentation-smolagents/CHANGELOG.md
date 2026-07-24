@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.32...python-openinference-instrumentation-smolagents-v0.1.33) (2026-07-24)
+
+
+### Bug Fixes
+
+* **smolagents:** trace streaming model calls ([#3385](https://github.com/Arize-ai/openinference/issues/3385)) ([7638fdf](https://github.com/Arize-ai/openinference/commit/7638fdf867789b8c257be2a400f02630f3913167))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.31...python-openinference-instrumentation-smolagents-v0.1.32) (2026-05-22)
 
 

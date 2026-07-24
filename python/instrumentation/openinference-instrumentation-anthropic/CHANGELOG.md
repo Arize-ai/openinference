@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.6...python-openinference-instrumentation-anthropic-v1.1.0) (2026-07-24)
+
+
+### Features
+
+* **python:** anthropic capture thinking and reducted thinking ([#3237](https://github.com/Arize-ai/openinference/issues/3237)) ([bf2e889](https://github.com/Arize-ai/openinference/commit/bf2e889e3fbd347a6f3219645fcb2bc46464ad6c))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [1.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.5...python-openinference-instrumentation-anthropic-v1.0.6) (2026-06-02)
 
 
