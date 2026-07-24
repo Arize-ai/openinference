@@ -29,18 +29,6 @@ from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionUserMessageParam,
 )
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Status, StatusCode, TracerProvider, get_current_span
 from opentelemetry.util.types import AttributeValue
@@ -72,6 +60,18 @@ from openinference.instrumentation._attributes import (
     _MODEL_PREFIX_TO_SYSTEM,
 )
 from openinference.instrumentation._tracers import _infer_tool_parameters
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 
 ALL_PROVIDER_VALUES: set[str] = {p.value for p in OpenInferenceLLMProviderValues}
 ALL_SYSTEM_VALUES: set[str] = {s.value for s in OpenInferenceLLMSystemValues}
@@ -166,9 +166,7 @@ class TestStartAsCurrentSpanContextManager:
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert attributes.pop(INPUT_VALUE) == json.dumps({"input-key": "input-value"})
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-        assert attributes.pop(OUTPUT_VALUE) == json.dumps(
-            {"output-key": "output-value"}
-        )
+        assert attributes.pop(OUTPUT_VALUE) == json.dumps({"output-key": "output-value"})
         assert not attributes
 
     def test_chain_with_pydantic_and_dataclass_input_and_output(
@@ -251,18 +249,14 @@ class TestStartAsCurrentSpanContextManager:
                     description="tool-description",
                     parameters={"type": "string"},
                 )
-            assert (
-                str(exc_info.value) == "Cannot set tool attributes on a non-tool span"
-            )
+            assert str(exc_info.value) == "Cannot set tool attributes on a non-tool span"
 
     def test_non_openinference_span(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        with tracer.start_as_current_span(
-            "non-openinference-span"
-        ) as non_openinference_span:
+        with tracer.start_as_current_span("non-openinference-span") as non_openinference_span:
             non_openinference_span.set_attribute("custom.attribute", "value")
 
         spans = in_memory_span_exporter.get_finished_spans()
@@ -281,10 +275,7 @@ class TestStartAsCurrentSpanContextManager:
         with tracer.start_as_current_span("non-openinference-span") as span:
             with pytest.raises(ValueError) as exc_info:
                 span.set_input("input")
-            assert (
-                str(exc_info.value)
-                == "Cannot set input attributes on a non-OpenInference span"
-            )
+            assert str(exc_info.value) == "Cannot set input attributes on a non-OpenInference span"
 
     def test_cannot_set_output_on_non_openinference_span(
         self,
@@ -294,10 +285,7 @@ class TestStartAsCurrentSpanContextManager:
         with tracer.start_as_current_span("non-openinference-span") as span:
             with pytest.raises(ValueError) as exc_info:
                 span.set_output("output")
-            assert (
-                str(exc_info.value)
-                == "Cannot set output attributes on a non-OpenInference span"
-            )
+            assert str(exc_info.value) == "Cannot set output attributes on a non-OpenInference span"
 
     def test_tool(
         self,
@@ -616,9 +604,7 @@ class TestTracerChainDecorator:
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
-        assert attributes.pop(INPUT_VALUE) == json.dumps(
-            {"string_input": "test", "int_input": 123}
-        )
+        assert attributes.pop(INPUT_VALUE) == json.dumps({"string_input": "test", "int_input": 123})
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert attributes.pop(OUTPUT_VALUE) == json.dumps(
             {"string_output": "output", "int_output": 42}
@@ -644,9 +630,7 @@ class TestTracerChainDecorator:
         def decorated_chain_with_dataclass_io(input: InputModel) -> OutputModel:
             return OutputModel(string_output="output", int_output=42)
 
-        decorated_chain_with_dataclass_io(
-            InputModel(string_input="test", int_input=123)
-        )
+        decorated_chain_with_dataclass_io(InputModel(string_input="test", int_input=123))
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -657,9 +641,7 @@ class TestTracerChainDecorator:
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
-        assert attributes.pop(INPUT_VALUE) == json.dumps(
-            {"string_input": "test", "int_input": 123}
-        )
+        assert attributes.pop(INPUT_VALUE) == json.dumps({"string_input": "test", "int_input": 123})
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert attributes.pop(OUTPUT_VALUE) == json.dumps(
             {"string_output": "output", "int_output": 42}
@@ -698,9 +680,7 @@ class TestTracerChainDecorator:
             time: datetime,
         ) -> ComplexOutput:
             nested = NestedPydanticModel(value=42, name="nested")
-            pydantic_out = OutputPydanticModel(
-                nested=nested, description="pydantic output"
-            )
+            pydantic_out = OutputPydanticModel(nested=nested, description="pydantic output")
             dataclass_out = NestedDataclass(count=123, active=True)
             return ComplexOutput(
                 pydantic_part=pydantic_out,
@@ -903,9 +883,7 @@ class TestTracerChainDecorator:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert (
-            span.name == "decorated_chain_method"
-        )  # hard to reliably grab the class name
+        assert span.name == "decorated_chain_method"  # hard to reliably grab the class name
         assert span.status.is_ok
         assert not span.events
         attributes = dict(span.attributes or {})
@@ -1824,9 +1802,7 @@ class TestTracerLLMDecorator:
             raise ValueError("Something went wrong")
 
         input_messages: List[ChatCompletionMessageParam] = [
-            ChatCompletionUserMessageParam(
-                role="user", content="Who won the World Cup in 2022?"
-            )
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
         ]
 
         with pytest.raises(ValueError):
@@ -1928,9 +1904,7 @@ class TestTracerLLMDecorator:
             raise ValueError("Something went wrong")
 
         input_messages: List[ChatCompletionMessageParam] = [
-            ChatCompletionUserMessageParam(
-                role="user", content="Who won the World Cup in 2022?"
-            )
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
         ]
 
         with pytest.raises(ValueError):
@@ -2274,9 +2248,7 @@ class TestTracerLLMDecorator:
             raise ValueError("Something went wrong")
 
         input_messages: List[ChatCompletionMessageParam] = [
-            ChatCompletionUserMessageParam(
-                role="user", content="Who won the World Cup in 2022?"
-            )
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
         ]
 
         with pytest.raises(ValueError):
@@ -2396,9 +2368,7 @@ class TestTracerLLMDecorator:
             raise ValueError("Something went wrong")
 
         input_messages: List[ChatCompletionMessageParam] = [
-            ChatCompletionUserMessageParam(
-                role="user", content="Who won the World Cup in 2022?"
-            )
+            ChatCompletionUserMessageParam(role="user", content="Who won the World Cup in 2022?")
         ]
 
         with pytest.raises(ValueError):
@@ -2434,9 +2404,7 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
             content="Hello",
             contents=[
                 TextMessageContent(type="text", text="Hello", signature="text-sig-abc"),
-                ImageMessageContent(
-                    type="image", image=Image(url="https://example.com/image.jpg")
-                ),
+                ImageMessageContent(type="image", image=Image(url="https://example.com/image.jpg")),
                 ReasoningMessageContent(
                     type="reasoning",
                     text="Thinking it through...",
@@ -2484,9 +2452,7 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     )
     tools: Sequence[Tool] = [
         Tool(
-            json_schema=json.dumps(
-                {"type": "object", "properties": {"query": {"type": "string"}}}
-            )
+            json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}})
         ),
         Tool(
             json_schema={
@@ -2515,27 +2481,19 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Hello"
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
         == "text"
     )
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
         == "Hello"
     )
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}")
         == "text-sig-abc"
     )
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
         == "image"
     )
     assert (
@@ -2545,27 +2503,19 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         == "https://example.com/image.jpg"
     )
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
         == "reasoning"
     )
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TEXT}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TEXT}")
         == "Thinking it through..."
     )
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_SIGNATURE}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_SIGNATURE}")
         == "thought-sig-456"
     )
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_DATA}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_DATA}")
         == "redacted-thinking-data"
     )
     assert (
@@ -2574,9 +2524,7 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         )
         == "enc-content-xyz"
     )
-    assert (
-        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALL_ID}") == "call-123"
-    )
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALL_ID}") == "call-123"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
         == "call-456"
@@ -2588,9 +2536,7 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         == "tool-call-thought-sig-789"
     )
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "search"
     )
     assert (
@@ -2604,9 +2550,7 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         == "call-789"
     )
     assert (
-        attributes.pop(
-            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}"
-        )
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
         == "calculate"
     )
     function_args = attributes.pop(
@@ -2617,15 +2561,11 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "Hi there!"
     assert (
-        attributes.pop(
-            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}"
-        )
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
         == "text"
     )
     assert (
-        attributes.pop(
-            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
-        )
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
         == "Hi there!"
     )
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 10
@@ -2690,26 +2630,12 @@ def test_context_manager_llm_span_emits_reasoning_content(
     for base in (LLM_INPUT_MESSAGES, LLM_OUTPUT_MESSAGES):
         content = f"{base}.0.{MESSAGE_CONTENTS}.0"
         assert attributes.pop(f"{content}.{MESSAGE_CONTENT_TYPE}") == "reasoning"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_TEXT}") == "Thinking it through..."
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_SIGNATURE}") == "thought-sig-456"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_DATA}") == "redacted-thinking-data"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}") == "enc-content-xyz"
         assert (
-            attributes.pop(f"{content}.{MESSAGE_CONTENT_TEXT}")
-            == "Thinking it through..."
-        )
-        assert (
-            attributes.pop(f"{content}.{MESSAGE_CONTENT_SIGNATURE}")
-            == "thought-sig-456"
-        )
-        assert (
-            attributes.pop(f"{content}.{MESSAGE_CONTENT_DATA}")
-            == "redacted-thinking-data"
-        )
-        assert (
-            attributes.pop(f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}")
-            == "enc-content-xyz"
-        )
-        assert (
-            attributes.pop(
-                f"{base}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}"
-            )
+            attributes.pop(f"{base}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}")
             == "tool-call-thought-sig-789"
         )
 
@@ -2735,17 +2661,10 @@ def test_llm_decorator_emits_reasoning_content(
     attributes = dict(spans[0].attributes or {})
     content = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0"
     assert attributes.get(f"{content}.{MESSAGE_CONTENT_TYPE}") == "reasoning"
-    assert (
-        attributes.get(f"{content}.{MESSAGE_CONTENT_TEXT}") == "Thinking it through..."
-    )
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_TEXT}") == "Thinking it through..."
     assert attributes.get(f"{content}.{MESSAGE_CONTENT_SIGNATURE}") == "thought-sig-456"
-    assert (
-        attributes.get(f"{content}.{MESSAGE_CONTENT_DATA}") == "redacted-thinking-data"
-    )
-    assert (
-        attributes.get(f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}")
-        == "enc-content-xyz"
-    )
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_DATA}") == "redacted-thinking-data"
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}") == "enc-content-xyz"
     assert (
         attributes.get(
             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}"
@@ -3158,9 +3077,7 @@ MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 
 # Message content attributes
 MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
-MESSAGE_CONTENT_ENCRYPTED_CONTENT = (
-    MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
-)
+MESSAGE_CONTENT_ENCRYPTED_CONTENT = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
 MESSAGE_CONTENT_ID = MessageContentAttributes.MESSAGE_CONTENT_ID
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
@@ -3178,12 +3095,8 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
-LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = (
-    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
-)
-LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = (
-    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
-)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
     SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
 )
@@ -3270,9 +3183,7 @@ class TestSamplerAttributeAccess:
         )
 
         # Create TracerProvider with custom sampler
-        tracer_provider = TracerProvider(
-            config=TraceConfig(), sampler=AttributeCapturingSampler()
-        )
+        tracer_provider = TracerProvider(config=TraceConfig(), sampler=AttributeCapturingSampler())
         tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
         tracer = tracer_provider.get_tracer(__name__)
 
@@ -3286,9 +3197,7 @@ class TestSamplerAttributeAccess:
             ) as span:
                 span.set_input("test input")
                 span.set_output("test output")
-                print(
-                    f"SPAN ATTRIBUTES: {getattr(span, 'attributes', 'no attributes attr')}"
-                )
+                print(f"SPAN ATTRIBUTES: {getattr(span, 'attributes', 'no attributes attr')}")
 
         print(f"FINAL CAPTURED ATTRIBUTES: {captured_attributes}")
         spans = in_memory_span_exporter.get_finished_spans()
@@ -3358,9 +3267,7 @@ class TestSamplerAttributeAccess:
         trace_config = CustomTraceConfig()
 
         # Create TracerProvider with custom sampler and config
-        tracer_provider = TracerProvider(
-            config=trace_config, sampler=AttributeCapturingSampler()
-        )
+        tracer_provider = TracerProvider(config=trace_config, sampler=AttributeCapturingSampler())
         tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
         tracer = tracer_provider.get_tracer(__name__)
 
@@ -3473,22 +3380,16 @@ class TestGetProviderFromHost:
             ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER),
         ],
     )
-    def test_known_hosts(
-        self, host: str, expected: OpenInferenceLLMProviderValues
-    ) -> None:
+    def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:
         assert infer_llm_provider_from_host(host) == expected
 
     @pytest.mark.parametrize("host", ["API.OPENAI.COM", "Api.Openai.Com"])
     def test_case_insensitive(self, host: str) -> None:
-        assert (
-            infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
-        )
+        assert infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
 
     @pytest.mark.parametrize("host", ["  api.openai.com  ", "\tapi.openai.com\t"])
     def test_whitespace_stripped(self, host: str) -> None:
-        assert (
-            infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
-        )
+        assert infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
 
     @pytest.mark.parametrize(
         "host",
@@ -3546,14 +3447,10 @@ class TestGetSystemFromModel:
             ("google-palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
         ],
     )
-    def test_known_models(
-        self, model_name: str, expected: OpenInferenceLLMSystemValues
-    ) -> None:
+    def test_known_models(self, model_name: str, expected: OpenInferenceLLMSystemValues) -> None:
         assert infer_llm_system_from_model_name(model_name) == expected
 
-    @pytest.mark.parametrize(
-        "model_name", ["GPT-4O", "Claude-3-Haiku", "GEMINI-1.5-PRO"]
-    )
+    @pytest.mark.parametrize("model_name", ["GPT-4O", "Claude-3-Haiku", "GEMINI-1.5-PRO"])
     def test_case_insensitive(self, model_name: str) -> None:
         assert infer_llm_system_from_model_name(model_name) is not None
 

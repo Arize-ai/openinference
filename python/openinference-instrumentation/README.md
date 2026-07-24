@@ -64,6 +64,7 @@ In addition, you an also use environment variables, read more [here](../../spec/
 
 ```python
 from openinference.instrumentation import TraceConfig
+
 config = TraceConfig(
     hide_inputs=hide_inputs,
     hide_outputs=hide_outputs,
@@ -74,7 +75,7 @@ config = TraceConfig(
     hide_output_text=hide_output_text,
     base64_image_max_length=base64_image_max_length,
 )
-tracer_provider=...
+tracer_provider = ...
 # This example uses the OpenAIInstrumentor, but it works with any of our auto instrumentors
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
 ```
