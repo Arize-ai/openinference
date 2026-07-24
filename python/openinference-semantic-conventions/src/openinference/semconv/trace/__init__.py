@@ -320,7 +320,7 @@ class MessageContentAttributes:
 
     MESSAGE_CONTENT_TYPE = "message_content.type"
     """
-    The type of the content, such as "text", "image", "audio",
+    The type of the content, such as "text", "image", "audio", "file",
     "reasoning", or "tool_use".
     """
     MESSAGE_CONTENT_TEXT = "message_content.text"
@@ -333,6 +333,20 @@ class MessageContentAttributes:
     An image can be made available to the model by passing a link to
     the image or by passing the base64 encoded image directly in the
     request.
+    """
+    MESSAGE_CONTENT_AUDIO = "message_content.audio"
+    """
+    The audio content of the message, if the type is "audio".
+    Audio can be made available to the model by passing a link to
+    the audio file or by passing the base64 encoded audio directly in
+    the request as a data URI.
+    """
+    MESSAGE_CONTENT_FILE = "message_content.file"
+    """
+    The file content of the message, if the type is "file" (e.g. a PDF
+    document). A file can be made available to the model by passing a
+    link to the file, the base64 encoded file directly in the request
+    as a data URI, or a provider-assigned file id.
     """
     MESSAGE_CONTENT_ID = "message_content.id"
     """
@@ -375,7 +389,8 @@ class AudioAttributes:
 
     AUDIO_URL = "audio.url"
     """
-    The url to an audio file
+    The url to an audio file. May be an http(s) URL, a base64 data URI,
+    or a URI referencing externally stored audio (e.g. s3://, gs://).
     """
     AUDIO_MIME_TYPE = "audio.mime_type"
     """
@@ -384,6 +399,31 @@ class AudioAttributes:
     AUDIO_TRANSCRIPT = "audio.transcript"
     """
     The transcript of the audio file
+    """
+
+
+class FileAttributes:
+    """
+    Attributes for files attached to messages (e.g. PDF documents)
+    """
+
+    FILE_URL = "file.url"
+    """
+    The url to the file. May be an http(s) URL, a base64 data URI,
+    or a URI referencing an externally stored file (e.g. s3://, gs://).
+    """
+    FILE_MIME_TYPE = "file.mime_type"
+    """
+    The mime type of the file, e.g. application/pdf
+    """
+    FILE_NAME = "file.name"
+    """
+    The name of the file, e.g. document.pdf
+    """
+    FILE_ID = "file.id"
+    """
+    A provider-assigned identifier for a file that was pre-uploaded to
+    the provider (e.g. an OpenAI Files API file id).
     """
 
 
