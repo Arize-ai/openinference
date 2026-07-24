@@ -231,6 +231,26 @@ Configuration, in precedence order:
 | programmatic | `TraceConfig(blob_uploader=my_uploader)` — new optional field accepting any `BlobUploader` |
 | entry point | group `openinference_blob_uploader`, selected by `OPENINFERENCE_BLOB_UPLOADER=<name>` (mirrors `opentelemetry_genai_completion_hook` mechanics); resolves an instance, class, or factory |
 
+**How the entry-point mechanism works**, end to end. The package that owns the
+uploader registers it in its packaging metadata — no import happens at install time:
+
+```toml
+# e.g. arize_otel's pyproject.toml
+[project.entry-points.openinference_blob_uploader]
+arize = "arize_otel.blob:ArizeBlobUploader"
+```
+
+The operator sets `OPENINFERENCE_BLOB_UPLOADER=arize`. At `TraceConfig` construction
+(every instrumentor builds one), if no uploader was passed in code, the name is looked
+up in the entry-point group, the target is imported and — if it is a class or
+zero-argument factory — instantiated, then validated against the `BlobUploader`
+protocol. Resolution failures (unknown name, wrong type, import error) log a warning
+and leave the uploader unset, so oversized media redacts exactly as with no uploader —
+misconfiguration degrades, never crashes. The uploader's *own* configuration (bucket,
+credentials, endpoint) is its own concern, typically read from its own env vars in its
+constructor — keeping the whole chain env-configurable for zero-code deployments:
+`pip install arize-otel` + one env var, no application code.
+
 ### Two integration points, chosen per capture site
 
 The uploader has two doors. They are **not deployment alternatives** — the door is
@@ -527,8 +547,16 @@ transport layer. The divergence is granularity, argued on merits in §3.3.
 
 Convergence path: if upstream exposes a *public* byte-level uploader (e.g. a
 [python-contrib#3065](https://github.com/open-telemetry/opentelemetry-python-contrib/issues/3065)
-revival — their `types.Blob` is already near-identical to ours), it slots behind the
-unchanged `BlobUploader` protocol as the recommended implementation, non-breaking.
+revival), it slots behind the unchanged `BlobUploader` protocol as the recommended
+implementation, non-breaking. The type-level groundwork already exists on their side:
+[`opentelemetry.util.genai.types.Blob`](https://github.com/open-telemetry/opentelemetry-python-genai/blob/85fb8a6ce2c239a5009a94c71f39875cb84b7bee/util/opentelemetry-util-genai/src/opentelemetry/util/genai/types.py#L160-L171)
+carries the same payload triple as ours — `content: bytes` ≙ `data`, `mime_type`,
+`modality` — both derived from the same semconv `BlobPart` schema; our extra fields
+(`attribute_key`, `content_sha256`) are optional conveniences, so an adapter is a
+one-liner in either direction. (Minor deltas: their `Modality` literal omits
+`document` — though the semconv JSON schema includes it and their field accepts any
+`str` — and their `mime_type` is nullable.) What upstream lacks is not the type but
+any code that moves one `Blob`'s bytes to storage individually.
 The two systems also compose today: running their `CompletionHook` (whole-payload
 refs — the right tool for oversized *text*) alongside per-part substitution produces
 complementary artifacts, not conflicts; driving their hook from OI's dual-write is
