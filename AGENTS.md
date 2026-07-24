@@ -174,3 +174,40 @@ See `CONTRIBUTING` for detailed guidelines. Key points:
 - **JavaScript/TypeScript**: `js/CLAUDE.md`
 - **Python**: `python/DEVELOPMENT.md`
 - **Java**: `java/README.md`
+
+## Cursor Cloud specific instructions
+
+This is a library monorepo (Python, JS/TS, Java, Go). There is **no long-running
+service to start** — "running" means building packages, running tests
+(offline: Python uses committed VCR cassettes, JS uses mocks), lint/type checks,
+or running example scripts. Optional trace visualization uses Phoenix
+(`docker run -p 6006:6006 arizephoenix/phoenix:latest`); not needed for tests.
+
+Toolchains are pre-provisioned in the VM snapshot (the startup update script only
+refreshes deps): `uv`/`tox` (also symlinked into `/usr/local/bin`), OpenJDK 17
+at `/usr/lib/jvm/java-17-openjdk-amd64`, and Go 1.25 at `/usr/local/go`
+(`go` symlinked into `/usr/local/bin`). Node/pnpm come from nvm. Standard build/
+test/lint commands live in the root `Makefile`, `python/DEVELOPMENT.md`,
+`js/DEVELOPMENT.md`, `java/README.md`, and the tox tokens in `python/tox.ini`.
+
+Non-obvious gotchas:
+
+- **Java requires JDK 17, not the default JDK 21.** Run Gradle with
+  `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 ./gradlew build spotlessCheck`
+  (from `java/`). On JDK 21 the Spotless `removeUnusedImports` step fails with a
+  `JCTree$JCImport.getQualifiedIdentifier()` error because the Gradle daemon's
+  `javac` internals changed. CI runs Gradle on JDK 17.
+- **Python `mypy` on the core `openinference-instrumentation` package reports
+  ~50 import errors after `add_symlinks`.** `add_symlinks` symlinks every
+  instrumentor (pipecat, claude_agent_sdk, …) into the core namespace dir, and
+  mypy then type-checks them without their third-party SDKs installed. These
+  symlinks are gitignored and CI checks each package in isolation, so this is a
+  local dev-tree artifact, not a real failure. Use per-package tox envs
+  (`tox run -e test-<pkg>`, `mypy-<pkg>`, `ruff-mypy-test-<pkg>`) instead.
+- **Python local test drift vs CI.** Local `tox` installs the newest provider
+  SDKs (e.g. `openai`), which can cause a small number of provider-specific test
+  failures that don't occur in CI. CI pins deps via `UV_EXCLUDE_NEWER=3 days`;
+  export the same to reproduce CI exactly. Core packages (`semconv`,
+  `instrumentation`) have no external SDK deps and are deterministic.
+- **Go uses a workspace (`go/go.work`).** `go test ./...` from `go/` fails; run
+  it against the explicit module paths listed in `.github/workflows/go-CI.yaml`.
