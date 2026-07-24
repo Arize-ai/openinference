@@ -45,11 +45,18 @@ from openinference.instrumentation import TraceConfig
 config = TraceConfig(blob_uploader=my_uploader)  # any object satisfying BlobUploader
 ```
 
+```toml
+# the package providing the uploader registers it in its own packaging
+# metadata under the "openinference_blob_uploader" entry-point group:
+[project.entry-points.openinference_blob_uploader]
+arize = "arize_otel.blob:ArizeBlobUploader"
+```
+
 ```bash
-# the package providing the uploader registers it under the
-# "openinference_blob_uploader" entry-point group, e.g. as "arize"
 export OPENINFERENCE_BLOB_UPLOADER=arize
 ```
+
+The name is resolved when a `TraceConfig` is constructed: the entry point is imported, instantiated if it is a class or zero-argument factory, and validated against the `BlobUploader` protocol. Resolution failures log a warning and leave the uploader unset — oversized media then redacts exactly as with no uploader configured. A `blob_uploader` passed in code takes precedence over the environment variable. The uploader's own configuration (bucket, credentials, endpoint) is read by the uploader itself, typically from its own environment variables, so fully zero-code deployments stay possible.
 
 Implementations MUST NOT block the instrumented call: return the destination URI immediately (content-addressed naming, e.g. SHA-256 of the bytes, makes it computable before any I/O) and move the bytes on a background worker. Returning `None` (backpressure, shutdown, policy) makes the caller fall back to the standard redaction behavior.
 

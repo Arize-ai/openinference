@@ -122,6 +122,14 @@ def load_blob_uploader(name: str) -> Optional[BlobUploader]:
     entry point may resolve to an uploader instance or to a zero-argument
     callable (e.g. a class) producing one. Returns None — and logs — when
     the name is unknown or the loaded object does not satisfy the protocol.
+
+    A package providing an uploader registers it in its packaging metadata::
+
+        [project.entry-points.openinference_blob_uploader]
+        arize = "arize_otel.blob:ArizeBlobUploader"
+
+    and users select it with ``OPENINFERENCE_BLOB_UPLOADER=arize`` — no
+    application code required.
     """
     try:
         for entry_point in entry_points(group=BLOB_UPLOADER_ENTRY_POINT_GROUP):
