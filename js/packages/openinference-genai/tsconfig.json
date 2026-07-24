@@ -4,7 +4,7 @@
     "rootDir": ".",
     "module": "preserve",
     "moduleResolution": "bundler",
-    "types": ["vitest/globals"],
+    "types": ["node", "vitest/globals"],
     "lib": ["ESNext"],
     "resolveJsonModule": true,
     "strictNullChecks": true,

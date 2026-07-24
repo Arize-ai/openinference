@@ -21,12 +21,11 @@
     "lint:fix": "oxlint --fix",
     "ci:version": "pnpm changeset version",
     "ci:publish": "pnpm run -r prebuild && pnpm run -r build && pnpm publish -r --access public --provenance",
-    "docs:generate": "NODE_OPTIONS=\"--import ./scripts/redirect-typescript6.mjs\" typedoc",
+    "docs:generate": "typedoc",
     "docs:preview": "rimraf docs && pnpm docs:generate && pnpx http-server ./docs -p 8080 -o"
   },
   "devDependencies": {
     "@changesets/cli": "^2.28.1",
-    "@typescript/typescript6": "^6.0.2",
     "oxfmt": "^0.33.0",
     "oxlint": "^1.48.0",
     "rimraf": "^6.0.1",
@@ -41,11 +40,6 @@
   },
   "packageManager": "pnpm@10.29.3",
   "pnpm": {
-    "peerDependencyRules": {
-      "allowedVersions": {
-        "typescript": "7"
-      }
-    },
     "overrides": {
       "@langchain/openai@^0.2>@langchain/core": "^0.2.36",
       "@langchain/openai@^0.1>@langchain/core": "^0.1.63",
