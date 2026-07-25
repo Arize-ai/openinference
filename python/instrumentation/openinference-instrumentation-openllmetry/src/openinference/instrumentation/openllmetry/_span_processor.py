@@ -145,13 +145,15 @@ def _map_retriever_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
         return mapped
 
     for index, document in enumerate(documents):
-        if not isinstance(document, dict):
-            continue
         prefix = f"{sc.SpanAttributes.RETRIEVAL_DOCUMENTS}.{index}"
+        if not isinstance(document, dict):
+            if document is not None:
+                mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_CONTENT}"] = str(document)
+            continue
         content = document.get("page_content", document.get("content"))
         if content is not None:
             mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_CONTENT}"] = str(content)
-        if document.get("metadata") is not None:
+        if document.get("metadata"):
             mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_METADATA}"] = _as_json_str(
                 document["metadata"]
             )

@@ -85,3 +85,40 @@ def test_retriever_span_supports_otel_operation_name_and_traceloop_envelopes() -
         mapped[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_CONTENT}"]
         == "fallback document"
     )
+
+
+def test_empty_document_metadata_is_not_emitted() -> None:
+    mapped = _map_generic_span(
+        {
+            "gen_ai.operation.name": "retrieval",
+            "gen_ai.task.input": json.dumps({"query": "q"}),
+            "gen_ai.task.output": json.dumps(
+                {"documents": [{"content": "some text", "metadata": {}}]}
+            ),
+        }
+    )
+
+    prefix = f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0"
+    assert mapped[f"{prefix}.{DocumentAttributes.DOCUMENT_CONTENT}"] == "some text"
+    assert f"{prefix}.{DocumentAttributes.DOCUMENT_METADATA}" not in mapped
+
+
+def test_plain_string_documents_are_mapped_as_content() -> None:
+    mapped = _map_generic_span(
+        {
+            "gen_ai.operation.name": "retrieval",
+            "gen_ai.task.input": json.dumps({"query": "q"}),
+            "gen_ai.task.output": json.dumps(
+                {"documents": ["bare string document", {"content": "dict document"}]}
+            ),
+        }
+    )
+
+    assert (
+        mapped[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_CONTENT}"]
+        == "bare string document"
+    )
+    assert (
+        mapped[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.1.{DocumentAttributes.DOCUMENT_CONTENT}"]
+        == "dict document"
+    )
