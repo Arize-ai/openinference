@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-langchain-v0
 
+## 0.0.15
+
+### Patch Changes
+
+- d5a24f2: Bump @opentelemetry/core to 2.8.0 for LangChain v0 instrumentation to address the W3C baggage propagation security advisory.
+
 ## 0.0.14
 
 ### Patch Changes
