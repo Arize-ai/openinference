@@ -1,8 +1,9 @@
 # Blob upload for large multimodal span content
 
-**Status:** accepted — interface-only scope per maintainer review (2026-07-20); core lands in
-[#3409](https://github.com/Arize-ai/openinference/pull/3409), OpenAI capture in
-[#3410](https://github.com/Arize-ai/openinference/pull/3410)
+**Status:** accepted — interface-only scope per maintainer review (2026-07-20); audio/file
+vocabulary lands in [#3450](https://github.com/Arize-ai/openinference/pull/3450), the
+contract + policy in [#3409](https://github.com/Arize-ai/openinference/pull/3409), OpenAI
+capture in [#3410](https://github.com/Arize-ai/openinference/pull/3410)
 **Demos:** [`scripts/`](./scripts/README.md) — live demos against a local Phoenix (requires `OPENAI_API_KEY`)
 **Scope:** Python first; JS/Java noted as follow-on. Audio + image demonstrated; file/PDF covered by the same conventions.
 
