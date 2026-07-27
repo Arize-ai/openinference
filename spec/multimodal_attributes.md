@@ -21,6 +21,7 @@ Each content item has a `type` attribute that identifies its kind:
 - `"text"` - Text content
 - `"image"` - Image content (URL or base64)
 - `"audio"` - Audio content (URL or base64)
+- `"file"` - File content such as a PDF document (URL, base64, or provider file id)
 - `"reasoning"` - Reasoning or thinking content, including visible summaries and Anthropic `redacted_thinking`
 - `"tool_use"` - Provider-native tool-use part when a tool call must remain ordered relative to adjacent content items
 
@@ -51,6 +52,38 @@ llm.input_messages.0.message.contents.1.message_content.image.image.url = "data:
 ```
 llm.input_messages.0.message.contents.2.message_content.type = "audio"
 llm.input_messages.0.message.contents.2.message_content.audio.audio.url = "https://example.com/audio.mp3"
+llm.input_messages.0.message.contents.2.message_content.audio.audio.mime_type = "audio/mpeg"
+```
+
+For base64-encoded audio (e.g. OpenAI chat completions `input_audio` parts), the audio is represented as a data URI:
+```
+llm.input_messages.0.message.contents.2.message_content.type = "audio"
+llm.input_messages.0.message.contents.2.message_content.audio.audio.url = "data:audio/wav;base64,UklGRi..."
+llm.input_messages.0.message.contents.2.message_content.audio.audio.mime_type = "audio/wav"
+```
+
+Output audio (e.g. OpenAI chat completions audio responses) additionally carries the transcript when available:
+```
+llm.output_messages.0.message.contents.0.message_content.type = "audio"
+llm.output_messages.0.message.contents.0.message_content.audio.audio.url = "data:audio/wav;base64,UklGRi..."
+llm.output_messages.0.message.contents.0.message_content.audio.audio.transcript = "Hello there!"
+```
+
+### File Content
+
+Files (e.g. PDF documents) attached to a message may arrive as inline base64, as a URL, or as a provider file id referencing content pre-uploaded to the provider (e.g. the OpenAI Files API).
+
+```
+llm.input_messages.0.message.contents.1.message_content.type = "file"
+llm.input_messages.0.message.contents.1.message_content.file.file.url = "data:application/pdf;base64,JVBERi..."
+llm.input_messages.0.message.contents.1.message_content.file.file.mime_type = "application/pdf"
+llm.input_messages.0.message.contents.1.message_content.file.file.name = "report.pdf"
+```
+
+For a provider-managed file, only the id is recorded — no bytes are captured:
+```
+llm.input_messages.0.message.contents.1.message_content.type = "file"
+llm.input_messages.0.message.contents.1.message_content.file.file.id = "file-abc123"
 ```
 
 ## Privacy Considerations

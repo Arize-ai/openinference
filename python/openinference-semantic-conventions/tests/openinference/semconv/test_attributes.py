@@ -56,6 +56,7 @@ from openinference.semconv.resource import ResourceAttributes
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
+    FileAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -218,8 +219,10 @@ class TestMessageContentAttributes:
         attributes = _get_attributes(MessageContentAttributes)
         assert _nested_dict(attributes) == {
             "message_content": {
+                "audio": MessageContentAttributes.MESSAGE_CONTENT_AUDIO,
                 "data": MessageContentAttributes.MESSAGE_CONTENT_DATA,
                 "encrypted_content": MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT,
+                "file": MessageContentAttributes.MESSAGE_CONTENT_FILE,
                 "id": MessageContentAttributes.MESSAGE_CONTENT_ID,
                 "image": MessageContentAttributes.MESSAGE_CONTENT_IMAGE,
                 "signature": MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE,
@@ -241,6 +244,25 @@ class TestImageAttributes:
         assert _nested_dict(attributes) == {
             "image": {
                 "url": ImageAttributes.IMAGE_URL,
+            }
+        }
+
+
+class TestFileAttributes:
+    """Tests for FileAttributes namespace structure.
+
+    Ensures file-related attributes from flat spans are properly nested
+    under the file namespace.
+    """
+
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(FileAttributes)
+        assert _nested_dict(attributes) == {
+            "file": {
+                "id": FileAttributes.FILE_ID,
+                "mime_type": FileAttributes.FILE_MIME_TYPE,
+                "name": FileAttributes.FILE_NAME,
+                "url": FileAttributes.FILE_URL,
             }
         }
 
