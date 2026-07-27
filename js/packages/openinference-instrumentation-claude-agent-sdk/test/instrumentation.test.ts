@@ -98,6 +98,69 @@ describe("ClaudeAgentSDKInstrumentation", () => {
     expect(patchedModule.query).not.toBe(nativeModule.query);
   });
 
+  it("returns a patched copy when SameValue assign works but replacements do not stick", () => {
+    const originalQuery = function* () {
+      yield { type: "result", subtype: "success" };
+    };
+    const mockModule = {
+      get query() {
+        return originalQuery;
+      },
+      set query(value: typeof originalQuery) {
+        // SameValue writes succeed; different values are silently ignored.
+        if (value !== originalQuery) {
+          return;
+        }
+      },
+    };
+
+    expect(() => {
+      mockModule.query = originalQuery;
+    }).not.toThrow();
+    const otherQuery = function* () {
+      yield { type: "result", subtype: "success" };
+    };
+    mockModule.query = otherQuery;
+    expect(mockModule.query).toBe(originalQuery);
+
+    const patchedModule = instrumentation.manuallyInstrument(mockModule);
+
+    expect(patchedModule).not.toBe(mockModule);
+    expect(patchedModule.query).not.toBe(originalQuery);
+    expect(mockModule.query).toBe(originalQuery);
+  });
+
+  it("returns a patched copy when SameValue assign works but replacement throws", () => {
+    const originalQuery = function* () {
+      yield { type: "result", subtype: "success" };
+    };
+    const mockModule = {
+      get query() {
+        return originalQuery;
+      },
+      set query(value: typeof originalQuery) {
+        if (value !== originalQuery) {
+          throw new TypeError("Cannot assign to read only property 'query'");
+        }
+      },
+    };
+
+    expect(() => {
+      mockModule.query = originalQuery;
+    }).not.toThrow();
+    expect(() => {
+      mockModule.query = function* () {
+        yield { type: "result", subtype: "success" };
+      };
+    }).toThrow(TypeError);
+
+    const patchedModule = instrumentation.manuallyInstrument(mockModule);
+
+    expect(patchedModule).not.toBe(mockModule);
+    expect(patchedModule.query).not.toBe(originalQuery);
+    expect(mockModule.query).toBe(originalQuery);
+  });
+
   it("should not double-patch the module", () => {
     const callCount = { value: 0 };
     const mockModule = {

@@ -54,7 +54,7 @@
     "beeai-framework": "^0.1.13",
     "import-in-the-middle": "^1.13.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.3"
   },
   "peerDependencies": {

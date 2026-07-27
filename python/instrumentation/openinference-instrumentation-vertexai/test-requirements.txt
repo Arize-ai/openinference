@@ -1,2 +1,2 @@
-vertexai==1.49.0
+vertexai==1.63.0
 opentelemetry-sdk

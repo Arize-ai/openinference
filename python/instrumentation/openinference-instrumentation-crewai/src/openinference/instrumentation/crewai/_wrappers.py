@@ -57,6 +57,20 @@ _agent_kickoff_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "_oi_agent_kickoff_active", default=False
 )
 
+# Holds the id() of the tool instance whose run span is currently open on this
+# context. A tool's ``run`` may delegate to ``BaseTool.run`` (e.g. via
+# ``super().run()``) and both are wrapped, which would emit two spans for the
+# one invocation. The inner wrapper skips span creation only when re-entered for
+# the *same* instance, so a tool whose body legitimately calls another tool's
+# ``run`` still gets its own span.
+#
+# Being a ContextVar, the guard is scoped to the running task/thread. If a tool's
+# run were dispatched to a different thread, the delegation would not be de-duped
+# there; the fallout is at worst one duplicate span, never a dropped one.
+_tool_run_instance: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar(
+    "_oi_tool_run_instance", default=None
+)
+
 
 class SafeJSONEncoder(json.JSONEncoder):
     """
@@ -982,6 +996,24 @@ class _BaseToolRunWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+        # Skip only a re-entrant run on the SAME instance (Tool.run delegating to
+        # a wrapped BaseTool.run), which would otherwise emit a duplicate span. A
+        # nested run on a different tool instance still gets its own span.
+        if _tool_run_instance.get() == id(instance):
+            return wrapped(*args, **kwargs)
+        token = _tool_run_instance.set(id(instance))
+        try:
+            return self._run_with_span(wrapped, instance, args, kwargs)
+        finally:
+            _tool_run_instance.reset(token)
+
+    def _run_with_span(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
         # Enhanced tool naming - use meaningful tool name instead of generic "BaseTool.run"
         span_name = _get_tool_span_name(instance, wrapped)
         input_value = _get_input_value(wrapped, *args, **kwargs)

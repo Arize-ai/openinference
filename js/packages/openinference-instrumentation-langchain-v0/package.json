@@ -51,7 +51,7 @@
     "dotenv": "^16.4.5",
     "langchain": "^0.3.37",
     "openai": "^4.52.7",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.3"
   },
   "peerDependencies": {

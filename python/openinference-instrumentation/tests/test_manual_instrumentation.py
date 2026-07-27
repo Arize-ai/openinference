@@ -683,12 +683,17 @@ class TestTracerChainDecorator:
             pydantic_out = OutputPydanticModel(nested=nested, description="pydantic output")
             dataclass_out = NestedDataclass(count=123, active=True)
             return ComplexOutput(
-                pydantic_part=pydantic_out, dataclass_part=dataclass_out, string_part="complete"
+                pydantic_part=pydantic_out,
+                dataclass_part=dataclass_out,
+                string_part="complete",
             )
 
         input_model = NestedPydanticModel(value=10, name="test")
         decorated_chain_complex_io(
-            model=input_model, text="sample text", number=42, time=datetime(2024, 1, 1, 12, 0)
+            model=input_model,
+            text="sample text",
+            number=42,
+            time=datetime(2024, 1, 1, 12, 0),
         )
 
         spans = in_memory_span_exporter.get_finished_spans()
@@ -953,6 +958,164 @@ class TestTracerChainDecorator:
         assert not span.events
         attributes = dict(span.attributes or {})
         assert attributes[SESSION_ID] == "123"
+
+
+class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
+    """Regression tests for issue #3371: RETRIEVER, RERANKER, GUARDRAIL, and
+    EVALUATOR spans previously had no dedicated tracer decorator, so anyone
+    creating these span kinds had to hand-roll span creation and typically
+    never called set_status, leaving status="UNSET" forever. These decorators
+    mirror @tracer.chain / @tracer.tool, reusing the same _chain machinery,
+    which always sets status to OK on successful completion.
+    """
+
+    def test_retriever_sets_status_ok(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.retriever
+        def decorated_retriever(query: str) -> str:
+            return "output"
+
+        decorated_retriever("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_retriever"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RETRIEVER
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_reranker_sets_status_ok(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.reranker
+        def decorated_reranker(query: str) -> str:
+            return "output"
+
+        decorated_reranker("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_reranker"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RERANKER
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_guardrail_sets_status_ok(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.guardrail
+        def decorated_guardrail(text: str) -> str:
+            return "output"
+
+        decorated_guardrail("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_guardrail"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == GUARDRAIL
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_evaluator_sets_status_ok(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.evaluator
+        def decorated_evaluator(output: str) -> str:
+            return "output"
+
+        decorated_evaluator("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_evaluator"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == EVALUATOR
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_no_parameters(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.retriever()  # apply decorator with no parameters
+        def decorated_retriever_with_empty_parens(query: str) -> str:
+            return "output"
+
+        decorated_retriever_with_empty_parens("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RETRIEVER
+
+    def test_overridden_name(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.reranker(name="overridden-name")
+        def decorated_reranker_with_overridden_name(query: str) -> str:
+            return "output"
+
+        decorated_reranker_with_overridden_name("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "overridden-name"
+        assert span.status.is_ok
+
+    async def test_async(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.evaluator
+        async def decorated_async_evaluator(output: str) -> str:
+            return "output"
+
+        await decorated_async_evaluator("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_async_evaluator"
+        assert span.status.is_ok
 
 
 class TestAgentDecorator:
@@ -1408,7 +1571,9 @@ class TestTracerLLMDecorator:
         sync_openai_client: OpenAI,
     ) -> None:
         @tracer.llm
-        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+        def sync_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
             return sync_openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=input_messages,
@@ -1447,7 +1612,9 @@ class TestTracerLLMDecorator:
         tracer: OITracer,
     ) -> None:
         @tracer.llm
-        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+        def sync_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
             raise ValueError("Something went wrong")
 
         input_messages: List[ChatCompletionMessageParam] = [
@@ -1786,7 +1953,9 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+        def get_output_attributes(
+            output_message: ChatCompletion,
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -1794,7 +1963,9 @@ class TestTracerLLMDecorator:
             process_input=get_input_attributes,
             process_output=get_output_attributes,
         )
-        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+        def sync_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
             return sync_openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=input_messages,
@@ -1833,7 +2004,9 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+        def get_output_attributes(
+            output_message: ChatCompletion,
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -1841,7 +2014,9 @@ class TestTracerLLMDecorator:
             process_input=get_input_attributes,
             process_output=get_output_attributes,
         )
-        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+        def sync_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
             raise ValueError("Something went wrong")
 
         input_messages: List[ChatCompletionMessageParam] = [
@@ -1888,7 +2063,9 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+        def get_output_attributes(
+            output_message: ChatCompletion,
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -1937,7 +2114,9 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+        def get_output_attributes(
+            output_message: ChatCompletion,
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -2275,7 +2454,12 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         Tool(
             json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}})
         ),
-        Tool(json_schema={"type": "object", "properties": {"operation": {"type": "string"}}}),
+        Tool(
+            json_schema={
+                "type": "object",
+                "properties": {"operation": {"type": "string"}},
+            }
+        ),
     ]
     attributes = get_llm_attributes(
         provider="openai",
@@ -2943,6 +3127,10 @@ AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 TOOL = OpenInferenceSpanKindValues.TOOL.value
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
+RERANKER = OpenInferenceSpanKindValues.RERANKER.value
+GUARDRAIL = OpenInferenceSpanKindValues.GUARDRAIL.value
+EVALUATOR = OpenInferenceSpanKindValues.EVALUATOR.value
 
 # Session ID
 SESSION_ID = SpanAttributes.SESSION_ID
@@ -2988,7 +3176,11 @@ class TestSamplerAttributeAccess:
 
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-        from openinference.instrumentation import TraceConfig, TracerProvider, using_attributes
+        from openinference.instrumentation import (
+            TraceConfig,
+            TracerProvider,
+            using_attributes,
+        )
 
         # Create TracerProvider with custom sampler
         tracer_provider = TracerProvider(config=TraceConfig(), sampler=AttributeCapturingSampler())
@@ -3163,11 +3355,20 @@ class TestGetProviderFromHost:
             ("api.cohere.com", OpenInferenceLLMProviderValues.COHERE),
             ("api.cohere.ai", OpenInferenceLLMProviderValues.COHERE),
             ("api.mistral.ai", OpenInferenceLLMProviderValues.MISTRALAI),
-            ("generativelanguage.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE),
+            (
+                "generativelanguage.googleapis.com",
+                OpenInferenceLLMProviderValues.GOOGLE,
+            ),
             ("aiplatform.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE),
             ("bedrock-runtime.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
-            ("bedrock-runtime.us-east-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
-            ("bedrock-runtime.eu-west-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            (
+                "bedrock-runtime.us-east-1.amazonaws.com",
+                OpenInferenceLLMProviderValues.AWS,
+            ),
+            (
+                "bedrock-runtime.eu-west-1.amazonaws.com",
+                OpenInferenceLLMProviderValues.AWS,
+            ),
             ("api.x.ai", OpenInferenceLLMProviderValues.XAI),
             ("api.deepseek.com", OpenInferenceLLMProviderValues.DEEPSEEK),
             ("api.groq.com", OpenInferenceLLMProviderValues.GROQ),
