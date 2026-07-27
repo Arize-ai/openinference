@@ -1,11 +1,14 @@
 # Blob upload for large multimodal span content
 
-**Status:** accepted — interface-only scope per maintainer review (2026-07-20); audio/file
-vocabulary lands in [#3450](https://github.com/Arize-ai/openinference/pull/3450), the
-contract + policy in [#3409](https://github.com/Arize-ai/openinference/pull/3409), OpenAI
-capture in [#3410](https://github.com/Arize-ai/openinference/pull/3410)
+**Status:** accepted — interface-only scope per maintainer review (2026-07-20), narrowed
+2026-07-27 to **image offload only**, the one media type whose message-content convention
+is settled today; contract + policy land in
+[#3409](https://github.com/Arize-ai/openinference/pull/3409). The audio/file vocabulary
+([#3450](https://github.com/Arize-ai/openinference/pull/3450)) and OpenAI audio/file
+capture ([#3410](https://github.com/Arize-ai/openinference/pull/3410)) are deferred until
+those conventions land (open question 6); their branches are preserved.
 **Demos:** [`scripts/`](./scripts/README.md) — live demos against a local Phoenix (requires `OPENAI_API_KEY`)
-**Scope:** Python first; JS/Java noted as follow-on. Audio + image demonstrated; file/PDF covered by the same conventions.
+**Scope:** Python first; JS/Java noted as follow-on. Image offload ships; audio and file/PDF are design follow-ons.
 
 ## TL;DR
 
@@ -26,18 +29,18 @@ BlobUploader              # @runtime_checkable Protocol: upload(blob) -> Optiona
 load_blob_uploader(name)  # resolves the "openinference_blob_uploader" entry-point group
 ```
 
-New `TraceConfig` fields (each with an env var, precedence code > env > default):
+One new `TraceConfig` field (precedence code > env > default):
 
 | field | env var | default |
 |---|---|---|
 | `blob_uploader` | `OPENINFERENCE_BLOB_UPLOADER=<name>` loads a registered `openinference_blob_uploader` entry point (mirrors util-genai's `opentelemetry_genai_completion_hook` mechanics) | `None` |
-| `base64_media_max_length` (audio/file/video budget; images keep `base64_image_max_length`) | `OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH` | `32_000` |
-| `hide_input_audio` / `hide_output_audio` / `hide_input_files` | `OPENINFERENCE_HIDE_INPUT_AUDIO` / `..._OUTPUT_AUDIO` / `..._INPUT_FILES` | `False` |
 
-The env vars are the whole configuration story (instrumentation happens automatically
-at the edge, so env-first over declarative): budgets and hide flags say *what*
-offloads; the entry-point name says *who* moves the bytes. The offloadable attribute
-set itself is built in — users never enumerate fields.
+Everything else the policy needs already exists for images: `base64_image_max_length`
+says *what* offloads, `hide_input_images` says what never leaves the process, and the
+entry-point name says *who* moves the bytes (env-first, since instrumentation happens
+automatically at the edge). The offloadable attribute set is built in — users never
+enumerate fields. Audio/file budgets and hide flags arrive with their vocabulary
+(open question 6).
 
 One policy, applied inside the existing `TraceConfig.mask()` choke point (and by a
 direct capture-time API for instrumentors that hold raw bytes):
@@ -46,18 +49,20 @@ direct capture-time API for instrumentors that hold raw bytes):
 > **upload** (attribute = storage URI) → **`__REDACTED__`** (uniform fallback —
 > no uploader, rejection, and failure all degrade to today's redaction, never block).
 
-Semconv additions: `MESSAGE_CONTENT_AUDIO`, `MESSAGE_CONTENT_FILE`, a `"file"`
-content type, `FileAttributes` (`file.url` / `file.mime_type` / `file.name` /
-`file.id`), and gen_ai modality `"document"`. Upload granularity is **one `Blob` per
-media content part** — contract details in §2.1.
+**No semconv additions.** Offload applies to the existing image message-content
+convention only. Audio is emitted by a single instrumentor (openai-agents realtime)
+under instrumentor-local keys, and files/PDF have no convention at all — introducing
+that vocabulary is deferred (open question 6; the drafted constants, spec text, and
+gen_ai mapping are preserved on the `blob-upload-semconv` branch, #3450). The `Blob`
+contract itself stays media-agnostic — one `Blob` per media content part, §2.1 — so
+the follow-ons add mask rules, not API.
 
 The attribute key never changes; only the value does —
 `...message_content.image.image.url` goes from `"__REDACTED__"` (or a multi-hundred-KB
-data URI) to `"s3://my-bucket/oi-media/3a7bd3….png"`. Realtime audio gets the same
-upgrade: instead of a data URI truncated mid-stream (undecodable), `input.audio.url`
-records a playable storage URI, with `.mime_type` and `.transcript` unchanged. With
-`enable_genai_semconv=True` the dual-write emits a spec-shaped part with no extra
-work: `{"type": "uri", "modality": "audio", "mime_type": "audio/wav", "uri": "s3://…"}`.
+data URI) to `"s3://my-bucket/oi-media/3a7bd3….png"`. With `enable_genai_semconv=True`
+the dual-write already maps non-`data:` URLs to `uri` parts, so an externalized image
+emits a spec-shaped part with **zero conversion changes**:
+`{"type": "uri", "modality": "image", "uri": "s3://…"}`.
 
 ## 1. Problem
 
@@ -76,10 +81,17 @@ Production choices today:
 |---|---|
 | default truncation (audio) / redaction (image) | content destroyed — a 3.2 s question keeps ~0.5 s of unplayable audio; a >32 KB image becomes `__REDACTED__` |
 | raise the max-length env vars | a 663 KB PNG becomes an 884 KB attribute; multi-MB spans stress OTLP payload limits (gRPC default rejects the whole 4 MB+ batch), collectors, and span stores |
-| hide flags (`OPENINFERENCE_HIDE_INPUT_AUDIO`, …) | attribute never emitted — no observability at all |
+| hide flags (`OPENINFERENCE_HIDE_INPUT_IMAGES`, …) | attribute never emitted — no observability at all |
 
 The missing option, and the subject of this spec: **upload the decoded bytes to external
 storage at capture time and record only the destination URI on the span**.
+
+Realtime audio is the forcing function for the *contract* (non-blocking, a raw-bytes
+door) — but the first shipped slice is **images**, because image is the only media
+type whose message-content convention (`message_content.image.image.url` +
+`base64_image_max_length` + `hide_input_images`) is settled and emitted by many
+instrumentors today. Audio and file offload follow once their conventions land
+(open question 6).
 
 Two structural facts shape the design:
 
@@ -188,42 +200,41 @@ both (the OpenAI instrumentor does).
 | provider-hosted reference (`file.id`, `file_url`) | **neither** — record the reference verbatim; no bytes involved |
 
 Whichever door, §2.4's policy applies identically, so a payload's fate depends only on
-config, never on which door it entered through.
+config, never on which door it entered through. **Only point 1, for images, ships in
+#3409**; point 2 and the audio/file rows are the design for the deferred follow-ons.
 
 ### 2.2 Integration point 1 — the `TraceConfig` choke point (zero instrumentor changes)
 
 `TraceConfig.mask()` already sees every `(key, value)` on `OITracer` spans and already
-implements the >limit image redaction. One new branch ahead of the redaction branches
-matches offloadable keys (message-content image/audio/file URLs) holding base64 data
-URIs over budget, decodes them to a `Blob`, and substitutes the uploader's URI —
-falling through to `__REDACTED__` when there is no uploader or it declines. The image
-demo proves this shape against *released* packages: the same attribute key carries
-`__REDACTED__` or a storage URI depending only on the `TraceConfig` handed to the
-instrumentor. Any instrumentor that uses `OITracer` — which the project requires —
-gets image/audio/file offload without a diff.
+implements the >limit image redaction. The existing oversized-image branch upgrades
+from redact-only to externalize-or-redact: an over-budget base64 image decodes to a
+`Blob` and the uploader's URI is substituted in place, falling through to
+`__REDACTED__` when there is no uploader or it declines. The image demo proves this
+shape against *released* packages: the same attribute key carries `__REDACTED__` or a
+storage URI depending only on the `TraceConfig` handed to the instrumentor. Any
+instrumentor that uses `OITracer` — which the project requires — gets image offload
+without a diff; audio/file keys join the same branch when their vocabulary lands.
 
 **The `input.value` copy.** Instrumentors also JSON-serialize the whole raw request
 into `input.value` *before* it reaches `mask()`, and `mask()` won't parse arbitrary
 JSON to find base64 buried inside. The OpenAI instrumentor already redacts oversized
 base64 images from that copy with an instrumentor-side pre-pass
-(`redact_images_from_request_parameters`); this design generalizes the pre-pass to
-audio and file parts and hands it the same uploader, so one
-hide → externalize → redact policy covers both the structured attribute and the
-`input.value` copy. Content addressing collapses the double touch into one object and
-one URI. Upgrading the *image* pre-pass from redaction to externalization is open
+(`redact_images_from_request_parameters`). Upgrading that pre-pass from redaction to
+externalization through the same uploader — so the `input.value` copy carries the URI
+too, with content addressing collapsing the double touch into one object — is open
 question 1.
 
-### 2.3 Integration point 2 — capture-time API for raw-bytes instrumentors
+### 2.3 Integration point 2 — capture-time API for raw-bytes instrumentors (follow-on)
 
-Instrumentors that hold decoded bytes (openai-agents realtime `_finalize_user` /
-`_finalize_response`) call `uploader.upload(Blob(data=wav_bytes, mime_type="audio/wav",
-attribute_key=...))` directly when the encoded size would exceed budget, and record
-the returned URI (or `__REDACTED__` on `None`) — never building a data URI at all.
-`input.audio.mime_type`, `input.audio.transcript`, and hide-flag gating are untouched.
-One migration behavior change: over-budget audio that cannot upload becomes
-`__REDACTED__` instead of today's truncated data URI — acceptable because the
-truncated payload was cut mid-stream and never decodable. The audio demo applies this
-change to a live realtime session by patching the released instrumentor.
+Not shipped in #3409 — this is the design for the audio follow-on. Instrumentors that
+hold decoded bytes (openai-agents realtime `_finalize_user` / `_finalize_response`)
+call `uploader.upload(Blob(data=wav_bytes, mime_type="audio/wav", attribute_key=...))`
+directly when the encoded size would exceed budget, and record the returned URI (or
+`__REDACTED__` on `None`) — never building a data URI at all. One migration behavior
+change when it lands: over-budget audio that cannot upload becomes `__REDACTED__`
+instead of today's truncated data URI — acceptable because the truncated payload was
+cut mid-stream and never decodable. The audio demo applies this change to a live
+realtime session by patching the released instrumentor.
 
 ### 2.4 Offload policy
 
@@ -235,11 +246,11 @@ One decision function, applied at both integration points, gates in strict order
   diverges from gen_ai's "hook operates independently of capture opt-in flags": that
   clause exists so a hook can be the *sole* content sink in OTel's opt-in-capture
   world, whereas OI captures by default and its `hide_*` flags are redaction controls.
-- **Two inline budgets.** Images keep the existing `base64_image_max_length`
-  (back-compat); audio/file/video share the new `base64_media_max_length` (default
-  32,000). Content that fits stays inline; set a budget to `0` to offload everything.
-  Realtime's private `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` migrates onto
-  `base64_media_max_length`.
+- **The inline budget is the existing one.** Images keep `base64_image_max_length`
+  (back-compat); content that fits stays inline (tiny blobs aren't worth a fetch), and
+  setting it to `0` offloads everything. The audio/file follow-on adds a
+  `base64_media_max_length` budget and migrates realtime's private
+  `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` onto it.
 - **Over-budget content that cannot upload is `__REDACTED__`** — enabling an uploader
   only ever upgrades redaction to a URI.
 - **Unsampled/non-recording spans skip upload** (`span.is_recording()` guard) — no
@@ -298,10 +309,13 @@ OI attribute keys don't change either; the URI replaces the data URI in place:
 
 | content | OI attribute (key unchanged) | before | after | gen_ai dual-write |
 |---|---|---|---|---|
-| message image | `...message_content.image.image.url` | `data:image/png;base64,...` or `__REDACTED__` | storage URI | `blob` part → `uri` part (`modality:"image"`) |
-| message audio | `...message_content.audio.audio.url` (+ `audio.mime_type`, `audio.transcript`) | `data:audio/wav;base64,...` | storage URI | `uri` part (`modality:"audio"`) via `_media_part_from_url` |
-| message file / PDF | `...message_content.file.file.url` (+ `file.mime_type`, `file.name`); provider-hosted files as `file.id` | `data:application/pdf;base64,...` | storage URI | `uri` part (`modality:"document"`); `file.id` → `file` part |
-| realtime audio (input / output) | `input.audio.url` / `output.audio.url` + `.mime_type`, `.transcript` | truncated data URI | storage URI | n/a today (realtime spans are not dual-written; follow-on) |
+| message image (**ships, #3409**) | `...message_content.image.image.url` | `data:image/png;base64,...` or `__REDACTED__` | storage URI | `blob` part → `uri` part (`modality:"image"`) |
+| message audio (follow-on) | `...message_content.audio.audio.url` (+ `audio.mime_type`, `audio.transcript`) | `data:audio/wav;base64,...` | storage URI | `uri` part (`modality:"audio"`) via `_media_part_from_url` |
+| message file / PDF (follow-on) | `...message_content.file.file.url` (+ `file.mime_type`, `file.name`); provider-hosted files as `file.id` | `data:application/pdf;base64,...` | storage URI | `uri` part (`modality:"document"`); `file.id` → `file` part |
+| realtime audio (follow-on) | `input.audio.url` / `output.audio.url` + `.mime_type`, `.transcript` | truncated data URI | storage URI | n/a today (realtime spans are not dual-written) |
+
+Only the image row ships now; the audio/file rows are the drafted mapping preserved on
+`blob-upload-semconv` (#3450) for when their conventions land (open question 6).
 
 Supporting details:
 
@@ -366,11 +380,12 @@ not the type but any code that moves one `Blob`'s bytes to storage individually.
 
 Two live scripts under [`scripts/`](./scripts/README.md) (`uv run --script …` against
 a local Phoenix, `OPENAI_API_KEY` required), both driving real instrumented OpenAI
-Agents SDK apps: `image_blob_demo.py` runs the same vision-agent request twice with
-only the `TraceConfig` changed (redaction vs. storage URI on the same attribute key);
-`audio_blob_demo.py` applies the §2.3 capture-site change to a live Realtime API
-session (`--inline` shows today's truncation). The demo blob store (`LocalBlobStore`
-in `common.py`) is a deliberate mock — content-addressed local files.
+Agents SDK apps: `image_blob_demo.py` demonstrates the shipped scope — the same
+vision-agent request run twice with only the `TraceConfig` changed (redaction vs.
+storage URI on the same attribute key); `audio_blob_demo.py` illustrates the deferred
+§2.3 capture-site design against a live Realtime API session (`--inline` shows today's
+truncation). The demo blob store (`LocalBlobStore` in `common.py`) is a deliberate
+mock — content-addressed local files.
 
 ## 5. JS / Java follow-on (not implemented)
 
@@ -383,10 +398,10 @@ interface. Attribute keys and policy are language-independent.
 
 - Production object stores (S3/GCS credentials, signed URL issuance, retention/GC,
   encryption at rest).
-- A file/PDF demo — the conventions and mask rules cover `file` parts (§3.2).
+- Audio and file/PDF offload — deferred with their vocabulary (open question 6).
 - Phoenix UI changes (audio player, blob-store proxy).
 - Whole-payload `messages_ref`-style offload (§3.3).
-- The openai-agents realtime migration itself (§2.3 is the plan; landing it is a
+- The openai-agents realtime migration itself (§2.3 is the design; landing it is a
   follow-on PR).
 
 ## 7. Open questions
@@ -411,3 +426,12 @@ interface. Attribute keys and policy are language-independent.
    `load_completion_hook()` directly — their transport, their `*_ref` attributes, zero
    OI upload code. Prerequisites: gate behind OI's `hide_*` flags, and decide what
    searchable semantics remain on the span once text moves to storage.
+6. **Audio/file message-content vocabulary and capture.** The deferred remainder of
+   this design: `MESSAGE_CONTENT_AUDIO` / `MESSAGE_CONTENT_FILE` / `FileAttributes`
+   semconv, their spec text and gen_ai dual-write mapping (drafted on
+   `blob-upload-semconv`, [#3450](https://github.com/Arize-ai/openinference/pull/3450)),
+   the `base64_media_max_length` budget + audio/file hide flags and mask rules, and the
+   OpenAI audio/file capture layer (drafted on `blob-upload-openai`,
+   [#3410](https://github.com/Arize-ai/openinference/pull/3410)). Blocked on settling
+   the conventions: audio is emitted by one instrumentor under instrumentor-local keys
+   (question 2), and files/PDF have no OI convention yet.
