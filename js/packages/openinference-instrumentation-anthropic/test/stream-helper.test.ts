@@ -94,6 +94,27 @@ describe("AnthropicInstrumentation - APIPromise compatibility", () => {
     expect(attributes[OUTPUT_VALUE]).toEqual(expect.any(String));
   });
 
+  it("returns an unconsumed response from asResponse()", async () => {
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY ?? "fake-api-key",
+      fetch: vcrFetch("thinking-non-streaming"),
+    });
+
+    const response = await client.messages
+      .create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 2048,
+        messages: [{ role: "user", content: "What is 27 * 453?" }],
+      })
+      .asResponse();
+
+    // The patch must not eagerly parse and consume the body, so the caller can
+    // still read the raw response themselves.
+    expect(response.bodyUsed).toBe(false);
+    const body = (await response.json()) as { role: string };
+    expect(body.role).toBe("assistant");
+  });
+
   it("records errors on the span and still rejects the caller", async () => {
     const client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY ?? "fake-api-key",

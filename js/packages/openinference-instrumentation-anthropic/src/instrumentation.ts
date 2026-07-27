@@ -249,9 +249,10 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
           // client.messages.stream().
           if (hasThenUnwrap(execPromise)) {
             const wrappedPromise = execPromise._thenUnwrap(wrappedPromiseThen);
-            // Record errors without touching the returned promise. Parsing is
-            // memoized, so this doesn't read the response twice.
-            wrappedPromise.then(undefined, recordError);
+            // Watch for failures via asResponse() instead of then(). then() would
+            // eagerly parse and consume the body, leaving asResponse() callers with
+            // an already-read response.
+            wrappedPromise.asResponse().catch(recordError);
             return context.bind(execContext, wrappedPromise);
           }
 
