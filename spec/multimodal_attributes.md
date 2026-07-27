@@ -86,6 +86,24 @@ llm.input_messages.0.message.contents.1.message_content.type = "file"
 llm.input_messages.0.message.contents.1.message_content.file.file.id = "file-abc123"
 ```
 
+## External Storage for Large Media
+
+Inline base64 payloads for audio and documents can reach tens of megabytes, exceeding OTLP message limits and inflating backend storage. As an experimental capability, instrumentations MAY externalize oversized media at capture time: upload the decoded bytes to configured blob storage and record the destination URI in the same `*.url` attribute where the data URI would have been recorded.
+
+```
+llm.input_messages.0.message.contents.2.message_content.type = "audio"
+llm.input_messages.0.message.contents.2.message_content.audio.audio.url = "s3://my-bucket/oi-media/3a7bd3e2....wav"
+llm.input_messages.0.message.contents.2.message_content.audio.audio.mime_type = "audio/wav"
+```
+
+Semantics:
+- Externalization applies only to base64 data URIs exceeding `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` (images) or `OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH` (audio, files, video). Small payloads stay inline.
+- The destination URI SHOULD be content-addressed (e.g. keyed by the SHA-256 of the decoded bytes) so identical content deduplicates and the URI can be computed before the upload completes.
+- If no uploader is configured or the upload cannot be accepted, the existing redaction behavior applies (`"__REDACTED__"`).
+- Hide settings (`OPENINFERENCE_HIDE_INPUT_IMAGES`, `OPENINFERENCE_HIDE_INPUT_AUDIO`, `OPENINFERENCE_HIDE_OUTPUT_AUDIO`, `OPENINFERENCE_HIDE_INPUT_FILES`) take precedence over externalization: hidden content is never uploaded.
+
+This maps directly onto the OTel GenAI semantic conventions message model: an inline data URI corresponds to a `blob` part, while an externalized reference corresponds to a `uri` part, and a provider file id corresponds to a `file` part.
+
 ## Privacy Considerations
 
 ### Hiding Images
@@ -100,6 +118,12 @@ When `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is set (default: 32000):
 - Base64-encoded images longer than this limit will be truncated
 - The truncation preserves the data URL prefix (e.g., `data:image/png;base64,`)
 - Only the base64 content portion is subject to the length limit
+
+### Hiding and Limiting Audio and Files
+
+When `OPENINFERENCE_HIDE_INPUT_AUDIO`, `OPENINFERENCE_HIDE_OUTPUT_AUDIO`, or `OPENINFERENCE_HIDE_INPUT_FILES` is set to true, the corresponding `message_content.audio` / `message_content.file` attributes are dropped from messages.
+
+When `OPENINFERENCE_BASE64_MEDIA_MAX_LENGTH` is set (default: 32000), base64 data URIs carrying audio or file content longer than the limit are replaced with `"__REDACTED__"` — unless a blob uploader is configured, in which case the content is externalized and the attribute is set to the destination URI (see [External Storage for Large Media](#external-storage-for-large-media)).
 
 ### Hiding Text Content
 
