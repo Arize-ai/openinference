@@ -745,7 +745,10 @@ def _chain_context(
     ) as span:
         context = _ChainContext(span=span)
         yield context
-        span.set_status(Status(StatusCode.OK))
+        # Do not unconditionally set OK here — it would prevent callers
+        # (e.g. ADK 2.x) from setting ERROR on failure paths.  OTel
+        # defaults to UNSET, which is treated as success for non-error
+        # spans and does not block later ERROR updates (closes #3415).
 
 
 class _LLMContext:
@@ -810,7 +813,7 @@ def _llm_context(
             process_output=process_output,
         )
         yield context
-        span.set_status(Status(StatusCode.OK))
+        # Do not unconditionally set OK — see _chain_context (closes #3415).
 
 
 class _ToolContext:
@@ -862,7 +865,7 @@ def _tool_context(
     ) as span:
         context = _ToolContext(span=span)
         yield context
-        span.set_status(Status(StatusCode.OK))
+        # Do not unconditionally set OK — see _chain_context (closes #3415).
 
 
 def _infer_span_name(*, instance: Any, callable: Callable[..., Any]) -> str:
