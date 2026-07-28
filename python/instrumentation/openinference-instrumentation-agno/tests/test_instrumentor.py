@@ -120,6 +120,7 @@ def test_agno_instrumentation(
             assert attributes.get("openinference.span.kind") == "LLM"
             assert attributes.get("llm.model_name") == "gpt-4o-mini"
             assert attributes.get("llm.provider") == "OpenAI"
+            assert attributes.get("llm.system") == "openai"
             assert span.status.is_ok
     assert checked_spans >= 3  # We expect at least agent, tool, and LLM spans
 
@@ -182,6 +183,30 @@ def test_team_metadata_captured() -> None:
     metadata = json.loads(raw_metadata)
     assert metadata["project"] == "alpha"
     assert metadata["priority"] == "high"
+
+
+@pytest.mark.parametrize(
+    "provider, expected_system",
+    [
+        ("OpenAI", "openai"),
+        ("Anthropic", "anthropic"),
+        ("Cohere", "cohere"),
+        ("Mistral", "mistralai"),
+        ("VertexAI", "vertexai"),
+        # Providers without a canonical mapping fall back to a normalized string
+        ("Groq", "groq"),
+        ("AwsBedrock", "awsbedrock"),
+        # Empty / missing providers yield no llm.system
+        (None, None),
+        ("", None),
+        ("   ", None),
+    ],
+)
+def test_get_llm_system(provider: Any, expected_system: Any) -> None:
+    """llm.system is derived from the same model.provider source as llm.provider."""
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    assert _get_llm_system(provider) == expected_system
 
 
 def test_agno_team_coordinate_instrumentation(

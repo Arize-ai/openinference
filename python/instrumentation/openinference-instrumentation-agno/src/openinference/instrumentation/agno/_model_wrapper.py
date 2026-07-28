@@ -21,12 +21,37 @@ from agno.models.base import Model
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
 )
+
+# Maps an Agno ``model.provider`` value to a canonical OpenInference ``llm.system``
+# value. Providers not listed here fall back to a normalized (lowercased) provider
+# string so that ``llm.system`` is always populated on LLM spans.
+_PROVIDER_TO_LLM_SYSTEM: Dict[str, str] = {
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "mistral": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+}
+
+
+def _get_llm_system(provider: Optional[str]) -> Optional[str]:
+    """Derive the OpenInference ``llm.system`` value from an Agno model provider.
+
+    Uses the same ``model.provider`` identity source that populates ``llm.provider``,
+    normalizing well-known providers to canonical OpenInference system values and
+    falling back to a lowercased provider string otherwise.
+    """
+    if not provider:
+        return None
+    normalized = provider.strip().lower()
+    return _PROVIDER_TO_LLM_SYSTEM.get(normalized, normalized) or None
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
@@ -373,6 +398,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model.provider):
+                span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = wrapped(*args, **kwargs)
             output_message = _parse_model_output(response)
@@ -430,6 +457,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model.provider):
+                span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 
             responses = []
@@ -501,6 +530,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model.provider):
+                span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = await wrapped(*args, **kwargs)
             output_message = _parse_model_output(response)
@@ -564,6 +595,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model.provider):
+                span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 
             responses = []
@@ -616,6 +649,7 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
