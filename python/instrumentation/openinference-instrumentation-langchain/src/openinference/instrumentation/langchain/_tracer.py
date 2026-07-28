@@ -325,6 +325,7 @@ def _update_span(span: Span, run: Run) -> None:
                     _model_name(run.outputs, run.extra),
                     _token_counts(run.outputs),
                     _function_calls(run.outputs),
+                    _finish_reason(run.outputs),
                     _tools(run),
                     _retrieval_documents(run),
                     _metadata(run),
@@ -1393,6 +1394,46 @@ def _function_calls(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str,
 
 
 @stop_on_exception
+def _finish_reason(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+    """Yields the finish reason for the first generation, if present."""
+    if not outputs:
+        return
+    assert hasattr(outputs, "get"), f"expected Mapping, found {type(outputs)}"
+    if not (generations := outputs.get("generations")):
+        return
+    assert isinstance(generations, Iterable), f"expected Iterable, found {type(generations)}"
+    if not (first_generations := next(iter(generations), None)):
+        return
+    assert isinstance(first_generations, Iterable), (
+        f"expected Iterable, found {type(first_generations)}"
+    )
+    if not (first_generation := next(iter(first_generations), None)):
+        return
+    assert hasattr(first_generation, "get"), f"expected Mapping, found {type(first_generation)}"
+
+    # For non-streaming case, most chat providers populate generation_info.
+    if (
+        (generation_info := first_generation.get("generation_info"))
+        and hasattr(generation_info, "get")
+        and (finish_reason := generation_info.get("finish_reason"))
+    ):
+        yield LLM_FINISH_REASON, str(finish_reason)
+        return
+
+    # For streaming case, finish_reason often lands in the message's response_metadata instead.
+    if (
+        (message := first_generation.get("message"))
+        and hasattr(message, "get")
+        and (kwargs := message.get("kwargs"))
+        and hasattr(kwargs, "get")
+        and (response_metadata := kwargs.get("response_metadata"))
+        and hasattr(response_metadata, "get")
+        and (finish_reason := response_metadata.get("finish_reason"))
+    ):
+        yield LLM_FINISH_REASON, str(finish_reason)
+
+
+@stop_on_exception
 def _tools(run: Run) -> Iterator[Tuple[str, str]]:
     """Yields tool attributes if present."""
     if run.run_type.lower() != "tool":
@@ -1537,6 +1578,7 @@ LLM_FUNCTION_CALL = SpanAttributes.LLM_FUNCTION_CALL
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
