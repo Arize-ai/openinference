@@ -859,9 +859,7 @@ def test_read_session_from_metadata(
     assert llm_attributes == {}
 
 
-@pytest.mark.parametrize(
-    "finish_reason", ["stop", "length", "tool_calls", "content_filter"]
-)
+@pytest.mark.parametrize("finish_reason", ["stop", "length", "tool_calls", "content_filter"])
 def test_finish_reason_values(
     finish_reason: str,
     respx_mock: MockRouter,
