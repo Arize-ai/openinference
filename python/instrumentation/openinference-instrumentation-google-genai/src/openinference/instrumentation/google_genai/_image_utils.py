@@ -68,6 +68,18 @@ def _redact_images_with_change(
             for item in value
         ]
         return [item for item, _ in list_results], any(changed for _, changed in list_results)
+    if isinstance(value, tuple):
+        tuple_results = [
+            _redact_images_with_change(
+                item,
+                hide_input_images=hide_input_images,
+                base64_image_max_length=base64_image_max_length,
+            )
+            for item in value
+        ]
+        return tuple(item for item, _ in tuple_results), any(
+            changed for _, changed in tuple_results
+        )
     if isinstance(value, (bytes, bytearray, memoryview)):
         return base64.urlsafe_b64encode(value).decode("ascii"), False
     if not isinstance(value, dict):

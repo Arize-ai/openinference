@@ -3,6 +3,8 @@ from typing import Any, cast
 
 import pytest
 from google.genai import types
+from google.genai._interactions._utils import maybe_transform
+from google.genai._interactions.types import interaction_create_params
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -50,7 +52,8 @@ def _get_input_value(
     return cast(dict[str, Any], json.loads(input_value))
 
 
-def test_input_value_hides_inline_and_file_images() -> None:
+# GenerateContent request capture
+def test_generate_content_input_value_hides_inline_and_file_images() -> None:
     request: dict[str, Any] = {
         "contents": [
             {
@@ -117,7 +120,7 @@ def test_input_value_hides_inline_and_file_images() -> None:
         ),
     ],
 )
-def test_input_value_respects_base64_image_max_length(
+def test_generate_content_input_value_respects_base64_image_max_length(
     maximum_length: int,
     expected_data: str,
 ) -> None:
@@ -147,7 +150,7 @@ def test_input_value_respects_base64_image_max_length(
     assert input_value["contents"][0]["parts"][0]["inline_data"]["data"] == expected_data
 
 
-def test_input_value_preserves_images_when_not_hidden_and_under_limit() -> None:
+def test_generate_content_input_value_preserves_images_when_unmasked() -> None:
     request: dict[str, Any] = {
         "contents": [
             {
@@ -182,6 +185,7 @@ def test_input_value_preserves_images_when_not_hidden_and_under_limit() -> None:
     assert parts[1]["file_data"]["file_uri"] == "https://example.com/image.jpg"
 
 
+# GenerateContent finished-span wiring
 @pytest.mark.parametrize(
     "config",
     [
@@ -240,6 +244,7 @@ def test_generate_content_writes_redacted_input_value_to_finished_span(
     assert input_payload["contents"][0]["parts"][0]["inline_data"]["data"] == REDACTED_VALUE
 
 
+# Interactions finished-span wiring
 @pytest.mark.parametrize(
     "config",
     [
@@ -376,6 +381,50 @@ def test_create_interaction_limits_mime_less_data_and_base64_uri(
     assert input_payload[1]["uri"] == REDACTED_VALUE
 
 
+# Interactions SDK-supported edge cases
+def test_hides_tuple_interaction_input_supported_by_google_genai() -> None:
+    image = {
+        "type": "image",
+        "data": "c2Vuc2l0aXZlLWltYWdl",
+        "mime_type": "image/png",
+    }
+    request = {"model": "gemini-2.5-flash", "input": (image,)}
+
+    serialized = maybe_transform(
+        request,
+        interaction_create_params.CreateModelInteractionParamsNonStreaming,
+    )
+    assert isinstance(serialized, dict)
+    assert serialized["input"] == [image]
+
+    sanitized = redact_images_from_request_parameters(
+        request,
+        hide_input_images=True,
+        base64_image_max_length=32_000,
+    )
+    assert sanitized["input"][0]["data"] == REDACTED_VALUE
+
+
+def test_applies_image_length_limit_when_mime_type_is_omitted() -> None:
+    image = {"type": "image", "data": "A" * 100}
+    request = {"model": "gemini-2.5-flash", "input": [image]}
+
+    serialized = maybe_transform(
+        request,
+        interaction_create_params.CreateModelInteractionParamsNonStreaming,
+    )
+    assert isinstance(serialized, dict)
+    assert serialized["input"] == [image]
+
+    sanitized = redact_images_from_request_parameters(
+        request,
+        hide_input_images=False,
+        base64_image_max_length=1,
+    )
+    assert sanitized["input"][0]["data"] == REDACTED_VALUE
+
+
+# Cache Pydantic input
 @pytest.mark.parametrize(
     "config, expected_data",
     [
@@ -501,6 +550,7 @@ def test_create_cache_hides_file_image_and_preserves_inline_audio(
     assert parts[1]["inline_data"]["mime_type"] == "audio/wav"
 
 
+# Serialization-preservation regressions
 def test_unchanged_cache_input_preserves_pydantic_serialization() -> None:
     cache_config = types.CreateCachedContentConfig(
         display_name="multimodal cache",
