@@ -34,7 +34,8 @@ def _redact_images(
     base64_image_max_length: int,
 ) -> Any:
     """Walk the request tree and redact configured image values."""
-    # if this is a Pydantic object, dump it as a walkable tree first
+    # Google GenAI request types are Pydantic models; convert them to a
+    # Python tree so nested media fields can be inspected before JSON encoding.
     model_dump = getattr(value, "model_dump", None)
     if callable(model_dump):
         value = model_dump(mode="python")
@@ -49,7 +50,7 @@ def _redact_images(
             for item in value
         ]
     if isinstance(value, (bytes, bytearray, memoryview)):
-        return base64.b64encode(value).decode("ascii")
+        return base64.urlsafe_b64encode(value).decode("ascii")
     if not isinstance(value, dict):
         return value
 

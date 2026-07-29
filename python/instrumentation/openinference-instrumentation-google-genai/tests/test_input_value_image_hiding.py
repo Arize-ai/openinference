@@ -337,3 +337,66 @@ def test_create_cache_handles_pydantic_image_input(
     input_payload = cast(dict[str, Any], json.loads(input_value))
     image_data = input_payload["config"]["contents"][0]["parts"][0]["inline_data"]["data"]
     assert image_data == expected_data
+
+
+def test_create_cache_hides_file_image_and_preserves_inline_audio(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    cache_config = types.CreateCachedContentConfig(
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    # File-backed images have no base64 payload, so hiding input
+                    # images must redact the URI itself.
+                    types.Part(
+                        file_data=types.FileData(
+                            file_uri="gs://example-bucket/image.png",
+                            mime_type="image/png",
+                        )
+                    ),
+                    # Audio uses the same Blob/data representation as an inline
+                    # image, but image-specific hiding and size limits must not
+                    # redact it.
+                    types.Part.from_bytes(data=b"\xfb\xff", mime_type="audio/wav"),
+                ],
+            )
+        ]
+    )
+
+    def create_cache(
+        *,
+        model: str,
+        config: types.CreateCachedContentConfig,
+    ) -> types.CachedContent:
+        return types.CachedContent()
+
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__),
+        config=TraceConfig(
+            hide_input_images=True,
+            base64_image_max_length=1,
+        ),
+    )
+    _SyncCreateCachesWrapper(tracer=tracer)(
+        create_cache,
+        None,
+        (),
+        {
+            "model": "gemini-2.5-flash",
+            "config": cache_config,
+        },
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    input_value = cast(str, attributes[SpanAttributes.INPUT_VALUE])
+    input_payload = cast(dict[str, Any], json.loads(input_value))
+    parts = input_payload["config"]["contents"][0]["parts"]
+
+    assert parts[0]["file_data"]["file_uri"] == REDACTED_VALUE
+    assert parts[0]["file_data"]["mime_type"] == "image/png"
+    assert parts[1]["inline_data"]["data"] == "-_8="
+    assert parts[1]["inline_data"]["mime_type"] == "audio/wav"
