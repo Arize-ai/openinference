@@ -27,10 +27,12 @@ from anthropic.types import (
     ToolUseBlockParam,
     Usage,
 )
+from httpx import Response
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from pydantic import BaseModel
+from respx import MockRouter
 from wrapt import BoundFunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -2652,6 +2654,121 @@ def test_get_llm_input_messages_with_thinking_blocks(
 
     # message_content.id must never be emitted for thinking/redacted_thinking blocks
     assert not any(key.endswith("message_content.id") for key in attributes)
+
+
+@pytest.mark.parametrize(
+    "stop_reason",
+    ["end_turn", "max_tokens", "stop_sequence", "tool_use", "pause_turn", "refusal"],
+)
+def test_finish_reason_values_messages_create(
+    stop_reason: str,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "id": "msg_test123",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-sonnet-4-6",
+                "content": [{"type": "text", "text": "hi"}],
+                "stop_reason": stop_reason,
+                "stop_sequence": None,
+                "usage": {"input_tokens": 10, "output_tokens": 5},
+            },
+        )
+    )
+    client = Anthropic(api_key="sk-ant-fake")
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": "hello"}],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(LLM_FINISH_REASON) == stop_reason
+
+
+@pytest.mark.parametrize(
+    "stop_reason",
+    ["end_turn", "max_tokens", "tool_use"],
+)
+def test_finish_reason_values_messages_create_streaming(
+    stop_reason: str,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    sse_events = [
+        b"event: message_start\ndata: "
+        + json.dumps(
+            {
+                "type": "message_start",
+                "message": {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [],
+                    "model": "claude-sonnet-4-6",
+                    "stop_reason": None,
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 10, "output_tokens": 1},
+                },
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_start\ndata: "
+        + json.dumps(
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_delta\ndata: "
+        + json.dumps(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": "hi"},
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_stop\ndata: "
+        + json.dumps({"type": "content_block_stop", "index": 0}).encode()
+        + b"\n\n",
+        b"event: message_delta\ndata: "
+        + json.dumps(
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": stop_reason, "stop_sequence": None},
+                "usage": {"output_tokens": 5},
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: message_stop\ndata: " + json.dumps({"type": "message_stop"}).encode() + b"\n\n",
+    ]
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(status_code=200, content=b"".join(sse_events))
+    )
+    client = Anthropic(api_key="sk-ant-fake")
+    stream = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": "hello"}],
+        stream=True,
+    )
+    for _ in stream:
+        pass
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(LLM_FINISH_REASON) == stop_reason
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN

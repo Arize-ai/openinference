@@ -3,3 +3,4 @@ opentelemetry-sdk
 pytest-asyncio
 pytest-recording
 httpx<0.28
+respx
