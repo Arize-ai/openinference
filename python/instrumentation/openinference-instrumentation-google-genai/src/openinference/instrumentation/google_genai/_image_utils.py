@@ -1,3 +1,4 @@
+import base64
 from typing import Any
 
 from openinference.instrumentation import REDACTED_VALUE
@@ -32,9 +33,12 @@ def _redact_images(
     hide_input_images: bool,
     base64_image_max_length: int,
 ) -> Any:
-    """Walks the request tree and finds dicts with mime_type starting with
-    image/ and redacts
-    """
+    """Walk the request tree and redact configured image values."""
+    # if this is a Pydantic object, dump it as a walkable tree first
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        value = model_dump(mode="python")
+
     if isinstance(value, list):
         return [
             _redact_images(
@@ -44,34 +48,32 @@ def _redact_images(
             )
             for item in value
         ]
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return base64.b64encode(value).decode("ascii")
     if not isinstance(value, dict):
         return value
 
-    result = {
+    values = value
+    mime_type = value.get("mime_type")
+    if isinstance(mime_type, str) and mime_type.startswith("image/"):
+        values = dict(value)
+        if hide_input_images:
+            for key in ("data", "file_uri"):
+                if key in values:
+                    values[key] = REDACTED_VALUE
+        elif (
+            image_url_length := _get_image_url_length(values.get("data"), mime_type)
+        ) is not None and image_url_length > base64_image_max_length:
+            values["data"] = REDACTED_VALUE
+
+    return {
         key: _redact_images(
             item,
             hide_input_images=hide_input_images,
             base64_image_max_length=base64_image_max_length,
         )
-        for key, item in value.items()
+        for key, item in values.items()
     }
-    mime_type = result.get("mime_type")
-    if not isinstance(mime_type, str) or not mime_type.startswith("image/"):
-        return result
-
-    if hide_input_images:
-        if "data" in result:
-            result["data"] = REDACTED_VALUE
-        if "file_uri" in result:
-            result["file_uri"] = REDACTED_VALUE
-        return result
-
-    data = result.get("data")
-    if (
-        image_url_length := _get_image_url_length(data, mime_type)
-    ) is not None and image_url_length > base64_image_max_length:
-        result["data"] = REDACTED_VALUE
-    return result
 
 
 def _get_image_url_length(data: Any, mime_type: str) -> int | None:

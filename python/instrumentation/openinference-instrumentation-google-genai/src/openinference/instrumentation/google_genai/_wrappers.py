@@ -719,7 +719,7 @@ class _SyncCreateCachesWrapper(_WithTracer):
             span_name=span_name,
             attributes=chain(
                 get_attributes_from_context(),
-                cache_attributes.get_attributes_from_request(request_parameters),
+                cache_attributes.get_attributes_from_request(request_parameters, self._config),
             ),
         ) as span:
             try:
@@ -758,7 +758,7 @@ class _AsyncCreateCachesWrapper(_WithTracer):
             span_name=span_name,
             attributes=chain(
                 get_attributes_from_context(),
-                cache_attributes.get_attributes_from_request(request_parameters),
+                cache_attributes.get_attributes_from_request(request_parameters, self._config),
             ),
         ) as span:
             try:

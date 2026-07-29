@@ -2,6 +2,7 @@ import json
 from typing import Any, cast
 
 import pytest
+from google.genai import types
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -12,6 +13,7 @@ from openinference.instrumentation.google_genai._context import (
     get_input_attributes,
 )
 from openinference.instrumentation.google_genai._wrappers import (
+    _SyncCreateCachesWrapper,
     _SyncCreateInteractionWrapper,
     _SyncGenerateContent,
 )
@@ -273,3 +275,65 @@ def test_create_interaction_writes_redacted_input_value_to_finished_span(
     input_payload = cast(list[dict[str, Any]], json.loads(input_value))
     assert input_payload[0]["text"] == "Describe the image."
     assert input_payload[1]["data"] == REDACTED_VALUE
+
+
+@pytest.mark.parametrize(
+    "config, expected_data",
+    [
+        pytest.param(
+            TraceConfig(hide_input_images=True),
+            REDACTED_VALUE,
+            id="hide-input-images",
+        ),
+        pytest.param(
+            TraceConfig(hide_input_images=False, base64_image_max_length=1),
+            REDACTED_VALUE,
+            id="base64-image-max-length",
+        ),
+        pytest.param(
+            TraceConfig(hide_input_images=False, base64_image_max_length=1_000),
+            "aW1hZ2U=",
+            id="preserve-under-limit",
+        ),
+    ],
+)
+def test_create_cache_handles_pydantic_image_input(
+    config: TraceConfig,
+    expected_data: str,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    cache_config = types.CreateCachedContentConfig(
+        contents=[
+            types.Content(
+                role="user",
+                parts=[types.Part.from_bytes(data=b"image", mime_type="image/png")],
+            )
+        ]
+    )
+
+    def create_cache(
+        *,
+        model: str,
+        config: types.CreateCachedContentConfig,
+    ) -> types.CachedContent:
+        return types.CachedContent()
+
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+    _SyncCreateCachesWrapper(tracer=tracer)(
+        create_cache,
+        None,
+        (),
+        {
+            "model": "gemini-2.5-flash",
+            "config": cache_config,
+        },
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    input_value = cast(str, attributes[SpanAttributes.INPUT_VALUE])
+    input_payload = cast(dict[str, Any], json.loads(input_value))
+    image_data = input_payload["config"]["contents"][0]["parts"][0]["inline_data"]["data"]
+    assert image_data == expected_data
