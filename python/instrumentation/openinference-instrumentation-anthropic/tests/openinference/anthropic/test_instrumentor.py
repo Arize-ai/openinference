@@ -148,6 +148,7 @@ def test_anthropic_instrumentation_completions_streaming(
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop_sequence"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
 
     invocation_params = {"max_tokens_to_sample": 1000, "stream": True}
@@ -243,6 +244,7 @@ def test_anthropic_instrumentation_stream_message(
     assert isinstance(attributes.pop("llm.token_count.total"), int)
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     raw_inv = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(raw_inv, str)
     assert json.loads(raw_inv) == invocation_params
@@ -338,6 +340,7 @@ async def test_anthropic_instrumentation_async_stream_message(
     assert isinstance(attributes.pop("llm.token_count.total"), int)
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     raw_inv = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(raw_inv, str)
     assert json.loads(raw_inv) == invocation_params
@@ -398,6 +401,7 @@ async def test_anthropic_instrumentation_async_completions_streaming(
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
     assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop_sequence"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
 
     invocation_params = {"max_tokens_to_sample": 1000, "stream": True}
@@ -544,6 +548,7 @@ def test_anthropic_instrumentation_messages(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
@@ -641,6 +646,7 @@ def test_anthropic_instrumentation_messages_streaming(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
@@ -739,6 +745,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
@@ -878,6 +885,7 @@ async def test_anthropic_instrumentation_async_messages(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
 
@@ -942,6 +950,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     attributes = dict(spans[0].attributes or {})
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    assert attributes.pop(LLM_FINISH_REASON, None) == "tool_use"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
@@ -1135,6 +1144,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     attributes = dict(spans[0].attributes or {})
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    assert attributes.pop(LLM_FINISH_REASON, None) == "tool_use"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
@@ -1310,6 +1320,7 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     assert spans[0].name == "messages.create"
     attributes: Dict[str, Any] = dict(spans[0].attributes or dict())
     assert attributes.pop(LLM_MODEL_NAME) == "claude-3-5-sonnet-20240620"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     # System (list of text blocks) is exposed as a synthetic system message at index 0,
@@ -1434,6 +1445,7 @@ def test_anthropic_instrumentation_image_input_messages(
     assert spans[0].name == "messages.create"
     attributes: Dict[str, Any] = dict(spans[0].attributes or {})
     assert attributes.pop(LLM_MODEL_NAME) == "claude-3-5-sonnet-20240620"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
@@ -1821,6 +1833,7 @@ def test_anthropic_instrumentation_messages_parse(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     raw_inv_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(raw_inv_params, str)
     inv_params = json.loads(raw_inv_params)
@@ -1930,6 +1943,7 @@ async def test_anthropic_instrumentation_async_messages_parse(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     raw_inv_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(raw_inv_params, str)
     inv_params = json.loads(raw_inv_params)
@@ -2041,6 +2055,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     raw_inv_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(raw_inv_params, str)
     inv_params = json.loads(raw_inv_params)
@@ -2153,6 +2168,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     raw_inv_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(raw_inv_params, str)
     inv_params = json.loads(raw_inv_params)
@@ -2308,6 +2324,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
 
@@ -2396,6 +2413,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
 
@@ -2655,6 +2673,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

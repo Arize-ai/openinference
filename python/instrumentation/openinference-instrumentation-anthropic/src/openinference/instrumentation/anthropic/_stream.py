@@ -208,6 +208,8 @@ class _ResponseExtractor:
         )
         if completion := result.get("completion", ""):
             yield SpanAttributes.LLM_OUTPUT_MESSAGES, completion
+        if stop_reason := result.get("stop_reason"):
+            yield SpanAttributes.LLM_FINISH_REASON, stop_reason
 
 
 class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
@@ -316,6 +318,8 @@ class _MessageExtractor:
             f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}",
             snapshot.role,
         )
+        if stop_reason := getattr(snapshot, "stop_reason", None):
+            yield SpanAttributes.LLM_FINISH_REASON, stop_reason
         tool_idx = 0
         for block_idx, block in enumerate(snapshot.content):
             content_prefix = (
