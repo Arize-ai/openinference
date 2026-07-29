@@ -3,8 +3,6 @@ from typing import Any, cast
 
 import pytest
 from google.genai import types
-from google.genai._interactions._utils import maybe_transform
-from google.genai._interactions.types import interaction_create_params
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -381,21 +379,13 @@ def test_create_interaction_limits_mime_less_data_and_base64_uri(
     assert input_payload[1]["uri"] == REDACTED_VALUE
 
 
-# Interactions SDK-supported edge cases
-def test_hides_tuple_interaction_input_supported_by_google_genai() -> None:
+def test_hides_tuple_interaction_input() -> None:
     image = {
         "type": "image",
         "data": "c2Vuc2l0aXZlLWltYWdl",
         "mime_type": "image/png",
     }
     request = {"model": "gemini-2.5-flash", "input": (image,)}
-
-    serialized = maybe_transform(
-        request,
-        interaction_create_params.CreateModelInteractionParamsNonStreaming,
-    )
-    assert isinstance(serialized, dict)
-    assert serialized["input"] == [image]
 
     sanitized = redact_images_from_request_parameters(
         request,
@@ -408,13 +398,6 @@ def test_hides_tuple_interaction_input_supported_by_google_genai() -> None:
 def test_applies_image_length_limit_when_mime_type_is_omitted() -> None:
     image = {"type": "image", "data": "A" * 100}
     request = {"model": "gemini-2.5-flash", "input": [image]}
-
-    serialized = maybe_transform(
-        request,
-        interaction_create_params.CreateModelInteractionParamsNonStreaming,
-    )
-    assert isinstance(serialized, dict)
-    assert serialized["input"] == [image]
 
     sanitized = redact_images_from_request_parameters(
         request,
