@@ -6,11 +6,21 @@ from google.genai import types
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.instrumentation import REDACTED_VALUE, OITracer, TraceConfig
+from openinference.instrumentation import (
+    REDACTED_VALUE,
+    OITracer,
+    TraceConfig,
+)
+from openinference.instrumentation import (
+    get_input_attributes as get_oi_input_attributes,
+)
 from openinference.instrumentation.google_genai._context import (
     CapturedRequestScope,
     _CapturedRequestWrapper,
     get_input_attributes,
+)
+from openinference.instrumentation.google_genai._image_utils import (
+    redact_images_from_request_parameters,
 )
 from openinference.instrumentation.google_genai._wrappers import (
     _SyncCreateCachesWrapper,
@@ -277,6 +287,49 @@ def test_create_interaction_writes_redacted_input_value_to_finished_span(
     assert input_payload[1]["data"] == REDACTED_VALUE
 
 
+def test_create_interaction_hides_uri_and_type_discriminated_image(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    interaction_input = [
+        {
+            "type": "image",
+            "uri": "https://ex.com/a.png",
+            "mime_type": "image/png",
+        },
+        {
+            "type": "image",
+            "data": "a@WhZ2UU==",
+        },
+    ]
+
+    def create_interaction(*, model: str, input: Any) -> None:
+        return None
+
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__),
+        config=TraceConfig(hide_input_images=True),
+    )
+    _SyncCreateInteractionWrapper(tracer=tracer)(
+        create_interaction,
+        None,
+        (),
+        {
+            "model": "gemini-2.5-flash",
+            "input": interaction_input,
+        },
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    input_value = cast(str, attributes[SpanAttributes.INPUT_VALUE])
+    input_payload = cast(list[dict[str, Any]], json.loads(input_value))
+
+    assert input_payload[0]["uri"] == REDACTED_VALUE
+    assert input_payload[1]["data"] == REDACTED_VALUE
+
+
 @pytest.mark.parametrize(
     "config, expected_data",
     [
@@ -400,3 +453,38 @@ def test_create_cache_hides_file_image_and_preserves_inline_audio(
     assert parts[0]["file_data"]["mime_type"] == "image/png"
     assert parts[1]["inline_data"]["data"] == "-_8="
     assert parts[1]["inline_data"]["mime_type"] == "audio/wav"
+
+
+def test_unchanged_cache_input_preserves_pydantic_serialization() -> None:
+    cache_config = types.CreateCachedContentConfig(
+        display_name="multimodal cache",
+        ttl="300s",
+        system_instruction="Describe the supplied context.",
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(text="An image below the configured size limit."),
+                    types.Part.from_bytes(data=b"image", mime_type="image/png"),
+                    types.Part.from_bytes(data=b"\xfb\xff", mime_type="audio/wav"),
+                ],
+            )
+        ],
+    )
+    request_parameters = {
+        "model": "gemini-2.5-flash",
+        "config": cache_config,
+    }
+
+    sanitized_parameters = redact_images_from_request_parameters(
+        request_parameters,
+        hide_input_images=False,
+        base64_image_max_length=1_000,
+    )
+
+    # No image was redacted, so retain the original Pydantic object and its
+    # JSON-mode serializers instead of tracing a model_dump(mode="python") tree.
+    assert sanitized_parameters["config"] is cache_config
+    assert get_oi_input_attributes(sanitized_parameters) == get_oi_input_attributes(
+        request_parameters
+    )
