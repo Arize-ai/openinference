@@ -4,6 +4,7 @@ from typing import Any, Iterable, Mapping, Optional, Sequence, cast
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
+    REDACTED_VALUE,
     Image,
     ImageMessageContent,
     Message,
@@ -288,18 +289,28 @@ def get_attributes_from_request_object(
     request_parameters: Mapping[str, Any],
     config: TraceConfig | None,
 ) -> dict[str, AttributeValue]:
-    # redact based on config
+    # redact input.value based on config, preferring REDACTED_VALUE in case of an error
     params = dict(request_parameters)
+    redaction_failed = False
     if config is not None:
-        params = redact_images_from_request_parameters(
-            params,
-            hide_input_images=bool(config.hide_input_images),
-            base64_image_max_length=int(config.base64_image_max_length or 0),
-        )
+        try:
+            params = redact_images_from_request_parameters(
+                params,
+                hide_input_images=bool(config.hide_input_images),
+                base64_image_max_length=int(config.base64_image_max_length or 0),
+            )
+        except Exception as e:
+            logger.exception("Could not redact images from request input: %s", e)
+            redaction_failed = True
+    input_attrs = (
+        get_input_attributes(REDACTED_VALUE)
+        if redaction_failed
+        else get_input_attributes(params.get("input"))
+    )
     if is_agent_call(request_parameters):
         return {
             **get_span_kind_attributes("agent"),
-            **get_input_attributes(params.get("input")),
+            **input_attrs,
         }
     input_messages = []
     if system_instruction := request_parameters.get("system_instruction"):
@@ -320,7 +331,7 @@ def get_attributes_from_request_object(
         ),
         **get_metadata_attributes(metadata=metadata),
         **get_span_kind_attributes("llm"),
-        **get_input_attributes(params.get("input")),
+        **input_attrs,
     }
 
 

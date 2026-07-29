@@ -74,6 +74,7 @@ def _redact_images_with_change(
         return value, False
 
     values = value
+    # If we change nothing, then return the original Pydantic model
     changed = False
     mime_type = value.get("mime_type")
     if _is_image_container(value):
@@ -83,13 +84,32 @@ def _redact_images_with_change(
                 if key in values and values[key] != REDACTED_VALUE:
                     values[key] = REDACTED_VALUE
                     changed = True
-        elif isinstance(mime_type, str) and (
-            (image_url_length := _get_image_url_length(values.get("data"), mime_type)) is not None
-            and image_url_length > base64_image_max_length
-        ):
-            if values.get("data") != REDACTED_VALUE:
+        else:
+            image_mime_type = (
+                mime_type
+                if isinstance(mime_type, str) and mime_type.startswith("image/")
+                else "image/png"
+                if value.get("type") == "image" and mime_type is None
+                else None
+            )
+            if (
+                image_mime_type is not None
+                and (image_url_length := _get_image_url_length(values.get("data"), image_mime_type))
+                is not None
+                and image_url_length > base64_image_max_length
+                and values.get("data") != REDACTED_VALUE
+            ):
                 values["data"] = REDACTED_VALUE
                 changed = True
+            for key in ("uri", "file_uri"):
+                image_url = values.get(key)
+                if (
+                    isinstance(image_url, str)
+                    and is_base64_url(image_url)
+                    and len(image_url) > base64_image_max_length
+                ):
+                    values[key] = REDACTED_VALUE
+                    changed = True
 
     dict_results = {
         key: _redact_images_with_change(

@@ -330,6 +330,52 @@ def test_create_interaction_hides_uri_and_type_discriminated_image(
     assert input_payload[1]["data"] == REDACTED_VALUE
 
 
+def test_create_interaction_limits_mime_less_data_and_base64_uri(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    interaction_input = [
+        {
+            "type": "image",
+            "data": "a@WhZ2UU==",
+        },
+        {
+            "type": "image",
+            "uri": "data:image/png;base64,aW1hZ2U=",
+            "mime_type": "image/png",
+        },
+    ]
+
+    def create_interaction(*, model: str, input: Any) -> None:
+        return None
+
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__),
+        config=TraceConfig(
+            hide_input_images=False,
+            base64_image_max_length=1,
+        ),
+    )
+    _SyncCreateInteractionWrapper(tracer=tracer)(
+        create_interaction,
+        None,
+        (),
+        {
+            "model": "gemini-2.5-flash",
+            "input": interaction_input,
+        },
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    input_value = cast(str, attributes[SpanAttributes.INPUT_VALUE])
+    input_payload = cast(list[dict[str, Any]], json.loads(input_value))
+
+    assert input_payload[0]["data"] == REDACTED_VALUE
+    assert input_payload[1]["uri"] == REDACTED_VALUE
+
+
 @pytest.mark.parametrize(
     "config, expected_data",
     [
