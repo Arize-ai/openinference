@@ -1,0 +1,275 @@
+import json
+from typing import Any, cast
+
+import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.instrumentation import REDACTED_VALUE, OITracer, TraceConfig
+from openinference.instrumentation.google_genai._context import (
+    CapturedRequestScope,
+    _CapturedRequestWrapper,
+    get_input_attributes,
+)
+from openinference.instrumentation.google_genai._wrappers import (
+    _SyncCreateInteractionWrapper,
+    _SyncGenerateContent,
+)
+from openinference.semconv.trace import SpanAttributes
+
+
+def _get_input_value(
+    request: dict[str, Any],
+    config: TraceConfig,
+) -> dict[str, Any]:
+    def wrapped(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    with CapturedRequestScope():
+        _CapturedRequestWrapper()(
+            wrapped,
+            None,
+            ("POST", "/models/gemini:generateContent", request),
+            {},
+        )
+        attributes = dict(get_input_attributes(config))
+
+    input_value = cast(str, attributes[SpanAttributes.INPUT_VALUE])
+    return cast(dict[str, Any], json.loads(input_value))
+
+
+def test_input_value_hides_inline_and_file_images() -> None:
+    request: dict[str, Any] = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": "Describe the images."},
+                    {
+                        "inlineData": {
+                            "data": "aW1hZ2U=",
+                            "mimeType": "image/png",
+                        }
+                    },
+                    {
+                        "fileData": {
+                            "fileUri": "https://example.com/image.jpg",
+                            "mimeType": "image/jpeg",
+                        }
+                    },
+                    {
+                        "inlineData": {
+                            "data": "YXVkaW8=",
+                            "mimeType": "audio/wav",
+                        }
+                    },
+                ]
+            }
+        ]
+    }
+
+    input_value = _get_input_value(
+        request,
+        TraceConfig(hide_input_images=True),
+    )
+    parts = input_value["contents"][0]["parts"]
+
+    assert parts[0]["text"] == "Describe the images."
+    assert parts[1]["inline_data"]["data"] == REDACTED_VALUE
+    assert parts[1]["inline_data"]["mime_type"] == "image/png"
+    assert parts[2]["file_data"]["file_uri"] == REDACTED_VALUE
+    assert parts[2]["file_data"]["mime_type"] == "image/jpeg"
+    assert parts[3]["inline_data"]["data"] == "YXVkaW8="
+    assert request["contents"][0]["parts"][1]["inlineData"]["data"] == "aW1hZ2U="
+    assert (
+        request["contents"][0]["parts"][2]["fileData"]["fileUri"] == "https://example.com/image.jpg"
+    )
+
+
+@pytest.mark.parametrize(
+    "maximum_length, expected_data",
+    [
+        pytest.param(
+            0,
+            REDACTED_VALUE,
+            id="zero-limit",
+        ),
+        pytest.param(
+            len("data:image/png;base64,") + len("aW1hZ2U=") - 1,
+            REDACTED_VALUE,
+            id="over-limit",
+        ),
+        pytest.param(
+            len("data:image/png;base64,") + len("aW1hZ2U="),
+            "aW1hZ2U=",
+            id="at-limit",
+        ),
+    ],
+)
+def test_input_value_respects_base64_image_max_length(
+    maximum_length: int,
+    expected_data: str,
+) -> None:
+    request: dict[str, Any] = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "inlineData": {
+                            "data": "aW1hZ2U=",
+                            "mimeType": "image/png",
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    input_value = _get_input_value(
+        request,
+        TraceConfig(
+            hide_input_images=False,
+            base64_image_max_length=maximum_length,
+        ),
+    )
+
+    assert input_value["contents"][0]["parts"][0]["inline_data"]["data"] == expected_data
+
+
+def test_input_value_preserves_images_when_not_hidden_and_under_limit() -> None:
+    request: dict[str, Any] = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "inlineData": {
+                            "data": "aW1hZ2U=",
+                            "mimeType": "image/png",
+                        }
+                    },
+                    {
+                        "fileData": {
+                            "fileUri": "https://example.com/image.jpg",
+                            "mimeType": "image/jpeg",
+                        }
+                    },
+                ]
+            }
+        ]
+    }
+
+    input_value = _get_input_value(
+        request,
+        TraceConfig(
+            hide_input_images=False,
+            base64_image_max_length=1_000,
+        ),
+    )
+    parts = input_value["contents"][0]["parts"]
+
+    assert parts[0]["inline_data"]["data"] == "aW1hZ2U="
+    assert parts[1]["file_data"]["file_uri"] == "https://example.com/image.jpg"
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(TraceConfig(hide_input_images=True), id="hide-input-images"),
+        pytest.param(
+            TraceConfig(hide_input_images=False, base64_image_max_length=1),
+            id="base64-image-max-length",
+        ),
+    ],
+)
+def test_generate_content_writes_redacted_input_value_to_finished_span(
+    config: TraceConfig,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    request = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "inlineData": {
+                            "data": "aW1hZ2U=",
+                            "mimeType": "image/png",
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    def api_request(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    def generate_content(*, model: str, contents: Any) -> dict[str, str]:
+        _CapturedRequestWrapper()(
+            api_request,
+            None,
+            ("POST", "/models/gemini:generateContent", request),
+            {},
+        )
+        return {"text": "response"}
+
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+    _SyncGenerateContent(tracer=tracer)(
+        generate_content,
+        None,
+        (),
+        {"model": "gemini-2.0-flash", "contents": "describe this"},
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    input_value = cast(str, attributes[SpanAttributes.INPUT_VALUE])
+    input_payload = cast(dict[str, Any], json.loads(input_value))
+    assert input_payload["contents"][0]["parts"][0]["inline_data"]["data"] == REDACTED_VALUE
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(TraceConfig(hide_input_images=True), id="hide-input-images"),
+        pytest.param(
+            TraceConfig(hide_input_images=False, base64_image_max_length=1),
+            id="base64-image-max-length",
+        ),
+    ],
+)
+def test_create_interaction_writes_redacted_input_value_to_finished_span(
+    config: TraceConfig,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    interaction_input = [
+        {"type": "text", "text": "Describe the image."},
+        {
+            "type": "image",
+            "data": "aW1hZ2U=",
+            "mime_type": "image/png",
+        },
+    ]
+
+    def create_interaction(*, model: str, input: Any) -> None:
+        return None
+
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+    _SyncCreateInteractionWrapper(tracer=tracer)(
+        create_interaction,
+        None,
+        (),
+        {
+            "model": "gemini-2.5-flash",
+            "input": interaction_input,
+        },
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    input_value = cast(str, attributes[SpanAttributes.INPUT_VALUE])
+    input_payload = cast(list[dict[str, Any]], json.loads(input_value))
+    assert input_payload[0]["text"] == "Describe the image."
+    assert input_payload[1]["data"] == REDACTED_VALUE

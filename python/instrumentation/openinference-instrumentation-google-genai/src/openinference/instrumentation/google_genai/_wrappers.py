@@ -12,7 +12,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import TraceConfig, get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.google_genai import cache_attributes
 from openinference.instrumentation.google_genai._context import (
     CapturedRequestScope,
@@ -47,10 +47,13 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def _set_captured_llm_attributes(span: _WithSpan) -> None:
+def _set_captured_llm_attributes(
+    span: _WithSpan,
+    config: TraceConfig | None,
+) -> None:
     """Set input_value, tools, and LLM invocation_parameters from captured SDK request."""
     try:
-        span.set_attributes(dict(get_input_attributes()))
+        span.set_attributes(dict(get_input_attributes(config)))
         span.set_attributes(dict(get_tool_attributes()))
         if invocation_params := get_llm_invocation_parameters():
             span.set_attributes({SpanAttributes.LLM_INVOCATION_PARAMETERS: invocation_params})
@@ -58,7 +61,10 @@ def _set_captured_llm_attributes(span: _WithSpan) -> None:
         logger.exception("Failed to set captured request attributes")
 
 
-def _set_captured_embedding_attributes(span: _WithSpan) -> None:
+def _set_captured_embedding_attributes(
+    span: _WithSpan,
+    config: TraceConfig | None,
+) -> None:
     """Set input_value, embedding invocation_parameters, and embedding text
     from captured SDK request."""
     from openinference.instrumentation.google_genai._embedding_attributes_extractor import (
@@ -66,7 +72,7 @@ def _set_captured_embedding_attributes(span: _WithSpan) -> None:
     )
 
     try:
-        span.set_attributes(dict(get_input_attributes()))
+        span.set_attributes(dict(get_input_attributes(config)))
         if invocation_params := get_embedding_invocation_parameters():
             span.set_attributes({SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS: invocation_params})
         span.set_attributes(
@@ -101,6 +107,8 @@ class _WithTracer(ABC):
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
+        config = getattr(tracer, "_self_config", None)
+        self._config = config if isinstance(config, TraceConfig) else None
 
     @contextmanager
     def _start_as_current_span(
@@ -203,7 +211,7 @@ class _SyncEmbedContentWrapper(_WithTracer):
                 try:
                     response = wrapped(*args, **kwargs)
                 except Exception as exception:
-                    _set_captured_embedding_attributes(span)
+                    _set_captured_embedding_attributes(span, self._config)
                     span.record_exception(exception)
                     status = trace_api.Status(
                         status_code=trace_api.StatusCode.ERROR,
@@ -211,7 +219,7 @@ class _SyncEmbedContentWrapper(_WithTracer):
                     )
                     span.finish_tracing(status=status)
                     raise
-                _set_captured_embedding_attributes(span)
+                _set_captured_embedding_attributes(span, self._config)
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
@@ -261,7 +269,7 @@ class _AsyncEmbedContentWrapper(_WithTracer):
                 try:
                     response = await wrapped(*args, **kwargs)
                 except Exception as exception:
-                    _set_captured_embedding_attributes(span)
+                    _set_captured_embedding_attributes(span, self._config)
                     span.record_exception(exception)
                     status = trace_api.Status(
                         status_code=trace_api.StatusCode.ERROR,
@@ -269,7 +277,7 @@ class _AsyncEmbedContentWrapper(_WithTracer):
                     )
                     span.finish_tracing(status=status)
                     raise
-                _set_captured_embedding_attributes(span)
+                _set_captured_embedding_attributes(span, self._config)
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
@@ -319,7 +327,7 @@ class _SyncGenerateContent(_WithTracer):
                 try:
                     response = wrapped(*args, **kwargs)
                 except Exception as exception:
-                    _set_captured_llm_attributes(span)
+                    _set_captured_llm_attributes(span, self._config)
                     span.record_exception(exception)
                     status = trace_api.Status(
                         status_code=trace_api.StatusCode.ERROR,
@@ -327,7 +335,7 @@ class _SyncGenerateContent(_WithTracer):
                     )
                     span.finish_tracing(status=status)
                     raise
-                _set_captured_llm_attributes(span)
+                _set_captured_llm_attributes(span, self._config)
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
@@ -362,7 +370,7 @@ class _SyncCreateInteractionWrapper(_WithTracer):
             span_name=span_name,
             attributes=chain(
                 get_attributes_from_context(),
-                get_attributes_from_request(request_parameters),
+                get_attributes_from_request(request_parameters, self._config),
             ),
         ) as span:
             try:
@@ -465,7 +473,7 @@ class _SyncGenerateContentStream(_WithTracer):
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
-                _set_captured_llm_attributes(span)
+                _set_captured_llm_attributes(span, self._config)
                 request_scope.__exit__(None, None, None)
                 span.record_exception(exception)
                 status = trace_api.Status(
@@ -479,6 +487,7 @@ class _SyncGenerateContentStream(_WithTracer):
                     stream=response,
                     with_span=span,
                     request_scope=request_scope,
+                    config=self._config,
                 )
             except Exception:
                 request_scope.__exit__(None, None, None)
@@ -521,7 +530,7 @@ class _AsyncGenerateContentWrapper(_WithTracer):
                 try:
                     response = await wrapped(*args, **kwargs)
                 except Exception as exception:
-                    _set_captured_llm_attributes(span)
+                    _set_captured_llm_attributes(span, self._config)
                     span.record_exception(exception)
                     status = trace_api.Status(
                         status_code=trace_api.StatusCode.ERROR,
@@ -529,7 +538,7 @@ class _AsyncGenerateContentWrapper(_WithTracer):
                     )
                     span.finish_tracing(status=status)
                     raise
-                _set_captured_llm_attributes(span)
+                _set_captured_llm_attributes(span, self._config)
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
@@ -579,7 +588,7 @@ class _AsyncGenerateContentStream(_WithTracer):
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
-                _set_captured_llm_attributes(span)
+                _set_captured_llm_attributes(span, self._config)
                 request_scope.__exit__(None, None, None)
                 span.record_exception(exception)
                 status = trace_api.Status(
@@ -593,6 +602,7 @@ class _AsyncGenerateContentStream(_WithTracer):
                     stream=response,
                     with_span=span,
                     request_scope=request_scope,
+                    config=self._config,
                 )
             except Exception:
                 request_scope.__exit__(None, None, None)
@@ -620,7 +630,7 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
             span_name=span_name,
             attributes=chain(
                 get_attributes_from_context(),
-                get_attributes_from_request(request_parameters),
+                get_attributes_from_request(request_parameters, self._config),
             ),
         ) as span:
             try:

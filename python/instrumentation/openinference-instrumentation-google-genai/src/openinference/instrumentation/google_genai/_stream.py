@@ -19,7 +19,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import TraceConfig, safe_json_dumps
 from openinference.instrumentation.google_genai._context import (
     CapturedRequestScope,
     get_input_attributes,
@@ -57,6 +57,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         "_with_span",
         "_request_scope",
         "_request_captured",
+        "_config",
     )
 
     def __init__(
@@ -64,12 +65,14 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         stream: Iterator["GenerateContentResponse"],
         with_span: _WithSpan,
         request_scope: CapturedRequestScope | None = None,
+        config: TraceConfig | None = None,
     ) -> None:
         super().__init__(stream)
         self._response_accumulator = _ResponseAccumulator()
         self._with_span = with_span
         self._request_scope = request_scope
         self._request_captured = False
+        self._config = config
 
     def _capture_request_once(self) -> None:
         """Read captured request from ContextVar on first iteration and set on span."""
@@ -77,7 +80,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
             return
         self._request_captured = True
         try:
-            self._with_span.set_attributes(dict(get_input_attributes()))
+            self._with_span.set_attributes(dict(get_input_attributes(self._config)))
             self._with_span.set_attributes(dict(get_tool_attributes()))
             if invocation_params := get_llm_invocation_parameters():
                 self._with_span.set_attributes(
