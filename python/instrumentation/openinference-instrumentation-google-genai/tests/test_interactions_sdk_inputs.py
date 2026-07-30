@@ -46,7 +46,7 @@ def test_interactions_create_accepts_tuple_image_input(
 
     interaction = client.interactions.create(
         model="gemini-2.5-flash",
-        input=(image,),
+        input=cast(Any, (image,)),
     )
 
     assert interaction is not None
@@ -71,7 +71,7 @@ def test_interactions_create_accepts_mime_less_image_input(
 
     interaction = client.interactions.create(
         model="gemini-2.5-flash",
-        input=[image],
+        input=cast(Any, [image]),
     )
 
     assert interaction is not None
@@ -106,7 +106,7 @@ def test_interactions_create_redacts_image_input(
     try:
         interaction = client.interactions.create(
             model="gemini-2.5-flash",
-            input=interaction_input,
+            input=cast(Any, interaction_input),
         )
     finally:
         instrumentor.uninstrument()
