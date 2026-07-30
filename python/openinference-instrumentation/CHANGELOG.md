@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.55](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.54...python-openinference-instrumentation-v0.1.55) (2026-07-30)
+
+
+### Features
+
+* **tracers:** add retriever, reranker, guardrail, evaluator decorators ([#3384](https://github.com/Arize-ai/openinference/issues/3384)) ([c38a523](https://github.com/Arize-ai/openinference/commit/c38a523eb51df74a65155e8db17703b209f52340))
+
+
+### Bug Fixes
+
+* **instrumentation:** apply base64_image_max_length to output messages too ([#3396](https://github.com/Arize-ai/openinference/issues/3396)) ([83782b2](https://github.com/Arize-ai/openinference/commit/83782b23f75765a4d245285cf89da01b3f8f3b2f))
+
 ## [0.1.54](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.53...python-openinference-instrumentation-v0.1.54) (2026-06-30)
 
 
