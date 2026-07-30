@@ -2706,12 +2706,12 @@ def test_reasoning_content_masking(
     for key in opaque_keys:
         assert attrs[key] is not None
 
-    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_messages": True}))
+    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_messages": True}))  # type: ignore[arg-type]
     assert text_key not in attrs
     for key in opaque_keys:
         assert key not in attrs
 
-    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_text": True}))
+    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_text": True}))  # type: ignore[arg-type]
     assert attrs[text_key] == REDACTED_VALUE
     assert attrs[opaque_keys[0]] == "thought-sig-456"
     assert attrs[opaque_keys[1]] == "redacted-thinking-data"
@@ -3255,7 +3255,10 @@ class TestSamplerAttributeAccess:
         from openinference.instrumentation import TraceConfig, TracerProvider
 
         class CustomTraceConfig(TraceConfig):
-            def mask(
+            # Deliberately overrides with the legacy two-argument signature
+            # (no `externalize` keyword) to exercise the signature-tolerant
+            # fallback in mask_without_externalization.
+            def mask(  # type: ignore[override]
                 self,
                 key: str,
                 value: Union[AttributeValue, Callable[[], AttributeValue]],
