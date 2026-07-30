@@ -914,6 +914,8 @@ def _get_output_messages(response: Message) -> Iterator[Tuple[str, Any]]:
     Extracts the tool call information from the response
     """
     yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", response.role
+    if stop_reason := response.stop_reason:
+        yield LLM_FINISH_REASON, stop_reason
     tool_index = 0
     for j, block in enumerate(response.content):
         if block.type == "text":
@@ -990,6 +992,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
