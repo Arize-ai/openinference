@@ -32,6 +32,7 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
+
 def _get_llm_system(model_name: Optional[str]) -> Optional[str]:
     """Derive the OpenInference ``llm.system`` value from an Agno model id."""
     if system := infer_llm_system_from_model_name(model_name or ""):
