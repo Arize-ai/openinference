@@ -70,6 +70,7 @@ def test_generate_interactions_simple_message(
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}": input_message,
         LLM_INVOCATION_PARAMETERS: '{"temperature": 0.7, "max_output_tokens": 500, "thinking_level": "low"}',
         LLM_MODEL_NAME: model_name,
+        LLM_FINISH_REASON: "STOP",
         OUTPUT_MIME_TYPE: "text/plain",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "model",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "reasoning",
@@ -158,6 +159,7 @@ def test_generate_interactions_multi_model_messages(
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}": "image",
         LLM_INVOCATION_PARAMETERS: safe_json_dumps(generation_config),
         LLM_MODEL_NAME: model_name,
+        LLM_FINISH_REASON: "STOP",
         OUTPUT_MIME_TYPE: "text/plain",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "model",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "reasoning",
@@ -243,6 +245,7 @@ async def test_generate_interactions_async(
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}": input_message,
         LLM_INVOCATION_PARAMETERS: '{"temperature": 0.7, "max_output_tokens": 500, "thinking_level": "low"}',
         LLM_MODEL_NAME: model_name,
+        LLM_FINISH_REASON: "STOP",
         OUTPUT_MIME_TYPE: "text/plain",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}": "model",
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}": "reasoning",
@@ -343,6 +346,7 @@ def test_interactions_with_thinking_stream(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(LLM_MODEL_NAME) == model_name
+    assert attributes.pop(LLM_FINISH_REASON) == "STOP"
     assert attributes.pop(LLM_INVOCATION_PARAMETERS) == safe_json_dumps(generation_config)
     assert attributes.pop(LLM_PROVIDER) == "google"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -414,4 +418,5 @@ METADATA = SpanAttributes.METADATA
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND

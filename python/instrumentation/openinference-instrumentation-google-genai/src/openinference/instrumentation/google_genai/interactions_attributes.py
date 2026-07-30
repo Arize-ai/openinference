@@ -355,6 +355,9 @@ def get_attributes_from_response(
 
     steps = get_attribute(response, "steps")
     output_messages = get_output_messages(steps)
+    finish_reason_attrs: dict[str, AttributeValue] = {}
+    if finish_reason := get_attribute(response, "finish_reason"):
+        finish_reason_attrs[SpanAttributes.LLM_FINISH_REASON] = finish_reason
     return {
         **get_llm_attributes(provider=OpenInferenceLLMProviderValues.GOOGLE.value),
         **get_span_kind_attributes("llm"),
@@ -363,4 +366,5 @@ def get_attributes_from_response(
         **get_llm_output_message_attributes(output_messages),
         **_get_reasoning_signature_attributes(output_messages),
         **get_llm_token_count_attributes(get_token_object_from_response(response)),
+        **finish_reason_attrs,
     }
