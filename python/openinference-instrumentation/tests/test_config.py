@@ -295,7 +295,7 @@ def test_trace_config(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    config = TraceConfig(**({} if param_value is None else {param: param_value}))
+    config = TraceConfig(**({} if param_value is None else {param: param_value}))  # type: ignore[arg-type]
     tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
     tracer.start_span("test", attributes={attr_key: attr_value}).end()
     span = in_memory_span_exporter.get_finished_spans()[0]
