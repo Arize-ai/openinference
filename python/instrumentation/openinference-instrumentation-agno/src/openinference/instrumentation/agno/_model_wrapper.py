@@ -18,10 +18,13 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
 from agno.models.base import Model
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    infer_llm_system_from_model_name,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
-    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -29,28 +32,11 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-# Maps an Agno ``model.provider`` value to a canonical OpenInference ``llm.system``
-# value. Providers not listed here leave ``llm.system`` unset because ``llm.provider``
-# and ``llm.system`` do not have the same set of canonical values.
-_PROVIDER_TO_LLM_SYSTEM: Dict[str, str] = {
-    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
-    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
-    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
-    "mistral": OpenInferenceLLMSystemValues.MISTRALAI.value,
-    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
-}
-
-
-def _get_llm_system(provider: Optional[str]) -> Optional[str]:
-    """Derive the OpenInference ``llm.system`` value from an Agno model provider.
-
-    Uses the same ``model.provider`` identity source that populates ``llm.provider``,
-    normalizing well-known providers to canonical OpenInference system values.
-    """
-    if not provider:
-        return None
-    normalized = provider.strip().lower()
-    return _PROVIDER_TO_LLM_SYSTEM.get(normalized)
+def _get_llm_system(model_name: Optional[str]) -> Optional[str]:
+    """Derive the OpenInference ``llm.system`` value from an Agno model id."""
+    if system := infer_llm_system_from_model_name(model_name or ""):
+        return system.value
+    return None
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
@@ -397,7 +383,7 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
-            if llm_system := _get_llm_system(model.provider):
+            if llm_system := _get_llm_system(model.id):
                 span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = wrapped(*args, **kwargs)
@@ -456,7 +442,7 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
-            if llm_system := _get_llm_system(model.provider):
+            if llm_system := _get_llm_system(model.id):
                 span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 
@@ -529,7 +515,7 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
-            if llm_system := _get_llm_system(model.provider):
+            if llm_system := _get_llm_system(model.id):
                 span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = await wrapped(*args, **kwargs)
@@ -594,7 +580,7 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
-            if llm_system := _get_llm_system(model.provider):
+            if llm_system := _get_llm_system(model.id):
                 span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 

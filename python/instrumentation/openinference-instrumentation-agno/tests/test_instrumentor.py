@@ -186,27 +186,27 @@ def test_team_metadata_captured() -> None:
 
 
 @pytest.mark.parametrize(
-    "provider, expected_system",
+    "model_name, expected_system",
     [
-        ("OpenAI", "openai"),
-        ("Anthropic", "anthropic"),
-        ("Cohere", "cohere"),
-        ("Mistral", "mistralai"),
-        ("VertexAI", "vertexai"),
-        # Known providers without canonical llm.system values stay as llm.provider only
-        ("Groq", None),
-        ("AwsBedrock", None),
-        # Empty / missing providers yield no llm.system
+        ("gpt-4o-mini", "openai"),
+        ("claude-sonnet-4-6", "anthropic"),
+        ("command-r", "cohere"),
+        ("mistral-large-latest", "mistralai"),
+        ("gemini-2.0-flash", "vertexai"),
+        # Non-inferable model names stay represented by llm.provider only.
+        ("llama-3.1-70b-versatile", None),
+        ("custom-model", None),
+        # Empty / missing model ids yield no llm.system
         (None, None),
         ("", None),
         ("   ", None),
     ],
 )
-def test_get_llm_system(provider: Any, expected_system: Any) -> None:
-    """llm.system is derived from the same model.provider source as llm.provider."""
+def test_get_llm_system(model_name: Any, expected_system: Any) -> None:
+    """llm.system is derived from the model id, not only the provider."""
     from openinference.instrumentation.agno._model_wrapper import _get_llm_system
 
-    assert _get_llm_system(provider) == expected_system
+    assert _get_llm_system(model_name) == expected_system
 
 
 def test_agno_team_coordinate_instrumentation(
