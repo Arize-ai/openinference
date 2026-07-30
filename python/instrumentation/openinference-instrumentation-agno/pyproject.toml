@@ -41,6 +41,7 @@ instruments = [
 test = [
   "agno>=2.5.0",
   "opentelemetry-sdk",
+  "pytest-asyncio",
   "pytest-recording",
   "brotli",
   "openai",

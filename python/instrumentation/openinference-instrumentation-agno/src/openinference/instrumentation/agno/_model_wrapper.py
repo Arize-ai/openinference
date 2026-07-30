@@ -30,8 +30,8 @@ from openinference.semconv.trace import (
 )
 
 # Maps an Agno ``model.provider`` value to a canonical OpenInference ``llm.system``
-# value. Providers not listed here fall back to a normalized (lowercased) provider
-# string so that ``llm.system`` is always populated on LLM spans.
+# value. Providers not listed here leave ``llm.system`` unset because ``llm.provider``
+# and ``llm.system`` do not have the same set of canonical values.
 _PROVIDER_TO_LLM_SYSTEM: Dict[str, str] = {
     "openai": OpenInferenceLLMSystemValues.OPENAI.value,
     "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
@@ -45,13 +45,12 @@ def _get_llm_system(provider: Optional[str]) -> Optional[str]:
     """Derive the OpenInference ``llm.system`` value from an Agno model provider.
 
     Uses the same ``model.provider`` identity source that populates ``llm.provider``,
-    normalizing well-known providers to canonical OpenInference system values and
-    falling back to a lowercased provider string otherwise.
+    normalizing well-known providers to canonical OpenInference system values.
     """
     if not provider:
         return None
     normalized = provider.strip().lower()
-    return _PROVIDER_TO_LLM_SYSTEM.get(normalized, normalized) or None
+    return _PROVIDER_TO_LLM_SYSTEM.get(normalized)
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:

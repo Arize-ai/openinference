@@ -20,7 +20,7 @@ from openinference.semconv.trace import SpanAttributes
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/agno/fixtures/",
-    record_mode="never",
+    record_mode="none",
     match_on=["uri", "method"],
 )
 
@@ -193,9 +193,9 @@ def test_team_metadata_captured() -> None:
         ("Cohere", "cohere"),
         ("Mistral", "mistralai"),
         ("VertexAI", "vertexai"),
-        # Providers without a canonical mapping fall back to a normalized string
-        ("Groq", "groq"),
-        ("AwsBedrock", "awsbedrock"),
+        # Known providers without canonical llm.system values stay as llm.provider only
+        ("Groq", None),
+        ("AwsBedrock", None),
         # Empty / missing providers yield no llm.system
         (None, None),
         ("", None),
