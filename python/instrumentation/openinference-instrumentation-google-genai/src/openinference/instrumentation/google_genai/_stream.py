@@ -207,6 +207,9 @@ class _ResponseExtractor:
                 yield from _get_token_count_attributes_from_usage_metadata(usage_metadata_obj)
         if candidates := result.get("candidates"):
             for idx, candidate in enumerate(candidates):
+                if (finish_reason := candidate.get("finish_reason")) is not None:
+                    yield SpanAttributes.LLM_FINISH_REASON, finish_reason
+
                 prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}"
                 if content := candidate.get("content"):
                     if role := content.get("role"):

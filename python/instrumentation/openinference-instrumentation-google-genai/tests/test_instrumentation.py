@@ -2340,9 +2340,9 @@ def test_finish_reason_values(
     }
 
     with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
-        mock_router.post(
-            path__regex=r"/v1beta/models/gemini-2\.0-flash:generateContent.*"
-        ).mock(return_value=Response(200, json=mock_response))
+        mock_router.post(path__regex=r"/v1beta/models/gemini-2\.0-flash:generateContent.*").mock(
+            return_value=Response(200, json=mock_response)
+        )
 
         response = client.models.generate_content(
             model="gemini-2.0-flash",

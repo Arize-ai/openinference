@@ -67,6 +67,7 @@ class _ResponseAttributesExtractor:
                 if content := getattr(candidate, "content", None):
                     for key, value in self._get_attributes_from_generate_content_content(content):
                         yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+
                 # Only capture finish_reason for the first candidate.
                 if index == 0:
                     if (finish_reason := getattr(candidate, "finish_reason", None)) is not None:
