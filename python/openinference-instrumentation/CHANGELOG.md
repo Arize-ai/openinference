@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.55...python-openinference-instrumentation-v0.1.56) (2026-07-31)
+
+
+### Features
+
+* **instrumentation:** pluggable BlobUploader to externalize oversized base64 images ([#3409](https://github.com/Arize-ai/openinference/issues/3409)) ([8e46780](https://github.com/Arize-ai/openinference/commit/8e46780cc98b2471df22b568421d08f4dbf4e74a))
+
 ## [0.1.55](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.54...python-openinference-instrumentation-v0.1.55) (2026-07-30)
 
 

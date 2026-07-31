@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.0...python-openinference-instrumentation-agno-v1.0.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* **agno:** disable agno telemetry in tests to stop background-run CI timeouts ([#3467](https://github.com/Arize-ai/openinference/issues/3467)) ([0e63729](https://github.com/Arize-ai/openinference/commit/0e63729a5288cf1b54ba977ffb19420248b3fc7e))
+
 ## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.38...python-openinference-instrumentation-agno-v1.0.0) (2026-07-30)
 
 
