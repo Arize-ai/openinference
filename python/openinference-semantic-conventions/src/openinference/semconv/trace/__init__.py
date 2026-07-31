@@ -4,9 +4,9 @@ from enum import Enum
 
 class SpanAttributes:
     ANNOTATIONS = "annotations"
-    """Feedback about this span."""
+    """Feedback using annotation terminology."""
     EVALUATIONS = "evaluations"
-    """Feedback produced by an evaluator span."""
+    """Feedback using evaluation or eval terminology."""
 
     OUTPUT_VALUE = "output.value"
     OUTPUT_MIME_TYPE = "output.mime_type"
@@ -287,7 +287,7 @@ class AnnotationAttributes:
 
 
 class EvaluationAttributes:
-    """Attributes for feedback produced by an evaluator span."""
+    """Attributes for feedback using evaluation or eval terminology."""
 
     EVALUATION_NAME = "evaluation.name"
     EVALUATION_SCORE = "evaluation.score"

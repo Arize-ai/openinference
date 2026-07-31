@@ -1,12 +1,12 @@
 # Annotations and Evaluations
 
-Human, LLM, and code judges produce feedback about generative applications. OpenInference carries this feedback in two
-equivalent forms:
+Human, LLM, and code judges produce feedback about generative applications. Some systems call this feedback
+annotations; others call the same grading results evaluations or evals. OpenInference supports both terms:
 
 | Prefix | Meaning |
 | --- | --- |
-| `annotations.<index>.annotation` | Feedback about the span that carries it. |
-| `evaluations.<index>.evaluation` | Feedback produced by an `EVALUATOR` span. |
+| `annotations.<index>.annotation` | Feedback using annotation terminology. |
+| `evaluations.<index>.evaluation` | Feedback using evaluation or eval terminology. |
 
 Both forms use the fields below. `<index>` MUST be zero-based and SHOULD be contiguous. Order has no meaning.
 
@@ -39,7 +39,10 @@ or ordered from worse to better. Labels SHOULD have low cardinality and stable s
 
 ## Transport
 
-Use `annotations.*` when feedback is available before the target span ends:
+Attach results to the span they describe. Use the form that matches the producing system's terminology; consumers
+SHOULD treat both forms as equivalent.
+
+Annotation example:
 
 ```json
 {
@@ -56,19 +59,11 @@ Use `annotations.*` when feedback is available before the target span ends:
 }
 ```
 
-Use `evaluations.*` on a span with `openinference.span.kind = "EVALUATOR"` when tracing the evaluation or when feedback
-arrives after the target span ends:
+The same feedback may use evaluation terminology:
 
 ```json
 {
-  "links": [
-    {
-      "trace_id": "80f198ee56343ba864fe8b2a57d3eff7",
-      "span_id": "e457b5a2e4d86bd1"
-    }
-  ],
   "attributes": {
-    "openinference.span.kind": "EVALUATOR",
     "evaluations.0.evaluation.name": "hallucination",
     "evaluations.0.evaluation.score": 1,
     "evaluations.0.evaluation.label": "hallucinated",
@@ -76,14 +71,6 @@ arrives after the target span ends:
   }
 }
 ```
-
-An evaluator span SHOULD have exactly one OpenTelemetry Span Link to its target. All `evaluations.*` on that span apply
-to the linked target. Producers SHOULD emit one evaluator span per target. Parentage MAY describe execution but does not
-identify the target.
-
-Spans are immutable after they end, so post-hoc feedback MUST use a linked evaluator span rather than mutate or
-re-export the target. Consumers MAY display a linked evaluation as an annotation, but exporters MUST preserve its fields
-and target association.
 
 Producers SHOULD use one form per result. If both forms carry the same result, their fields MUST match. When
 `identifier` is present, consumers MAY identify the result by target span, `name`, and `identifier`. List indices are
@@ -98,9 +85,29 @@ Explanations and metadata can contain sensitive data and MUST follow the same ma
 content. If attribute limits prevent a complete object, producers SHOULD omit it rather than emit an object without
 `name` or a result field.
 
-## OpenTelemetry Compatibility
+## Single-Result Events
 
-Gateways MAY translate the common fields to an OpenTelemetry `gen_ai.evaluation.result` event as follows:
+A system using the OpenTelemetry GenAI conventions may carry one result as a
+[`gen_ai.evaluation.result`](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-events.md#event-gen_aievaluationresult)
+event. For example, a span payload may contain:
+
+```json
+{
+  "events": [
+    {
+      "name": "gen_ai.evaluation.result",
+      "attributes": {
+        "gen_ai.evaluation.name": "hallucination",
+        "gen_ai.evaluation.score.value": 1,
+        "gen_ai.evaluation.score.label": "hallucinated",
+        "gen_ai.evaluation.explanation": "The claim is not supported by the retrieved documents."
+      }
+    }
+  ]
+}
+```
+
+Gateways MAY translate between this event and either OpenInference form:
 
 | OpenInference field | OpenTelemetry attribute |
 | --- | --- |
