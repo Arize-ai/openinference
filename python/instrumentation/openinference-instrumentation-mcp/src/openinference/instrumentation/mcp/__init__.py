@@ -132,7 +132,10 @@ class InstrumentedStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,t
                 yield item
                 continue
 
-            request = item.message.root
+            # mcp < 2.0 wraps the JSON-RPC payload in a pydantic RootModel exposed as
+            # `.root`; mcp >= 2.0 stores the union member directly on `.message`.
+            message = item.message
+            request = getattr(message, "root", message)
 
             if not isinstance(request, JSONRPCRequest):
                 yield item
@@ -168,7 +171,10 @@ class InstrumentedStreamWriter(ObjectProxy):  # type: ignore[misc,name-defined,t
         if not isinstance(item, SessionMessage):
             return await self.__wrapped__.send(item)
 
-        request = item.message.root
+        # mcp < 2.0 wraps the JSON-RPC payload in a pydantic RootModel exposed as
+        # `.root`; mcp >= 2.0 stores the union member directly on `.message`.
+        message = item.message
+        request = getattr(message, "root", message)
         if not isinstance(request, JSONRPCRequest):
             return await self.__wrapped__.send(item)
         meta = None
