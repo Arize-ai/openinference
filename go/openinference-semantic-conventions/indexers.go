@@ -8,6 +8,16 @@ import "strconv"
 //
 // These helpers build the keys so callers don't hand-format them.
 
+// AnnotationKey returns the key for a field on the i-th annotation.
+func AnnotationKey(i int, child string) string {
+	return Annotations + "." + strconv.Itoa(i) + "." + child
+}
+
+// EvaluationKey returns the key for a field on the i-th evaluation.
+func EvaluationKey(i int, child string) string {
+	return Evaluations + "." + strconv.Itoa(i) + "." + child
+}
+
 // LLMInputMessageRoleKey returns the attribute key for the role of the
 // i-th input message, e.g. "llm.input_messages.0.message.role".
 func LLMInputMessageRoleKey(i int) string {

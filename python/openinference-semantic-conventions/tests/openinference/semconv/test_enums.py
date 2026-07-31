@@ -1,9 +1,19 @@
 from openinference.semconv.trace import (
+    OpenInferenceAnnotatorKindValues,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
 )
+
+
+class TestOpenInferenceAnnotatorKindValues:
+    def test_values(self) -> None:
+        assert {e: e.value for e in OpenInferenceAnnotatorKindValues} == {
+            OpenInferenceAnnotatorKindValues.HUMAN: "HUMAN",
+            OpenInferenceAnnotatorKindValues.LLM: "LLM",
+            OpenInferenceAnnotatorKindValues.CODE: "CODE",
+        }
 
 
 class TestOpenInferenceSpanKindValues:

@@ -23,6 +23,22 @@ func TestAttributeKeys(t *testing.T) {
 		{GraphNodeID, "graph.node.id"},
 		{GraphNodeName, "graph.node.name"},
 		{GraphNodeParentID, "graph.node.parent_id"},
+		{Annotations, "annotations"},
+		{AnnotationName, "annotation.name"},
+		{AnnotationScore, "annotation.score"},
+		{AnnotationLabel, "annotation.label"},
+		{AnnotationExplanation, "annotation.explanation"},
+		{AnnotationAnnotatorKind, "annotation.annotator_kind"},
+		{AnnotationIdentifier, "annotation.identifier"},
+		{AnnotationMetadata, "annotation.metadata"},
+		{Evaluations, "evaluations"},
+		{EvaluationName, "evaluation.name"},
+		{EvaluationScore, "evaluation.score"},
+		{EvaluationLabel, "evaluation.label"},
+		{EvaluationExplanation, "evaluation.explanation"},
+		{EvaluationAnnotatorKind, "evaluation.annotator_kind"},
+		{EvaluationIdentifier, "evaluation.identifier"},
+		{EvaluationMetadata, "evaluation.metadata"},
 
 		{LLMModelName, "llm.model_name"},
 		{LLMProvider, "llm.provider"},
@@ -150,6 +166,10 @@ func TestEnumValues(t *testing.T) {
 		{MimeTypeText, "text/plain"},
 		{MimeTypeJSON, "application/json"},
 
+		{AnnotatorKindHuman, "HUMAN"},
+		{AnnotatorKindLLM, "LLM"},
+		{AnnotatorKindCode, "CODE"},
+
 		{LLMSystemOpenAI, "openai"},
 		{LLMSystemAnthropic, "anthropic"},
 		{LLMSystemCohere, "cohere"},
@@ -198,6 +218,8 @@ func TestIndexers(t *testing.T) {
 		{"RetrievalDocumentKey/content", RetrievalDocumentKey(4, DocumentContent), "retrieval.documents.4.document.content"},
 		{"EmbeddingKey/text", EmbeddingKey(0, EmbeddingText), "embedding.embeddings.0.embedding.text"},
 		{"EmbeddingKey/vector", EmbeddingKey(0, EmbeddingVector), "embedding.embeddings.0.embedding.vector"},
+		{"AnnotationKey/name", AnnotationKey(0, AnnotationName), "annotations.0.annotation.name"},
+		{"EvaluationKey/score", EvaluationKey(2, EvaluationScore), "evaluations.2.evaluation.score"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

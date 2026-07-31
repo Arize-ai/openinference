@@ -2,6 +2,11 @@ package semconv
 
 // Span-level attributes — set on the span representing the operation.
 const (
+	// Annotations and Evaluations are indexed key prefixes. Use AnnotationKey
+	// and EvaluationKey to build the flattened attribute keys.
+	Annotations = "annotations"
+	Evaluations = "evaluations"
+
 	// OpenInferenceSpanKind classifies the span (LLM, CHAIN, TOOL, etc.).
 	// Use the SpanKind* constants below as the value.
 	OpenInferenceSpanKind = "openinference.span.kind"
@@ -36,6 +41,25 @@ const (
 	GraphNodeID       = "graph.node.id"
 	GraphNodeName     = "graph.node.name"
 	GraphNodeParentID = "graph.node.parent_id"
+)
+
+// Feedback object attributes — nested under Annotations or Evaluations.
+const (
+	AnnotationName          = "annotation.name"
+	AnnotationScore         = "annotation.score"
+	AnnotationLabel         = "annotation.label"
+	AnnotationExplanation   = "annotation.explanation"
+	AnnotationAnnotatorKind = "annotation.annotator_kind"
+	AnnotationIdentifier    = "annotation.identifier"
+	AnnotationMetadata      = "annotation.metadata"
+
+	EvaluationName          = "evaluation.name"
+	EvaluationScore         = "evaluation.score"
+	EvaluationLabel         = "evaluation.label"
+	EvaluationExplanation   = "evaluation.explanation"
+	EvaluationAnnotatorKind = "evaluation.annotator_kind"
+	EvaluationIdentifier    = "evaluation.identifier"
+	EvaluationMetadata      = "evaluation.metadata"
 )
 
 // LLM-span attributes — set when the span represents an LLM API call.
