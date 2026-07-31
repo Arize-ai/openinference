@@ -261,8 +261,8 @@ Where:
 - `annotations.<index>.annotation.<attribute>` - Feedback using annotation terminology
 - `evaluations.<index>.evaluation.<attribute>` - Feedback using evaluation or eval terminology
 
-Both forms describe feedback about the carrying span, share the same result fields, and are defined in
-[Annotations and Evaluations](./annotations.md).
+Both forms share the same result fields. They describe the carrying span when recorded inline and the linked target
+when recorded on a post-hoc carrier span. See [Annotations and Evaluations](./annotations.md).
 
 #### LLM Input/Output Messages
 

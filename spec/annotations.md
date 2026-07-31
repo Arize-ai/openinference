@@ -39,8 +39,11 @@ or ordered from worse to better. Labels SHOULD have low cardinality and stable s
 
 ## Transport
 
-Attach results to the span they describe. Use the form that matches the producing system's terminology; consumers
-SHOULD treat both forms as equivalent.
+Use the form that matches the producing system's terminology; consumers SHOULD treat both forms as equivalent.
+
+### Inline Feedback
+
+When feedback is available before the target span ends, record it on that span.
 
 Annotation example:
 
@@ -76,6 +79,34 @@ Producers SHOULD use one form per result. If both forms carry the same result, t
 `identifier` is present, consumers MAY identify the result by target span, `name`, and `identifier`. List indices are
 not identifiers.
 
+### Post-Hoc Feedback
+
+Ended spans are immutable. When feedback is produced after the target span ends, the producer MUST emit a new carrier
+span with exactly one OpenTelemetry Span Link to the target. Feedback attributes on the carrier describe the linked
+target, not the carrier. Producers SHOULD emit one carrier span per target, and exporters MUST preserve the link.
+
+The carrier SHOULD use `openinference.span.kind = "EVALUATOR"` when it traces evaluation work. This span kind does not
+determine whether the feedback uses annotation or evaluation terminology. Parentage MAY describe how the carrier was
+created but MUST NOT be used to identify the feedback target.
+
+```json
+{
+  "name": "hallucination evaluation",
+  "links": [
+    {
+      "trace_id": "80f198ee56343ba864fe8b2a57d3eff7",
+      "span_id": "e457b5a2e4d86bd1"
+    }
+  ],
+  "attributes": {
+    "openinference.span.kind": "EVALUATOR",
+    "evaluations.0.evaluation.name": "hallucination",
+    "evaluations.0.evaluation.label": "hallucinated",
+    "evaluations.0.evaluation.annotator_kind": "HUMAN"
+  }
+}
+```
+
 ## Encoding and Privacy
 
 Feedback objects MUST be flattened because OTLP span attributes cannot contain objects. `metadata` MUST be a JSON object
@@ -106,6 +137,8 @@ event. For example, a span payload may contain:
   ]
 }
 ```
+
+If the target span has ended, this event MUST be recorded on the linked carrier span described above.
 
 Gateways MAY translate between this event and either OpenInference form:
 
