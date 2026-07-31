@@ -3,12 +3,14 @@
 Human, LLM, and code judges produce feedback about generative applications. Some systems call this feedback
 annotations; others call the same grading results evaluations or evals. OpenInference supports both terms:
 
-| Prefix | Meaning |
-| --- | --- |
-| `annotations.<index>.annotation` | Feedback using annotation terminology. |
-| `evaluations.<index>.evaluation` | Feedback using evaluation or eval terminology. |
+| Scope | Annotation form | Evaluation form | Target |
+| --- | --- | --- | --- |
+| Span | `annotations.<index>.annotation` | `evaluations.<index>.evaluation` | One span. |
+| Trace | `trace.annotations.<index>.annotation` | `trace.evaluations.<index>.evaluation` | One trace. |
+| Session | `session.annotations.<index>.annotation` | `session.evaluations.<index>.evaluation` | One session identified by `session.id`. |
 
-Both forms use the fields below. `<index>` MUST be zero-based and SHOULD be contiguous. Order has no meaning.
+All forms use the fields below. Within each collection, `<index>` MUST be zero-based and SHOULD be contiguous. Order has
+no meaning.
 
 ## Fields
 
@@ -33,9 +35,19 @@ or ordered from worse to better. Labels SHOULD have low cardinality and stable s
 
 | Value | Meaning |
 | --- | --- |
-| `HUMAN` | A person judged the span. |
-| `LLM` | A language model judged the span. |
-| `CODE` | Deterministic or statistical code judged the span. |
+| `HUMAN` | A person judged the target. |
+| `LLM` | A language model judged the target. |
+| `CODE` | Deterministic or statistical code judged the target. |
+
+## Scope
+
+Producers SHOULD use the narrowest applicable scope and SHOULD record each result once per target:
+
+- Span feedback describes one span.
+- Trace feedback describes the carrying span's trace when inline and the linked span's trace when post-hoc.
+- Session feedback describes the session identified by `session.id`; the carrying span MUST include `session.id`.
+
+Consumers MUST NOT apply trace or session feedback separately to each span as if it were duplicated span feedback.
 
 ## Transport
 
@@ -43,7 +55,11 @@ Use the form that matches the producing system's terminology; consumers SHOULD t
 
 ### Inline Feedback
 
-When feedback is available before the target span ends, record it on that span.
+When feedback is available while a suitable span is open:
+
+- Record span feedback on the target span.
+- Record trace feedback once on a span in the target trace, preferably the root span.
+- Record session feedback once on a span carrying the target's `session.id`.
 
 Annotation example:
 
@@ -75,15 +91,38 @@ The same feedback may use evaluation terminology:
 }
 ```
 
+Trace and session feedback add a scope prefix:
+
+```json
+{
+  "attributes": {
+    "session.id": "session-123",
+    "trace.annotations.0.annotation.name": "retrieval_quality",
+    "trace.annotations.0.annotation.score": 0.92,
+    "trace.annotations.0.annotation.annotator_kind": "CODE",
+    "session.annotations.0.annotation.name": "conversational_coherence",
+    "session.annotations.0.annotation.label": "coherent",
+    "session.annotations.0.annotation.annotator_kind": "HUMAN"
+  }
+}
+```
+
 Producers SHOULD use one form per result. If both forms carry the same result, their fields MUST match. When
-`identifier` is present, consumers MAY identify the result by target span, `name`, and `identifier`. List indices are
+`identifier` is present, consumers MAY identify the result by scope, target, `name`, and `identifier`. List indices are
 not identifiers.
 
 ### Post-Hoc Feedback
 
-Ended spans are immutable. When feedback is produced after the target span ends, the producer MUST emit a new carrier
-span with exactly one OpenTelemetry Span Link to the target. Feedback attributes on the carrier describe the linked
-target, not the carrier. Producers SHOULD emit one carrier span per target, and exporters MUST preserve the link.
+Ended spans are immutable. Post-hoc feedback MUST use a new carrier span. Target correlation depends on scope:
+
+- A span-scoped carrier MUST have exactly one OpenTelemetry Span Link to the target span.
+- A trace-scoped carrier MUST have exactly one Span Link to a span in the target trace and SHOULD link its root span.
+  The link's trace ID identifies the target.
+- A session-scoped carrier MUST include the target's `session.id`. It MAY link a representative span, but the link does
+  not identify the session because one session can contain multiple traces.
+
+A carrier SHOULD contain feedback for one scope and target. Its feedback describes the correlated target, not the
+carrier. Producers SHOULD emit one carrier per target, and exporters MUST preserve the required link or `session.id`.
 
 The carrier SHOULD use `openinference.span.kind = "EVALUATOR"` when it traces evaluation work. This span kind does not
 determine whether the feedback uses annotation or evaluation terminology. Parentage MAY describe how the carrier was
@@ -138,7 +177,9 @@ event. For example, a span payload may contain:
 }
 ```
 
-If the target span has ended, this event MUST be recorded on the linked carrier span described above.
+If the target span has ended, this event MUST be recorded on the linked carrier described above. The GenAI event does
+not encode trace or session scope, so gateways MUST preserve scoped OpenInference attributes when that scope cannot be
+represented by the destination.
 
 Gateways MAY translate between this event and either OpenInference form:
 

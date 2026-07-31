@@ -73,7 +73,7 @@ The [Semantic Conventions](./semantic_conventions.md) document is the authoritat
 
 ### Attribute Conventions
 
-- [Annotations and Evaluations](./annotations.md) — Inline and post-hoc feedback from human, LLM, and code judges
+- [Annotations and Evaluations](./annotations.md) — Span-, trace-, and session-scoped feedback from human, LLM, and code judges
 - [Tool Calling](./tool_calling.md) — Function/tool call and result representation
 - [Multimodal Attributes](./multimodal_attributes.md) — Image, audio, and mixed-content messages
 

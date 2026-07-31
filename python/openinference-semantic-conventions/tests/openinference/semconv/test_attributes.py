@@ -166,6 +166,8 @@ class TestSpanAttributes:
                 "documents": SpanAttributes.RETRIEVAL_DOCUMENTS,
             },
             "session": {
+                "annotations": SpanAttributes.SESSION_ANNOTATIONS,
+                "evaluations": SpanAttributes.SESSION_EVALUATIONS,
                 "id": SpanAttributes.SESSION_ID,
             },
             "tag": {
@@ -176,6 +178,10 @@ class TestSpanAttributes:
                 "id": SpanAttributes.TOOL_ID,
                 "name": SpanAttributes.TOOL_NAME,
                 "parameters": SpanAttributes.TOOL_PARAMETERS,
+            },
+            "trace": {
+                "annotations": SpanAttributes.TRACE_ANNOTATIONS,
+                "evaluations": SpanAttributes.TRACE_EVALUATIONS,
             },
             "user": {
                 "id": SpanAttributes.USER_ID,

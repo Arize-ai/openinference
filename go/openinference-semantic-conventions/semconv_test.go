@@ -24,6 +24,8 @@ func TestAttributeKeys(t *testing.T) {
 		{GraphNodeName, "graph.node.name"},
 		{GraphNodeParentID, "graph.node.parent_id"},
 		{Annotations, "annotations"},
+		{TraceAnnotations, "trace.annotations"},
+		{SessionAnnotations, "session.annotations"},
 		{AnnotationName, "annotation.name"},
 		{AnnotationScore, "annotation.score"},
 		{AnnotationLabel, "annotation.label"},
@@ -32,6 +34,8 @@ func TestAttributeKeys(t *testing.T) {
 		{AnnotationIdentifier, "annotation.identifier"},
 		{AnnotationMetadata, "annotation.metadata"},
 		{Evaluations, "evaluations"},
+		{TraceEvaluations, "trace.evaluations"},
+		{SessionEvaluations, "session.evaluations"},
 		{EvaluationName, "evaluation.name"},
 		{EvaluationScore, "evaluation.score"},
 		{EvaluationLabel, "evaluation.label"},
@@ -220,6 +224,10 @@ func TestIndexers(t *testing.T) {
 		{"EmbeddingKey/vector", EmbeddingKey(0, EmbeddingVector), "embedding.embeddings.0.embedding.vector"},
 		{"AnnotationKey/name", AnnotationKey(0, AnnotationName), "annotations.0.annotation.name"},
 		{"EvaluationKey/score", EvaluationKey(2, EvaluationScore), "evaluations.2.evaluation.score"},
+		{"TraceAnnotationKey/name", TraceAnnotationKey(0, AnnotationName), "trace.annotations.0.annotation.name"},
+		{"TraceEvaluationKey/score", TraceEvaluationKey(1, EvaluationScore), "trace.evaluations.1.evaluation.score"},
+		{"SessionAnnotationKey/name", SessionAnnotationKey(0, AnnotationName), "session.annotations.0.annotation.name"},
+		{"SessionEvaluationKey/label", SessionEvaluationKey(2, EvaluationLabel), "session.evaluations.2.evaluation.label"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

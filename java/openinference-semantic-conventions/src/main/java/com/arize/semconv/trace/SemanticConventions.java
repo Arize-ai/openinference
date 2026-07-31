@@ -23,6 +23,7 @@ public class SemanticConventions {
         public static final String METADATA = "metadata";
         public static final String TAG = "tag";
         public static final String SESSION = "session";
+        public static final String TRACE = "trace";
         public static final String USER = "user";
         public static final String OPENINFERENCE = "openinference";
         public static final String MESSAGE_CONTENT = "message_content";
@@ -187,6 +188,14 @@ public class SemanticConventions {
 
     public static final String ANNOTATIONS = SemanticAttributePrefixes.ANNOTATIONS;
     public static final String EVALUATIONS = SemanticAttributePrefixes.EVALUATIONS;
+    public static final String TRACE_ANNOTATIONS =
+            SemanticAttributePrefixes.TRACE + "." + SemanticAttributePrefixes.ANNOTATIONS;
+    public static final String TRACE_EVALUATIONS =
+            SemanticAttributePrefixes.TRACE + "." + SemanticAttributePrefixes.EVALUATIONS;
+    public static final String SESSION_ANNOTATIONS =
+            SemanticAttributePrefixes.SESSION + "." + SemanticAttributePrefixes.ANNOTATIONS;
+    public static final String SESSION_EVALUATIONS =
+            SemanticAttributePrefixes.SESSION + "." + SemanticAttributePrefixes.EVALUATIONS;
 
     public static final String ANNOTATION_NAME =
             SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.NAME;

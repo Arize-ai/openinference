@@ -2,10 +2,14 @@ package semconv
 
 // Span-level attributes — set on the span representing the operation.
 const (
-	// Annotations and Evaluations are indexed key prefixes. Use AnnotationKey
-	// and EvaluationKey to build the flattened attribute keys.
-	Annotations = "annotations"
-	Evaluations = "evaluations"
+	// Feedback collection prefixes. Use the indexer helpers to build flattened
+	// span-, trace-, and session-scoped attribute keys.
+	Annotations        = "annotations"
+	Evaluations        = "evaluations"
+	TraceAnnotations   = "trace.annotations"
+	TraceEvaluations   = "trace.evaluations"
+	SessionAnnotations = "session.annotations"
+	SessionEvaluations = "session.evaluations"
 
 	// OpenInferenceSpanKind classifies the span (LLM, CHAIN, TOOL, etc.).
 	// Use the SpanKind* constants below as the value.
