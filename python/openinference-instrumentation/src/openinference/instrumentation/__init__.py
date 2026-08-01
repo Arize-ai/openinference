@@ -1,6 +1,8 @@
 from ._attributes import (
+    get_annotation_attributes,
     get_context_attributes,
     get_embedding_attributes,
+    get_evaluation_attributes,
     get_input_attributes,
     get_llm_attributes,
     get_llm_input_message_attributes,
@@ -35,6 +37,8 @@ from ._projects import dangerously_using_project
 from ._tracer_providers import TracerProvider
 from ._tracers import OITracer
 from ._types import (
+    Annotation,
+    AnnotationScope,
     Document,
     Embedding,
     Image,
@@ -92,7 +96,9 @@ __all__ = [
     "parse_base64_data_uri",
     "TracerProvider",
     "get_context_attributes",
+    "get_annotation_attributes",
     "get_embedding_attributes",
+    "get_evaluation_attributes",
     "get_input_attributes",
     "get_llm_attributes",
     "get_llm_input_message_attributes",
@@ -114,6 +120,8 @@ __all__ = [
     "get_user_id_attributes",
     "infer_llm_provider_from_host",
     "infer_llm_system_from_model_name",
+    "Annotation",
+    "AnnotationScope",
     "Document",
     "Embedding",
     "Image",

@@ -53,7 +53,7 @@ main();
 |----------|----------------|
 | [tracing.md](./tracing.md) | Wrapping functions or class methods with tracing (`withSpan`, `traceChain`, `@observe`) |
 | [context-attributes.md](./context-attributes.md) | Propagating session, user, metadata, or tags across spans |
-| [attribute-helpers.md](./attribute-helpers.md) | Adding LLM, embedding, retriever, or tool attributes to spans |
+| [attribute-helpers.md](./attribute-helpers.md) | Adding LLM, annotation, evaluation, embedding, retriever, or tool attributes to spans |
 | [trace-config-and-masking.md](./trace-config-and-masking.md) | Hiding sensitive data from traces with `OITracer` |
 
 ## Docs and Source Code in node_modules
@@ -247,10 +247,16 @@ span.setAttributes(
 - `getEmbeddingAttributes({ modelName?, embeddings? })`
 - `getRetrieverAttributes({ documents })`
 - `getDocumentAttributes(document, documentIndex, keyPrefix)` -- single document with custom key prefix
+- `getAnnotationAttributes({ annotations, scope? })`
+- `getEvaluationAttributes({ evaluations, scope? })`
 - `getToolAttributes({ name, description?, parameters })`
 - `getMetadataAttributes(metadata)`
 - `getInputAttributes(input)` / `getOutputAttributes(output)`
 - `defaultProcessInput(...args)` / `defaultProcessOutput(result)`
+
+**Attribute Types**
+- `Annotation` -- annotation/evaluation result with a name and at least one result field
+- `AnnotationScope` -- `"span" | "trace" | "session"`
 
 **Trace Config & Masking**
 - `OITracer` -- tracer wrapper with context propagation and data masking
