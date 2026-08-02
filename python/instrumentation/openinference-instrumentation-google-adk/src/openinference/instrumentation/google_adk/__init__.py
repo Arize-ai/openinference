@@ -1,4 +1,5 @@
 import logging
+from importlib import import_module
 from typing import Any, Collection, Dict, Iterator, List, Tuple, cast
 
 import wrapt
@@ -192,15 +193,15 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                 )
             # apps.compaction also imports telemetry.tracing.tracer into a module-local
             # binding, so rebinding tracing.tracer above does not affect compact_events.
-            from google.adk.apps import compaction
-
-            compaction_tracer = getattr(compaction, "tracer", None)
-            if isinstance(compaction_tracer, Tracer):
-                setattr(
-                    compaction,
-                    "tracer",
-                    _SelectiveExecuteToolTracer(compaction_tracer, self._tracer),
-                )
+            compaction = _resolve_compaction_module()
+            if compaction is not None:
+                compaction_tracer = getattr(compaction, "tracer", None)
+                if isinstance(compaction_tracer, Tracer):
+                    setattr(
+                        compaction,
+                        "tracer",
+                        _SelectiveExecuteToolTracer(compaction_tracer, self._tracer),
+                    )
         elif _adk_version() >= (1, 15, 0):
             from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
                 tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
@@ -239,16 +240,17 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                 setattr(adk_tracing, "tracer", original)
 
         if _adk_version() >= (1, 32, 0):
-            from google.adk.apps import compaction
             from google.adk.flows.llm_flows import functions
 
             functions_tracer = getattr(functions, "tracer", None)
             if isinstance(original := getattr(functions_tracer, "__wrapped__", None), Tracer):
                 setattr(functions, "tracer", original)
 
-            compaction_tracer = getattr(compaction, "tracer", None)
-            if isinstance(original := getattr(compaction_tracer, "__wrapped__", None), Tracer):
-                setattr(compaction, "tracer", original)
+            compaction = _resolve_compaction_module()
+            if compaction is not None:
+                compaction_tracer = getattr(compaction, "tracer", None)
+                if isinstance(original := getattr(compaction_tracer, "__wrapped__", None), Tracer):
+                    setattr(compaction, "tracer", original)
 
 
 class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
@@ -360,3 +362,13 @@ def _resolve_trace_tool_call_module() -> Any:
     from google.adk.flows.llm_flows import functions
 
     return functions
+
+
+def _resolve_compaction_module() -> Any:
+    """Return the ADK compaction module when it is available."""
+    if _adk_version() < (1, 32, 0):
+        return None
+    try:
+        return import_module("google.adk.apps.compaction")
+    except ModuleNotFoundError:
+        return None

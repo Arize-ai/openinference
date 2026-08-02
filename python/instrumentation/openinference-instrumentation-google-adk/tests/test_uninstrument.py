@@ -10,6 +10,7 @@ This test verifies that the GoogleADKInstrumentor correctly patches and unpatchs
 - trace_call_llm and trace_tool_call methods
 """
 
+from importlib import import_module
 from types import ModuleType
 from typing import cast
 
@@ -42,10 +43,11 @@ def test_instrumentation_patching() -> None:
     # ADK 1.32 moved trace_tool_call from flows.llm_flows.functions to telemetry.tracing
     # and removed the re-export of `tracer` from agents.base_agent.
     trace_tool_module: ModuleType
+    compaction: ModuleType | None = None
     if _ADK_VERSION >= (1, 32, 0):
-        from google.adk.apps import compaction
         from google.adk.telemetry import tracing
 
+        compaction = _resolve_compaction_module()
         trace_tool_module = tracing
     else:
         from google.adk.flows.llm_flows import functions
@@ -60,7 +62,7 @@ def test_instrumentation_patching() -> None:
     original_trace_call_llm = base_llm_flow.trace_call_llm
     original_trace_tool_module_tracer = trace_tool_module.tracer
     original_trace_tool_call = trace_tool_module.trace_tool_call
-    if _ADK_VERSION >= (1, 32, 0):
+    if compaction is not None:
         original_compaction_tracer = compaction.tracer
 
     if _ADK_VERSION < (1, 32, 0):
@@ -79,7 +81,7 @@ def test_instrumentation_patching() -> None:
     assert base_llm_flow.trace_call_llm is not original_trace_call_llm
     assert trace_tool_module.tracer is not original_trace_tool_module_tracer
     assert trace_tool_module.trace_tool_call is not original_trace_tool_call
-    if _ADK_VERSION >= (1, 32, 0):
+    if compaction is not None:
         assert compaction.tracer is not original_compaction_tracer
 
     # Verify all tracers are patched with correct types
@@ -94,7 +96,8 @@ def test_instrumentation_patching() -> None:
         from google.adk.flows.llm_flows import functions as _functions
 
         assert isinstance(_functions.tracer, _SelectiveExecuteToolTracer)
-        assert isinstance(compaction.tracer, _SelectiveExecuteToolTracer)
+        if compaction is not None:
+            assert isinstance(compaction.tracer, _SelectiveExecuteToolTracer)
     else:
         # functions.tracer is module-local; we substitute our OITracer directly
         assert isinstance(trace_tool_module.tracer, OITracer)
@@ -114,8 +117,17 @@ def test_instrumentation_patching() -> None:
     assert base_llm_flow.trace_call_llm is original_trace_call_llm
     assert trace_tool_module.tracer is original_trace_tool_module_tracer
     assert trace_tool_module.trace_tool_call is original_trace_tool_call
-    if _ADK_VERSION >= (1, 32, 0):
+    if compaction is not None:
         assert compaction.tracer is original_compaction_tracer
 
     if _ADK_VERSION < (1, 32, 0):
         assert base_agent.tracer is original_agents_tracer  # noqa: F821
+
+
+def _resolve_compaction_module() -> ModuleType | None:
+    if _ADK_VERSION < (1, 32, 0):
+        return None
+    try:
+        return import_module("google.adk.apps.compaction")
+    except ModuleNotFoundError:
+        return None
