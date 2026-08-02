@@ -6,7 +6,7 @@
 This test verifies that the GoogleADKInstrumentor correctly patches and unpatchs:
 - Runner.run_async method
 - BaseAgent.run_async method
-- All tracers (runners, agents, llm_flows, functions/telemetry.tracing)
+- All tracers (runners, agents, llm_flows, functions/telemetry.tracing, apps.compaction)
 - trace_call_llm and trace_tool_call methods
 """
 
@@ -43,6 +43,7 @@ def test_instrumentation_patching() -> None:
     # and removed the re-export of `tracer` from agents.base_agent.
     trace_tool_module: ModuleType
     if _ADK_VERSION >= (1, 32, 0):
+        from google.adk.apps import compaction
         from google.adk.telemetry import tracing
 
         trace_tool_module = tracing
@@ -59,6 +60,8 @@ def test_instrumentation_patching() -> None:
     original_trace_call_llm = base_llm_flow.trace_call_llm
     original_trace_tool_module_tracer = trace_tool_module.tracer
     original_trace_tool_call = trace_tool_module.trace_tool_call
+    if _ADK_VERSION >= (1, 32, 0):
+        original_compaction_tracer = compaction.tracer
 
     if _ADK_VERSION < (1, 32, 0):
         from google.adk.agents import base_agent
@@ -76,6 +79,8 @@ def test_instrumentation_patching() -> None:
     assert base_llm_flow.trace_call_llm is not original_trace_call_llm
     assert trace_tool_module.tracer is not original_trace_tool_module_tracer
     assert trace_tool_module.trace_tool_call is not original_trace_tool_call
+    if _ADK_VERSION >= (1, 32, 0):
+        assert compaction.tracer is not original_compaction_tracer
 
     # Verify all tracers are patched with correct types
     assert isinstance(runners.tracer, _PassthroughTracer)
@@ -89,6 +94,7 @@ def test_instrumentation_patching() -> None:
         from google.adk.flows.llm_flows import functions as _functions
 
         assert isinstance(_functions.tracer, _SelectiveExecuteToolTracer)
+        assert isinstance(compaction.tracer, _SelectiveExecuteToolTracer)
     else:
         # functions.tracer is module-local; we substitute our OITracer directly
         assert isinstance(trace_tool_module.tracer, OITracer)
@@ -108,6 +114,8 @@ def test_instrumentation_patching() -> None:
     assert base_llm_flow.trace_call_llm is original_trace_call_llm
     assert trace_tool_module.tracer is original_trace_tool_module_tracer
     assert trace_tool_module.trace_tool_call is original_trace_tool_call
+    if _ADK_VERSION >= (1, 32, 0):
+        assert compaction.tracer is original_compaction_tracer
 
     if _ADK_VERSION < (1, 32, 0):
         assert base_agent.tracer is original_agents_tracer  # noqa: F821

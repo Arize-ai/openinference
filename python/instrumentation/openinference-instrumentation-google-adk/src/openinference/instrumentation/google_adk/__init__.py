@@ -190,6 +190,17 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                     "tracer",
                     _SelectiveExecuteToolTracer(functions_tracer, self._tracer),
                 )
+            # apps.compaction also imports telemetry.tracing.tracer into a module-local
+            # binding, so rebinding tracing.tracer above does not affect compact_events.
+            from google.adk.apps import compaction
+
+            compaction_tracer = getattr(compaction, "tracer", None)
+            if isinstance(compaction_tracer, Tracer):
+                setattr(
+                    compaction,
+                    "tracer",
+                    _SelectiveExecuteToolTracer(compaction_tracer, self._tracer),
+                )
         elif _adk_version() >= (1, 15, 0):
             from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
                 tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
@@ -228,11 +239,16 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                 setattr(adk_tracing, "tracer", original)
 
         if _adk_version() >= (1, 32, 0):
+            from google.adk.apps import compaction
             from google.adk.flows.llm_flows import functions
 
             functions_tracer = getattr(functions, "tracer", None)
             if isinstance(original := getattr(functions_tracer, "__wrapped__", None), Tracer):
                 setattr(functions, "tracer", original)
+
+            compaction_tracer = getattr(compaction, "tracer", None)
+            if isinstance(original := getattr(compaction_tracer, "__wrapped__", None), Tracer):
+                setattr(compaction, "tracer", original)
 
 
 class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
