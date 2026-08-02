@@ -190,6 +190,15 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                     "tracer",
                     _SelectiveExecuteToolTracer(functions_tracer, self._tracer),
                 )
+            # `compaction.tracer` has the same module-local binding issue as `functions.tracer`.
+            try:
+                from google.adk.apps import compaction as adk_compaction
+
+                compaction_tracer = getattr(adk_compaction, "tracer", None)
+                if isinstance(compaction_tracer, Tracer):
+                    setattr(adk_compaction, "tracer", self._tracer)
+            except ImportError:
+                pass
         elif _adk_version() >= (1, 15, 0):
             from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
                 tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
@@ -233,6 +242,21 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
             functions_tracer = getattr(functions, "tracer", None)
             if isinstance(original := getattr(functions_tracer, "__wrapped__", None), Tracer):
                 setattr(functions, "tracer", original)
+
+            # Restore compaction.tracer to the original ADK tracer.
+            try:
+                from google.adk.apps import compaction as adk_compaction
+                from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
+                    tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
+                )
+
+                if getattr(adk_compaction, "tracer", None) is self._tracer:
+                    original_compaction_tracer = getattr(
+                        adk_tracing.tracer, "__wrapped__", adk_tracing.tracer
+                    )
+                    setattr(adk_compaction, "tracer", original_compaction_tracer)
+            except ImportError:
+                pass
 
 
 class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
