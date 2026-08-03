@@ -353,6 +353,10 @@ def _(resp: GenerateContentResponse, span: Span) -> None:
         prefix = f"{LLM_OUTPUT_MESSAGES}.{candidate.index}."
         for k, v in _parse_content(cast(Content, candidate.content), prefix):
             span.set_attribute(k, v)
+        # Only capture finish_reason for the first candidate.
+        if candidate.index == 0:
+            if finish_reason := candidate.finish_reason:
+                span.set_attribute(LLM_FINISH_REASON, finish_reason.name)
 
 
 def stop_on_exception(it: Callable[..., Iterator[_AnyT]]) -> Callable[..., Iterator[_AnyT]]:
@@ -510,6 +514,7 @@ LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
