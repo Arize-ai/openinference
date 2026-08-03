@@ -262,6 +262,44 @@ describe("attributes helpers", () => {
         "You are a helpful assistant.",
       );
     });
+
+    it.each([
+      ["an empty parts array", "[]"],
+      ["parts with no text content", JSON.stringify([{ type: "image", content: "x" }])],
+    ])(
+      "keeps the metadata but emits no system message for %s",
+      (_label, systemInstructions: string) => {
+        const attrs = mapSystemInstructions({
+          "gen_ai.system_instructions": systemInstructions,
+        });
+
+        expect(attrs[`${SemanticConventions.METADATA}.gen_ai.system_instructions`]).toBe(
+          systemInstructions,
+        );
+        expect(attrs["llm.input_messages.0.message.role"]).toBeUndefined();
+      },
+    );
+
+    it.each([
+      ["an empty parts array", "[]"],
+      ["parts with no text content", JSON.stringify([{ type: "image", content: "x" }])],
+    ])(
+      "does not overwrite the first input message's role for %s",
+      (_label, systemInstructions: string) => {
+        const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+          "gen_ai.system_instructions": systemInstructions,
+          "gen_ai.input.messages": JSON.stringify([
+            { role: "user", parts: [{ type: "text", content: "only root spans" }] },
+          ]),
+        });
+
+        expect(attrs["llm.input_messages.0.message.role"]).toBe("user");
+        expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+          "only root spans",
+        );
+        expect(attrs["llm.input_messages.1.message.role"]).toBeUndefined();
+      },
+    );
   });
 
   describe("mapInputMessagesAndInputValue", () => {
