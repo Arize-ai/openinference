@@ -519,13 +519,16 @@ export const mapSystemInstructions = (spanAttributes: Attributes): Attributes =>
   if (systemInstructions) {
     set(attrs, `${SemanticConventions.METADATA}.gen_ai.system_instructions`, systemInstructions);
 
-    const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0.`;
-    set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, "system");
-    processMessageParts({
-      attrs,
-      msgPrefix,
-      parts: getSystemInstructionParts(spanAttributes) ?? [],
-    });
+    // Only emit the synthetic system message when there are parts to put in it.
+    // mapInputMessages shifts its indexes by one on exactly this condition, so
+    // emitting here without parts would claim index 0 while the input messages
+    // still start at 0, overwriting the first message's role with "system".
+    const parts = getSystemInstructionParts(spanAttributes);
+    if (parts != null) {
+      const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0.`;
+      set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, "system");
+      processMessageParts({ attrs, msgPrefix, parts });
+    }
   }
   return attrs;
 };
