@@ -1,13 +1,12 @@
 import json
 
+from openinference.instrumentation.openllmetry._span_processor import _map_generic_span
 from openinference.semconv.trace import (
     DocumentAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-
-from openinference.instrumentation.openllmetry._span_processor import _map_generic_span
 
 
 def test_langchain_retriever_span_maps_query_and_documents() -> None:
