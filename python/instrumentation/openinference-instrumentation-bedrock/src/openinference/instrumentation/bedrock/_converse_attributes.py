@@ -12,6 +12,7 @@ from openinference.instrumentation import (
     Message,
     MessageContent,
     PromptDetails,
+    ReasoningMessageContent,
     TextMessageContent,
     TokenCount,
     Tool,
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
         ImageBlockOutputTypeDef,
         MessageOutputTypeDef,
         MessageUnionTypeDef,
+        ReasoningContentBlockOutputTypeDef,
         ToolResultBlockOutputTypeDef,
         ToolResultContentBlockOutputTypeDef,
         ToolUseBlockOutputTypeDef,
@@ -76,6 +78,19 @@ def get_message_objects(message_list: Sequence[MessageUnionTypeDef]) -> List[Mes
                     base64_img = base64.b64encode(image_source["bytes"]).decode("utf-8")
                     image_url = f"data:image/{_image['format']};base64,{base64_img}"
                     contents.append(ImageMessageContent(type="image", image=Image(url=image_url)))
+            if "reasoningContent" in _content:
+                _reasoning: ReasoningContentBlockOutputTypeDef = _content["reasoningContent"]
+                if "reasoningText" in _reasoning:
+                    _reasoning_text = _reasoning["reasoningText"]
+                    reasoning_content = ReasoningMessageContent(
+                        type="reasoning", text=_reasoning_text["text"]
+                    )
+                    if "signature" in _reasoning_text:
+                        reasoning_content["signature"] = _reasoning_text["signature"]
+                    contents.append(reasoning_content)
+                elif "redactedContent" in _reasoning:
+                    redacted_data = base64.b64encode(_reasoning["redactedContent"]).decode("utf-8")
+                    contents.append(ReasoningMessageContent(type="reasoning", data=redacted_data))
             if "toolUse" in _content:
                 _tool_use: ToolUseBlockOutputTypeDef = _content["toolUse"]
                 tool_calls.append(
