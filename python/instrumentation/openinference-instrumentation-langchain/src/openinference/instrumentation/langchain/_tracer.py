@@ -338,7 +338,12 @@ def _langchain_run_type_to_span_kind(run_type: str) -> OpenInferenceSpanKindValu
     try:
         return OpenInferenceSpanKindValues(run_type.upper())
     except ValueError:
-        return OpenInferenceSpanKindValues.UNKNOWN
+        # LangChain emits run types that have no dedicated OpenInference span kind,
+        # most notably "parser" (StrOutputParser, PydanticOutputParser, etc.). Fall
+        # back to CHAIN rather than UNKNOWN to match the JavaScript instrumentor, which
+        # treats any unrecognized run type as a CHAIN span. See:
+        # js/packages/openinference-instrumentation-langchain/src/utils.ts
+        return OpenInferenceSpanKindValues.CHAIN
 
 
 def stop_on_exception(
