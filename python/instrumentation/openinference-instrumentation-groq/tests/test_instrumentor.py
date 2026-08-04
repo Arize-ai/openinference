@@ -94,7 +94,7 @@ def _make_mock_post(finish_reason: str) -> Any:
         id="chat_comp_0",
         choices=[
             Choice(
-                finish_reason=finish_reason,
+                finish_reason=finish_reason,  # type: ignore[arg-type]
                 index=0,
                 logprobs=None,
                 message=ChatCompletionMessage(
@@ -348,7 +348,7 @@ def test_finish_reason_values(
     setup_groq_instrumentation: Any,
 ) -> None:
     client = Groq(api_key="fake")
-    client.chat.completions._post = _make_mock_post(finish_reason)  # type: ignore[assignment]
+    client.chat.completions._post = _make_mock_post(finish_reason)
 
     client.chat.completions.create(
         messages=[{"role": "user", "content": "hello"}],
