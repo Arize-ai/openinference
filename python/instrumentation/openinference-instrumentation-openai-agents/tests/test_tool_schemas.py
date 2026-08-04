@@ -36,6 +36,13 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation import (
+    suppress_tracing,
+    using_metadata,
+    using_session,
+    using_tags,
+    using_user,
+)
 from openinference.instrumentation.openai_agents import (
     OpenAIAgentsInstrumentor,
     _patch_tool_execution,
@@ -303,3 +310,75 @@ def test_uninstrument_restores_every_patched_binding() -> None:
     assert all(during[key] is not before[key] for key in before)
     instrumentor.uninstrument()
     assert snapshot() == before
+
+
+# --- suppress tracing ---------------------------------------------------------------
+
+
+async def test_no_spans_when_tracing_suppressed(
+    exporter_and_instrumentation: InMemorySpanExporter,
+) -> None:
+    """Inside suppress_tracing() no span is exported, and the run still works.
+
+    The patched execution step is on the SDK's real tool-calling path, so this also
+    asserts the suppression guard does not interfere with the tool call itself.
+    """
+    exporter = exporter_and_instrumentation
+    agent = Agent(name="WeatherAgent", model=_FakeModel(), tools=[get_weather])
+
+    with suppress_tracing():
+        result = await Runner.run(agent, "What's the weather in London?")
+
+    assert result.final_output == "It is 21C and sunny."
+    assert exporter.get_finished_spans() == ()
+
+
+async def test_wrapper_publishes_nothing_when_tracing_suppressed() -> None:
+    """The wrapper must skip its work outright, not rely on the span being dropped.
+
+    Publishing schemas under suppression is wasted serialization for attributes that a
+    non-recording span discards, so the ContextVar must stay untouched.
+    """
+    wrapper = make_execute_function_tools_wrapper()
+    seen: dict[str, Any] = {}
+
+    async def wrapped(**kwargs: Any) -> str:
+        seen["inside"] = get_tool_schema("t")
+        return "done"
+
+    tool_runs = [_ToolRun(_Tool("t", "d", params_json_schema={}))]
+    with suppress_tracing():
+        assert await wrapper(wrapped, None, (), {"tool_runs": tool_runs}) == "done"
+    assert seen["inside"] is None
+
+    # Outside suppression the same call publishes, proving the guard is what skipped it.
+    await wrapper(wrapped, None, (), {"tool_runs": tool_runs})
+    assert seen["inside"] == ("d", "{}")
+
+
+# --- context attribute propagation --------------------------------------------------
+
+
+async def test_context_attributes_propagate_to_function_spans(
+    exporter_and_instrumentation: InMemorySpanExporter,
+) -> None:
+    """Context attributes must land on function spans alongside the tool schema."""
+    exporter = exporter_and_instrumentation
+    agent = Agent(name="WeatherAgent", model=_FakeModel(), tools=[get_weather])
+
+    with (
+        using_session("s-1"),
+        using_user("u-1"),
+        using_metadata({"k": "v"}),
+        using_tags(["t1", "t2"]),
+    ):
+        await Runner.run(agent, "What's the weather in London?")
+
+    attrs = _tool_span(list(exporter.get_finished_spans()))
+    assert attrs["session.id"] == "s-1"
+    assert attrs["user.id"] == "u-1"
+    assert json.loads(str(attrs["metadata"])) == {"k": "v"}
+    assert list(attrs["tag.tags"]) == ["t1", "t2"]
+    # The schema enrichment and the context attributes must coexist on the same span.
+    assert attrs["tool.description"] == _DESCRIPTION
+    assert attrs["tool.parameters"]

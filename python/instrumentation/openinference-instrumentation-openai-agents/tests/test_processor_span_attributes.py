@@ -12,6 +12,7 @@ input/output fields, so any value would be a guess -- see
 
 from __future__ import annotations
 
+import json
 from typing import Any, Optional
 
 import pytest
@@ -45,7 +46,15 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    suppress_tracing,
+    using_metadata,
+    using_session,
+    using_tags,
+    using_user,
+)
 from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.openai_agents._processor import OpenInferenceTracingProcessor
 
@@ -353,3 +362,74 @@ def test_ancestor_spans_do_not_infer_input_output() -> None:
     llm = _kinds(spans)["LLM"]
     assert "What's the weather in London?" in str(llm["input.value"])
     assert "It is 21C and sunny in London." in str(llm["output.value"])
+
+
+# --- suppress tracing ---------------------------------------------------------------
+
+
+def test_no_spans_when_tracing_suppressed() -> None:
+    """Nothing is exported while suppressed, so none of the added attributes appear.
+
+    Suppression has to be active across the whole run: the tracer reads the key when
+    the span starts, which is where the processor asks for it.
+    """
+    processor, exporter = _make_processor()
+    spans = [
+        _FakeSpan("a1", None, AgentSpanData(name="WeatherAgent")),
+        _FakeSpan("h1", "a1", HandoffSpanData(from_agent="Triage", to_agent="Weather")),
+        _FakeSpan("f1", "a1", FunctionSpanData(name="get_weather", input=None, output=None)),
+    ]
+
+    with suppress_tracing():
+        _run(processor, _FakeTrace(), spans)
+
+    assert exporter.get_finished_spans() == ()
+
+
+# --- context attribute propagation --------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "span_data,kind,span_name,expected",
+    [
+        pytest.param(
+            AgentSpanData(name="WeatherAgent"),
+            "AGENT",
+            "WeatherAgent",
+            {"agent.name": "WeatherAgent"},
+            id="agent-name",
+        ),
+        pytest.param(
+            HandoffSpanData(from_agent="Triage", to_agent="Weather"),
+            "TOOL",
+            "handoff to Weather",
+            {"input.value": "Triage", "output.value": "Weather"},
+            id="handoff-io",
+        ),
+    ],
+)
+def test_context_attributes_propagate_to_new_span_attributes(
+    span_data: SpanData,
+    kind: str,
+    span_name: str,
+    expected: dict[str, Any],
+) -> None:
+    """Context attributes must land on the spans carrying the added attributes."""
+    processor, exporter = _make_processor()
+
+    with (
+        using_session("s-1"),
+        using_user("u-1"),
+        using_metadata({"k": "v"}),
+        using_tags(["t1", "t2"]),
+    ):
+        _run(processor, _FakeTrace(), [_FakeSpan("s1", None, span_data)])
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), kind, span_name)
+    assert attrs["session.id"] == "s-1"
+    assert attrs["user.id"] == "u-1"
+    assert json.loads(str(attrs["metadata"])) == {"k": "v"}
+    assert list(attrs["tag.tags"]) == ["t1", "t2"]
+    # The added attributes must survive alongside the context attributes.
+    for key, value in expected.items():
+        assert attrs[key] == value

@@ -21,6 +21,9 @@ import sys
 from contextvars import ContextVar
 from typing import Any, Callable, Mapping, Optional
 
+from opentelemetry import context as context_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+
 from openinference.instrumentation import safe_json_dumps
 
 logger = logging.getLogger(__name__)
@@ -135,6 +138,12 @@ def make_execute_function_tools_wrapper() -> Callable[..., Any]:
         args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        # Everything below is enrichment for spans the processor is about to end, so
+        # under suppression there is nothing to enrich: OITracer hands out a
+        # non-recording span, which drops these attributes anyway. Skipping saves
+        # serializing every tool's schema for a span that will discard it.
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
         try:
             schemas = schemas_from_tool_runs(kwargs.get("tool_runs"))
         except Exception:
