@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.0...python-openinference-instrumentation-anthropic-v1.1.1) (2026-08-04)
+
+
+### Bug Fixes
+
+* **anthropic:** record cache read/write token details on streaming paths ([#3488](https://github.com/Arize-ai/openinference/issues/3488)) ([3b9b5b4](https://github.com/Arize-ai/openinference/commit/3b9b5b4f954c28c9dcd18576a533119040cc4ac2))
+
 ## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.6...python-openinference-instrumentation-anthropic-v1.1.0) (2026-07-30)
 
 

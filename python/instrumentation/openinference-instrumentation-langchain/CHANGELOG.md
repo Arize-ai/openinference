@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.69](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.68...python-openinference-instrumentation-langchain-v0.1.69) (2026-08-04)
+
+
+### Bug Fixes
+
+* **langchain:** map unknown run types (parser) to CHAIN instead of UNKNOWN ([#3486](https://github.com/Arize-ai/openinference/issues/3486)) ([84df77e](https://github.com/Arize-ai/openinference/commit/84df77ea62c1c242493a69c43060736c4be890b5))
+
 ## [0.1.68](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.67...python-openinference-instrumentation-langchain-v0.1.68) (2026-07-30)
 
 
