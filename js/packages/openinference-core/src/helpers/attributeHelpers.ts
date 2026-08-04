@@ -11,6 +11,8 @@ import {
 
 import { safelyJSONStringify } from "../utils";
 import type {
+  Annotation,
+  AnnotationScope,
   Document,
   Embedding,
   InputToAttributesFn,
@@ -382,6 +384,156 @@ export function getDocumentAttributes(
   }
 
   return attributes;
+}
+
+type AnnotationTerminology = "annotation" | "evaluation";
+
+const annotationCollectionPrefixes = {
+  annotation: {
+    span: SemanticConventions.ANNOTATIONS,
+    trace: SemanticConventions.TRACE_ANNOTATIONS,
+    session: SemanticConventions.SESSION_ANNOTATIONS,
+  },
+  evaluation: {
+    span: SemanticConventions.EVALUATIONS,
+    trace: SemanticConventions.TRACE_EVALUATIONS,
+    session: SemanticConventions.SESSION_EVALUATIONS,
+  },
+} as const;
+
+const annotationFieldNames = {
+  annotation: {
+    name: SemanticConventions.ANNOTATION_NAME,
+    score: SemanticConventions.ANNOTATION_SCORE,
+    label: SemanticConventions.ANNOTATION_LABEL,
+    explanation: SemanticConventions.ANNOTATION_EXPLANATION,
+    annotatorKind: SemanticConventions.ANNOTATION_ANNOTATOR_KIND,
+    identifier: SemanticConventions.ANNOTATION_IDENTIFIER,
+    metadata: SemanticConventions.ANNOTATION_METADATA,
+  },
+  evaluation: {
+    name: SemanticConventions.EVALUATION_NAME,
+    score: SemanticConventions.EVALUATION_SCORE,
+    label: SemanticConventions.EVALUATION_LABEL,
+    explanation: SemanticConventions.EVALUATION_EXPLANATION,
+    annotatorKind: SemanticConventions.EVALUATION_ANNOTATOR_KIND,
+    identifier: SemanticConventions.EVALUATION_IDENTIFIER,
+    metadata: SemanticConventions.EVALUATION_METADATA,
+  },
+} as const;
+
+const annotationFields = [
+  "name",
+  "score",
+  "label",
+  "explanation",
+  "annotatorKind",
+  "identifier",
+  "metadata",
+] as const;
+
+/**
+ * Generates flattened attributes for annotations at a span, trace, or session scope.
+ */
+function getScopedAnnotationAttributes(options: {
+  annotations: readonly Annotation[];
+  terminology: AnnotationTerminology;
+  scope: AnnotationScope;
+}): Attributes {
+  const { annotations, terminology, scope } = options;
+  const collectionPrefix = annotationCollectionPrefixes[terminology]?.[scope];
+  const fieldNames = annotationFieldNames[terminology];
+  if (collectionPrefix == null || fieldNames == null) {
+    throw new TypeError(`Invalid annotation terminology or scope: ${terminology}, ${scope}`);
+  }
+  if (!Array.isArray(annotations)) {
+    throw new TypeError("annotations must be an array of annotation objects");
+  }
+
+  const attributes: Attributes = {};
+  annotations.forEach((result, index) => {
+    if (result == null || typeof result !== "object") {
+      throw new TypeError("each annotation must be an object");
+    }
+    if (typeof result.name !== "string") {
+      throw new TypeError("each annotation must have a string name");
+    }
+    if (result.score == null && result.label == null && result.explanation == null) {
+      throw new TypeError("each annotation must have at least one of score, label, or explanation");
+    }
+
+    for (const field of annotationFields) {
+      let value = result[field];
+      if (value == null) {
+        continue;
+      }
+      if (field === "metadata" && typeof value !== "string") {
+        value = safelyJSONStringify(value) ?? "{}";
+      }
+      attributes[`${collectionPrefix}.${index}.${fieldNames[field]}`] = value;
+    }
+  });
+  return attributes;
+}
+
+/**
+ * Generates annotation attributes for a span, trace, or session.
+ *
+ * Collection indices are assigned in input order. Metadata objects are JSON-stringified,
+ * while metadata strings are preserved as provided.
+ *
+ * @param options - Annotation values and target scope
+ * @param options.annotations - Ordered annotations to flatten
+ * @param options.scope - Target scope; defaults to `span`
+ * @returns OpenTelemetry attributes using annotation terminology
+ *
+ * @example
+ * ```typescript
+ * getAnnotationAttributes({
+ *   annotations: [{ name: "correctness", score: 0.95 }],
+ *   scope: "trace",
+ * });
+ * ```
+ */
+export function getAnnotationAttributes(options: {
+  annotations: readonly Annotation[];
+  scope?: AnnotationScope;
+}): Attributes {
+  return getScopedAnnotationAttributes({
+    annotations: options.annotations,
+    terminology: "annotation",
+    scope: options.scope ?? "span",
+  });
+}
+
+/**
+ * Generates annotations using evaluation terminology for a span, trace, or session.
+ *
+ * Collection indices are assigned in input order. Metadata objects are JSON-stringified,
+ * while metadata strings are preserved as provided.
+ *
+ * @param options - Annotation values and target scope
+ * @param options.evaluations - Ordered annotations to encode using evaluation terminology
+ * @param options.scope - Target scope; defaults to `span`
+ * @returns OpenTelemetry attributes using evaluation terminology
+ *
+ * @example
+ * ```typescript
+ * getEvaluationAttributes({
+ *   evaluations: [{ name: "correctness", label: "correct" }],
+ *   scope: "session",
+ * });
+ * ```
+ */
+export function getEvaluationAttributes(options: {
+  evaluations: readonly Annotation[];
+  scope?: AnnotationScope;
+}): Attributes {
+  return getScopedAnnotationAttributes({
+    annotations: options.evaluations,
+    terminology: "evaluation",
+    scope: options.scope ?? "span",
+  });
 }
 
 /**
