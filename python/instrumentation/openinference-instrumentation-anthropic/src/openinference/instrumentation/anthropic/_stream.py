@@ -398,6 +398,16 @@ class _MessageExtractor:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if usage.output_tokens:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
+        if usage.cache_read_input_tokens:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+                usage.cache_read_input_tokens,
+            )
+        if usage.cache_creation_input_tokens:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+                usage.cache_creation_input_tokens,
+            )
         if total := prompt_tokens + (usage.output_tokens or 0):
             yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total
 
