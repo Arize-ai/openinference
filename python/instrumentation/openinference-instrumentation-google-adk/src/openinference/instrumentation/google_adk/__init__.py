@@ -273,7 +273,7 @@ class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,t
 
 
 class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    """Tracer proxy that emits OI spans for ``execute_tool *`` and suppresses the rest.
+    """Tracer proxy that emits OI spans for tool/compaction spans and suppresses the rest.
 
     Why this exists
     ---------------
@@ -301,8 +301,8 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     alongside the OI ``agent_run`` / ``call_llm`` spans we already create.
 
     This proxy routes by span name: forward to the OI tracer for
-    ``execute_tool *`` (so ``_TraceToolCall`` has a real OI span to enrich),
-    passthrough for everything else.
+    ``execute_tool *`` and ``compact_events *`` (so ``_TraceToolCall`` and ADK
+    compaction each get a real span), passthrough for everything else.
 
     Why ``functions.tracer`` is patched separately
     ----------------------------------------------
@@ -327,9 +327,10 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
 
     @_agnosticcontextmanager
     def start_as_current_span(self, name: str, *args: Any, **kwargs: Any) -> Iterator[Span]:
-        if isinstance(name, str) and name.startswith("execute_tool"):
-            # Tool path — produce a real OI span; _TraceToolCall enriches it via
-            # `get_current_span()` once `tracing.trace_tool_call(...)` runs inside.
+        if isinstance(name, str) and name.startswith(("execute_tool", "compact_events")):
+            # Tool/compaction path — produce a real OI span; _TraceToolCall
+            # enriches tool spans via `get_current_span()` once
+            # `tracing.trace_tool_call(...)` runs inside.
             with self._self_oi_tracer.start_as_current_span(name, *args, **kwargs) as span:
                 yield span
             return

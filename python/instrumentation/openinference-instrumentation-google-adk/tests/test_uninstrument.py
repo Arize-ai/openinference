@@ -10,11 +10,13 @@ This test verifies that the GoogleADKInstrumentor correctly patches and unpatchs
 - trace_call_llm and trace_tool_call methods
 """
 
+from contextlib import contextmanager
 from importlib import import_module
 from types import ModuleType
 from typing import cast
 
 from google.adk import __version__ as _ADK_VERSION_STR
+from opentelemetry.trace import Tracer, get_current_span
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.google_adk import (
@@ -131,3 +133,28 @@ def _resolve_compaction_module() -> ModuleType | None:
         return import_module("google.adk.apps.compaction")
     except ModuleNotFoundError:
         return None
+
+
+def test_selective_tracer_routes_compaction_to_oi_tracer() -> None:
+    class _DummyTracer:
+        def __init__(self) -> None:
+            self.names: list[str] = []
+            self.span = object()
+
+        @contextmanager
+        def start_as_current_span(self, name: str, *_: object, **__: object):
+            self.names.append(name)
+            yield self.span
+
+    wrapped = _DummyTracer()
+    oi = _DummyTracer()
+    tracer = _SelectiveExecuteToolTracer(cast(Tracer, wrapped), cast(Tracer, oi))
+
+    with tracer.start_as_current_span("execute_tool weather") as span:
+        assert span is oi.span
+    with tracer.start_as_current_span("compact_events sliding_window") as span:
+        assert span is oi.span
+    with tracer.start_as_current_span("invoke_agent planner") as span:
+        assert span is get_current_span()
+
+    assert oi.names == ["execute_tool weather", "compact_events sliding_window"]
