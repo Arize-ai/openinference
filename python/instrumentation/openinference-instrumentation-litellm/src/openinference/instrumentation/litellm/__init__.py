@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from enum import Enum
 from types import SimpleNamespace
 from typing import (
@@ -9,6 +10,7 @@ from typing import (
     Dict,
     Iterable,
     Iterator,
+    List,
     Mapping,
     Optional,
     Tuple,
@@ -32,7 +34,15 @@ from openinference.instrumentation import (
     get_llm_invocation_parameter_attributes,
     get_llm_provider_attributes,
     get_llm_tool_attributes,
+    get_output_attributes,
     safe_json_dumps,
+)
+from openinference.instrumentation.litellm._anthropic_messages_attributes import (
+    ANTHROPIC_KEYS_TO_REDACT,
+    AnthropicMessagesStreamAccumulator,
+    _get_attributes_from_anthropic_input_messages,
+    _get_attributes_from_anthropic_output_message,
+    _get_output_text_from_anthropic_response,
 )
 from openinference.instrumentation.litellm._responses_attributes import (
     _get_attributes_from_response_input,
@@ -46,6 +56,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -128,28 +139,164 @@ def _get_attributes_from_message_param(
             role.value if isinstance(role, Enum) else role,
         )
 
+    reasoning_blocks = _get_reasoning_content_blocks(message)
+    content_index = 0
+    for block in reasoning_blocks:
+        for key, value in _get_attributes_from_reasoning_block(block):
+            yield f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{key}", value
+        content_index += 1
+
     if content := message.get("content"):
         if isinstance(content, str):
-            yield MessageAttributes.MESSAGE_CONTENT, content
+            if reasoning_blocks:
+                prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+                yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", content
+                content_index += 1
+            else:
+                yield MessageAttributes.MESSAGE_CONTENT, content
         elif is_iterable_of(content, dict):
-            for index, c in list(enumerate(content)):
+            for c in content:
                 for key, value in _get_attributes_from_message_content(c):
-                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
+                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{key}", value
+                content_index += 1
 
     if tool_calls := message.get("tool_calls"):
         if isinstance(tool_calls, Iterable):
             for tool_call_index, tool_call in enumerate(tool_calls):
+                tool_call_prefix = f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}"
+                tool_call_id = tool_call.get("id")
+                reasoning_signature = None
+                if tool_call_id:
+                    tool_call_id, reasoning_signature = _split_litellm_tool_call_id(tool_call_id)
+                    yield (
+                        f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_ID}",
+                        tool_call_id,
+                    )
+                    if reasoning_signature:
+                        yield (
+                            f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                            reasoning_signature,
+                        )
+                function_name = None
+                function_arguments = None
                 if function := tool_call.get("function"):
                     if function_name := function.get("name"):
                         yield (
-                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                            f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                             function_name,
                         )
                     if function_arguments := function.get("arguments"):
                         yield (
-                            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            f"{tool_call_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             function_arguments,
                         )
+                if reasoning_blocks:
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                    yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "tool_use"
+                    if tool_call_id:
+                        yield f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}", tool_call_id
+                    if reasoning_signature:
+                        yield (
+                            f"{prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                            reasoning_signature,
+                        )
+                    if function_name:
+                        yield (
+                            f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                            function_name,
+                        )
+                    if function_arguments:
+                        yield (
+                            f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            function_arguments,
+                        )
+                    content_index += 1
+
+
+_THOUGHT_SIGNATURE_ID_SEPARATOR = "__thought__"
+
+
+def _split_litellm_tool_call_id(tool_call_id: str) -> Tuple[str, Optional[str]]:
+    """
+    LiteLLM encodes a Gemini functionCall's thoughtSignature into the tool call id
+    as ``<id>__thought__<signature>`` for OpenAI-client compatibility. Split it back
+    into the clean id and the signature, if present.
+    """
+    call_id, separator, signature = tool_call_id.partition(_THOUGHT_SIGNATURE_ID_SEPARATOR)
+    return (call_id, signature) if separator else (tool_call_id, None)
+
+
+def _normalize_thinking_block(block: Mapping[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    if thinking := block.get("thinking"):
+        normalized["text"] = thinking
+    if data := block.get("data"):  # redacted_thinking payload
+        normalized["data"] = data
+    if signature := block.get("signature"):
+        normalized["signature"] = signature
+    return normalized
+
+
+def _normalize_reasoning_item(item: Mapping[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    if item_id := item.get("id"):
+        normalized["id"] = item_id
+    summary = item.get("summary") or []
+    if is_iterable_of(summary, dict):
+        texts = [
+            text
+            for part in summary
+            if part.get("type") == "summary_text" and (text := part.get("text"))
+        ]
+        if texts:
+            normalized["text"] = "\n".join(texts)
+    if encrypted_content := item.get("encrypted_content"):
+        normalized["encrypted_content"] = encrypted_content
+    return normalized
+
+
+def _get_reasoning_content_blocks(message: Any) -> List[Mapping[str, Any]]:
+    thinking_blocks = message.get("thinking_blocks")
+    if thinking_blocks and is_iterable_of(thinking_blocks, dict):
+        normalized_blocks: List[Mapping[str, Any]] = [
+            normalized
+            for block in thinking_blocks
+            if (normalized := _normalize_thinking_block(block))
+        ]
+        if normalized_blocks:
+            return normalized_blocks
+
+    reasoning_items = message.get("reasoning_items")
+    if reasoning_items and is_iterable_of(reasoning_items, dict):
+        blocks: List[Mapping[str, Any]] = [
+            normalized
+            for item in reasoning_items
+            if (normalized := _normalize_reasoning_item(item))
+        ]
+        if blocks:
+            return blocks
+
+    reasoning_content = message.get("reasoning_content")
+    if isinstance(reasoning_content, str) and reasoning_content:
+        return [{"text": reasoning_content}]
+    return []
+
+
+def _get_attributes_from_reasoning_block(
+    block: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "reasoning"
+    if block_id := block.get("id"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_ID, block_id
+    if text := block.get("text"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_TEXT, text
+    if data := block.get("data"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_DATA, data
+    if signature := block.get("signature"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE, signature
+    if encrypted_content := block.get("encrypted_content"):
+        yield MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT, encrypted_content
 
 
 def _get_attributes_from_message_content(
@@ -166,6 +313,8 @@ def _get_attributes_from_message_content(
         if image := content.pop("image_url"):
             for key, value in _get_attributes_from_image(image):
                 yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+    elif type_ in ("thinking", "redacted_thinking"):
+        yield from _get_attributes_from_reasoning_block(_normalize_thinking_block(content))
 
 
 def _get_attributes_from_image(
@@ -316,6 +465,234 @@ def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[st
         _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model)
     if prompt := kwargs.get("prompt"):
         _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(prompt))
+
+
+_ANTHROPIC_MESSAGES_POSITIONAL_PARAMETERS = (
+    "max_tokens",
+    "messages",
+    "model",
+    "metadata",
+    "stop_sequences",
+    "stream",
+    "system",
+    "temperature",
+    "thinking",
+    "tool_choice",
+    "tools",
+    "top_k",
+    "top_p",
+    "container",
+)
+
+
+def _bind_anthropic_messages_arguments(
+    signature: Optional[inspect.Signature],
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
+) -> Dict[str, Any]:
+    if signature is not None:
+        try:
+            bound = signature.bind_partial(*args, **kwargs)
+        except TypeError:
+            pass
+        else:
+            arguments: Dict[str, Any] = {}
+            for name, value in bound.arguments.items():
+                parameter = signature.parameters[name]
+                if parameter.kind is inspect.Parameter.VAR_KEYWORD and isinstance(value, Mapping):
+                    arguments.update(value)
+                elif parameter.kind is not inspect.Parameter.VAR_POSITIONAL:
+                    arguments[name] = value
+            return arguments
+
+    arguments = dict(zip(_ANTHROPIC_MESSAGES_POSITIONAL_PARAMETERS, args))
+    arguments.update(kwargs)
+    return arguments
+
+
+def _instrument_func_type_anthropic_messages(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
+    """
+    Instruments:
+        litellm.anthropic.create() / litellm.anthropic.messages.create()
+        litellm.anthropic.acreate() / litellm.anthropic.messages.acreate()
+    """
+    _set_span_attribute(
+        span, SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
+    )
+    _set_span_attribute(
+        span, SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.ANTHROPIC.value
+    )
+    model = kwargs.get("model")
+    if model:
+        span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model)
+        provider = _get_oi_provider_from_litellm_model_name(model)
+        span.set_attributes(get_llm_provider_attributes(provider))
+
+    messages = kwargs.get("messages") or []
+    system = kwargs.get("system")
+    for key, value in _get_attributes_from_anthropic_input_messages(messages, system):
+        _set_span_attribute(span, key, value)
+
+    input_payload: Dict[str, Any] = {"messages": list(messages)}
+    if system:
+        input_payload["system"] = system
+    _set_span_attribute(span, SpanAttributes.INPUT_VALUE, safe_json_dumps(input_payload))
+    _set_span_attribute(
+        span, SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+    )
+
+    invocation_params = {k: v for k, v in kwargs.items() if k not in ANTHROPIC_KEYS_TO_REDACT}
+    _set_span_attribute(
+        span, SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+    )
+
+    if tools := kwargs.get("tools"):
+        if isinstance(tools, list):
+            for idx, tool in enumerate(tools):
+                _set_span_attribute(
+                    span,
+                    f"{SpanAttributes.LLM_TOOLS}.{idx}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                    safe_json_dumps(tool),
+                )
+
+
+def _as_anthropic_messages_mapping(result: Any) -> Optional[Mapping[str, Any]]:
+    if isinstance(result, Mapping):
+        return result
+    if hasattr(result, "model_dump"):
+        try:
+            dumped = result.model_dump()
+            if isinstance(dumped, Mapping):
+                return dumped
+        except Exception:
+            pass
+    if hasattr(result, "__dict__"):
+        data = vars(result)
+        return data if isinstance(data, Mapping) else None
+    return None
+
+
+def _finalize_anthropic_messages_span(span: trace_api.Span, result: Any) -> None:
+    response = _as_anthropic_messages_mapping(result)
+    if response is None:
+        _set_span_status(span, result)
+        return
+
+    if model := response.get("model"):
+        _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model)
+
+    for key, value in _get_attributes_from_anthropic_output_message(response):
+        _set_span_attribute(span, key, value)
+
+    if output_text := _get_output_text_from_anthropic_response(response):
+        span.set_attributes(get_output_attributes(output_text))
+    else:
+        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, safe_json_dumps(dict(response)))
+        _set_span_attribute(
+            span, SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+        )
+
+    usage = response.get("usage")
+    if usage is not None:
+        if isinstance(usage, Mapping):
+            usage_obj = SimpleNamespace(**dict(usage))
+        else:
+            usage_obj = usage
+        _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_obj))
+        input_tokens = _get_value(usage_obj, "input_tokens")
+        cache_creation_input_tokens = _get_value(usage_obj, "cache_creation_input_tokens")
+        cache_read_input_tokens = _get_value(usage_obj, "cache_read_input_tokens")
+        output_tokens = _get_value(usage_obj, "output_tokens")
+        if any(
+            value is not None
+            for value in (
+                input_tokens,
+                cache_creation_input_tokens,
+                cache_read_input_tokens,
+                output_tokens,
+            )
+        ):
+            # Re-derive the prompt count to include cache tokens (Anthropic reports
+            # input_tokens exclusive of cache reads/writes) and set the total, which
+            # Anthropic usage does not provide directly. Matches the anthropic instrumentor.
+            prompt_tokens = (
+                (input_tokens or 0)
+                + (cache_creation_input_tokens or 0)
+                + (cache_read_input_tokens or 0)
+            )
+            _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
+            _set_span_attribute(
+                span,
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL,
+                prompt_tokens + (output_tokens or 0),
+            )
+
+    _set_cost_from_response(span, result)
+    _set_span_status(span, result)
+
+
+def _finalize_sync_anthropic_messages_streaming_span(span: trace_api.Span, stream: Any) -> Any:
+    accumulator = AnthropicMessagesStreamAccumulator()
+    try:
+        with trace_api.use_span(
+            span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+        ):
+            for chunk in stream:
+                accumulator.process_chunk(chunk)
+                yield chunk
+        accumulator.finish()
+        _finalize_anthropic_messages_span(span, accumulator.to_response())
+    except Exception as e:
+        span.record_exception(e)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
+        raise
+    finally:
+        span.end()
+
+
+async def _finalize_async_anthropic_messages_streaming_span(
+    span: trace_api.Span, stream: Any
+) -> Any:
+    accumulator = AnthropicMessagesStreamAccumulator()
+    try:
+        with trace_api.use_span(
+            span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+        ):
+            async for chunk in stream:
+                accumulator.process_chunk(chunk)
+                yield chunk
+        accumulator.finish()
+        _finalize_anthropic_messages_span(span, accumulator.to_response())
+    except Exception as e:
+        span.record_exception(e)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
+        raise
+    finally:
+        span.end()
+
+
+def _finalize_anthropic_messages_result(span: trace_api.Span, result: Any) -> Any:
+    if hasattr(result, "__anext__"):
+        return _finalize_async_anthropic_messages_streaming_span(span, result)
+    if hasattr(result, "__next__"):
+        return _finalize_sync_anthropic_messages_streaming_span(span, result)
+    _finalize_anthropic_messages_span(span, result)
+    span.end()
+    return result
+
+
+async def _finalize_anthropic_messages_awaitable(span: trace_api.Span, result: Any) -> Any:
+    try:
+        with trace_api.use_span(
+            span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+        ):
+            result = await result
+    except Exception as e:
+        span.record_exception(e)
+        span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
+        span.end()
+        raise
+    return _finalize_anthropic_messages_result(span, result)
 
 
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
@@ -561,16 +938,74 @@ def _accumulate_tool_calls(
                 tool_call_entry["function"]["arguments"] += arguments
 
 
+def _accumulate_thinking_blocks(
+    thinking_blocks: Any,
+    accumulated: List[Dict[str, Any]],
+) -> None:
+    if not thinking_blocks:
+        return
+
+    for block in thinking_blocks:
+        if not hasattr(block, "get"):
+            continue
+        block_type = block.get("type")
+        if block_type == "redacted_thinking":
+            if data := block.get("data"):
+                accumulated.append({"type": "redacted_thinking", "data": data})
+        elif block_type == "thinking":
+            last = accumulated[-1] if accumulated else None
+            if last is None or last.get("type") != "thinking" or last.get("signature"):
+                last = {"type": "thinking", "thinking": "", "signature": ""}
+                accumulated.append(last)
+            if thinking := block.get("thinking"):
+                last["thinking"] += thinking
+            if signature := block.get("signature"):
+                last["signature"] = signature
+
+
 def _build_message_from_accumulated(msg: Dict[str, Any]) -> Dict[str, Any]:
     message: Dict[str, Any] = {
         "role": msg.get("role"),
         "content": msg.get("content"),
     }
 
+    if reasoning_content := msg.get("reasoning_content"):
+        message["reasoning_content"] = reasoning_content
+
+    if thinking_blocks := msg.get("thinking_blocks"):
+        message["thinking_blocks"] = thinking_blocks
+
+    if reasoning_items := msg.get("reasoning_items"):
+        message["reasoning_items"] = reasoning_items
+
     if tool_calls_dict := msg.get("tool_calls"):
         message["tool_calls"] = [tool_calls_dict[idx] for idx in sorted(tool_calls_dict.keys())]
 
     return message
+
+
+def _remove_redundant_reasoning_entries(
+    output_messages: Dict[int, Dict[str, Any]],
+    reasoning_items: List[Mapping[str, Any]],
+) -> None:
+    authoritative_texts = {
+        text
+        for item in reasoning_items
+        for part in (item.get("summary") or [])
+        if isinstance(part, Mapping)
+        and part.get("type") == "summary_text"
+        and (text := part.get("text"))
+    }
+    for index, message in list(output_messages.items()):
+        if index == 0:
+            continue
+        if not message.get("content") and set(message) <= {
+            "role",
+            "content",
+            "reasoning_content",
+        }:
+            if message.get("reasoning_content") in authoritative_texts:
+                del output_messages[index]
 
 
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
@@ -593,12 +1028,27 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                             entry["role"] = role
                         if content is not None:
                             entry["content"] += content
+                        if reasoning_content := getattr(delta, "reasoning_content", None):
+                            entry["reasoning_content"] = (
+                                entry.get("reasoning_content", "") + reasoning_content
+                            )
+                        if thinking_blocks := getattr(delta, "thinking_blocks", None):
+                            _accumulate_thinking_blocks(
+                                thinking_blocks, entry.setdefault("thinking_blocks", [])
+                            )
+                        if reasoning_items := getattr(delta, "reasoning_items", None):
+                            # Emitted once, as a full list, on the final response.completed
+                            # chunk (see litellm's litellm_responses_transformation), so this
+                            # is a replace, not an incremental accumulation like the above.
+                            entry["reasoning_items"] = reasoning_items
                         if tool_calls := getattr(delta, "tool_calls", None):
                             _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
+        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
+            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
         for idx, msg in output_messages.items():
@@ -638,12 +1088,27 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                             entry["role"] = role
                         if content is not None:
                             entry["content"] += content
+                        if reasoning_content := getattr(delta, "reasoning_content", None):
+                            entry["reasoning_content"] = (
+                                entry.get("reasoning_content", "") + reasoning_content
+                            )
+                        if thinking_blocks := getattr(delta, "thinking_blocks", None):
+                            _accumulate_thinking_blocks(
+                                thinking_blocks, entry.setdefault("thinking_blocks", [])
+                            )
+                        if reasoning_items := getattr(delta, "reasoning_items", None):
+                            # Emitted once, as a full list, on the final response.completed
+                            # chunk (see litellm's litellm_responses_transformation), so this
+                            # is a replace, not an incremental accumulation like the above.
+                            entry["reasoning_items"] = reasoning_items
                         if tool_calls := getattr(delta, "tool_calls", None):
                             _accumulate_tool_calls(tool_calls, entry.setdefault("tool_calls", {}))
             usage_attrs = getattr(token, "usage", None)
             if usage_attrs:
                 usage_stats = usage_attrs
             yield token
+        if reasoning_items := output_messages.get(0, {}).get("reasoning_items"):
+            _remove_redundant_reasoning_entries(output_messages, reasoning_items)
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
         for idx, msg in output_messages.items():
@@ -691,6 +1156,10 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
     original_litellm_funcs: Dict[
         str, Callable[..., Any]
     ] = {}  # Dictionary for original uninstrumented liteLLM functions
+    original_anthropic_funcs: Dict[
+        str, Callable[..., Any]
+    ] = {}  # Original litellm.anthropic create/acreate
+    original_anthropic_signatures: Dict[str, inspect.Signature] = {}
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -734,12 +1203,111 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
                 )  # Monkey patch each function with their respective wrapper
                 self._set_wrapper_attr(func_wrapper)
 
+        self._instrument_anthropic_messages()
+
+    def _instrument_anthropic_messages(self) -> None:
+        try:
+            import litellm.anthropic_interface as anthropic_module
+            import litellm.anthropic_interface.messages as anthropic_messages_module
+        except ImportError:
+            return
+
+        anthropic_functions = {
+            "create": self._create_wrapper,
+            "acreate": self._acreate_wrapper,
+        }
+        for func_name, func_wrapper in anthropic_functions.items():
+            if not hasattr(anthropic_messages_module, func_name):
+                continue
+            original_func = getattr(anthropic_messages_module, func_name)
+            self.original_anthropic_funcs[func_name] = original_func
+            try:
+                self.original_anthropic_signatures[func_name] = inspect.signature(original_func)
+            except (TypeError, ValueError):
+                pass
+            setattr(anthropic_messages_module, func_name, func_wrapper)
+            if hasattr(anthropic_module, func_name):
+                setattr(anthropic_module, func_name, func_wrapper)
+            self._set_wrapper_attr(func_wrapper)
+
     def _uninstrument(self, **kwargs: Any) -> None:
         import litellm
 
         for func_name, original_func in LiteLLMInstrumentor.original_litellm_funcs.items():
             setattr(litellm, func_name, original_func)
         self.original_litellm_funcs.clear()
+        self._uninstrument_anthropic_messages()
+
+    def _uninstrument_anthropic_messages(self) -> None:
+        if not self.original_anthropic_funcs:
+            return
+        try:
+            import litellm.anthropic_interface as anthropic_module
+            import litellm.anthropic_interface.messages as anthropic_messages_module
+        except ImportError:
+            self.original_anthropic_funcs.clear()
+            self.original_anthropic_signatures.clear()
+            return
+
+        for func_name, original_func in list(self.original_anthropic_funcs.items()):
+            setattr(anthropic_messages_module, func_name, original_func)
+            if hasattr(anthropic_module, func_name):
+                setattr(anthropic_module, func_name, original_func)
+        self.original_anthropic_funcs.clear()
+        self.original_anthropic_signatures.clear()
+
+    def _create_wrapper(self, *args: Any, **kwargs: Any) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return self.original_anthropic_funcs["create"](*args, **kwargs)
+
+        arguments = _bind_anthropic_messages_arguments(
+            self.original_anthropic_signatures.get("create"), args, kwargs
+        )
+        span = self._tracer.start_span(
+            name="messages.create", attributes=dict(get_attributes_from_context())
+        )
+        _instrument_func_type_anthropic_messages(span, arguments)
+        try:
+            with trace_api.use_span(
+                span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+            ):
+                result = self.original_anthropic_funcs["create"](*args, **kwargs)
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
+            span.end()
+            raise
+        if inspect.isawaitable(result):
+            return _finalize_anthropic_messages_awaitable(span, result)
+        return _finalize_anthropic_messages_result(span, result)
+
+    async def _acreate_wrapper(self, *args: Any, **kwargs: Any) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            result = self.original_anthropic_funcs["acreate"](*args, **kwargs)
+            if hasattr(result, "__await__"):
+                return await result
+            return result
+
+        arguments = _bind_anthropic_messages_arguments(
+            self.original_anthropic_signatures.get("acreate"), args, kwargs
+        )
+        span = self._tracer.start_span(
+            name="messages.create", attributes=dict(get_attributes_from_context())
+        )
+        _instrument_func_type_anthropic_messages(span, arguments)
+        try:
+            with trace_api.use_span(
+                span, end_on_exit=False, record_exception=False, set_status_on_exception=False
+            ):
+                result = self.original_anthropic_funcs["acreate"](*args, **kwargs)
+                if inspect.isawaitable(result):
+                    result = await result
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, description=str(e)))
+            span.end()
+            raise
+        return _finalize_anthropic_messages_result(span, result)
 
     def _responses_wrapper(self, *args: Any, **kwargs: Any) -> Any:
         from litellm.responses.streaming_iterator import SyncResponsesAPIStreamingIterator

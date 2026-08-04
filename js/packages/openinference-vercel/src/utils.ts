@@ -11,10 +11,13 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { VercelSDKFunctionNameToSpanKindMap } from "./constants";
-import type { OpenInferenceIOConventionKey, SpanFilter } from "./types";
-import { isArrayOfObjects, isStringArray } from "./typeUtils";
-import { VercelAISemanticConventions } from "./VercelAISemanticConventions";
+import {
+  GenAIOperationNameToSpanKindMap,
+  VercelSDKFunctionNameToSpanKindMap,
+} from "./constants.js";
+import type { OpenInferenceIOConventionKey, SpanFilter } from "./types.js";
+import { isArrayOfObjects, isStringArray } from "./typeUtils.js";
+import { VercelAISemanticConventions } from "./VercelAISemanticConventions.js";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(
@@ -48,14 +51,20 @@ const getOISpanKindFromAttributes = (
     return existingOISpanKind;
   }
   const maybeOperationName = attributes["operation.name"];
-  if (maybeOperationName == null || typeof maybeOperationName !== "string") {
-    return;
+  if (typeof maybeOperationName === "string") {
+    const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
+    if (maybeFunctionName != null) {
+      const spanKind = VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName);
+      if (spanKind != null) {
+        return spanKind;
+      }
+    }
   }
-  const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
-  if (maybeFunctionName == null) {
-    return;
+
+  const maybeGenAIOperationName = attributes["gen_ai.operation.name"];
+  if (typeof maybeGenAIOperationName === "string") {
+    return GenAIOperationNameToSpanKindMap.get(maybeGenAIOperationName);
   }
-  return VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName);
 };
 
 /**
@@ -73,9 +82,12 @@ const safelyGetOISpanKindFromAttributes = withSafety({
  * @returns the OpenInference attributes associated with the invocation parameters
  */
 const getInvocationParamAttributes = (attributes: Attributes) => {
-  const settingAttributeKeys = Object.keys(attributes).filter((key) =>
-    key.startsWith(VercelAISemanticConventions.SETTINGS),
-  );
+  const settingAttributeKeys = Object.keys(attributes).filter((key) => {
+    if (!key.startsWith(`${VercelAISemanticConventions.SETTINGS}.`)) {
+      return false;
+    }
+    return key.split(".").length === 3;
+  });
   if (settingAttributeKeys.length === 0) {
     return null;
   }
@@ -505,6 +517,36 @@ const safelyGetMetadataAttributes = withSafety({
 });
 
 /**
+ * Gets OpenInference metadata attributes from AI SDK v7 runtime context attributes.
+ * @param attributes the initial attributes of the span
+ * @returns the OpenInference metadata attributes
+ */
+const getSettingsContextAttributes = (attributes: Attributes) => {
+  const contextPrefix = `${VercelAISemanticConventions.SETTINGS}.context.`;
+  const contextAttributeKeys = Object.keys(attributes)
+    .filter((key) => key.startsWith(contextPrefix))
+    .map((key) => ({ key: key.slice(contextPrefix.length), value: attributes[key] }));
+
+  if (contextAttributeKeys.length === 0) {
+    return null;
+  }
+
+  return contextAttributeKeys.reduce((acc, { key, value }) => {
+    return key.length > 0
+      ? {
+          ...acc,
+          [`${SemanticConventions.METADATA}.${key}`]: value,
+        }
+      : acc;
+  }, {});
+};
+
+const safelyGetSettingsContextAttributes = withSafety({
+  fn: getSettingsContextAttributes,
+  onError: onErrorCallback("settings context"),
+});
+
+/**
  * Gets the tool call span attributes for TOOL spans
  * @param attributes the span attributes
  * @param spanKind the span kind
@@ -690,6 +732,286 @@ const safelyGetModelNameAttribute = withSafety({
 });
 
 /**
+ * Gets a model name from GenAI model attributes using the OpenInference key for the span kind.
+ * @param attributes the span attributes
+ * @param spanKind the OpenInference span kind
+ * @returns the model name attribute for the span kind
+ */
+const getGenAIModelNameAttribute = (
+  attributes: Attributes,
+  spanKind: OpenInferenceSpanKind | string | undefined,
+): Attributes | null => {
+  const requestModel = attributes["gen_ai.request.model"];
+  const responseModel = attributes["gen_ai.response.model"];
+  const modelName = typeof responseModel === "string" ? responseModel : requestModel;
+
+  if (typeof modelName !== "string") {
+    return null;
+  }
+
+  if (spanKind === OpenInferenceSpanKind.EMBEDDING) {
+    return { [SemanticConventions.EMBEDDING_MODEL_NAME]: modelName };
+  }
+  if (spanKind === OpenInferenceSpanKind.RERANKER) {
+    return { [SemanticConventions.RERANKER_MODEL_NAME]: modelName };
+  }
+  if (spanKind === OpenInferenceSpanKind.LLM || spanKind === OpenInferenceSpanKind.AGENT) {
+    return { [SemanticConventions.LLM_MODEL_NAME]: modelName };
+  }
+
+  return null;
+};
+
+const safelyGetGenAIModelNameAttribute = withSafety({
+  fn: getGenAIModelNameAttribute,
+  onError: onErrorCallback("gen_ai model name"),
+});
+
+const getGenAIMessageContent = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    return value;
+  }
+  return value != null ? (safelyJSONStringify(value) ?? undefined) : undefined;
+};
+
+const getGenAIInputMessageAttributes = ({
+  inputMessages,
+  startIndex,
+}: {
+  inputMessages: string;
+  startIndex: number;
+}): Attributes => {
+  const parsedInputMessages = safelyJSONParse(inputMessages);
+  if (!isArrayOfObjects(parsedInputMessages)) {
+    return {};
+  }
+
+  const result: Attributes = {};
+  let inputMessageIndex = startIndex;
+
+  parsedInputMessages.forEach((message) => {
+    const role = typeof message.role === "string" ? message.role : undefined;
+    const parts = Array.isArray(message.parts) ? message.parts : [];
+
+    if (role === "tool") {
+      const toolResponseParts = parts.filter(
+        (part): part is Record<string, unknown> =>
+          typeof part === "object" &&
+          part !== null &&
+          "type" in part &&
+          part.type === "tool_call_response",
+      );
+
+      if (toolResponseParts.length > 0) {
+        toolResponseParts.forEach((part) => {
+          const messagePrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${inputMessageIndex}`;
+          const toolResponseContent = getGenAIMessageContent(part.response);
+          result[`${messagePrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "tool";
+          result[`${messagePrefix}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
+            typeof part.id === "string" ? part.id : undefined;
+          result[`${messagePrefix}.${SemanticConventions.MESSAGE_CONTENT}`] = toolResponseContent;
+          result[
+            `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`
+          ] = "text";
+          result[
+            `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+          ] = toolResponseContent;
+          inputMessageIndex++;
+        });
+        return;
+      }
+    }
+
+    const messagePrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${inputMessageIndex}`;
+    result[`${messagePrefix}.${SemanticConventions.MESSAGE_ROLE}`] = role;
+
+    let toolCallIndex = 0;
+    let contentIndex = 0;
+    parts.forEach((part) => {
+      if (typeof part !== "object" || part === null) {
+        return;
+      }
+      if (part.type === "text") {
+        const contentsPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
+        result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+        result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          typeof part.content === "string" ? part.content : undefined;
+        if (parts.length === 1 && typeof part.content === "string") {
+          result[`${messagePrefix}.${SemanticConventions.MESSAGE_CONTENT}`] = part.content;
+        }
+        contentIndex++;
+      }
+      if (part.type === "tool_call") {
+        const toolCallPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
+        result[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
+          typeof part.id === "string" ? part.id : undefined;
+        result[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+          typeof part.name === "string" ? part.name : undefined;
+        result[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+          getGenAIMessageContent(part.arguments);
+        toolCallIndex++;
+      }
+    });
+
+    inputMessageIndex++;
+  });
+
+  return result;
+};
+
+/**
+ * Gets Vercel-specific fixes for GenAI attributes that need span-kind-aware OpenInference keys.
+ * @param attributes the span attributes
+ * @param spanKind the OpenInference span kind
+ * @returns the mapped OpenInference attributes
+ */
+const getVercelGenAIAttributes = (
+  attributes: Attributes,
+  spanKind: OpenInferenceSpanKind | string | undefined,
+): Attributes => {
+  const result: Attributes = {
+    ...safelyGetGenAIModelNameAttribute(attributes, spanKind),
+  };
+
+  const providerName = attributes["gen_ai.provider.name"];
+  if (typeof providerName === "string") {
+    result[SemanticConventions.LLM_SYSTEM] = providerName;
+  }
+
+  const cacheReadInputTokens = attributes["gen_ai.usage.cache_read.input_tokens"];
+  if (typeof cacheReadInputTokens === "number") {
+    result[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cacheReadInputTokens;
+  }
+
+  const cacheCreationInputTokens = attributes["gen_ai.usage.cache_creation.input_tokens"];
+  if (typeof cacheCreationInputTokens === "number") {
+    result[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] =
+      cacheCreationInputTokens;
+  }
+
+  const agentName = attributes["gen_ai.agent.name"];
+  if (typeof agentName === "string") {
+    result[SemanticConventions.AGENT_NAME] = agentName;
+  }
+
+  const inputMessages = attributes["gen_ai.input.messages"];
+  if (typeof inputMessages === "string") {
+    result[SemanticConventions.INPUT_VALUE] = inputMessages;
+    result[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  const outputMessages = attributes["gen_ai.output.messages"];
+  if (typeof outputMessages === "string") {
+    result[SemanticConventions.OUTPUT_VALUE] = outputMessages;
+    result[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  let inputMessageIndex = 0;
+  const systemInstructions = attributes["gen_ai.system_instructions"];
+  if (typeof systemInstructions === "string") {
+    const parsedSystemInstructions = safelyJSONParse(systemInstructions);
+    if (Array.isArray(parsedSystemInstructions)) {
+      const messagePrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${inputMessageIndex}`;
+      result[`${messagePrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "system";
+      let contentIndex = 0;
+      parsedSystemInstructions.forEach((part) => {
+        if (typeof part === "object" && part !== null && "content" in part) {
+          const contentsPrefix = `${messagePrefix}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
+          result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+          result[`${contentsPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+            typeof part.content === "string" ? part.content : undefined;
+          contentIndex++;
+        }
+      });
+      inputMessageIndex++;
+    }
+  }
+
+  if (typeof inputMessages === "string") {
+    const parsedInputMessages = safelyJSONParse(inputMessages);
+    if (isArrayOfObjects(parsedInputMessages)) {
+      Object.assign(
+        result,
+        getGenAIInputMessageAttributes({
+          inputMessages,
+          startIndex: inputMessageIndex,
+        }),
+      );
+    }
+  }
+
+  if (typeof outputMessages === "string") {
+    const parsedOutputMessages = safelyJSONParse(outputMessages);
+    if (isArrayOfObjects(parsedOutputMessages)) {
+      parsedOutputMessages.forEach((message, index) => {
+        const messagePrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}`;
+        result[`${messagePrefix}.${SemanticConventions.MESSAGE_ROLE}`] =
+          typeof message.role === "string" ? message.role : undefined;
+      });
+    }
+  }
+
+  const toolDefinitions = attributes["gen_ai.tool.definitions"];
+  if (typeof toolDefinitions === "string") {
+    const parsedToolDefinitions = safelyJSONParse(toolDefinitions);
+    if (isArrayOfObjects(parsedToolDefinitions)) {
+      parsedToolDefinitions.forEach((toolDefinition, index) => {
+        const name = toolDefinition.name;
+        const description = toolDefinition.description;
+        const inputSchema = toolDefinition.inputSchema;
+        if (typeof name !== "string") {
+          return;
+        }
+        const toolJsonSchema = safelyJSONStringify({
+          type: "function",
+          function: {
+            name,
+            description: typeof description === "string" ? description : undefined,
+            parameters: inputSchema,
+          },
+        });
+        if (toolJsonSchema != null) {
+          result[
+            `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`
+          ] = toolJsonSchema;
+        }
+      });
+    }
+  }
+
+  if (spanKind === OpenInferenceSpanKind.TOOL) {
+    const toolCallId = attributes["gen_ai.tool.call.id"];
+    if (typeof toolCallId === "string") {
+      result[SemanticConventions.TOOL_CALL_ID] = toolCallId;
+    }
+
+    const toolName = attributes["gen_ai.tool.name"];
+    if (typeof toolName === "string") {
+      result[SemanticConventions.TOOL_NAME] = toolName;
+    }
+
+    const toolCallArguments = attributes["gen_ai.tool.call.arguments"];
+    if (toolCallArguments != null) {
+      result[SemanticConventions.TOOL_PARAMETERS] = toolCallArguments;
+      result[SemanticConventions.INPUT_VALUE] = toolCallArguments;
+      result[SemanticConventions.INPUT_MIME_TYPE] = getMimeTypeFromValue(toolCallArguments);
+    }
+
+    const toolCallResult = attributes["gen_ai.tool.call.result"];
+    if (toolCallResult != null) {
+      result[SemanticConventions.OUTPUT_VALUE] = toolCallResult;
+      result[SemanticConventions.OUTPUT_MIME_TYPE] = getMimeTypeFromValue(toolCallResult);
+    }
+  }
+
+  if (attributes["gen_ai.output.type"] === "json") {
+    result[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  return result;
+};
+
+/**
  * Gets token count attributes from Vercel ai.usage.* attributes when gen_ai.* are not present
  * @param attributes the span attributes
  * @param spanKind the span kind
@@ -734,6 +1056,49 @@ const safelyGetTokenCountAttributes = withSafety({
 });
 
 /**
+ * Gets reranker input and output document attributes from AI SDK v7 supplemental attributes.
+ * @param attributes the span attributes
+ * @param spanKind the OpenInference span kind
+ * @returns the reranker document attributes
+ */
+const getRerankAttributes = (
+  attributes: Attributes,
+  spanKind: OpenInferenceSpanKind | string | undefined,
+): Attributes | null => {
+  if (spanKind !== OpenInferenceSpanKind.RERANKER) {
+    return null;
+  }
+
+  const result: Attributes = {};
+  const documents = attributes[VercelAISemanticConventions.RERANK_DOCUMENTS];
+  if (Array.isArray(documents)) {
+    documents.forEach((document, index) => {
+      if (isAttributeValue(document)) {
+        result[`${SemanticConventions.RERANKER_INPUT_DOCUMENTS}.${index}.document.content`] =
+          document;
+      }
+    });
+  }
+
+  const ranking = attributes[VercelAISemanticConventions.RERANKING_OUTPUT];
+  if (Array.isArray(ranking)) {
+    ranking.forEach((document, index) => {
+      if (isAttributeValue(document)) {
+        result[`${SemanticConventions.RERANKER_OUTPUT_DOCUMENTS}.${index}.document.content`] =
+          document;
+      }
+    });
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+};
+
+const safelyGetRerankAttributes = withSafety({
+  fn: getRerankAttributes,
+  onError: onErrorCallback("rerank"),
+});
+
+/**
  * Gets Vercel-specific attributes that are not covered by gen_ai.* conventions
  * @param attributes - The span attributes
  * @param spanKind - The OpenInference span kind
@@ -755,6 +1120,9 @@ const getVercelSpecificAttributes = (
 
     // Metadata from ai.telemetry.metadata.*
     ...safelyGetMetadataAttributes(attributes),
+
+    // Runtime context from AI SDK v7 supplemental telemetry
+    ...safelyGetSettingsContextAttributes(attributes),
 
     // Output messages from ai.response.toolCalls
     ...safelyGetToolCallMessageAttributes(
@@ -779,6 +1147,9 @@ const getVercelSpecificAttributes = (
 
     // Token counts from ai.usage.* (fallback if gen_ai.* not present)
     ...safelyGetTokenCountAttributes(attributes, spanKind),
+
+    // Reranking documents from v7 supplemental ai.* attributes
+    ...safelyGetRerankAttributes(attributes, spanKind),
   };
 
   // Set output.value from tool calls if output is not already meaningfully set
@@ -828,15 +1199,24 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
   // Step 1: Convert gen_ai.* attributes using openinference-genai
   // Only apply if there are actual gen_ai.* attributes
   const hasGenAI = hasGenAIAttributes(attributes);
-  const genAIAttributes = hasGenAI
+  const genAIAttributes: Attributes = hasGenAI
     ? (convertGenAISpanAttributesToOpenInferenceSpanAttributes(attributes) ?? {})
     : {};
+
+  if (typeof attributes["gen_ai.input.messages"] === "string") {
+    Object.keys(genAIAttributes).forEach((key) => {
+      if (key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)) {
+        delete genAIAttributes[key];
+      }
+    });
+  }
 
   // Step 2: Determine span kind from operation.name (Vercel-specific, more precise)
   const spanKind = safelyGetOISpanKindFromAttributes(attributes) ?? undefined;
 
   // Step 3: Get Vercel-specific attributes not covered by gen_ai.*
   const vercelSpecificAttributes = getVercelSpecificAttributes(attributes, spanKind);
+  const vercelGenAIAttributes = getVercelGenAIAttributes(attributes, spanKind);
 
   // Step 4: Determine final span kind
   // Use Vercel's operation.name-based span kind as it's more specific
@@ -846,11 +1226,26 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
     (hasGenAI ? genAIAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] : undefined);
 
   // Step 5: Merge with gen_ai attributes taking precedence for overlapping keys
-  return {
+  const result: Attributes = {
     ...vercelSpecificAttributes,
     ...genAIAttributes, // gen_ai takes precedence for model name, tokens, etc.
+    ...vercelGenAIAttributes,
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: finalSpanKind,
   };
+
+  if (
+    finalSpanKind === OpenInferenceSpanKind.EMBEDDING ||
+    finalSpanKind === OpenInferenceSpanKind.RERANKER
+  ) {
+    delete result[SemanticConventions.LLM_MODEL_NAME];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_PROMPT];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_TOTAL];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ];
+    delete result[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE];
+  }
+
+  return result;
 };
 
 /**

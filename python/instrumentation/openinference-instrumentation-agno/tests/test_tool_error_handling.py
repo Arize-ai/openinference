@@ -24,7 +24,7 @@ from openinference.semconv.trace import SpanAttributes
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/agno/fixtures/",
-    record_mode="never",
+    record_mode="none",
     match_on=["uri", "method"],
 )
 

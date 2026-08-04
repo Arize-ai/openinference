@@ -281,6 +281,126 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
     ]:
         return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.CHAIN, name=name)
 
+    @overload  # for @tracer.retriever usage (no parameters)
+    def retriever(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.retriever(name="name") usage (with parameters)
+    def retriever(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def retriever(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.RETRIEVER, name=name)
+
+    @overload  # for @tracer.reranker usage (no parameters)
+    def reranker(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.reranker(name="name") usage (with parameters)
+    def reranker(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def reranker(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.RERANKER, name=name)
+
+    @overload  # for @tracer.guardrail usage (no parameters)
+    def guardrail(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.guardrail(name="name") usage (with parameters)
+    def guardrail(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def guardrail(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.GUARDRAIL, name=name)
+
+    @overload  # for @tracer.evaluator usage (no parameters)
+    def evaluator(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.evaluator(name="name") usage (with parameters)
+    def evaluator(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def evaluator(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.EVALUATOR, name=name)
+
     def _chain(
         self,
         wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,

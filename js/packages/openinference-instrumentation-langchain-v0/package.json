@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-langchain-v0",
-  "version": "0.0.12",
+  "version": "0.0.14",
   "private": false,
   "description": "OpenInference Instrumentation for LangChain.js Version 0.X",
   "keywords": [],
@@ -36,7 +36,7 @@
     "@arizeai/openinference-core": "workspace:*",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/core": "^1.25.1",
+    "@opentelemetry/core": "^2.8.0",
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "devDependencies": {
@@ -51,7 +51,7 @@
     "dotenv": "^16.4.5",
     "langchain": "^0.3.37",
     "openai": "^4.52.7",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.3"
   },
   "peerDependencies": {

@@ -1,5 +1,17 @@
 # @arizeai/openinference-core
 
+## 2.4.0
+
+### Minor Changes
+
+- d0f5a88: feat(openinference-genai): Improve compatability with gen_ai conventions
+
+## 2.3.0
+
+### Minor Changes
+
+- 1fe7927: Add convenience span wrappers for every OpenInference span kind. In addition to the existing `traceChain`, `traceAgent`, and `traceTool`, the core package now exports `traceLLM`, `traceRetriever`, `traceReranker`, `traceEmbedding`, `traceGuardrail`, `traceEvaluator`, and `tracePrompt`.
+
 ## 2.2.0
 
 ### Minor Changes

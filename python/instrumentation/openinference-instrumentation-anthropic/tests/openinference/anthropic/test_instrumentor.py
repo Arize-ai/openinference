@@ -15,12 +15,17 @@ from anthropic.types import (
     ImageBlockParam,
     Message,
     MessageParam,
+    RedactedThinkingBlock,
+    RedactedThinkingBlockParam,
     TextBlock,
     TextBlockParam,
+    ThinkingBlock,
+    ThinkingBlockParam,
     ToolParam,
     ToolResultBlockParam,
     ToolUseBlock,
     ToolUseBlockParam,
+    Usage,
 )
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -30,6 +35,11 @@ from wrapt import BoundFunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
+from openinference.instrumentation.anthropic._stream import _MessageExtractor
+from openinference.instrumentation.anthropic._wrappers import (
+    _get_llm_input_messages,
+    _get_output_messages,
+)
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -180,7 +190,11 @@ def test_anthropic_instrumentation_stream_message(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
 
-    msg_out = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    msg_out = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
     assert isinstance(msg_out, str)
     assert "paris" in msg_out.lower()
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -271,7 +285,11 @@ async def test_anthropic_instrumentation_async_stream_message(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
 
-    msg_out = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    msg_out = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
     assert isinstance(msg_out, str)
     assert "paris" in msg_out.lower()
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -479,8 +497,15 @@ def test_anthropic_instrumentation_messages(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == system_prompt
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
     assert isinstance(
-        msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+        msg_content := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+        ),
+        str,
     )
     assert "paris" in msg_content.lower()
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -560,8 +585,15 @@ def test_anthropic_instrumentation_messages_streaming(
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
     assert isinstance(
-        msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+        msg_content := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+        ),
+        str,
     )
     assert "Sunlight scatters off air molecules." in msg_content
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -651,8 +683,15 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
     assert isinstance(
-        msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+        msg_content := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+        ),
+        str,
     )
     assert "Sunlight scatters off air molecules." in msg_content
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -792,8 +831,15 @@ async def test_anthropic_instrumentation_async_messages(
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
     assert isinstance(
-        msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+        msg_content := attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+        ),
+        str,
     )
     assert "paris" in msg_content.lower()
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -906,7 +952,16 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}"), str
+    )
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
@@ -917,6 +972,9 @@ def test_anthropic_instrumentation_multiple_tool_calling(
         ),
         str,
     )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_ID}"), str
+    )
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
         == "get_time"
@@ -924,6 +982,41 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert isinstance(
         attributes.pop(
             f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    # MESSAGE_CONTENTS mirrors tool_use at content position (index 1 = get_weather, 2 = get_time)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert isinstance(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_time"
+    )
+    assert isinstance(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
         ),
         str,
     )
@@ -1052,15 +1145,16 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert (
-        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
-        == "get_time"
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
     )
-    get_time_input_str = attributes.pop(
-        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
     )
-    json.loads(get_time_input_str) == {"timezone": "America/New_York"}  # type: ignore
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}"), str
+    )
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
@@ -1069,6 +1163,52 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     )
     assert json.loads(get_weather_input_str) == {"location": "New York, NY"}  # type: ignore
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_time"
+    )
+    get_time_input_str = attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    json.loads(get_time_input_str) == {"timezone": "America/New_York"}  # type: ignore
+    # MESSAGE_CONTENTS mirrors tool_use at content position (index 1 = get_weather, 2 = get_time)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert isinstance(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
+        == "tool_use"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_ID}"), str
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_time"
+    )
+    assert isinstance(
+        attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 721
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 113
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 834
@@ -1244,9 +1384,13 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
         },
     )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").startswith(
-        "This image shows the iconic Taj Mahal"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
     )
+    assert attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    ).startswith("This image shows the iconic Taj Mahal")
     assert attributes.pop(f"{LLM_TOKEN_COUNT_COMPLETION}") == 296
     assert attributes.pop(f"{LLM_TOKEN_COUNT_PROMPT}") == 78
     assert attributes.pop(f"{LLM_TOKEN_COUNT_TOTAL}") == 374
@@ -1344,9 +1488,13 @@ def test_anthropic_instrumentation_image_input_messages(
         },
     )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").startswith(
-        "This image shows the iconic Taj Mahal"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
     )
+    assert attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    ).startswith("This image shows the iconic Taj Mahal")
     assert attributes.pop(f"{LLM_TOKEN_COUNT_COMPLETION}") == 263
     assert attributes.pop(f"{LLM_TOKEN_COUNT_PROMPT}") == 78
     assert attributes.pop(f"{OPENINFERENCE_SPAN_KIND}") == "LLM"
@@ -1696,7 +1844,13 @@ def test_anthropic_instrumentation_messages_parse(
     }
 
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
+    )
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
@@ -1799,7 +1953,13 @@ async def test_anthropic_instrumentation_async_messages_parse(
     }
 
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
+    )
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
@@ -1904,7 +2064,13 @@ def test_anthropic_instrumentation_beta_messages_parse(
     }
 
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
+    )
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
@@ -2010,7 +2176,13 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
     }
 
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
+    )
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
@@ -2140,7 +2312,13 @@ def test_anthropic_instrumentation_beta_messages_create(
     assert json.loads(inv_params) == invocation_params
 
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
+    )
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
@@ -2222,12 +2400,240 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     assert json.loads(inv_params) == invocation_params
 
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
+    )
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
 
     assert not attributes
+
+
+def test_get_output_messages_with_thinking_block() -> None:
+    message = Message(
+        id="msg_thinking",
+        content=[
+            ThinkingBlock(
+                type="thinking",
+                thinking="Let me work through this. The capital of France is Paris.",
+                signature="EuYBCkQYAiJA...",
+            ),
+            TextBlock(type="text", text="Paris."),
+        ],
+        model="claude-opus-4-6",
+        role="assistant",
+        stop_reason="end_turn",
+        stop_sequence=None,
+        type="message",
+        usage=Usage(input_tokens=10, output_tokens=20),
+    )
+
+    attributes = dict(_get_output_messages(message))
+
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}"] == "assistant"
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}"] == (
+        "reasoning"
+    )
+    assert (
+        attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"]
+        == "Let me work through this. The capital of France is Paris."
+    )
+    assert (
+        attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}"]
+        == "EuYBCkQYAiJA..."
+    )
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}"] == (
+        "text"
+    )
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}"] == (
+        "Paris."
+    )
+
+    # message_content.id must never be emitted for thinking/redacted_thinking blocks
+    assert not any(key.endswith("message_content.id") for key in attributes)
+
+
+def test_get_output_messages_with_redacted_thinking_block() -> None:
+    message = Message(
+        id="msg_redacted_thinking",
+        content=[
+            RedactedThinkingBlock(
+                type="redacted_thinking",
+                data="EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2...",
+            ),
+            TextBlock(type="text", text="Paris."),
+        ],
+        model="claude-opus-4-6",
+        role="assistant",
+        stop_reason="end_turn",
+        stop_sequence=None,
+        type="message",
+        usage=Usage(input_tokens=10, output_tokens=20),
+    )
+
+    attributes = dict(_get_output_messages(message))
+
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}"] == (
+        "reasoning"
+    )
+    assert (
+        attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_DATA}"]
+        == "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2..."
+    )
+    assert f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}" not in attributes
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}"] == (
+        "text"
+    )
+
+    # message_content.id must never be emitted for thinking/redacted_thinking blocks
+    assert not any(key.endswith("message_content.id") for key in attributes)
+
+
+def test_message_extractor_with_thinking_and_redacted_thinking_blocks() -> None:
+    """Streaming responses must capture reasoning fields post-accumulation."""
+    snapshot = Message(
+        id="msg_stream_thinking",
+        content=[
+            ThinkingBlock(
+                type="thinking",
+                thinking="Reasoning about the capital of France...",
+                signature="streamed-signature",
+            ),
+            RedactedThinkingBlock(
+                type="redacted_thinking",
+                data="streamed-redacted-data",
+            ),
+            TextBlock(type="text", text="Paris."),
+        ],
+        model="claude-opus-4-6",
+        role="assistant",
+        stop_reason="end_turn",
+        stop_sequence=None,
+        type="message",
+        usage=Usage(input_tokens=10, output_tokens=20),
+    )
+
+    attributes = dict(_MessageExtractor(snapshot).get_attributes())
+
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}"] == (
+        "reasoning"
+    )
+    assert (
+        attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"]
+        == "Reasoning about the capital of France..."
+    )
+    assert (
+        attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}"]
+        == "streamed-signature"
+    )
+
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}"] == (
+        "reasoning"
+    )
+    assert (
+        attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_DATA}"]
+        == "streamed-redacted-data"
+    )
+    assert f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}" not in attributes
+
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}"] == (
+        "text"
+    )
+    assert (
+        attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TEXT}"]
+        == "Paris."
+    )
+
+    # message_content.id must never be emitted for thinking/redacted_thinking blocks
+    assert not any(key.endswith("message_content.id") for key in attributes)
+
+
+@pytest.mark.parametrize(
+    "thinking_block, redacted_thinking_block",
+    (
+        pytest.param(
+            ThinkingBlockParam(
+                type="thinking",
+                thinking="Reasoning about the request...",
+                signature="input-signature",
+            ),
+            RedactedThinkingBlockParam(
+                type="redacted_thinking",
+                data="input-redacted-data",
+            ),
+            id="block_params",
+        ),
+        pytest.param(
+            {
+                "type": "thinking",
+                "thinking": "Reasoning about the request...",
+                "signature": "input-signature",
+            },
+            {
+                "type": "redacted_thinking",
+                "data": "input-redacted-data",
+            },
+            id="dicts",
+        ),
+    ),
+)
+def test_get_llm_input_messages_with_thinking_blocks(
+    thinking_block: Any,
+    redacted_thinking_block: Any,
+) -> None:
+    """Reasoning blocks round-tripped back as assistant input must surface in
+    llm.input_messages, preserving block order."""
+    messages: list[MessageParam] = [
+        {"role": "user", "content": "What is the capital of France?"},
+        {
+            "role": "assistant",
+            "content": [
+                thinking_block,
+                redacted_thinking_block,
+                TextBlockParam(type="text", text="Paris."),
+            ],
+        },
+    ]
+
+    attributes = dict(_get_llm_input_messages(messages))
+
+    assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}"] == "assistant"
+    assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}"] == (
+        "reasoning"
+    )
+    assert (
+        attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"]
+        == "Reasoning about the request..."
+    )
+    assert (
+        attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}"]
+        == "input-signature"
+    )
+
+    assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}"] == (
+        "reasoning"
+    )
+    assert (
+        attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_DATA}"]
+        == "input-redacted-data"
+    )
+    assert f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TEXT}" not in attributes
+
+    assert attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}"] == (
+        "text"
+    )
+    assert (
+        attributes[f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TEXT}"]
+        == "Paris."
+    )
+
+    # message_content.id must never be emitted for thinking/redacted_thinking blocks
+    assert not any(key.endswith("message_content.id") for key in attributes)
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
@@ -2272,6 +2678,8 @@ MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
+MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
 METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
@@ -2279,6 +2687,7 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 SESSION_ID = SpanAttributes.SESSION_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA

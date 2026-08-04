@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-tanstack-ai.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-tanstack-ai)
 
-This package provides an OpenInference middleware for [TanStack AI](https://tanstack.com/ai/latest/docs/getting-started/overview). It emits OpenTelemetry spans shaped according to the OpenInference specification so TanStack AI runs can be visualized in systems like [Arize](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
+This package provides an OpenInference middleware for [TanStack AI](https://tanstack.com/ai/latest/docs/getting-started/overview). It emits OpenTelemetry spans shaped according to the OpenInference specification so TanStack AI runs can be visualized in systems like [Arize AX](https://arize.com/docs/ax) and [Phoenix](https://phoenix.arize.com/).
 
 ## Installation
 

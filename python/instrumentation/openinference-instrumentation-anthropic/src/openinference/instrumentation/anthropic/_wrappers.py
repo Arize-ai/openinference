@@ -769,6 +769,14 @@ def _get_llm_input_messages(
                             f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             safe_json_dumps(block["input"]),
                         )
+                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
+                        yield f"{prefix}.{TOOL_CALL_ID}", block["id"]
+                        yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block["name"]
+                        yield (
+                            f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            safe_json_dumps(block["input"]),
+                        )
                         tool_index += 1
                     elif block["type"] == "tool_result":
                         yield (
@@ -794,9 +802,15 @@ def _get_llm_input_messages(
                     elif block["type"] == "search_result":
                         pass
                     elif block["type"] == "thinking":
-                        pass
+                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block["thinking"]
+                        if signature := block.get("signature"):
+                            yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
                     elif block["type"] == "redacted_thinking":
-                        pass
+                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+                        yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block["data"]
                     elif block["type"] == "server_tool_use":
                         pass
                     elif block["type"] == "web_search_tool_result":
@@ -836,11 +850,26 @@ def _get_llm_input_messages(
                             f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             safe_json_dumps(block.input),
                         )
+                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
+                        if tool_call_id := block.id:
+                            yield f"{prefix}.{TOOL_CALL_ID}", tool_call_id
+                        yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block.name
+                        yield (
+                            f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            safe_json_dumps(block.input),
+                        )
                         tool_index += 1
                     elif block.type == "thinking":
-                        pass
+                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.thinking
+                        if signature := block.signature:
+                            yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
                     elif block.type == "redacted_thinking":
-                        pass
+                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+                        yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block.data
                     elif block.type == "server_tool_use":
                         pass
                     elif block.type == "web_search_tool_result":
@@ -886,10 +915,16 @@ def _get_output_messages(response: Message) -> Iterator[Tuple[str, Any]]:
     """
     yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", response.role
     tool_index = 0
-    for block in response.content:
+    for j, block in enumerate(response.content):
         if block.type == "text":
-            yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", block.text
+            prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}"
+            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
+            yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.text
         elif block.type == "tool_use":
+            yield (
+                f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
+                block.id,
+            )
             yield (
                 f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
                 block.name,
@@ -898,11 +933,22 @@ def _get_output_messages(response: Message) -> Iterator[Tuple[str, Any]]:
                 f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                 safe_json_dumps(block.input),
             )
+            prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}"
+            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
+            yield f"{prefix}.{TOOL_CALL_ID}", block.id
+            yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block.name
+            yield f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps(block.input)
             tool_index += 1
         elif block.type == "thinking":
-            pass
+            prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}"
+            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+            yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.thinking
+            if signature := block.signature:
+                yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
         elif block.type == "redacted_thinking":
-            pass
+            prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{j}"
+            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+            yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block.data
         elif block.type == "server_tool_use":
             pass
         elif block.type == "web_search_tool_result":
@@ -963,6 +1009,8 @@ MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
+MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE

@@ -8,7 +8,9 @@ interactions:
     body:
       string: '{"id":"v1_ChdtdUFFYXQyYUM4UHdqckVQeHVMLTRBRRIXbXVBRWF0MmFDOFB3anJFUHh1TC00QUU","status":"incomplete","usage":{"total_tokens":327,"total_input_tokens":267,"input_tokens_by_modality":[{"modality":"text","tokens":9},{"modality":"image","tokens":258}],"total_cached_tokens":0,"total_output_tokens":3,"total_tool_use_tokens":0,"total_thought_tokens":57},"created":"2026-05-13T20:35:38Z","updated":"2026-05-13T20:35:38Z","service_tier":"standard","steps":[{"signature":"CosCAQw51sd1OtN45I0f4cCiiDZQW17c3MP3upjLyiU/msWG3IQkzEl7J72WxHdK/0sW1Fj3pdmq0p15lXjtXFr8cROQaUzCH8jBIKoGwRPd5SAlEGWu8ofCVHgGVRTwMCo4iGpS/V7VFiqL6p+2yF2Rlm32D97u4kCvLW6Skt+LHBV0/4lgLUj7HrMdCks+YaLteTDfbUUFiHeEePEe2Z0pqRuWwTPUMEDFbf74n+vTnaPfKliWy012PJxo7xNlNwMtmucorYvDlRS/TJsiFv62uOiTrt11L8rduole25monrwg5KGZQPJtnKs1dIpLQ4omXkTLWiuVzTVWs3ISGMA4srA3KU9LoD17NCdP","type":"thought"},{"content":[{"text":"The
         image displays","type":"text"}],"type":"model_output"}],"object":"interaction","model":"gemini-2.5-flash-lite"}'
-    headers: {}
+    headers:
+      content-type:
+      - application/json
     status:
       code: 200
       message: OK

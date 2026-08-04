@@ -1,7 +1,11 @@
 import asyncio
 import json
+import logging
 import os
+import types
+from importlib import import_module
 from typing import Any, Generator, Optional
+from unittest import mock
 
 import instructor
 import openai
@@ -48,7 +52,7 @@ def setup_instructor_instrumentation(
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/instructor/fixtures/",
-    record_mode="never",
+    record_mode="none",
     match_on=["uri", "method"],
 )
 
@@ -81,6 +85,50 @@ class TestInstrumentor:
     # Ensure we're using the common OITracer from common openinference-instrumentation pkg
     def test_oitracer(self, setup_instructor_instrumentation: Any) -> None:
         assert isinstance(InstructorInstrumentor()._tracer, OITracer)
+
+    def test_instrument_does_not_raise_across_instructor_versions(
+        self, tracer_provider: TracerProvider
+    ) -> None:
+        instrumentor = InstructorInstrumentor()
+        try:
+            instrumentor.instrument(tracer_provider=tracer_provider)
+            if instrumentor._patch_module is not None:
+                module = import_module(instrumentor._patch_module)
+                assert hasattr(module, "handle_response_model")
+        finally:
+            instrumentor.uninstrument()
+
+    def test_instrument_degrades_gracefully_when_symbol_missing(
+        self,
+        tracer_provider: TracerProvider,
+        caplog: Any,
+    ) -> None:
+        candidates = {
+            "instructor.core.patch",
+            "instructor.patch",
+            "instructor.processing.response",
+            "instructor.processing",
+        }
+
+        def fake_import_module(name: str) -> Any:
+            if name in candidates:
+                return types.ModuleType(name)
+            return import_module(name)
+
+        instrumentor = InstructorInstrumentor()
+        instrumentor.uninstrument()
+        with mock.patch(
+            "openinference.instrumentation.instructor.import_module",
+            side_effect=fake_import_module,
+        ):
+            try:
+                with caplog.at_level(logging.WARNING):
+                    instrumentor.instrument(tracer_provider=tracer_provider)
+                assert instrumentor._patch_module is None
+                assert instrumentor._original_handle_response_model is None
+                assert "Could not locate `handle_response_model`" in caplog.text
+            finally:
+                instrumentor.uninstrument()
 
 
 @pytest.mark.asyncio

@@ -291,7 +291,7 @@ def _assert_converse_stream_tool_message_attrs(attributes: Dict[str, Any]) -> No
     )
     assert attributes.pop(f"{om}.0.message.tool_calls.0.tool_call.id").startswith("tooluse_")
     assert attributes.pop("llm.tools.0.tool.json_schema").startswith(
-        '{"name": "top_song", "description": "Get the most popular song played on a'
+        '{"toolSpec": {"name": "top_song", "description": "Get the most popular song played on a'
     )
     assert attributes.pop("output.value").startswith(
         '{"role": "assistant", "content": [{"toolUse": {"toolUseId": "tooluse_'

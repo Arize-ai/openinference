@@ -45,27 +45,36 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_patch = getattr(import_module("instructor"), "patch", None)
         patch_wrapper = _PatchWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         wrap_function_wrapper("instructor", "patch", patch_wrapper)
-        self._patch_module = "instructor.core.patch"
-        try:
-            self._original_handle_response_model = getattr(
-                import_module(self._patch_module), "handle_response_model", None
-            )
-        except (ModuleNotFoundError, AttributeError):
-            logger.warning("Falling back to instructor.patch for handle_response_model")
-            self._patch_module = "instructor.patch"
+
+        # Resolve from the first known instructor module that actually defines it.
+        self._patch_module = None
+        self._original_handle_response_model = None
+        for module_name in (
+            "instructor.core.patch",
+            "instructor.patch",
+            "instructor.processing.response",
+            "instructor.processing",
+        ):
             try:
-                self._original_handle_response_model = getattr(
-                    import_module(self._patch_module), "handle_response_model", None
-                )
-            except (ModuleNotFoundError, AttributeError):
-                # Added this fallback in case the structure of instructor changes again
-                logger.warning(
-                    "Could not find handle_response_model in instructor.patch"
-                    " or instructor.core.patch"
-                )
-                self._original_handle_response_model = None
-        process_resp_wrapper = _HandleResponseWrapper(tracer=self._tracer)  # type: ignore[arg-type]
-        wrap_function_wrapper(self._patch_module, "handle_response_model", process_resp_wrapper)
+                module = import_module(module_name)
+            except ModuleNotFoundError:
+                continue
+            original_handle_response_model = getattr(module, "handle_response_model", None)
+            if original_handle_response_model is not None:
+                self._patch_module = module_name
+                self._original_handle_response_model = original_handle_response_model
+                break
+
+        if self._patch_module is None:
+            logger.warning(
+                "Could not locate `handle_response_model` in any known instructor module "
+                "(instructor.core.patch, instructor.patch, instructor.processing.response, "
+                "instructor.processing); skipping that wrapper. Instructor response-handling "
+                "spans will not be emitted for this version of instructor."
+            )
+        else:
+            process_resp_wrapper = _HandleResponseWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+            wrap_function_wrapper(self._patch_module, "handle_response_model", process_resp_wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_patch is not None:
@@ -73,7 +82,7 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
             instructor_module.patch = self._original_patch  # type: ignore[attr-defined]
             self._original_patch = None
 
-        if self._original_handle_response_model is not None:
+        if self._patch_module is not None and self._original_handle_response_model is not None:
             patch_module = import_module(self._patch_module)
             patch_module.handle_response_model = self._original_handle_response_model  # type: ignore[attr-defined]
             self._original_handle_response_model = None

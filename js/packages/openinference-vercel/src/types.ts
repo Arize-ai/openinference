@@ -2,7 +2,7 @@ import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 import type { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import type { Mutable, ValueOf } from "./typeUtils";
+import type { Mutable, ValueOf } from "./typeUtils.js";
 
 /**
  * A ReadWriteSpan is a mutable {@link ReadableSpan}.

@@ -158,11 +158,11 @@ def get_attributes_from_request_data(
 
     if "toolConfig" in request_data:
         tool_config = request_data["toolConfig"]
-        llm_attributes["tools"] = [
-            Tool(json_schema=dict(tool["toolSpec"]))
-            for tool in tool_config["tools"]
-            if "toolSpec" in tool
-        ] or list(tool_config["tools"])
+        # Record each tool element verbatim, matching how the OpenAI and Anthropic
+        # instrumentors store the whole provider-native tool definition. Keeping the
+        # Converse tagged-union envelope (toolSpec/systemTool/cachePoint) preserves
+        # non-toolSpec members and keeps the schema replayable against the API.
+        llm_attributes["tools"] = [Tool(json_schema=dict(tool)) for tool in tool_config["tools"]]
 
     llm_attributes["input_messages"] = get_input_messages(request_data)
 

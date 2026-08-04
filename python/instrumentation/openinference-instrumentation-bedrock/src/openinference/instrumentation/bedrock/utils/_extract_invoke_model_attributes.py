@@ -252,8 +252,11 @@ def _build_nova_tools(request_body: Dict[str, Any]) -> List[Tool]:
         return []
     tools: List[Tool] = []
     for tool in raw_tools:
-        if isinstance(tool, dict) and isinstance(spec := tool.get("toolSpec"), dict):
-            tools.append(Tool(json_schema=dict(spec)))
+        # Record each tool element verbatim (keeping the Converse tagged-union
+        # envelope) to match the OpenAI/Anthropic instrumentors and the Converse
+        # extractor, and to preserve non-toolSpec members such as systemTool.
+        if isinstance(tool, dict):
+            tools.append(Tool(json_schema=dict(tool)))
     return tools
 
 

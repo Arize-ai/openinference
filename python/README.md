@@ -4,7 +4,7 @@ This is the Python version of OpenInference instrumentation, a framework for col
 
 ## Getting Started
 
-Instrumentation is the act of adding observability code to an application. OpenInference provides [instrumentors](https://github.com/Arize-ai/openinference?tab=readme-ov-file#python) for several popular LLM frameworks and SDKs. The instrumentors emit traces from the LLM applications, and the traces can be collected by a collector, e.g. by the [Phoenix Collector](#phoenix-collector).
+Instrumentation is the act of adding observability code to an application. OpenInference provides [instrumentors](https://github.com/Arize-ai/openinference?tab=readme-ov-file#python) for several popular LLM frameworks and SDKs. The instrumentors emit traces from the LLM applications, and the traces can be collected by a collector, e.g. by the [Phoenix Collector](#phoenix-collector), or sent directly to [Arize AX](https://arize.com/docs/ax).
 
 ## Example
 
@@ -102,7 +102,7 @@ details.
 
 ## Phoenix Collector
 
-Phoenix runs locally on your machine and does not send data over the internet.
+[Phoenix](https://github.com/Arize-ai/phoenix) runs locally on your machine and does not send data over the internet. If you'd rather use a hosted collector, point the same OTLP exporter at [Arize AX](https://arize.com/docs/ax) instead.
 
 Install using:
 

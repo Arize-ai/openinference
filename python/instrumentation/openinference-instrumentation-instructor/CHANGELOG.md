@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.17...python-openinference-instrumentation-instructor-v0.1.18) (2026-06-19)
+
+
+### Bug Fixes
+
+* **instructor:** support instructor&gt;=1.15.3, resolve handle_response_model robustly ([#3254](https://github.com/Arize-ai/openinference/issues/3254)) ([da73091](https://github.com/Arize-ai/openinference/commit/da730915ac9e648e067ba7ddad207009528b2d11))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.16...python-openinference-instrumentation-instructor-v0.1.17) (2026-05-18)
 
 

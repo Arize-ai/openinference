@@ -221,8 +221,8 @@ class TestNovaInvokeModel:
         tool_schema_str = attributes.pop("llm.tools.0.tool.json_schema")
         assert isinstance(tool_schema_str, str)
         tool_schema = json.loads(tool_schema_str)
-        assert tool_schema["name"] == tool_name
-        assert "inputSchema" in tool_schema
+        assert tool_schema["toolSpec"]["name"] == tool_name
+        assert "inputSchema" in tool_schema["toolSpec"]
         assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 0
         assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 0
         for k in list(attributes.keys()):
@@ -472,7 +472,7 @@ class TestNovaStreamCallbackUnit:
         tool_schema_raw = attributes["llm.tools.0.tool.json_schema"]
         assert isinstance(tool_schema_raw, str)
         tool_schema = json.loads(tool_schema_raw)
-        assert tool_schema["name"] == "get_weather"
+        assert tool_schema["toolSpec"]["name"] == "get_weather"
 
         output_value = attributes[OUTPUT_VALUE]
         assert isinstance(output_value, str)

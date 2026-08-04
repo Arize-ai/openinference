@@ -22,7 +22,6 @@ TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
 )
 @pytest.mark.parametrize("use_stream", [False, True])
 def test_generate_interactions_simple_message(
@@ -100,7 +99,6 @@ def test_generate_interactions_simple_message(
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
 )
 @pytest.mark.parametrize("use_stream", [False, True])
 def test_generate_interactions_multi_model_messages(
@@ -195,7 +193,6 @@ def test_generate_interactions_multi_model_messages(
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
 )
 @pytest.mark.parametrize("use_stream", [False, True])
 @pytest.mark.asyncio
@@ -275,7 +272,6 @@ async def test_generate_interactions_async(
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
 )
 def test_interactions_with_thinking_stream(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -361,7 +357,6 @@ def test_interactions_with_thinking_stream(
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
 )
 def test_agent_stream(
     in_memory_span_exporter: InMemorySpanExporter,

@@ -19,6 +19,7 @@ from openinference.instrumentation import (
 )
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -50,6 +51,11 @@ LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
 TOOL_ID = SpanAttributes.TOOL_ID
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
+MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
@@ -360,6 +366,10 @@ def _hook_event_name(payload: Any) -> str | None:
     return str(value)
 
 
+def _has_parent_tool_use_id(parent_tool_use_id: Any) -> bool:
+    return parent_tool_use_id is not None and str(parent_tool_use_id) != ""
+
+
 def _create_tool_hook_matchers(
     tool_tracker: "_ToolSpanTrackerBase",
 ) -> dict[str, list[Any]]:
@@ -376,6 +386,12 @@ def _create_tool_hook_matchers(
             tool_input = _get_field(input_data, "tool_input")
             resolved_tool_use_id = tool_use_id or _get_field(input_data, "tool_use_id")
             parent_tool_use_id = _get_field(input_data, "parent_tool_use_id")
+            # A missing hook parent is ambiguous: it can be a root-level tool or
+            # a subagent tool whose parent was omitted by the SDK. Starting now
+            # would permanently root the span, so defer no-parent tool starts to
+            # the message stream, where parent_tool_use_id is authoritative.
+            if not _has_parent_tool_use_id(parent_tool_use_id):
+                return {}
             tool_tracker.start_tool_span(
                 tool_name,
                 tool_input,
@@ -612,15 +628,13 @@ class _ToolSpanTracker(_ToolSpanTrackerBase):
             **get_tool_attributes(name=tool_name_str, parameters=tool_params),
             **get_input_attributes(safe_json_dumps(tool_input), mime_type=JSON),
         }
+
         parent_span = self._parent_span
-        if (
-            parent_tool_use_id is not None
-            and str(parent_tool_use_id) != ""
-            and self._parent_span_resolver is not None
-        ):
+        if _has_parent_tool_use_id(parent_tool_use_id) and self._parent_span_resolver is not None:
             resolved = self._parent_span_resolver(parent_tool_use_id)
             if resolved is not None:
                 parent_span = resolved
+
         ctx = trace_api.set_span_in_context(parent_span) if parent_span is not None else None
         span = self._tracer.start_span(
             tool_name_str,
@@ -815,6 +829,18 @@ def _is_text_block(block: Any) -> bool:
     )
 
 
+def _is_thinking_block(block: Any) -> bool:
+    block_type = _get_field(block, "type")
+    if block_type:
+        return str(block_type) in ("thinking", "redacted_thinking")
+    # Duck-typing fallback
+    return (
+        (_get_field(block, "thinking") is not None or _get_field(block, "data") is not None)
+        and _get_field(block, "id") is None
+        and _get_field(block, "tool_use_id") is None
+    )
+
+
 def _get_output_message_attributes(message: Any, message_index: int) -> dict[str, Any]:
     """Extract llm.output_messages.* attributes from an assistant message."""
     attrs: dict[str, Any] = {}
@@ -822,31 +848,92 @@ def _get_output_message_attributes(message: Any, message_index: int) -> dict[str
         content = _extract_message_content(message)
         if content is None:
             return attrs
-        tool_index = 0
-        text_index = 0
+
+        has_thinking = any(_is_thinking_block(block) for block in content)
+        content_index = 0
         has_content = False
+
         for block in content:
             if _is_tool_use_block(block):
                 has_content = True
-                prefix = f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_index}"
-                if tool_id := _get_field(block, "id"):
-                    attrs[f"{prefix}.{TOOL_CALL_ID}"] = str(tool_id)
-                if tool_name := _get_field(block, "name"):
-                    attrs[f"{prefix}.{TOOL_CALL_FUNCTION_NAME}"] = str(tool_name)
-                attrs[f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"] = safe_json_dumps(
-                    _get_field(block, "input") or {}
-                )
-                tool_index += 1
+                if has_thinking:
+                    # Emit into message.contents to preserve block order
+                    prefix = (
+                        f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}"
+                    )
+                    attrs[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] = "tool_use"
+                    if tool_id := _get_field(block, "id"):
+                        attrs[f"{prefix}.{TOOL_CALL_ID}"] = str(tool_id)
+                    if tool_name := _get_field(block, "name"):
+                        attrs[f"{prefix}.{TOOL_CALL_FUNCTION_NAME}"] = str(tool_name)
+                    attrs[f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"] = safe_json_dumps(
+                        _get_field(block, "input") or {}
+                    )
+                else:
+                    # Legacy path with no thinking blocks
+                    tool_index = sum(
+                        1
+                        for k in attrs
+                        if k.startswith(
+                            f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}."
+                        )
+                        and k.endswith(f".{TOOL_CALL_ID}")
+                    )
+                    prefix = (
+                        f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_index}"
+                    )
+                    if tool_id := _get_field(block, "id"):
+                        attrs[f"{prefix}.{TOOL_CALL_ID}"] = str(tool_id)
+                    if tool_name := _get_field(block, "name"):
+                        attrs[f"{prefix}.{TOOL_CALL_FUNCTION_NAME}"] = str(tool_name)
+                    attrs[f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"] = safe_json_dumps(
+                        _get_field(block, "input") or {}
+                    )
+                content_index += 1
+
             elif _is_text_block(block):
                 has_content = True
-                if text := _get_field(block, "text"):
-                    attrs[
-                        f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}.{text_index}"
-                    ] = str(text)
-                    text_index += 1
+                text = _get_field(block, "text")
+                if has_thinking:
+                    # Emit into message.contents to preserve block order
+                    prefix = (
+                        f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}"
+                    )
+                    attrs[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] = "text"
+                    if text:
+                        attrs[f"{prefix}.{MESSAGE_CONTENT_TEXT}"] = str(text)
+                else:
+                    # Legacy path with no thinking blocks
+                    text_index = sum(
+                        1
+                        for k in attrs
+                        if k.startswith(f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}.")
+                    )
+                    if text:
+                        attrs[
+                            f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}.{text_index}"
+                        ] = str(text)
+                content_index += 1
+
+            elif _is_thinking_block(block):
+                has_content = True
+                block_type = str(_get_field(block, "type") or "thinking")
+                prefix = f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}"
+                attrs[f"{prefix}.{MESSAGE_CONTENT_TYPE}"] = "reasoning"
+                if block_type == "thinking":
+                    if text := _get_field(block, "thinking"):
+                        attrs[f"{prefix}.{MESSAGE_CONTENT_TEXT}"] = str(text)
+                    if sig := _get_field(block, "signature"):
+                        attrs[f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}"] = str(sig)
+                elif block_type == "redacted_thinking":
+                    if data := _get_field(block, "data"):
+                        attrs[f"{prefix}.{MESSAGE_CONTENT_DATA}"] = str(data)
+                content_index += 1
+
         if has_content:
             role = _get_field(message, "role") or "assistant"
             attrs[f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}"] = str(role)
+
     except Exception:
         pass
     return attrs

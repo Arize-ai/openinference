@@ -76,7 +76,7 @@ def _append_content(
         if call_id := get_attribute(content, "id"):
             tool_call["id"] = call_id
         if sig := get_attribute(content, "signature"):
-            tool_call["reasoning_signature"] = sig  # type: ignore[typeddict-unknown-key]
+            tool_call["reasoning_signature"] = sig
         tool_calls.append(tool_call)
     elif content_type == "thought":
         signature = get_attribute(content, "signature")

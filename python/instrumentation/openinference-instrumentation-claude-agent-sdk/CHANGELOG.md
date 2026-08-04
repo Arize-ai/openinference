@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.6...python-openinference-instrumentation-claude-agent-sdk-v0.1.7) (2026-06-24)
+
+
+### Bug Fixes
+
+* **claude_agent_sdk:** Capture Thinking Blocks as Reasoning Message Content ([#3201](https://github.com/Arize-ai/openinference/issues/3201)) ([5b49859](https://github.com/Arize-ai/openinference/commit/5b49859f020189bf0835abde44f751c2a732ba8a))
+* **claude_agent_sdk:** Invalid Parent for Subagent Tool in PreToolUse Hook ([#3266](https://github.com/Arize-ai/openinference/issues/3266)) ([86ac843](https://github.com/Arize-ai/openinference/commit/86ac84328f457c4aa2e4bf5356460dc03ba14003))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.5...python-openinference-instrumentation-claude-agent-sdk-v0.1.6) (2026-06-11)
 
 

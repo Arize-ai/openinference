@@ -25,6 +25,7 @@ from openinference.instrumentation.anthropic._utils import (
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -316,19 +317,70 @@ class _MessageExtractor:
             snapshot.role,
         )
         tool_idx = 0
-        for block in snapshot.content:
+        for block_idx, block in enumerate(snapshot.content):
+            content_prefix = (
+                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+                f"{MessageAttributes.MESSAGE_CONTENTS}.{block_idx}"
+            )
             if block.type == "text":
                 yield (
-                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}",
+                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                    "text",
+                )
+                yield (
+                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
                     block.text,
                 )
+            elif block.type == "thinking":
+                yield (
+                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                    "reasoning",
+                )
+                yield (
+                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                    block.thinking,
+                )
+                if signature := block.signature:
+                    yield (
+                        f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                        signature,
+                    )
+            elif block.type == "redacted_thinking":
+                yield (
+                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                    "reasoning",
+                )
+                yield (
+                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_DATA}",
+                    block.data,
+                )
             elif block.type == "tool_use":
+                yield (
+                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_ID}",
+                    block.id,
+                )
                 yield (
                     f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                     block.name,
                 )
                 yield (
                     f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_idx}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                    safe_json_dumps(block.input),
+                )
+                yield (
+                    f"{content_prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                    "tool_use",
+                )
+                yield (
+                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_ID}",
+                    block.id,
+                )
+                yield (
+                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                    block.name,
+                )
+                yield (
+                    f"{content_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                     safe_json_dumps(block.input),
                 )
                 tool_idx += 1

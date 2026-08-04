@@ -2,5 +2,5 @@ pytest
 pytest-cov
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
-pydantic-ai==0.7.5
+pydantic-ai==1.56.0
 pytest-recording

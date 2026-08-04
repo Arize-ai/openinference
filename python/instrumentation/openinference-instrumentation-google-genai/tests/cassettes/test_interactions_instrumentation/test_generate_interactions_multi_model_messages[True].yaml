@@ -57,7 +57,9 @@ interactions:
 
 
         '
-    headers: {}
+    headers:
+      content-type:
+      - text/event-stream
     status:
       code: 200
       message: OK

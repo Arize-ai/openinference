@@ -336,7 +336,10 @@ class TraceConfig:
         elif (
             is_base64_url(value)  # type:ignore
             and len(value) > self.base64_image_max_length  # type:ignore
-            and SpanAttributes.LLM_INPUT_MESSAGES in key
+            and (
+                SpanAttributes.LLM_INPUT_MESSAGES in key
+                or SpanAttributes.LLM_OUTPUT_MESSAGES in key
+            )
             and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
             and key.endswith(ImageAttributes.IMAGE_URL)
         ):

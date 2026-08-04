@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import List, Mapping, Sequence, Union, cast
+from typing import Any, List, Mapping, Sequence, Union, cast
 
 import pytest
 from opentelemetry import trace
@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.instrumented import InstrumentationSettings
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from openinference.semconv.trace import (
@@ -24,19 +24,9 @@ from openinference.semconv.trace import (
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
-
-
-@pytest.mark.vcr
-def test_openai_agent_plain_text_output_v1(
-    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
-) -> None:
-    _test_openai_agent_plain_text_output(
-        in_memory_span_exporter,
-        tracer_provider,
-        InstrumentationSettings(version=1, event_mode="attributes"),
-    )
 
 
 @pytest.mark.vcr
@@ -59,7 +49,7 @@ def _test_openai_agent_plain_text_output(
     trace.set_tracer_provider(tracer_provider)
 
     api_key = os.getenv("OPENAI_API_KEY", "sk-test")
-    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    model = OpenAIChatModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
     agent = Agent(model, output_type=str)
     agent.instrument = instrumentation
 
@@ -79,24 +69,6 @@ def _test_openai_agent_plain_text_output(
     output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert output_value is not None, "output.value must be set for plain-text agent responses."
     assert output_value == message_content
-
-
-@pytest.mark.vcr
-def test_openai_agent_and_llm_spans_v1(
-    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
-) -> None:
-    # Version 1 is deprecated and will be removed in a future release.
-    _test_openai_agent_and_llm_spans(
-        in_memory_span_exporter,
-        tracer_provider,
-        InstrumentationSettings(version=1, event_mode="attributes"),
-    )
-    in_memory_span_exporter.clear()
-    _test_openai_agent_and_llm_spans_message_history(
-        in_memory_span_exporter,
-        tracer_provider,
-        InstrumentationSettings(version=1, event_mode="attributes"),
-    )
 
 
 @pytest.mark.vcr
@@ -132,7 +104,7 @@ def _test_openai_agent_and_llm_spans(
     api_key = os.getenv("OPENAI_API_KEY", "sk-test")
 
     # Create the model and agent
-    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    model = OpenAIChatModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
     agent = Agent(
         model,
         instructions=["Use the weather tool", "Use the calculator tool"],
@@ -154,12 +126,12 @@ def _test_openai_agent_and_llm_spans(
     llm_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
     agent_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
 
-    _verify_llm_span(llm_span, instrumentation.version)
+    _verify_llm_span(llm_span)
 
     _verify_agent_span(agent_span)
 
 
-def _verify_llm_span(span: ReadableSpan, version: int) -> None:
+def _verify_llm_span(span: ReadableSpan) -> None:
     """Verify the LLM span has correct attributes."""
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
@@ -187,12 +159,10 @@ def _verify_llm_span(span: ReadableSpan, version: int) -> None:
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
     attribute = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
-    attribute = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}" if version == 1 else attribute
     assert attributes.get(attribute) == "You are a weather assistant"
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}") == "user"
     attribute_name = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
-    attribute_name = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}" if version == 1 else attribute_name
     assert attributes.get(attribute_name) == "The windy city in the US of A."
     assert (
         attributes.get(f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
@@ -274,7 +244,7 @@ def _test_openai_agent_and_llm_spans_message_history(
 
     # Create the model and agent
     api_key = os.getenv("OPENAI_API_KEY", "sk-test")
-    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    model = OpenAIChatModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
     agent = Agent(model, output_type=LocationModel)
     agent.instrument = instrumentation
 
@@ -323,5 +293,69 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
-MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
-MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+
+
+@pytest.mark.vcr
+def test_openai_tool_span_instrumentation_v5(
+    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
+) -> None:
+    trace.set_tracer_provider(tracer_provider)
+
+    api_key = os.getenv("OPENAI_API_KEY", "sk-test")
+    model = OpenAIChatModel("gpt-4o-mini", provider=OpenAIProvider(api_key=api_key))
+    agent = Agent(model)
+    agent.instrument = InstrumentationSettings(version=cast(Any, 5))
+
+    @agent.tool_plain
+    def get_weather(city: str) -> str:
+        return f"It's sunny in {city}."
+
+    result = agent.run_sync("What's the weather in Paris?")
+    assert result is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    tool_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    tool_attrs = dict(cast(Mapping[str, AttributeValue], tool_span.attributes))
+
+    assert (
+        tool_attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.TOOL.value
+    )
+    assert tool_attrs.get(SpanAttributes.TOOL_NAME) == "get_weather"
+    assert tool_attrs.get(SpanAttributes.TOOL_PARAMETERS) is not None
+    assert tool_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None
+
+    # An LLM span must carry the tool's JSON schema. pydantic-ai 2.0 serializes it under
+    # ``parameters_json_schema`` (not ``properties``), so this guards the extraction path.
+    # A tool-calling run produces multiple LLM spans (the call and the follow-up); the tool
+    # definitions appear on the span(s) where the tool is offered to the model.
+    json_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    ]
+    json_schemas = [
+        json.loads(cast(str, span.attributes[json_schema_key]))
+        for span in llm_spans
+        if span.attributes and json_schema_key in span.attributes
+    ]
+    assert json_schemas, "no LLM span carried llm.tools.0.tool.json_schema"
+    # The emitted value must be the actual JSON schema object (the get_weather tool takes a
+    # `city: str`), not just any string that happens to contain "city".
+    assert any(
+        schema.get("properties", {}).get("city", {}).get("type") == "string"
+        for schema in json_schemas
+    )
+
+    agent_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+    agent_attrs = dict(cast(Mapping[str, AttributeValue], agent_span.attributes))
+    assert (
+        agent_attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.AGENT.value
+    )
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT not in agent_attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION not in agent_attrs

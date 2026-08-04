@@ -18,6 +18,17 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
 
 Each failing package is investigated and fixed **independently**, with its own branch and its own PR. Do not bundle fixes for multiple packages together, even when they share an apparent root cause — keep PRs scoped to a single instrumentor so they can be reviewed, reverted, and released independently.
 
+When invoked by the scheduled `auto-fix` job, the workflow already runs one job per failing package and creates the branch before Claude starts. In that mode, follow the prompt's package scope, do **not** commit, push, or open a PR, and instead write:
+
+- `.scratch/pr-title.txt`: a one-line conventional-commit PR title.
+- `.scratch/pr-body.md`: a concise PR body with root cause, fix, and commands run.
+
+The workflow will commit, push, and open the PR after Claude exits. It does **not** re-validate your fix in-workflow — the opened PR's own CI runs this package's `-latest` envs and is the gate (branch protection blocks merging until CI is green), so still aim to make the failing env pass, but an imperfect fix becomes a red PR for a human to finish rather than being discarded. The workflow also skips invoking you entirely when an open auto-fix PR for the package already exists, so you do not need to guard against that case. For manual use outside CI, continue to open one PR per package yourself.
+
+In CI auto-fix mode, the workflow downloads the failed tox logs before Claude starts. Always read `.scratch/failure-logs/*.log` first and use the first traceback or assertion from those local logs as the primary signal. Do **not** call `gh run view --log` or `gh run view --log-failed` for the same in-progress run unless the local logs are missing or clearly incomplete.
+
+The Claude Code action uses a constrained shell allowlist. Prefer `Read`, `Write`, `Glob`, and `Grep` for file work. When you need Bash, use one command at a time and avoid pipelines, redirects, command substitution, polling loops, and chained commands; those often require approval in CI and waste the run budget.
+
 ### Step 1 — Enumerate failing packages
 
 1. **Identify failures**: Run `gh run list --workflow=python-cron.yaml --limit=5 --repo Arize-ai/openinference` to find the latest run, then `gh run view <id> --repo Arize-ai/openinference` and filter for `X` (failure markers) in the output.
@@ -25,11 +36,13 @@ Each failing package is investigated and fixed **independently**, with its own b
 3. **Filter transient failures**: Some failures are flaky (network, PyPI outages, 503s). For each package, if the error looks transient, check whether the same job passed in the previous cron run before investing time. Drop transient ones from the list.
 4. **Drop packages already being fixed**: For each remaining package, run `gh pr list --repo Arize-ai/openinference --search "<package>" --state open` once up front. If an open PR already addresses the canary failure for that package, drop it from the list — do not re-investigate or open a duplicate PR. If the existing PR is stale or incomplete, update it in place rather than starting over.
 
-### Step 2 — Per package: investigate, fix, and open a PR
+### Step 2 — Per package: investigate, fix, and prepare or open a PR
 
-Repeat the following for **each** remaining package, fully completing the cycle (including the PR) before moving on to the next package. Use a fresh branch per package.
+Repeat the following for **each** remaining package, fully completing the cycle before moving on to the next package. Use a fresh branch per package unless the CI workflow already created one for you.
 
-1. **Get failure logs**: `gh run view <run_id> --repo Arize-ai/openinference --job <job_id> --log-failed`.
+1. **Get failure logs**:
+   - In CI auto-fix mode, read `.scratch/failure-logs/*.log`.
+   - In manual mode, use `gh run view <run_id> --repo Arize-ai/openinference --job <job_id> --log-failed`.
 2. **Identify the root cause**: The canary cron tests against `*-latest` versions of upstream dependencies. Failures almost always mean an upstream package changed its API or behavior. Key signals:
    - The assertion or import error in the log
    - What upstream dependency was upgraded (check `python/tox.ini` for the `-latest` env's `uv pip install -U` commands)
@@ -39,17 +52,19 @@ Repeat the following for **each** remaining package, fully completing the cycle 
    - Remove the now-dead compatibility branches rather than leaving them behind.
    - Use a conventional commit with `!` (e.g. `fix(<package>)!: drop support for <upstream> < X.Y`) so release-please cuts a new **major** version of the instrumentor.
    - Call out the dropped support clearly in the PR body so reviewers and downstream users see the breaking change.
-5. **Draft and test the fix**: Modify only this package's instrumentor code and tests. Run both the pinned and `-latest` tox environments to verify the fix:
-   - `uvx --with tox-uv tox r -e ruff-mypy-test-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
-   - `uvx --with tox-uv tox r -e py310-ci-<package>-latest -- -ra -x` (latest deps)
+5. **Draft and test the fix**: Modify only this package's instrumentor code and tests. Run the failed `-latest` tox environment to verify the canary fix, and run the matching pinned environment as a baseline check when practical. From the repository root, prefer:
+   - `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
+   - `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-<package>-latest -- -ra -x` (latest deps)
    - If ruff reformats files, include those edits in the same package commit (don't split formatting into a separate PR).
-   - Both envs must pass. For drop-old-support fixes, you've raised the pinned floor — the pinned env now exercises the new minimum supported upstream version, which is expected.
+   - Aim to make the failed `-latest` env pass. In manual mode it must pass before you open a PR; in CI auto-fix mode the PR's own CI is the gate, so document any env you could not get green in `.scratch/pr-body.md` for reviewers. Treat a pinned-env failure as blocking only when it is caused by the proposed change; if it is pre-existing or clearly unrelated, note that in the PR body. For drop-old-support fixes, you've raised the pinned floor — the pinned env now exercises the new minimum supported upstream version, which is expected.
 6. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found.
 7. **Run the Python code reviewer**: Run `/python-code-reviewer` against the changed package to verify it follows project conventions (test patterns, semantic conventions, CI config).
 8. **Final duplicate-PR check**: Right before opening the PR, re-run `gh pr list --repo Arize-ai/openinference --search "<package>" --state open`. The Step 1.4 filter caught duplicates that existed at the start of the run, but one may have been opened during steps 2.1–2.7. If a duplicate now exists, update it instead of creating a new PR.
-9. **Create a PR for this package only**: Branch (e.g. `fix/canary-<package>`), commit, push, and open a PR citing the upstream change. The PR title and body should reference only this package; do not lump in other failing packages. Use `fix(<package>)!:` (or `feat(<package>)!:`) in the commit/PR title when you dropped support for older upstream versions, so release-please releases a new major version.
+9. **Prepare or create a PR for this package only**: The PR title and body should reference only this package; do not lump in other failing packages. Use `fix(<package>)!:` (or `feat(<package>)!:`) in the title when you dropped support for older upstream versions, so release-please releases a new major version.
+   - In CI auto-fix mode, write the title to `.scratch/pr-title.txt` and the body to `.scratch/pr-body.md`, then exit without committing, pushing, or opening a PR.
+   - In manual mode, branch (e.g. `fix/canary-<package>`), commit, push, and open a PR citing the upstream change.
 
-Once the PR is open, return to the package list and repeat for the next failing package.
+Once the PR is open (or the CI handoff files are written), return to the package list and repeat for the next failing package.
 
 ## Gotchas
 

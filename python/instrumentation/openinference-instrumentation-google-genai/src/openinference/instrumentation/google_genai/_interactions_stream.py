@@ -131,7 +131,10 @@ class _InteractionAccumulator:
                 self._interaction.status = event.interaction.status
                 self._interaction.created = event.interaction.created
                 self._interaction.updated = event.interaction.updated
-                self._interaction.role = event.interaction.role
+                # `role` was dropped from the completed-event interaction in
+                # google-genai >= 2.x; copy it only when the upstream object exposes it.
+                if (role := get_attribute(event.interaction, "role")) is not None:
+                    self._interaction.role = role
                 self._interaction.usage = event.interaction.usage
                 self._assign_accumulated_items()
             else:

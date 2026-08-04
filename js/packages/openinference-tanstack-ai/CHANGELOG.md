@@ -1,5 +1,23 @@
 # @arizeai/openinference-tanstack-ai
 
+## 0.2.0
+
+### Minor Changes
+
+- d0f5a88: feat(openinference-genai): Improve compatability with gen_ai conventions
+
+### Patch Changes
+
+- Updated dependencies [d0f5a88]
+  - @arizeai/openinference-core@2.4.0
+
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [1fe7927]
+  - @arizeai/openinference-core@2.3.0
+
 ## 0.1.3
 
 ### Patch Changes

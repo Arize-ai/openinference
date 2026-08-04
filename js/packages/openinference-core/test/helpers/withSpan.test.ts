@@ -6,7 +6,19 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
-import { traceAgent, traceChain, traceTool, withSpan } from "../../src/helpers";
+import {
+  traceAgent,
+  traceChain,
+  traceEmbedding,
+  traceEvaluator,
+  traceGuardrail,
+  traceLLM,
+  tracePrompt,
+  traceReranker,
+  traceRetriever,
+  traceTool,
+  withSpan,
+} from "../../src/helpers";
 
 let spanExporter: InMemorySpanExporter;
 let tracerProvider: NodeTracerProvider;
@@ -417,5 +429,74 @@ describe("traceTool", () => {
     const span = spans[0];
     expect(span.name).toBe("tool-operation");
     expect(span.attributes["openinference.span.kind"]).toBe(OpenInferenceSpanKind.TOOL);
+  });
+});
+
+describe.each([
+  { name: "traceLLM", wrapper: traceLLM, kind: OpenInferenceSpanKind.LLM },
+  {
+    name: "traceRetriever",
+    wrapper: traceRetriever,
+    kind: OpenInferenceSpanKind.RETRIEVER,
+  },
+  {
+    name: "traceReranker",
+    wrapper: traceReranker,
+    kind: OpenInferenceSpanKind.RERANKER,
+  },
+  {
+    name: "traceEmbedding",
+    wrapper: traceEmbedding,
+    kind: OpenInferenceSpanKind.EMBEDDING,
+  },
+  {
+    name: "traceGuardrail",
+    wrapper: traceGuardrail,
+    kind: OpenInferenceSpanKind.GUARDRAIL,
+  },
+  {
+    name: "traceEvaluator",
+    wrapper: traceEvaluator,
+    kind: OpenInferenceSpanKind.EVALUATOR,
+  },
+  {
+    name: "tracePrompt",
+    wrapper: tracePrompt,
+    kind: OpenInferenceSpanKind.PROMPT,
+  },
+])("$name", ({ name, wrapper, kind }) => {
+  beforeEach(() => {
+    spanExporter = new InMemorySpanExporter();
+    tracerProvider = new NodeTracerProvider({
+      resource: resourceFromAttributes({ "service.name": "test-service" }),
+      spanProcessors: [new SimpleSpanProcessor(spanExporter)],
+    });
+    tracerProvider.register();
+  });
+
+  afterEach(() => {
+    spanExporter.reset();
+    tracerProvider.shutdown();
+    trace.disable();
+  });
+
+  it(`should create spans with ${kind} kind`, () => {
+    const testFn = () => `${name} result`;
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = wrapper(testFn, {
+      name: `${name}-operation`,
+      tracer,
+    });
+
+    const result = wrappedFn();
+
+    expect(result).toBe(`${name} result`);
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+
+    const span = spans[0];
+    expect(span.name).toBe(`${name}-operation`);
+    expect(span.attributes["openinference.span.kind"]).toBe(kind);
   });
 });

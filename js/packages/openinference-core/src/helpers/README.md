@@ -73,6 +73,30 @@ const fetchWeather = async (city: string) => {
 const tracedWeatherTool = traceTool(fetchWeather, { name: "weather-api" });
 ```
 
+Convenience wrappers are available for every OpenInference span kind. Each one pre-configures `withSpan` with the corresponding `kind` and otherwise accepts the same options:
+
+| Wrapper          | Span kind   | Typical use                                 |
+| ---------------- | ----------- | ------------------------------------------- |
+| `traceChain`     | `CHAIN`     | Workflow sequences and pipelines            |
+| `traceAgent`     | `AGENT`     | Autonomous decision-making entities         |
+| `traceTool`      | `TOOL`      | External tools, APIs, and utilities         |
+| `traceLLM`       | `LLM`       | Language model inference calls              |
+| `traceRetriever` | `RETRIEVER` | Document/context retrieval (RAG)            |
+| `traceReranker`  | `RERANKER`  | Reordering candidate documents by relevance |
+| `traceEmbedding` | `EMBEDDING` | Generating vector representations           |
+| `traceGuardrail` | `GUARDRAIL` | Safety, validation, and policy checks       |
+| `traceEvaluator` | `EVALUATOR` | Scoring/assessing output quality            |
+| `tracePrompt`    | `PROMPT`    | Constructing or templating prompts          |
+
+```typescript
+import { traceLLM, traceRetriever } from "@arizeai/openinference-core";
+
+const tracedCompletion = traceLLM(chatCompletion, { name: "chat-completion" });
+const tracedRetriever = traceRetriever(similaritySearch, {
+  name: "vector-search",
+});
+```
+
 ### Decorators
 
 Class method decoration for automatic tracing. See [decorators](decorators.ts) for implementation details.

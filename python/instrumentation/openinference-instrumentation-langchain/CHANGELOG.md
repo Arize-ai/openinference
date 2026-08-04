@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.67](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.66...python-openinference-instrumentation-langchain-v0.1.67) (2026-07-01)
+
+
+### Features
+
+* **langchain:** Ignore GraphInterrupt Exceptions ([#3316](https://github.com/Arize-ai/openinference/issues/3316)) ([4f10a2a](https://github.com/Arize-ai/openinference/commit/4f10a2ac72662ab5bc6d9f1293ead0c7cff784ae))
+
 ## [0.1.66](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.65...python-openinference-instrumentation-langchain-v0.1.66) (2026-05-18)
 
 

@@ -1,15 +1,35 @@
+import inspect
 import re
 from pathlib import Path
 from typing import Any, Callable, Iterator, Tuple
 
 import pytest
 import yaml  # type: ignore[import-untyped]
+from aiohttp.client_reqrep import ClientResponse
 from aioresponses import aioresponses
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.bedrock import BedrockInstrumentor
+
+# aiohttp 3.14 added a required keyword-only ``stream_writer`` argument to
+# ``ClientResponse.__init__``. aioresponses (<=0.7.8) builds responses without
+# it, which breaks cassette replay against newer aiohttp. Inject a no-op stream
+# writer when one is not supplied. This is a no-op on aiohttp < 3.14 where the
+# parameter does not exist, and never overrides a caller-supplied value.
+if "stream_writer" in inspect.signature(ClientResponse.__init__).parameters:
+
+    class _NoOpStreamWriter:
+        output_size = 0
+
+    _orig_client_response_init = ClientResponse.__init__
+
+    def _client_response_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("stream_writer", _NoOpStreamWriter())
+        _orig_client_response_init(self, *args, **kwargs)
+
+    ClientResponse.__init__ = _client_response_init  # type: ignore[method-assign]
 
 
 @pytest.fixture(scope="function")
