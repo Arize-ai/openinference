@@ -697,11 +697,12 @@ def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
     # cache_creation_input_tokens: Number of tokens written to the cache when creating a new entry.
     # cache_read_input_tokens: Number of tokens retrieved from the cache for this request.
     # input_tokens: Number of input tokens which were not read from or used to create a cache.
-    if prompt_tokens := (
+    prompt_tokens = (
         usage.input_tokens
         + (usage.cache_creation_input_tokens or 0)
         + (usage.cache_read_input_tokens or 0)
-    ):
+    )
+    if prompt_tokens:
         yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
     if usage.output_tokens:
         yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
@@ -709,6 +710,10 @@ def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, usage.cache_read_input_tokens
     if usage.cache_creation_input_tokens:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, usage.cache_creation_input_tokens
+    # Anthropic's Usage has no total field, so derive it the same way the streaming path
+    # does in _stream.py, keeping total == prompt + completion across both paths.
+    if total_tokens := prompt_tokens + (usage.output_tokens or 0):
+        yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
 
 @_stop_on_exception
