@@ -1,10 +1,10 @@
 import logging
-from typing import Any, Collection, cast
+from typing import Any, Collection, Optional, cast
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Tracer
-from wrapt import wrap_function_wrapper
+from wrapt import FunctionWrapper, wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.openai_agents.package import _instruments
@@ -19,12 +19,55 @@ _REALTIME_SEND_AUDIO_ATTR = "RealtimeSession.send_audio"
 _REALTIME_CLOSE_ATTR = "RealtimeSession.close"
 
 
+def _patch_tool_execution() -> Optional[list[tuple[Any, str, Any]]]:
+    """Wrap the SDK step that executes function tool calls, so function spans can report
+    tool.description and tool.parameters.
+
+    Every binding of the step is patched, not just the defining module, because the call
+    sites import it by name and hold their own references. Returns what ``_uninstrument``
+    needs to undo the patches, or ``None`` when nothing could be patched -- in which case
+    those two attributes are simply not recorded, which is a missing enrichment rather
+    than a failure.
+    """
+    from openinference.instrumentation.openai_agents._tool_schemas import (
+        find_tool_execution_bindings,
+        make_execute_function_tools_wrapper,
+    )
+
+    patched: list[tuple[Any, str, Any]] = []
+    for owner, attribute in find_tool_execution_bindings():
+        try:
+            # Read from __dict__ so a classmethod is captured as its descriptor and can be
+            # restored exactly, rather than as the bound method getattr would return.
+            original = owner.__dict__[attribute]
+            setattr(
+                owner, attribute, FunctionWrapper(original, make_execute_function_tools_wrapper())
+            )
+        except Exception:
+            logger.debug("could not patch %s.%s", owner, attribute, exc_info=True)
+            continue
+        logger.debug("Tool schema capture enabled: patched %s.%s", owner, attribute)
+        patched.append((owner, attribute, original))
+    if not patched:
+        logger.debug(
+            "No known function tool execution step could be patched -- tool.description and "
+            "tool.parameters will not be recorded on function spans"
+        )
+        return None
+    return patched
+
+
 class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
     """
     An instrumentor for openai-agents
     """
 
-    __slots__ = ("_original_put_event", "_original_send_audio", "_original_close")
+    __slots__ = (
+        "_original_put_event",
+        "_original_send_audio",
+        "_original_close",
+        "_original_execute_function_tools",
+    )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -55,6 +98,8 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
             from agents import add_trace_processor
 
             add_trace_processor(OpenInferenceTracingProcessor(cast(Tracer, tracer)))
+
+        self._original_execute_function_tools = _patch_tool_execution()
 
         from openinference.instrumentation.openai_agents._realtime import (
             _load_realtime_events,
@@ -98,6 +143,15 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
             logger.debug("agents.realtime.events not importable — realtime tracing disabled")
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        for container, attribute, original in (
+            getattr(self, "_original_execute_function_tools", None) or ()
+        ):
+            try:
+                setattr(container, attribute, original)
+            except Exception:
+                logger.debug("tool execution uninstrument failed", exc_info=True)
+        self._original_execute_function_tools = None
+
         try:
             from agents.realtime.session import RealtimeSession
 

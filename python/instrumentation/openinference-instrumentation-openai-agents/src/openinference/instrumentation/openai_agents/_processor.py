@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping, Optional, Union
@@ -52,6 +53,7 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
+from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -71,6 +73,17 @@ class OpenInferenceTracingProcessor(TracingProcessor):
 
     def __init__(self, tracer: Tracer) -> None:
         self._tracer = tracer
+        # Guards the mutable state below. The SDK invokes these callbacks on whichever
+        # thread is running the agent, so a process driving Runner.run_sync from several
+        # threads reaches them concurrently.
+        self._lock = threading.RLock()
+        # Spans and traces still in flight, deliberately unbounded. The number of
+        # simultaneously open spans scales with how many runs are in flight, so any cap
+        # large enough to be safe under load is too large to bound anything, and evicting
+        # an open span is far more damaging than leaking a dict entry: the span would be
+        # ended early with only its start attributes, its real end would be dropped, and
+        # its children would reparent to the trace root. Entries for spans that never end
+        # (a hard cancellation) are therefore accepted as a leak rather than reaped.
         self._root_spans: dict[str, OtelSpan] = {}
         self._otel_spans: dict[str, OtelSpan] = {}
         self._tokens: dict[str, object] = {}
@@ -92,7 +105,8 @@ class OpenInferenceTracingProcessor(TracingProcessor):
                 OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
             },
         )
-        self._root_spans[trace.trace_id] = otel_span
+        with self._lock:
+            self._root_spans[trace.trace_id] = otel_span
 
     def on_trace_end(self, trace: Trace) -> None:
         """Called when a trace is finished.
@@ -100,7 +114,11 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
-        if root_span := self._root_spans.pop(trace.trace_id, None):
+        with self._lock:
+            root_span = self._root_spans.pop(trace.trace_id, None)
+        # Ended outside the lock: a synchronous span processor exports here, and holding
+        # the lock across that would serialize exports across threads.
+        if root_span:
             root_span.set_status(Status(StatusCode.OK))
             root_span.end()
 
@@ -113,24 +131,30 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         if not span.started_at:
             return
         start_time = datetime.fromisoformat(span.started_at)
-        parent_span = (
-            self._otel_spans.get(span.parent_id)
-            if span.parent_id
-            else self._root_spans.get(span.trace_id)
-        )
+        with self._lock:
+            parent_span = (
+                self._otel_spans.get(span.parent_id)
+                if span.parent_id
+                else self._root_spans.get(span.trace_id)
+            )
         context = set_span_in_context(parent_span) if parent_span else None
         span_name = _get_span_name(span)
+        span_kind = _get_span_kind(span.span_data)
+        attributes: dict[str, AttributeValue] = {OPENINFERENCE_SPAN_KIND: span_kind}
+        # llm.system describes the LLM being called, so it belongs on LLM spans only
+        # rather than on every agent, tool, and handoff span in the trace.
+        if span_kind == OpenInferenceSpanKindValues.LLM.value:
+            attributes[LLM_SYSTEM] = OpenInferenceLLMSystemValues.OPENAI.value
         otel_span = self._tracer.start_span(
             name=span_name,
             context=context,
             start_time=_as_utc_nano(start_time),
-            attributes={
-                OPENINFERENCE_SPAN_KIND: _get_span_kind(span.span_data),
-                LLM_SYSTEM: OpenInferenceLLMSystemValues.OPENAI.value,
-            },
+            attributes=attributes,
         )
-        self._otel_spans[span.span_id] = otel_span
-        self._tokens[span.span_id] = attach(set_span_in_context(otel_span))
+        token = attach(set_span_in_context(otel_span))
+        with self._lock:
+            self._otel_spans[span.span_id] = otel_span
+            self._tokens[span.span_id] = token
 
     def on_span_end(self, span: Span[Any]) -> None:
         """Called when a span is finished. Should not block or raise exceptions.
@@ -138,9 +162,12 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         Args:
             span: The span that finished.
         """
-        if token := self._tokens.pop(span.span_id, None):
+        with self._lock:
+            token = self._tokens.pop(span.span_id, None)
+            otel_span = self._otel_spans.pop(span.span_id, None)
+        if token:
             detach(token)  # type: ignore[arg-type]
-        if not (otel_span := self._otel_spans.pop(span.span_id, None)):
+        if otel_span is None:
             return
         otel_span.update_name(_get_span_name(span))
         # flatten_attributes: dict[str, AttributeValue] = dict(_flatten(span.export()))
@@ -168,22 +195,43 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         elif isinstance(data, FunctionSpanData):
             for k, v in _get_attributes_from_function_span_data(data):
                 otel_span.set_attribute(k, v)
+            # Function spans carry no schema of their own, so read it off the live tool
+            # object being invoked. See _tool_schemas for how that is made available.
+            if (schema := get_tool_schema(data.name)) is not None:
+                description, parameters = schema
+                if description is not None:
+                    otel_span.set_attribute(TOOL_DESCRIPTION, description)
+                if parameters is not None:
+                    otel_span.set_attribute(TOOL_PARAMETERS, parameters)
         elif isinstance(data, MCPListToolsSpanData):
             for k, v in _get_attributes_from_mcp_list_tool_span_data(data):
                 otel_span.set_attribute(k, v)
         elif isinstance(data, HandoffSpanData):
+            # Handoffs surface as TOOL spans but the SDK leaves them without input or
+            # output, so record the agents the handoff moved between. Note that
+            # HandoffSpanData carries only these names -- the name of the tool the model
+            # called is deliberately not reconstructed here, since a handoff created
+            # with tool_name_override would not match a reconstructed value.
+            if data.from_agent is not None:
+                otel_span.set_attribute(INPUT_VALUE, data.from_agent)
+            if data.to_agent is not None:
+                otel_span.set_attribute(OUTPUT_VALUE, data.to_agent)
             # Set this dict to find the parent node when the agent span starts
             if data.to_agent and data.from_agent:
                 key = f"{data.to_agent}:{span.trace_id}"
-                self._reverse_handoffs_dict[key] = data.from_agent
-                # Cap the size of the dict
-                while len(self._reverse_handoffs_dict) > self._MAX_HANDOFFS_IN_FLIGHT:
-                    self._reverse_handoffs_dict.popitem(last=False)
+                with self._lock:
+                    self._reverse_handoffs_dict[key] = data.from_agent
+                    # Cap the size of the dict
+                    while len(self._reverse_handoffs_dict) > self._MAX_HANDOFFS_IN_FLIGHT:
+                        self._reverse_handoffs_dict.popitem(last=False)
         elif isinstance(data, AgentSpanData):
             otel_span.set_attribute(GRAPH_NODE_ID, data.name)
+            otel_span.set_attribute(AGENT_NAME, data.name)
             # Lookup the parent node if exists
             key = f"{data.name}:{span.trace_id}"
-            if parent_node := self._reverse_handoffs_dict.pop(key, None):
+            with self._lock:
+                parent_node = self._reverse_handoffs_dict.pop(key, None)
+            if parent_node:
                 otel_span.set_attribute(GRAPH_NODE_PARENT_ID, parent_node)
 
         end_time: Optional[int] = None
@@ -858,6 +906,7 @@ TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
+AGENT_NAME = SpanAttributes.AGENT_NAME
 
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
