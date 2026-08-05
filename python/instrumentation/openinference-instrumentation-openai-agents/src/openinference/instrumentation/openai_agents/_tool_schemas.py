@@ -43,13 +43,12 @@ TOOL_EXECUTION_ATTRIBUTE = "execute_function_tool_calls"
 # Modules that have defined, re-exported or called the step across SDK versions. Imported
 # before scanning so that every binding is visible; the scan, not this list, decides what
 # gets patched, so a module missing here only needs adding if nothing else imports it.
+# The run internals were split out of agents._run_impl into this package in 0.8.0, below
+# the supported floor, so only the split layout is listed.
 _TOOL_EXECUTION_MODULES: tuple[str, ...] = (
-    # 0.18+, after the run internals were split up
     "agents.run_internal.tool_execution",
     "agents.run_internal.tool_planning",
     "agents.run_internal.run_loop",
-    # 0.2.x through 0.17
-    "agents._run_impl",
 )
 
 
@@ -64,16 +63,6 @@ def find_tool_execution_bindings() -> list[tuple[Any, str]]:
     comparison so an already-patched binding still matches.
     """
     bindings: list[tuple[Any, str]] = []
-
-    # Up to 0.17 the step was a classmethod, so the owner is the class rather than a module.
-    try:
-        run_impl = importlib.import_module("agents._run_impl")
-        run_impl_class = getattr(run_impl, "RunImpl", None)
-        if run_impl_class is not None and TOOL_EXECUTION_ATTRIBUTE in run_impl_class.__dict__:
-            bindings.append((run_impl_class, TOOL_EXECUTION_ATTRIBUTE))
-    except Exception:
-        logger.debug("agents._run_impl.RunImpl not present", exc_info=True)
-
     canonical: Optional[Any] = None
     for module_name in _TOOL_EXECUTION_MODULES:
         try:

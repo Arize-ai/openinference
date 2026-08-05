@@ -37,8 +37,8 @@ def _patch_tool_execution() -> Optional[list[tuple[Any, str, Any]]]:
     patched: list[tuple[Any, str, Any]] = []
     for owner, attribute in find_tool_execution_bindings():
         try:
-            # Read from __dict__ so a classmethod is captured as its descriptor and can be
-            # restored exactly, rather than as the bound method getattr would return.
+            # Read from __dict__ so whatever the owner really holds is captured and can be
+            # restored exactly, rather than anything getattr would synthesise on the way out.
             original = owner.__dict__[attribute]
             setattr(
                 owner, attribute, FunctionWrapper(original, make_execute_function_tools_wrapper())

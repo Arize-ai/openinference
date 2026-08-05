@@ -16,31 +16,22 @@ import json
 from typing import Any, Optional
 
 import pytest
-
-try:
-    from agents.tracing.span_data import (
-        AgentSpanData,
-        CustomSpanData,
-        FunctionSpanData,
-        GenerationSpanData,
-        GuardrailSpanData,
-        HandoffSpanData,
-        ResponseSpanData,
-        SpanData,
-    )
-    from openai.types.responses import (
-        FunctionTool,
-        Response,
-        ResponseOutputMessage,
-        ResponseOutputText,
-    )
-except ImportError:
-    # Handle compatibility issue with OpenAI SDK >=1.103.0 where WebSearchToolFilters was removed
-    # Introduced in: https://github.com/openai/openai-python/commit/3d3d16a
-    pytest.skip(
-        "agents package incompatible with current OpenAI SDK version", allow_module_level=True
-    )
-
+from agents.tracing.span_data import (
+    AgentSpanData,
+    CustomSpanData,
+    FunctionSpanData,
+    GenerationSpanData,
+    GuardrailSpanData,
+    HandoffSpanData,
+    ResponseSpanData,
+    SpanData,
+)
+from openai.types.responses import (
+    FunctionTool,
+    Response,
+    ResponseOutputMessage,
+    ResponseOutputText,
+)
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor

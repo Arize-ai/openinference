@@ -13,25 +13,15 @@ import json
 from typing import Any, Callable
 
 import pytest
-
-try:
-    import agents
-    from agents import Agent, Runner, function_tool
-    from agents.items import ModelResponse
-    from agents.models.interface import Model
-    from agents.usage import Usage
-    from openai.types.responses import (
-        ResponseFunctionToolCall,
-        ResponseOutputMessage,
-        ResponseOutputText,
-    )
-except ImportError:
-    # Handle compatibility issue with OpenAI SDK >=1.103.0 where WebSearchToolFilters was removed
-    # Introduced in: https://github.com/openai/openai-python/commit/3d3d16a
-    pytest.skip(
-        "agents package incompatible with current OpenAI SDK version", allow_module_level=True
-    )
-
+from agents import Agent, Runner, function_tool, tool_namespace
+from agents.items import ModelResponse
+from agents.models.interface import Model
+from agents.usage import Usage
+from openai.types.responses import (
+    ResponseFunctionToolCall,
+    ResponseOutputMessage,
+    ResponseOutputText,
+)
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -54,10 +44,6 @@ from openinference.instrumentation.openai_agents._tool_schemas import (
     make_execute_function_tools_wrapper,
     schemas_from_tool_runs,
 )
-
-# Reached through getattr rather than imported: openai-agents < 0.11.0 has no tool
-# namespaces, and a static reference fails type checking against the pinned version.
-_HAS_TOOL_NAMESPACE = hasattr(agents, "tool_namespace")
 
 _DESCRIPTION = "Get the current weather for a city."
 
@@ -153,16 +139,11 @@ async def test_function_span_reports_tool_schema_end_to_end(
     assert parameters["required"] == ["city"]
 
 
-@pytest.mark.skipif(
-    not _HAS_TOOL_NAMESPACE, reason="agents.tool_namespace requires openai-agents >= 0.11.0"
-)
 async def test_namespaced_tool_reports_tool_schema_end_to_end(
     exporter_and_instrumentation: InMemorySpanExporter,
 ) -> None:
-    """From 0.11 the SDK names the span "<namespace>.<name>" while FunctionTool.name stays
-    bare, so keying the schemas by the tool name alone loses both attributes here."""
-    tool_namespace = getattr(agents, "tool_namespace")
-
+    """The SDK names the span "<namespace>.<name>" while FunctionTool.name stays bare, so
+    keying the schemas by the tool name alone loses both attributes here."""
     exporter = exporter_and_instrumentation
     # Widened because Agent.tools is an invariant list of the full Tool union.
     tools: list[Any] = list(
