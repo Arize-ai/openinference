@@ -208,6 +208,29 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             },
           );
 
+          // The span can be ended by the parse path, the asResponse() override, or
+          // an error, so guard against ending it more than once.
+          let spanEnded = false;
+          const endSpan = () => {
+            if (spanEnded) {
+              return;
+            }
+            spanEnded = true;
+            span.end();
+          };
+
+          const recordError = (error: Error) => {
+            if (spanEnded) {
+              return;
+            }
+            span.recordException(error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
+            });
+            endSpan();
+          };
+
           const wrappedPromiseThen = (
             result: Anthropic.Messages.Message | Stream<Anthropic.Messages.RawMessageStreamEvent>,
           ) => {
@@ -222,7 +245,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 ...getAnthropicUsageAttributes(result.usage),
               });
               span.setStatus({ code: SpanStatusCode.OK });
-              span.end();
+              endSpan();
             } else if (isAnthropicStream(result)) {
               // This is a streaming response
               // handle the chunks and add them to the span
@@ -235,24 +258,42 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             return result;
           };
 
-          const recordError = (error: Error) => {
-            span.recordException(error);
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: error.message,
-            });
-            span.end();
-          };
-
           // Use _thenUnwrap so the result stays an APIPromise and keeps
           // withResponse()/asResponse(). Plain .then() would drop them and break
           // client.messages.stream().
           if (hasThenUnwrap(execPromise)) {
             const wrappedPromise = execPromise._thenUnwrap(wrappedPromiseThen);
-            // Watch for failures via asResponse() instead of then(). then() would
-            // eagerly parse and consume the body, leaving asResponse() callers with
-            // an already-read response.
-            wrappedPromise.asResponse().catch(recordError);
+            const rawResponse = wrappedPromise.asResponse.bind(wrappedPromise);
+
+            // Record request failures without triggering parse (which would consume
+            // the body). Covers the await/withResponse and asResponse paths.
+            rawResponse().catch(recordError);
+
+            // Wrap asResponse() itself so the span is finalized only when the caller
+            // actually chooses the raw-response path. Those callers bypass parsing,
+            // so no parsed output attributes are available.
+            wrappedPromise.asResponse = async () => {
+              const response = await rawResponse();
+              span.setStatus({ code: SpanStatusCode.OK });
+              endSpan();
+              return response;
+            };
+
+            // withResponse() calls this.asResponse() internally; reimplement it
+            // against the raw response so the override above doesn't end the span
+            // before wrappedPromiseThen records the output.
+            wrappedPromise.withResponse = async () => {
+              const [data, response] = await Promise.all([
+                wrappedPromise.then((value) => value),
+                rawResponse(),
+              ]);
+              return {
+                data,
+                response,
+                request_id: response.headers.get("request-id"),
+              };
+            };
+
             return context.bind(execContext, wrappedPromise);
           }
 

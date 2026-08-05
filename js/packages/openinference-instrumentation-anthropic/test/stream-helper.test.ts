@@ -113,6 +113,41 @@ describe("AnthropicInstrumentation - APIPromise compatibility", () => {
     expect(response.bodyUsed).toBe(false);
     const body = (await response.json()) as { role: string };
     expect(body.role).toBe("assistant");
+
+    // The raw-response path bypasses parsing, so the span is finalized with OK
+    // status (no parsed output attributes) instead of leaking open.
+    await waitForSpans(1);
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+  });
+
+  it("records errors and ends one span when asResponse() rejects", async () => {
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY ?? "fake-api-key",
+      maxRetries: 0,
+      fetch: (async () =>
+        new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error" } }), {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        })) as typeof fetch,
+    });
+
+    await expect(
+      client.messages
+        .create({
+          model: "claude-sonnet-4-6",
+          max_tokens: 2048,
+          messages: [{ role: "user", content: "hi" }],
+        })
+        .asResponse(),
+    ).rejects.toThrow();
+
+    await waitForSpans(1);
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    expect(spans[0].status.code).toBe(SpanStatusCode.ERROR);
+    expect(spans[0].events.map((event) => event.name)).toContain("exception");
   });
 
   it("records errors on the span and still rejects the caller", async () => {
