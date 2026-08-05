@@ -1,5 +1,26 @@
 # @arizeai/openinference-instrumentation-claude-agent-sdk
 
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
+## 0.2.9
+
+### Patch Changes
+
+- 2819fcb: Fix native ESM instrumentation for Claude Agent SDK module namespaces whose exports cannot be reassigned.
+
 ## 0.2.8
 
 ### Patch Changes

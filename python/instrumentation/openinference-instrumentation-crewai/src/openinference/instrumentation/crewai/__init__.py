@@ -45,6 +45,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_short_term_memory_save",
         "_original_short_term_memory_search",
         "_original_base_tool_run",
+        "_original_tool_run",
         "_original_agent_kickoff",
         "_tracer",
         "_event_listener",
@@ -237,6 +238,26 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             base_tool_run_wrapper,
         )
 
+        # The ``@tool`` decorator (and crewai's native tool-calling loop) executes
+        # tools via ``Tool.run``, not ``BaseTool.run``: crewai registers the bound
+        # ``tool.run`` as the callable in ``available_functions`` (see
+        # crewai.utilities.agent_utils), and ``Tool`` overrides ``run`` without
+        # calling ``super().run()``. Wrapping only ``BaseTool.run`` therefore misses
+        # every ``@tool`` invocation. Wrap ``Tool.run`` as well when the subclass
+        # actually overrides it (guarded so we don't double-wrap the inherited
+        # method on crewai versions where ``Tool`` doesn't override ``run``).
+        base_tool_module = import_module("crewai.tools.base_tool")
+        tool_cls = getattr(base_tool_module, "Tool", None)
+        self._original_tool_run = None
+        if tool_cls is not None and "run" in tool_cls.__dict__:
+            tool_run_wrapper = _BaseToolRunWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+            self._original_tool_run = tool_cls.__dict__["run"]
+            wrap_function_wrapper(
+                "crewai.tools.base_tool",
+                "Tool.run",
+                tool_run_wrapper,
+            )
+
     def _uninstrument(self, **kwargs: Any) -> None:
         if getattr(self, "_event_listener", None) is not None:
             self._event_listener.shutdown()
@@ -298,5 +319,10 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             base_tool_module = import_module("crewai.tools.base_tool")
             base_tool_module.BaseTool.run = self._original_base_tool_run
             self._original_base_tool_run = None
+
+        if getattr(self, "_original_tool_run", None) is not None:
+            base_tool_module = import_module("crewai.tools.base_tool")
+            base_tool_module.Tool.run = self._original_tool_run
+            self._original_tool_run = None
 
         self._restore_context_thread_propagation()

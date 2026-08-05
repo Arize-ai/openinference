@@ -76,6 +76,10 @@ const PATCHABLE_EXPORTS = [
  * Returns true if function exports can be assigned in place.
  * Native ESM namespace descriptors can report writable: true while [[Set]]
  * still rejects assignment, so this must probe assignment instead.
+ *
+ * The probe must assign a *different* value and verify it sticks:
+ * - SameValue reassignment can succeed on setters that still reject wrappers
+ * - No-op setters can accept assignment without changing the exported function
  */
 function canPatchInPlace(module: ClaudeAgentSDKModule): boolean {
   const exports = module as Record<(typeof PATCHABLE_EXPORTS)[number], unknown>;
@@ -84,10 +88,27 @@ function canPatchInPlace(module: ClaudeAgentSDKModule): boolean {
     if (typeof current !== "function") {
       return true;
     }
+    const restore = () => {
+      try {
+        exports[name] = current;
+      } catch {
+        // Ignore restore failures (e.g. native ESM namespaces).
+      }
+    };
     try {
+      // Use a distinct probe function — SameValue writes are not a mutability check.
+      const probe = function openInferencePatchProbe() {
+        /* empty */
+      };
+      exports[name] = probe;
+      if (exports[name] !== probe) {
+        restore();
+        return false;
+      }
       exports[name] = current;
       return true;
     } catch {
+      restore();
       return false;
     }
   });

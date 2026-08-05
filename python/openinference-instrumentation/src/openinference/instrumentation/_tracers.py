@@ -60,6 +60,7 @@ from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
+    mask_without_externalization,
 )
 from .context_attributes import get_attributes_from_context
 
@@ -209,10 +210,17 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         This ensures samplers don't see sensitive data that should be masked
         according to the TraceConfig, while maintaining the same masking logic
         as OpenInferenceSpan.
+
+        Masking runs with ``externalize=False`` — a pure view with no side
+        effects — because this happens before the suppression check and
+        before the sampler: blob uploads must not fire for suppressed or
+        sampled-out spans, and must not run twice for sampled-in spans
+        (the real, uploader-enabled masking happens exactly once in
+        ``OpenInferenceSpan.set_attribute`` after the span exists).
         """
         masked_attributes = {}
         for key, value in attributes.items():
-            masked_value = self._self_config.mask(key, value)
+            masked_value = mask_without_externalization(self._self_config, key, value)
             if masked_value is not None:
                 masked_attributes[key] = masked_value
         return masked_attributes
@@ -280,6 +288,126 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
         return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.CHAIN, name=name)
+
+    @overload  # for @tracer.retriever usage (no parameters)
+    def retriever(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.retriever(name="name") usage (with parameters)
+    def retriever(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def retriever(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.RETRIEVER, name=name)
+
+    @overload  # for @tracer.reranker usage (no parameters)
+    def reranker(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.reranker(name="name") usage (with parameters)
+    def reranker(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def reranker(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.RERANKER, name=name)
+
+    @overload  # for @tracer.guardrail usage (no parameters)
+    def guardrail(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.guardrail(name="name") usage (with parameters)
+    def guardrail(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def guardrail(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.GUARDRAIL, name=name)
+
+    @overload  # for @tracer.evaluator usage (no parameters)
+    def evaluator(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.evaluator(name="name") usage (with parameters)
+    def evaluator(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def evaluator(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.EVALUATOR, name=name)
 
     def _chain(
         self,
