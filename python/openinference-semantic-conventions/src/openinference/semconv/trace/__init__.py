@@ -91,9 +91,12 @@ class SpanAttributes:
     The number of audio tokens in the completion (in tokens).
     """
     LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = "llm.token_count.completion_details.reasoning"
-    LLM_TOKEN_COUNT_COMPLETION_DETAILS_TEXT = "llm.token_count.completion_details.text"
     """
     Number of tokens used for reasoning steps in the completion (in tokens).
+    """
+    LLM_TOKEN_COUNT_COMPLETION_DETAILS_TEXT = "llm.token_count.completion_details.text"
+    """
+    The number of text tokens in the completion (in tokens).
     """
     LLM_TOKEN_COUNT_PROMPT = "llm.token_count.prompt"
     """
