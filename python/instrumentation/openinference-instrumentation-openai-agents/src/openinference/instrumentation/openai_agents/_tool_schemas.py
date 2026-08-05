@@ -101,8 +101,30 @@ def get_tool_schema(tool_name: str) -> Optional[ToolSchema]:
     return _tool_schemas.get().get(tool_name)
 
 
+def span_name_for_tool(name: str, namespace: Optional[str]) -> str:
+    """The name the SDK will give the function span for this tool.
+
+    Mirrors ``agents._tool_identity.tool_trace_name`` rather than importing it, since that
+    module is private and did not exist before 0.11. A namespace is prefixed, except for
+    the reserved synthetic shape a deferred top-level tool uses -- namespace equal to the
+    tool name -- where the SDK keeps the bare name.
+    """
+    if not namespace or namespace == name:
+        return name
+    return f"{namespace}.{name}"
+
+
 def schemas_from_tool_runs(tool_runs: Any) -> dict[str, ToolSchema]:
-    """Extract ``{tool name: schema}`` from the SDK's list of pending tool runs.
+    """Extract ``{function span name: schema}`` from the SDK's list of pending tool runs.
+
+    Keyed by the name the span will carry rather than by ``FunctionTool.name``, because
+    since 0.11 those differ: a tool grouped by ``tool_namespace()`` keeps a bare ``name``
+    but its span is named ``"<namespace>.<name>"``, so a bare key would never match.
+
+    A namespaced tool deliberately does not also claim the bare key. Two tools of the same
+    name in different namespaces are legal, as is a namespaced tool alongside a plain one,
+    and letting either write the bare key would hand a plain tool's span the wrong schema.
+    Missing a key costs the two attributes; a wrong key reports a tool that was not called.
 
     Written defensively with ``getattr`` because it reads a private SDK dataclass: an
     unexpected shape should cost the two attributes, not raise inside a tool call.
@@ -122,7 +144,9 @@ def schemas_from_tool_runs(tool_runs: Any) -> dict[str, ToolSchema]:
         parameters = getattr(tool, "params_json_schema", None)
         if parameters is None:
             parameters = getattr(tool, "parameters", None)
-        schemas[name] = (
+        # Private, and absent before 0.11 -- getattr keeps this a no-op on older SDKs.
+        namespace = getattr(tool, "_tool_namespace", None)
+        schemas[span_name_for_tool(name, namespace if isinstance(namespace, str) else None)] = (
             description if isinstance(description, str) else None,
             safe_json_dumps(parameters) if parameters is not None else None,
         )

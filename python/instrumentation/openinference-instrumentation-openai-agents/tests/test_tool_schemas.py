@@ -10,11 +10,12 @@ attributes land on the exported span.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
 try:
+    import agents
     from agents import Agent, Runner, function_tool
     from agents.items import ModelResponse
     from agents.models.interface import Model
@@ -54,6 +55,10 @@ from openinference.instrumentation.openai_agents._tool_schemas import (
     schemas_from_tool_runs,
 )
 
+# Reached through getattr rather than imported: openai-agents < 0.11.0 has no tool
+# namespaces, and a static reference fails type checking against the pinned version.
+_HAS_TOOL_NAMESPACE = hasattr(agents, "tool_namespace")
+
 _DESCRIPTION = "Get the current weather for a city."
 
 
@@ -63,23 +68,29 @@ def get_weather(city: str) -> str:
     return f"21C and sunny in {city}"
 
 
-class _FakeModel(Model):
-    """Calls get_weather on the first turn, then answers."""
+def _plain_tool_call() -> Any:
+    return ResponseFunctionToolCall(
+        type="function_call",
+        call_id="call-1",
+        name="get_weather",
+        arguments='{"city":"London"}',
+    )
 
-    def __init__(self) -> None:
+
+class _FakeModel(Model):
+    """Calls get_weather on the first turn, then answers.
+
+    ``tool_call`` builds the call the model asks for, so a test can vary its wire shape.
+    """
+
+    def __init__(self, tool_call: Callable[[], Any] = _plain_tool_call) -> None:
         self.calls = 0
+        self.tool_call = tool_call
 
     async def get_response(self, *args: Any, **kwargs: Any) -> Any:
         self.calls += 1
         if self.calls == 1:
-            output: list[Any] = [
-                ResponseFunctionToolCall(
-                    type="function_call",
-                    call_id="call-1",
-                    name="get_weather",
-                    arguments='{"city":"London"}',
-                )
-            ]
+            output: list[Any] = [self.tool_call()]
         else:
             output = [
                 ResponseOutputMessage(
@@ -140,6 +151,45 @@ async def test_function_span_reports_tool_schema_end_to_end(
     parameters = json.loads(str(attrs["tool.parameters"]))
     assert "city" in parameters["properties"]
     assert parameters["required"] == ["city"]
+
+
+@pytest.mark.skipif(
+    not _HAS_TOOL_NAMESPACE, reason="agents.tool_namespace requires openai-agents >= 0.11.0"
+)
+async def test_namespaced_tool_reports_tool_schema_end_to_end(
+    exporter_and_instrumentation: InMemorySpanExporter,
+) -> None:
+    """From 0.11 the SDK names the span "<namespace>.<name>" while FunctionTool.name stays
+    bare, so keying the schemas by the tool name alone loses both attributes here."""
+    tool_namespace = getattr(agents, "tool_namespace")
+
+    exporter = exporter_and_instrumentation
+    # Widened because Agent.tools is an invariant list of the full Tool union.
+    tools: list[Any] = list(
+        tool_namespace(name="weather", description="Weather tools", tools=[get_weather])
+    )
+
+    def namespaced_call() -> Any:
+        # The namespace travels as its own field on the tool call, not inside the name.
+        call = ResponseFunctionToolCall.model_construct(
+            type="function_call",
+            call_id="call-1",
+            name="get_weather",
+            arguments='{"city":"London"}',
+        )
+        object.__setattr__(call, "namespace", "weather")
+        return call
+
+    agent = Agent(name="WeatherAgent", model=_FakeModel(namespaced_call), tools=tools)
+
+    result = await Runner.run(agent, "What's the weather in London?")
+    assert result.final_output == "It is 21C and sunny."
+
+    attrs = _tool_span(list(exporter.get_finished_spans()))
+    assert attrs["tool.name"] == "weather.get_weather"
+    assert attrs["tool.description"] == _DESCRIPTION
+    parameters = json.loads(str(attrs["tool.parameters"]))
+    assert "city" in parameters["properties"]
 
 
 async def test_agent_name_recorded_end_to_end(
@@ -210,6 +260,59 @@ def test_schema_without_description_records_only_parameters() -> None:
     result = schemas_from_tool_runs([_ToolRun(_Tool("t", params_json_schema={"type": "object"}))])
     assert result["t"][0] is None
     assert result["t"][1] is not None
+
+
+# --- keying: the span name, not the tool name ---------------------------------------
+
+
+def test_namespaced_tool_is_keyed_by_the_name_its_span_will_carry() -> None:
+    """From 0.11 the SDK names a namespaced tool's span "<namespace>.<name>"."""
+    result = schemas_from_tool_runs(
+        [_ToolRun(_Tool("get", "d", params_json_schema={}, _tool_namespace="weather"))]
+    )
+    assert result["weather.get"] == ("d", "{}")
+
+
+def test_namespaced_tool_does_not_claim_the_bare_key() -> None:
+    """A plain tool of the same name must not be handed the namespaced tool's schema.
+
+    The SDK allows both on one agent, and the plain tool's span is named bare.
+    """
+    result = schemas_from_tool_runs(
+        [
+            _ToolRun(_Tool("get", "plain", params_json_schema={})),
+            _ToolRun(_Tool("get", "namespaced", params_json_schema={}, _tool_namespace="weather")),
+        ]
+    )
+    assert result["get"][0] == "plain"
+    assert result["weather.get"][0] == "namespaced"
+
+
+def test_same_tool_name_in_two_namespaces_keeps_both_schemas() -> None:
+    """Bare-name keying collapsed these onto one entry; the SDK permits both."""
+    result = schemas_from_tool_runs(
+        [
+            _ToolRun(_Tool("get", "w", params_json_schema={}, _tool_namespace="weather")),
+            _ToolRun(_Tool("get", "c", params_json_schema={}, _tool_namespace="calendar")),
+        ]
+    )
+    assert result["weather.get"][0] == "w"
+    assert result["calendar.get"][0] == "c"
+
+
+def test_reserved_synthetic_namespace_is_keyed_by_the_bare_name() -> None:
+    """A deferred top-level tool sets namespace == name, and the SDK keeps the span bare."""
+    result = schemas_from_tool_runs(
+        [_ToolRun(_Tool("get", "d", params_json_schema={}, _tool_namespace="get"))]
+    )
+    assert result["get"] == ("d", "{}")
+
+
+def test_namespace_of_an_unexpected_type_falls_back_to_the_bare_name() -> None:
+    result = schemas_from_tool_runs(
+        [_ToolRun(_Tool("get", "d", params_json_schema={}, _tool_namespace=object()))]
+    )
+    assert result["get"] == ("d", "{}")
 
 
 # --- publication scope --------------------------------------------------------------
