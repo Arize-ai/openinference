@@ -158,15 +158,20 @@ class _PipelineInitWrapper:
             getattr(instance, "_debug_log_filename", None) or self._default_debug_log_filename
         )
 
+        no_responder_timeout_secs = getattr(instance, "_no_responder_timeout_secs", None)
+
         from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
 
-        observer = OpenInferenceObserver(
-            tracer=self._tracer,  # type: ignore[arg-type,unused-ignore]
+        observer_kwargs: Dict[str, Any] = dict(
+            tracer=self._tracer,
             config=self._config,
             conversation_id=conversation_id,
             debug_log_filename=debug_log_filename,
             additional_span_attributes=additional_span_attributes,
         )
+        if no_responder_timeout_secs is not None:
+            observer_kwargs["no_responder_timeout_secs"] = no_responder_timeout_secs
+        observer = OpenInferenceObserver(**observer_kwargs)
 
         # Inject observer into task
         instance.add_observer(observer)
@@ -178,3 +183,5 @@ class _PipelineInitWrapper:
             logger.info(f"Additional span attributes: {str(additional_span_attributes)}")
         if conversation_id:
             logger.info(f"Conversation ID: {conversation_id}")
+        if no_responder_timeout_secs is not None:
+            logger.info(f"No responder timeout secs: {no_responder_timeout_secs}")
