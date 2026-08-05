@@ -76,6 +76,7 @@ const (
 	LLMTokenCountCompletion                 = "llm.token_count.completion"
 	LLMTokenCountCompletionDetailsAudio     = "llm.token_count.completion_details.audio"
 	LLMTokenCountCompletionDetailsReasoning = "llm.token_count.completion_details.reasoning"
+	LLMTokenCountCompletionDetailsText      = "llm.token_count.completion_details.text"
 	LLMTokenCountTotal                      = "llm.token_count.total"
 )
 
