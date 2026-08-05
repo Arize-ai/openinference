@@ -506,6 +506,38 @@ def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[s
     yield INPUT_VALUE, safe_json_dumps(arguments)
 
 
+def _finish_model_span(
+    span: trace_api.Span,
+    model: Any,
+    arguments: Mapping[str, Any],
+    output_message: Any,
+) -> None:
+    span.set_status(trace_api.StatusCode.OK)
+    token_usage = getattr(output_message, "token_usage", None)
+    if token_usage:
+        input_tokens = token_usage.input_tokens
+        output_tokens = token_usage.output_tokens
+        total_tokens = token_usage.total_tokens
+    else:
+        input_tokens = model.last_input_token_count
+        output_tokens = model.last_output_token_count
+        total_tokens = input_tokens + output_tokens
+    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
+    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
+    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total_tokens)
+    span.set_attribute(LLM_MODEL_NAME, model.model_id)
+    provider = infer_llm_provider_from_class_name(model)
+    if provider is None and (host := extract_llm_endpoint_from_sdk_instance(model)):
+        provider = infer_llm_provider_from_host(host)
+    if provider:
+        span.set_attribute(LLM_PROVIDER, provider.value)
+    if system := infer_llm_system_from_model_name(model.model_id):
+        span.set_attribute(LLM_SYSTEM, system.value)
+    span.set_attributes(_llm_output_messages(output_message))
+    span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
+    span.set_attributes(dict(_output_value_and_mime_type(output_message)))
+
+
 class _ModelWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -537,31 +569,72 @@ class _ModelWrapper:
             },
         ) as span:
             output_message = wrapped(*args, **kwargs)
-            span.set_status(trace_api.StatusCode.OK)
-            token_usage = getattr(output_message, "token_usage", None)
-            if token_usage:
-                input_tokens = token_usage.input_tokens
-                output_tokens = token_usage.output_tokens
-                total_tokens = token_usage.total_tokens
-            else:
-                input_tokens = model.last_input_token_count
-                output_tokens = model.last_output_token_count
-                total_tokens = input_tokens + output_tokens
-            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
-            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
-            span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total_tokens)
-            span.set_attribute(LLM_MODEL_NAME, model.model_id)
-            provider = infer_llm_provider_from_class_name(instance)
-            if provider is None and (host := extract_llm_endpoint_from_sdk_instance(instance)):
-                provider = infer_llm_provider_from_host(host)
-            if provider:
-                span.set_attribute(LLM_PROVIDER, provider.value)
-            if system := infer_llm_system_from_model_name(model.model_id):
-                span.set_attribute(LLM_SYSTEM, system.value)
-            span.set_attributes(_llm_output_messages(output_message))
-            span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
-            span.set_attributes(dict(_output_value_and_mime_type(output_message)))
+            _finish_model_span(span, model, arguments, output_message)
         return output_message
+
+
+class _ModelStreamWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Generator[Any, None, None]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Generator[Any, None, None]:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        if _has_active_llm_parent_span():
+            return wrapped(*args, **kwargs)
+
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+
+        def wrapped_generator() -> Generator[Any, None, None]:
+            from smolagents.models import agglomerate_stream_deltas
+
+            output_deltas: list[Any] = []
+            span = self._tracer.start_span(
+                f"{instance.__class__.__name__}.generate_stream",
+                attributes={
+                    OPENINFERENCE_SPAN_KIND: LLM,
+                    **dict(_input_value_and_mime_type(arguments)),
+                    **dict(_llm_invocation_parameters(instance, arguments)),
+                    **dict(_llm_input_messages(arguments)),
+                    **dict(get_attributes_from_context()),
+                },
+            )
+
+            def finish_span() -> None:
+                output_message = agglomerate_stream_deltas(output_deltas)
+                _finish_model_span(span, instance, arguments, output_message)
+
+            try:
+                with trace_api.use_span(span, end_on_exit=False):
+                    output_stream = iter(wrapped(*args, **kwargs))
+                while True:
+                    with trace_api.use_span(span, end_on_exit=False):
+                        try:
+                            output_delta = next(output_stream)
+                        except StopIteration:
+                            break
+                    output_deltas.append(output_delta)
+                    yield output_delta
+            except GeneratorExit:
+                with trace_api.use_span(span, end_on_exit=False):
+                    if close := getattr(output_stream, "close", None):
+                        close()
+                    finish_span()
+                raise
+            else:
+                with trace_api.use_span(span, end_on_exit=False):
+                    finish_span()
+            finally:
+                span.end()
+
+        return wrapped_generator()
 
 
 class _ToolCallWrapper:

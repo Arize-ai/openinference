@@ -8,6 +8,9 @@ from opentelemetry import context as context_api
 from opentelemetry.util.types import AttributeValue
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
+# Marks that the current async task is already covered by a Workflow.arun span,
+# so _WorkflowExecuteWrapper should not create its own span.
+_AGNO_ARUN_SPANNED_CONTEXT_KEY = context_api.create_key("agno_workflow_arun_spanned")
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:

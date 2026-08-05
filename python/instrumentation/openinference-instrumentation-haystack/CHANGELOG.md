@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.34...python-openinference-instrumentation-haystack-v0.1.35) (2026-07-30)
+
+
+### Bug Fixes
+
+* **haystack:** support haystack-ai 3.0.0 ([#3428](https://github.com/Arize-ai/openinference/issues/3428)) ([480e51f](https://github.com/Arize-ai/openinference/commit/480e51f15d92c33e521be477f4be648f1b70e5bd))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.33...python-openinference-instrumentation-haystack-v0.1.34) (2026-05-18)
 
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.0...python-openinference-instrumentation-agno-v1.0.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* **agno:** disable agno telemetry in tests to stop background-run CI timeouts ([#3467](https://github.com/Arize-ai/openinference/issues/3467)) ([0e63729](https://github.com/Arize-ai/openinference/commit/0e63729a5288cf1b54ba977ffb19420248b3fc7e))
+
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.38...python-openinference-instrumentation-agno-v1.0.0) (2026-07-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agno:** Handle Background Workflow Runs ([#3301](https://github.com/Arize-ai/openinference/issues/3301))
+
+### Bug Fixes
+
+* **agno:** Handle Background Workflow Runs ([#3301](https://github.com/Arize-ai/openinference/issues/3301)) ([4254eea](https://github.com/Arize-ai/openinference/commit/4254eeaa702cda4518e09b3e44a288091176cd6c))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.37...python-openinference-instrumentation-agno-v0.1.38) (2026-06-19)
 
 

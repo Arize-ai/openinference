@@ -18,6 +18,7 @@ from ._genai_conversion import get_genai_attributes
 from ._types import OpenInferenceMimeType
 from .config import (
     TraceConfig,
+    mask_without_externalization,
 )
 
 _IMPORTANT_ATTRIBUTES = [
@@ -30,6 +31,7 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         super().__init__(wrapped)
         self._self_config = config
         self._self_important_attributes: Dict[str, AttributeValue] = {}
+        self._self_ended = False
 
     def set_attributes(self, attributes: "Mapping[str, AttributeValue]") -> None:
         for k, v in attributes.items():
@@ -40,15 +42,33 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         key: str,
         value: Union[AttributeValue, Callable[[], AttributeValue]],
     ) -> None:
+        if key in _IMPORTANT_ATTRIBUTES:
+            # Always bookkeep important attributes (e.g. the OpenInference
+            # span kind) so helpers like set_input keep working even on
+            # non-recording spans.
+            masked_value = self._self_config.mask(key, value)
+            if masked_value is not None:
+                self._self_important_attributes[key] = masked_value
+            return
+        if not self.is_recording():
+            # Setting attributes on a non-recording span is a no-op anyway;
+            # returning early keeps masking side effects (notably blob
+            # uploads) from running for spans nobody will see. For spans
+            # that already ended, forward the (side-effect-free) masked
+            # value so the SDK still surfaces its "Setting attribute on
+            # ended span" warning — the value is dropped either way.
+            if self._self_ended:
+                masked_value = mask_without_externalization(self._self_config, key, value)
+                if masked_value is not None:
+                    cast(Span, self.__wrapped__).set_attribute(key, masked_value)
+            return
         masked_value = self._self_config.mask(key, value)
         if masked_value is not None:
-            if key in _IMPORTANT_ATTRIBUTES:
-                self._self_important_attributes[key] = masked_value
-            else:
-                span = cast(Span, self.__wrapped__)
-                span.set_attribute(key, masked_value)
+            span = cast(Span, self.__wrapped__)
+            span.set_attribute(key, masked_value)
 
     def end(self, end_time: Optional[int] = None) -> None:
+        self._self_ended = True
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
