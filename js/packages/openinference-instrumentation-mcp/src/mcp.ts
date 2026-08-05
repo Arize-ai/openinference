@@ -1,11 +1,11 @@
-import type * as ClientSSEModule from "@modelcontextprotocol/sdk/client/sse";
-import type * as ClientStdioModule from "@modelcontextprotocol/sdk/client/stdio";
-import type * as ClientStreamableHTTPModule from "@modelcontextprotocol/sdk/client/streamableHttp";
-import type * as ServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
-import type * as ServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
-import type * as ServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport";
-import type { JSONRPCMessage, JSONRPCRequest } from "@modelcontextprotocol/sdk/types";
+import type * as ClientSSEModule from "@modelcontextprotocol/sdk/client/sse.js";
+import type * as ClientStdioModule from "@modelcontextprotocol/sdk/client/stdio.js";
+import type * as ClientStreamableHTTPModule from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type * as ServerSSEModule from "@modelcontextprotocol/sdk/server/sse.js";
+import type * as ServerStdioModule from "@modelcontextprotocol/sdk/server/stdio.js";
+import type * as ServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type { JSONRPCMessage, JSONRPCRequest } from "@modelcontextprotocol/sdk/types.js";
 import { context, diag, propagation } from "@opentelemetry/api";
 import type { InstrumentationConfig } from "@opentelemetry/instrumentation";
 import {

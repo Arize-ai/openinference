@@ -11,6 +11,7 @@ OpenTelemetry defines a universal wire format and SDK model for distributed trac
 - **Agentic control flow** — Modern AI systems route through reasoning loops, delegate to sub-agents, invoke tools, and query retrieval systems. Each hop needs a consistent identity and span-kind taxonomy for the trace to be interpretable.
 - **Privacy sensitivity** — Prompts and completions frequently contain personal information and must be maskable before export, with per-field granularity.
 - **Nondeterminism** — LLM outputs are stochastic; traces must carry enough context to reproduce — or at least explain — a particular execution.
+- **Quality feedback** — Human reviewers, LLM judges, and code-based evaluators produce scores, labels, and explanations that must remain associated with the operation they assess as telemetry moves between systems.
 
 OpenInference solves these problems by defining a concrete attribute schema and span-kind taxonomy on top of OpenTelemetry spans. Every OpenInference trace is a valid OTLP trace; the conventions give attribute names their AI-specific meaning.
 
@@ -72,6 +73,7 @@ The [Semantic Conventions](./semantic_conventions.md) document is the authoritat
 
 ### Attribute Conventions
 
+- [Annotations and Evaluations](./annotations.md) — Span-, trace-, and session-scoped feedback from human, LLM, and code judges
 - [Tool Calling](./tool_calling.md) — Function/tool call and result representation
 - [Multimodal Attributes](./multimodal_attributes.md) — Image, audio, and mixed-content messages
 

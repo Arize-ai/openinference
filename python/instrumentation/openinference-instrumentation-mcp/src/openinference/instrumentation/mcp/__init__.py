@@ -1,3 +1,4 @@
+import contextvars
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Callable, Collection, Tuple
@@ -83,12 +84,13 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     @asynccontextmanager
     async def _wrap_transport_with_callback(
         self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
-    ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter", Any], None]:
-        async with wrapped(*args, **kwargs) as (read_stream, write_stream, get_session_id_callback):
+    ) -> AsyncGenerator[Tuple[Any, ...], None]:
+        async with wrapped(*args, **kwargs) as streams:
+            read_stream, write_stream, *extra = streams
             yield (
                 InstrumentedStreamReader(read_stream),  # type: ignore[no-untyped-call,unused-ignore]
                 InstrumentedStreamWriter(write_stream),  # type: ignore[no-untyped-call,unused-ignore]
-                get_session_id_callback,
+                *extra,
             )
 
     @asynccontextmanager
@@ -114,6 +116,11 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
 
 
 class InstrumentedStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    @property
+    def last_context(self) -> contextvars.Context | None:
+        """Context snapshot used by the MCP 2.0 dispatcher for spawned handlers."""
+        return getattr(self, "_self_last_context", None)
+
     # ObjectProxy missing context manager - https://github.com/GrahamDumpleton/wrapt/issues/73
     async def __aenter__(self) -> Any:
         return await self.__wrapped__.__aenter__()
@@ -126,13 +133,18 @@ class InstrumentedStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,t
         from mcp.types import JSONRPCRequest
 
         async for item in self.__wrapped__:
+            self._self_last_context = contextvars.copy_context()
+
             # Handle exceptions and other non-SessionMessage items
             # MCP can pass ValidationError or other exceptions through the stream
             if not isinstance(item, SessionMessage):
                 yield item
                 continue
 
-            request = item.message.root
+            # mcp < 2.0 wraps the JSON-RPC payload in a pydantic RootModel exposed as
+            # `.root`; mcp >= 2.0 stores the union member directly on `.message`.
+            message = item.message
+            request = getattr(message, "root", message)
 
             if not isinstance(request, JSONRPCRequest):
                 yield item
@@ -144,6 +156,7 @@ class InstrumentedStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,t
                     ctx = propagate.extract(meta)
                     restore = context.attach(ctx)
                     try:
+                        self._self_last_context = contextvars.copy_context()
                         yield item
                         continue
                     finally:
@@ -168,7 +181,10 @@ class InstrumentedStreamWriter(ObjectProxy):  # type: ignore[misc,name-defined,t
         if not isinstance(item, SessionMessage):
             return await self.__wrapped__.send(item)
 
-        request = item.message.root
+        # mcp < 2.0 wraps the JSON-RPC payload in a pydantic RootModel exposed as
+        # `.root`; mcp >= 2.0 stores the union member directly on `.message`.
+        message = item.message
+        request = getattr(message, "root", message)
         if not isinstance(request, JSONRPCRequest):
             return await self.__wrapped__.send(item)
         meta = None
