@@ -75,9 +75,11 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         self._tracer = tracer
         # Guards the capped insert into _reverse_handoffs_dict below, which is the only
         # read-modify-write here: every other access to the dicts on this object is a
-        # single subscript, pop or get, which CPython already performs atomically. The SDK
-        # invokes these callbacks on whichever thread is running the agent, so a process
-        # driving Runner.run_sync from several threads reaches them concurrently.
+        # single subscript, pop or get. Those are atomic because every key here is a str,
+        # so the operation never re-enters the interpreter to hash or compare -- a key
+        # with a Python-level __hash__ or __eq__ would not get that. The SDK invokes these
+        # callbacks on whichever thread is running the agent, so a process driving
+        # Runner.run_sync from several threads reaches them concurrently.
         self._lock = threading.Lock()
         # Spans and traces still in flight, deliberately unbounded. The number of
         # simultaneously open spans scales with how many runs are in flight, so any cap
@@ -164,16 +166,14 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         if otel_span is None:
             return
         otel_span.update_name(_get_span_name(span))
-        # flatten_attributes: dict[str, AttributeValue] = dict(_flatten(span.export()))
-        # otel_span.set_attributes(flatten_attributes)
         data = span.span_data
         if isinstance(data, ResponseSpanData):
-            if hasattr(data, "response") and isinstance(response := data.response, Response):
+            if isinstance(response := data.response, Response):
                 otel_span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 otel_span.set_attribute(OUTPUT_VALUE, response.model_dump_json())
                 for k, v in _get_attributes_from_response(response):
                     otel_span.set_attribute(k, v)
-            if hasattr(data, "input") and (input := data.input):
+            if input := data.input:
                 if isinstance(input, str):
                     otel_span.set_attribute(INPUT_VALUE, input)
                 elif isinstance(input, list):
@@ -684,7 +684,7 @@ def _get_attributes_from_response_output(
     msg_idx: int = 0,
 ) -> Iterator[tuple[str, AttributeValue]]:
     tool_call_idx = 0
-    for i, item in enumerate(obj):
+    for item in obj:
         if item.type == "message":
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
             yield from _get_attributes_from_message(item, prefix)
@@ -859,19 +859,6 @@ def _get_span_status(obj: Span[Any]) -> Status:
         )
     else:
         return Status(StatusCode.OK)
-
-
-def _flatten(
-    obj: Mapping[str, Any],
-    prefix: str = "",
-) -> Iterator[tuple[str, AttributeValue]]:
-    for key, value in obj.items():
-        if isinstance(value, dict):
-            yield from _flatten(value, f"{prefix}{key}.")
-        elif isinstance(value, (str, int, float, bool, str)):
-            yield f"{prefix}{key}", value
-        else:
-            yield f"{prefix}{key}", str(value)
 
 
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
