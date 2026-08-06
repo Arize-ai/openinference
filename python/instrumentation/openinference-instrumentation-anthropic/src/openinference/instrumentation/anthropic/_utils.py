@@ -37,7 +37,6 @@ def _finish_tracing(
             attributes=attributes,
         )
     except Exception:
-        raise
         logger.exception("Failed to finish tracing")
 
 
