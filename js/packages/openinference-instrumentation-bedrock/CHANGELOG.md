@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.4.21
+
+### Patch Changes
+
+- 3f55abd: Fix the Bedrock instrumentation ESM build by removing runtime imports and exports for AWS SDK types.
+
 ## 0.4.20
 
 ### Patch Changes
