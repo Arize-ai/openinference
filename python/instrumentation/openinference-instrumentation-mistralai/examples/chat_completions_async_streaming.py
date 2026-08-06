@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from mistralai.client import Mistral
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -16,7 +17,9 @@ MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 async def run_async_streaming_chat_completion() -> None:
-    client = Mistral(api_key="redacted")
+    client = Mistral(
+        api_key=os.getenv("MISTRAL_API_KEY", ""),
+    )
     response_stream = await client.chat.stream_async(
         model="mistral-small-latest",
         messages=[

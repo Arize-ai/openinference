@@ -1,5 +1,6 @@
+import os
+
 from mistralai.client import Mistral
-from mistralai.models.chat_completion import ChatMessage, ToolChoice
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -15,10 +16,12 @@ MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 if __name__ == "__main__":
-    client = Mistral(api_key="redacted")
-    response_stream = client.chat_stream(
+    client = Mistral(
+        api_key=os.getenv("MISTRAL_API_KEY", ""),
+    )
+    response_stream = client.chat.stream(
         model="mistral-large-latest",
-        tool_choice=ToolChoice.any,
+        tool_choice="any",
         tools=[
             {
                 "type": "function",
@@ -39,14 +42,23 @@ if __name__ == "__main__":
             },
         ],
         messages=[
-            ChatMessage(
-                content="What's the weather like in San Francisco?",
-                role="user",
-            )
+            {
+                "role": "user",
+                "content": "What's the weather like in San Francisco?",
+            }
         ],
     )
+
     tool_call_arguments = ""
-    for chunk in response_stream:
-        if (tool_calls := chunk.choices[0].delta.tool_calls) is not None:
-            tool_call = tool_calls[0]
-            print(tool_call)
+    for event in response_stream:
+        if event.data.choices:
+            delta = event.data.choices[0].delta
+
+            if delta.tool_calls:
+                tool_call = delta.tool_calls[0]
+                print(tool_call)
+
+                if tool_call.function is not None and tool_call.function.arguments is not None:
+                    tool_call_arguments += tool_call.function.arguments
+
+    print("Collected arguments:", tool_call_arguments)

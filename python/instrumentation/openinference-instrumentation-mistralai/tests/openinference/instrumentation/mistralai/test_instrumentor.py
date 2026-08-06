@@ -1274,6 +1274,52 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.parametrize(
+    "finish_reason",
+    ["stop", "length", "model_length", "error", "tool_calls"],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "test_id",
+                "object": "chat.completion",
+                "created": 1711044439,
+                "model": "mistral-large-latest",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "hi",
+                            "tool_calls": None,
+                        },
+                        "finish_reason": finish_reason,
+                        "logprobs": None,
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+            },
+        )
+    )
+
+    mistral_sync_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[{"content": "hello", "role": "user"}],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.get(LLM_FINISH_REASON) == finish_reason
+
+
 def _check_context_attributes(
     attributes: Dict[str, Any],
     session_id: str,
