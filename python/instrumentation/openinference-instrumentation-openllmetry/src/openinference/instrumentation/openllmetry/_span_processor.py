@@ -94,6 +94,15 @@ def _safe_int(value: Any) -> Optional[int]:
         return None
 
 
+def _safe_float(value: Any) -> Optional[float]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _coerce_json_obj(value: Any) -> Optional[Any]:
     """Coercion of a Traceloop entity input/output attribute into a Python object."""
     if value is None:
@@ -159,8 +168,8 @@ def _map_retriever_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
             )
         if document.get("id") is not None:
             mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_ID}"] = str(document["id"])
-        if document.get("score") is not None:
-            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_SCORE}"] = document["score"]
+        if (score := _safe_float(document.get("score"))) is not None:
+            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_SCORE}"] = score
 
     return mapped
 

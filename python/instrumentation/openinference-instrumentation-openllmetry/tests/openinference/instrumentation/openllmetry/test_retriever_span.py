@@ -121,3 +121,18 @@ def test_plain_string_documents_are_mapped_as_content() -> None:
         mapped[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.1.{DocumentAttributes.DOCUMENT_CONTENT}"]
         == "dict document"
     )
+
+
+def test_integer_document_score_is_normalized_to_float() -> None:
+    mapped = _map_generic_span(
+        {
+            "gen_ai.operation.name": "retrieval",
+            "gen_ai.task.output": json.dumps(
+                {"documents": [{"content": "perfect match", "score": 1}]}
+            ),
+        }
+    )
+
+    score = mapped[f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_SCORE}"]
+    assert score == 1.0
+    assert isinstance(score, float)
