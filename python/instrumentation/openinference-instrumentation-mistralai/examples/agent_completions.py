@@ -1,4 +1,4 @@
-from mistralai import Mistral
+from mistralai.client import Mistral
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 

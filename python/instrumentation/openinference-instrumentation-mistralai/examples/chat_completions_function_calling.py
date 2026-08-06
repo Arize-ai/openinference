@@ -1,4 +1,4 @@
-from mistralai.client import MistralClient
+from mistralai.client import Mistral
 from mistralai.models.chat_completion import ChatMessage, FunctionCall, ToolCall, ToolChoice
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -15,7 +15,7 @@ MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 if __name__ == "__main__":
-    client = MistralClient()
+    client = Mistral(api_key="redacted")
     response = client.chat(
         model="mistral-large-latest",
         tool_choice=ToolChoice.any,

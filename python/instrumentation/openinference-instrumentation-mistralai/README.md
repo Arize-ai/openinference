@@ -38,7 +38,7 @@ python -m phoenix.server.main serve
 In a python file, setup the `MistralAIInstrumentor` and configure the tracer to send traces to Phoenix.
 
 ```python
-from mistralai.client import MistralClient
+from mistralai.client import Mistral
 from mistralai.models.chat_completion import ChatMessage
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from opentelemetry import trace as trace_api
@@ -57,7 +57,7 @@ MistralAIInstrumentor().instrument()
 
 
 if __name__ == "__main__":
-    client = MistralClient()
+    client = Mistral()
     response = client.chat(
         model="mistral-large-latest",
         messages=[
@@ -68,7 +68,6 @@ if __name__ == "__main__":
         ],
     )
     print(response.choices[0].message.content)
-
 ```
 
 Since we are using MistralAI, we must set the `MISTRAL_API_KEY` environment variable to authenticate with the MistralAI API.

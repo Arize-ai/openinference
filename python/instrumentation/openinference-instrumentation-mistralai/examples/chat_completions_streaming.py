@@ -1,4 +1,4 @@
-from mistralai import Mistral
+from mistralai.client import Mistral
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 
@@ -11,8 +11,6 @@ MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 if __name__ == "__main__":
-    from mistralai import Mistral
-
     client = Mistral(api_key="redacted")
 
     response_stream = client.chat.stream(
