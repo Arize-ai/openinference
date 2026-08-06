@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict
 
 import pytest
+import respx
 from google import genai
 from google.genai import types
 from google.genai.types import (
@@ -19,6 +20,7 @@ from google.genai.types import (
     Tool,
     ToolCodeExecution,
 )
+from httpx import Response
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel
@@ -297,6 +299,7 @@ def test_generate_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -393,6 +396,7 @@ def test_generate_content_describe_image(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -456,6 +460,7 @@ def test_generate_content_with_config_as_dict(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -541,6 +546,7 @@ async def test_async_generate_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -600,6 +606,7 @@ def test_multi_turn_conversation(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response1.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -635,6 +642,7 @@ def test_multi_turn_conversation(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response2.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -698,6 +706,7 @@ def test_streaming_text_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -766,6 +775,7 @@ async def test_async_streaming_text_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -864,6 +874,7 @@ def test_generate_content_with_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
         or None,
@@ -1020,6 +1031,7 @@ def test_generate_content_with_raw_json_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
         or None,
@@ -1176,6 +1188,7 @@ def test_streaming_content_with_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -1352,6 +1365,7 @@ def test_response_with_multiple_tool_calls(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -1657,6 +1671,7 @@ def test_chat_session_with_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -2048,6 +2063,7 @@ def test_generate_content_with_automatic_tool_calling(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -2207,6 +2223,7 @@ def test_generate_content_with_file_uri_image(
         SpanAttributes.LLM_PROVIDER: "google",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
         SpanAttributes.LLM_MODEL_NAME: model_name,
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
@@ -2288,3 +2305,52 @@ def test_validate_token_counts_stream(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
         )
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    ["STOP", "MAX_TOKENS", "SAFETY", "RECITATION", "OTHER"],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    api_key = "fake-key"
+    client = genai.Client(api_key=api_key)
+
+    mock_response = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": "hi there"}],
+                    "role": "model",
+                },
+                "finishReason": finish_reason,
+                "index": 0,
+            }
+        ],
+        "usageMetadata": {
+            "promptTokenCount": 5,
+            "candidatesTokenCount": 3,
+            "totalTokenCount": 8,
+        },
+        "modelVersion": "gemini-2.0-flash",
+    }
+
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        mock_router.post(path__regex=r"/v1beta/models/gemini-2\.0-flash:generateContent.*").mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=Content(role="user", parts=[Part.from_text(text="hello")]),
+        )
+        assert response is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason

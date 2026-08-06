@@ -8,12 +8,10 @@ from typing import Any, AsyncGenerator
 
 import pytest
 from mcp import ClientSession
-from mcp.shared.session import RequestResponder
-from mcp.types import ClientResult, ServerNotification, ServerRequest, TextContent
+from mcp.types import CreateMessageResult, TextContent
 from opentelemetry.trace import Tracer
 
 from tests.collector import OTLPServer, Telemetry
-from tests.whoami import WhoamiClientResult, WhoamiResult, WhoamiServerRequest
 
 
 # The way MCP SDK creates async tasks means we need this to be called inline with the test,
@@ -29,13 +27,14 @@ async def mcp_client(
     from mcp.client.stdio import StdioServerParameters, stdio_client
     from mcp.client.streamable_http import streamable_http_client
 
-    async def message_handler(
-        message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
-    ) -> None:
-        if not isinstance(message, RequestResponder) or message.request.root.method != "whoami":
-            return
-        with message as responder, tracer.start_as_current_span("whoami"):
-            await responder.respond(WhoamiClientResult(WhoamiResult(name="OpenInference")))  # type: ignore
+    async def sampling_callback(context: Any, params: Any) -> CreateMessageResult:
+        del context, params
+        with tracer.start_as_current_span("whoami"):
+            return CreateMessageResult(
+                role="assistant",
+                content=TextContent(type="text", text="OpenInference"),
+                model="test-model",
+            )
 
     server_script = str(Path(__file__).parent / "mcpserver.py")
     pythonpath = str(Path(__file__).parent.parent)
@@ -71,9 +70,8 @@ async def mcp_client(
                     },
                 )
             ) as (reader, writer), ClientSession(
-                reader, writer, message_handler=message_handler
+                reader, writer, sampling_callback=sampling_callback
             ) as client:
-                client._receive_request_type = WhoamiServerRequest
                 await client.initialize()
                 yield client
         case "sse":
@@ -95,8 +93,7 @@ async def mcp_client(
                 async with sse_client(f"http://localhost:{port}/sse") as (
                     reader,
                     writer,
-                ), ClientSession(reader, writer, message_handler=message_handler) as client:
-                    client._receive_request_type = WhoamiServerRequest
+                ), ClientSession(reader, writer, sampling_callback=sampling_callback) as client:
                     await client.initialize()
                     yield client
             finally:
@@ -118,14 +115,13 @@ async def mcp_client(
             )
             try:
                 await _wait_for_port("127.0.0.1", port)
-                async with streamable_http_client(f"http://localhost:{port}/mcp") as (
-                    reader,
-                    writer,
-                    _,
-                ), ClientSession(reader, writer, message_handler=message_handler) as client:
-                    client._receive_request_type = WhoamiServerRequest
-                    await client.initialize()
-                    yield client
+                async with streamable_http_client(f"http://localhost:{port}/mcp") as streams:
+                    reader, writer = streams[:2]
+                    async with ClientSession(
+                        reader, writer, sampling_callback=sampling_callback
+                    ) as client:
+                        await client.initialize()
+                        yield client
             finally:
                 proc.kill()
                 await proc.wait()
@@ -178,9 +174,7 @@ async def test_stdio_validation_error(tracer: Tracer, otlp_collector: OTLPServer
 
     validation_error_received = False
 
-    async def message_handler(
-        message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
-    ) -> None:
+    async def message_handler(message: Any) -> None:
         nonlocal validation_error_received
         if isinstance(message, ValidationError):
             validation_error_received = True

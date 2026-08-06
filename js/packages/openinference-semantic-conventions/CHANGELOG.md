@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.6.0
+
+### Minor Changes
+
+- 145e3c6: Add span-, trace-, and session-scoped semantic convention fields for annotations and evaluations.
+
 ## 2.5.0
 
 ### Minor Changes

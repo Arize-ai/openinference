@@ -1,6 +1,6 @@
 # Attribute Helpers
 
-These functions convert domain objects (LLM messages, documents, embeddings, tools)
+These functions convert domain objects (LLM messages, annotations, documents, embeddings, tools)
 into flat OpenTelemetry `Attributes` dictionaries using OpenInference semantic
 conventions. Use them in custom `processInput`/`processOutput` callbacks or by
 calling `span.setAttributes()` on the active span.
@@ -10,6 +10,8 @@ import {
   getLLMAttributes,
   getEmbeddingAttributes,
   getRetrieverAttributes,
+  getAnnotationAttributes,
+  getEvaluationAttributes,
   getToolAttributes,
   getMetadataAttributes,
   getInputAttributes,
@@ -263,6 +265,80 @@ interface Document {
 
 Used by `getRetrieverAttributes` in the `documents` array and by
 `getDocumentAttributes` for individual document attributes.
+
+## getAnnotationAttributes / getEvaluationAttributes
+
+Generate flattened annotations at span, trace, or session scope. Evaluations
+use the same `Annotation` model and fields; only their semantic-convention
+terminology changes from `annotations.*.annotation.*` to
+`evaluations.*.evaluation.*`.
+
+```typescript
+type AnnotationScope = "span" | "trace" | "session";
+
+type AnnotationBase = {
+  name: string;
+  annotatorKind?: string;
+  identifier?: string;
+  metadata?: string | Record<string, unknown>;
+};
+
+type Annotation = AnnotationBase & (
+  | { score: number; label?: string; explanation?: string }
+  | { score?: number; label: string; explanation?: string }
+  | { score?: number; label?: string; explanation: string }
+);
+
+function getAnnotationAttributes(options: {
+  annotations: readonly Annotation[];
+  scope?: AnnotationScope;
+}): Attributes;
+
+function getEvaluationAttributes(options: {
+  evaluations: readonly Annotation[];
+  scope?: AnnotationScope;
+}): Attributes;
+```
+
+Every annotation requires `name` and at least one of `score`, `label`, or
+`explanation`. The TypeScript type enforces this constraint, and both helpers
+also validate it at runtime. Optional fields are omitted. Metadata objects are
+JSON-stringified; metadata strings are preserved.
+
+```typescript
+import {
+  getAnnotationAttributes,
+  getEvaluationAttributes,
+} from "@arizeai/openinference-core";
+
+const attributes = {
+  ...getAnnotationAttributes({
+    annotations: [
+      {
+        name: "hallucination",
+        label: "factual",
+        explanation: "Every claim is supported by the retrieved documents.",
+        annotatorKind: "LLM",
+        identifier: "judge-v2",
+        metadata: { rubricVersion: 2 },
+      },
+    ],
+  }),
+  ...getEvaluationAttributes({
+    evaluations: [{ name: "correctness", score: 0.95 }],
+    scope: "trace",
+  }),
+};
+
+span.setAttributes(attributes);
+```
+
+This produces `annotations.0.annotation.*` attributes for the span annotation
+and `trace.evaluations.0.evaluation.*` attributes for the trace evaluation.
+Collection indices are assigned contiguously in input order. For session scope,
+the carrying span must also have `session.id`. Post-hoc span and trace
+annotations must use the Span Link required by the OpenInference annotation
+specification.
 
 ## getToolAttributes
 
