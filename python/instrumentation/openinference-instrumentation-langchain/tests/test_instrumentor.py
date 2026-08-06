@@ -60,6 +60,7 @@ from openinference.instrumentation.langchain import (
     get_ancestor_spans,
     get_current_span,
 )
+from openinference.instrumentation.langchain._tracer import _finish_reason
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -859,18 +860,28 @@ def test_read_session_from_metadata(
     assert llm_attributes == {}
 
 
+@pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("finish_reason", ["stop", "length", "tool_calls", "content_filter"])
 def test_finish_reason_values(
     finish_reason: str,
+    is_stream: bool,
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
 ) -> None:
     url = "https://api.openai.com/v1/chat/completions"
-    respx_mock.post(url).mock(
-        return_value=Response(
-            status_code=200,
-            json={
+    if is_stream:
+        chunks = [
+            b'data: {"choices": [{"delta": {"role": "assistant"}, "index": 0}]}\n\n',
+            b'data: {"choices": [{"delta": {"content": "hi"}, "index": 0}]}\n\n',
+            f'data: {{"choices": [{{"delta": {{}}, "finish_reason": "{finish_reason}", '
+            f'"index": 0}}]}}\n\n'.encode(),
+            b"data: [DONE]\n",
+        ]
+        respx_kwargs: Dict[str, Any] = {"stream": MockByteStream(chunks)}
+    else:
+        respx_kwargs = {
+            "json": {
                 "choices": [
                     {
                         "index": 0,
@@ -880,14 +891,31 @@ def test_finish_reason_values(
                 ],
                 "model": "gpt-3.5-turbo",
                 "usage": completion_usage,
-            },
-        )
-    )
-    ChatOpenAI().invoke("hello")
+            }
+        }
+    respx_mock.post(url).mock(return_value=Response(status_code=200, **respx_kwargs))
+    ChatOpenAI(streaming=is_stream).invoke("hello")
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})
     assert attributes.pop(LLM_FINISH_REASON, None) == finish_reason
+
+
+def test_finish_reason_from_response_metadata() -> None:
+    # A message serialized into the lc envelope, e.g. from a streamed run.
+    outputs: Dict[str, Any] = {
+        "generations": [[{"message": {"kwargs": {"response_metadata": {"finish_reason": "stop"}}}}]]
+    }
+    assert dict(_finish_reason(outputs)) == {LLM_FINISH_REASON: "stop"}
+    # A live BaseMessage object carrying response_metadata.
+    message = AIMessage(content="hi", response_metadata={"finish_reason": "length"})
+    outputs = {"generations": [[{"message": message}]]}
+    assert dict(_finish_reason(outputs)) == {LLM_FINISH_REASON: "length"}
+    # Anthropic-style stop_reason.
+    outputs = {"generations": [[{"generation_info": {"stop_reason": "end_turn"}}]]}
+    assert dict(_finish_reason(outputs)) == {LLM_FINISH_REASON: "end_turn"}
+    outputs = {"generations": [[{"message": AIMessage(content="hi")}]]}
+    assert dict(_finish_reason(outputs)) == {}
 
 
 @pytest.mark.skipif(
