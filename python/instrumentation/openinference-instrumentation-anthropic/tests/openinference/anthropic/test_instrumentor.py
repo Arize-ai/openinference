@@ -2657,7 +2657,7 @@ def test_token_count_total_matches_across_paths(
     )
 
 
-def test_token_count_total_omitted_when_there_is_no_usage() -> None:
+def test_token_count_total_omitted_when_all_counts_are_zero() -> None:
     """A zero total is skipped rather than emitted as 0, like the other counts."""
     usage = Usage(input_tokens=0, output_tokens=0)
     assert LLM_TOKEN_COUNT_TOTAL not in dict(_get_llm_token_counts(usage))
