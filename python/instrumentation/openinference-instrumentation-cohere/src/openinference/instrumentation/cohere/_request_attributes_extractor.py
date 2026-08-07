@@ -2,10 +2,8 @@ import logging
 from enum import Enum
 from typing import Any, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
 
-from opentelemetry.util.types import AttributeValue
-
-from openinference.instrumentation import get_input_attributes, safe_json_dumps
 from openinference.semconv.trace import (
+    EmbeddingAttributes,
     MessageAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
@@ -14,6 +12,9 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import get_input_attributes, safe_json_dumps
 
 __all__ = ("_RequestAttributesExtractor",)
 
@@ -109,6 +110,31 @@ class _RequestAttributesExtractor:
                             f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             arguments if isinstance(arguments, str) else safe_json_dumps(arguments),
                         )
+
+    def get_attributes_from_embed_request(
+        self,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.EMBEDDING.value
+        yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.COHERE.value
+        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.COHERE.value
+        if isinstance(request_parameters, Mapping) and (model := request_parameters.get("model")):
+            yield SpanAttributes.EMBEDDING_MODEL_NAME, model
+        texts = request_parameters.get("texts") or request_parameters.get("inputs")
+        if texts and isinstance(texts, Sequence):
+            for i, text in enumerate(texts):
+                if isinstance(text, str):
+                    yield (
+                        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{i}.{EmbeddingAttributes.EMBEDDING_TEXT}",
+                        text,
+                    )
+        try:
+            yield from get_input_attributes(request_parameters).items()
+        except Exception:
+            logger.exception(
+                f"Failed to get input attributes from embed request parameters of "
+                f"type {type(request_parameters)}"
+            )
 
 
 def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:

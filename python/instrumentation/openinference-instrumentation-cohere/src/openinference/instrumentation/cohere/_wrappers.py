@@ -71,6 +71,35 @@ class _WithTracer(ABC):
                 ),
             )
 
+    @contextmanager
+    def _start_as_current_embed_span(
+        self,
+        span_name: str,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[_WithSpan]:
+        span: trace_api.Span
+        try:
+            span = self._tracer.start_span(
+                name=span_name,
+                attributes=dict(
+                    self._request_extractor.get_attributes_from_embed_request(request_parameters)
+                ),
+            )
+        except Exception:
+            logger.exception(f"Failed to start span {span_name}")
+            span = INVALID_SPAN
+        with trace_api.use_span(
+            span,
+            end_on_exit=False,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as current_span:
+            yield _WithSpan(
+                span=current_span,
+                context_attributes=dict(get_attributes_from_context()),
+                extra_attributes={},
+            )
+
     def _record_failure(self, span: _WithSpan, exception: BaseException) -> None:
         span.record_exception(exception)
         span.finish_tracing(
@@ -247,7 +276,7 @@ class _EmbedWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        with self._start_as_current_span("ClientV2.embed", request_parameters) as span:
+        with self._start_as_current_embed_span("ClientV2.embed", request_parameters) as span:
             try:
                 response = wrapped(*args, **kwargs)
             except BaseException as exception:
@@ -271,7 +300,7 @@ class _AsyncEmbedWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        with self._start_as_current_span("AsyncClientV2.embed", request_parameters) as span:
+        with self._start_as_current_embed_span("AsyncClientV2.embed", request_parameters) as span:
             try:
                 response = await wrapped(*args, **kwargs)
             except BaseException as exception:

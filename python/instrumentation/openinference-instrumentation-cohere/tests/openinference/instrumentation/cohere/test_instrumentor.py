@@ -18,6 +18,14 @@ from cohere.types import (
 )
 from cohere.v2.raw_client import AsyncRawV2Client, RawV2Client
 from cohere.v2.types import V2ChatResponse
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -31,13 +39,6 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.cohere import CohereInstrumentor
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 
 
 def _text_response() -> V2ChatResponse:
@@ -718,3 +719,46 @@ def test_chat_stream_suppressed(
         )
 
     assert in_memory_span_exporter.get_finished_spans() == ()
+
+
+def test_embed(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cohere.types import EmbedByTypeResponse, EmbedByTypeResponseEmbeddings
+    from cohere.v2.raw_client import RawV2Client
+
+    fake_response = EmbedByTypeResponse(
+        id="emb-0",
+        embeddings=EmbedByTypeResponseEmbeddings(float=[[0.1, 0.2, 0.3]]),
+        texts=["Hello world"],
+        model="embed-v4.0",
+        usage=Usage(tokens=UsageTokens(input_tokens=5, output_tokens=0)),
+    )
+
+    monkeypatch.setattr(RawV2Client, "embed", lambda self, **k: SimpleNamespace(data=fake_response))
+
+    _client().embed(
+        model="embed-v4.0",
+        texts=["Hello world"],
+        input_type="search_document",
+        embedding_types=["float"],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert spans[0].name == "ClientV2.embed"
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+        == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.EMBEDDING_MODEL_NAME] == "embed-v4.0"
+    assert (
+        attrs[
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        ]
+        == "Hello world"
+    )
