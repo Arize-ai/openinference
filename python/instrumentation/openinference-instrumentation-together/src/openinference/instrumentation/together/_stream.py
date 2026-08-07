@@ -3,7 +3,6 @@ from collections import defaultdict
 from types import SimpleNamespace
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
-from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
@@ -14,6 +13,7 @@ from openinference.instrumentation.together._response_attributes_extractor impor
 )
 from openinference.instrumentation.together._utils import _finish_tracing
 from openinference.instrumentation.together._with_span import _WithSpan
+from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

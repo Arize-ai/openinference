@@ -8,6 +8,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
+from openinference.instrumentation import OITracer
 from openinference.instrumentation.together._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -26,7 +27,7 @@ logger.addHandler(logging.NullHandler())
 class _WithTracer:
     """Base class for the sync and async ``create`` wrappers."""
 
-    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, tracer: OITracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
         self._request_extractor = _RequestAttributesExtractor()
@@ -63,6 +64,7 @@ class _WithTracer:
         # ensure that the most important "attributes" are added last and are not
         # dropped. Context attributes (session, user, metadata, tags) are
         # injected by OITracer.start_span.
+        span: trace_api.Span
         try:
             span = self._tracer.start_span(name=span_name, attributes=dict(extra_attributes))
         except Exception:

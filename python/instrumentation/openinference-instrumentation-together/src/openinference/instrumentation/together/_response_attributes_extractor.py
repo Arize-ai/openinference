@@ -1,10 +1,10 @@
 import logging
 from typing import Any, Iterable, Iterator, Tuple
 
-from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.together._utils import _as_output_attributes, _io_value_and_type
+from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
 __all__ = ("_ResponseAttributesExtractor",)
 

@@ -2,14 +2,6 @@ import json
 from typing import List
 
 import pytest
-from openinference.instrumentation.config import REDACTED_VALUE
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceLLMProviderValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
@@ -17,7 +9,15 @@ from together import AsyncTogether, Together
 from together.types import ToolsParam
 
 from openinference.instrumentation import OITracer, TraceConfig, using_attributes
+from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.together import TogetherInstrumentor
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 _MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 
