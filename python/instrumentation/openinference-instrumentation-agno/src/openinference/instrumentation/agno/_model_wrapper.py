@@ -1,6 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
+from os import getenv
 from typing import (
     Any,
     Awaitable,
@@ -25,6 +26,7 @@ from openinference.instrumentation import (
 )
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -33,11 +35,43 @@ from openinference.semconv.trace import (
 )
 
 
-def _get_llm_system(model_name: Optional[str]) -> Optional[str]:
-    """Derive the OpenInference ``llm.system`` value from an Agno model id."""
-    if system := infer_llm_system_from_model_name(model_name or ""):
-        return system.value
-    return None
+def _get_gemini_vertexai_mode(model: Model) -> Optional[bool]:
+    """Return whether an Agno Gemini model uses Vertex AI."""
+    # Agno returns a prebuilt client without consulting its other configuration.
+    client = getattr(model, "client", None)
+    if client is not None:
+        client_vertexai = getattr(client, "vertexai", None)
+        return client_vertexai if isinstance(client_vertexai, bool) else None
+
+    vertexai_env = getenv("GOOGLE_GENAI_USE_VERTEXAI", "false").lower()
+    vertexai_mode: Optional[bool] = (
+        True if bool(getattr(model, "vertexai", False)) or vertexai_env == "true" else None
+    )
+    client_params = getattr(model, "client_params", None)
+    # Agno applies client_params last, so an explicit value overrides the flag.
+    if isinstance(client_params, Mapping) and "vertexai" in client_params:
+        client_param_vertexai = client_params["vertexai"]
+        if client_param_vertexai is None:
+            vertexai_mode = None
+        elif isinstance(client_param_vertexai, bool):
+            vertexai_mode = client_param_vertexai
+        else:
+            return None
+    if vertexai_mode is not None:
+        return vertexai_mode
+    return vertexai_env in {"true", "1"}
+
+
+def _get_llm_system(model: Model) -> Optional[str]:
+    """Derive the OpenInference ``llm.system`` value from an Agno model."""
+    system = infer_llm_system_from_model_name(model.id or "")
+    if system is None:
+        return None
+    if system is OpenInferenceLLMSystemValues.VERTEXAI and hasattr(model, "vertexai"):
+        if (vertexai := _get_gemini_vertexai_mode(model)) is None:
+            return None
+        return "vertexai" if vertexai else "google"
+    return system.value
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
@@ -384,7 +418,7 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
-            if llm_system := _get_llm_system(model.id):
+            if llm_system := _get_llm_system(model):
                 span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = wrapped(*args, **kwargs)
@@ -443,7 +477,7 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
-            if llm_system := _get_llm_system(model.id):
+            if llm_system := _get_llm_system(model):
                 span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 
@@ -516,7 +550,7 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
-            if llm_system := _get_llm_system(model.id):
+            if llm_system := _get_llm_system(model):
                 span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = await wrapped(*args, **kwargs)
@@ -581,7 +615,7 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
-            if llm_system := _get_llm_system(model.id):
+            if llm_system := _get_llm_system(model):
                 span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 

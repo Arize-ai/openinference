@@ -1,8 +1,10 @@
-from typing import Any, Generator
+from types import SimpleNamespace
+from typing import Any, Generator, Optional, cast
 
 import pytest
 import vcr  # type: ignore
 from agno.agent import Agent
+from agno.models.base import Model
 from agno.models.openai.chat import OpenAIChat
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
@@ -192,7 +194,6 @@ def test_team_metadata_captured() -> None:
         ("claude-sonnet-4-6", "anthropic"),
         ("command-r", "cohere"),
         ("mistral-large-latest", "mistralai"),
-        ("gemini-2.0-flash", "vertexai"),
         # Non-inferable model names stay represented by llm.provider only.
         ("llama-3.1-70b-versatile", None),
         ("custom-model", None),
@@ -206,7 +207,79 @@ def test_get_llm_system(model_name: Any, expected_system: Any) -> None:
     """llm.system is derived from the model id, not only the provider."""
     from openinference.instrumentation.agno._model_wrapper import _get_llm_system
 
-    assert _get_llm_system(model_name) == expected_system
+    model = cast(Model, SimpleNamespace(id=model_name))
+    assert _get_llm_system(model) == expected_system
+
+
+@pytest.mark.parametrize(
+    "vertexai, vertexai_env, client_params, expected_system",
+    [
+        (False, None, None, "google"),
+        (True, None, None, "vertexai"),
+        (False, "TRUE", None, "vertexai"),
+        (False, "1", None, "vertexai"),
+        (False, None, {"vertexai": True}, "vertexai"),
+        (True, None, {"vertexai": False}, "google"),
+        (True, None, {"vertexai": None}, "google"),
+        (True, "1", {"vertexai": None}, "vertexai"),
+    ],
+)
+def test_get_llm_system_for_gemini_api_mode(
+    vertexai: bool,
+    vertexai_env: Optional[str],
+    client_params: Optional[dict[str, Any]],
+    expected_system: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    if vertexai_env is None:
+        monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    else:
+        monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", vertexai_env)
+
+    model = cast(
+        Model,
+        SimpleNamespace(
+            id="gemini-2.0-flash",
+            name="Gemini",
+            provider="Google",
+            vertexai=vertexai,
+            client=None,
+            client_params=client_params,
+        ),
+    )
+    assert _get_llm_system(model) == expected_system
+
+
+@pytest.mark.parametrize(
+    "client_vertexai, expected_system",
+    [
+        (False, "google"),
+        (True, "vertexai"),
+        (None, None),
+    ],
+)
+def test_get_llm_system_for_prebuilt_gemini_client(
+    client_vertexai: Optional[bool],
+    expected_system: Optional[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    model = cast(
+        Model,
+        SimpleNamespace(
+            id="gemini-2.0-flash",
+            name="Gemini",
+            provider="Google",
+            vertexai=True,
+            client=SimpleNamespace(vertexai=client_vertexai),
+            client_params={"vertexai": True},
+        ),
+    )
+    assert _get_llm_system(model) == expected_system
 
 
 def test_agno_team_coordinate_instrumentation(
