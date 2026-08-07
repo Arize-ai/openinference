@@ -1,3 +1,3 @@
-cohere==7.0.5
+cohere==5.21.1
 opentelemetry-sdk
 pytest-asyncio

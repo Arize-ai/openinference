@@ -2,21 +2,20 @@ import logging
 from abc import ABC
 from contextlib import contextmanager
 from inspect import Signature, signature
-from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.cohere._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
 from openinference.instrumentation.cohere._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.cohere._utils import _finish_tracing
 from openinference.instrumentation.cohere._with_span import _WithSpan
 
 logger = logging.getLogger(__name__)
@@ -29,21 +28,26 @@ class _WithTracer(ABC):
     def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
+        self._request_extractor = _RequestAttributesExtractor()
+        self._response_extractor = _ResponseAttributesExtractor()
 
     @contextmanager
     def _start_as_current_span(
         self,
         span_name: str,
-        attributes: Iterable[Tuple[str, AttributeValue]],
-        context_attributes: Iterable[Tuple[str, AttributeValue]],
-        extra_attributes: Iterable[Tuple[str, AttributeValue]],
+        request_parameters: Mapping[str, Any],
     ) -> Iterator[_WithSpan]:
         # Because OTEL has a default limit of 128 attributes, we split our
         # attributes into two tiers, where "extra_attributes" are added first to
         # ensure that the most important "attributes" are added last and are not
         # dropped.
         try:
-            span = self._tracer.start_span(name=span_name, attributes=dict(extra_attributes))
+            span = self._tracer.start_span(
+                name=span_name,
+                attributes=dict(
+                    self._request_extractor.get_extra_attributes_from_request(request_parameters)
+                ),
+            )
         except Exception:
             span = INVALID_SPAN
         with trace_api.use_span(
@@ -54,9 +58,39 @@ class _WithTracer(ABC):
         ) as span:
             yield _WithSpan(
                 span=span,
-                context_attributes=dict(context_attributes),
-                extra_attributes=dict(attributes),
+                context_attributes=dict(get_attributes_from_context()),
+                extra_attributes=dict(
+                    self._request_extractor.get_attributes_from_request(request_parameters)
+                ),
             )
+
+    def _record_failure(self, span: _WithSpan, exception: BaseException) -> None:
+        span.record_exception(exception)
+        span.finish_tracing(
+            status=trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+        )
+
+    def _finalize_response(
+        self,
+        span: _WithSpan,
+        response: Any,
+        request_parameters: Mapping[str, Any],
+    ) -> None:
+        try:
+            _finish_tracing(
+                status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                with_span=span,
+                attributes=self._response_extractor.get_attributes(response=response),
+                extra_attributes=self._response_extractor.get_extra_attributes(
+                    response=response, request_parameters=request_parameters
+                ),
+            )
+        except Exception:
+            logger.exception(f"Failed to finalize response of type {type(response)}")
+            span.finish_tracing()
 
 
 def _parse_args(
@@ -64,28 +98,25 @@ def _parse_args(
     *args: Any,
     **kwargs: Any,
 ) -> Dict[str, Any]:
-    bound_signature = signature.bind(*args, **kwargs)
-    bound_signature.apply_defaults()
-    request_data: Dict[str, Any] = {}
-    for key, value in bound_signature.arguments.items():
-        if value is None:
-            continue
-        try:
-            # ensure the value is JSON-serializable
-            safe_json_dumps(value)
-            request_data[key] = value
-        except Exception:
-            request_data[key] = str(value)
-    return request_data
+    """Map the call's arguments to parameter names, keeping only values the caller set.
+
+    Cohere uses an ``OMIT`` sentinel (``Ellipsis``) as the default for unset chat
+    parameters, so both ``None`` and ``Ellipsis`` are filtered out.
+    """
+    try:
+        arguments = signature.bind(*args, **kwargs).arguments
+    except TypeError:
+        # The installed SDK's signature no longer matches the call (e.g. a newer
+        # cohere release); fall back to the keyword arguments so the call still
+        # gets traced and the SDK raises its own error.
+        arguments = kwargs
+    return {
+        key: value for key, value in arguments.items() if value is not None and value is not ...
+    }
 
 
 class _ChatWrapper(_WithTracer):
-    """Wraps ``ollama.Client.chat`` to trace synchronous chat calls."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._request_extractor = _RequestAttributesExtractor()
-        self._response_extractor = _ResponseAttributesExtractor()
+    """Wraps ``cohere.V2Client.chat`` to trace synchronous chat calls."""
 
     def __call__(
         self,
@@ -98,47 +129,18 @@ class _ChatWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        with self._start_as_current_span(
-            span_name="chat",
-            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
-                request_parameters
-            ),
-        ) as span:
+        with self._start_as_current_span("chat", request_parameters) as span:
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.record_exception(exception)
-                span.finish_tracing(
-                    status=trace_api.Status(
-                        status_code=trace_api.StatusCode.ERROR,
-                        description=f"{type(exception).__name__}: {exception}",
-                    )
-                )
+            except BaseException as exception:
+                self._record_failure(span, exception)
                 raise
-            try:
-                _finish_tracing(
-                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
-                    with_span=span,
-                    attributes=self._response_extractor.get_attributes(response=response),
-                    extra_attributes=self._response_extractor.get_extra_attributes(
-                        response=response, request_parameters=request_parameters
-                    ),
-                )
-            except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
-                span.finish_tracing()
+            self._finalize_response(span, response, request_parameters)
         return response
 
 
 class _AsyncChatWrapper(_WithTracer):
-    """Wraps ``ollama.AsyncClient.chat`` to trace asynchronous chat calls."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._request_extractor = _RequestAttributesExtractor()
-        self._response_extractor = _ResponseAttributesExtractor()
+    """Wraps ``cohere.AsyncV2Client.chat`` to trace asynchronous chat calls."""
 
     async def __call__(
         self,
@@ -151,35 +153,34 @@ class _AsyncChatWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        with self._start_as_current_span(
-            span_name="async_chat",
-            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
-                request_parameters
-            ),
-        ) as span:
+        with self._start_as_current_span("async_chat", request_parameters) as span:
             try:
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.record_exception(exception)
-                span.finish_tracing(
-                    status=trace_api.Status(
-                        status_code=trace_api.StatusCode.ERROR,
-                        description=f"{type(exception).__name__}: {exception}",
-                    )
-                )
+            except BaseException as exception:
+                self._record_failure(span, exception)
                 raise
-            try:
-                _finish_tracing(
-                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
-                    with_span=span,
-                    attributes=self._response_extractor.get_attributes(response=response),
-                    extra_attributes=self._response_extractor.get_extra_attributes(
-                        response=response, request_parameters=request_parameters
-                    ),
-                )
-            except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
-                span.finish_tracing()
+            self._finalize_response(span, response, request_parameters)
         return response
+
+
+def _finish_tracing(
+    with_span: _WithSpan,
+    attributes: Iterable[Tuple[str, AttributeValue]],
+    extra_attributes: Iterable[Tuple[str, AttributeValue]],
+    status: Optional[trace_api.Status] = None,
+) -> None:
+    attributes_dict: Optional[Dict[str, AttributeValue]] = None
+    try:
+        attributes_dict = dict(attributes)
+    except Exception:
+        logger.exception("Failed to get attributes")
+    extra_attributes_dict: Optional[Dict[str, AttributeValue]] = None
+    try:
+        extra_attributes_dict = dict(extra_attributes)
+    except Exception:
+        logger.exception("Failed to get extra attributes")
+    with_span.finish_tracing(
+        status=status,
+        attributes=attributes_dict,
+        extra_attributes=extra_attributes_dict,
+    )

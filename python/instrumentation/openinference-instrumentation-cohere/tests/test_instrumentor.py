@@ -1,3 +1,4 @@
+import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any, Iterator
@@ -23,9 +24,15 @@ from openinference.semconv.trace import (
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
 
-from openinference.instrumentation import OITracer
+from openinference.instrumentation import (
+    REDACTED_VALUE,
+    OITracer,
+    TraceConfig,
+    using_attributes,
+)
 from openinference.instrumentation.cohere import CohereInstrumentor
 
 
@@ -90,6 +97,12 @@ def _client() -> "cohere.ClientV2":
     return cohere.ClientV2(api_key="fake-key")
 
 
+def _user_message(content: str) -> Any:
+    # A plain dict, typed as Any so mypy accepts it where the SDK expects
+    # typed message objects; the extractor must handle both forms.
+    return {"role": "user", "content": content}
+
+
 def test_oitracer() -> None:
     assert isinstance(CohereInstrumentor()._tracer, OITracer)
 
@@ -109,7 +122,8 @@ def test_chat(
 
     response = _client().chat(
         model="command-r-plus",
-        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        messages=[_user_message("Why is the sky blue?")],
+        temperature=0.1,
     )
     assert response.message.content
 
@@ -118,7 +132,12 @@ def test_chat(
     attrs = dict(spans[0].attributes or {})
     assert spans[0].name == "chat"
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-r-plus"
+    # Only parameters the caller actually set appear in the invocation parameters;
+    # cohere's OMIT sentinel defaults must not leak in.
+    assert json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])) == {"temperature": 0.1}
     assert (
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "user"
     )
@@ -126,9 +145,8 @@ def test_chat(
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == "Why is the sky blue?"
     )
-    assert (
-        "Rayleigh"
-        in attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+    assert "Rayleigh" in str(
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
     )
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 26
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 12
@@ -145,10 +163,11 @@ def test_chat_with_tool_call(
         RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=_tool_response())
     )
 
+    tools: Any = [{"type": "function", "function": {"name": "get_current_weather"}}]
     _client().chat(
         model="command-r-plus",
-        messages=[{"role": "user", "content": "What is the weather in Paris?"}],
-        tools=[{"type": "function", "function": {"name": "get_current_weather"}}],
+        messages=[_user_message("What is the weather in Paris?")],
+        tools=tools,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -157,7 +176,7 @@ def test_chat_with_tool_call(
     prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}"] == "call-1"
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_current_weather"
-    raw_args = attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
+    raw_args = str(attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"])
     assert json.loads(raw_args) == {"city": "Paris"}
     assert attrs["llm.tools.0.tool.json_schema"]
 
@@ -173,7 +192,7 @@ async def test_async_chat(
 
     await cohere.AsyncClientV2(api_key="fake-key").chat(
         model="command-r-plus",
-        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        messages=[_user_message("Why is the sky blue?")],
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -182,6 +201,26 @@ async def test_async_chat(
     attrs = dict(spans[0].attributes or {})
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-r-plus"
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
+
+
+async def test_async_chat_cancellation_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _mock_chat(self: Any, **k: Any) -> Any:
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(AsyncRawV2Client, "chat", _mock_chat)
+
+    with pytest.raises(asyncio.CancelledError):
+        await cohere.AsyncClientV2(api_key="fake-key").chat(
+            model="command-r-plus",
+            messages=[_user_message("Why is the sky blue?")],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.ERROR
 
 
 def test_suppress_tracing(
@@ -196,6 +235,60 @@ def test_suppress_tracing(
     with suppress_tracing():
         _client().chat(
             model="command-r-plus",
-            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            messages=[_user_message("Why is the sky blue?")],
         )
     assert len(in_memory_span_exporter.get_finished_spans()) == 0
+
+
+def test_context_attributes_propagation(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=_text_response())
+    )
+    with using_attributes(
+        session_id="my-session",
+        user_id="my-user",
+        metadata={"env": "test"},
+        tags=["tag-1", "tag-2"],
+    ):
+        _client().chat(
+            model="command-r-plus",
+            messages=[_user_message("Why is the sky blue?")],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.SESSION_ID] == "my-session"
+    assert attrs[SpanAttributes.USER_ID] == "my-user"
+    assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
+    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+
+
+def test_trace_config_masking(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=_text_response())
+    )
+    CohereInstrumentor().uninstrument()
+    CohereInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+
+    _client().chat(
+        model="command-r-plus",
+        messages=[_user_message("This input is sensitive.")],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    assert not any("sensitive" in str(value) for value in attrs.values())

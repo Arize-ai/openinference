@@ -4,14 +4,16 @@ from typing import Any, Iterable, Iterator, Mapping, Tuple
 
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.cohere._utils import _as_input_attributes, _io_value_and_type
+from openinference.instrumentation import get_input_attributes, safe_json_dumps
 
 __all__ = ("_RequestAttributesExtractor",)
 
@@ -27,10 +29,10 @@ class _RequestAttributesExtractor:
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
+        yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.COHERE.value
+        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.COHERE.value
         try:
-            yield from _as_input_attributes(
-                _io_value_and_type(request_parameters),
-            )
+            yield from get_input_attributes(request_parameters).items()
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request parameters of "
@@ -49,7 +51,10 @@ class _RequestAttributesExtractor:
 
         if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
             for i, tool in enumerate(tools):
-                yield f"llm.tools.{i}.tool.json_schema", safe_json_dumps(tool)
+                yield (
+                    f"{SpanAttributes.LLM_TOOLS}.{i}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                    safe_json_dumps(tool),
+                )
 
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 

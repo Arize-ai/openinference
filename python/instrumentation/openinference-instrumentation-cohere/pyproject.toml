@@ -31,7 +31,6 @@ dependencies = [
     "openinference-instrumentation>=0.1.51",
     "openinference-semantic-conventions>=0.1.17",
     "wrapt",
-    "typing-extensions",
 ]
 
 [project.optional-dependencies]

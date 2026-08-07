@@ -42,7 +42,9 @@ class CohereInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         # ``cohere.ClientV2`` / ``AsyncClientV2`` inherit ``chat`` from these base
-        # classes, so wrapping the base methods covers both client entry points.
+        # classes, so wrapping the base methods covers both the sync and async
+        # clients. The streaming entry points (``chat_stream``) are not yet
+        # instrumented.
         self._original_chat = V2Client.chat
         wrap_function_wrapper(
             "cohere.v2.client",
