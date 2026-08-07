@@ -1,17 +1,17 @@
 import logging
 from enum import Enum
-from typing import Any, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Iterable, Iterator, Mapping, Sequence, Tuple
 
+from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import get_input_attributes, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.util.types import AttributeValue
-
-from openinference.instrumentation import safe_json_dumps
-from openinference.instrumentation.ollama._utils import _as_input_attributes, _io_value_and_type
 
 __all__ = ("_RequestAttributesExtractor",)
 
@@ -28,9 +28,7 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
         try:
-            yield from _as_input_attributes(
-                _io_value_and_type(request_parameters),
-            )
+            yield from get_input_attributes(request_parameters).items()
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request parameters of "
@@ -44,17 +42,29 @@ class _RequestAttributesExtractor:
         if not isinstance(request_parameters, Mapping):
             return
         invocation_params = dict(request_parameters)
-        invocation_params.pop("messages", None)  # Remove LLM input messages
-        invocation_params.pop("model", None)  # Captured separately as the model name
+        invocation_params.pop("messages", None)  # Captured separately as input messages
+        if model := invocation_params.pop("model", None):
+            # Capture the model on the request side too, so it is present on
+            # spans for calls that error out before a response arrives.
+            yield SpanAttributes.LLM_MODEL_NAME, model
 
-        if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
+        # Only iterate materialized sequences: a caller-supplied iterator would
+        # be exhausted here before the real request is sent.
+        if isinstance((tools := invocation_params.pop("tools", None)), Sequence) and not isinstance(
+            tools, (str, bytes)
+        ):
             for i, tool in enumerate(tools):
-                yield f"llm.tools.{i}.tool.json_schema", safe_json_dumps(tool)
+                yield (
+                    f"{SpanAttributes.LLM_TOOLS}.{i}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                    _tool_json_schema(tool),
+                )
 
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
-        if (input_messages := request_parameters.get("messages")) and isinstance(
-            input_messages, Iterable
+        if (
+            (input_messages := request_parameters.get("messages"))
+            and isinstance(input_messages, Sequence)
+            and not isinstance(input_messages, (str, bytes))
         ):
             for index, input_message in reversed(list(enumerate(input_messages))):
                 # Use reversed() to get the last message first. This is because OTEL has a default
@@ -95,6 +105,25 @@ class _RequestAttributesExtractor:
                             f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             _as_arguments_json(arguments),
                         )
+
+
+def _tool_json_schema(tool: Any) -> str:
+    if callable(tool) and not isinstance(tool, Mapping):
+        # ollama >= 0.4 accepts plain Python functions as tools and converts
+        # them to Tool schemas internally; mirror that conversion so the span
+        # records the schema instead of the function's repr.
+        try:
+            from ollama._utils import convert_function_to_tool
+
+            tool = convert_function_to_tool(tool)
+        except Exception:
+            logger.exception(f"Failed to convert callable tool {tool!r} to a schema")
+    if hasattr(tool, "model_dump"):
+        try:
+            return safe_json_dumps(tool.model_dump(exclude_none=True))
+        except Exception:
+            logger.exception(f"Failed to dump tool of type {type(tool)}")
+    return safe_json_dumps(tool)
 
 
 def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:

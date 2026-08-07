@@ -1,15 +1,17 @@
 import logging
 from abc import ABC
+from collections.abc import AsyncIterator as AsyncIteratorABC
+from collections.abc import Iterator as IteratorABC
 from contextlib import contextmanager
 from inspect import Signature, signature
-from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Tuple
+from typing import Any, AsyncIterator, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.ollama._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -66,26 +68,104 @@ def _parse_args(
 ) -> Dict[str, Any]:
     bound_signature = signature.bind(*args, **kwargs)
     bound_signature.apply_defaults()
-    request_data: Dict[str, Any] = {}
-    for key, value in bound_signature.arguments.items():
-        if value is None:
-            continue
-        try:
-            # ensure the value is JSON-serializable
-            safe_json_dumps(value)
-            request_data[key] = value
-        except Exception:
-            request_data[key] = str(value)
-    return request_data
+    return {
+        key: value
+        for key, value in bound_signature.arguments.items()
+        if value is not None and key != "self"
+    }
 
 
-class _ChatWrapper(_WithTracer):
-    """Wraps ``ollama.Client.chat`` to trace synchronous chat calls."""
+def _merge_chat_chunks(chunks: List[Any]) -> Any:
+    """Combines streamed ``ChatResponse`` chunks into a single response-like
+    object. The final chunk carries the model and token counts, so it is used
+    as the base, with the message content accumulated across all chunks."""
+    if not chunks:
+        return None
+    last = chunks[-1]
+    try:
+        merged = last.model_copy(deep=True)
+        merged.message.content = "".join(
+            content
+            for chunk in chunks
+            if (content := getattr(getattr(chunk, "message", None), "content", None))
+        )
+        tool_calls = [
+            tool_call
+            for chunk in chunks
+            for tool_call in (getattr(getattr(chunk, "message", None), "tool_calls", None) or ())
+        ]
+        if tool_calls:
+            merged.message.tool_calls = tool_calls
+        return merged
+    except Exception:
+        logger.exception("Failed to merge streamed chat chunks")
+        return last
 
+
+class _ChatWrapperBase(_WithTracer):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._request_extractor = _RequestAttributesExtractor()
         self._response_extractor = _ResponseAttributesExtractor()
+
+    def _record_exception(self, span: _WithSpan, exception: Exception) -> None:
+        span.record_exception(exception)
+        span.finish_tracing(
+            status=trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+        )
+
+    def _finalize_response(self, span: _WithSpan, response: Any) -> None:
+        if response is None:
+            span.finish_tracing(status=trace_api.Status(status_code=trace_api.StatusCode.OK))
+            return
+        try:
+            _finish_tracing(
+                status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                with_span=span,
+                attributes=self._response_extractor.get_attributes(response=response),
+                extra_attributes=self._response_extractor.get_extra_attributes(response=response),
+            )
+        except Exception:
+            logger.exception(f"Failed to finalize response of type {type(response)}")
+            span.finish_tracing()
+
+    def _wrap_stream(self, stream: Iterator[Any], span: _WithSpan) -> Iterator[Any]:
+        chunks: List[Any] = []
+        try:
+            for chunk in stream:
+                chunks.append(chunk)
+                yield chunk
+        except GeneratorExit:
+            # The caller abandoned the stream: finish the span with what arrived.
+            self._finalize_response(span, _merge_chat_chunks(chunks))
+            raise
+        except Exception as exception:
+            self._record_exception(span, exception)
+            raise
+        self._finalize_response(span, _merge_chat_chunks(chunks))
+
+    async def _wrap_async_stream(
+        self, stream: AsyncIterator[Any], span: _WithSpan
+    ) -> AsyncIterator[Any]:
+        chunks: List[Any] = []
+        try:
+            async for chunk in stream:
+                chunks.append(chunk)
+                yield chunk
+        except GeneratorExit:
+            self._finalize_response(span, _merge_chat_chunks(chunks))
+            raise
+        except Exception as exception:
+            self._record_exception(span, exception)
+            raise
+        self._finalize_response(span, _merge_chat_chunks(chunks))
+
+
+class _ChatWrapper(_ChatWrapperBase):
+    """Wraps ``ollama.Client.chat`` to trace synchronous chat calls."""
 
     def __call__(
         self,
@@ -109,36 +189,18 @@ class _ChatWrapper(_WithTracer):
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
-                span.record_exception(exception)
-                span.finish_tracing(
-                    status=trace_api.Status(
-                        status_code=trace_api.StatusCode.ERROR,
-                        description=f"{type(exception).__name__}: {exception}",
-                    )
-                )
+                self._record_exception(span, exception)
                 raise
-            try:
-                _finish_tracing(
-                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
-                    with_span=span,
-                    attributes=self._response_extractor.get_attributes(response=response),
-                    extra_attributes=self._response_extractor.get_extra_attributes(
-                        response=response, request_parameters=request_parameters
-                    ),
-                )
-            except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
-                span.finish_tracing()
+            if isinstance(response, IteratorABC):
+                # ``stream=True``: the span is finished when the stream is
+                # exhausted (or fails), not when the call returns.
+                return self._wrap_stream(response, span)
+            self._finalize_response(span, response)
         return response
 
 
-class _AsyncChatWrapper(_WithTracer):
+class _AsyncChatWrapper(_ChatWrapperBase):
     """Wraps ``ollama.AsyncClient.chat`` to trace asynchronous chat calls."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._request_extractor = _RequestAttributesExtractor()
-        self._response_extractor = _ResponseAttributesExtractor()
 
     async def __call__(
         self,
@@ -162,24 +224,11 @@ class _AsyncChatWrapper(_WithTracer):
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
-                span.record_exception(exception)
-                span.finish_tracing(
-                    status=trace_api.Status(
-                        status_code=trace_api.StatusCode.ERROR,
-                        description=f"{type(exception).__name__}: {exception}",
-                    )
-                )
+                self._record_exception(span, exception)
                 raise
-            try:
-                _finish_tracing(
-                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
-                    with_span=span,
-                    attributes=self._response_extractor.get_attributes(response=response),
-                    extra_attributes=self._response_extractor.get_extra_attributes(
-                        response=response, request_parameters=request_parameters
-                    ),
-                )
-            except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
-                span.finish_tracing()
+            if isinstance(response, AsyncIteratorABC):
+                # ``stream=True``: the span is finished when the stream is
+                # exhausted (or fails), not when the call returns.
+                return self._wrap_async_stream(response, span)
+            self._finalize_response(span, response)
         return response

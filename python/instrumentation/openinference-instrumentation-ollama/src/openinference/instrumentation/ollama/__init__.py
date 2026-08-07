@@ -18,13 +18,12 @@ _instruments = ("ollama >= 0.4.0",)
 class OllamaInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     """An instrumentor for the Ollama Python client."""
 
-    __slots__ = ("_original_chat", "_original_async_chat", "_original_module_chat", "_tracer")
+    __slots__ = ("_original_module_chat", "_tracer")
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        from ollama._client import AsyncClient, Client
         from openinference.instrumentation.ollama._wrappers import (
             _AsyncChatWrapper,
             _ChatWrapper,
@@ -41,17 +40,16 @@ class OllamaInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config=config,
         )
 
-        # The module-level ``ollama.chat`` / ``ollama.generate`` helpers delegate
-        # to a shared ``Client`` instance, so wrapping the class methods covers
-        # the module-level helpers, ``Client``, and ``AsyncClient`` alike.
-        self._original_chat = Client.chat
+        # Wrap the class methods so every ``Client``/``AsyncClient`` instance
+        # is covered. Note: references captured before instrumentation (e.g.
+        # ``from ollama import chat`` at import time) keep the unwrapped method
+        # and cannot be traced retroactively.
         wrap_function_wrapper(
             "ollama._client",
             "Client.chat",
             _ChatWrapper(tracer=self._tracer),
         )
 
-        self._original_async_chat = AsyncClient.chat
         wrap_function_wrapper(
             "ollama._client",
             "AsyncClient.chat",
@@ -67,12 +65,15 @@ class OllamaInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         ollama.chat = ollama._client.chat
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        from opentelemetry.instrumentation.utils import unwrap
+
         import ollama
 
         ollama_module = import_module("ollama._client")
-        if getattr(self, "_original_chat", None) is not None:
-            ollama_module.Client.chat = self._original_chat
-        if getattr(self, "_original_async_chat", None) is not None:
-            ollama_module.AsyncClient.chat = self._original_async_chat
+        # Unwind the wrapt layer instead of assigning saved originals, so
+        # wrappers other libraries installed are not clobbered.
+        unwrap(ollama_module.Client, "chat")
+        unwrap(ollama_module.AsyncClient, "chat")
         if getattr(self, "_original_module_chat", None) is not None:
             ollama.chat = self._original_module_chat
+            del self._original_module_chat

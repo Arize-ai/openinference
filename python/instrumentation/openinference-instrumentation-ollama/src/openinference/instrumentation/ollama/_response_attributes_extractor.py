@@ -1,10 +1,10 @@
 import logging
-from typing import Any, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Iterable, Iterator, Tuple
 
-from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import get_output_attributes, safe_json_dumps
+from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
 __all__ = ("_ResponseAttributesExtractor",)
 
@@ -16,18 +16,11 @@ class _ResponseAttributesExtractor:
     def get_attributes(self, response: Any) -> Iterator[Tuple[str, AttributeValue]]:
         # ``ChatResponse`` is a pydantic model; serialize the whole thing as the
         # output value, matching the JSON output of the other instrumentors.
-        try:
-            value = response.model_dump_json(exclude_unset=True)
-        except Exception:
-            yield SpanAttributes.OUTPUT_VALUE, str(response)
-            return
-        yield SpanAttributes.OUTPUT_VALUE, value
-        yield SpanAttributes.OUTPUT_MIME_TYPE, "application/json"
+        yield from get_output_attributes(response).items()
 
     def get_extra_attributes(
         self,
         response: Any,
-        request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield from self._get_attributes_from_chat_response(response=response)
 
