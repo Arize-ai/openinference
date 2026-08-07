@@ -9,7 +9,11 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    OITracer,
+    get_attributes_from_context,
+    safe_json_dumps,
+)
 from openinference.instrumentation.cohere._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -25,7 +29,7 @@ logger.addHandler(logging.NullHandler())
 class _WithTracer(ABC):
     """Base class for wrappers that need a tracer."""
 
-    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, tracer: OITracer, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
         self._request_extractor = _RequestAttributesExtractor()
@@ -41,6 +45,7 @@ class _WithTracer(ABC):
         # attributes into two tiers, where "extra_attributes" are added first to
         # ensure that the most important "attributes" are added last and are not
         # dropped.
+        span: trace_api.Span
         try:
             span = self._tracer.start_span(
                 name=span_name,
@@ -49,15 +54,16 @@ class _WithTracer(ABC):
                 ),
             )
         except Exception:
+            logger.exception(f"Failed to start span {span_name}")
             span = INVALID_SPAN
         with trace_api.use_span(
             span,
             end_on_exit=False,
             record_exception=False,
             set_status_on_exception=False,
-        ) as span:
+        ) as current_span:
             yield _WithSpan(
-                span=span,
+                span=current_span,
                 context_attributes=dict(get_attributes_from_context()),
                 extra_attributes=dict(
                     self._request_extractor.get_attributes_from_request(request_parameters)
