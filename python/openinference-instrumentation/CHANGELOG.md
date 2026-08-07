@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.56...python-openinference-instrumentation-v0.1.57) (2026-08-07)
+
+
+### Features
+
+* **instrumentation:** add annotation attribute helpers ([#3476](https://github.com/Arize-ai/openinference/issues/3476)) ([0168198](https://github.com/Arize-ai/openinference/commit/0168198eda399e797b8d0637e8caca4ccd5b148e))
+* **ollama:** add Ollama instrumentor ([#3348](https://github.com/Arize-ai/openinference/issues/3348)) ([237ce2b](https://github.com/Arize-ai/openinference/commit/237ce2b413e89782ad93431d39581a1ee44cad95))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
 ## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.55...python-openinference-instrumentation-v0.1.56) (2026-07-31)
 
 

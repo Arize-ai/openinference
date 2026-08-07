@@ -20,6 +20,7 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
     _as_output_attributes,
     _finish_tracing,
+    _get_token_counts,
     _ValueAndType,
 )
 from openinference.instrumentation.anthropic._with_span import _WithSpan
@@ -388,28 +389,7 @@ class _MessageExtractor:
                     safe_json_dumps(block.input),
                 )
                 tool_idx += 1
-        usage = snapshot.usage
-        prompt_tokens = (
-            usage.input_tokens
-            + (usage.cache_creation_input_tokens or 0)
-            + (usage.cache_read_input_tokens or 0)
-        )
-        if prompt_tokens:
-            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-        if usage.output_tokens:
-            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
-        if usage.cache_read_input_tokens:
-            yield (
-                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-                usage.cache_read_input_tokens,
-            )
-        if usage.cache_creation_input_tokens:
-            yield (
-                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-                usage.cache_creation_input_tokens,
-            )
-        if total := prompt_tokens + (usage.output_tokens or 0):
-            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total
+        yield from _get_token_counts(snapshot.usage)
 
 
 class _ValuesAccumulator:

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.31...python-openinference-semantic-conventions-v0.1.32) (2026-08-07)
+
+
+### Features
+
+* **ollama:** add Ollama instrumentor ([#3348](https://github.com/Arize-ai/openinference/issues/3348)) ([237ce2b](https://github.com/Arize-ai/openinference/commit/237ce2b413e89782ad93431d39581a1ee44cad95))
+
 ## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.30...python-openinference-semantic-conventions-v0.1.31) (2026-08-01)
 
 

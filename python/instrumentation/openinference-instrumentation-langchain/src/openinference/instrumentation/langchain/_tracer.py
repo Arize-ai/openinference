@@ -325,6 +325,7 @@ def _update_span(span: Span, run: Run) -> None:
                     _model_name(run.outputs, run.extra),
                     _token_counts(run.outputs),
                     _function_calls(run.outputs),
+                    _finish_reason(run.outputs),
                     _tools(run),
                     _retrieval_documents(run),
                     _metadata(run),
@@ -1299,6 +1300,16 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
         yield from _token_counts_from_raw_anthropic_usage_with_cache_read_or_write(token_usage)
 
 
+def _get_first_generation(outputs: Optional[Mapping[str, Any]]) -> Any:
+    """Returns the first generation from run outputs, or None if not present."""
+    if not outputs:
+        return None
+    try:
+        return outputs["generations"][0][0]
+    except Exception:
+        return None
+
+
 def _parse_token_usage_for_vertexai(
     outputs: Optional[Mapping[str, Any]],
 ) -> Any:
@@ -1309,13 +1320,7 @@ def _parse_token_usage_for_vertexai(
     https://github.com/langchain-ai/langchain/blob/langchain%3D%3D0.3.12/libs/core/langchain_core/outputs/generation.py#L28
     """
     if (
-        outputs
-        and hasattr(outputs, "get")
-        and (generations := outputs.get("generations"))
-        and hasattr(generations, "__getitem__")
-        and generations[0]
-        and hasattr(generations[0], "__getitem__")
-        and (generation := generations[0][0])
+        (generation := _get_first_generation(outputs))
         and hasattr(generation, "get")
         and (
             generation_info := generation.get("generation_info")
@@ -1361,13 +1366,7 @@ def _parse_token_usage_for_streaming_outputs(
     `stream_usage` is set to true.
     """
     if (
-        outputs
-        and hasattr(outputs, "get")
-        and (generations := outputs.get("generations"))
-        and hasattr(generations, "__getitem__")
-        and generations[0]
-        and hasattr(generations[0], "__getitem__")
-        and (generation := generations[0][0])
+        (generation := _get_first_generation(outputs))
         and hasattr(generation, "get")
         and (message := generation.get("message"))
         and hasattr(message, "get")
@@ -1393,6 +1392,34 @@ def _function_calls(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str,
         yield LLM_FUNCTION_CALL, safe_json_dumps(function_call_data)
     except Exception:
         pass
+
+
+@stop_on_exception
+def _finish_reason(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+    """Yields the finish reason for the first generation, if present."""
+    if not (generation := _get_first_generation(outputs)) or not hasattr(generation, "get"):
+        return
+    finish_reason_keys = (
+        "finish_reason",
+        "stop_reason",  # Anthropic-specific key
+    )
+    # For non-streaming case, most chat providers populate generation_info.
+    if (generation_info := generation.get("generation_info")) and (
+        finish_reason := _get_first_value(generation_info, finish_reason_keys)
+    ):
+        yield LLM_FINISH_REASON, str(finish_reason)
+        return
+    # For streaming case, finish_reason often lands in the message's response_metadata instead.
+    response_metadata: Any = None
+    if message := generation.get("message"):
+        if isinstance(message, BaseMessage):
+            response_metadata = getattr(message, "response_metadata", None)
+        elif hasattr(message, "get") and (kwargs := message.get("kwargs")):
+            response_metadata = kwargs.get("response_metadata") if hasattr(kwargs, "get") else None
+    if response_metadata and (
+        finish_reason := _get_first_value(response_metadata, finish_reason_keys)
+    ):
+        yield LLM_FINISH_REASON, str(finish_reason)
 
 
 @stop_on_exception
@@ -1540,6 +1567,7 @@ LLM_FUNCTION_CALL = SpanAttributes.LLM_FUNCTION_CALL
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

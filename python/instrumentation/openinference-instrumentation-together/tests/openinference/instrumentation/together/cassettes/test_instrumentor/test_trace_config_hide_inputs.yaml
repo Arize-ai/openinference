@@ -1,0 +1,22 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"This is sensitive input. Reply with
+      one word."}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo"}'
+    headers: {}
+    method: POST
+    uri: https://api.together.ai/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"ovCb5fw-fdNmn-a273a104ffea7d3a\",\n  \"object\": \"chat.completion\",\n
+        \ \"created\": 1786077896,\n  \"model\": \"meta-llama/Llama-3.3-70B-Instruct-Turbo\",\n
+        \ \"prompt\": [],\n  \"choices\": [\n    {\n      \"finish_reason\": \"stop\",\n
+        \     \"seed\": 562907531283887200,\n      \"index\": 0,\n      \"logprobs\":
+        null,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\":
+        \"Confidential\",\n        \"tool_calls\": []\n      }\n    }\n  ],\n  \"usage\":
+        {\n    \"prompt_tokens\": 45,\n    \"completion_tokens\": 3,\n    \"total_tokens\":
+        48,\n    \"cached_tokens\": 0\n  }\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -63,4 +63,5 @@ const (
 	LLMProviderCerebras   = "cerebras"
 	LLMProviderPerplexity = "perplexity"
 	LLMProviderTogether   = "together"
+	LLMProviderOllama     = "ollama"
 )

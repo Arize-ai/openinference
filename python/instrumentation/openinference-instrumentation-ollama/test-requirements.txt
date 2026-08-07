@@ -1,0 +1,4 @@
+ollama==0.6.2
+opentelemetry-sdk
+pytest-asyncio
+pytest-recording

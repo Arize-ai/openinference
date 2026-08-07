@@ -4,6 +4,7 @@ import pytest
 import vcr  # type: ignore
 from agno.agent import Agent
 from agno.models.openai.chat import OpenAIChat
+from agno.run.agent import RunOutput
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
@@ -303,3 +304,35 @@ def test_agno_team_coordinate_instrumentation(
     assert web_agent_span is not None or finance_agent_span is not None, (
         "At least one agent span should be found"
     )
+
+
+def test_extract_run_response_output_str_content() -> None:
+    """String content is returned verbatim."""
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
+
+    run_response = RunOutput(content="hello world")
+    assert _extract_run_response_output(run_response) == "hello world"
+
+
+def test_extract_run_response_output_pydantic_content() -> None:
+    """Content exposing model_dump_json is serialized via that method."""
+    from types import SimpleNamespace
+
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
+
+    content = SimpleNamespace(model_dump_json=lambda: '{"answer": 42}')
+    run_response = RunOutput(content=content)
+    assert _extract_run_response_output(run_response) == '{"answer": 42}'
+
+
+def test_extract_run_response_output_dict_content() -> None:
+    """Dict content is serialized as valid JSON.
+
+    Standalone ``agent.run`` calls that use ``output_schema``/JSON mode can return
+    a plain ``dict`` as ``content``. Previously this raised
+    ``'dict' object has no attribute 'model_dump_json'``.
+    """
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
+
+    run_response = RunOutput(content={"answer": True})
+    assert _extract_run_response_output(run_response) == '{"answer": true}'
