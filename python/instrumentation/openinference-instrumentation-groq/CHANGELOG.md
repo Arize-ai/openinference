@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.18...python-openinference-instrumentation-groq-v0.1.19) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.17...python-openinference-instrumentation-groq-v0.1.18) (2026-08-04)
+
+
+### Features
+
+* **groq:** Add Finish Reason Attribute ([#3491](https://github.com/Arize-ai/openinference/issues/3491)) ([0d4e311](https://github.com/Arize-ai/openinference/commit/0d4e311374ad1f1527dc29c938125a85c8779ed9))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.16...python-openinference-instrumentation-groq-v0.1.17) (2026-07-30)
 
 

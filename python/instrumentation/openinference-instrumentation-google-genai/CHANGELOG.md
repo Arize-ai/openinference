@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.3.0...python-openinference-instrumentation-google-genai-v1.4.0) (2026-08-07)
+
+
+### Features
+
+* **google_genai:** Add Finish Reason Attribute ([#3461](https://github.com/Arize-ai/openinference/issues/3461)) ([274f483](https://github.com/Arize-ai/openinference/commit/274f4837579da35778bf244c326d297bb6cff2c6))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
 ## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.2.0...python-openinference-instrumentation-google-genai-v1.3.0) (2026-07-30)
 
 

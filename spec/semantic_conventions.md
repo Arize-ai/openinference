@@ -182,6 +182,7 @@ used; otherwise, a custom value MAY be used.
 | `cerebras`   | Cerebras        |
 | `perplexity` | Perplexity      |
 | `together`   | Together AI     |
+| `ollama`     | Ollama          |
 
 ### Token Count Details
 

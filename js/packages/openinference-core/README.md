@@ -7,7 +7,7 @@
 - context attribute propagation (`session.id`, `user.id`, metadata, tags, prompt template)
 - span wrappers (`withSpan`, `traceChain`, `traceAgent`, `traceTool`)
 - method decorator tracing (`@observe`)
-- helpers for LLM/retrieval/embedding/tool attributes
+- helpers for LLM/retrieval/embedding/tool and annotation/evaluation attributes
 - optional sensitive-data masking through `OITracer` trace config
 
 ## Installation
@@ -207,6 +207,8 @@ Use these helpers to generate OpenInference-compatible attributes and attach the
 - `getLLMAttributes({ provider, modelName, inputMessages, outputMessages, tokenCount, tools, ... })`
 - `getEmbeddingAttributes({ modelName, embeddings })`
 - `getRetrieverAttributes({ documents })`
+- `getAnnotationAttributes({ annotations, scope? })`
+- `getEvaluationAttributes({ evaluations, scope? })`
 - `getToolAttributes({ name, description?, parameters })`
 - `getMetadataAttributes(metadataObject)`
 - `getInputAttributes(input)` / `getOutputAttributes(output)`

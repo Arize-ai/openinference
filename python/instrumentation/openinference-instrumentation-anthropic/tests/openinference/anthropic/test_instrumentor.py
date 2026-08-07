@@ -40,6 +40,7 @@ from openinference.instrumentation.anthropic import AnthropicInstrumentor
 from openinference.instrumentation.anthropic._stream import _MessageExtractor
 from openinference.instrumentation.anthropic._wrappers import (
     _get_llm_input_messages,
+    _get_llm_token_counts,
     _get_output_messages,
 )
 from openinference.semconv.trace import (
@@ -517,6 +518,7 @@ def test_anthropic_instrumentation_messages(
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -854,6 +856,7 @@ async def test_anthropic_instrumentation_async_messages(
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -1033,6 +1036,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     )
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
     assert_output_value_contains(
@@ -1511,6 +1515,7 @@ def test_anthropic_instrumentation_image_input_messages(
     ).startswith("This image shows the iconic Taj Mahal")
     assert attributes.pop(f"{LLM_TOKEN_COUNT_COMPLETION}") == 263
     assert attributes.pop(f"{LLM_TOKEN_COUNT_PROMPT}") == 78
+    assert attributes.pop(f"{LLM_TOKEN_COUNT_TOTAL}") == 341
     assert attributes.pop(f"{OPENINFERENCE_SPAN_KIND}") == "LLM"
     assert not attributes
 
@@ -1869,6 +1874,7 @@ def test_anthropic_instrumentation_messages_parse(
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
     assert not attributes
 
@@ -1979,6 +1985,7 @@ async def test_anthropic_instrumentation_async_messages_parse(
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
     assert not attributes
 
@@ -2091,6 +2098,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
     assert not attributes
 
@@ -2204,6 +2212,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
     assert not attributes
 
@@ -2341,6 +2350,7 @@ def test_anthropic_instrumentation_beta_messages_create(
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
     assert not attributes
 
@@ -2430,6 +2440,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
 
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
     assert not attributes
 
@@ -2568,6 +2579,198 @@ def test_message_extractor_with_thinking_and_redacted_thinking_blocks() -> None:
         attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TEXT}"]
         == "Paris."
     )
+
+
+@pytest.mark.parametrize(
+    "cache_read,cache_write",
+    [(512, 1733), (512, 0), (0, 1733), (0, 0)],
+)
+def test_message_extractor_records_cache_token_details(
+    cache_read: int,
+    cache_write: int,
+) -> None:
+    """Streaming must break cache tokens out, not only fold them into the prompt total."""
+    snapshot = Message(
+        id="msg_stream_cache",
+        content=[TextBlock(type="text", text="Paris.")],
+        model="claude-opus-4-6",
+        role="assistant",
+        stop_reason="end_turn",
+        stop_sequence=None,
+        type="message",
+        usage=Usage(
+            input_tokens=10,
+            output_tokens=20,
+            cache_read_input_tokens=cache_read,
+            cache_creation_input_tokens=cache_write,
+        ),
+    )
+
+    attributes = dict(_MessageExtractor(snapshot).get_attributes())
+
+    # The prompt total counts fresh, read and written tokens, as on the non-streaming path.
+    assert attributes[LLM_TOKEN_COUNT_PROMPT] == 10 + cache_read + cache_write
+    # A zero count is omitted rather than emitted as 0, matching _get_llm_token_counts.
+    assert attributes.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == (cache_read or None)
+    assert attributes.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == (cache_write or None)
+
+
+@pytest.mark.parametrize(
+    "cache_read,cache_write",
+    [(0, 0), (512, 1733)],
+)
+def test_token_count_total_matches_across_paths(
+    cache_read: int,
+    cache_write: int,
+) -> None:
+    """`total` must not depend on whether the caller asked for streaming (#3490).
+
+    Anthropic's Usage carries no total field, so both paths derive it. Comparing the two
+    attribute producers directly keeps them from drifting apart again.
+    """
+    usage = Usage(
+        input_tokens=10,
+        output_tokens=20,
+        cache_read_input_tokens=cache_read,
+        cache_creation_input_tokens=cache_write,
+    )
+    snapshot = Message(
+        id="msg_total",
+        content=[TextBlock(type="text", text="Paris.")],
+        model="claude-opus-4-6",
+        role="assistant",
+        stop_reason="end_turn",
+        stop_sequence=None,
+        type="message",
+        usage=usage,
+    )
+
+    non_streaming = dict(_get_llm_token_counts(usage))
+    streaming = dict(_MessageExtractor(snapshot).get_attributes())
+
+    expected_total = 10 + cache_read + cache_write + 20
+    assert non_streaming[LLM_TOKEN_COUNT_TOTAL] == expected_total
+    assert streaming[LLM_TOKEN_COUNT_TOTAL] == expected_total
+    # total is the sum of the two counts it summarizes, on both paths.
+    assert expected_total == (
+        non_streaming[LLM_TOKEN_COUNT_PROMPT] + non_streaming[LLM_TOKEN_COUNT_COMPLETION]
+    )
+
+
+def test_token_count_total_omitted_when_all_counts_are_zero() -> None:
+    """A zero total is skipped rather than emitted as 0, like the other counts."""
+    usage = Usage(input_tokens=0, output_tokens=0)
+    assert LLM_TOKEN_COUNT_TOTAL not in dict(_get_llm_token_counts(usage))
+
+
+def test_cache_token_details_match_between_streaming_and_non_streaming(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """The same usage served two ways must produce the same token attributes."""
+    usage = {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "cache_creation_input_tokens": 1733,
+        "cache_read_input_tokens": 512,
+    }
+    sse_events = [
+        b"event: message_start\ndata: "
+        + json.dumps(
+            {
+                "type": "message_start",
+                "message": {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [],
+                    "model": "claude-sonnet-4-6",
+                    "stop_reason": None,
+                    "stop_sequence": None,
+                    "usage": usage,
+                },
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_start\ndata: "
+        + json.dumps(
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_delta\ndata: "
+        + json.dumps(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": "hi"},
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_stop\ndata: "
+        + json.dumps({"type": "content_block_stop", "index": 0}).encode()
+        + b"\n\n",
+        b"event: message_delta\ndata: "
+        + json.dumps(
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                "usage": usage,
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: message_stop\ndata: " + json.dumps({"type": "message_stop"}).encode() + b"\n\n",
+    ]
+    route = respx_mock.post("https://api.anthropic.com/v1/messages")
+    client = Anthropic(api_key="sk-ant-fake")
+    kwargs: Dict[str, Any] = {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1000,
+        "messages": [{"role": "user", "content": "hello"}],
+    }
+
+    route.mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "id": "msg_1",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-sonnet-4-6",
+                "content": [{"type": "text", "text": "hi"}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": usage,
+            },
+        )
+    )
+    client.messages.create(**kwargs)
+
+    route.mock(return_value=Response(status_code=200, content=b"".join(sse_events)))
+    for _ in client.messages.create(stream=True, **kwargs):
+        pass
+
+    route.mock(return_value=Response(status_code=200, content=b"".join(sse_events)))
+    with client.messages.stream(**kwargs) as stream:
+        for _ in stream:
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 3
+    expected = {
+        LLM_TOKEN_COUNT_PROMPT: 2255,
+        LLM_TOKEN_COUNT_COMPLETION: 5,
+        LLM_TOKEN_COUNT_TOTAL: 2260,
+        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 512,
+        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: 1733,
+    }
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert {k: attributes.get(k) for k in expected} == expected
 
     # message_content.id must never be emitted for thinking/redacted_thinking blocks
     assert not any(key.endswith("message_content.id") for key in attributes)

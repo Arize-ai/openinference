@@ -598,3 +598,4 @@ class OpenInferenceLLMProviderValues(Enum):
     CEREBRAS = "cerebras"
     PERPLEXITY = "perplexity"
     TOGETHER = "together"
+    OLLAMA = "ollama"

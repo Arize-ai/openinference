@@ -60,6 +60,7 @@ from openinference.instrumentation.langchain import (
     get_ancestor_spans,
     get_current_span,
 )
+from openinference.instrumentation.langchain._tracer import _finish_reason
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -433,6 +434,7 @@ def test_callback_llm(
         assert oai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         if not is_stream and status_code == 200:
             assert oai_attributes.pop(LLM_MODEL_NAME, None) == model_name
+            assert oai_attributes.pop(LLM_FINISH_REASON, None) == "stop"
         else:
             assert oai_attributes.pop(LLM_MODEL_NAME, None) == "gpt-3.5-turbo"
         assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
@@ -858,6 +860,64 @@ def test_read_session_from_metadata(
     assert llm_attributes == {}
 
 
+@pytest.mark.parametrize("is_stream", [False, True])
+@pytest.mark.parametrize("finish_reason", ["stop", "length", "tool_calls", "content_filter"])
+def test_finish_reason_values(
+    finish_reason: str,
+    is_stream: bool,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
+) -> None:
+    url = "https://api.openai.com/v1/chat/completions"
+    if is_stream:
+        chunks = [
+            b'data: {"choices": [{"delta": {"role": "assistant"}, "index": 0}]}\n\n',
+            b'data: {"choices": [{"delta": {"content": "hi"}, "index": 0}]}\n\n',
+            f'data: {{"choices": [{{"delta": {{}}, "finish_reason": "{finish_reason}", '
+            f'"index": 0}}]}}\n\n'.encode(),
+            b"data: [DONE]\n",
+        ]
+        respx_kwargs: Dict[str, Any] = {"stream": MockByteStream(chunks)}
+    else:
+        respx_kwargs = {
+            "json": {
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "hi"},
+                        "finish_reason": finish_reason,
+                    }
+                ],
+                "model": "gpt-3.5-turbo",
+                "usage": completion_usage,
+            }
+        }
+    respx_mock.post(url).mock(return_value=Response(status_code=200, **respx_kwargs))
+    ChatOpenAI(streaming=is_stream).invoke("hello")
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.pop(LLM_FINISH_REASON, None) == finish_reason
+
+
+def test_finish_reason_from_response_metadata() -> None:
+    # A message serialized into the lc envelope, e.g. from a streamed run.
+    outputs: Dict[str, Any] = {
+        "generations": [[{"message": {"kwargs": {"response_metadata": {"finish_reason": "stop"}}}}]]
+    }
+    assert dict(_finish_reason(outputs)) == {LLM_FINISH_REASON: "stop"}
+    # A live BaseMessage object carrying response_metadata.
+    message = AIMessage(content="hi", response_metadata={"finish_reason": "length"})
+    outputs = {"generations": [[{"message": message}]]}
+    assert dict(_finish_reason(outputs)) == {LLM_FINISH_REASON: "length"}
+    # Anthropic-style stop_reason.
+    outputs = {"generations": [[{"generation_info": {"stop_reason": "end_turn"}}]]}
+    assert dict(_finish_reason(outputs)) == {LLM_FINISH_REASON: "end_turn"}
+    outputs = {"generations": [[{"message": AIMessage(content="hi")}]]}
+    assert dict(_finish_reason(outputs)) == {}
+
+
 @pytest.mark.skipif(
     condition=LANGCHAIN_OPENAI_VERSION < (0, 1, 9),
     reason="The stream_usage parameter was introduced in langchain-openai==0.1.9",
@@ -1172,6 +1232,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

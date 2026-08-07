@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.1...python-openinference-instrumentation-anthropic-v1.1.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* **anthropic:** don't let a span-finalization error escape into user code ([#3500](https://github.com/Arize-ai/openinference/issues/3500)) ([#3505](https://github.com/Arize-ai/openinference/issues/3505)) ([15e93f7](https://github.com/Arize-ai/openinference/commit/15e93f7525d640298303ab78f4dafe6a3bd3a2aa))
+* **anthropic:** emit llm.token_count.total on the non-streaming path ([#3498](https://github.com/Arize-ai/openinference/issues/3498)) ([32c30ba](https://github.com/Arize-ai/openinference/commit/32c30baafa2c9a203837d7590989eb54830c535b))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.0...python-openinference-instrumentation-anthropic-v1.1.1) (2026-08-04)
+
+
+### Bug Fixes
+
+* **anthropic:** record cache read/write token details on streaming paths ([#3488](https://github.com/Arize-ai/openinference/issues/3488)) ([3b9b5b4](https://github.com/Arize-ai/openinference/commit/3b9b5b4f954c28c9dcd18576a533119040cc4ac2))
+
 ## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.6...python-openinference-instrumentation-anthropic-v1.1.0) (2026-07-30)
 
 
