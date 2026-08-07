@@ -1,13 +1,16 @@
 import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 import {
   InvokeAgentCommand,
+  InvokeInlineAgentCommand,
   RetrieveAndGenerateCommand,
   RetrieveAndGenerateStreamCommand,
   RetrieveCommand,
 } from "@aws-sdk/client-bedrock-agent-runtime";
 import type { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
+import type { InvokeInlineAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeInlineAgentCommand";
 import type { Tracer, TracerProvider } from "@opentelemetry/api";
-import { diag, SpanKind, SpanStatusCode } from "@opentelemetry/api";
+import { context, diag, SpanKind, SpanStatusCode } from "@opentelemetry/api";
+import { isTracingSuppressed } from "@opentelemetry/core";
 import type {
   InstrumentationConfig,
   InstrumentationModuleDefinition,
@@ -25,6 +28,7 @@ import {
   extractBedrockRetrieveResponseAttributes,
 } from "./attributes/ragAttributeExtractionUtils";
 import {
+  safelyExtractBaseInlineAgentRequestAttributes,
   safelyExtractBaseRagAttributes,
   safelyExtractBaseRequestAttributes,
   safelyExtractBaseRetrieveAttributes,
@@ -135,6 +139,14 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
           if (command instanceof InvokeAgentCommand) {
             return instrumentationInstance._handleInvokeAgentCommand(args, command, original, this);
           }
+          if (InvokeInlineAgentCommand != null && command instanceof InvokeInlineAgentCommand) {
+            return instrumentationInstance._handleInvokeInlineAgentCommand(
+              args,
+              command,
+              original,
+              this,
+            );
+          }
           if (command instanceof RetrieveAndGenerateCommand) {
             return instrumentationInstance._handleRetrieveAndGenerateCommand(
               args,
@@ -179,6 +191,47 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
             response.completion = interceptAgentResponse(response.completion, callback);
           } catch (err: unknown) {
             diag.debug("Error in _handleInvokeAgent:", err);
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.end();
+          }
+        } else {
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+        }
+        return response;
+      })
+      .catch((err: Error) => {
+        span.recordException(err);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+        span.end();
+        throw err;
+      });
+  }
+
+  private _handleInvokeInlineAgentCommand(
+    args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>,
+    command: bedrockAgentRunTime.InvokeInlineAgentCommand,
+    original: (
+      ...args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>
+    ) => Promise<InvokeInlineAgentCommandOutput>,
+    client: unknown,
+  ) {
+    if (isTracingSuppressed(context.active())) {
+      return original.apply(client, args);
+    }
+    const span = this.oiTracer.startSpan("bedrock.invoke_inline_agent", {
+      kind: SpanKind.INTERNAL,
+      attributes: safelyExtractBaseInlineAgentRequestAttributes(command) ?? undefined,
+    });
+    const result = original.apply(client, args);
+    return result
+      .then((response: InvokeInlineAgentCommandOutput) => {
+        const callback = new CallbackHandler(this.oiTracer, span);
+        if (response.completion && Symbol.asyncIterator in response.completion) {
+          try {
+            response.completion = interceptAgentResponse(response.completion, callback);
+          } catch (err: unknown) {
+            diag.debug("Error in _handleInvokeInlineAgentCommand:", err);
             span.setStatus({ code: SpanStatusCode.OK });
             span.end();
           }
