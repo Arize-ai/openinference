@@ -1,5 +1,6 @@
 import json
 import os
+from types import SimpleNamespace
 from typing import Generator, Iterator
 from unittest.mock import MagicMock, patch
 
@@ -8,7 +9,10 @@ import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
-from openinference.instrumentation.litellm import LiteLLMInstrumentor
+from openinference.instrumentation.litellm import (
+    LiteLLMInstrumentor,
+    _set_token_counts_from_usage,
+)
 from openinference.semconv.trace import SpanAttributes
 
 
@@ -121,6 +125,23 @@ class TestTokenCounts:
             )
 
 
+def test_completion_text_tokens_are_recorded_as_a_token_count_not_a_cost(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """`completion_tokens_details.text_tokens` is a count, not a cost in USD."""
+    result = SimpleNamespace(
+        usage=SimpleNamespace(completion_tokens_details=SimpleNamespace(text_tokens=500)),
+    )
+
+    with tracer_provider.get_tracer(__name__).start_as_current_span("test") as span:
+        _set_token_counts_from_usage(span, result)
+
+    attr = dict(in_memory_span_exporter.get_finished_spans()[0].attributes or {})
+    assert attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_TEXT) == 500
+    assert LLM_COST_COMPLETION_DETAILS_OUTPUT not in attr
+
+
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
@@ -133,4 +154,6 @@ LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = SpanAttributes.LLM_TOKEN_COUNT_COMPLE
 LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = (
     SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
 )
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_TEXT = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_TEXT
+LLM_COST_COMPLETION_DETAILS_OUTPUT = SpanAttributes.LLM_COST_COMPLETION_DETAILS_OUTPUT
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
