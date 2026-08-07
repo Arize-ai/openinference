@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Mapping
-from typing import Any, cast
+from threading import Thread
+from typing import Annotated, Any, cast
 
 import pytest
 from autogen import ConversableAgent
@@ -232,6 +234,63 @@ async def test_async_tool_execution(
     assert span.status.status_code is StatusCode.OK
 
 
+def test_annotated_parameters_report_their_types(
+    instrumentor: AG2Instrumentor,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = _agent("executor")
+
+    def convert(amount: Annotated[float, "The amount"], base: Annotated[str, "From"]) -> str:
+        return f"{amount} {base}"
+
+    agent.register_function({"convert": convert})
+    agent.execute_function({"name": "convert", "arguments": '{"amount": 2, "base": "USD"}'})
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert json.loads(cast(str, _attributes(span)[SpanAttributes.TOOL_PARAMETERS])) == {
+        "amount": "float",
+        "base": "str",
+    }
+
+
+def test_declined_reply_does_not_record_an_output(
+    instrumentor: AG2Instrumentor,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = _agent("silent")
+    cast(Any, agent).register_reply(lambda sender: sender is None, lambda *a, **k: (True, None))
+
+    assert agent.generate_reply(messages=[{"role": "user", "content": "hello"}]) is None
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert SpanAttributes.OUTPUT_VALUE not in _attributes(span)
+
+
+def test_async_tool_span_is_parented_when_awaited_on_another_thread(
+    instrumentor: AG2Instrumentor,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = _agent("executor")
+
+    async def double(a: int) -> int:
+        return a * 2
+
+    agent.register_function({"double": double})
+
+    # AG2 runs async tools from its sync reply path on a fresh thread.
+    with tracer_provider.get_tracer(__name__).start_as_current_span("caller") as caller:
+        coroutine = agent.a_execute_function({"name": "double", "arguments": '{"a": 4}'})
+    thread = Thread(target=lambda: asyncio.run(coroutine))
+    thread.start()
+    thread.join()
+
+    tool_span = next(
+        span for span in in_memory_span_exporter.get_finished_spans() if span.name == "double"
+    )
+    assert tool_span.parent is not None
+    assert tool_span.parent.span_id == caller.get_span_context().span_id
+
+
 def test_suppression(
     instrumentor: AG2Instrumentor,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -239,6 +298,21 @@ def test_suppression(
     with suppress_instrumentation():
         _agent("quiet").generate_reply(messages=[{"role": "user", "content": "hello"}])
 
+    assert in_memory_span_exporter.get_finished_spans() == ()
+
+
+def test_suppression_still_normalizes_string_func_call(
+    instrumentor: AG2Instrumentor,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = _agent("executor")
+    agent.register_function({"now": lambda: "noon"})
+
+    with suppress_instrumentation():
+        success, output = cast(Any, agent).execute_function("now")
+
+    assert success is True
+    assert output["content"] == "noon"
     assert in_memory_span_exporter.get_finished_spans() == ()
 
 

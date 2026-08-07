@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import AbstractContextManager
+from functools import wraps
 from inspect import signature
-from typing import Any
+from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -44,6 +45,13 @@ def _io_attributes(
         return get_attributes("<unserializable>")
 
 
+def _type_name(annotation: Any) -> str:
+    """Name a type annotation, unwrapping ``Annotated`` so AG2's tool style reports its type."""
+    if get_origin(annotation) is Annotated:
+        annotation = get_args(annotation)[0]
+    return str(getattr(annotation, "__name__", None) or annotation)
+
+
 def _agent_name(agent: Any) -> str:
     """Name an agent, falling back to its class when it is unnamed."""
     return str(getattr(agent, "name", None) or type(agent).__name__)
@@ -51,11 +59,36 @@ def _agent_name(agent: Any) -> str:
 
 def _chat_output(result: Any) -> Any:
     """Reduce a ``ChatResult`` to its final message, which is the answer callers expect."""
-    history = getattr(result, "chat_history", None)
-    if history:
+    if not hasattr(result, "chat_history"):
+        return result
+    if history := result.chat_history:
         last = history[-1]
         return last.get("content") if isinstance(last, Mapping) else last
-    return result
+    return getattr(result, "summary", None)
+
+
+def _with_caller_context(method: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
+    """Bind the calling thread's context to the coroutine this wrapper returns.
+
+    AG2 runs async tools from its synchronous reply path on a fresh thread, where
+    context variables start empty. Capturing the context when the coroutine is
+    created keeps the span parented and its context attributes intact.
+    """
+
+    @wraps(method)
+    def bind(*args: Any, **kwargs: Any) -> Awaitable[Any]:
+        context = context_api.get_current()
+
+        async def traced() -> Any:
+            token = context_api.attach(context)
+            try:
+                return await method(*args, **kwargs)
+            finally:
+                context_api.detach(token)
+
+        return traced()
+
+    return bind
 
 
 def _start_span(
@@ -77,7 +110,9 @@ def _start_span(
 
 
 def _finish_span(span: trace_api.Span, output: Any) -> None:
-    """Record the call's output on the span."""
+    """Record the call's output on the span, leaving it unset when there is none."""
+    if output is None:
+        return
     span.set_attributes(_io_attributes(output, get_output_attributes))
 
 
@@ -145,6 +180,7 @@ class _ChatWrapper:
         finally:
             span.end()
 
+    @_with_caller_context
     async def async_call(
         self,
         wrapped: Callable[..., Awaitable[Any]],
@@ -210,6 +246,7 @@ class _ReplyWrapper:
         finally:
             span.end()
 
+    @_with_caller_context
     async def async_call(
         self,
         wrapped: Callable[..., Awaitable[Any]],
@@ -255,6 +292,27 @@ class _ToolWrapper:
         return args, kwargs
 
     @staticmethod
+    def _parameters(function: Any) -> dict[str, str]:
+        """Map the tool's parameters to type names, skipping annotations it cannot read.
+
+        ``get_type_hints`` resolves the string annotations that ``from __future__ import
+        annotations`` produces and strips ``Annotated``; the raw annotations are only a
+        fallback for callables whose hints cannot be evaluated.
+        """
+        try:
+            hints: Mapping[str, Any] = get_type_hints(function, include_extras=False)
+        except Exception:
+            hints = getattr(function, "__annotations__", None) or {}
+        try:
+            return {
+                parameter: _type_name(annotation)
+                for parameter, annotation in hints.items()
+                if parameter != "return"
+            }
+        except Exception:
+            return {}
+
+    @staticmethod
     def _attributes(agent: Any, func_call: Any, call_id: Any) -> tuple[str, dict[str, Any]]:
         """Return the tool's name and its span attributes, including parameter types."""
         call = func_call if isinstance(func_call, Mapping) else {}
@@ -276,12 +334,7 @@ class _ToolWrapper:
         if call_id:
             attributes[ToolCallAttributes.TOOL_CALL_ID] = str(call_id)
         function = getattr(agent, "_function_map", {}).get(name)
-        parameters = {
-            parameter: getattr(annotation, "__name__", str(annotation))
-            for parameter, annotation in getattr(function, "__annotations__", {}).items()
-            if parameter != "return"
-        }
-        if parameters:
+        if parameters := _ToolWrapper._parameters(function):
             attributes[SpanAttributes.TOOL_PARAMETERS] = safe_json_dumps(parameters)
         return name, attributes
 
@@ -307,9 +360,10 @@ class _ToolWrapper:
         args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        # Normalize before the suppression check so tracing never changes the call.
+        args, kwargs = self._normalized_call(args, kwargs)
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        args, kwargs = self._normalized_call(args, kwargs)
         span = self._span(instance, _arguments(wrapped, args, kwargs))
         try:
             with _use_span(span):
@@ -323,6 +377,7 @@ class _ToolWrapper:
         finally:
             span.end()
 
+    @_with_caller_context
     async def async_call(
         self,
         wrapped: Callable[..., Awaitable[Any]],
@@ -330,9 +385,10 @@ class _ToolWrapper:
         args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        # Normalize before the suppression check so tracing never changes the call.
+        args, kwargs = self._normalized_call(args, kwargs)
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
-        args, kwargs = self._normalized_call(args, kwargs)
         span = self._span(instance, _arguments(wrapped, args, kwargs))
         try:
             with _use_span(span):

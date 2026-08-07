@@ -29,6 +29,18 @@ class TestInstrumentor:
 
         assert ConversableAgent.generate_reply is original
 
+    def test_uninstrument_restores_methods_when_ag2_instrumented_first(self) -> None:
+        original = ConversableAgent.generate_reply
+        ag2_instrumentor = AG2Instrumentor()
+        ag2_instrumentor.instrument()  # e.g. auto-instrumentation loading the ag2 entry point
+        try:
+            facade = AutogenInstrumentor()
+            facade.instrument()
+            facade.uninstrument()
+            assert ConversableAgent.generate_reply is original
+        finally:
+            ag2_instrumentor.uninstrument()
+
     def test_legacy_distribution_delegates_to_ag2_instrumentor(self) -> None:
         original = ConversableAgent.generate_reply
         instrumentor = AutogenInstrumentor()

@@ -28,26 +28,24 @@ class AutogenInstrumentor:
 
     def __init__(self) -> None:
         self._instrumentor = AG2Instrumentor()
-        self._owns_instrumentation = False
+        self._instrument_requested = False
 
     @property
     def is_instrumented_by_opentelemetry(self) -> bool:
         return bool(self._instrumentor.is_instrumented_by_opentelemetry)
 
     def instrument(self, **kwargs: Any) -> AutogenInstrumentor:
-        already_instrumented = self._instrumentor.is_instrumented_by_opentelemetry
         self._instrumentor.instrument(**kwargs)
-        self._owns_instrumentation = (
-            not already_instrumented and self._instrumentor.is_instrumented_by_opentelemetry
-        )
+        self._instrument_requested = True
         return self
 
     def uninstrument(self, **kwargs: Any) -> AutogenInstrumentor:
-        # Only tear down instrumentation this facade installed; the delegate is
-        # a singleton shared with any independently used AG2Instrumentor.
-        if self._owns_instrumentation:
+        # Uninstrument only after this facade was asked to instrument; the delegate
+        # is a singleton, so an untouched facade must not tear down instrumentation
+        # installed through AG2Instrumentor directly.
+        if self._instrument_requested:
             self._instrumentor.uninstrument(**kwargs)
-            self._owns_instrumentation = False
+            self._instrument_requested = False
         return self
 
 
