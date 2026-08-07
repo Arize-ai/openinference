@@ -31,6 +31,10 @@ class _RequestAttributesExtractor:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
         yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.COHERE.value
         yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.COHERE.value
+        # The chat response does not echo the model, so it is read from the request.
+        # Recording it here rather than from the response also keeps it on error spans.
+        if isinstance(request_parameters, Mapping) and (model := request_parameters.get("model")):
+            yield SpanAttributes.LLM_MODEL_NAME, model
         try:
             yield from get_input_attributes(request_parameters).items()
         except Exception:
@@ -80,6 +84,9 @@ class _RequestAttributesExtractor:
         if (content := get_attribute(message, "content")) is not None:
             if text := _content_text(content):
                 yield MessageAttributes.MESSAGE_CONTENT, text
+        # Links a tool result message back to the call that produced it.
+        if (tool_call_id := get_attribute(message, "tool_call_id")) is not None:
+            yield MessageAttributes.MESSAGE_TOOL_CALL_ID, tool_call_id
 
         if (tool_calls := get_attribute(message, "tool_calls")) and isinstance(
             tool_calls, Iterable

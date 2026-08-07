@@ -25,11 +25,7 @@ class _ResponseAttributesExtractor:
     def get_extra_attributes(
         self,
         response: Any,
-        request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        # The chat response does not echo the model, so read it from the request.
-        if isinstance(request_parameters, Mapping) and (model := request_parameters.get("model")):
-            yield SpanAttributes.LLM_MODEL_NAME, model
         yield from self._get_attributes_from_usage(getattr(response, "usage", None))
         if message := getattr(response, "message", None):
             for key, value in self._get_attributes_from_response_message(message):

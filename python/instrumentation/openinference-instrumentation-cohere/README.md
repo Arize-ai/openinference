@@ -48,7 +48,7 @@ import cohere
 
 co = cohere.ClientV2()
 response = co.chat(
-    model="command-r-plus",
+    model="command-a-03-2025",
     messages=[{"role": "user", "content": "Why is the sky blue?"}],
 )
 print(response.message.content[0].text)

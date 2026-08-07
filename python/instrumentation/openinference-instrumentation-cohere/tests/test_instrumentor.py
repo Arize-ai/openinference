@@ -121,7 +121,7 @@ def test_chat(
     )
 
     response = _client().chat(
-        model="command-r-plus",
+        model="command-a-03-2025",
         messages=[_user_message("Why is the sky blue?")],
         temperature=0.1,
     )
@@ -134,7 +134,7 @@ def test_chat(
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
     assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-r-plus"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
     # Only parameters the caller actually set appear in the invocation parameters;
     # cohere's OMIT sentinel defaults must not leak in.
     assert json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])) == {"temperature": 0.1}
@@ -165,7 +165,7 @@ def test_chat_with_tool_call(
 
     tools: Any = [{"type": "function", "function": {"name": "get_current_weather"}}]
     _client().chat(
-        model="command-r-plus",
+        model="command-a-03-2025",
         messages=[_user_message("What is the weather in Paris?")],
         tools=tools,
     )
@@ -181,6 +181,54 @@ def test_chat_with_tool_call(
     assert attrs["llm.tools.0.tool.json_schema"]
 
 
+def test_chat_records_tool_result_message(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tool result message links back to the call that produced it."""
+    monkeypatch.setattr(
+        RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=_text_response())
+    )
+
+    messages: Any = [
+        {"role": "user", "content": "What is the weather in Paris?"},
+        {"role": "tool", "tool_call_id": "call-1", "content": '{"temperature_c": 18}'},
+    ]
+    _client().chat(model="command-a-03-2025", messages=messages)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.1"
+    assert attrs[f"{prefix}.{MessageAttributes.MESSAGE_ROLE}"] == "tool"
+    assert attrs[f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "call-1"
+
+
+def test_chat_error_span_keeps_model_name(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failed calls still carry the request attributes, including the model."""
+
+    def _raise(self: Any, **k: Any) -> Any:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(RawV2Client, "chat", _raise)
+
+    with pytest.raises(RuntimeError):
+        _client().chat(
+            model="command-a-03-2025",
+            messages=[_user_message("Why is the sky blue?")],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == StatusCode.ERROR
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+
+
 async def test_async_chat(
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
@@ -191,7 +239,7 @@ async def test_async_chat(
     monkeypatch.setattr(AsyncRawV2Client, "chat", _mock_chat)
 
     await cohere.AsyncClientV2(api_key="fake-key").chat(
-        model="command-r-plus",
+        model="command-a-03-2025",
         messages=[_user_message("Why is the sky blue?")],
     )
 
@@ -199,7 +247,7 @@ async def test_async_chat(
     assert len(spans) == 1
     assert spans[0].name == "async_chat"
     attrs = dict(spans[0].attributes or {})
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-r-plus"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
 
 
@@ -214,7 +262,7 @@ async def test_async_chat_cancellation_ends_span(
 
     with pytest.raises(asyncio.CancelledError):
         await cohere.AsyncClientV2(api_key="fake-key").chat(
-            model="command-r-plus",
+            model="command-a-03-2025",
             messages=[_user_message("Why is the sky blue?")],
         )
 
@@ -234,7 +282,7 @@ def test_suppress_tracing(
     )
     with suppress_tracing():
         _client().chat(
-            model="command-r-plus",
+            model="command-a-03-2025",
             messages=[_user_message("Why is the sky blue?")],
         )
     assert len(in_memory_span_exporter.get_finished_spans()) == 0
@@ -254,7 +302,7 @@ def test_context_attributes_propagation(
         tags=["tag-1", "tag-2"],
     ):
         _client().chat(
-            model="command-r-plus",
+            model="command-a-03-2025",
             messages=[_user_message("Why is the sky blue?")],
         )
 
@@ -282,7 +330,7 @@ def test_trace_config_masking(
     )
 
     _client().chat(
-        model="command-r-plus",
+        model="command-a-03-2025",
         messages=[_user_message("This input is sensitive.")],
     )
 

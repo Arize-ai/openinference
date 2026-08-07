@@ -73,20 +73,13 @@ class _WithTracer(ABC):
             )
         )
 
-    def _finalize_response(
-        self,
-        span: _WithSpan,
-        response: Any,
-        request_parameters: Mapping[str, Any],
-    ) -> None:
+    def _finalize_response(self, span: _WithSpan, response: Any) -> None:
         try:
             _finish_tracing(
                 status=trace_api.Status(status_code=trace_api.StatusCode.OK),
                 with_span=span,
                 attributes=self._response_extractor.get_attributes(response=response),
-                extra_attributes=self._response_extractor.get_extra_attributes(
-                    response=response, request_parameters=request_parameters
-                ),
+                extra_attributes=self._response_extractor.get_extra_attributes(response=response),
             )
         except Exception:
             logger.exception(f"Failed to finalize response of type {type(response)}")
@@ -135,7 +128,7 @@ class _ChatWrapper(_WithTracer):
             except BaseException as exception:
                 self._record_failure(span, exception)
                 raise
-            self._finalize_response(span, response, request_parameters)
+            self._finalize_response(span, response)
         return response
 
 
@@ -159,7 +152,7 @@ class _AsyncChatWrapper(_WithTracer):
             except BaseException as exception:
                 self._record_failure(span, exception)
                 raise
-            self._finalize_response(span, response, request_parameters)
+            self._finalize_response(span, response)
         return response
 
 
