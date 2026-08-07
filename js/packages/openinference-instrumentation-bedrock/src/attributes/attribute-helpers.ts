@@ -245,15 +245,22 @@ export function processMessages({
 
 /**
  * Extracts clean model name from full Bedrock model ID
- * Removes vendor prefix and version suffixes to get the base model name
+ * Removes vendor prefix, optional region prefix, and version suffixes to get the base model name.
+ *
+ * Handles both standard and cross-region inference model IDs:
+ *   - Standard:     "anthropic.claude-3-sonnet-20240229-v1:0"
+ *   - Cross-region: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
  *
  * @param modelId The full Bedrock model identifier
- * @returns {string} The cleaned model name (e.g., "claude-3-sonnet" from "anthropic.claude-3-sonnet-20240229-v1:0")
+ * @returns {string} The cleaned model name (e.g., "claude-3-sonnet-20240229" from "anthropic.claude-3-sonnet-20240229-v1:0")
  */
 export function extractModelName(modelId: string): string {
   const parts = modelId.split(".");
   if (parts.length > 1) {
-    const modelPart = parts[1];
+    // The model name is always the last dot-separated segment.
+    // Standard IDs:     vendor.model-v1:0        (2 parts)
+    // Cross-region IDs: region.vendor.model-v1:0  (3+ parts)
+    const modelPart = parts[parts.length - 1];
     if (modelId.includes("anthropic")) {
       const versionIndex = modelPart.indexOf("-v");
       if (versionIndex > 0) {
