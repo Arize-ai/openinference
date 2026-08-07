@@ -1,3 +1,5 @@
+"""OpenInference instrumentation for AG2, which is imported as ``autogen``."""
+
 from __future__ import annotations
 
 from collections.abc import Callable, Collection
@@ -22,18 +24,22 @@ _instruments_any = (*_instruments, "autogen >= 0.5.0, < 1.0.0", "pyautogen >= 0.
 
 
 class AG2Instrumentor(BaseInstrumentor):  # type: ignore
+    """Traces the chat, reply, and tool execution methods of AG2's ``ConversableAgent``."""
+
     __slots__ = ("_original_methods", "_tracer")
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
     def _check_dependency_conflicts(self) -> Any:
+        """Report a conflict only when none of the AG2 distribution names is satisfied."""
         conflicts = [get_dependency_conflicts([dependency]) for dependency in _instruments_any]
         if any(conflict is None for conflict in conflicts):
             return None
         return conflicts[0]
 
     def _instrument(self, **kwargs: Any) -> None:
+        """Patch the traced methods, accepting ``tracer_provider`` and ``config`` kwargs."""
         from autogen import ConversableAgent
 
         tracer_provider = kwargs.get("tracer_provider") or trace_api.get_tracer_provider()
@@ -61,6 +67,7 @@ class AG2Instrumentor(BaseInstrumentor):  # type: ignore
             wrap_function_wrapper(ConversableAgent, name, wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        """Restore every method this instrumentor patched."""
         from autogen import ConversableAgent
 
         for name, method in getattr(self, "_original_methods", {}).items():
@@ -68,6 +75,7 @@ class AG2Instrumentor(BaseInstrumentor):  # type: ignore
         self._original_methods = {}
 
 
+# Alternate casing, accepted so either spelling resolves to the same instrumentor.
 Ag2Instrumentor = AG2Instrumentor
 
 __all__ = ["AG2Instrumentor", "Ag2Instrumentor"]

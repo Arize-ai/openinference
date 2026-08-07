@@ -1,3 +1,5 @@
+"""Wrappers that turn AG2 chats, replies, and tool calls into OpenInference spans."""
+
 from __future__ import annotations
 
 import json
@@ -25,6 +27,7 @@ from openinference.semconv.trace import (
 def _arguments(
     wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: Mapping[str, Any]
 ) -> dict[str, Any]:
+    """Bind a call's arguments to their parameter names, falling back to the keywords."""
     try:
         return dict(signature(wrapped).bind_partial(*args, **kwargs).arguments)
     except (TypeError, ValueError):
@@ -34,6 +37,7 @@ def _arguments(
 def _io_attributes(
     value: Any, get_attributes: Callable[[Any], dict[str, AttributeValue]]
 ) -> dict[str, AttributeValue]:
+    """Build input or output attributes, substituting a placeholder if serialization fails."""
     try:
         return get_attributes(value)
     except Exception:
@@ -41,10 +45,12 @@ def _io_attributes(
 
 
 def _agent_name(agent: Any) -> str:
+    """Name an agent, falling back to its class when it is unnamed."""
     return str(getattr(agent, "name", None) or type(agent).__name__)
 
 
 def _chat_output(result: Any) -> Any:
+    """Reduce a ``ChatResult`` to its final message, which is the answer callers expect."""
     history = getattr(result, "chat_history", None)
     if history:
         last = history[-1]
@@ -59,6 +65,7 @@ def _start_span(
     input_value: Any,
     attributes: Mapping[str, Any],
 ) -> trace_api.Span:
+    """Start a span carrying its kind, input value, and the caller's attributes."""
     return tracer.start_span(
         name,
         attributes={
@@ -70,23 +77,30 @@ def _start_span(
 
 
 def _finish_span(span: trace_api.Span, output: Any) -> None:
+    """Record the call's output on the span."""
     span.set_attributes(_io_attributes(output, get_output_attributes))
 
 
 def _record_exception(span: trace_api.Span, error: BaseException) -> None:
+    """Mark the span as failed and attach the exception."""
     span.set_status(trace_api.StatusCode.ERROR, str(error))
     span.record_exception(error)
 
 
 def _use_span(span: trace_api.Span) -> AbstractContextManager[trace_api.Span]:
-    # _record_exception handles escaping exceptions; use_span must not record
-    # them too, or every error span carries duplicate exception events.
+    """Make the span current without letting it record exceptions.
+
+    ``_record_exception`` already handles anything that escapes, so leaving the
+    defaults on would put a duplicate exception event on every error span.
+    """
     return trace_api.use_span(
         span, end_on_exit=False, record_exception=False, set_status_on_exception=False
     )
 
 
 class _ChatWrapper:
+    """Traces ``initiate_chat`` and ``a_initiate_chat`` as the AGENT span for a chat."""
+
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -155,6 +169,8 @@ class _ChatWrapper:
 
 
 class _ReplyWrapper:
+    """Traces ``generate_reply`` and ``a_generate_reply`` as an AGENT span per reply."""
+
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -218,6 +234,8 @@ class _ReplyWrapper:
 
 
 class _ToolWrapper:
+    """Traces ``execute_function`` and ``a_execute_function`` as a TOOL span per call."""
+
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -225,8 +243,11 @@ class _ToolWrapper:
     def _normalized_call(
         args: tuple[Any, ...], kwargs: Mapping[str, Any]
     ) -> tuple[tuple[Any, ...], Mapping[str, Any]]:
-        # execute_function requires a mapping, but callers historically passed
-        # bare function names as strings; normalize before delegating.
+        """Promote a bare function name to the mapping ``execute_function`` requires.
+
+        Callers historically passed the name as a string, so normalize before
+        delegating rather than letting the call fail inside AG2.
+        """
         if isinstance(kwargs.get("func_call"), str):
             kwargs = {**kwargs, "func_call": {"name": kwargs["func_call"]}}
         elif args and isinstance(args[0], str):
@@ -235,6 +256,7 @@ class _ToolWrapper:
 
     @staticmethod
     def _attributes(agent: Any, func_call: Any, call_id: Any) -> tuple[str, dict[str, Any]]:
+        """Return the tool's name and its span attributes, including parameter types."""
         call = func_call if isinstance(func_call, Mapping) else {}
         name = str(call.get("name") or "unknown")
         raw_arguments = call.get("arguments", "{}")
@@ -272,6 +294,7 @@ class _ToolWrapper:
 
     @staticmethod
     def _set_result_status(span: trace_api.Span, result: Any) -> None:
+        """Fail the span when AG2 reports the execution flag as False."""
         if isinstance(result, tuple) and result and result[0] is False:
             span.set_status(trace_api.StatusCode.ERROR, "tool execution failed")
         else:

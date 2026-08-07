@@ -1,3 +1,5 @@
+"""Deprecated compatibility layer over the AG2 instrumentation."""
+
 from __future__ import annotations
 
 from typing import Any
