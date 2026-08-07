@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.14...python-openinference-instrumentation-autogen-v0.1.15) (2026-08-07)
+
+
+### Features
+
+* **ag2:** add first-class instrumentation ([#3379](https://github.com/Arize-ai/openinference/issues/3379)) ([2b2d78f](https://github.com/Arize-ai/openinference/commit/2b2d78f6814b9416de95eb720aa71bd6d8cb895c))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.13...python-openinference-instrumentation-autogen-v0.1.14) (2026-05-18)
 
 
