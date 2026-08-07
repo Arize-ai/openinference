@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.70](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.69...python-openinference-instrumentation-langchain-v0.1.70) (2026-08-07)
+
+
+### Features
+
+* **langchain:** Add Finish Reason Attribute ([#3454](https://github.com/Arize-ai/openinference/issues/3454)) ([51c459d](https://github.com/Arize-ai/openinference/commit/51c459d33c03276ea12075f9e499ef97d3d7e3b5))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
 ## [0.1.69](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.68...python-openinference-instrumentation-langchain-v0.1.69) (2026-08-04)
 
 
