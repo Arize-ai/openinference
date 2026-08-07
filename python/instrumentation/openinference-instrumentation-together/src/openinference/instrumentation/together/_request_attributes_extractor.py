@@ -7,6 +7,7 @@ from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 from opentelemetry.util.types import AttributeValue
@@ -47,11 +48,13 @@ class _RequestAttributesExtractor:
             return
         invocation_params = dict(request_parameters)
         invocation_params.pop("messages", None)  # Remove LLM input messages
-        invocation_params.pop("functions", None)
 
         if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
             for i, tool in enumerate(tools):
-                yield f"llm.tools.{i}.tool.json_schema", safe_json_dumps(tool)
+                yield (
+                    f"{SpanAttributes.LLM_TOOLS}.{i}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                    safe_json_dumps(tool),
+                )
 
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 

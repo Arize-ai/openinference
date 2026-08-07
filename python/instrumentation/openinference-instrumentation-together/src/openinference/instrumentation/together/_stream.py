@@ -1,18 +1,17 @@
 import logging
 from collections import defaultdict
-from typing import Any, AsyncIterator, Dict, Iterator, List, Tuple
+from types import SimpleNamespace
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    SpanAttributes,
-    ToolCallAttributes,
-)
+from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.together._response_attributes_extractor import (
+    _ResponseAttributesExtractor,
+)
 from openinference.instrumentation.together._utils import _finish_tracing
 from openinference.instrumentation.together._with_span import _WithSpan
 
@@ -23,12 +22,14 @@ logger.addHandler(logging.NullHandler())
 class _ChunkAccumulator:
     """Accumulates streamed chat-completion chunks into span attributes."""
 
-    def __init__(self) -> None:
+    def __init__(self, response_extractor: _ResponseAttributesExtractor) -> None:
+        self._response_extractor = response_extractor
         self._model: Any = None
         self._usage: Any = None
         self._roles: Dict[int, str] = {}
         self._contents: Dict[int, List[str]] = defaultdict(list)
         self._tool_calls: Dict[int, Dict[int, Dict[str, Any]]] = defaultdict(dict)
+        self._completion: Optional[SimpleNamespace] = None
 
     def process_chunk(self, chunk: Any) -> None:
         try:
@@ -61,109 +62,80 @@ class _ChunkAccumulator:
         except Exception:
             logger.exception(f"Failed to process stream chunk of type {type(chunk)}")
 
+    def _get_completion(self) -> SimpleNamespace:
+        """Materializes the accumulated chunks into a chat-completion-shaped object."""
+        if self._completion is not None:
+            return self._completion
+        choices = []
+        for index in sorted(self._roles.keys() | self._contents.keys() | self._tool_calls.keys()):
+            tool_calls = [
+                SimpleNamespace(
+                    id=entry["id"],
+                    function=SimpleNamespace(
+                        name=entry["name"], arguments="".join(entry["arguments"])
+                    ),
+                )
+                for _, entry in sorted(self._tool_calls.get(index, {}).items())
+            ]
+            message = SimpleNamespace(
+                role=self._roles.get(index),
+                content="".join(self._contents.get(index, [])) or None,
+                function_call=None,
+                tool_calls=tool_calls or None,
+            )
+            choices.append(SimpleNamespace(index=index, message=message))
+        self._completion = SimpleNamespace(model=self._model, usage=self._usage, choices=choices)
+        return self._completion
+
     def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        content = "".join(self._contents.get(0, []))
-        if content and not self._tool_calls:
-            yield SpanAttributes.OUTPUT_VALUE, content
+        choices = self._get_completion().choices
+        if len(choices) == 1 and choices[0].message.content and not choices[0].message.tool_calls:
+            yield SpanAttributes.OUTPUT_VALUE, choices[0].message.content
         else:
-            yield SpanAttributes.OUTPUT_VALUE, safe_json_dumps(self._as_messages())
+            messages = [
+                {
+                    key: value
+                    for key, value in {
+                        "role": choice.message.role,
+                        "content": choice.message.content,
+                        "tool_calls": [
+                            {
+                                "id": tool_call.id,
+                                "function": {
+                                    "name": tool_call.function.name,
+                                    "arguments": tool_call.function.arguments,
+                                },
+                            }
+                            for tool_call in choice.message.tool_calls or ()
+                        ]
+                        or None,
+                    }.items()
+                    if value is not None
+                }
+                for choice in choices
+            ]
+            yield SpanAttributes.OUTPUT_VALUE, safe_json_dumps(messages)
             yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
 
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if self._model:
-            yield SpanAttributes.LLM_MODEL_NAME, self._model
-        if usage := self._usage:
-            if (total_tokens := getattr(usage, "total_tokens", None)) is not None:
-                yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
-            if (prompt_tokens := getattr(usage, "prompt_tokens", None)) is not None:
-                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-            if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
-                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
-        for index in sorted(self._roles.keys() | self._contents.keys() | self._tool_calls.keys()):
-            prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}"
-            if role := self._roles.get(index):
-                yield f"{prefix}.{MessageAttributes.MESSAGE_ROLE}", role
-            if content := "".join(self._contents.get(index, [])):
-                yield f"{prefix}.{MessageAttributes.MESSAGE_CONTENT}", content
-            for tool_index, entry in sorted(self._tool_calls.get(index, {}).items()):
-                tool_prefix = f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_index}"
-                if entry["id"] is not None:
-                    yield f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_ID}", entry["id"]
-                if entry["name"] is not None:
-                    yield (
-                        f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
-                        entry["name"],
-                    )
-                if arguments := "".join(entry["arguments"]):
-                    yield (
-                        f"{tool_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                        arguments,
-                    )
-
-    def _as_messages(self) -> List[Dict[str, Any]]:
-        messages: List[Dict[str, Any]] = []
-        for index in sorted(self._roles.keys() | self._contents.keys() | self._tool_calls.keys()):
-            message: Dict[str, Any] = {}
-            if role := self._roles.get(index):
-                message["role"] = role
-            if content := "".join(self._contents.get(index, [])):
-                message["content"] = content
-            if tool_calls := self._tool_calls.get(index):
-                message["tool_calls"] = [
-                    {
-                        "id": entry["id"],
-                        "function": {
-                            "name": entry["name"],
-                            "arguments": "".join(entry["arguments"]),
-                        },
-                    }
-                    for _, entry in sorted(tool_calls.items())
-                ]
-            messages.append(message)
-        return messages
+        yield from self._response_extractor.get_extra_attributes(response=self._get_completion())
 
 
-class _StreamStateMixin:
-    """Span bookkeeping shared by the sync and async stream proxies."""
+class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
+    """Wraps ``together.Stream`` and ``together.AsyncStream`` to finish the span
+    when the stream is consumed (or the stream's context manager exits)."""
 
-    _self_with_span: _WithSpan
-    _self_accumulator: _ChunkAccumulator
+    __slots__ = ("_self_with_span", "_self_accumulator")
 
-    def _process_chunk(self, chunk: Any) -> None:
-        self._self_accumulator.process_chunk(chunk)
-
-    def _finish_success(self) -> None:
-        if self._self_with_span.is_finished:
-            return
-        _finish_tracing(
-            status=trace_api.Status(status_code=trace_api.StatusCode.OK),
-            with_span=self._self_with_span,
-            attributes=self._self_accumulator.get_attributes(),
-            extra_attributes=self._self_accumulator.get_extra_attributes(),
-        )
-
-    def _finish_error(self, exception: Exception) -> None:
-        if self._self_with_span.is_finished:
-            return
-        self._self_with_span.record_exception(exception)
-        _finish_tracing(
-            status=trace_api.Status(
-                status_code=trace_api.StatusCode.ERROR,
-                description=f"{type(exception).__name__}: {exception}",
-            ),
-            with_span=self._self_with_span,
-            attributes=self._self_accumulator.get_attributes(),
-            extra_attributes=self._self_accumulator.get_extra_attributes(),
-        )
-
-
-class _Stream(ObjectProxy, _StreamStateMixin):  # type: ignore[misc,type-arg,unused-ignore]
-    """Wraps ``together.Stream`` to finish the span when the stream is consumed."""
-
-    def __init__(self, stream: Any, with_span: _WithSpan) -> None:
+    def __init__(
+        self,
+        stream: Any,
+        with_span: _WithSpan,
+        response_extractor: _ResponseAttributesExtractor,
+    ) -> None:
         super().__init__(stream)
         self._self_with_span = with_span
-        self._self_accumulator = _ChunkAccumulator()
+        self._self_accumulator = _ChunkAccumulator(response_extractor)
 
     def __iter__(self) -> Iterator[Any]:
         return self
@@ -172,35 +144,13 @@ class _Stream(ObjectProxy, _StreamStateMixin):  # type: ignore[misc,type-arg,unu
         try:
             chunk = self.__wrapped__.__next__()
         except StopIteration:
-            self._finish_success()
+            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
             raise
         except Exception as exception:
             self._finish_error(exception)
             raise
-        self._process_chunk(chunk)
+        self._self_accumulator.process_chunk(chunk)
         return chunk
-
-    def __enter__(self) -> "_Stream":
-        self.__wrapped__.__enter__()
-        return self
-
-    def __exit__(self, *args: Any) -> Any:
-        result = self.__wrapped__.__exit__(*args)
-        self._finish_success()
-        return result
-
-    def close(self) -> None:
-        self.__wrapped__.close()
-        self._finish_success()
-
-
-class _AsyncStream(ObjectProxy, _StreamStateMixin):  # type: ignore[misc,type-arg,unused-ignore]
-    """Wraps ``together.AsyncStream`` to finish the span when the stream is consumed."""
-
-    def __init__(self, stream: Any, with_span: _WithSpan) -> None:
-        super().__init__(stream)
-        self._self_with_span = with_span
-        self._self_accumulator = _ChunkAccumulator()
 
     def __aiter__(self) -> AsyncIterator[Any]:
         return self
@@ -209,23 +159,47 @@ class _AsyncStream(ObjectProxy, _StreamStateMixin):  # type: ignore[misc,type-ar
         try:
             chunk = await self.__wrapped__.__anext__()
         except StopAsyncIteration:
-            self._finish_success()
+            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
             raise
         except Exception as exception:
             self._finish_error(exception)
             raise
-        self._process_chunk(chunk)
+        self._self_accumulator.process_chunk(chunk)
         return chunk
 
-    async def __aenter__(self) -> "_AsyncStream":
+    def __enter__(self) -> "_Stream":
+        self.__wrapped__.__enter__()
+        return self
+
+    def __exit__(self, *args: Any) -> Any:
+        result = self.__wrapped__.__exit__(*args)
+        self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+        return result
+
+    async def __aenter__(self) -> "_Stream":
         await self.__wrapped__.__aenter__()
         return self
 
     async def __aexit__(self, *args: Any) -> Any:
         result = await self.__wrapped__.__aexit__(*args)
-        self._finish_success()
+        self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
         return result
 
-    async def close(self) -> None:
-        await self.__wrapped__.close()
-        self._finish_success()
+    def _finish_error(self, exception: Exception) -> None:
+        self._self_with_span.record_exception(exception)
+        self._finish(
+            trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+        )
+
+    def _finish(self, status: trace_api.Status) -> None:
+        if self._self_with_span.is_finished:
+            return
+        _finish_tracing(
+            status=status,
+            with_span=self._self_with_span,
+            attributes=self._self_accumulator.get_attributes(),
+            extra_attributes=self._self_accumulator.get_extra_attributes(),
+        )

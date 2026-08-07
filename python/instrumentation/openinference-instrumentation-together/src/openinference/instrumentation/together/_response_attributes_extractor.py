@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Iterable, Iterator, Tuple
 
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 from opentelemetry.util.types import AttributeValue
@@ -18,21 +18,8 @@ class _ResponseAttributesExtractor:
             _io_value_and_type(response),
         )
 
-    def get_extra_attributes(
-        self,
-        response: Any,
-        request_parameters: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        yield from self._get_attributes_from_chat_completion(
-            completion=response,
-            request_parameters=request_parameters,
-        )
-
-    def _get_attributes_from_chat_completion(
-        self,
-        completion: Any,
-        request_parameters: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    def get_extra_attributes(self, response: Any) -> Iterator[Tuple[str, AttributeValue]]:
+        completion = response
         if model := getattr(completion, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model
         if usage := getattr(completion, "usage", None):

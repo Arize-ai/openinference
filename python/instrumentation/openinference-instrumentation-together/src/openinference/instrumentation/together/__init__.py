@@ -1,6 +1,5 @@
 import logging
-from importlib import import_module
-from typing import Any, Collection
+from typing import Any, Callable, Collection, Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
@@ -18,7 +17,8 @@ _instruments = ("together >= 2.0.0",)
 class TogetherInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     """An instrumentor for the Together AI Python client (chat completions)."""
 
-    __slots__ = ("_original_create", "_original_async_create", "_tracer")
+    _original_create: Optional[Callable[..., Any]] = None
+    _original_async_create: Optional[Callable[..., Any]] = None
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -59,8 +59,14 @@ class TogetherInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        together_module = import_module("together.resources.chat.completions")
-        if getattr(self, "_original_create", None) is not None:
-            together_module.CompletionsResource.create = self._original_create
-        if getattr(self, "_original_async_create", None) is not None:
-            together_module.AsyncCompletionsResource.create = self._original_async_create
+        from together.resources.chat.completions import (
+            AsyncCompletionsResource,
+            CompletionsResource,
+        )
+
+        if self._original_create is not None:
+            CompletionsResource.create = self._original_create  # type: ignore[method-assign]
+        if self._original_async_create is not None:
+            AsyncCompletionsResource.create = (  # type: ignore[method-assign]
+                self._original_async_create
+            )
