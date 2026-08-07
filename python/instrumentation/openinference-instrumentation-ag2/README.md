@@ -13,6 +13,8 @@ The following instrumentation is fully OpenTelemetry-compatible and can be sent 
 pip install openinference-instrumentation-ag2
 ```
 
+PyPI package: [`openinference-instrumentation-ag2`](https://pypi.org/project/openinference-instrumentation-ag2/)
+
 This release supports the `autogen` API provided by AG2 0.14. AG2 1.0 uses a new middleware API
 and is not yet covered by this instrumentor.
 

@@ -21,6 +21,8 @@ The following are **not** traced, and calls to them produce no spans:
 pip install openinference-instrumentation-cohere
 ```
 
+PyPI package: [`openinference-instrumentation-cohere`](https://pypi.org/project/openinference-instrumentation-cohere/)
+
 ## Quickstart
 
 Install packages needed for this demonstration.
