@@ -37,6 +37,8 @@ Every instrumentor **must**:
 2. Propagate context attributes via `OITracer` (session ID, user ID, metadata, tags)
 3. Support data masking via `TraceConfig`
 
+For internal diagnostics use `diag` from `@opentelemetry/api` (`diag.debug`/`diag.warn`) — never `console.*`. (`diag` is JS-only; Python packages use stdlib `logging` instead.)
+
 ## Testing
 
 - Vite with **manual module mocking**: `instrumentation._modules[0].moduleExports = module`

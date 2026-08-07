@@ -31,6 +31,7 @@ from openinference.instrumentation.anthropic._stream import (
     _RawStreamInterceptor,
     _Stream,
 )
+from openinference.instrumentation.anthropic._utils import _get_token_counts
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -693,22 +694,7 @@ def _get_llm_system() -> Iterator[Tuple[str, Any]]:
 
 @_stop_on_exception
 def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
-    # See https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#tracking-cache-performance
-    # cache_creation_input_tokens: Number of tokens written to the cache when creating a new entry.
-    # cache_read_input_tokens: Number of tokens retrieved from the cache for this request.
-    # input_tokens: Number of input tokens which were not read from or used to create a cache.
-    if prompt_tokens := (
-        usage.input_tokens
-        + (usage.cache_creation_input_tokens or 0)
-        + (usage.cache_read_input_tokens or 0)
-    ):
-        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if usage.output_tokens:
-        yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
-    if usage.cache_read_input_tokens:
-        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, usage.cache_read_input_tokens
-    if usage.cache_creation_input_tokens:
-        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, usage.cache_creation_input_tokens
+    yield from _get_token_counts(usage)
 
 
 @_stop_on_exception
@@ -914,6 +900,8 @@ def _get_output_messages(response: Message) -> Iterator[Tuple[str, Any]]:
     Extracts the tool call information from the response
     """
     yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", response.role
+    if stop_reason := response.stop_reason:
+        yield LLM_FINISH_REASON, stop_reason
     tool_index = 0
     for j, block in enumerate(response.content):
         if block.type == "text":
@@ -990,18 +978,12 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
-LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
-LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
-LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
-LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
-    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
-)
-LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

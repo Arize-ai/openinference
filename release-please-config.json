@@ -78,6 +78,14 @@
             "package-name": "python-openinference-instrumentation-cohere",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-together": {
+            "package-name": "python-openinference-instrumentation-together",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-ollama": {
+            "package-name": "python-openinference-instrumentation-ollama",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-instructor": {
             "package-name": "python-openinference-instrumentation-instructor",
             "release-type": "python"

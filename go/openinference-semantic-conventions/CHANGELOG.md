@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.1...go/openinference-semantic-conventions/v0.1.2) (2026-08-01)
+
+
+### Features
+
+* **spec:** add annotation and evaluation conventions ([#3466](https://github.com/Arize-ai/openinference/issues/3466)) ([145e3c6](https://github.com/Arize-ai/openinference/commit/145e3c6d0626f37396b32d8e33347d386aa4097c))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.0...go/openinference-semantic-conventions/v0.1.1) (2026-05-22)
 
 

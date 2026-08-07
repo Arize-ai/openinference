@@ -19,8 +19,16 @@ This project and its packages are built using the following tools:
 - [pnpm](https://pnpm.io/) for managing packages across the repo. Note, this project uses pnpm workspaces, so you must use pnpm to install packages at the root of the repo.
 - [TypeScript](https://www.typescriptlang.org/) for type checking and transpiling.
 - [Vitest](https://vitest.dev/) for unit testing and test running.
-- [Eslint](https://eslint.org/) for linting and best practices.
-- [Prettier](https://prettier.io/) for code formatting.
+- [Oxlint](https://oxc.rs/docs/guide/usage/linter) for linting and best practices (including [type-aware](https://oxc.rs/docs/guide/usage/linter/type-aware) rules via `oxlint-tsgolint`).
+- [oxfmt](https://oxc.rs/docs/guide/usage/formatter) for code formatting.
+
+> [!NOTE]
+> The repo compiles with TypeScript 7 (the native compiler), which no longer ships
+> `tsserver`, so do not set `typescript.tsdk`. For IntelliSense that matches the
+> compiler, install the [TypeScript (Native Preview)](https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.native-preview)
+> extension; otherwise VS Code's built-in TypeScript language service works fine for
+> editing. Tools that still need the JS compiler API (e.g. TypeDoc) resolve the
+> `@typescript/typescript6` bridge via `.pnpmfile.cjs`.
 
 ### Setup
 

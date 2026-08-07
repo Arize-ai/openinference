@@ -215,6 +215,10 @@ You can copy and modify any of the `pyproject.toml` files that we have in any ot
 
 For your tests to be run in CI (and we also recommend running `tox` locally for uniform environments), you need to add to the `tox.ini` [file](https://github.com/Arize-ai/openinference/blob/main/python/tox.ini). Specifically, you need to add to the `changedir` and `commands_pre` sections.
 
+##### Update the root README
+
+Add rows for your package to the root `README.md`: one in the Python "Libraries" table (with the PyPI badge) and, if your package ships an `examples/` directory, one in the "Examples" table.
+
 ## Publishing
 
 ### PyPI
