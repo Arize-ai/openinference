@@ -15,12 +15,6 @@ from cohere.types import (
 )
 from cohere.v2.raw_client import AsyncRawV2Client, RawV2Client
 from cohere.v2.types import V2ChatResponse
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -34,6 +28,12 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.cohere import CohereInstrumentor
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 
 def _text_response() -> V2ChatResponse:

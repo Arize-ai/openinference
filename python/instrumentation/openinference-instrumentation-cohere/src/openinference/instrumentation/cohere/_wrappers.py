@@ -96,6 +96,7 @@ def _parse_args(
     Cohere uses an ``OMIT`` sentinel (``Ellipsis``) as the default for unset chat
     parameters, so both ``None`` and ``Ellipsis`` are filtered out.
     """
+    arguments: Mapping[str, Any]
     try:
         arguments = signature.bind(*args, **kwargs).arguments
     except TypeError:

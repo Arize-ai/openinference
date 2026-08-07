@@ -2,6 +2,9 @@ import logging
 from enum import Enum
 from typing import Any, Iterable, Iterator, Mapping, Tuple
 
+from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import get_input_attributes, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMProviderValues,
@@ -11,9 +14,6 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.util.types import AttributeValue
-
-from openinference.instrumentation import get_input_attributes, safe_json_dumps
 
 __all__ = ("_RequestAttributesExtractor",)
 
