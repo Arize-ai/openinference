@@ -4,6 +4,7 @@ from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.instrumentation.utils import unwrap
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -18,15 +19,16 @@ _instruments = ("cohere >= 5.13.0",)
 class CohereInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     """An instrumentor for the Cohere Python client (v2 chat API)."""
 
-    __slots__ = ("_original_chat", "_original_async_chat", "_tracer")
+    __slots__ = ("_tracer",)
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        from cohere.v2.client import AsyncV2Client, V2Client
         from openinference.instrumentation.cohere._wrappers import (
+            _AsyncChatStreamWrapper,
             _AsyncChatWrapper,
+            _ChatStreamWrapper,
             _ChatWrapper,
         )
 
@@ -41,27 +43,25 @@ class CohereInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config=config,
         )
 
-        # ``cohere.ClientV2`` / ``AsyncClientV2`` inherit ``chat`` from these base
-        # classes, so wrapping the base methods covers both the sync and async
-        # clients. The streaming entry points (``chat_stream``) are not yet
-        # instrumented.
-        self._original_chat = V2Client.chat
-        wrap_function_wrapper(
-            "cohere.v2.client",
-            "V2Client.chat",
-            _ChatWrapper(tracer=self._tracer),
-        )
-
-        self._original_async_chat = AsyncV2Client.chat
-        wrap_function_wrapper(
-            "cohere.v2.client",
-            "AsyncV2Client.chat",
-            _AsyncChatWrapper(tracer=self._tracer),
-        )
+        # ``cohere.ClientV2`` / ``AsyncClientV2`` inherit these methods from the
+        # base classes below, so wrapping the base methods covers both the sync
+        # and async clients.
+        for class_name, wrapper in (
+            ("V2Client.chat", _ChatWrapper(tracer=self._tracer)),
+            ("AsyncV2Client.chat", _AsyncChatWrapper(tracer=self._tracer)),
+            ("V2Client.chat_stream", _ChatStreamWrapper(tracer=self._tracer)),
+            ("AsyncV2Client.chat_stream", _AsyncChatStreamWrapper(tracer=self._tracer)),
+        ):
+            wrap_function_wrapper("cohere.v2.client", class_name, wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         cohere_module = import_module("cohere.v2.client")
-        if getattr(self, "_original_chat", None) is not None:
-            cohere_module.V2Client.chat = self._original_chat
-        if getattr(self, "_original_async_chat", None) is not None:
-            cohere_module.AsyncV2Client.chat = self._original_async_chat
+        for class_name, method_name in (
+            ("V2Client", "chat"),
+            ("AsyncV2Client", "chat"),
+            ("V2Client", "chat_stream"),
+            ("AsyncV2Client", "chat_stream"),
+        ):
+            # ``unwrap`` removes only this instrumentor's wrapper, leaving any
+            # wrapper another layer installed on top of it intact.
+            unwrap(getattr(cohere_module, class_name), method_name)

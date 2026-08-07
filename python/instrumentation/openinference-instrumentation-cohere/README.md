@@ -8,9 +8,10 @@ Chat calls made with the Cohere v2 client (`ClientV2` and `AsyncClientV2`) are t
 
 ## Coverage
 
-`ClientV2.chat` and `AsyncClientV2.chat` are instrumented. The following are **not** traced yet, and calls to them produce no spans:
+`ClientV2.chat`, `AsyncClientV2.chat`, `ClientV2.chat_stream`, and `AsyncClientV2.chat_stream` are instrumented. Streamed calls finish their span when the returned iterator is exhausted, with the accumulated output message, tool calls, and token counts.
 
-- Streaming (`chat_stream` / `ClientV2.chat_stream`)
+The following are **not** traced, and calls to them produce no spans:
+
 - The v1 client (`cohere.Client`)
 - Embed, rerank, and classify endpoints
 

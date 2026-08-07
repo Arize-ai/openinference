@@ -31,6 +31,10 @@ class _WithSpan:
             logger.exception("Failed to check if span is recording")
             self._is_finished = True
 
+    @property
+    def is_finished(self) -> bool:
+        return self._is_finished
+
     def record_exception(self, exception: BaseException) -> None:
         if self._is_finished:
             return

@@ -20,6 +20,7 @@ from openinference.instrumentation.cohere._request_attributes_extractor import (
 from openinference.instrumentation.cohere._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
+from openinference.instrumentation.cohere._stream import _Stream
 from openinference.instrumentation.cohere._with_span import _WithSpan
 
 logger = logging.getLogger(__name__)
@@ -179,6 +180,58 @@ class _AsyncChatWrapper(_WithTracer):
                 raise
             self._finalize_response(span, response)
         return response
+
+
+class _ChatStreamWrapper(_WithTracer):
+    """Wraps ``cohere.V2Client.chat_stream`` to trace synchronous streamed chat calls."""
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        # The span is not finished here: the response arrives as the returned
+        # iterator is consumed, so _Stream ends the span when it is exhausted.
+        with self._start_as_current_span("ClientV2.chat_stream", request_parameters) as span:
+            try:
+                stream = wrapped(*args, **kwargs)
+            except BaseException as exception:
+                self._record_failure(span, exception)
+                raise
+            return _Stream(stream, span, self._response_extractor)
+
+
+class _AsyncChatStreamWrapper(_WithTracer):
+    """Wraps ``cohere.AsyncV2Client.chat_stream`` to trace streamed chat calls.
+
+    ``chat_stream`` is an async *generator* function, so calling it returns an async
+    iterator rather than a coroutine; there is nothing to await here.
+    """
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        with self._start_as_current_span("AsyncClientV2.chat_stream", request_parameters) as span:
+            try:
+                stream = wrapped(*args, **kwargs)
+            except BaseException as exception:
+                self._record_failure(span, exception)
+                raise
+            return _Stream(stream, span, self._response_extractor)
 
 
 def _finish_tracing(

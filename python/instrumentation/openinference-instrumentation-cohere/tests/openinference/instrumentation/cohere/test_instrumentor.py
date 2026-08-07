@@ -1,5 +1,6 @@
 import asyncio
 import json
+from contextlib import asynccontextmanager, contextmanager
 from types import SimpleNamespace
 from typing import Any, Dict, Iterator, List
 
@@ -104,6 +105,34 @@ def _user_message(content: str) -> Any:
     # A plain dict, typed as Any so mypy accepts it where the SDK expects
     # typed message objects; the extractor must handle both forms.
     return {"role": "user", "content": content}
+
+
+def _raw_stream(events: "List[Any]") -> Any:
+    """Build a stand-in for ``RawV2Client.chat_stream``.
+
+    The raw client returns a context manager whose ``data`` is the event iterator;
+    ``V2Client.chat_stream`` consumes it as ``with ... as r: yield from r.data``.
+    """
+
+    @contextmanager
+    def _chat_stream(self: Any, **kwargs: Any) -> Iterator[Any]:
+        yield SimpleNamespace(data=iter(events))
+
+    return _chat_stream
+
+
+def _raw_async_stream(events: "List[Any]") -> Any:
+    """Async counterpart of :func:`_raw_stream`."""
+
+    @asynccontextmanager
+    async def _chat_stream(self: Any, **kwargs: Any) -> Any:
+        async def _data() -> Any:
+            for event in events:
+                yield event
+
+        yield SimpleNamespace(data=_data())
+
+    return _chat_stream
 
 
 def test_oitracer() -> None:
@@ -471,3 +500,221 @@ def test_non_text_content_blocks_are_recorded(
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
     )
     assert "temperature_c" in content
+
+
+def _stream_events() -> "list[Any]":
+    """The event sequence cohere emits for a streamed text response."""
+    return [
+        SimpleNamespace(type="message-start", delta=None, index=None),
+        SimpleNamespace(type="content-start", delta=None, index=0),
+        SimpleNamespace(
+            type="content-delta",
+            index=0,
+            delta=SimpleNamespace(
+                message=SimpleNamespace(content=SimpleNamespace(text="The sky is blue "))
+            ),
+        ),
+        SimpleNamespace(
+            type="content-delta",
+            index=0,
+            delta=SimpleNamespace(
+                message=SimpleNamespace(
+                    content=SimpleNamespace(text="because of Rayleigh scattering.")
+                )
+            ),
+        ),
+        SimpleNamespace(type="content-end", delta=None, index=0),
+        SimpleNamespace(
+            type="message-end",
+            delta=SimpleNamespace(
+                finish_reason="COMPLETE",
+                usage=Usage(tokens=UsageTokens(input_tokens=26, output_tokens=12)),
+            ),
+        ),
+    ]
+
+
+def test_chat_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    events = list(
+        _client().chat_stream(
+            model="command-a-03-2025",
+            messages=[_user_message("Why is the sky blue?")],
+        )
+    )
+    assert len(events) == 6
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert spans[0].name == "ClientV2.chat_stream"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == ("The sky is blue because of Rayleigh scattering.")
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "The sky is blue because of Rayleigh scattering."
+    )
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 26
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 12
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
+
+
+def test_chat_stream_span_is_open_until_consumed(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The span must not finish while the response is still streaming."""
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    next(iter(stream))
+    assert in_memory_span_exporter.get_finished_spans() == ()
+
+    list(stream)
+    assert len(in_memory_span_exporter.get_finished_spans()) == 1
+
+
+def test_chat_stream_with_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events = [
+        SimpleNamespace(
+            type="tool-call-start",
+            index=0,
+            delta=SimpleNamespace(
+                message=SimpleNamespace(
+                    tool_calls=SimpleNamespace(
+                        id="call-1",
+                        function=SimpleNamespace(name="get_current_weather", arguments=""),
+                    )
+                )
+            ),
+        ),
+        SimpleNamespace(
+            type="tool-call-delta",
+            index=0,
+            delta=SimpleNamespace(
+                message=SimpleNamespace(
+                    tool_calls=SimpleNamespace(
+                        id=None, function=SimpleNamespace(name=None, arguments='{"city":')
+                    )
+                )
+            ),
+        ),
+        SimpleNamespace(
+            type="tool-call-delta",
+            index=0,
+            delta=SimpleNamespace(
+                message=SimpleNamespace(
+                    tool_calls=SimpleNamespace(
+                        id=None, function=SimpleNamespace(name=None, arguments=' "Paris"}')
+                    )
+                )
+            ),
+        ),
+        SimpleNamespace(type="tool-call-end", index=0, delta=None),
+        SimpleNamespace(
+            type="message-end",
+            delta=SimpleNamespace(
+                finish_reason="TOOL_CALL",
+                usage=Usage(tokens=UsageTokens(input_tokens=40, output_tokens=8)),
+            ),
+        ),
+    ]
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(events))
+
+    list(
+        _client().chat_stream(
+            model="command-a-03-2025",
+            messages=[_user_message("What is the weather in Paris?")],
+        )
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
+    assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}"] == "call-1"
+    assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_current_weather"
+    raw_args = str(attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"])
+    assert json.loads(raw_args) == {"city": "Paris"}
+
+
+def test_chat_stream_error_ends_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An error mid-stream must still close the span with an error status."""
+
+    @contextmanager
+    def _failing_stream(self: Any, **kwargs: Any) -> Iterator[Any]:
+        def _data() -> Iterator[Any]:
+            yield _stream_events()[2]
+            raise RuntimeError("stream broke")
+
+        yield SimpleNamespace(data=_data())
+
+    monkeypatch.setattr(RawV2Client, "chat_stream", _failing_stream)
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    with pytest.raises(RuntimeError):
+        list(stream)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code is StatusCode.ERROR
+    assert dict(spans[0].attributes or {})[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+
+
+async def test_async_chat_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(AsyncRawV2Client, "chat_stream", _raw_async_stream(_stream_events()))
+
+    client = cohere.AsyncClientV2(api_key="fake-key")
+    # `chat_stream` is an async generator function, so it is not awaited.
+    stream = client.chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    collected = [event async for event in stream]
+    assert len(collected) == 6
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert spans[0].name == "AsyncClientV2.chat_stream"
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == ("The sky is blue because of Rayleigh scattering.")
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
+
+
+def test_chat_stream_suppressed(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation import suppress_tracing
+
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    with suppress_tracing():
+        list(
+            _client().chat_stream(
+                model="command-a-03-2025",
+                messages=[_user_message("Why is the sky blue?")],
+            )
+        )
+
+    assert in_memory_span_exporter.get_finished_spans() == ()
