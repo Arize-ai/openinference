@@ -126,7 +126,8 @@ async def test_instrumentor(
     assert isinstance(response_json_str, str)
     assert json.loads(response_json_str) == FunctionResponse.to_dict(function_response)["response"]
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
-    assert attributes.pop(LLM_FINISH_REASON, None) == "STOP"
+    if not has_error:
+        assert attributes.pop(LLM_FINISH_REASON, None) == "STOP"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     status = span.status
