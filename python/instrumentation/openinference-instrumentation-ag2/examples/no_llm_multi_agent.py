@@ -8,7 +8,7 @@ AGENT span for the reply, and a TOOL span for the function call.
 1. Run Phoenix locally: `pip install arize-phoenix && phoenix serve`
 2. Install dependencies: `pip install -r requirements.txt`
 3. Run this example: `python no_llm_multi_agent.py`
-4. View the traces at http://localhost:6006
+4. View the traces at http://localhost:6006 under the `ag2-no-llm-multi-agent` project.
 """
 
 import json
@@ -16,12 +16,16 @@ import json
 from autogen import ConversableAgent
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from openinference.instrumentation.ag2 import AG2Instrumentor
+from openinference.semconv.resource import ResourceAttributes
 
 endpoint = "http://localhost:6006/v1/traces"
-tracer_provider = trace_sdk.TracerProvider()
+tracer_provider = trace_sdk.TracerProvider(
+    resource=Resource({ResourceAttributes.PROJECT_NAME: "ag2-no-llm-multi-agent"})
+)
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 AG2Instrumentor().instrument(tracer_provider=tracer_provider)
 
