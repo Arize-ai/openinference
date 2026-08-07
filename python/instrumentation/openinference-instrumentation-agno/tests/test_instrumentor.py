@@ -282,6 +282,26 @@ def test_get_llm_system_for_prebuilt_gemini_client(
     assert _get_llm_system(model) == expected_system
 
 
+def test_get_llm_system_for_google_gemini_without_vertexai_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Google's Gemini Interactions API is Developer API-only."""
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    model = cast(
+        Model,
+        SimpleNamespace(
+            id="gemini-3-flash-preview",
+            name="GeminiInteractions",
+            provider="Google",
+            client=None,
+            client_params=None,
+        ),
+    )
+    assert _get_llm_system(model) == "google"
+
+
 def test_agno_team_coordinate_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,

@@ -67,7 +67,9 @@ def _get_llm_system(model: Model) -> Optional[str]:
     system = infer_llm_system_from_model_name(model.id or "")
     if system is None:
         return None
-    if system is OpenInferenceLLMSystemValues.VERTEXAI and hasattr(model, "vertexai"):
+    if system is OpenInferenceLLMSystemValues.VERTEXAI and (
+        hasattr(model, "vertexai") or getattr(model, "provider", None) == "Google"
+    ):
         if (vertexai := _get_gemini_vertexai_mode(model)) is None:
             return None
         return "vertexai" if vertexai else "google"
