@@ -731,12 +731,12 @@ def test_finish_reason_values(
     with ExitStack() as stack:
         args = (mock_generate_content_request, response, False, stack, tracer)
         mock_generate_content(*args)
-    spans = sorted(
-        in_memory_span_exporter.get_finished_spans(),
-        key=lambda _: cast(int, _.start_time),
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = next(
+        s
+        for s in spans
+        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     )
-    assert spans
-    span = spans[0]
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(LLM_FINISH_REASON) == finish_reason.name
 

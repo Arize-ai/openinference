@@ -355,8 +355,13 @@ def _(resp: GenerateContentResponse, span: Span) -> None:
             span.set_attribute(k, v)
         # Only capture finish_reason for the first candidate.
         if candidate.index == 0:
-            if finish_reason := candidate.finish_reason:
-                span.set_attribute(LLM_FINISH_REASON, finish_reason.name)
+            finish_reason = candidate.finish_reason
+            if finish_reason is not None:
+                try:
+                    value = finish_reason.name
+                except AttributeError:
+                    value = Candidate.FinishReason(finish_reason).name
+                span.set_attribute(LLM_FINISH_REASON, value)
 
 
 def stop_on_exception(it: Callable[..., Iterator[_AnyT]]) -> Callable[..., Iterator[_AnyT]]:
