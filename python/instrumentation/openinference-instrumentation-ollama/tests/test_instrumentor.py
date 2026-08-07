@@ -1,3 +1,4 @@
+import gc
 import json
 from typing import Any, Iterator
 
@@ -5,6 +6,7 @@ import ollama
 import pytest
 from ollama import ChatResponse, Message
 from ollama._client import AsyncClient, Client
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -273,6 +275,104 @@ async def test_async_chat_stream(
         == "The sky is blue."
     )
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
+
+
+def test_chat_stream_abandoned_before_iteration(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _stream_chunks(self: Any, *a: Any, **k: Any) -> Iterator[ChatResponse]:
+        yield _text_response()
+
+    monkeypatch.setattr(Client, "_request", _stream_chunks)
+
+    stream = ollama.chat(
+        model="llama3.2",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        stream=True,
+    )
+    # Drop the stream without ever iterating it: the span must still be
+    # finished (with status UNSET, to distinguish it from a completed stream).
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.UNSET
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "llama3.2"
+
+
+def test_chat_stream_error_keeps_partial_output(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _stream_chunks(self: Any, *a: Any, **k: Any) -> Iterator[ChatResponse]:
+        yield ChatResponse(
+            model="llama3.2",
+            message=Message(role="assistant", content="The sky "),
+            done=False,
+        )
+        raise RuntimeError("connection dropped")
+
+    monkeypatch.setattr(Client, "_request", _stream_chunks)
+
+    with pytest.raises(RuntimeError):
+        list(
+            ollama.chat(
+                model="llama3.2",
+                messages=[{"role": "user", "content": "Why is the sky blue?"}],
+                stream=True,
+            )
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.status_code == trace_api.StatusCode.ERROR
+    attrs = dict(spans[0].attributes or {})
+    # The partial output that arrived before the failure is preserved.
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "The sky "
+    )
+    assert SpanAttributes.OUTPUT_VALUE in attrs
+
+
+def test_chat_stream_merges_thinking(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _stream_chunks(self: Any, *a: Any, **k: Any) -> Iterator[ChatResponse]:
+        yield ChatResponse(
+            model="llama3.2",
+            message=Message(role="assistant", content="", thinking="Let me "),
+            done=False,
+        )
+        yield ChatResponse(
+            model="llama3.2",
+            message=Message(role="assistant", content="Blue.", thinking="think."),
+            done=True,
+            done_reason="stop",
+            prompt_eval_count=26,
+            eval_count=12,
+        )
+
+    monkeypatch.setattr(Client, "_request", _stream_chunks)
+
+    list(
+        ollama.chat(
+            model="llama3.2",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            stream=True,
+        )
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    output = json.loads(str(attrs[SpanAttributes.OUTPUT_VALUE]))
+    assert output["message"]["thinking"] == "Let me think."
+    assert output["message"]["content"] == "Blue."
 
 
 def test_chat_error_records_model_name(

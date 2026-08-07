@@ -1,3 +1,11 @@
+"""Span wrapper with a finish-once contract.
+
+``_WithSpan`` holds the attributes to apply when the span ends. Extra
+attributes are set at span start (see ``_start_as_current_span``) and the
+most important ones at finish, so that OTel's default 128-attribute limit
+drops the least important attributes first.
+"""
+
 import logging
 from typing import Optional
 
@@ -31,7 +39,7 @@ class _WithSpan:
             logger.exception("Failed to check if span is recording")
             self._is_finished = True
 
-    def record_exception(self, exception: Exception) -> None:
+    def record_exception(self, exception: BaseException) -> None:
         if self._is_finished:
             return
         try:
