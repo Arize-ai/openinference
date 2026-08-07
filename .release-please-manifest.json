@@ -14,6 +14,7 @@
     "python/instrumentation/openinference-instrumentation-haystack": "0.1.35",
     "python/instrumentation/openinference-instrumentation-litellm": "0.1.35",
     "python/instrumentation/openinference-instrumentation-groq": "0.1.18",
+    "python/instrumentation/openinference-instrumentation-together": "0.1.0",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.19",
     "python/instrumentation/openinference-instrumentation-anthropic": "1.1.1",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.33",
