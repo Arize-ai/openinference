@@ -18,8 +18,8 @@ pip install -e openinference-instrumentation
 Uses **pytest-recording** (vcrpy) — cassettes in `tests/cassettes/` are committed so CI needs no API key.
 
 ```bash
-pytest tests/ -k test_name --vcr-record=once  # record against live API
-pytest tests/                                  # replay cassettes
+pytest tests/ -k test_name --record-mode=once  # record against live API
+pytest tests/                                   # replay cassettes
 ```
 
 Mark tests with `@pytest.mark.vcr`. Use `InMemorySpanExporter` to assert on spans.

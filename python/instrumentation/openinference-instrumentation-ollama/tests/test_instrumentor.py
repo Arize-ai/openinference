@@ -26,40 +26,11 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-
-def _text_response() -> ChatResponse:
-    return ChatResponse(
-        model="llama3.2",
-        message=Message(
-            role="assistant", content="The sky is blue because of Rayleigh scattering."
-        ),
-        done=True,
-        done_reason="stop",
-        prompt_eval_count=26,
-        eval_count=12,
-    )
-
-
-def _tool_response() -> ChatResponse:
-    return ChatResponse(
-        model="llama3.2",
-        message=Message(
-            role="assistant",
-            content="",
-            tool_calls=[
-                Message.ToolCall(
-                    function=Message.ToolCall.Function(
-                        name="get_current_weather",
-                        arguments={"city": "Paris"},
-                    )
-                )
-            ],
-        ),
-        done=True,
-        done_reason="stop",
-        prompt_eval_count=40,
-        eval_count=8,
-    )
+# The committed cassettes in tests/cassettes/ were recorded against a local
+# Ollama server running this model. To re-record, start `ollama serve`, pull
+# the model, and run pytest with `--record-mode=rewrite`.
+MODEL = "qwen3.6:latest"
+OPTIONS = {"temperature": 0, "seed": 42}
 
 
 @pytest.fixture()
@@ -91,15 +62,12 @@ def test_entrypoint_for_opentelemetry_instrument() -> None:
     assert isinstance(instrumentor, OllamaInstrumentor)
 
 
-def test_chat(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(Client, "_request", lambda self, *a, **k: _text_response())
-
+@pytest.mark.vcr
+def test_chat(in_memory_span_exporter: InMemorySpanExporter) -> None:
     response = ollama.chat(
-        model="llama3.2",
-        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        model=MODEL,
+        messages=[{"role": "user", "content": "Why is the sky blue? Answer in one sentence."}],
+        options=OPTIONS,
     )
     assert response.message.content
 
@@ -107,41 +75,61 @@ def test_chat(
     assert len(spans) == 1
     attrs = dict(spans[0].attributes or {})
     assert spans[0].name == "chat"
+    assert spans[0].status.is_ok
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == "ollama"
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "llama3.2"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
     assert (
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "user"
     )
     assert (
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
-        == "Why is the sky blue?"
+        == "Why is the sky blue? Answer in one sentence."
     )
     assert (
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
         == "assistant"
     )
-    assert "Rayleigh" in str(
+    assert (
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == response.message.content
     )
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 26
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 12
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
+    prompt_tokens = attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT]
+    completion_tokens = attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION]
+    assert isinstance(prompt_tokens, int) and prompt_tokens > 0
+    assert isinstance(completion_tokens, int) and completion_tokens > 0
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == prompt_tokens + completion_tokens
     assert SpanAttributes.INPUT_VALUE in attrs
     assert SpanAttributes.OUTPUT_VALUE in attrs
 
 
-def test_chat_with_tool_call(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(Client, "_request", lambda self, *a, **k: _tool_response())
-
-    ollama.chat(
-        model="llama3.2",
-        messages=[{"role": "user", "content": "What is the weather in Paris?"}],
-        tools=[{"type": "function", "function": {"name": "get_current_weather"}}],
+@pytest.mark.vcr
+def test_chat_with_tool_call(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    response = ollama.chat(
+        model=MODEL,
+        messages=[
+            {
+                "role": "user",
+                "content": "What is the weather in Paris? Use the get_current_weather tool.",
+            }
+        ],
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_current_weather",
+                    "description": "Get the current weather in a city.",
+                    "parameters": {
+                        "type": "object",
+                        "required": ["city"],
+                        "properties": {"city": {"type": "string", "description": "The city name."}},
+                    },
+                },
+            }
+        ],
+        options=OPTIONS,
     )
+    assert response.message.tool_calls
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -149,132 +137,189 @@ def test_chat_with_tool_call(
     prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_current_weather"
     raw_args = attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
-    assert json.loads(str(raw_args)) == {"city": "Paris"}
+    assert isinstance(json.loads(str(raw_args)), dict)
     # The tool schema is recorded on the request side.
-    assert attrs["llm.tools.0.tool.json_schema"]
+    schema = json.loads(str(attrs["llm.tools.0.tool.json_schema"]))
+    assert schema["function"]["name"] == "get_current_weather"
 
 
-async def test_async_chat(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _mock_request(self: Any, *a: Any, **k: Any) -> ChatResponse:
-        return _text_response()
+@pytest.mark.vcr
+def test_chat_with_callable_tool(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    def add_two_numbers(a: int, b: int) -> int:
+        """Add two numbers.
 
-    monkeypatch.setattr(AsyncClient, "_request", _mock_request)
+        Args:
+            a: The first number.
+            b: The second number.
+        """
+        return a + b
 
-    await ollama.AsyncClient().chat(
-        model="llama3.2",
-        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+    ollama.chat(
+        model=MODEL,
+        messages=[{"role": "user", "content": "What is 2 + 3? Use the add_two_numbers tool."}],
+        tools=[add_two_numbers],
+        options=OPTIONS,
     )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    schema = json.loads(str(attrs["llm.tools.0.tool.json_schema"]))
+    # The schema must be a JSON tool definition, not the function's repr.
+    assert schema["function"]["name"] == "add_two_numbers"
+    assert schema["function"]["parameters"]["required"] == ["a", "b"]
+
+
+@pytest.mark.vcr
+async def test_async_chat(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    response = await AsyncClient().chat(
+        model=MODEL,
+        messages=[{"role": "user", "content": "Why is the sky blue? Answer in one sentence."}],
+        options=OPTIONS,
+    )
+    assert response.message.content
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "async_chat"
     attrs = dict(spans[0].attributes or {})
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "llama3.2"
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in attrs
 
 
-def test_suppress_tracing(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from openinference.instrumentation import suppress_tracing
-
-    monkeypatch.setattr(Client, "_request", lambda self, *a, **k: _text_response())
-    with suppress_tracing():
-        ollama.chat(
-            model="llama3.2",
-            messages=[{"role": "user", "content": "Why is the sky blue?"}],
-        )
-    assert len(in_memory_span_exporter.get_finished_spans()) == 0
-
-
-def test_chat_stream(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def _stream_chunks(self: Any, *a: Any, **k: Any) -> Iterator[ChatResponse]:
-        yield ChatResponse(
-            model="llama3.2",
-            message=Message(role="assistant", content="The sky "),
-            done=False,
-        )
-        yield ChatResponse(
-            model="llama3.2",
-            message=Message(role="assistant", content="is blue."),
-            done=True,
-            done_reason="stop",
-            prompt_eval_count=26,
-            eval_count=12,
-        )
-
-    monkeypatch.setattr(Client, "_request", _stream_chunks)
-
+@pytest.mark.vcr
+def test_chat_stream(in_memory_span_exporter: InMemorySpanExporter) -> None:
     stream = ollama.chat(
-        model="llama3.2",
-        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        model=MODEL,
+        messages=[{"role": "user", "content": "Count from 1 to 5, digits only."}],
         stream=True,
+        options=OPTIONS,
     )
     # The span must not finish until the stream is exhausted.
     assert len(in_memory_span_exporter.get_finished_spans()) == 0
     chunks = list(stream)
-    assert len(chunks) == 2
+    assert len(chunks) > 1
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
+    assert spans[0].status.is_ok
     attrs = dict(spans[0].attributes or {})
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "llama3.2"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    streamed_content = "".join(chunk.message.content or "" for chunk in chunks)
     assert (
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
-        == "The sky is blue."
+        == streamed_content
     )
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 26
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 12
+    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in attrs
     assert "generator" not in str(attrs[SpanAttributes.OUTPUT_VALUE])
 
 
-async def test_async_chat_stream(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _stream_chunks(*a: Any, **k: Any) -> Any:
-        async def _inner() -> Any:
-            yield ChatResponse(
-                model="llama3.2",
-                message=Message(role="assistant", content="The sky "),
-                done=False,
-            )
-            yield ChatResponse(
-                model="llama3.2",
-                message=Message(role="assistant", content="is blue."),
-                done=True,
-                done_reason="stop",
-                prompt_eval_count=26,
-                eval_count=12,
-            )
-
-        return _inner()
-
-    monkeypatch.setattr(AsyncClient, "_request", _stream_chunks)
-
-    stream = await ollama.AsyncClient().chat(
-        model="llama3.2",
-        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+@pytest.mark.vcr
+async def test_async_chat_stream(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    stream = await AsyncClient().chat(
+        model=MODEL,
+        messages=[{"role": "user", "content": "Count from 1 to 5, digits only."}],
         stream=True,
+        options=OPTIONS,
     )
     chunks = [chunk async for chunk in stream]
-    assert len(chunks) == 2
+    assert len(chunks) > 1
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attrs = dict(spans[0].attributes or {})
+    streamed_content = "".join(chunk.message.content or "" for chunk in chunks)
     assert (
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
-        == "The sky is blue."
+        == streamed_content
     )
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
+    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in attrs
+
+
+@pytest.mark.vcr
+def test_chat_error_records_model_name(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    with pytest.raises(Exception):
+        ollama.chat(
+            model="nonexistent-model:latest",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert not spans[0].status.is_ok
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "nonexistent-model:latest"
+
+
+@pytest.mark.vcr
+def test_suppress_tracing(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    from openinference.instrumentation import suppress_tracing
+
+    with suppress_tracing():
+        ollama.chat(
+            model=MODEL,
+            messages=[{"role": "user", "content": "Why is the sky blue? Answer in one sentence."}],
+            options=OPTIONS,
+        )
+    assert len(in_memory_span_exporter.get_finished_spans()) == 0
+
+
+@pytest.mark.vcr
+def test_context_attributes_propagation(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    with using_attributes(
+        session_id="my-session",
+        user_id="my-user",
+        metadata={"env": "test"},
+        tags=["tag-1", "tag-2"],
+    ):
+        ollama.chat(
+            model=MODEL,
+            messages=[{"role": "user", "content": "Why is the sky blue? Answer in one sentence."}],
+            options=OPTIONS,
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.SESSION_ID] == "my-session"
+    assert attrs[SpanAttributes.USER_ID] == "my-user"
+    assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
+    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+
+
+@pytest.mark.vcr
+def test_trace_config_masking(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+) -> None:
+    instrumentor = OllamaInstrumentor()
+    instrumentor.uninstrument()
+    instrumentor.instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+    ollama.chat(
+        model=MODEL,
+        messages=[{"role": "user", "content": "This contains PII"}],
+        options=OPTIONS,
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    assert f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}" not in attrs
+    assert (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}" not in attrs
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fault-injection tests below monkeypatch the client transport because the
+# scenarios (abandoned streams, mid-stream failures, thinking-model output)
+# cannot be captured deterministically in a vcr cassette.
+# ---------------------------------------------------------------------------
 
 
 def test_chat_stream_abandoned_before_iteration(
@@ -282,12 +327,16 @@ def test_chat_stream_abandoned_before_iteration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _stream_chunks(self: Any, *a: Any, **k: Any) -> Iterator[ChatResponse]:
-        yield _text_response()
+        yield ChatResponse(
+            model=MODEL,
+            message=Message(role="assistant", content="hi"),
+            done=True,
+        )
 
     monkeypatch.setattr(Client, "_request", _stream_chunks)
 
     stream = ollama.chat(
-        model="llama3.2",
+        model=MODEL,
         messages=[{"role": "user", "content": "Why is the sky blue?"}],
         stream=True,
     )
@@ -300,7 +349,7 @@ def test_chat_stream_abandoned_before_iteration(
     assert len(spans) == 1
     assert spans[0].status.status_code == trace_api.StatusCode.UNSET
     attrs = dict(spans[0].attributes or {})
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "llama3.2"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
 
 
 def test_chat_stream_error_keeps_partial_output(
@@ -309,7 +358,7 @@ def test_chat_stream_error_keeps_partial_output(
 ) -> None:
     def _stream_chunks(self: Any, *a: Any, **k: Any) -> Iterator[ChatResponse]:
         yield ChatResponse(
-            model="llama3.2",
+            model=MODEL,
             message=Message(role="assistant", content="The sky "),
             done=False,
         )
@@ -320,7 +369,7 @@ def test_chat_stream_error_keeps_partial_output(
     with pytest.raises(RuntimeError):
         list(
             ollama.chat(
-                model="llama3.2",
+                model=MODEL,
                 messages=[{"role": "user", "content": "Why is the sky blue?"}],
                 stream=True,
             )
@@ -344,12 +393,12 @@ def test_chat_stream_merges_thinking(
 ) -> None:
     def _stream_chunks(self: Any, *a: Any, **k: Any) -> Iterator[ChatResponse]:
         yield ChatResponse(
-            model="llama3.2",
+            model=MODEL,
             message=Message(role="assistant", content="", thinking="Let me "),
             done=False,
         )
         yield ChatResponse(
-            model="llama3.2",
+            model=MODEL,
             message=Message(role="assistant", content="Blue.", thinking="think."),
             done=True,
             done_reason="stop",
@@ -361,7 +410,7 @@ def test_chat_stream_merges_thinking(
 
     list(
         ollama.chat(
-            model="llama3.2",
+            model=MODEL,
             messages=[{"role": "user", "content": "Why is the sky blue?"}],
             stream=True,
         )
@@ -373,105 +422,3 @@ def test_chat_stream_merges_thinking(
     output = json.loads(str(attrs[SpanAttributes.OUTPUT_VALUE]))
     assert output["message"]["thinking"] == "Let me think."
     assert output["message"]["content"] == "Blue."
-
-
-def test_chat_error_records_model_name(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def _raise(self: Any, *a: Any, **k: Any) -> ChatResponse:
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(Client, "_request", _raise)
-    with pytest.raises(RuntimeError):
-        ollama.chat(
-            model="llama3.2",
-            messages=[{"role": "user", "content": "Why is the sky blue?"}],
-        )
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    assert not spans[0].status.is_ok
-    attrs = dict(spans[0].attributes or {})
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "llama3.2"
-
-
-def test_chat_with_callable_tool(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def get_current_weather(city: str) -> str:
-        """Get the current weather in a city.
-
-        Args:
-            city: The name of the city.
-        """
-        return "sunny"
-
-    monkeypatch.setattr(Client, "_request", lambda self, *a, **k: _tool_response())
-    ollama.chat(
-        model="llama3.2",
-        messages=[{"role": "user", "content": "What is the weather in Paris?"}],
-        tools=[get_current_weather],
-    )
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
-    schema = json.loads(str(attrs["llm.tools.0.tool.json_schema"]))
-    # The schema must be a JSON tool definition, not the function's repr.
-    assert isinstance(schema, dict)
-    assert "get_current_weather" in json.dumps(schema)
-
-
-def test_context_attributes_propagation(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(Client, "_request", lambda self, *a, **k: _text_response())
-    with using_attributes(
-        session_id="my-session",
-        user_id="my-user",
-        metadata={"env": "test"},
-        tags=["tag-1", "tag-2"],
-    ):
-        ollama.chat(
-            model="llama3.2",
-            messages=[{"role": "user", "content": "Why is the sky blue?"}],
-        )
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
-    assert attrs[SpanAttributes.SESSION_ID] == "my-session"
-    assert attrs[SpanAttributes.USER_ID] == "my-user"
-    assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
-    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
-
-
-def test_trace_config_masking(
-    in_memory_span_exporter: InMemorySpanExporter,
-    tracer_provider: TracerProvider,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    instrumentor = OllamaInstrumentor()
-    instrumentor.uninstrument()
-    instrumentor.instrument(
-        tracer_provider=tracer_provider,
-        config=TraceConfig(hide_inputs=True, hide_outputs=True),
-    )
-    monkeypatch.setattr(Client, "_request", lambda self, *a, **k: _text_response())
-    ollama.chat(
-        model="llama3.2",
-        messages=[{"role": "user", "content": "This contains PII"}],
-    )
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
-    assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
-    assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
-    assert f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}" not in attrs
-    assert (
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}" not in attrs
-    )
