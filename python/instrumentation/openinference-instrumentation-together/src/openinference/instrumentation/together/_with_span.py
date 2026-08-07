@@ -1,8 +1,8 @@
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import Attributes, AttributeValue
+from opentelemetry.util.types import Attributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -42,22 +42,6 @@ class _WithSpan:
             self._span.record_exception(exception)
         except Exception:
             logger.exception("Failed to record exception on span")
-
-    def add_event(self, name: str) -> None:
-        if self._is_finished:
-            return
-        try:
-            self._span.add_event(name)
-        except Exception:
-            logger.exception("Failed to add event to span")
-
-    def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
-        if self._is_finished:
-            return
-        try:
-            self._span.set_attributes(attributes)
-        except Exception:
-            logger.exception("Failed to set attributes on span")
 
     def finish_tracing(
         self,

@@ -1,96 +1,42 @@
 import json
-from typing import Any, Iterator
+from typing import List
 
 import pytest
+from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
 )
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from together import AsyncTogether, Together
-from together.types import ChatCompletionResponse
-from together.types.chat.chat_completion import Choice, ChoiceMessage
-from together.types.chat.chat_completion_usage import ChatCompletionUsage
-from together.types.tool_choice import Function, ToolChoice
+from together.types import ToolsParam
 
-from openinference.instrumentation import OITracer
+from openinference.instrumentation import OITracer, TraceConfig, using_attributes
 from openinference.instrumentation.together import TogetherInstrumentor
 
+_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 
-def _text_response() -> ChatCompletionResponse:
-    return ChatCompletionResponse(
-        id="c-0",
-        object="chat.completion",
-        created=0,
-        prompt=[],
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        choices=[
-            Choice(
-                index=0,
-                finish_reason="stop",
-                message=ChoiceMessage(
-                    role="assistant", content="The sky is blue because of Rayleigh scattering."
-                ),
-            )
-        ],
-        usage=ChatCompletionUsage(prompt_tokens=26, completion_tokens=12, total_tokens=38),
-    )
-
-
-def _tool_response() -> ChatCompletionResponse:
-    return ChatCompletionResponse(
-        id="c-1",
-        object="chat.completion",
-        created=0,
-        prompt=[],
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        choices=[
-            Choice(
-                index=0,
-                finish_reason="tool_calls",
-                message=ChoiceMessage(
-                    role="assistant",
-                    content=None,
-                    tool_calls=[
-                        ToolChoice(
-                            id="call-1",
-                            index=0,
-                            type="function",
-                            function=Function(
-                                name="get_current_weather",
-                                arguments=json.dumps({"city": "Paris"}),
-                            ),
-                        )
-                    ],
-                ),
-            )
-        ],
-        usage=ChatCompletionUsage(prompt_tokens=40, completion_tokens=8, total_tokens=48),
-    )
-
-
-@pytest.fixture()
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    tracer_provider = TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
-@pytest.fixture(autouse=True)
-def instrument(tracer_provider: TracerProvider) -> Iterator[None]:
-    TogetherInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    TogetherInstrumentor().uninstrument()
+_TOOLS: List[ToolsParam] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_weather",
+            "description": "Get the current weather in a given city",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string", "description": "The city, e.g. Paris"},
+                },
+                "required": ["city"],
+            },
+        },
+    }
+]
 
 
 def test_oitracer() -> None:
@@ -102,94 +48,187 @@ def test_entrypoint_for_opentelemetry_instrument() -> None:
     assert isinstance(entrypoint.load()(), TogetherInstrumentor)
 
 
-def test_chat(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    client = Together(api_key="fake-key")
-    monkeypatch.setattr(client.chat.completions, "_post", lambda *a, **k: _text_response())
+@pytest.mark.vcr
+def test_chat(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    client = Together()
     response = client.chat.completions.create(
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        model=_MODEL,
+        messages=[{"role": "user", "content": "Why is the sky blue? Answer in one sentence."}],
     )
+    assert response.choices[0].message is not None
     assert response.choices[0].message.content
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attrs = dict(spans[0].attributes or {})
-    assert spans[0].name == "chat"
+    assert spans[0].name == "Completions"
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
-    assert "Llama-3.3-70B" in attrs[SpanAttributes.LLM_MODEL_NAME]
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
+    assert "Llama-3.3-70B" in str(attrs[SpanAttributes.LLM_MODEL_NAME])
     assert (
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "user"
     )
-    assert (
-        "Rayleigh"
-        in attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
-    )
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 26
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 12
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
+    assert attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+    assert isinstance(attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT], int)
+    assert isinstance(attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION], int)
+    assert isinstance(attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL], int)
     assert SpanAttributes.INPUT_VALUE in attrs
     assert SpanAttributes.OUTPUT_VALUE in attrs
+    invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
+    assert invocation_parameters["model"] == _MODEL
+    # Unset parameters (Omit/NotGiven sentinels) must not leak into the span.
+    assert "Omit" not in str(attrs[SpanAttributes.INPUT_VALUE])
+    assert "NotGiven" not in str(attrs[SpanAttributes.INPUT_VALUE])
 
 
-def test_chat_with_tool_call(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    client = Together(api_key="fake-key")
-    monkeypatch.setattr(client.chat.completions, "_post", lambda *a, **k: _tool_response())
+@pytest.mark.vcr
+def test_chat_with_tool_call(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    client = Together()
     client.chat.completions.create(
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        messages=[{"role": "user", "content": "What is the weather in Paris?"}],
-        tools=[{"type": "function", "function": {"name": "get_current_weather"}}],
+        model=_MODEL,
+        messages=[{"role": "user", "content": "What is the weather in Paris right now?"}],
+        tools=_TOOLS,
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attrs = dict(spans[0].attributes or {})
     prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
-    assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}"] == "call-1"
+    assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}"]
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_current_weather"
-    assert json.loads(
-        attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
-    ) == {"city": "Paris"}
+    arguments = json.loads(
+        str(attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"])
+    )
+    assert arguments["city"]
     assert attrs["llm.tools.0.tool.json_schema"]
 
 
-async def test_async_chat(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _mock_post(*a: Any, **k: Any) -> ChatCompletionResponse:
-        return _text_response()
+@pytest.mark.vcr
+async def test_async_chat(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    client = AsyncTogether()
+    response = await client.chat.completions.create(
+        model=_MODEL,
+        messages=[{"role": "user", "content": "Why is the sky blue? Answer in one sentence."}],
+    )
+    assert response.choices[0].message is not None
+    assert response.choices[0].message.content
 
-    client = AsyncTogether(api_key="fake-key")
-    monkeypatch.setattr(client.chat.completions, "_post", _mock_post)
-    await client.chat.completions.create(
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "AsyncCompletions"
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
+    assert isinstance(attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL], int)
+
+
+@pytest.mark.vcr
+def test_chat_stream(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    client = Together()
+    stream = client.chat.completions.create(
+        model=_MODEL,
+        messages=[{"role": "user", "content": "Count from one to five."}],
+        stream=True,
+    )
+    # No span should be exported before the stream is consumed.
+    assert len(in_memory_span_exporter.get_finished_spans()) == 0
+    content = ""
+    for chunk in stream:
+        if chunk.choices and chunk.choices[0].delta.content:
+            content += chunk.choices[0].delta.content
+    assert content
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "Completions"
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == content
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "assistant"
+    )
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == content
+    )
+    assert "Llama-3.3-70B" in str(attrs[SpanAttributes.LLM_MODEL_NAME])
+
+
+@pytest.mark.vcr
+async def test_async_chat_stream(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    client = AsyncTogether()
+    stream = await client.chat.completions.create(
+        model=_MODEL,
+        messages=[{"role": "user", "content": "Count from one to five."}],
+        stream=True,
+    )
+    assert len(in_memory_span_exporter.get_finished_spans()) == 0
+    content = ""
+    async for chunk in stream:
+        if chunk.choices and chunk.choices[0].delta.content:
+            content += chunk.choices[0].delta.content
+    assert content
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "AsyncCompletions"
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == content
+
+
+@pytest.mark.vcr
+def test_suppress_tracing(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    from openinference.instrumentation import suppress_tracing
+
+    client = Together()
+    with suppress_tracing():
+        client.chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Why is the sky blue? Answer in one sentence."}],
+        )
+    assert len(in_memory_span_exporter.get_finished_spans()) == 0
+
+
+@pytest.mark.vcr
+def test_context_attributes_propagation(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    client = Together()
+    with using_attributes(
+        session_id="session-1",
+        user_id="user-1",
+        metadata={"env": "test"},
+        tags=["tag-1", "tag-2"],
+    ):
+        client.chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Why is the sky blue? Answer in one sentence."}],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.SESSION_ID] == "session-1"
+    assert attrs[SpanAttributes.USER_ID] == "user-1"
+    assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
+    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+
+
+@pytest.mark.vcr
+def test_trace_config_hide_inputs(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    instrumentor = TogetherInstrumentor()
+    instrumentor.uninstrument()
+    instrumentor.instrument(tracer_provider=tracer_provider, config=TraceConfig(hide_inputs=True))
+    client = Together()
+    client.chat.completions.create(
+        model=_MODEL,
+        messages=[{"role": "user", "content": "This is sensitive input. Reply with one word."}],
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].name == "async_chat"
     attrs = dict(spans[0].attributes or {})
-    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
-
-
-def test_suppress_tracing(
-    in_memory_span_exporter: InMemorySpanExporter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from openinference.instrumentation import suppress_tracing
-
-    client = Together(api_key="fake-key")
-    monkeypatch.setattr(client.chat.completions, "_post", lambda *a, **k: _text_response())
-    with suppress_tracing():
-        client.chat.completions.create(
-            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-            messages=[{"role": "user", "content": "Why is the sky blue?"}],
-        )
-    assert len(in_memory_span_exporter.get_finished_spans()) == 0
+    assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+    assert "sensitive" not in json.dumps({key: str(value) for key, value in attrs.items()})
+    # Outputs remain visible.
+    assert SpanAttributes.OUTPUT_VALUE in attrs

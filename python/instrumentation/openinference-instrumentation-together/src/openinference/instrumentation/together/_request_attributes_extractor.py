@@ -1,9 +1,10 @@
 import logging
 from enum import Enum
-from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
+from typing import Any, Iterable, Iterator, Mapping, Tuple
 
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -27,6 +28,7 @@ class _RequestAttributesExtractor:
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
+        yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.TOGETHER.value
         try:
             yield from _as_input_attributes(
                 _io_value_and_type(request_parameters),
@@ -83,7 +85,7 @@ class _RequestAttributesExtractor:
         if tool_call_id := get_attribute(message, "tool_call_id"):
             yield MessageAttributes.MESSAGE_TOOL_CALL_ID, tool_call_id
 
-        # Deprecated by Groq
+        # Legacy function-call API, superseded by tool calls
         if function_call := get_attribute(message, "function_call"):
             if function_name := get_attribute(function_call, "name"):
                 yield MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, function_name
@@ -116,13 +118,6 @@ class _RequestAttributesExtractor:
                             f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                             arguments,
                         )
-
-
-T = TypeVar("T", bound=type)
-
-
-def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
-    return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)
 
 
 def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:

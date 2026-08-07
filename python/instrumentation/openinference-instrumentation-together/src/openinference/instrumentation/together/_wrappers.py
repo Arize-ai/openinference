@@ -9,15 +9,17 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.together._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
 from openinference.instrumentation.together._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
+from openinference.instrumentation.together._stream import _AsyncStream, _Stream
 from openinference.instrumentation.together._utils import _finish_tracing
 from openinference.instrumentation.together._with_span import _WithSpan
+from together import AsyncStream, NotGiven, Omit, Stream
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -66,17 +68,11 @@ def _parse_args(
 ) -> Dict[str, Any]:
     bound_signature = signature.bind(*args, **kwargs)
     bound_signature.apply_defaults()
-    request_data: Dict[str, Any] = {}
-    for key, value in bound_signature.arguments.items():
-        if value is None:
-            continue
-        try:
-            # ensure the value is JSON-serializable
-            safe_json_dumps(value)
-            request_data[key] = value
-        except Exception:
-            request_data[key] = str(value)
-    return request_data
+    return {
+        key: value
+        for key, value in bound_signature.arguments.items()
+        if value is not None and not isinstance(value, (Omit, NotGiven))
+    }
 
 
 class _CompletionsWrapper(_WithTracer):
@@ -99,7 +95,7 @@ class _CompletionsWrapper(_WithTracer):
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         with self._start_as_current_span(
-            span_name="chat",
+            span_name="Completions",
             attributes=self._request_extractor.get_attributes_from_request(request_parameters),
             context_attributes=get_attributes_from_context(),
             extra_attributes=self._request_extractor.get_extra_attributes_from_request(
@@ -117,6 +113,10 @@ class _CompletionsWrapper(_WithTracer):
                     )
                 )
                 raise
+            if isinstance(response, Stream):
+                # The span is finished by the stream wrapper once the stream
+                # is fully consumed (or closed).
+                return _Stream(response, span)
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
@@ -152,7 +152,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         with self._start_as_current_span(
-            span_name="async_chat",
+            span_name="AsyncCompletions",
             attributes=self._request_extractor.get_attributes_from_request(request_parameters),
             context_attributes=get_attributes_from_context(),
             extra_attributes=self._request_extractor.get_extra_attributes_from_request(
@@ -170,6 +170,10 @@ class _AsyncCompletionsWrapper(_WithTracer):
                     )
                 )
                 raise
+            if isinstance(response, AsyncStream):
+                # The span is finished by the stream wrapper once the stream
+                # is fully consumed (or closed).
+                return _AsyncStream(response, span)
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),

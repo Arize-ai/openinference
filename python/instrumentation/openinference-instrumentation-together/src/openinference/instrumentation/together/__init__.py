@@ -12,7 +12,7 @@ from openinference.instrumentation.together.version import __version__
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-_instruments = ("together >= 1.3.0",)
+_instruments = ("together >= 2.0.0",)
 
 
 class TogetherInstrumentor(BaseInstrumentor):  # type: ignore[misc]
