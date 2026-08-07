@@ -23,10 +23,40 @@ The possible settings are:
 | OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS        | Replaces embedding.embeddings.*.embedding.vector values with `"__REDACTED__"`                                                  | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDINGS_TEXT           | Replaces embedding.embeddings.*.embedding.text values with `"__REDACTED__"`                                                    | bool | False   |
 | OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
+| OPENINFERENCE_BLOB_UPLOADER                  | Names a `BlobUploader` registered under the `openinference_blob_uploader` entry-point group; base64 images larger than `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` are handed to it and the span attribute records the returned URI instead of being redacted | str  | unset   |
 
 ## Redacted Content
 
 When content is hidden due to privacy configuration settings, the value `"__REDACTED__"` is used as a placeholder. This constant value allows consumers of the trace data to identify that content was intentionally hidden rather than missing or empty.
+
+## External Blob Upload (Experimental)
+
+**This capability is experimental** — the uploader contract and attribute semantics may change while the feature matures.
+
+Large binary content captured as base64 data URIs can exceed span attribute and OTLP payload limits. Instead of redacting oversized media, an instrumentation MAY upload the decoded bytes to external storage at capture time and record only a reference URI in the span attribute. Today this applies to **images** (`message_content.image.image.url` values exceeding `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH`); audio and file offload will follow once their message-content conventions are established. See [Multimodal Attributes](./multimodal_attributes.md#external-storage-for-large-media) for the attribute-level semantics.
+
+OpenInference defines the interface and the offload policy but ships no uploader implementation — implementations come from applications, vendor SDKs (e.g. the Arize SDK), or a future upstream (OTel util-genai) byte uploader. In Python an uploader is supplied either in code, or zero-code via an entry point:
+
+```python
+from openinference.instrumentation import TraceConfig
+
+config = TraceConfig(blob_uploader=my_uploader)  # any object satisfying BlobUploader
+```
+
+```toml
+# the package providing the uploader registers it in its own packaging
+# metadata under the "openinference_blob_uploader" entry-point group:
+[project.entry-points.openinference_blob_uploader]
+arize = "arize_otel.blob:ArizeBlobUploader"
+```
+
+```bash
+export OPENINFERENCE_BLOB_UPLOADER=arize
+```
+
+The name is resolved when a `TraceConfig` is constructed: the entry point is imported, instantiated if it is a class or zero-argument factory, and validated against the `BlobUploader` protocol. Loads are memoized per name, so all instrumentors in a process share a single uploader instance. Resolution failures log a warning and leave the uploader unset — oversized media then redacts exactly as with no uploader configured. A `blob_uploader` passed in code takes precedence over the environment variable (and is validated at construction: passing a string or a class raises a `TypeError`). The uploader's own configuration (bucket, credentials, endpoint) is read by the uploader itself, typically from its own environment variables (e.g. a base URL), so fully zero-code deployments stay possible.
+
+Implementations MUST NOT block the instrumented call: return the destination URI immediately (content-addressed naming, e.g. SHA-256 of the bytes, makes it computable before any I/O) and move the bytes on a background worker. The returned value MUST be a valid absolute URI with a scheme, and SHOULD be the most consumer-resolvable form available (an `https://` or signed URL where possible; storage-scheme URIs such as `gs://` are valid canonical references but require viewer-side resolution) — the caller validates the returned value and redacts invalid ones. Returning `None` (backpressure, shutdown, policy) makes the caller fall back to the standard redaction behavior. Implementations own their lifecycle: flush pending uploads at process exit (e.g. an `atexit` hook), following the `BatchSpanProcessor` precedent of the worker-owner owning shutdown.
 
 ## Usage
 
@@ -57,6 +87,7 @@ config = TraceConfig(
     hide_embeddings_vectors=...,
     hide_embeddings_text=...,
     base64_image_max_length=...,
+    blob_uploader=...,  # Uploads oversized base64 images, records a URI
     hide_prompts=...,  # Hides LLM prompts (completions API)
     hide_choices=...,  # Hides LLM choices (completions API outputs)
 )

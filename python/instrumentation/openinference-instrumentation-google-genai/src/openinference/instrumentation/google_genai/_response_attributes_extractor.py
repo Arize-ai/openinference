@@ -68,6 +68,11 @@ class _ResponseAttributesExtractor:
                     for key, value in self._get_attributes_from_generate_content_content(content):
                         yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
 
+                # Only capture finish_reason for the first candidate.
+                if index == 0:
+                    if (finish_reason := getattr(candidate, "finish_reason", None)) is not None:
+                        yield SpanAttributes.LLM_FINISH_REASON, finish_reason.value
+
         # Handle automatic function calling history
         # For automatic function calling, the function call details are stored separately
         if automatic_history := getattr(response, "automatic_function_calling_history", None):

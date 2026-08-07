@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the sum of the first 50 prime
+      numbers? Generate and run code for the calculation, and make sure you get all
+      50."}], "role": "user"}], "systemInstruction": {"parts": [{"text": "Use code
+      execution for arithmetic questions.\n\nYou are an agent. Your internal name
+      is \"_ea7548b1\".\n\n The description about you is \"Agent that solves arithmetic
+      questions by running code.\""}], "role": "user"}, "tools": [{"codeExecution":
+      {}}], "generationConfig": {}}'
+    headers: {}
+    method: post
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"executableCode\": {\n              \"language\":
+        \"PYTHON\",\n              \"code\": \"import math\\n\\ndef is_prime(n):\\n
+        \   if n \\u003c 2:\\n        return False\\n    for i in range(2, int(math.sqrt(n))
+        + 1):\\n        if n % i == 0:\\n            return False\\n    return True\\n\\nprime_numbers
+        = []\\nnum = 2\\nwhile len(prime_numbers) \\u003c 50:\\n    if is_prime(num):\\n
+        \       prime_numbers.append(num)\\n    num += 1\\n\\nsum_of_primes = sum(prime_numbers)\\nprint(f'The
+        first 50 prime numbers are: {prime_numbers}')\\nprint(f'The sum of the first
+        50 prime numbers is: {sum_of_primes}')\\n\"\n            }\n          },\n
+        \         {\n            \"codeExecutionResult\": {\n              \"outcome\":
+        \"OUTCOME_OK\",\n              \"output\": \"The first 50 prime numbers are:
+        [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+        73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151,
+        157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229]\\nThe
+        sum of the first 50 prime numbers is: 5117\\n\"\n            }\n          },\n
+        \         {\n            \"text\": \"The sum of the first 50 prime numbers
+        is 5117.\\n\\nThe first 50 prime numbers are:\\n2, 3, 5, 7, 11, 13, 17, 19,
+        23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103,
+        107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181,
+        191, 193, 197, 199, 211, 223, 227, 229.\"\n          }\n        ],\n        \"role\":
+        \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"index\": 0\n
+        \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 75,\n    \"candidatesTokenCount\":
+        414,\n    \"totalTokenCount\": 1179,\n    \"promptTokensDetails\": [\n      {\n
+        \       \"modality\": \"TEXT\",\n        \"tokenCount\": 75\n      }\n    ],\n
+        \   \"toolUsePromptTokenCount\": 573,\n    \"toolUsePromptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 573\n
+        \     }\n    ],\n    \"thoughtsTokenCount\": 117,\n    \"serviceTier\": \"standard\"\n
+        \ },\n  \"modelVersion\": \"gemini-2.5-flash\",\n  \"responseId\": \"_TJPaqb9Ebm8jrEPzv2B4Qg\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

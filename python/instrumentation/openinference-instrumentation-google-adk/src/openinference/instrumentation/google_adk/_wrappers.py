@@ -11,6 +11,7 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    Optional,
     OrderedDict,
     TypedDict,
     TypeVar,
@@ -434,7 +435,8 @@ def _get_attributes_from_usage_metadata(
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
                 prompt_details_audio,
             )
-    if prompt := obj.prompt_token_count:
+    prompt = (obj.prompt_token_count or 0) + (obj.tool_use_prompt_token_count or 0)
+    if prompt:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
     if obj.candidates_tokens_details:
         completion_details_audio = 0
@@ -454,7 +456,16 @@ def _get_attributes_from_usage_metadata(
         completion += candidates
     if thoughts := obj.thoughts_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
-        completion += thoughts
+        total = obj.total_token_count
+        has_prompt_side_count = (
+            obj.prompt_token_count is not None or obj.tool_use_prompt_token_count is not None
+        )
+        # Check whether thinking tokens are already folded into the candidates count.
+        candidates_already_include_thoughts = (
+            has_prompt_side_count and total is not None and (prompt + (candidates or 0)) == total
+        )
+        if not candidates_already_include_thoughts:
+            completion += thoughts
     if completion:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion
 
@@ -512,6 +523,8 @@ def _get_attributes_from_parts(
             yield from _get_attributes_from_text_part(
                 text,
                 prefix=prefix,
+                thought=bool(part.thought),
+                signature=part.thought_signature,
             )
         elif text_only:
             continue
@@ -520,6 +533,7 @@ def _get_attributes_from_parts(
             yield from _get_attributes_from_function_call(
                 function_call,
                 prefix=prefix,
+                signature=part.thought_signature,
             )
         elif (function_response := part.function_response) is not None:
             prefix = f"{span_attribute}.{message_index}."
@@ -545,9 +559,19 @@ def _get_attributes_from_text_part(
     /,
     *,
     prefix: str = "",
+    thought: bool = False,
+    signature: Optional[bytes] = None,
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", obj
-    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+    yield (
+        f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+        "reasoning" if thought else "text",
+    )
+    if signature:
+        yield (
+            f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+            base64.b64encode(signature).decode() if isinstance(signature, bytes) else signature,
+        )
 
 
 @stop_on_exception
@@ -556,6 +580,7 @@ def _get_attributes_from_function_call(
     /,
     *,
     prefix: str = "",
+    signature: Optional[bytes] = None,
 ) -> Iterator[tuple[str, AttributeValue]]:
     if id_ := obj.id:
         yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", id_
@@ -565,6 +590,11 @@ def _get_attributes_from_function_call(
         yield (
             f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
             safe_json_dumps(function_arguments),
+        )
+    if signature:
+        yield (
+            f"{prefix}{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+            base64.b64encode(signature).decode() if isinstance(signature, bytes) else signature,
         )
 
 
