@@ -248,7 +248,9 @@ class TestLM:
         assert event.name == "exception"
         assert (event_attributes := event.attributes) is not None
         assert isinstance(exception_type := event_attributes["exception.type"], str)
-        assert exception_type.startswith("litellm.exceptions")
+        # dspy < 3.3.0 propagates the raw litellm exception; dspy >= 3.3.0 wraps
+        # it in an LMError subclass from dspy.utils.exceptions.
+        assert exception_type.startswith(("litellm.exceptions", "dspy.utils.exceptions"))
         assert isinstance(exception_message := event_attributes["exception.message"], str)
         assert (
             "Connection error" in exception_message
