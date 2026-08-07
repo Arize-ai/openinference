@@ -2,14 +2,14 @@ import logging
 from abc import ABC
 from contextlib import contextmanager
 from inspect import Signature, signature
-from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, FrozenSet, Iterable, Iterator, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.cohere._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -86,6 +86,15 @@ class _WithTracer(ABC):
             span.finish_tracing()
 
 
+_EXCLUDED_REQUEST_PARAMETERS: FrozenSet[str] = frozenset(
+    {
+        # Transport configuration rather than an LLM parameter, and its
+        # ``additional_headers`` routinely carries credentials.
+        "request_options",
+    }
+)
+
+
 def _parse_args(
     signature: Signature,
     *args: Any,
@@ -104,9 +113,18 @@ def _parse_args(
         # cohere release); fall back to the keyword arguments so the call still
         # gets traced and the SDK raises its own error.
         arguments = kwargs
-    return {
-        key: value for key, value in arguments.items() if value is not None and value is not ...
-    }
+    request_data: Dict[str, Any] = {}
+    for key, value in arguments.items():
+        if value is None or value is ... or key in _EXCLUDED_REQUEST_PARAMETERS:
+            continue
+        try:
+            # Ensure the value is JSON-encodable, so that a single unserializable
+            # argument cannot later fail attribute extraction and drop the span.
+            safe_json_dumps(value)
+            request_data[key] = value
+        except Exception:
+            request_data[key] = str(value)
+    return request_data
 
 
 class _ChatWrapper(_WithTracer):
@@ -123,7 +141,7 @@ class _ChatWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        with self._start_as_current_span("chat", request_parameters) as span:
+        with self._start_as_current_span("ClientV2.chat", request_parameters) as span:
             try:
                 response = wrapped(*args, **kwargs)
             except BaseException as exception:
@@ -147,7 +165,7 @@ class _AsyncChatWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        with self._start_as_current_span("async_chat", request_parameters) as span:
+        with self._start_as_current_span("AsyncClientV2.chat", request_parameters) as span:
             try:
                 response = await wrapped(*args, **kwargs)
             except BaseException as exception:

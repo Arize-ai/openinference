@@ -1,7 +1,7 @@
 import asyncio
 import json
 from types import SimpleNamespace
-from typing import Any, Iterator
+from typing import Any, Dict, Iterator, List
 
 import cohere
 import pytest
@@ -10,6 +10,8 @@ from cohere.types import (
     TextAssistantMessageResponseContentItem,
     ToolCallV2,
     ToolCallV2Function,
+    ToolV2,
+    ToolV2Function,
     Usage,
     UsageTokens,
 )
@@ -32,6 +34,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -130,7 +133,7 @@ def test_chat(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attrs = dict(spans[0].attributes or {})
-    assert spans[0].name == "chat"
+    assert spans[0].name == "ClientV2.chat"
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
     assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
@@ -245,7 +248,7 @@ async def test_async_chat(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].name == "async_chat"
+    assert spans[0].name == "AsyncClientV2.chat"
     attrs = dict(spans[0].attributes or {})
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
@@ -340,3 +343,131 @@ def test_trace_config_masking(
     assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
     assert not any("sensitive" in str(value) for value in attrs.values())
+
+
+def test_request_options_are_not_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`request_options` carries transport config, including credentials."""
+    monkeypatch.setattr(
+        RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=_text_response())
+    )
+
+    _client().chat(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+        request_options={"additional_headers": {"Authorization": "Bearer super-secret-token"}},
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert "request_options" not in str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])
+    assert not any("super-secret-token" in str(value) for value in attrs.values())
+
+
+def test_generator_messages_are_not_consumed(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Extraction must not drain a one-shot iterator before the SDK reads it."""
+    seen: List[Any] = []
+
+    def _capture(self: Any, **kwargs: Any) -> Any:
+        seen.extend(kwargs["messages"])
+        return SimpleNamespace(data=_text_response())
+
+    monkeypatch.setattr(RawV2Client, "chat", _capture)
+
+    # Typed as Any because the SDK annotates `messages` as a list; the point of
+    # the test is that a caller passing a generator is not broken by tracing.
+    message_generator: Any = (m for m in [_user_message("Why is the sky blue?")])
+    _client().chat(model="command-a-03-2025", messages=message_generator)
+
+    # The SDK still received the message; the span simply omits input messages.
+    assert len(seen) == 1
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+
+
+def test_unserializable_argument_still_produces_a_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A single unencodable argument must not drop the whole span."""
+    monkeypatch.setattr(
+        RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=_text_response())
+    )
+    circular: Dict[str, Any] = {}
+    circular["self"] = circular
+    documents: Any = [circular]
+
+    _client().chat(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+        documents=documents,
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+
+
+def test_typed_tool_is_recorded_as_json(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pydantic tool objects must serialize as JSON, not as their repr."""
+    monkeypatch.setattr(
+        RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=_text_response())
+    )
+
+    _client().chat(
+        model="command-a-03-2025",
+        messages=[_user_message("What is the weather?")],
+        tools=[
+            ToolV2(
+                type="function",
+                function=ToolV2Function(
+                    name="get_weather",
+                    description="Get the weather",
+                    parameters={"type": "object", "properties": {"city": {"type": "string"}}},
+                ),
+            )
+        ],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    schema = json.loads(
+        str(attrs[f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"])
+    )
+    assert schema["function"]["name"] == "get_weather"
+
+
+def test_non_text_content_blocks_are_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tool-result blocks without a `text` field must not vanish."""
+    monkeypatch.setattr(
+        RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=_text_response())
+    )
+
+    tool_message: Any = {
+        "role": "tool",
+        "tool_call_id": "call-1",
+        "content": [{"type": "document", "document": {"data": {"temperature_c": 18}}}],
+    }
+    _client().chat(model="command-a-03-2025", messages=[tool_message])
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    content = str(
+        attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+    )
+    assert "temperature_c" in content

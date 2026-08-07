@@ -1,6 +1,6 @@
 import logging
 from enum import Enum
-from typing import Any, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
@@ -53,18 +53,16 @@ class _RequestAttributesExtractor:
         invocation_params.pop("messages", None)  # Remove LLM input messages
         invocation_params.pop("model", None)  # Captured separately as the model name
 
-        if isinstance((tools := invocation_params.pop("tools", None)), Iterable):
+        if (tools := _replayable_sequence(invocation_params.pop("tools", None))) is not None:
             for i, tool in enumerate(tools):
                 yield (
                     f"{SpanAttributes.LLM_TOOLS}.{i}.{ToolAttributes.TOOL_JSON_SCHEMA}",
-                    safe_json_dumps(tool),
+                    safe_json_dumps(_as_jsonable(tool)),
                 )
 
         yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
-        if (input_messages := request_parameters.get("messages")) and isinstance(
-            input_messages, Iterable
-        ):
+        if (input_messages := _replayable_sequence(request_parameters.get("messages"))) is not None:
             for index, input_message in reversed(list(enumerate(input_messages))):
                 # Use reversed() to get the last message first. This is because OTEL has a default
                 # limit of 128 attributes per span, and flattening increases the number of
@@ -119,18 +117,47 @@ def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     return getattr(obj, attr_name, default)
 
 
+def _replayable_sequence(obj: Any) -> Optional[Sequence[Any]]:
+    """Return ``obj`` if it can be iterated without consuming the caller's value.
+
+    Attributes are extracted before the wrapped call runs, so iterating a one-shot
+    iterator here would hand the SDK an exhausted argument. Only re-iterable
+    sequences are safe to read; a generator is left untraced rather than drained.
+    """
+    if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes)):
+        return obj
+    return None
+
+
+def _as_jsonable(obj: Any) -> Any:
+    """Unwrap a pydantic model so it serializes as JSON rather than as its repr.
+
+    ``safe_json_dumps`` falls back to ``str`` for unknown types, which would turn
+    the SDK's typed objects (e.g. ``ToolV2``) into Python reprs.
+    """
+    if callable(model_dump := getattr(obj, "model_dump", None)):
+        try:
+            return model_dump(exclude_unset=True)
+        except Exception:
+            logger.exception(f"Failed to dump object of type {type(obj)}")
+    return obj
+
+
 def _content_text(content: Any) -> str:
     """Cohere content may be a plain string or a list of typed content blocks.
 
-    Collapse either form into a single string, keeping only the ``text`` of each
-    block so the message content attribute is always a string.
+    Collapse either form into a single string. Blocks carrying ``text`` contribute
+    it directly; other block types (e.g. documents in a tool result) are serialized
+    so their payload still reaches the trace instead of being dropped.
     """
     if isinstance(content, str):
         return content
-    if isinstance(content, list):
-        parts = []
+    if isinstance(content, Sequence):
+        parts: List[str] = []
         for item in content:
             if text := get_attribute(item, "text"):
-                parts.append(text)
+                parts.append(text if isinstance(text, str) else safe_json_dumps(text))
+            elif item is not None:
+                parts.append(safe_json_dumps(_as_jsonable(item)))
         return "".join(parts)
     return ""

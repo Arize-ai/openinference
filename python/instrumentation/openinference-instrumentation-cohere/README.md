@@ -6,6 +6,14 @@ Python auto-instrumentation library for the [Cohere](https://github.com/cohere-a
 
 Chat calls made with the Cohere v2 client (`ClientV2` and `AsyncClientV2`) are traced and exported as OpenInference LLM spans, capturing the input messages, output message, invocation parameters, tool calls, and token counts.
 
+## Coverage
+
+`ClientV2.chat` and `AsyncClientV2.chat` are instrumented. The following are **not** traced yet, and calls to them produce no spans:
+
+- Streaming (`chat_stream` / `ClientV2.chat_stream`)
+- The v1 client (`cohere.Client`)
+- Embed, rerank, and classify endpoints
+
 ## Installation
 
 ```shell

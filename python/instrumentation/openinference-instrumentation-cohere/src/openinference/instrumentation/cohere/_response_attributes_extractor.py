@@ -1,4 +1,5 @@
 import logging
+import warnings
 from typing import Any, Iterable, Iterator, Mapping, Tuple
 
 from opentelemetry.util.types import AttributeValue
@@ -15,7 +16,13 @@ logger.addHandler(logging.NullHandler())
 class _ResponseAttributesExtractor:
     def get_attributes(self, response: Any) -> Iterator[Tuple[str, AttributeValue]]:
         try:
-            value = response.model_dump_json(exclude_unset=True)
+            with warnings.catch_warnings():
+                # Pydantic emits serializer warnings for union-typed response fields
+                # whose server-sent shape is not an exact match. `warnings=False` on
+                # `model_dump_json()` is Pydantic v2 only, so suppress them here to
+                # keep instrumentation from polluting the caller's stderr.
+                warnings.simplefilter("ignore")
+                value = response.model_dump_json(exclude_unset=True)
         except Exception:
             yield SpanAttributes.OUTPUT_VALUE, str(response)
             return
