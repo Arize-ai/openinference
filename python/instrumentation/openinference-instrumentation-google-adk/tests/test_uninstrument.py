@@ -6,14 +6,17 @@
 This test verifies that the GoogleADKInstrumentor correctly patches and unpatchs:
 - Runner.run_async method
 - BaseAgent.run_async method
-- All tracers (runners, agents, llm_flows, functions/telemetry.tracing)
+- All tracers (runners, agents, llm_flows, functions/telemetry.tracing, apps.compaction)
 - trace_call_llm and trace_tool_call methods
 """
 
+from contextlib import contextmanager
+from importlib import import_module
 from types import ModuleType
 from typing import cast
 
 from google.adk import __version__ as _ADK_VERSION_STR
+from opentelemetry.trace import Tracer, get_current_span
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.google_adk import (
@@ -42,9 +45,11 @@ def test_instrumentation_patching() -> None:
     # ADK 1.32 moved trace_tool_call from flows.llm_flows.functions to telemetry.tracing
     # and removed the re-export of `tracer` from agents.base_agent.
     trace_tool_module: ModuleType
+    compaction: ModuleType | None = None
     if _ADK_VERSION >= (1, 32, 0):
         from google.adk.telemetry import tracing
 
+        compaction = _resolve_compaction_module()
         trace_tool_module = tracing
     else:
         from google.adk.flows.llm_flows import functions
@@ -59,6 +64,8 @@ def test_instrumentation_patching() -> None:
     original_trace_call_llm = base_llm_flow.trace_call_llm
     original_trace_tool_module_tracer = trace_tool_module.tracer
     original_trace_tool_call = trace_tool_module.trace_tool_call
+    if compaction is not None:
+        original_compaction_tracer = compaction.tracer
 
     if _ADK_VERSION < (1, 32, 0):
         from google.adk.agents import base_agent
@@ -76,6 +83,8 @@ def test_instrumentation_patching() -> None:
     assert base_llm_flow.trace_call_llm is not original_trace_call_llm
     assert trace_tool_module.tracer is not original_trace_tool_module_tracer
     assert trace_tool_module.trace_tool_call is not original_trace_tool_call
+    if compaction is not None:
+        assert compaction.tracer is not original_compaction_tracer
 
     # Verify all tracers are patched with correct types
     assert isinstance(runners.tracer, _PassthroughTracer)
@@ -89,6 +98,8 @@ def test_instrumentation_patching() -> None:
         from google.adk.flows.llm_flows import functions as _functions
 
         assert isinstance(_functions.tracer, _SelectiveExecuteToolTracer)
+        if compaction is not None:
+            assert isinstance(compaction.tracer, _SelectiveExecuteToolTracer)
     else:
         # functions.tracer is module-local; we substitute our OITracer directly
         assert isinstance(trace_tool_module.tracer, OITracer)
@@ -108,6 +119,42 @@ def test_instrumentation_patching() -> None:
     assert base_llm_flow.trace_call_llm is original_trace_call_llm
     assert trace_tool_module.tracer is original_trace_tool_module_tracer
     assert trace_tool_module.trace_tool_call is original_trace_tool_call
+    if compaction is not None:
+        assert compaction.tracer is original_compaction_tracer
 
     if _ADK_VERSION < (1, 32, 0):
         assert base_agent.tracer is original_agents_tracer  # noqa: F821
+
+
+def _resolve_compaction_module() -> ModuleType | None:
+    if _ADK_VERSION < (1, 32, 0):
+        return None
+    try:
+        return import_module("google.adk.apps.compaction")
+    except ModuleNotFoundError:
+        return None
+
+
+def test_selective_tracer_routes_compaction_to_oi_tracer() -> None:
+    class _DummyTracer:
+        def __init__(self) -> None:
+            self.names: list[str] = []
+            self.span = object()
+
+        @contextmanager
+        def start_as_current_span(self, name: str, *_: object, **__: object):
+            self.names.append(name)
+            yield self.span
+
+    wrapped = _DummyTracer()
+    oi = _DummyTracer()
+    tracer = _SelectiveExecuteToolTracer(cast(Tracer, wrapped), cast(Tracer, oi))
+
+    with tracer.start_as_current_span("execute_tool weather") as span:
+        assert span is oi.span
+    with tracer.start_as_current_span("compact_events sliding_window") as span:
+        assert span is oi.span
+    with tracer.start_as_current_span("invoke_agent planner") as span:
+        assert span is get_current_span()
+
+    assert oi.names == ["execute_tool weather", "compact_events sliding_window"]
