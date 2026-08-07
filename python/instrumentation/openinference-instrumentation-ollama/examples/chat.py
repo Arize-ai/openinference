@@ -1,3 +1,5 @@
+import os
+
 import ollama
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
@@ -11,10 +13,11 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 
 OllamaInstrumentor().instrument(tracer_provider=tracer_provider)
 
+MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
 
 if __name__ == "__main__":
     response = ollama.chat(
-        model="llama3.2",
+        model=MODEL,
         messages=[{"role": "user", "content": "Why is the sky blue?"}],
     )
     print(response.message.content)
