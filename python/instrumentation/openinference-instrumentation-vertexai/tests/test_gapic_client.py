@@ -735,7 +735,7 @@ def test_finish_reason_values(
     span = next(
         s
         for s in spans
-        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value  # type: ignore[union-attr]
     )
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(LLM_FINISH_REASON) == finish_reason.name

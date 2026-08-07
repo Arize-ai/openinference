@@ -360,7 +360,7 @@ def _(resp: GenerateContentResponse, span: Span) -> None:
                 try:
                     value = finish_reason.name
                 except AttributeError:
-                    value = Candidate.FinishReason(finish_reason).name
+                    value = Candidate.FinishReason(finish_reason).name  # type: ignore[attr-defined]
                 span.set_attribute(LLM_FINISH_REASON, value)
 
 
