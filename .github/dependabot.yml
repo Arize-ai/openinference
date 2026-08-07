@@ -85,6 +85,18 @@ updates:
     interval: weekly
 - cooldown:
     default-days: 7
+  directory: python/instrumentation/openinference-instrumentation-ag2
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: pip
+  schedule:
+    interval: weekly
+- cooldown:
+    default-days: 7
   directory: python/instrumentation/openinference-instrumentation-autogen
   ignore:
   - dependency-name: '*'

@@ -1,5 +1,13 @@
 # @arizeai/openinference-instrumentation-bedrock-agent-runtime
 
+## 1.1.19
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
 ## 1.1.18
 
 ### Patch Changes

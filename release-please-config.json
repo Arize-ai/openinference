@@ -74,6 +74,18 @@
             "package-name": "python-openinference-instrumentation-groq",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-cohere": {
+            "package-name": "python-openinference-instrumentation-cohere",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-together": {
+            "package-name": "python-openinference-instrumentation-together",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-ollama": {
+            "package-name": "python-openinference-instrumentation-ollama",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-instructor": {
             "package-name": "python-openinference-instrumentation-instructor",
             "release-type": "python"
@@ -88,6 +100,10 @@
         },
         "python/instrumentation/openinference-instrumentation-smolagents": {
             "package-name": "python-openinference-instrumentation-smolagents",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-ag2": {
+            "package-name": "python-openinference-instrumentation-ag2",
             "release-type": "python"
         },
         "python/instrumentation/openinference-instrumentation-autogen": {

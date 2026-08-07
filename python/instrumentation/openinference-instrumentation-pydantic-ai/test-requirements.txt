@@ -8,5 +8,5 @@ pydantic-ai==1.56.0
 # zero input/output tokens for OpenAI chat responses. That silently drops
 # gen_ai.usage.* from the spans pydantic-ai emits. Newer pydantic-ai (exercised by
 # the -latest env) is compatible, so this bound only guards the pinned version.
-genai-prices<0.1
+genai-prices<0.2
 pytest-recording

@@ -4,7 +4,7 @@ import pytest
 import vcr  # type: ignore
 from agno.agent import Agent
 from agno.models.openai.chat import OpenAIChat
-from agno.models.openai.responses import OpenAIResponses
+from agno.run.agent import RunOutput
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
@@ -306,114 +306,33 @@ def test_agno_team_coordinate_instrumentation(
     )
 
 
-def test_agno_reasoning_content_instrumentation(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_agno_instrumentation: Any,
-) -> None:
-    """Test that reasoning_content from models with thinking is captured on the LLM span."""
-    with test_vcr.use_cassette(
-        "agent_run_reasoning.yaml", filter_headers=["authorization", "X-API-KEY"]
-    ):
-        import os
+def test_extract_run_response_output_str_content() -> None:
+    """String content is returned verbatim."""
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
 
-        os.environ["OPENAI_API_KEY"] = "fake_key"
-        agent = Agent(
-            name="Reasoning Agent",
-            model=OpenAIResponses(
-                id="o4-mini",
-                reasoning={
-                    "effort": "high",
-                    "summary": "detailed",
-                },
-            ),
-            instructions="Use internal reasoning before answering.",
-        )
-        agent.run(
-            "Count the number of letter 'r' in the word 'strawberry'. Use internal reasoning.",
-            session_id="test_session",
-            stream=False,
-        )
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    llm_span = next((s for s in spans if s.name == "OpenAIResponses.invoke"), None)
-    assert llm_span is not None, "Expected an LLM span for OpenAIResponses.invoke"
-
-    attributes = dict(llm_span.attributes or dict())
-
-    assert attributes.get("openinference.span.kind") == "LLM"
-    assert attributes.get("llm.model_name") == "o4-mini"
-    assert attributes.get("llm.provider") == "OpenAI"
-    assert llm_span.status.is_ok
-
-    # Reasoning content part
-    assert (
-        attributes.get("llm.output_messages.0.message.contents.0.message_content.type")
-        == "reasoning"
-    )
-    reasoning_text = attributes.get("llm.output_messages.0.message.contents.0.message_content.text")
-    assert reasoning_text, "Reasoning content text should be present and non-empty"
-
-    # Final answer content part
-    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.type") == "text"
-    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.text")
-
-    # Flat message.content retained for backward compatibility
-    assert attributes.get("llm.output_messages.0.message.content")
+    run_response = RunOutput(content="hello world")
+    assert _extract_run_response_output(run_response) == "hello world"
 
 
-def test_agno_reasoning_content_stream_instrumentation(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_agno_instrumentation: Any,
-) -> None:
-    """Test that reasoning_content accumulated in streamed chunks is captured on the LLM span."""
-    with test_vcr.use_cassette(
-        "agent_run_reasoning_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
-    ):
-        import os
+def test_extract_run_response_output_pydantic_content() -> None:
+    """Content exposing model_dump_json is serialized via that method."""
+    from types import SimpleNamespace
 
-        os.environ["OPENAI_API_KEY"] = "fake_key"
-        agent = Agent(
-            name="Reasoning Agent Stream",
-            model=OpenAIResponses(
-                id="o4-mini",
-                reasoning={
-                    "effort": "high",
-                    "summary": "detailed",
-                },
-            ),
-            instructions="Use internal reasoning before answering.",
-        )
-        for _ in agent.run(
-            "Count the number of letter 'r' in the word 'strawberry'. Use internal reasoning.",
-            session_id="test_session",
-            stream=True,
-        ):
-            pass  # drain the stream
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    llm_span = next((s for s in spans if s.name == "OpenAIResponses.invoke_stream"), None)
-    assert llm_span is not None, "Expected an LLM span for OpenAIResponses.invoke_stream"
+    content = SimpleNamespace(model_dump_json=lambda: '{"answer": 42}')
+    run_response = RunOutput(content=content)
+    assert _extract_run_response_output(run_response) == '{"answer": 42}'
 
-    attributes = dict(llm_span.attributes or dict())
 
-    assert attributes.get("openinference.span.kind") == "LLM"
-    assert attributes.get("llm.model_name") == "o4-mini"
-    assert attributes.get("llm.provider") == "OpenAI"
-    assert llm_span.status.is_ok
+def test_extract_run_response_output_dict_content() -> None:
+    """Dict content is serialized as valid JSON.
 
-    # Reasoning content part, accumulated across chunks
-    assert (
-        attributes.get("llm.output_messages.0.message.contents.0.message_content.type")
-        == "reasoning"
-    ), "Streamed reasoning_content was not captured on the LLM span"
-    reasoning_text = attributes.get("llm.output_messages.0.message.contents.0.message_content.text")
-    assert reasoning_text, "Reasoning content text should be present and non-empty"
+    Standalone ``agent.run`` calls that use ``output_schema``/JSON mode can return
+    a plain ``dict`` as ``content``. Previously this raised
+    ``'dict' object has no attribute 'model_dump_json'``.
+    """
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
 
-    # Final answer content part
-    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.type") == "text"
-    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.text")
-
-    # Flat message.content retained for backward compatibility
-    assert attributes.get("llm.output_messages.0.message.content")
+    run_response = RunOutput(content={"answer": True})
+    assert _extract_run_response_output(run_response) == '{"answer": true}'

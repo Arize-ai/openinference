@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.7.0
+
+### Minor Changes
+
+- 237ce2b: Add OLLAMA to the LLMProvider enum, map the ollama.com host to it, and anchor host-suffix matching at label boundaries
+
 ## 2.6.0
 
 ### Minor Changes

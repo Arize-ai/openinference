@@ -70,4 +70,5 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.CEREBRAS: "cerebras",
             OpenInferenceLLMProviderValues.PERPLEXITY: "perplexity",
             OpenInferenceLLMProviderValues.TOGETHER: "together",
+            OpenInferenceLLMProviderValues.OLLAMA: "ollama",
         }
