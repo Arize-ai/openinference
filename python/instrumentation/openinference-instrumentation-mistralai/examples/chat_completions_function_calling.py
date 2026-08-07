@@ -1,5 +1,6 @@
-from mistralai.client import MistralClient
-from mistralai.models.chat_completion import ChatMessage, FunctionCall, ToolCall, ToolChoice
+import os
+
+from mistralai.client import Mistral
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -15,10 +16,12 @@ MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 if __name__ == "__main__":
-    client = MistralClient()
-    response = client.chat(
+    client = Mistral(
+        api_key=os.getenv("MISTRAL_API_KEY", ""),
+    )
+    response = client.chat.complete(
         model="mistral-large-latest",
-        tool_choice=ToolChoice.any,
+        tool_choice="any",
         tools=[
             {
                 "type": "function",
@@ -39,34 +42,44 @@ if __name__ == "__main__":
             },
         ],
         messages=[
-            ChatMessage(
-                content="What's the weather like in San Francisco?",
-                role="user",
-            )
+            {
+                "role": "user",
+                "content": "What's the weather like in San Francisco?",
+            }
         ],
     )
+
     message = response.choices[0].message
     print(message.tool_calls)
+    tool_call = message.tool_calls[0]
 
-    response = client.chat(
+    response = client.chat.complete(
         model="mistral-large-latest",
         messages=[
-            ChatMessage(
-                content="What's the weather like in San Francisco?",
-                role="user",
-            ),
-            ChatMessage(
-                content="",
-                role="assistant",
-                tool_calls=[
-                    ToolCall(
-                        function=FunctionCall(
-                            name="get_weather", arguments='{"city": "San Francisco"}'
-                        )
-                    )
+            {
+                "role": "user",
+                "content": "What's the weather like in San Francisco?",
+            },
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments,
+                        },
+                    }
                 ],
-            ),
-            ChatMessage(role="tool", name="get_weather", content='{"weather_category": "sunny"}'),
+            },
+            {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": "get_weather",
+                "content": '{"weather_category":"sunny"}',
+            },
         ],
     )
     print(response.choices[0].message.content)
