@@ -106,6 +106,7 @@ def test_chat(
     attrs = dict(spans[0].attributes or {})
     assert spans[0].name == "chat"
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "ollama"
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "llama3.2"
     assert (
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "user"

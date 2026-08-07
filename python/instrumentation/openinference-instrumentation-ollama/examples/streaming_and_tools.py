@@ -2,14 +2,18 @@ import os
 
 import ollama
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.ollama import OllamaInstrumentor
+from openinference.semconv.resource import ResourceAttributes
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
-tracer_provider = TracerProvider()
+tracer_provider = TracerProvider(
+    resource=Resource.create({ResourceAttributes.PROJECT_NAME: "ollama-examples"})
+)
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
 OllamaInstrumentor().instrument(tracer_provider=tracer_provider)

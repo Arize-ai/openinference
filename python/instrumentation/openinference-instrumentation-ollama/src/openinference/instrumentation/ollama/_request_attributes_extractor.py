@@ -41,6 +41,9 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not isinstance(request_parameters, Mapping):
             return
+        # Literal value of OpenInferenceLLMProviderValues.OLLAMA, inlined so the
+        # package works against semconv releases that predate the enum member.
+        yield SpanAttributes.LLM_PROVIDER, "ollama"
         invocation_params = dict(request_parameters)
         invocation_params.pop("messages", None)  # Captured separately as input messages
         if model := invocation_params.pop("model", None):
