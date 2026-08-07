@@ -29,7 +29,7 @@ dependencies = [
   "opentelemetry-sdk",
   "opentelemetry-instrumentation",
   "openinference-instrumentation>=0.1.54",
-  "openinference-semantic-conventions>=0.1.31",
+  "openinference-semantic-conventions>=0.1.32",
   "wrapt",
   "setuptools",
 ]
