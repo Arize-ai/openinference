@@ -1,9 +1,11 @@
 """
-Trace a two-agent AG2 conversation and a tool call without an LLM API key.
+Trace an AG2 conversation and a tool call without an LLM API key.
 
-The agents reply with canned messages, so this runs offline and is the quickest way to
-confirm spans are reaching Phoenix. It produces an AGENT span for the chat, a nested
-AGENT span for the reply, and a TOOL span for the function call.
+The agent replies by running a tool instead of calling a model, so this runs offline and
+is the quickest way to confirm spans are reaching Phoenix. Executing the tool from
+inside the reply is what an LLM-driven tool call does too, so the trace has the same
+shape: an AGENT span for the chat, a nested AGENT span for the reply, and a TOOL span
+under that.
 
 1. Run Phoenix locally: `pip install arize-phoenix && phoenix serve`
 2. Install dependencies: `pip install -r requirements.txt`
@@ -12,6 +14,7 @@ AGENT span for the reply, and a TOOL span for the function call.
 """
 
 import json
+from typing import Any
 
 from autogen import ConversableAgent
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -34,30 +37,33 @@ def get_weather(city: str) -> str:
     return f"It is 72F and sunny in {city}."
 
 
-def main() -> None:
-    researcher = ConversableAgent(
-        "researcher",
-        llm_config=False,
-        human_input_mode="NEVER",
-        default_auto_reply="Portland is a great pick for a weekend trip.",
-    )
-    planner = ConversableAgent("planner", llm_config=False, human_input_mode="NEVER")
-    planner.register_function({"get_weather": get_weather})
-
-    chat = planner.initiate_chat(
-        researcher,
-        message="Which city should we visit this weekend?",
-        max_turns=1,
-        silent=True,
-    )
-    print("researcher:", chat.chat_history[-1]["content"])
-
-    # With no LLM to request the call, invoke the tool directly to emit a TOOL span.
-    _, result = planner.execute_function(
+def reply_with_weather(
+    agent: ConversableAgent,
+    messages: list[dict[str, Any]] | None = None,
+    sender: Any = None,
+    config: Any = None,
+) -> tuple[bool, str]:
+    _, result = agent.execute_function(
         {"name": "get_weather", "arguments": json.dumps({"city": "Portland"})},
         call_id="call-1",
     )
-    print("get_weather:", result["content"])
+    return True, str(result["content"])
+
+
+def main() -> None:
+    weather_agent = ConversableAgent("weather_agent", llm_config=False, human_input_mode="NEVER")
+    weather_agent.register_function({"get_weather": get_weather})
+    weather_agent.register_reply([ConversableAgent, None], reply_with_weather, position=0)
+
+    user_proxy = ConversableAgent("user_proxy", llm_config=False, human_input_mode="NEVER")
+
+    chat = user_proxy.initiate_chat(
+        weather_agent,
+        message="What is the weather in Portland?",
+        max_turns=1,
+        silent=True,
+    )
+    print("weather_agent:", chat.chat_history[-1]["content"])
     print("\nView the traces at http://localhost:6006")
 
 
