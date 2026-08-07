@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-anthropic
 
+## 0.1.19
+
+### Patch Changes
+
+- b067bbb: Preserve `APIPromise` helpers (`withResponse()` / `asResponse()`) on the patched `messages.create`, fixing `client.messages.stream()` throwing `create(...).withResponse is not a function` when instrumented.
+
 ## 0.1.18
 
 ### Patch Changes
