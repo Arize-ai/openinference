@@ -8,7 +8,7 @@ The traces emitted by this instrumentation are fully OpenTelemetry compatible an
 
 ## What is instrumented
 
-`chat` calls made through `ollama.chat`, `ollama.Client.chat`, and `ollama.AsyncClient.chat` are exported as OpenInference LLM spans (named `chat` and `async_chat` respectively), capturing:
+`chat` calls made through `ollama.chat`, `ollama.Client.chat`, and `ollama.AsyncClient.chat` are exported as OpenInference LLM spans (named `Chat` and `AsyncChat` respectively), capturing:
 
 - Input and output messages (`llm.input_messages.*`, `llm.output_messages.*`), including tool calls
 - Streaming (`stream=True`): the span finishes when the stream is exhausted, fails, or is abandoned, with the output message and token counts reconstructed from the accumulated chunks

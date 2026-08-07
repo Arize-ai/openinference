@@ -83,8 +83,12 @@ _HOST_SUFFIX_TO_PROVIDER: Dict[str, OpenInferenceLLMProviderValues] = {
     "api.perplexity.ai": OpenInferenceLLMProviderValues.PERPLEXITY,
     "api.together.ai": OpenInferenceLLMProviderValues.TOGETHER,
     "api.together.xyz": OpenInferenceLLMProviderValues.TOGETHER,
-    "ollama.com": OpenInferenceLLMProviderValues.OLLAMA,
 }
+# OLLAMA joined OpenInferenceLLMProviderValues after semconv 0.1.31; guard the
+# reference so importing against an older semconv release degrades to "no
+# ollama host mapping" instead of an import-time AttributeError.
+if _ollama_provider := getattr(OpenInferenceLLMProviderValues, "OLLAMA", None):
+    _HOST_SUFFIX_TO_PROVIDER["ollama.com"] = _ollama_provider
 
 # Maps model name prefixes to their corresponding LLM system value.
 _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
@@ -120,7 +124,9 @@ def infer_llm_provider_from_host(host: str) -> Optional[OpenInferenceLLMProvider
 
     normalised = host.lower().strip()
     for suffix, provider in _HOST_SUFFIX_TO_PROVIDER.items():
-        if normalised.endswith(suffix):
+        # Anchor at a label boundary so e.g. "smollama.com" does not match
+        # the "ollama.com" suffix.
+        if normalised == suffix or normalised.endswith("." + suffix):
             return provider
     return None
 

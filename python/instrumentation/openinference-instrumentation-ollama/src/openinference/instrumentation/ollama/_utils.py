@@ -1,13 +1,22 @@
 import logging
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
+from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.ollama._with_span import _WithSpan
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+def _as_arguments_json(arguments: Any) -> str:
+    # Ollama returns tool-call arguments as a mapping, unlike the OpenAI-style
+    # JSON string. Serialize mappings so the attribute is always a JSON string.
+    if isinstance(arguments, str):
+        return arguments
+    return safe_json_dumps(arguments)
 
 
 def _finish_tracing(

@@ -5,6 +5,7 @@ from typing import Any, Iterable, Iterator, Mapping, Sequence, Tuple
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_input_attributes, safe_json_dumps
+from openinference.instrumentation.ollama._utils import _as_arguments_json
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceSpanKindValues,
@@ -133,11 +134,3 @@ def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, Mapping):
         return obj.get(attr_name, default)
     return getattr(obj, attr_name, default)
-
-
-def _as_arguments_json(arguments: Any) -> str:
-    # Ollama returns tool-call arguments as a mapping, unlike the OpenAI-style
-    # JSON string. Serialize mappings so the attribute is always a JSON string.
-    if isinstance(arguments, str):
-        return arguments
-    return safe_json_dumps(arguments)

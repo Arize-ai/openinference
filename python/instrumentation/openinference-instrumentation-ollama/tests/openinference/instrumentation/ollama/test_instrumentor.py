@@ -23,6 +23,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
@@ -74,7 +75,7 @@ def test_chat(in_memory_span_exporter: InMemorySpanExporter) -> None:
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attrs = dict(spans[0].attributes or {})
-    assert spans[0].name == "chat"
+    assert spans[0].name == "Chat"
     assert spans[0].status.is_ok
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == "ollama"
@@ -139,7 +140,9 @@ def test_chat_with_tool_call(in_memory_span_exporter: InMemorySpanExporter) -> N
     raw_args = attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
     assert isinstance(json.loads(str(raw_args)), dict)
     # The tool schema is recorded on the request side.
-    schema = json.loads(str(attrs["llm.tools.0.tool.json_schema"]))
+    schema = json.loads(
+        str(attrs[f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"])
+    )
     assert schema["function"]["name"] == "get_current_weather"
 
 
@@ -164,7 +167,9 @@ def test_chat_with_callable_tool(in_memory_span_exporter: InMemorySpanExporter) 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attrs = dict(spans[0].attributes or {})
-    schema = json.loads(str(attrs["llm.tools.0.tool.json_schema"]))
+    schema = json.loads(
+        str(attrs[f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"])
+    )
     # The schema must be a JSON tool definition, not the function's repr.
     assert schema["function"]["name"] == "add_two_numbers"
     assert schema["function"]["parameters"]["required"] == ["a", "b"]
@@ -181,7 +186,7 @@ async def test_async_chat(in_memory_span_exporter: InMemorySpanExporter) -> None
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].name == "async_chat"
+    assert spans[0].name == "AsyncChat"
     attrs = dict(spans[0].attributes or {})
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
     assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in attrs
@@ -422,3 +427,29 @@ def test_chat_stream_merges_thinking(
     output = json.loads(str(attrs[SpanAttributes.OUTPUT_VALUE]))
     assert output["message"]["thinking"] == "Let me think."
     assert output["message"]["content"] == "Blue."
+
+
+def test_uninstrument_deactivates_captured_aliases(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        Client,
+        "_request",
+        lambda self, *a, **k: ChatResponse(
+            model=MODEL, message=Message(role="assistant", content="hi"), done=True
+        ),
+    )
+    # Capture an alias WHILE instrumented: it points at the wrapper.
+    captured_chat = ollama.chat
+    OllamaInstrumentor().uninstrument()
+    try:
+        captured_chat(
+            model=MODEL,
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        )
+        # The deactivated wrapper must pass through without tracing.
+        assert len(in_memory_span_exporter.get_finished_spans()) == 0
+    finally:
+        # Restore for the autouse fixture's teardown symmetry.
+        OllamaInstrumentor().instrument()

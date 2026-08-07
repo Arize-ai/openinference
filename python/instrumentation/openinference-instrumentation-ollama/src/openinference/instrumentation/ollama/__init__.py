@@ -10,7 +10,9 @@ Chat calls made through ``ollama.chat``, ``ollama.Client.chat``, and
 ``ollama.AsyncClient.chat`` (including ``stream=True``) are exported as
 OpenInference LLM spans. Call ``instrument()`` before making chat calls;
 references captured earlier (e.g. ``from ollama import chat`` at import
-time) keep the unwrapped method and are not traced.
+time) keep the unwrapped method and are not traced. ``uninstrument()``
+restores the original methods and deactivates any wrapper references that
+were captured while instrumented.
 """
 
 import logging
@@ -45,6 +47,8 @@ class OllamaInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_chat",
         "_original_async_chat",
         "_original_module_chat",
+        "_chat_wrapper",
+        "_async_chat_wrapper",
         "_tracer",
     )
 
@@ -74,17 +78,19 @@ class OllamaInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         # ``from ollama import chat`` at import time) keep the unwrapped method
         # and cannot be traced retroactively.
         self._original_chat = Client.chat
+        self._chat_wrapper = _ChatWrapper(tracer=self._tracer)
         wrap_function_wrapper(
             "ollama._client",
             "Client.chat",
-            _ChatWrapper(tracer=self._tracer),
+            self._chat_wrapper,
         )
 
         self._original_async_chat = AsyncClient.chat
+        self._async_chat_wrapper = _AsyncChatWrapper(tracer=self._tracer)
         wrap_function_wrapper(
             "ollama._client",
             "AsyncClient.chat",
-            _AsyncChatWrapper(tracer=self._tracer),
+            self._async_chat_wrapper,
         )
 
         # ``ollama.chat`` is bound to the package-level client at import time,
@@ -115,3 +121,8 @@ class OllamaInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ollama_module.AsyncClient.chat = self._original_async_chat
         if (original_module_chat := getattr(self, "_original_module_chat", None)) is not None:
             ollama.chat = original_module_chat
+        # Deactivate the wrappers so aliases captured while instrumented
+        # (e.g. ``from ollama import chat`` after instrument()) stop tracing.
+        for wrapper_attr in ("_chat_wrapper", "_async_chat_wrapper"):
+            if (wrapper := getattr(self, wrapper_attr, None)) is not None:
+                wrapper._enabled = False

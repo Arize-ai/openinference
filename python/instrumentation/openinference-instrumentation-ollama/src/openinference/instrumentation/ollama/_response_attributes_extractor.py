@@ -3,7 +3,8 @@ from typing import Any, Iterable, Iterator, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_output_attributes, safe_json_dumps
+from openinference.instrumentation import get_output_attributes
+from openinference.instrumentation.ollama._utils import _as_arguments_json
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
 __all__ = ("_ResponseAttributesExtractor",)
@@ -56,11 +57,10 @@ class _ResponseAttributesExtractor:
                             name,
                         )
                     if (arguments := getattr(function, "arguments", None)) is not None:
-                        # Ollama returns arguments as a mapping, not a JSON string.
                         yield (
                             f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}."
                             f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            arguments if isinstance(arguments, str) else safe_json_dumps(arguments),
+                            _as_arguments_json(arguments),
                         )
 
     def _get_attributes_from_token_counts(
