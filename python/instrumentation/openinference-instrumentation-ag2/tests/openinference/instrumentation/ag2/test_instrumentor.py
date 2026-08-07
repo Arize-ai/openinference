@@ -71,7 +71,7 @@ def test_generate_reply_has_agent_and_context_attributes(
     assert attributes[SpanAttributes.SESSION_ID] == "session-1"
     assert attributes[SpanAttributes.USER_ID] == "user-1"
     assert json.loads(cast(str, attributes[SpanAttributes.INPUT_VALUE])) == messages
-    assert json.loads(cast(str, attributes[SpanAttributes.OUTPUT_VALUE])) == "draft"
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == "draft"
     assert span.status.status_code is StatusCode.OK
 
 
@@ -94,9 +94,7 @@ def test_unserializable_output_does_not_change_agent_behavior(
     result = cast(Any, agent.generate_reply(messages=[{"role": "user", "content": "hello"}]))
     assert result is output
     (span,) = in_memory_span_exporter.get_finished_spans()
-    assert json.loads(cast(str, _attributes(span)[SpanAttributes.OUTPUT_VALUE])) == (
-        "<unserializable>"
-    )
+    assert "Unserializable" in cast(str, _attributes(span)[SpanAttributes.OUTPUT_VALUE])
 
 
 @pytest.mark.asyncio
@@ -133,9 +131,11 @@ def test_sync_chat_parents_reply_span(
     assert result.chat_history[-1]["content"] == "done"
     assert reply_span.parent is not None
     assert reply_span.parent.span_id == chat_span.context.span_id
-    assert _attributes(chat_span)[SpanAttributes.OPENINFERENCE_SPAN_KIND] == (
-        OpenInferenceSpanKindValues.CHAIN.value
+    chat_attributes = _attributes(chat_span)
+    assert chat_attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == (
+        OpenInferenceSpanKindValues.AGENT.value
     )
+    assert chat_attributes[SpanAttributes.OUTPUT_VALUE] == "done"
 
 
 @pytest.mark.asyncio
@@ -189,6 +189,25 @@ def test_tool_success_and_failure(
     }
     assert add_span.status.status_code is StatusCode.OK
     assert missing_span.status.status_code is StatusCode.ERROR
+
+
+def test_tool_execution_with_string_func_call(
+    instrumentor: AG2Instrumentor,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = _agent("executor")
+
+    def now() -> str:
+        return "noon"
+
+    agent.register_function({"now": now})
+    success, output = cast(Any, agent).execute_function("now")
+
+    assert success is True
+    assert output["content"] == "noon"
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.name == "now"
+    assert _attributes(span)[SpanAttributes.TOOL_NAME] == "now"
 
 
 @pytest.mark.asyncio

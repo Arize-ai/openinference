@@ -4,6 +4,7 @@ from collections.abc import Callable, Collection
 from typing import Any
 
 from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.dependencies import get_dependency_conflicts
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import wrap_function_wrapper
 
@@ -16,6 +17,8 @@ from openinference.instrumentation.ag2._wrappers import (
 from openinference.instrumentation.ag2.version import __version__
 
 _instruments = ("ag2 >= 0.14.0, < 1.0.0",)
+# The AG2 runtime is also published under legacy distribution names.
+_instruments_any = (*_instruments, "autogen >= 0.5.0, < 1.0.0", "pyautogen >= 0.5.0, < 1.0.0")
 
 
 class AG2Instrumentor(BaseInstrumentor):  # type: ignore
@@ -23,6 +26,12 @@ class AG2Instrumentor(BaseInstrumentor):  # type: ignore
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
+
+    def _check_dependency_conflicts(self) -> Any:
+        conflicts = [get_dependency_conflicts([dependency]) for dependency in _instruments_any]
+        if any(conflict is None for conflict in conflicts):
+            return None
+        return conflicts[0]
 
     def _instrument(self, **kwargs: Any) -> None:
         from autogen import ConversableAgent

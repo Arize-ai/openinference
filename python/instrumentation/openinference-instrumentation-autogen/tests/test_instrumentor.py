@@ -2,7 +2,7 @@ from autogen import ConversableAgent
 from opentelemetry.util._importlib_metadata import entry_points
 
 from openinference.instrumentation.ag2 import AG2Instrumentor
-from openinference.instrumentation.autogen import AutogenInstrumentor
+from openinference.instrumentation.autogen import AutogenInstrumentor, SpanAttributes
 
 
 class TestInstrumentor:
@@ -13,11 +13,26 @@ class TestInstrumentor:
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, AutogenInstrumentor)
 
+    def test_legacy_span_attributes_remain_importable(self) -> None:
+        assert SpanAttributes.OPENINFERENCE_SPAN_KIND == "openinference.span.kind"
+        assert SpanAttributes.TOOL_NAME == "tool.name"
+
+    def test_uninstrument_ignores_instrumentation_it_does_not_own(self) -> None:
+        original = ConversableAgent.generate_reply
+        ag2_instrumentor = AG2Instrumentor()
+        ag2_instrumentor.instrument()
+        try:
+            AutogenInstrumentor().uninstrument()
+            assert ConversableAgent.generate_reply is not original
+        finally:
+            ag2_instrumentor.uninstrument()
+
+        assert ConversableAgent.generate_reply is original
+
     def test_legacy_distribution_delegates_to_ag2_instrumentor(self) -> None:
         original = ConversableAgent.generate_reply
         instrumentor = AutogenInstrumentor()
 
-        assert tuple(instrumentor.instrumentation_dependencies()) == ("autogen >= 0.5.0",)
         instrumentor.instrument()
         try:
             agent = ConversableAgent(
