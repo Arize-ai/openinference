@@ -233,6 +233,53 @@ class _AsyncChatStreamWrapper(_WithTracer):
                 raise
             return _Stream(stream, span, self._response_extractor)
 
+class _EmbedWrapper(_WithTracer):
+    """Wraps ``cohere.V2Client.embed`` to trace synchronous embedding calls."""
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        with self._start_as_current_span("ClientV2.embed", request_parameters) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except BaseException as exception:
+                self._record_failure(span, exception)
+                raise
+            self._finalize_response(span, response)
+        return response
+
+
+class _AsyncEmbedWrapper(_WithTracer):
+    """Wraps ``cohere.AsyncV2Client.embed`` to trace asynchronous embedding calls."""
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        with self._start_as_current_span("AsyncClientV2.embed", request_parameters) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+            except BaseException as exception:
+                self._record_failure(span, exception)
+                raise
+            self._finalize_response(span, response)
+        return response
+
 
 def _finish_tracing(
     with_span: _WithSpan,
