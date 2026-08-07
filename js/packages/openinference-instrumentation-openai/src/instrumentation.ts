@@ -75,6 +75,7 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
   "api.perplexity.ai": LLMProvider.PERPLEXITY,
   "api.together.ai": LLMProvider.TOGETHER,
   "api.together.xyz": LLMProvider.TOGETHER,
+  "ollama.com": LLMProvider.OLLAMA,
 };
 
 /**
