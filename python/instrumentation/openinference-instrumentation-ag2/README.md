@@ -46,6 +46,12 @@ assistant.generate_reply(messages=[{"role": "user", "content": "Hello"}])
 also respects OpenTelemetry tracing suppression, OpenInference context attributes, and
 `TraceConfig` masking options.
 
+## Examples
+
+Runnable examples that send traces to a local Phoenix instance live in
+[`examples/`](examples). Two of them need no LLM API key, so they are the quickest way to
+confirm traces are reaching Phoenix.
+
 ## More Info
 
 - [OpenInference](https://github.com/Arize-ai/openinference)
