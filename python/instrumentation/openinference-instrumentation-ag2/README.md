@@ -5,7 +5,7 @@
 Python auto-instrumentation library for [AG2](https://github.com/ag2ai/ag2) agents, capturing chats,
 agent replies, and synchronous or asynchronous tool execution.
 
-The following instrumentation is fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for monitoring, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/docs/ax), or [Langfuse](https://langfuse.com).
+The following instrumentation is fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for monitoring, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax).
 
 ## Installation
 
