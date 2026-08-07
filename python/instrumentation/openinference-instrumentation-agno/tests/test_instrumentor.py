@@ -4,6 +4,7 @@ import pytest
 import vcr  # type: ignore
 from agno.agent import Agent
 from agno.models.openai.chat import OpenAIChat
+from agno.run.agent import RunOutput
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
@@ -307,11 +308,9 @@ def test_agno_team_coordinate_instrumentation(
 
 def test_extract_run_response_output_str_content() -> None:
     """String content is returned verbatim."""
-    from types import SimpleNamespace
-
     from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
 
-    run_response = SimpleNamespace(content="hello world")
+    run_response = RunOutput(content="hello world")
     assert _extract_run_response_output(run_response) == "hello world"
 
 
@@ -322,21 +321,18 @@ def test_extract_run_response_output_pydantic_content() -> None:
     from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
 
     content = SimpleNamespace(model_dump_json=lambda: '{"answer": 42}')
-    run_response = SimpleNamespace(content=content)
+    run_response = RunOutput(content=content)
     assert _extract_run_response_output(run_response) == '{"answer": 42}'
 
 
 def test_extract_run_response_output_dict_content() -> None:
-    """Dict content (no model_dump_json) must not crash and falls back to str().
+    """Dict content is serialized as valid JSON.
 
     Standalone ``agent.run`` calls that use ``output_schema``/JSON mode can return
     a plain ``dict`` as ``content``. Previously this raised
-    ``'dict' object has no attribute 'model_dump_json'``; the guard mirrors the
-    one already present in ``_extract_completed_event_output``.
+    ``'dict' object has no attribute 'model_dump_json'``.
     """
-    from types import SimpleNamespace
-
     from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
 
-    run_response = SimpleNamespace(content={"answer": 42})
-    assert _extract_run_response_output(run_response) == str({"answer": 42})
+    run_response = RunOutput(content={"answer": True})
+    assert _extract_run_response_output(run_response) == '{"answer": true}'
