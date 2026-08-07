@@ -20,6 +20,7 @@
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.19",
     "python/instrumentation/openinference-instrumentation-anthropic": "1.1.1",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.33",
+    "python/instrumentation/openinference-instrumentation-ag2": "0.1.0",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.14",
     "python/instrumentation/openinference-instrumentation-openai-agents": "1.6.2",
     "python/instrumentation/openinference-instrumentation-portkey": "0.1.11",
