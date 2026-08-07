@@ -64,6 +64,7 @@ languages.
 | [`openinference-instrumentation-agentspec`](./python/instrumentation/openinference-instrumentation-agentspec)                 | OpenInference Instrumentation for Open Agent Specification.                      | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-agentspec.svg)](https://pypi.python.org/pypi/openinference-instrumentation-agentspec)                 |
 | [`openinference-instrumentation-strands-agents`](./python/instrumentation/openinference-instrumentation-strands-agents)       | OpenInference Instrumentation for Strands Agents.                                | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-strands-agents.svg)](https://pypi.python.org/pypi/openinference-instrumentation-strands-agents)       |
 | [`openinference-instrumentation-together`](./python/instrumentation/openinference-instrumentation-together)                   | OpenInference Instrumentation for Together AI.                                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-together.svg)](https://pypi.python.org/pypi/openinference-instrumentation-together)                   |
+| [`openinference-instrumentation-ollama`](./python/instrumentation/openinference-instrumentation-ollama)                       | OpenInference Instrumentation for Ollama.                                        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-ollama.svg)](https://pypi.python.org/pypi/openinference-instrumentation-ollama)                       |
 
 ## Span Processors
 
@@ -98,6 +99,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [Autogen AgentChat](python/instrumentation/openinference-instrumentation-autogen-agentchat/examples/) | Microsoft Autogen Assistant Agent and Team Chat                                              | Intermediate     |
 | [PydanticAI](python/instrumentation/openinference-instrumentation-pydantic-ai/examples/)              | PydanticAI agent examples                                                                    | Intermediate     |
 | [Pipecat](python/instrumentation/openinference-instrumentation-pipecat/examples/)                     | Pipecat application examples                                                                 | Intermediate     |
+| [Ollama](python/instrumentation/openinference-instrumentation-ollama/examples/)                       | Ollama chat, streaming, and tool calls                                                       | Beginner         |
 
 ## JavaScript
 
