@@ -4,22 +4,24 @@
 
 Python auto-instrumentation library for the [Cohere](https://github.com/cohere-ai/cohere-python) Python client.
 
-Chat and embedding calls made with the Cohere v2 client (`ClientV2` and `AsyncClientV2`)
-are traced and exported as OpenInference spans. Chat spans capture messages, invocation
-parameters, tool calls, and token counts. Embedding spans capture the model name, input text,
-invocation parameters, vectors, and token counts.
+Chat, embedding, and rerank calls made with the Cohere v2 client (`ClientV2` and
+`AsyncClientV2`) are traced and exported as OpenInference spans. Chat spans capture messages,
+invocation parameters, tool calls, and token counts. Embedding spans capture the model name,
+input text, invocation parameters, vectors, and token counts. Rerank spans capture the query,
+model, input documents, ranked output documents, and relevance scores.
 
 ## Coverage
 
 `ClientV2.chat`, `AsyncClientV2.chat`, `ClientV2.chat_stream`,
-`AsyncClientV2.chat_stream`, `ClientV2.embed`, and `AsyncClientV2.embed` are instrumented.
+`AsyncClientV2.chat_stream`, `ClientV2.embed`, `AsyncClientV2.embed`, `ClientV2.rerank`, and
+`AsyncClientV2.rerank` are instrumented.
 Streamed calls finish their span when the returned iterator is exhausted, with the accumulated
 output message, tool calls, and token counts.
 
 The following are **not** traced, and calls to them produce no spans:
 
 - The v1 client (`cohere.Client`)
-- Rerank and classify endpoints
+- Classify endpoints
 
 ## Installation
 

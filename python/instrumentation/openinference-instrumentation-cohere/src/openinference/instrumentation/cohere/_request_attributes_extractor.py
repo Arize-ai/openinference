@@ -4,7 +4,11 @@ from typing import Any, Iterable, Iterator, List, Mapping, Optional, Sequence, T
 
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import get_input_attributes, safe_json_dumps
+from openinference.instrumentation import (
+    get_input_attributes,
+    get_reranker_attributes,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
@@ -151,6 +155,38 @@ class _RequestAttributesExtractor:
                 f"type {type(request_parameters)}"
             )
 
+    def get_attributes_from_rerank_request(
+        self,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.RERANKER.value
+        query = request_parameters.get("query")
+        model_name = request_parameters.get("model")
+        top_k = request_parameters.get("top_n")
+        yield from get_reranker_attributes(
+            query=query if isinstance(query, str) else None,
+            model_name=model_name if isinstance(model_name, str) else None,
+            top_k=top_k if isinstance(top_k, int) and not isinstance(top_k, bool) else None,
+        ).items()
+        try:
+            yield from get_input_attributes(request_parameters).items()
+        except Exception:
+            logger.exception(
+                f"Failed to get input attributes from rerank request parameters of "
+                f"type {type(request_parameters)}"
+            )
+
+    def get_extra_attributes_from_rerank_request(
+        self,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        documents = _replayable_sequence(request_parameters.get("documents"))
+        if documents is None:
+            return
+        yield from get_reranker_attributes(
+            input_documents=_as_reranker_documents(documents)
+        ).items()
+
 
 def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, Mapping):
@@ -168,6 +204,25 @@ def _replayable_sequence(obj: Any) -> Optional[Sequence[Any]]:
     if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes)):
         return obj
     return None
+
+
+def _as_reranker_documents(documents: Sequence[Any]) -> List[Any]:
+    """Convert Cohere's string or structured documents to OI document mappings."""
+    converted: List[Any] = []
+    for document in documents:
+        if isinstance(document, str):
+            converted.append({"content": document})
+            continue
+
+        jsonable_document = _as_jsonable(document)
+        converted_document = {"content": safe_json_dumps(jsonable_document)}
+        if isinstance(jsonable_document, Mapping):
+            if (document_id := jsonable_document.get("id")) is not None:
+                converted_document["id"] = document_id
+            if (metadata := jsonable_document.get("metadata")) is not None:
+                converted_document["metadata"] = metadata
+        converted.append(converted_document)
+    return converted
 
 
 def _as_jsonable(obj: Any) -> Any:

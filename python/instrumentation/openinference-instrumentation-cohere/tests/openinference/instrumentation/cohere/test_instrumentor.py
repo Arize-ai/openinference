@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterator, List, Sequence
 
 import cohere
 import pytest
+from cohere.core.request_options import RequestOptions
 from cohere.types import (
     ApiMeta,
     ApiMetaTokens,
@@ -25,7 +26,11 @@ from cohere.types import (
     UsageTokens,
 )
 from cohere.v2.raw_client import AsyncRawV2Client, RawV2Client
-from cohere.v2.types import V2ChatResponse
+from cohere.v2.types import (
+    V2ChatResponse,
+    V2RerankResponse,
+    V2RerankResponseResultsItem,
+)
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -40,9 +45,11 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.cohere import CohereInstrumentor
 from openinference.semconv.trace import (
+    DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
     OpenInferenceSpanKindValues,
+    RerankerAttributes,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
@@ -119,6 +126,16 @@ def _user_message(content: str) -> Any:
 def _vector(value: Any) -> List[float]:
     assert isinstance(value, Sequence)
     return [float(component) for component in value]
+
+
+def _rerank_response() -> V2RerankResponse:
+    return V2RerankResponse(
+        id="rerank-1",
+        results=[
+            V2RerankResponseResultsItem(index=1, relevance_score=0.95),
+            V2RerankResponseResultsItem(index=0, relevance_score=0.4),
+        ],
+    )
 
 
 def _raw_stream(events: "List[Any]") -> Any:
@@ -964,6 +981,274 @@ def test_embed_suppressed(
             texts=["Hello world"],
             input_type="search_document",
             embedding_types=["float"],
+        )
+
+    assert in_memory_span_exporter.get_finished_spans() == ()
+
+
+def test_rerank(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: Dict[str, Any] = {}
+
+    def _mock_rerank(self: Any, **kwargs: Any) -> Any:
+        received.update(kwargs)
+        return SimpleNamespace(data=_rerank_response())
+
+    monkeypatch.setattr(RawV2Client, "rerank", _mock_rerank)
+    documents: Any = [
+        "The first document",
+        {"id": "doc-2", "title": "Second", "text": "The second document"},
+    ]
+    request_options: RequestOptions = {"additional_headers": {"x-test-secret": "not-recorded"}}
+
+    with using_attributes(
+        session_id="rerank-session",
+        user_id="rerank-user",
+        metadata={"env": "test"},
+        tags=["rerank"],
+    ):
+        response = _client().rerank(
+            model="rerank-v3.5",
+            query="Which document is second?",
+            documents=documents,
+            top_n=2,
+            max_tokens_per_doc=512,
+            priority=1,
+            request_options=request_options,
+        )
+
+    assert response.results[0].index == 1
+    assert received["documents"] is documents
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.name == "ClientV2.rerank"
+    assert span.status.status_code is StatusCode.OK
+    attrs = dict(span.attributes or {})
+    assert "not-recorded" not in json.dumps(attrs, default=str)
+    assert (
+        attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.RERANKER.value
+    )
+    assert attrs.pop(RerankerAttributes.RERANKER_QUERY) == "Which document is second?"
+    assert attrs.pop(RerankerAttributes.RERANKER_MODEL_NAME) == "rerank-v3.5"
+    assert attrs.pop(RerankerAttributes.RERANKER_TOP_K) == 2
+
+    input_prefix = RerankerAttributes.RERANKER_INPUT_DOCUMENTS
+    output_prefix = RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
+    assert (
+        attrs.pop(f"{input_prefix}.0.{DocumentAttributes.DOCUMENT_CONTENT}") == "The first document"
+    )
+    structured_input = json.loads(
+        str(attrs.pop(f"{input_prefix}.1.{DocumentAttributes.DOCUMENT_CONTENT}"))
+    )
+    assert structured_input == {
+        "id": "doc-2",
+        "title": "Second",
+        "text": "The second document",
+    }
+    assert attrs.pop(f"{input_prefix}.1.{DocumentAttributes.DOCUMENT_ID}") == "doc-2"
+    structured_output = json.loads(
+        str(attrs.pop(f"{output_prefix}.0.{DocumentAttributes.DOCUMENT_CONTENT}"))
+    )
+    assert structured_output == structured_input
+    assert attrs.pop(f"{output_prefix}.0.{DocumentAttributes.DOCUMENT_ID}") == "doc-2"
+    assert attrs.pop(f"{output_prefix}.0.{DocumentAttributes.DOCUMENT_SCORE}") == 0.95
+    assert (
+        attrs.pop(f"{output_prefix}.1.{DocumentAttributes.DOCUMENT_CONTENT}")
+        == "The first document"
+    )
+    assert attrs.pop(f"{output_prefix}.1.{DocumentAttributes.DOCUMENT_SCORE}") == 0.4
+
+    input_value = json.loads(str(attrs.pop(SpanAttributes.INPUT_VALUE)))
+    assert input_value["documents"] == documents
+    assert input_value["max_tokens_per_doc"] == 512
+    assert input_value["priority"] == 1
+    assert "request_options" not in input_value
+    assert attrs.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    output_value = json.loads(str(attrs.pop(SpanAttributes.OUTPUT_VALUE)))
+    assert output_value["results"][0] == {"index": 1, "relevance_score": 0.95}
+    assert attrs.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attrs.pop(SpanAttributes.SESSION_ID) == "rerank-session"
+    assert attrs.pop(SpanAttributes.USER_ID) == "rerank-user"
+    assert json.loads(str(attrs.pop(SpanAttributes.METADATA))) == {"env": "test"}
+    assert list(attrs.pop(SpanAttributes.TAG_TAGS)) == ["rerank"]  # type: ignore[arg-type]
+    assert not attrs
+
+
+async def test_async_rerank(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _mock_rerank(self: Any, **kwargs: Any) -> Any:
+        return SimpleNamespace(data=_rerank_response())
+
+    monkeypatch.setattr(AsyncRawV2Client, "rerank", _mock_rerank)
+
+    await cohere.AsyncClientV2(api_key="fake-key").rerank(
+        model="rerank-v3.5",
+        query="Which document is second?",
+        documents=["The first document", "The second document"],
+        top_n=2,
+    )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.name == "AsyncClientV2.rerank"
+    assert span.status.status_code is StatusCode.OK
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.RERANKER.value
+    )
+    assert (
+        attrs[
+            f"{RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS}.0."
+            f"{DocumentAttributes.DOCUMENT_CONTENT}"
+        ]
+        == "The second document"
+    )
+
+
+def test_rerank_does_not_drain_generator_documents(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received_documents: List[str] = []
+
+    def _mock_rerank(self: Any, **kwargs: Any) -> Any:
+        received_documents.extend(kwargs["documents"])
+        return SimpleNamespace(data=_rerank_response())
+
+    monkeypatch.setattr(RawV2Client, "rerank", _mock_rerank)
+    documents: Any = (document for document in ["The first document", "The second document"])
+
+    _client().rerank(
+        model="rerank-v3.5",
+        query="Which document is second?",
+        documents=documents,
+        top_n=2,
+    )
+
+    assert received_documents == ["The first document", "The second document"]
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert not any(
+        key.startswith(RerankerAttributes.RERANKER_INPUT_DOCUMENTS)
+        or key.startswith(RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS)
+        for key in attrs
+    )
+
+
+def test_rerank_ignores_out_of_range_result_indices(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = V2RerankResponse(
+        id="rerank-invalid-index",
+        results=[V2RerankResponseResultsItem(index=3, relevance_score=0.8)],
+    )
+    monkeypatch.setattr(
+        RawV2Client,
+        "rerank",
+        lambda self, **kwargs: SimpleNamespace(data=response),
+    )
+
+    result = _client().rerank(
+        model="rerank-v3.5",
+        query="Which document is second?",
+        documents=["The only document"],
+        top_n=1,
+    )
+
+    assert result is response
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code is StatusCode.OK
+    attrs = dict(span.attributes or {})
+    assert not any(key.startswith(RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS) for key in attrs)
+
+
+def test_rerank_keeps_core_attributes_when_documents_exceed_span_limit(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    documents = [f"Document {index}" for index in range(150)]
+    response = V2RerankResponse(
+        id="rerank-many-documents",
+        results=[
+            V2RerankResponseResultsItem(index=index, relevance_score=index / len(documents))
+            for index in reversed(range(len(documents)))
+        ],
+    )
+    monkeypatch.setattr(
+        RawV2Client,
+        "rerank",
+        lambda self, **kwargs: SimpleNamespace(data=response),
+    )
+
+    with using_attributes(session_id="rerank-many-documents"):
+        _client().rerank(
+            model="rerank-v3.5",
+            query="Which document ranks highest?",
+            documents=documents,
+            top_n=len(documents),
+        )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.RERANKER.value
+    )
+    assert attrs[RerankerAttributes.RERANKER_QUERY] == "Which document ranks highest?"
+    assert attrs[RerankerAttributes.RERANKER_MODEL_NAME] == "rerank-v3.5"
+    assert attrs[RerankerAttributes.RERANKER_TOP_K] == len(documents)
+    assert attrs[SpanAttributes.SESSION_ID] == "rerank-many-documents"
+
+
+def test_rerank_error_span_keeps_request_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise(self: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("rerank failed")
+
+    monkeypatch.setattr(RawV2Client, "rerank", _raise)
+
+    with pytest.raises(RuntimeError, match="rerank failed"):
+        _client().rerank(
+            model="rerank-v3.5",
+            query="Which document is second?",
+            documents=["The first document", "The second document"],
+            top_n=2,
+        )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code is StatusCode.ERROR
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.RERANKER.value
+    )
+    assert attrs[RerankerAttributes.RERANKER_QUERY] == "Which document is second?"
+    assert attrs[RerankerAttributes.RERANKER_MODEL_NAME] == "rerank-v3.5"
+    assert attrs[RerankerAttributes.RERANKER_TOP_K] == 2
+
+
+def test_rerank_suppressed(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation import suppress_tracing
+
+    monkeypatch.setattr(
+        RawV2Client,
+        "rerank",
+        lambda self, **kwargs: SimpleNamespace(data=_rerank_response()),
+    )
+
+    with suppress_tracing():
+        _client().rerank(
+            model="rerank-v3.5",
+            query="Which document is second?",
+            documents=["The first document", "The second document"],
+            top_n=2,
         )
 
     assert in_memory_span_exporter.get_finished_spans() == ()
