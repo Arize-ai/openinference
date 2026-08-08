@@ -1,6 +1,6 @@
 {
     "python/openinference-semantic-conventions": "0.1.32",
-    "python/instrumentation/openinference-instrumentation-agno": "1.0.2",
+    "python/instrumentation/openinference-instrumentation-agno": "1.0.3",
     "python/instrumentation/openinference-instrumentation-openai": "0.1.54",
     "python/instrumentation/openinference-instrumentation-llama-index": "4.4.5",
     "python/instrumentation/openinference-instrumentation-dspy": "0.1.39",
@@ -14,7 +14,7 @@
     "python/instrumentation/openinference-instrumentation-haystack": "0.1.36",
     "python/instrumentation/openinference-instrumentation-litellm": "0.1.36",
     "python/instrumentation/openinference-instrumentation-groq": "0.1.19",
-    "python/instrumentation/openinference-instrumentation-cohere": "0.1.2",
+    "python/instrumentation/openinference-instrumentation-cohere": "0.1.3",
     "python/instrumentation/openinference-instrumentation-ollama": "0.1.2",
     "python/instrumentation/openinference-instrumentation-together": "0.1.2",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.20",
