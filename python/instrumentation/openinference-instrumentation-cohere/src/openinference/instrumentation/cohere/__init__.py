@@ -17,7 +17,7 @@ _instruments = ("cohere >= 5.13.0",)
 
 
 class CohereInstrumentor(BaseInstrumentor):  # type: ignore[misc]
-    """An instrumentor for the Cohere Python client (v2 chat API)."""
+    """An instrumentor for the Cohere Python client's v2 chat and embed APIs."""
 
     __slots__ = ("_tracer",)
 
@@ -28,8 +28,10 @@ class CohereInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         from openinference.instrumentation.cohere._wrappers import (
             _AsyncChatStreamWrapper,
             _AsyncChatWrapper,
+            _AsyncEmbedWrapper,
             _ChatStreamWrapper,
             _ChatWrapper,
+            _EmbedWrapper,
         )
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
@@ -51,6 +53,8 @@ class CohereInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ("AsyncV2Client.chat", _AsyncChatWrapper(tracer=self._tracer)),
             ("V2Client.chat_stream", _ChatStreamWrapper(tracer=self._tracer)),
             ("AsyncV2Client.chat_stream", _AsyncChatStreamWrapper(tracer=self._tracer)),
+            ("V2Client.embed", _EmbedWrapper(tracer=self._tracer)),
+            ("AsyncV2Client.embed", _AsyncEmbedWrapper(tracer=self._tracer)),
         ):
             wrap_function_wrapper("cohere.v2.client", class_name, wrapper)
 
@@ -61,6 +65,8 @@ class CohereInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ("AsyncV2Client", "chat"),
             ("V2Client", "chat_stream"),
             ("AsyncV2Client", "chat_stream"),
+            ("V2Client", "embed"),
+            ("AsyncV2Client", "embed"),
         ):
             # ``unwrap`` removes only this instrumentor's wrapper, leaving any
             # wrapper another layer installed on top of it intact.

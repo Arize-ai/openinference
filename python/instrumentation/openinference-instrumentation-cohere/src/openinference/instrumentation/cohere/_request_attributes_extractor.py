@@ -6,6 +6,7 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_input_attributes, safe_json_dumps
 from openinference.semconv.trace import (
+    EmbeddingAttributes,
     MessageAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
@@ -110,6 +111,46 @@ class _RequestAttributesExtractor:
                             arguments if isinstance(arguments, str) else safe_json_dumps(arguments),
                         )
 
+    def get_attributes_from_embed_request(
+        self,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.EMBEDDING.value
+        if isinstance(request_parameters, Mapping) and (model := request_parameters.get("model")):
+            yield SpanAttributes.EMBEDDING_MODEL_NAME, model
+
+        invocation_parameters = dict(request_parameters)
+        for input_parameter in ("texts", "images", "inputs"):
+            invocation_parameters.pop(input_parameter, None)
+        yield (
+            SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS,
+            safe_json_dumps(invocation_parameters),
+        )
+
+        if (texts := _replayable_sequence(request_parameters.get("texts"))) is not None:
+            for index, text in enumerate(texts):
+                if isinstance(text, str):
+                    yield (
+                        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}."
+                        f"{EmbeddingAttributes.EMBEDDING_TEXT}",
+                        text,
+                    )
+        elif (inputs := _replayable_sequence(request_parameters.get("inputs"))) is not None:
+            for index, embed_input in enumerate(inputs):
+                if text := _embed_input_text(embed_input):
+                    yield (
+                        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}."
+                        f"{EmbeddingAttributes.EMBEDDING_TEXT}",
+                        text,
+                    )
+        try:
+            yield from get_input_attributes(request_parameters).items()
+        except Exception:
+            logger.exception(
+                f"Failed to get input attributes from embed request parameters of "
+                f"type {type(request_parameters)}"
+            )
+
 
 def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, Mapping):
@@ -161,3 +202,15 @@ def _content_text(content: Any) -> str:
                 parts.append(safe_json_dumps(_as_jsonable(item)))
         return "".join(parts)
     return ""
+
+
+def _embed_input_text(embed_input: Any) -> str:
+    """Collect only text blocks from a multimodal Cohere ``EmbedInput``."""
+    content = get_attribute(embed_input, "content")
+    if not isinstance(content, Sequence) or isinstance(content, (str, bytes)):
+        return ""
+    parts: List[str] = []
+    for item in content:
+        if isinstance(text := get_attribute(item, "text"), str):
+            parts.append(text)
+    return "".join(parts)
