@@ -21,6 +21,7 @@ import {
   LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+  LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
   LLM_TOKEN_COUNT_TOTAL,
   OUTPUT_VALUE,
   SemanticConventions,
@@ -291,6 +292,33 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.0.message.role`]).toBe("assistant");
   });
 
+  it("extracts cache read and write token counts from generation usage details", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const generationData = {
+      type: "generation" as const,
+      model: "gpt-5.6-luna",
+      model_config: {},
+      input: [{ role: "user", content: "Hello" }],
+      output: [{ role: "assistant", content: "Hi there!" }],
+      usage: {
+        input_tokens: 10,
+        output_tokens: 20,
+        details: { cached_tokens: 6, cache_write_tokens: 4 },
+      },
+    };
+    const span = makeSpan("span-gen-cache", "trace-1", generationData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const llmSpan = exporter.getFinishedSpans().find((s) => s.name === "generation");
+    expect(llmSpan).toBeDefined();
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(6);
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(4);
+  });
+
   it("records LLM invocation parameters", async () => {
     const trace = makeTrace();
     await processor.onTraceStart(trace);
@@ -535,7 +563,7 @@ describe("OpenInferenceTracingProcessor", () => {
             prompt_tokens: 10,
             completion_tokens: 5,
             total_tokens: 15,
-            prompt_tokens_details: { cached_tokens: 3 },
+            prompt_tokens_details: { cached_tokens: 3, cache_write_tokens: 7 },
           },
         },
       ],
@@ -553,6 +581,7 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(5);
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(15);
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(3);
+    expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(7);
   });
 
   it("extracts output messages from chat completion choices", async () => {
@@ -784,7 +813,7 @@ describe("OpenInferenceTracingProcessor", () => {
           input_tokens: 12,
           output_tokens: 3,
           total_tokens: 15,
-          input_tokens_details: { cached_tokens: 4 },
+          input_tokens_details: { cached_tokens: 4, cache_write_tokens: 2 },
           output_tokens_details: { reasoning_tokens: 1 },
         },
         output: [
@@ -817,6 +846,7 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(3);
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(15);
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(4);
+    expect(respSpan!.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(2);
     expect(respSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]).toBe(1);
     // System instructions become input message 0
     expect(respSpan!.attributes[`${LLM_INPUT_MESSAGES}.0.message.role`]).toBe("system");
