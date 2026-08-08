@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import logging
 from abc import ABC
 from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
@@ -1014,3 +1015,284 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER_ANTHROPIC = OpenInferenceLLMProviderValues.ANTHROPIC.value
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
+
+
+def _get_chain_span_kind() -> Iterator[Tuple[str, AttributeValue]]:
+    yield OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.CHAIN.value
+
+
+class _ToolWrapper(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    __slots__ = ("_self_tracer",)
+
+    def __init__(self, tool: Any, tracer: trace_api.Tracer) -> None:
+        super().__init__(tool)
+        self._self_tracer = tracer
+
+    def call(self, *args: Any, **kwargs: Any) -> Any:
+        tool_name = getattr(self.__wrapped__, "name", "tool")
+        tool_desc = getattr(self.__wrapped__, "description", "")
+        if not tool_desc and hasattr(self.__wrapped__, "to_dict"):
+            try:
+                tool_desc = self.__wrapped__.to_dict().get("description", "")
+            except Exception:
+                pass
+
+        input_args = args[0] if args else kwargs
+        attributes: dict[str, AttributeValue] = {
+            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL.value,
+            SpanAttributes.TOOL_NAME: tool_name,
+        }
+        if tool_desc:
+            attributes[SpanAttributes.TOOL_DESCRIPTION] = tool_desc
+        if input_args:
+            json_input = safe_json_dumps(input_args)
+            attributes[SpanAttributes.TOOL_PARAMETERS] = json_input
+            attributes[SpanAttributes.INPUT_VALUE] = json_input
+            attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+
+        if inspect.iscoroutinefunction(self.__wrapped__.call):
+
+            async def _async_call() -> Any:
+                with self._self_tracer.start_as_current_span(
+                    name=tool_name,
+                    attributes=attributes,
+                ) as span:
+                    try:
+                        result = await self.__wrapped__.call(*args, **kwargs)
+                        if result is not None:
+                            if isinstance(result, (dict, list)):
+                                span.set_attribute(
+                                    SpanAttributes.OUTPUT_VALUE, safe_json_dumps(result)
+                                )
+                                span.set_attribute(
+                                    SpanAttributes.OUTPUT_MIME_TYPE,
+                                    OpenInferenceMimeTypeValues.JSON.value,
+                                )
+                            else:
+                                span.set_attribute(SpanAttributes.OUTPUT_VALUE, str(result))
+                                span.set_attribute(
+                                    SpanAttributes.OUTPUT_MIME_TYPE,
+                                    OpenInferenceMimeTypeValues.TEXT.value,
+                                )
+                        span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+                        return result
+                    except Exception as exception:
+                        span.set_status(
+                            trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+                        )
+                        span.record_exception(exception)
+                        raise
+
+            return _async_call()
+        else:
+            with self._self_tracer.start_as_current_span(
+                name=tool_name,
+                attributes=attributes,
+            ) as span:
+                try:
+                    result = self.__wrapped__.call(*args, **kwargs)
+                    if result is not None:
+                        if isinstance(result, (dict, list)):
+                            span.set_attribute(SpanAttributes.OUTPUT_VALUE, safe_json_dumps(result))
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_MIME_TYPE,
+                                OpenInferenceMimeTypeValues.JSON.value,
+                            )
+                        else:
+                            span.set_attribute(SpanAttributes.OUTPUT_VALUE, str(result))
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_MIME_TYPE,
+                                OpenInferenceMimeTypeValues.TEXT.value,
+                            )
+                    span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+                    return result
+                except Exception as exception:
+                    span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                    span.record_exception(exception)
+                    raise
+
+
+class _BetaToolRunnerProxy(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    __slots__ = ("_self_with_span", "_self_token", "_self_finished")
+
+    def __init__(
+        self,
+        runner: Any,
+        with_span: _WithSpan,
+        token: Any,
+    ) -> None:
+        super().__init__(runner)
+        self._self_with_span = with_span
+        self._self_token = token
+        self._self_finished = False
+
+    def _finish_span(
+        self,
+        result: Any = None,
+        exception: Optional[Exception] = None,
+    ) -> None:
+        if self._self_finished:
+            return
+        self._self_finished = True
+        if self._self_token is not None:
+            try:
+                context_api.detach(self._self_token)
+            except Exception:
+                pass
+        if exception is not None:
+            self._self_with_span.set_status(
+                trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+            )
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+        else:
+            extra_attributes: dict[str, AttributeValue] = {}
+            if result is not None and hasattr(result, "content"):
+                try:
+                    extra_attributes.update(dict(_get_output_messages(result)))
+                except Exception:
+                    pass
+            self._self_with_span.finish_tracing(
+                status=trace_api.Status(trace_api.StatusCode.OK),
+                extra_attributes=extra_attributes,
+            )
+
+    def until_done(self, *args: Any, **kwargs: Any) -> Any:
+        if hasattr(self.__wrapped__, "until_done") and inspect.iscoroutinefunction(
+            self.__wrapped__.until_done
+        ):
+
+            async def _async_until_done() -> Any:
+                try:
+                    res = await self.__wrapped__.until_done(*args, **kwargs)
+                    self._finish_span(result=res)
+                    return res
+                except Exception as exc:
+                    self._finish_span(exception=exc)
+                    raise
+
+            return _async_until_done()
+        else:
+            try:
+                res = self.__wrapped__.until_done(*args, **kwargs)
+                self._finish_span(result=res)
+                return res
+            except Exception as exc:
+                self._finish_span(exception=exc)
+                raise
+
+    def __iter__(self) -> Iterator[Any]:
+        return self
+
+    def __next__(self) -> Any:
+        try:
+            res = self.__wrapped__.__next__()
+            return res
+        except StopIteration:
+            self._finish_span()
+            raise
+        except Exception as exc:
+            self._finish_span(exception=exc)
+            raise
+
+    def __aiter__(self) -> Any:
+        return self
+
+    async def __anext__(self) -> Any:
+        try:
+            res = await self.__wrapped__.__anext__()
+            return res
+        except StopAsyncIteration:
+            self._finish_span()
+            raise
+        except Exception as exc:
+            self._finish_span(exception=exc)
+            raise
+
+    def __enter__(self) -> Any:
+        self.__wrapped__.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Any,
+    ) -> None:
+        try:
+            self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            self._finish_span(exception=exc_val if isinstance(exc_val, Exception) else None)
+
+    async def __aenter__(self) -> Any:
+        await self.__wrapped__.__aenter__()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Any,
+    ) -> None:
+        try:
+            await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        finally:
+            self._finish_span(exception=exc_val if isinstance(exc_val, Exception) else None)
+
+
+class _BetaToolRunnerWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        modified_kwargs = dict(kwargs)
+        if "tools" in modified_kwargs and isinstance(modified_kwargs["tools"], Iterable):
+            modified_kwargs["tools"] = [
+                _ToolWrapper(tool, self._tracer) if hasattr(tool, "call") else tool
+                for tool in modified_kwargs["tools"]
+            ]
+
+        try:
+            span = self._tracer.start_span(
+                name=self._span_name,
+                record_exception=False,
+                set_status_on_exception=False,
+                attributes=dict(
+                    chain(
+                        get_attributes_from_context(),
+                        _get_llm_provider(),
+                        _get_llm_system(),
+                        _get_chain_span_kind(),
+                        _get_inputs(kwargs),
+                    )
+                ),
+            )
+        except Exception:
+            span = INVALID_SPAN
+
+        params_cm = _Params(kwargs, get_attributes=_get_attributes_from_messages_create)
+        token = context_api.attach(trace_api.set_span_in_context(span))
+        params_obj = params_cm.__enter__()
+        with_span = _WithSpan(span=span, params=params_obj)
+
+        try:
+            runner = wrapped(*args, **modified_kwargs)
+        except Exception as exception:
+            context_api.detach(token)
+            params_cm.__exit__(None, None, None)
+            with_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+            with_span.record_exception(exception)
+            with_span.finish_tracing()
+            raise
+
+        return _BetaToolRunnerProxy(runner, with_span, token)
+
+
+class _AsyncBetaToolRunnerWrapper(_BetaToolRunnerWrapper):
+    pass
