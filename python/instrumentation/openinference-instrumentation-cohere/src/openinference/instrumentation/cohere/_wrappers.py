@@ -2,6 +2,7 @@ import logging
 from abc import ABC
 from contextlib import contextmanager
 from inspect import Signature, signature
+from itertools import chain
 from typing import Any, Callable, Dict, FrozenSet, Iterable, Iterator, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
@@ -180,13 +181,18 @@ class _WithTracer(ABC):
             _finish_tracing(
                 status=trace_api.Status(status_code=trace_api.StatusCode.OK),
                 with_span=span,
-                attributes=self._response_extractor.get_attributes(response=response),
-                extra_attributes=(
+                # Add the potentially large ranked-document set before generic
+                # output, context, and request attributes. With bounded OTel
+                # attributes, this keeps the core reranker fields from being
+                # displaced by a large ``top_n`` response.
+                attributes=chain(
                     self._response_extractor.get_extra_attributes_from_rerank_response(
                         response=response,
                         input_documents=request_parameters.get("documents"),
-                    )
+                    ),
+                    self._response_extractor.get_attributes(response=response),
                 ),
+                extra_attributes=(),
             )
         except Exception:
             logger.exception(f"Failed to finalize rerank response of type {type(response)}")
