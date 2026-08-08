@@ -121,6 +121,22 @@ class _WithTracer(ABC):
             logger.exception(f"Failed to finalize response of type {type(response)}")
             span.finish_tracing()
 
+    def _finalize_embed_response(self, span: _WithSpan, response: Any) -> None:
+        try:
+            _finish_tracing(
+                status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                with_span=span,
+                attributes=self._response_extractor.get_attributes(response=response),
+                extra_attributes=(
+                    self._response_extractor.get_extra_attributes_from_embed_response(
+                        response=response
+                    )
+                ),
+            )
+        except Exception:
+            logger.exception(f"Failed to finalize embed response of type {type(response)}")
+            span.finish_tracing()
+
 
 _EXCLUDED_REQUEST_PARAMETERS: FrozenSet[str] = frozenset(
     {
@@ -262,6 +278,7 @@ class _AsyncChatStreamWrapper(_WithTracer):
                 raise
             return _Stream(stream, span, self._response_extractor)
 
+
 class _EmbedWrapper(_WithTracer):
     """Wraps ``cohere.V2Client.embed`` to trace synchronous embedding calls."""
 
@@ -276,13 +293,13 @@ class _EmbedWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        with self._start_as_current_embed_span("ClientV2.embed", request_parameters) as span:
+        with self._start_as_current_embed_span("CreateEmbeddings", request_parameters) as span:
             try:
                 response = wrapped(*args, **kwargs)
             except BaseException as exception:
                 self._record_failure(span, exception)
                 raise
-            self._finalize_response(span, response)
+            self._finalize_embed_response(span, response)
         return response
 
 
@@ -300,13 +317,13 @@ class _AsyncEmbedWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        with self._start_as_current_embed_span("AsyncClientV2.embed", request_parameters) as span:
+        with self._start_as_current_embed_span("CreateEmbeddings", request_parameters) as span:
             try:
                 response = await wrapped(*args, **kwargs)
             except BaseException as exception:
                 self._record_failure(span, exception)
                 raise
-            self._finalize_response(span, response)
+            self._finalize_embed_response(span, response)
         return response
 
 

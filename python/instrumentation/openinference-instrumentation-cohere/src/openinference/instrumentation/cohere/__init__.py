@@ -17,7 +17,7 @@ _instruments = ("cohere >= 5.13.0",)
 
 
 class CohereInstrumentor(BaseInstrumentor):  # type: ignore[misc]
-    """An instrumentor for the Cohere Python client (v2 chat API)."""
+    """An instrumentor for the Cohere Python client's v2 chat and embed APIs."""
 
     __slots__ = ("_tracer",)
 

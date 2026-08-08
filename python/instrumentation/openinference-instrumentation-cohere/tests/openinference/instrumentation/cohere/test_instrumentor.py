@@ -1,14 +1,22 @@
 import asyncio
+import base64
 import json
+import struct
 from contextlib import asynccontextmanager, contextmanager
 from types import SimpleNamespace
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Sequence
 
 import cohere
 import pytest
 from cohere.types import (
+    ApiMeta,
+    ApiMetaTokens,
     AssistantMessageResponse,
+    EmbedByTypeResponse,
+    EmbedByTypeResponseEmbeddings,
+    EmbedInput,
     TextAssistantMessageResponseContentItem,
+    TextEmbedContent,
     ToolCallV2,
     ToolCallV2Function,
     ToolV2,
@@ -18,14 +26,6 @@ from cohere.types import (
 )
 from cohere.v2.raw_client import AsyncRawV2Client, RawV2Client
 from cohere.v2.types import V2ChatResponse
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    MessageAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -39,6 +39,14 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.cohere import CohereInstrumentor
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 
 
 def _text_response() -> V2ChatResponse:
@@ -106,6 +114,11 @@ def _user_message(content: str) -> Any:
     # A plain dict, typed as Any so mypy accepts it where the SDK expects
     # typed message objects; the extractor must handle both forms.
     return {"role": "user", "content": content}
+
+
+def _vector(value: Any) -> List[float]:
+    assert isinstance(value, Sequence)
+    return [float(component) for component in value]
 
 
 def _raw_stream(events: "List[Any]") -> Any:
@@ -725,40 +738,232 @@ def test_embed(
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from cohere.types import EmbedByTypeResponse, EmbedByTypeResponseEmbeddings
-    from cohere.v2.raw_client import RawV2Client
-
     fake_response = EmbedByTypeResponse(
         id="emb-0",
-        embeddings=EmbedByTypeResponseEmbeddings(float=[[0.1, 0.2, 0.3]]),
-        texts=["Hello world"],
-        model="embed-v4.0",
-        usage=Usage(tokens=UsageTokens(input_tokens=5, output_tokens=0)),
+        embeddings=EmbedByTypeResponseEmbeddings(float_=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]),
+        texts=["Hello world", "Goodbye world"],
+        meta=ApiMeta(tokens=ApiMetaTokens(input_tokens=5)),
     )
 
     monkeypatch.setattr(RawV2Client, "embed", lambda self, **k: SimpleNamespace(data=fake_response))
 
     _client().embed(
         model="embed-v4.0",
+        texts=["Hello world", "Goodbye world"],
+        input_type="search_document",
+        embedding_types=["float"],
+        output_dimension=256,
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "CreateEmbeddings"
+    assert span.status.status_code is StatusCode.OK
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
+    assert attrs.pop(SpanAttributes.EMBEDDING_MODEL_NAME) == "embed-v4.0"
+    assert json.loads(str(attrs.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS))) == {
+        "model": "embed-v4.0",
+        "input_type": "search_document",
+        "output_dimension": 256,
+        "embedding_types": ["float"],
+    }
+    input_value = json.loads(str(attrs.pop(SpanAttributes.INPUT_VALUE)))
+    assert input_value["texts"] == ["Hello world", "Goodbye world"]
+    assert attrs.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    output_value = json.loads(str(attrs.pop(SpanAttributes.OUTPUT_VALUE)))
+    assert output_value["embeddings"]["float"][0] == [0.1, 0.2, 0.3]
+    assert attrs.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert (
+        attrs.pop(f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}")
+        == "Hello world"
+    )
+    assert (
+        attrs.pop(f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.1.{EmbeddingAttributes.EMBEDDING_TEXT}")
+        == "Goodbye world"
+    )
+    assert _vector(
+        attrs.pop(f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}")
+    ) == [0.1, 0.2, 0.3]
+    assert _vector(
+        attrs.pop(f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.1.{EmbeddingAttributes.EMBEDDING_VECTOR}")
+    ) == [0.4, 0.5, 0.6]
+    assert attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 5
+    assert attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 5
+    assert not attrs
+
+
+def test_embed_extracts_text_from_structured_inputs(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_response = EmbedByTypeResponse(
+        id="emb-structured",
+        embeddings=EmbedByTypeResponseEmbeddings(float_=[[0.1, 0.2]]),
+    )
+    monkeypatch.setattr(RawV2Client, "embed", lambda self, **k: SimpleNamespace(data=fake_response))
+
+    _client().embed(
+        model="embed-v4.0",
+        inputs=[
+            EmbedInput(
+                content=[
+                    TextEmbedContent(type="text", text="Hello "),
+                    TextEmbedContent(type="text", text="world"),
+                ]
+            )
+        ],
+        input_type="search_document",
+        embedding_types=["float"],
+    )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs[f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"]
+        == "Hello world"
+    )
+    invocation_parameters = json.loads(str(attrs[SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS]))
+    assert "inputs" not in invocation_parameters
+
+
+def test_embed_decodes_base64_vectors(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    encoded_vector = base64.b64encode(struct.pack("<2f", 1.5, 2.0)).decode()
+    fake_response = EmbedByTypeResponse(
+        id="emb-base64",
+        embeddings=EmbedByTypeResponseEmbeddings(base64=[encoded_vector]),
+    )
+    monkeypatch.setattr(RawV2Client, "embed", lambda self, **k: SimpleNamespace(data=fake_response))
+
+    _client().embed(
+        model="embed-v4.0",
+        texts=["Hello world"],
+        input_type="search_document",
+        embedding_types=["base64"],
+    )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    vector = dict(span.attributes or {})[
+        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+    ]
+    assert _vector(vector) == [1.5, 2.0]
+
+
+async def test_async_embed(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_response = EmbedByTypeResponse(
+        id="emb-async",
+        embeddings=EmbedByTypeResponseEmbeddings(float_=[[0.1, 0.2, 0.3]]),
+    )
+
+    async def _mock_embed(self: Any, **kwargs: Any) -> Any:
+        return SimpleNamespace(data=fake_response)
+
+    monkeypatch.setattr(AsyncRawV2Client, "embed", _mock_embed)
+
+    await cohere.AsyncClientV2(api_key="fake-key").embed(
+        model="embed-v4.0",
         texts=["Hello world"],
         input_type="search_document",
         embedding_types=["float"],
     )
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
-    assert spans[0].name == "ClientV2.embed"
-    assert (
-        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND]
-        == OpenInferenceSpanKindValues.EMBEDDING.value
-    )
-    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
-    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.name == "CreateEmbeddings"
+    attrs = dict(span.attributes or {})
     assert attrs[SpanAttributes.EMBEDDING_MODEL_NAME] == "embed-v4.0"
-    assert (
-        attrs[
-            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
-        ]
-        == "Hello world"
+    assert _vector(
+        attrs[f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"]
+    ) == [0.1, 0.2, 0.3]
+
+
+def test_embed_trace_config_masks_text_and_vectors(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_response = EmbedByTypeResponse(
+        id="emb-masked",
+        embeddings=EmbedByTypeResponseEmbeddings(float_=[[0.1, 0.2, 0.3]]),
     )
+    monkeypatch.setattr(RawV2Client, "embed", lambda self, **k: SimpleNamespace(data=fake_response))
+    CohereInstrumentor().uninstrument()
+    CohereInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_embeddings_vectors=True, hide_embeddings_text=True),
+    )
+
+    _client().embed(
+        model="embed-v4.0",
+        texts=["Sensitive text"],
+        input_type="search_document",
+        embedding_types=["float"],
+    )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs[f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"]
+        == REDACTED_VALUE
+    )
+    assert (
+        attrs[f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"]
+        == REDACTED_VALUE
+    )
+
+
+def test_embed_error_span_keeps_model_name(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise(self: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(RawV2Client, "embed", _raise)
+
+    with pytest.raises(RuntimeError):
+        _client().embed(
+            model="embed-v4.0",
+            texts=["Hello world"],
+            input_type="search_document",
+            embedding_types=["float"],
+        )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code is StatusCode.ERROR
+    attrs = dict(span.attributes or {})
+    assert attrs[SpanAttributes.EMBEDDING_MODEL_NAME] == "embed-v4.0"
+    assert SpanAttributes.LLM_PROVIDER not in attrs
+    assert SpanAttributes.LLM_SYSTEM not in attrs
+
+
+def test_embed_suppressed(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation import suppress_tracing
+
+    fake_response = EmbedByTypeResponse(
+        id="emb-suppressed",
+        embeddings=EmbedByTypeResponseEmbeddings(float_=[[0.1, 0.2, 0.3]]),
+    )
+    monkeypatch.setattr(RawV2Client, "embed", lambda self, **k: SimpleNamespace(data=fake_response))
+
+    with suppress_tracing():
+        _client().embed(
+            model="embed-v4.0",
+            texts=["Hello world"],
+            input_type="search_document",
+            embedding_types=["float"],
+        )
+
+    assert in_memory_span_exporter.get_finished_spans() == ()
