@@ -22,6 +22,7 @@ from openinference.semconv.trace import (
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
@@ -326,6 +327,10 @@ def test_openai_tool_span_instrumentation_v5(
     assert tool_attrs.get(SpanAttributes.TOOL_PARAMETERS) is not None
     assert tool_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None
 
+    # The tool arguments must also land on input.value
+    assert json.loads(cast(str, tool_attrs[SpanAttributes.INPUT_VALUE])) == {"city": "Paris"}
+    assert tool_attrs.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+
     # An LLM span must carry the tool's JSON schema. pydantic-ai 2.0 serializes it under
     # ``parameters_json_schema`` (not ``properties``), so this guards the extraction path.
     # A tool-calling run produces multiple LLM spans (the call and the follow-up); the tool
@@ -343,6 +348,25 @@ def test_openai_tool_span_instrumentation_v5(
         for span in llm_spans
         if span.attributes and json_schema_key in span.attributes
     ]
+    # Every LLM span (including only TOOL call attributes) must report an output.value
+    for llm_span in llm_spans:
+        llm_attrs = dict(cast(Mapping[str, AttributeValue], llm_span.attributes))
+        assert llm_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None, (
+            f"LLM span {llm_span.name!r} is missing output.value"
+        )
+    # Exactly one of them is the tool-calling step, and its output.value is the tool call
+    tool_calling_outputs = [
+        json.loads(cast(str, span.attributes[SpanAttributes.OUTPUT_VALUE]))
+        for span in llm_spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.OUTPUT_MIME_TYPE)
+        == OpenInferenceMimeTypeValues.JSON.value
+    ]
+    assert tool_calling_outputs, "no LLM span reported a tool call as its output.value"
+    assert any(
+        call.get("name") == "get_weather" for output in tool_calling_outputs for call in output
+    )
+
     assert json_schemas, "no LLM span carried llm.tools.0.tool.json_schema"
     # The emitted value must be the actual JSON schema object (the get_weather tool takes a
     # `city: str`), not just any string that happens to contain "city".

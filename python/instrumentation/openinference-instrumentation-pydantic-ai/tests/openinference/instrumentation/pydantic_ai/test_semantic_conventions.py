@@ -3,7 +3,9 @@ from typing import Any, Dict
 
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_AGENT_NAME,
+    GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
+    GEN_AI_OUTPUT_MESSAGES,
     GEN_AI_TOOL_CALL_ID,
     GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_INPUT_TOKENS,
@@ -12,7 +14,13 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
 )
 
 from openinference.instrumentation.pydantic_ai.semantic_conventions import get_attributes
-from openinference.semconv.trace import SpanAttributes, ToolAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 
 # Legacy (instrumentation version 2) flat attribute keys used by pydantic-ai.
 LEGACY_TOOL_ARGUMENTS_KEY = "tool_arguments"
@@ -277,3 +285,250 @@ def test_tool_json_schema_absent_when_neither_key_present() -> None:
 
     assert attrs.get(f"{SpanAttributes.LLM_TOOLS}.0.{SpanAttributes.TOOL_NAME}") == "get_weather"
     assert f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}" not in attrs
+
+
+# --- TOOL span input.value (GitHub issue #3462) -------------------------------------------
+# The tool arguments were only ever mapped onto tool.parameters. Phoenix, Langfuse and other
+# consumers render their Input pane from input.value, so a TOOL span's Input came up blank.
+
+
+def test_tool_input_value_from_dotted_keys() -> None:
+    """Instrumentation version >=3: the arguments become input.value as well as
+    tool.parameters."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.EXECUTE_TOOL.value,
+        GEN_AI_TOOL_NAME: "get_weather",
+        GEN_AI_TOOL_CALL_ID: "call_123",
+        GEN_AI_TOOL_CALL_ARGUMENTS: '{"city": "Paris"}',
+        GEN_AI_TOOL_CALL_RESULT: '{"temp": 20}',
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert attributes[SpanAttributes.INPUT_VALUE] == '{"city": "Paris"}'
+    assert attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+    # tool.parameters must keep carrying the same payload.
+    assert attributes[SpanAttributes.TOOL_PARAMETERS] == '{"city": "Paris"}'
+
+
+def test_tool_input_value_from_legacy_flat_keys() -> None:
+    """Instrumentation version 2 emits the flat keys but must produce the same input.value."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.EXECUTE_TOOL.value,
+        GEN_AI_TOOL_NAME: "get_weather",
+        LEGACY_TOOL_ARGUMENTS_KEY: '{"city": "Paris"}',
+        LEGACY_TOOL_RESPONSE_KEY: '{"temp": 20}',
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert attributes[SpanAttributes.INPUT_VALUE] == '{"city": "Paris"}'
+    assert attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+
+
+def test_tool_input_value_absent_when_no_arguments() -> None:
+    """A TOOL span with no arguments key must not invent an input.value."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.EXECUTE_TOOL.value,
+        GEN_AI_TOOL_NAME: "get_weather",
+        GEN_AI_TOOL_CALL_ID: "call_123",
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert SpanAttributes.INPUT_VALUE not in attributes
+    assert SpanAttributes.INPUT_MIME_TYPE not in attributes
+
+
+def test_tool_result_mime_type_is_text_for_a_plain_string_result() -> None:
+    """pydantic-ai passes a str-returning tool's result through unquoted, so it is not JSON and
+    must not be labelled as such."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.EXECUTE_TOOL.value,
+        GEN_AI_TOOL_NAME: "get_weather",
+        GEN_AI_TOOL_CALL_ARGUMENTS: '{"city": "Paris"}',
+        GEN_AI_TOOL_CALL_RESULT: "It's sunny in Paris.",
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == "It's sunny in Paris."
+    assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.TEXT.value
+
+
+def test_tool_result_mime_type_is_json_for_an_object_result() -> None:
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.EXECUTE_TOOL.value,
+        GEN_AI_TOOL_NAME: "get_weather",
+        GEN_AI_TOOL_CALL_RESULT: '{"temp": 20}',
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == '{"temp": 20}'
+    assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+
+
+# --- Tool-calling LLM span output.value (GitHub issue #3462) ------------------------------
+# A generation whose only output is a tool call has no text content, so output.value was left
+# unset and the Output pane came up blank on exactly the spans that invoke tools.
+
+# pydantic-ai always reports the prompt alongside the generation, and the gen_ai.*.messages
+# extraction path is gated on gen_ai.input.messages being present.
+_USER_INPUT_MESSAGES = json.dumps(
+    [{"role": "user", "parts": [{"type": "text", "content": "weather in Paris?"}]}]
+)
+
+_TOOL_CALL_OUTPUT_MESSAGES = json.dumps(
+    [
+        {
+            "role": "assistant",
+            "parts": [
+                {
+                    "type": "tool_call",
+                    "id": "call_123",
+                    "name": "get_weather",
+                    "arguments": {"city": "Paris"},
+                }
+            ],
+        }
+    ]
+)
+
+
+def test_llm_output_value_from_tool_call_in_gen_ai_output_messages() -> None:
+    """Instrumentation version >=2 reports the generation via gen_ai.output.messages."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
+        GEN_AI_INPUT_MESSAGES: _USER_INPUT_MESSAGES,
+        GEN_AI_OUTPUT_MESSAGES: _TOOL_CALL_OUTPUT_MESSAGES,
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(attributes[SpanAttributes.OUTPUT_VALUE]) == [
+        {"id": "call_123", "name": "get_weather", "arguments": {"city": "Paris"}}
+    ]
+    # The structured message attributes must still be emitted alongside it.
+    assert (
+        attributes[
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        ]
+        == "get_weather"
+    )
+
+
+def test_llm_output_value_from_tool_call_in_v1_events() -> None:
+    """Instrumentation version 1 reports the generation as a gen_ai.choice event instead. Both
+    paths must produce the same output.value shape."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
+        "events": json.dumps(
+            [
+                {
+                    "event.name": "gen_ai.user.message",
+                    "role": "user",
+                    "content": "weather in Paris?",
+                },
+                {
+                    "event.name": "gen_ai.choice",
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": "call_123",
+                                "type": "function",
+                                "function": {
+                                    "name": "get_weather",
+                                    "arguments": {"city": "Paris"},
+                                },
+                            }
+                        ],
+                    },
+                },
+            ]
+        ),
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(attributes[SpanAttributes.OUTPUT_VALUE]) == [
+        {"id": "call_123", "name": "get_weather", "arguments": {"city": "Paris"}}
+    ]
+
+
+def test_llm_text_output_still_wins_over_tool_calls() -> None:
+    """The tool-call payload is only a fallback: a generation that produced text keeps reporting
+    that text as a plain-text output.value."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
+        GEN_AI_INPUT_MESSAGES: _USER_INPUT_MESSAGES,
+        GEN_AI_OUTPUT_MESSAGES: json.dumps(
+            [
+                {
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool_call",
+                            "id": "call_123",
+                            "name": "get_weather",
+                            "arguments": {"city": "Paris"},
+                        },
+                        {"type": "text", "content": "It's sunny in Paris."},
+                    ],
+                }
+            ]
+        ),
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == "It's sunny in Paris."
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+
+
+def test_llm_final_result_tool_call_still_reports_its_arguments() -> None:
+    """``final_result`` is pydantic-ai's structured-output mechanism, so its arguments -- not the
+    tool-call fallback -- remain the output.value."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
+        GEN_AI_INPUT_MESSAGES: _USER_INPUT_MESSAGES,
+        GEN_AI_OUTPUT_MESSAGES: json.dumps(
+            [
+                {
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool_call",
+                            "id": "call_123",
+                            "name": "final_result",
+                            "arguments": {"answer": 42},
+                        }
+                    ],
+                }
+            ]
+        ),
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert json.loads(attributes[SpanAttributes.OUTPUT_VALUE]) == {"answer": 42}
+
+
+def test_llm_output_value_absent_when_generation_is_empty() -> None:
+    """No text and no tool calls means no output.value is invented."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
+        GEN_AI_INPUT_MESSAGES: _USER_INPUT_MESSAGES,
+        GEN_AI_OUTPUT_MESSAGES: json.dumps([{"role": "assistant", "parts": []}]),
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert SpanAttributes.OUTPUT_VALUE not in attributes
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
