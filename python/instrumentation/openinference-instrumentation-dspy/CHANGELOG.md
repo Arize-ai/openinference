@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.38...python-openinference-instrumentation-dspy-v0.1.39) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+* **dspy:** support dspy 3.3.0 LM call signature with positional items ([#3509](https://github.com/Arize-ai/openinference/issues/3509)) ([7651572](https://github.com/Arize-ai/openinference/commit/765157205e8c77e910d9752a0ae6f683a41b41fd))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.37...python-openinference-instrumentation-dspy-v0.1.38) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.36...python-openinference-instrumentation-dspy-v0.1.37) (2026-05-18)
 
 

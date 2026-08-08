@@ -11,8 +11,10 @@ import {
 import {
   defaultProcessInput,
   defaultProcessOutput,
+  getAnnotationAttributes,
   getDocumentAttributes,
   getEmbeddingAttributes,
+  getEvaluationAttributes,
   getInputAttributes,
   getLLMAttributes,
   getMetadataAttributes,
@@ -299,6 +301,112 @@ describe("attributeHelpers", () => {
       expect(result).toEqual({
         "test.prefix.1.document.content": "Minimal doc",
       });
+    });
+  });
+
+  describe("annotation and evaluation attributes", () => {
+    it("should generate every annotation field and serialize metadata", () => {
+      const result = getAnnotationAttributes({
+        annotations: [
+          {
+            name: "hallucination",
+            score: 0,
+            label: "hallucinated",
+            explanation: "The claim is unsupported.",
+            annotatorKind: "LLM",
+            identifier: "judge-v2",
+            metadata: { rubricVersion: 2 },
+          },
+        ],
+      });
+
+      expect(result).toEqual({
+        "annotations.0.annotation.name": "hallucination",
+        "annotations.0.annotation.score": 0,
+        "annotations.0.annotation.label": "hallucinated",
+        "annotations.0.annotation.explanation": "The claim is unsupported.",
+        "annotations.0.annotation.annotator_kind": "LLM",
+        "annotations.0.annotation.identifier": "judge-v2",
+        "annotations.0.annotation.metadata": JSON.stringify({ rubricVersion: 2 }),
+      });
+    });
+
+    it.each([
+      ["span", "evaluations"],
+      ["trace", "trace.evaluations"],
+      ["session", "session.evaluations"],
+    ] as const)("should generate evaluation attributes at %s scope", (scope, prefix) => {
+      const result = getEvaluationAttributes({
+        evaluations: [
+          { name: "correctness", score: 0.9 },
+          { name: "style", label: "concise" },
+        ],
+        scope,
+      });
+
+      expect(result).toEqual({
+        [`${prefix}.0.evaluation.name`]: "correctness",
+        [`${prefix}.0.evaluation.score`]: 0.9,
+        [`${prefix}.1.evaluation.name`]: "style",
+        [`${prefix}.1.evaluation.label`]: "concise",
+      });
+    });
+
+    it("should compose annotation forms and preserve metadata strings", () => {
+      const result = {
+        ...getAnnotationAttributes({
+          annotations: [{ name: "quality", explanation: "Looks good" }],
+          scope: "trace",
+        }),
+        ...getEvaluationAttributes({
+          evaluations: [{ name: "quality", score: 1, metadata: '{"source":"review"}' }],
+          scope: "session",
+        }),
+      };
+
+      expect(result).toEqual({
+        "trace.annotations.0.annotation.name": "quality",
+        "trace.annotations.0.annotation.explanation": "Looks good",
+        "session.evaluations.0.evaluation.name": "quality",
+        "session.evaluations.0.evaluation.score": 1,
+        "session.evaluations.0.evaluation.metadata": '{"source":"review"}',
+      });
+    });
+
+    it("should generate session-scoped annotation attributes", () => {
+      expect(
+        getAnnotationAttributes({
+          annotations: [{ name: "coherence", label: "coherent" }],
+          scope: "session",
+        }),
+      ).toEqual({
+        "session.annotations.0.annotation.name": "coherence",
+        "session.annotations.0.annotation.label": "coherent",
+      });
+    });
+
+    it("should accept an empty collection", () => {
+      expect(getAnnotationAttributes({ annotations: [] })).toEqual({});
+    });
+
+    it.each([[{ score: 1 }], [{ name: "correctness" }], ["not-an-annotation-object"]])(
+      "should reject invalid annotations",
+      (annotations) => {
+        expect(() =>
+          getEvaluationAttributes({
+            evaluations: annotations as never,
+          }),
+        ).toThrow();
+      },
+    );
+
+    it("should reject an invalid scope", () => {
+      expect(() =>
+        getEvaluationAttributes({
+          evaluations: [{ name: "correctness", score: 1 }],
+          scope: "conversation" as never,
+        }),
+      ).toThrow("Invalid annotation terminology or scope");
     });
   });
 

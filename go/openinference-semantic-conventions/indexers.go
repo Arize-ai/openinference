@@ -8,6 +8,36 @@ import "strconv"
 //
 // These helpers build the keys so callers don't hand-format them.
 
+// AnnotationKey returns the key for a field on the i-th annotation.
+func AnnotationKey(i int, child string) string {
+	return Annotations + "." + strconv.Itoa(i) + "." + child
+}
+
+// EvaluationKey returns the key for a field on the i-th evaluation.
+func EvaluationKey(i int, child string) string {
+	return Evaluations + "." + strconv.Itoa(i) + "." + child
+}
+
+// TraceAnnotationKey returns the key for the i-th trace annotation field.
+func TraceAnnotationKey(i int, child string) string {
+	return TraceAnnotations + "." + strconv.Itoa(i) + "." + child
+}
+
+// TraceEvaluationKey returns the key for the i-th trace evaluation field.
+func TraceEvaluationKey(i int, child string) string {
+	return TraceEvaluations + "." + strconv.Itoa(i) + "." + child
+}
+
+// SessionAnnotationKey returns the key for the i-th session annotation field.
+func SessionAnnotationKey(i int, child string) string {
+	return SessionAnnotations + "." + strconv.Itoa(i) + "." + child
+}
+
+// SessionEvaluationKey returns the key for the i-th session evaluation field.
+func SessionEvaluationKey(i int, child string) string {
+	return SessionEvaluations + "." + strconv.Itoa(i) + "." + child
+}
+
 // LLMInputMessageRoleKey returns the attribute key for the role of the
 // i-th input message, e.g. "llm.input_messages.0.message.role".
 func LLMInputMessageRoleKey(i int) string {

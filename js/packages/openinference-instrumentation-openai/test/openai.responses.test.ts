@@ -885,7 +885,6 @@ describe("OpenAIInstrumentation - Responses", () => {
       ],
       model: "gpt-4.1",
       text: {
-        // @ts-expect-error - Type instantiation is excessively deep with zod helper
         format: zodTextFormat(CalendarEvent, "event"),
       },
     });

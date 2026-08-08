@@ -75,6 +75,7 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
   "api.perplexity.ai": LLMProvider.PERPLEXITY,
   "api.together.ai": LLMProvider.TOGETHER,
   "api.together.xyz": LLMProvider.TOGETHER,
+  "ollama.com": LLMProvider.OLLAMA,
 };
 
 /**
@@ -83,7 +84,9 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
 export function getProviderFromHost(host: string): LLMProvider | undefined {
   const normalised = host.toLowerCase().trim();
   for (const [suffix, provider] of Object.entries(HOST_SUFFIX_TO_PROVIDER)) {
-    if (normalised.endsWith(suffix)) {
+    // Anchor at a label boundary so e.g. "smollama.com" does not match the
+    // "ollama.com" suffix.
+    if (normalised === suffix || normalised.endsWith("." + suffix)) {
       return provider;
     }
   }

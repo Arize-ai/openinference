@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-bedrock",
-  "version": "0.4.17",
+  "version": "0.4.22",
   "private": false,
   "description": "OpenInference instrumentation for AWS Bedrock",
   "keywords": [
@@ -61,7 +61,7 @@
     "@types/node": "^20.14.11",
     "nock": "^13.5.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.3"
   },
   "peerDependencies": {

@@ -1,0 +1,4 @@
+together==2.22.0
+opentelemetry-sdk
+pytest-asyncio
+pytest-recording

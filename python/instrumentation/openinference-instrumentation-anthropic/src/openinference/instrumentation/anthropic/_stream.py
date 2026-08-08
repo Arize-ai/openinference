@@ -20,6 +20,7 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
     _as_output_attributes,
     _finish_tracing,
+    _get_token_counts,
     _ValueAndType,
 )
 from openinference.instrumentation.anthropic._with_span import _WithSpan
@@ -208,6 +209,8 @@ class _ResponseExtractor:
         )
         if completion := result.get("completion", ""):
             yield SpanAttributes.LLM_OUTPUT_MESSAGES, completion
+        if stop_reason := result.get("stop_reason"):
+            yield SpanAttributes.LLM_FINISH_REASON, stop_reason
 
 
 class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
@@ -316,6 +319,8 @@ class _MessageExtractor:
             f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}",
             snapshot.role,
         )
+        if stop_reason := getattr(snapshot, "stop_reason", None):
+            yield SpanAttributes.LLM_FINISH_REASON, stop_reason
         tool_idx = 0
         for block_idx, block in enumerate(snapshot.content):
             content_prefix = (
@@ -384,18 +389,7 @@ class _MessageExtractor:
                     safe_json_dumps(block.input),
                 )
                 tool_idx += 1
-        usage = snapshot.usage
-        prompt_tokens = (
-            usage.input_tokens
-            + (usage.cache_creation_input_tokens or 0)
-            + (usage.cache_read_input_tokens or 0)
-        )
-        if prompt_tokens:
-            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-        if usage.output_tokens:
-            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
-        if total := prompt_tokens + (usage.output_tokens or 0):
-            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total
+        yield from _get_token_counts(snapshot.usage)
 
 
 class _ValuesAccumulator:
