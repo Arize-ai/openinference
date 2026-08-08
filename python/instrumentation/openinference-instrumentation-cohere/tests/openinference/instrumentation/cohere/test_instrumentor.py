@@ -1166,6 +1166,43 @@ def test_rerank_ignores_out_of_range_result_indices(
     assert not any(key.startswith(RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS) for key in attrs)
 
 
+def test_rerank_keeps_core_attributes_when_documents_exceed_span_limit(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    documents = [f"Document {index}" for index in range(150)]
+    response = V2RerankResponse(
+        id="rerank-many-documents",
+        results=[
+            V2RerankResponseResultsItem(index=index, relevance_score=index / len(documents))
+            for index in reversed(range(len(documents)))
+        ],
+    )
+    monkeypatch.setattr(
+        RawV2Client,
+        "rerank",
+        lambda self, **kwargs: SimpleNamespace(data=response),
+    )
+
+    with using_attributes(session_id="rerank-many-documents"):
+        _client().rerank(
+            model="rerank-v3.5",
+            query="Which document ranks highest?",
+            documents=documents,
+            top_n=len(documents),
+        )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.RERANKER.value
+    )
+    assert attrs[RerankerAttributes.RERANKER_QUERY] == "Which document ranks highest?"
+    assert attrs[RerankerAttributes.RERANKER_MODEL_NAME] == "rerank-v3.5"
+    assert attrs[RerankerAttributes.RERANKER_TOP_K] == len(documents)
+    assert attrs[SpanAttributes.SESSION_ID] == "rerank-many-documents"
+
+
 def test_rerank_error_span_keeps_request_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
