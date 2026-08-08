@@ -100,6 +100,39 @@ class _WithTracer(ABC):
                 extra_attributes={},
             )
 
+    @contextmanager
+    def _start_as_current_rerank_span(
+        self,
+        span_name: str,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[_WithSpan]:
+        span: trace_api.Span
+        try:
+            span = self._tracer.start_span(
+                name=span_name,
+                attributes=dict(
+                    self._request_extractor.get_extra_attributes_from_rerank_request(
+                        request_parameters
+                    )
+                ),
+            )
+        except Exception:
+            logger.exception(f"Failed to start span {span_name}")
+            span = INVALID_SPAN
+        with trace_api.use_span(
+            span,
+            end_on_exit=False,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as current_span:
+            yield _WithSpan(
+                span=current_span,
+                context_attributes=dict(get_attributes_from_context()),
+                extra_attributes=dict(
+                    self._request_extractor.get_attributes_from_rerank_request(request_parameters)
+                ),
+            )
+
     def _record_failure(self, span: _WithSpan, exception: BaseException) -> None:
         span.record_exception(exception)
         span.finish_tracing(
@@ -135,6 +168,28 @@ class _WithTracer(ABC):
             )
         except Exception:
             logger.exception(f"Failed to finalize embed response of type {type(response)}")
+            span.finish_tracing()
+
+    def _finalize_rerank_response(
+        self,
+        span: _WithSpan,
+        response: Any,
+        request_parameters: Mapping[str, Any],
+    ) -> None:
+        try:
+            _finish_tracing(
+                status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                with_span=span,
+                attributes=self._response_extractor.get_attributes(response=response),
+                extra_attributes=(
+                    self._response_extractor.get_extra_attributes_from_rerank_response(
+                        response=response,
+                        input_documents=request_parameters.get("documents"),
+                    )
+                ),
+            )
+        except Exception:
+            logger.exception(f"Failed to finalize rerank response of type {type(response)}")
             span.finish_tracing()
 
 
@@ -324,6 +379,54 @@ class _AsyncEmbedWrapper(_WithTracer):
                 self._record_failure(span, exception)
                 raise
             self._finalize_embed_response(span, response)
+        return response
+
+
+class _RerankWrapper(_WithTracer):
+    """Wraps ``cohere.V2Client.rerank`` to trace synchronous rerank calls."""
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        with self._start_as_current_rerank_span("ClientV2.rerank", request_parameters) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except BaseException as exception:
+                self._record_failure(span, exception)
+                raise
+            self._finalize_rerank_response(span, response, request_parameters)
+        return response
+
+
+class _AsyncRerankWrapper(_WithTracer):
+    """Wraps ``cohere.AsyncV2Client.rerank`` to trace asynchronous rerank calls."""
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        with self._start_as_current_rerank_span("AsyncClientV2.rerank", request_parameters) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+            except BaseException as exception:
+                self._record_failure(span, exception)
+                raise
+            self._finalize_rerank_response(span, response, request_parameters)
         return response
 
 
