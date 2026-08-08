@@ -3,4 +3,4 @@
 "@arizeai/openinference-instrumentation-openai": minor
 ---
 
-Add token tracking for new GPT 5.6 models
+Capture `llm.token_count.prompt_details.cache_write` from OpenAI prompt cache usage (`cache_write_tokens`) on both the Chat Completions and Responses APIs
