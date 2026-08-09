@@ -21,7 +21,7 @@ import { VercelAISemanticConventions } from "./VercelAISemanticConventions.js";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(
-    `Unable to get OpenInference ${attributeType} attributes from AI attributes falling back to null: ${error}`,
+    `Unable to get OpenInference ${attributeType} attributes from AI attributes falling back to null: ${String(error)}`,
   );
 };
 
