@@ -19,7 +19,11 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    SpanAttributes,
+)
 
 MOCK_COMPLETION = ChatCompletion(
     id="chat_comp_0",
@@ -268,6 +272,7 @@ def test_groq_instrumentation(
     )
     assert attributes[SpanAttributes.LLM_MODEL_NAME] == "fake_model"
     assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
+    assert attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.GROQ.value
 
 
 def test_groq_async_instrumentation(
@@ -338,6 +343,7 @@ def test_groq_async_instrumentation(
     )
     assert attributes[SpanAttributes.LLM_MODEL_NAME] == "fake_model"
     assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
+    assert attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.GROQ.value
 
 
 @pytest.mark.parametrize("finish_reason", ["stop", "length", "tool_calls", "function_call"])
