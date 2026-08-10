@@ -3325,6 +3325,64 @@ def test_provider_attribute_correctly_set(
     assert provider == expected_provider
 
 
+@pytest.mark.parametrize(
+    "finish_reason",
+    [
+        "stop",
+        "length",
+        "tool_calls",
+        "content_filter",
+    ],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    from litellm.types.utils import Choices, ModelResponse
+
+    in_memory_span_exporter.clear()
+
+    mock_response = ModelResponse(
+        id="chatcmpl-finish-reason",
+        model="gpt-3.5-turbo",
+        choices=[
+            Choices(
+                index=0,
+                finish_reason=finish_reason,
+                message=LitellmMessage(
+                    role="assistant",
+                    content="Hello!",
+                ),
+            )
+        ],
+        usage=Usage(
+            prompt_tokens=10,
+            completion_tokens=5,
+            total_tokens=15,
+        ),
+    )
+
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: mock_response
+        )
+        litellm.completion(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "hello"}],
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
+
+
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
