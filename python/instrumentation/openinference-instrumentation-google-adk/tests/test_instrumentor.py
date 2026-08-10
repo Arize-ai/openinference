@@ -11,6 +11,9 @@ import pytest
 from google.adk import Agent, __version__
 from google.adk.code_executors.built_in_code_executor import BuiltInCodeExecutor
 from google.adk.events import Event, EventActions
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
 from google.adk.planners import BuiltInPlanner
 from google.adk.runners import InMemoryRunner
 from google.adk.tools.agent_tool import AgentTool
@@ -32,6 +35,8 @@ from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from openinference.instrumentation.google_adk._wrappers import (
     _BaseAgentRunAsync,
     _RunnerRunAsync,
+    _TraceCallLlm,
+    _TraceToolCall,
 )
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
@@ -97,6 +102,41 @@ async def _run_weather_query(runner: InMemoryRunner, user_id: str, session_id: s
         new_message=types.Content(role="user", parts=[types.Part(text=_WEATHER_QUESTION)]),
     ):
         ...
+
+
+class _StaticFunctionCallLlm(BaseLlm):
+    """A fake model that always asks to call the named tool, no network needed."""
+
+    function_name: str
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[
+                    types.Part(function_call=types.FunctionCall(name=self.function_name, args={}))
+                ],
+            )
+        )
+
+
+class _StreamFailureLlm(BaseLlm):
+    """A fake model that yields one partial chunk, then fails mid-stream."""
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(
+            content=types.Content(role="model", parts=[types.Part(text="partial answer")]),
+            partial=True,
+        )
+        raise RuntimeError("stream failed")
+
+
+def _failing_tool() -> dict[str, str]:
+    raise RuntimeError("tool boom")
 
 
 def _get_usage_metadata_from_llm_response(attributes: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -202,6 +242,191 @@ async def test_runner_run_async_keeps_content_output_after_state_delta_final_eve
     assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
         exclude_none=True
     )
+
+
+def test_trace_tool_call_marks_span_error_on_raised_exception(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_tool_call(*, error: Any = None, error_type: Any = None) -> None:
+        return None
+
+    wrapped = _TraceToolCall(tracer)(fake_trace_tool_call)
+
+    with tracer.start_as_current_span("execute_tool test_tool"):
+        wrapped(error=ValueError("boom"))
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_trace_tool_call_marks_span_error_on_structured_error_type(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_tool_call(*, error: Any = None, error_type: Any = None) -> None:
+        return None
+
+    wrapped = _TraceToolCall(tracer)(fake_trace_tool_call)
+
+    with tracer.start_as_current_span("execute_tool test_tool"):
+        wrapped(error_type="HTTP_ERROR")
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_trace_tool_call_marks_span_ok_on_success(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_tool_call(*, error: Any = None, error_type: Any = None) -> None:
+        return None
+
+    wrapped = _TraceToolCall(tracer)(fake_trace_tool_call)
+
+    with tracer.start_as_current_span("execute_tool test_tool"):
+        wrapped()
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+
+
+def test_trace_call_llm_does_not_lock_span_ok_before_later_stream_exception(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_call_llm(llm_response: LlmResponse) -> None:
+        return None
+
+    wrapped = _TraceCallLlm(tracer)(fake_trace_call_llm)
+    partial_response = LlmResponse(partial=True)
+
+    with pytest.raises(RuntimeError):
+        with tracer.start_as_current_span("call_llm"):
+            wrapped(partial_response)
+            raise RuntimeError("stream failed")
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_trace_call_llm_marks_span_ok_on_final_response(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_call_llm(llm_response: LlmResponse) -> None:
+        return None
+
+    wrapped = _TraceCallLlm(tracer)(fake_trace_call_llm)
+    final_response = LlmResponse()
+
+    with tracer.start_as_current_span("call_llm"):
+        wrapped(final_response)
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+
+
+def test_trace_call_llm_leaves_span_unset_for_lone_partial_response(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_call_llm(llm_response: LlmResponse) -> None:
+        return None
+
+    wrapped = _TraceCallLlm(tracer)(fake_trace_call_llm)
+    partial_response = LlmResponse(partial=True)
+
+    with tracer.start_as_current_span("call_llm"):
+        wrapped(partial_response)
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+
+
+async def test_execute_tool_span_ends_error_on_real_adk_tool_exception(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = Agent(
+        name=f"agent{token_hex(4)}",
+        model=_StaticFunctionCallLlm(model="fake-model", function_name="_failing_tool"),
+        tools=[_failing_tool],
+    )
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+
+    with pytest.raises(RuntimeError, match="tool boom"):
+        async for _ in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=types.Content(role="user", parts=[types.Part(text="please fail")]),
+        ):
+            ...
+
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in in_memory_span_exporter.get_finished_spans():
+        spans_by_name[span.name].append(span)
+
+    [tool_span] = spans_by_name["execute_tool _failing_tool"]
+    assert tool_span.status.status_code == trace_api.StatusCode.ERROR
+
+    # agent_run/invocation already correctly ended ERROR before this fix;
+    # asserted here too as a regression guard.
+    [agent_run_span] = spans_by_name[f"agent_run [{agent.name}]"]
+    assert agent_run_span.status.status_code == trace_api.StatusCode.ERROR
+
+    [invocation_span] = spans_by_name[f"invocation [{runner.app_name}]"]
+    assert invocation_span.status.status_code == trace_api.StatusCode.ERROR
+
+
+async def test_call_llm_span_ends_error_on_real_adk_stream_exception(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Reproduces issue #3415's call_llm row: a stream that fails after a
+    partial chunk must not leave the call_llm span locked at OK by the
+    earlier, successful trace_call_llm call for that chunk. Drives ADK's real
+    base_llm_flow streaming path using a fake model so no network is needed.
+    """
+    agent = Agent(
+        name=f"agent{token_hex(4)}",
+        model=_StreamFailureLlm(model="fake-model"),
+    )
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+
+    with pytest.raises(RuntimeError, match="stream failed"):
+        async for _ in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=types.Content(role="user", parts=[types.Part(text="hi")]),
+        ):
+            ...
+
+    [call_llm_span] = [
+        s for s in in_memory_span_exporter.get_finished_spans() if s.name == "call_llm"
+    ]
+    assert call_llm_span.status.status_code == trace_api.StatusCode.ERROR
 
 
 async def test_base_agent_run_async_keeps_content_output_after_state_delta_final_event(
