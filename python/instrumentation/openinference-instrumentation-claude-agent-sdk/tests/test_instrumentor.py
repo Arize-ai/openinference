@@ -21,6 +21,7 @@ from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrum
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -1056,6 +1057,8 @@ async def test_query_real_agent_span(
     assert isinstance(model_name, str)
     llm_system = attrs.pop(SpanAttributes.LLM_SYSTEM, None)
     assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
+    llm_provider = attrs.pop(SpanAttributes.LLM_PROVIDER, None)
+    assert llm_provider == OpenInferenceLLMProviderValues.ANTHROPIC.value
     prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
     completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
     assert isinstance(prompt_tokens, int)
@@ -1124,6 +1127,8 @@ async def test_client_real_agent_span(
     assert isinstance(model_name, str)
     llm_system = attrs.pop(SpanAttributes.LLM_SYSTEM, None)
     assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
+    llm_provider = attrs.pop(SpanAttributes.LLM_PROVIDER, None)
+    assert llm_provider == OpenInferenceLLMProviderValues.ANTHROPIC.value
     prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
     completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
     assert isinstance(prompt_tokens, int)
