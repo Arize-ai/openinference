@@ -31,6 +31,8 @@ Context attributes (session, user, metadata, tags via [`using_attributes`](https
 pip install openinference-instrumentation-ollama
 ```
 
+PyPI package: [`openinference-instrumentation-ollama`](https://pypi.org/project/openinference-instrumentation-ollama/)
+
 Requires `ollama >= 0.4.0`.
 
 ## Quickstart

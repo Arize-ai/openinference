@@ -4,22 +4,30 @@
 
 Python auto-instrumentation library for the [Cohere](https://github.com/cohere-ai/cohere-python) Python client.
 
-Chat calls made with the Cohere v2 client (`ClientV2` and `AsyncClientV2`) are traced and exported as OpenInference LLM spans, capturing the input messages, output message, invocation parameters, tool calls, and token counts.
+Chat and embedding calls made with the Cohere v2 client (`ClientV2` and `AsyncClientV2`)
+are traced and exported as OpenInference spans. Chat spans capture messages, invocation
+parameters, tool calls, and token counts. Embedding spans capture the model name, input text,
+invocation parameters, vectors, and token counts.
 
 ## Coverage
 
-`ClientV2.chat`, `AsyncClientV2.chat`, `ClientV2.chat_stream`, and `AsyncClientV2.chat_stream` are instrumented. Streamed calls finish their span when the returned iterator is exhausted, with the accumulated output message, tool calls, and token counts.
+`ClientV2.chat`, `AsyncClientV2.chat`, `ClientV2.chat_stream`,
+`AsyncClientV2.chat_stream`, `ClientV2.embed`, and `AsyncClientV2.embed` are instrumented.
+Streamed calls finish their span when the returned iterator is exhausted, with the accumulated
+output message, tool calls, and token counts.
 
 The following are **not** traced, and calls to them produce no spans:
 
 - The v1 client (`cohere.Client`)
-- Embed, rerank, and classify endpoints
+- Rerank and classify endpoints
 
 ## Installation
 
 ```shell
 pip install openinference-instrumentation-cohere
 ```
+
+PyPI package: [`openinference-instrumentation-cohere`](https://pypi.org/project/openinference-instrumentation-cohere/)
 
 ## Quickstart
 

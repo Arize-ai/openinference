@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.6.2...python-openinference-instrumentation-openai-agents-v2.0.0) (2026-08-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **openai-agents:** scope llm.system to LLM spans, add agent name, tool schema, and handoff I/O ([#3492](https://github.com/Arize-ai/openinference/issues/3492))
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+* **openai-agents:** scope llm.system to LLM spans, add agent name, tool schema, and handoff I/O ([#3492](https://github.com/Arize-ai/openinference/issues/3492)) ([8053d84](https://github.com/Arize-ai/openinference/commit/8053d845d90ae1ad4796c7e2c5eaf807e932f5b4))
+
 ## [1.6.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.6.1...python-openinference-instrumentation-openai-agents-v1.6.2) (2026-07-30)
 
 

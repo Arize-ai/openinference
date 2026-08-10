@@ -25,6 +25,8 @@ Requires `together >= 2.0.0`.
 pip install openinference-instrumentation-together
 ```
 
+PyPI package: [`openinference-instrumentation-together`](https://pypi.org/project/openinference-instrumentation-together/)
+
 ## Quickstart
 
 ```shell
