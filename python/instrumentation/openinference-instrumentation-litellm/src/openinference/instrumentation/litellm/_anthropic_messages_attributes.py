@@ -237,6 +237,7 @@ class AnthropicMessagesStreamAccumulator:
     def __init__(self) -> None:
         self.role: str = "assistant"
         self.model: Optional[str] = None
+        self.stop_reason: Optional[str] = None
         self.content_blocks: Dict[int, Dict[str, Any]] = {}
         self.usage: Dict[str, Any] = {}
         self._decoder = codecs.getincrementaldecoder("utf-8")()
@@ -312,9 +313,12 @@ class AnthropicMessagesStreamAccumulator:
                 if isinstance(usage, Mapping):
                     self.usage.update(dict(usage))
             delta = event.get("delta") or {}
-            if isinstance(delta, Mapping) and (usage := delta.get("usage")):
-                if isinstance(usage, Mapping):
-                    self.usage.update(dict(usage))
+            if isinstance(delta, Mapping):
+                if stop_reason := delta.get("stop_reason"):
+                    self.stop_reason = str(stop_reason)
+                if usage := delta.get("usage"):
+                    if isinstance(usage, Mapping):
+                        self.usage.update(dict(usage))
 
     def to_response(self) -> Dict[str, Any]:
         content: List[Dict[str, Any]] = []
@@ -334,6 +338,8 @@ class AnthropicMessagesStreamAccumulator:
         }
         if self.model:
             response["model"] = self.model
+        if self.stop_reason:
+            response["stop_reason"] = self.stop_reason
         if self.usage:
             response["usage"] = self.usage
         return response

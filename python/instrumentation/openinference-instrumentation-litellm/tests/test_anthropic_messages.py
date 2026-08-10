@@ -199,6 +199,7 @@ def test_create(
         MODEL,
         "claude-3-haiku-20240307",
     }
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "end_turn"
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "anthropic"
     assert attributes.pop(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"

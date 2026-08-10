@@ -125,6 +125,7 @@ def test_completion(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     input_values = [
         msg.json() if isinstance(msg, LitellmMessage) else msg  # type: ignore[no-untyped-call]
         for msg in input_messages
@@ -212,6 +213,7 @@ def test_completion_sync_streaming(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -252,6 +254,7 @@ def test_completion_with_parameters(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -307,6 +310,7 @@ def test_completion_with_tool_calls(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -829,6 +833,7 @@ def _assert_thinking_blocks_attributes(
     _assert_no_message_content_id(attributes)
     assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "anthropic/claude-sonnet-4-5"
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "anthropic"
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
         {"model": "anthropic/claude-sonnet-4-5"}
@@ -968,6 +973,7 @@ def test_completion_with_reasoning_content_only(
 
     assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "deepseek/deepseek-reasoner"
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "deepseek"
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
         {"model": "deepseek/deepseek-reasoner"}
@@ -1045,6 +1051,7 @@ async def test_acompletion_with_reasoning_content_only(
 
     assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "deepseek/deepseek-reasoner"
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "deepseek"
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
         {"model": "deepseek/deepseek-reasoner"}
@@ -1127,6 +1134,7 @@ def test_completion_tool_flow_with_input_thinking_blocks(
 
     assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "anthropic/claude-sonnet-4-5"
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "anthropic"
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
         {
@@ -1440,6 +1448,7 @@ def _assert_streaming_reasoning_attributes(attributes: Dict[str, AttributeValue]
     _assert_no_message_content_id(attributes)
     assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "anthropic/claude-sonnet-4-5"
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "anthropic"
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == safe_json_dumps(
         {"model": "anthropic/claude-sonnet-4-5", "stream": True}
@@ -2066,6 +2075,7 @@ def test_completion_with_tool_schema_capture(
 
     # Verify basic attributes
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -2176,6 +2186,7 @@ def test_completion_with_multiple_messages(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -2224,6 +2235,7 @@ def test_completion_image_support(
     assert span.name == "completion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -2315,6 +2327,7 @@ async def test_acompletion(
     assert span.name == "acompletion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -2389,6 +2402,7 @@ async def test_acompletion_stream(
     assert span.name == "acompletion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -2462,6 +2476,7 @@ async def test_acompletion_stream_token_count(
     assert span.name == "acompletion"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -2557,6 +2572,7 @@ def test_completion_with_retries(
     assert span.name == "completion_with_retries"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == "stop"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
         {"messages": input_messages}
     )
@@ -2595,6 +2611,7 @@ def test_completion_with_retries(
 #     span = spans[0]
 #     assert span.name == "acompletion_with_retries"
 #     assert span.attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-3.5-turbo"
+#     assert span.attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
 #     assert span.attributes[SpanAttributes.INPUT_VALUE] == "What's the capital of China?"
 
 #     assert span.attributes[SpanAttributes.OUTPUT_VALUE] == "Beijing"
