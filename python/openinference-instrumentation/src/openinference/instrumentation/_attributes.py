@@ -79,6 +79,8 @@ _HOST_SUFFIX_TO_PROVIDER: Dict[str, OpenInferenceLLMProviderValues] = {
     "api.perplexity.ai": OpenInferenceLLMProviderValues.PERPLEXITY,
     "api.together.ai": OpenInferenceLLMProviderValues.TOGETHER,
     "api.together.xyz": OpenInferenceLLMProviderValues.TOGETHER,
+    "api.minimax.io": OpenInferenceLLMProviderValues.MINIMAX,
+    "api.minimaxi.com": OpenInferenceLLMProviderValues.MINIMAX,
 }
 
 # Maps model name prefixes to their corresponding LLM system value.
