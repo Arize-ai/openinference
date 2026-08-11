@@ -17,6 +17,7 @@ import {
 
 import {
   isConverseImageContent,
+  isConverseReasoningContent,
   isConverseTextContent,
   isConverseToolResultContent,
   isConverseToolUseContent,
@@ -109,19 +110,22 @@ export function aggregateMessages(
  * Handles: Uint8Array, Buffer.
  * On unsupported inputs, logs a warning and returns undefined.
  */
-const toBase64ImageBytes = withSafety({
-  fn: (bytes: Uint8Array | Buffer): string | undefined => {
+export const toBase64Bytes = withSafety({
+  fn: (bytes: Uint8Array | Buffer | string): string | undefined => {
+    if (typeof bytes === "string") {
+      return bytes;
+    }
     if (Buffer.isBuffer(bytes)) {
       return (bytes as Buffer).toString("base64");
     }
     if (bytes instanceof Uint8Array) {
       return Buffer.from(bytes).toString("base64");
     }
-    diag.warn("Unsupported image bytes type encountered");
+    diag.warn("Unsupported bytes type encountered");
     return undefined;
   },
   onError: (error) => {
-    diag.warn("Failed to convert image bytes to base64", error as Error);
+    diag.warn("Failed to convert bytes to base64", error as Error);
   },
 });
 
@@ -143,7 +147,7 @@ export function getAttributesFromMessageContent(content: ContentBlock): Attribut
     attributes[SemanticConventions.MESSAGE_CONTENT_TEXT] = content.text;
   } else if (isConverseImageContent(content)) {
     attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "image";
-    const base64 = toBase64ImageBytes(content.image.source.bytes);
+    const base64 = toBase64Bytes(content.image.source.bytes);
     if (base64) {
       const mimeType = `image/${content.image.format}`;
       attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`] =
@@ -155,6 +159,21 @@ export function getAttributesFromMessageContent(content: ContentBlock): Attribut
     }
     // Add format attribute for image content
     attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.format`] = content.image.format;
+  } else if (isConverseReasoningContent(content)) {
+    attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "reasoning";
+    const { reasoningText, redactedContent } = content.reasoningContent;
+    if (reasoningText?.text) {
+      attributes[SemanticConventions.MESSAGE_CONTENT_TEXT] = reasoningText.text;
+    }
+    if (reasoningText?.signature) {
+      attributes[SemanticConventions.MESSAGE_CONTENT_SIGNATURE] = reasoningText.signature;
+    }
+    if (redactedContent) {
+      const base64 = toBase64Bytes(redactedContent);
+      if (base64) {
+        attributes[SemanticConventions.MESSAGE_CONTENT_DATA] = base64;
+      }
+    }
   }
 
   return attributes;
