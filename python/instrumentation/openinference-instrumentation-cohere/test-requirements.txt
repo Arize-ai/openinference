@@ -1,0 +1,3 @@
+cohere==5.21.1
+opentelemetry-sdk
+pytest-asyncio

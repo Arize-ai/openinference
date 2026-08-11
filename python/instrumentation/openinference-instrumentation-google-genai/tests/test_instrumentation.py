@@ -1,13 +1,17 @@
 # type: ignore
 # ruff: noqa: E501
+import base64
 import json
 import os
 from typing import Any, Dict
 
 import pytest
+import respx
 from google import genai
+from google.genai import types
 from google.genai.types import (
     Content,
+    EmbedContentConfig,
     FunctionCall,
     FunctionDeclaration,
     FunctionResponse,
@@ -16,12 +20,16 @@ from google.genai.types import (
     Tool,
     ToolCodeExecution,
 )
+from httpx import Response
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel
 
 from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
@@ -30,6 +38,169 @@ from openinference.semconv.trace import (
 
 class Answer(BaseModel):
     answer: str
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_embed_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Get API key from environment variable
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    # Create content for the request
+    content = Content(
+        parts=[
+            Part.from_text(text="Why is the sky blue?"),
+            Part.from_text(text="What is the capital of France?"),
+        ],
+    )
+
+    # Create config
+    config = EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+
+    # Make the API call
+    response = client.models.embed_content(
+        model="gemini-embedding-001", contents=content, config=config
+    )
+    assert response is not None
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+
+    # Verify expected attributes
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "google"
+    assert attributes.pop(SpanAttributes.EMBEDDING_MODEL_NAME) == "gemini-embedding-001"
+    assert (
+        attributes.pop(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "Why is the sky blue?\n\nWhat is the capital of France?"
+    )
+    # Verify embedding vectors are present
+    assert (
+        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+        in attributes
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS) == json.dumps(
+        {"task_type": "RETRIEVAL_DOCUMENT"}
+    )
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_embed_content_multiple_contents(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    """Test embedding multiple Content objects — each should get its own vector."""
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+    client = genai.Client(api_key=api_key)
+
+    # Pass a list of strings — each becomes a separate Content / embedding
+    response = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=["Why is the sky blue?", "What is the capital of France?"],
+    )
+    assert response is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.EMBEDDING_MODEL_NAME) == "gemini-embedding-001"
+    # Two separate EMBEDDING_TEXT entries — one per content string
+    assert (
+        attributes.pop(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "Why is the sky blue?"
+    )
+    assert (
+        attributes.pop(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.1.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "What is the capital of France?"
+    )
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+@pytest.mark.asyncio
+async def test_async_embed_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Get API key from environment variable
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+
+    # Initialize the async client
+    client = genai.Client(api_key=api_key).aio
+
+    # Create content for the request
+    content = Content(
+        parts=[
+            Part.from_text(text="Why is the sky blue?"),
+            Part.from_text(text="What is the capital of France?"),
+        ],
+    )
+
+    # Create config
+    config = EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+
+    # Make the API call
+    response = await client.models.embed_content(
+        model="gemini-embedding-001", contents=content, config=config
+    )
+    assert response is not None
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+
+    # Verify expected attributes
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "google"
+    assert attributes.pop(SpanAttributes.EMBEDDING_MODEL_NAME) == "gemini-embedding-001"
+    assert (
+        attributes.pop(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "Why is the sky blue?\n\nWhat is the capital of France?"
+    )
+    # Verify embedding vectors are present
+    assert (
+        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+        in attributes
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS) == json.dumps(
+        {"task_type": "RETRIEVAL_DOCUMENT"}
+    )
 
 
 @pytest.mark.vcr(
@@ -128,6 +299,7 @@ def test_generate_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -148,6 +320,94 @@ def test_generate_content(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value"
         )
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda r: {
+        **r,
+        "headers": {
+            k: v
+            for k, v in r["headers"].items()
+            if k.lower() in ("content-encoding", "content-type")
+        },
+    },
+)
+@pytest.mark.parametrize("streaming", [False, True])
+def test_generate_content_describe_image(
+    streaming: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Get API key from environment variable
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    config = GenerateContentConfig(
+        system_instruction=(
+            "You are a helpful assistant that can answer questions and help with tasks."
+        )
+    )
+    image_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII="
+    )
+    image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+    content = Content(
+        role="user",
+        parts=[
+            Part.from_text(text="Describe Image."),
+            image_part,
+        ],
+    )
+    if streaming:
+        response = client.models.generate_content_stream(
+            model="gemini-2.5-flash",
+            contents=content,
+            config=config,
+        )
+        for res in response:
+            ...
+    else:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=content,
+            config=config,
+        )
+        assert response.text
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": "Describe Image.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "image",
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+    key = f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    assert attributes.get(key), "Image Url should be present in span attributes"
 
 
 @pytest.mark.vcr(
@@ -200,6 +460,7 @@ def test_generate_content_with_config_as_dict(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -207,7 +468,7 @@ def test_generate_content_with_config_as_dict(
             {
                 "temperature": 0.5,
                 "top_p": 0.95,
-                "top_k": 40,
+                "top_k": 40.0,
                 "candidate_count": 1,
                 "thinking_config": {"thinking_budget": 100},
             }
@@ -285,6 +546,7 @@ async def test_async_generate_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -344,6 +606,7 @@ def test_multi_turn_conversation(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response1.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -379,6 +642,7 @@ def test_multi_turn_conversation(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response2.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -442,6 +706,7 @@ def test_streaming_text_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -510,6 +775,7 @@ async def test_async_streaming_text_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -608,9 +874,10 @@ def test_generate_content_with_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
-        or "",
+        or None,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
@@ -764,9 +1031,10 @@ def test_generate_content_with_raw_json_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
-        or "",
+        or None,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
@@ -920,6 +1188,7 @@ def test_streaming_content_with_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -1012,6 +1281,332 @@ def test_streaming_content_with_tool(
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
+@pytest.mark.parametrize("streaming", [False, True])
+def test_response_with_multiple_tool_calls(
+    streaming: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    # Define a tool/function for weather information
+    weather_tool = Tool(
+        function_declarations=[
+            FunctionDeclaration(
+                name="get_weather",
+                description="Get current weather information for a given location",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state/country for weather information",
+                        },
+                        "unit": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "Temperature unit",
+                        },
+                    },
+                    "required": ["location"],
+                },
+            )
+        ]
+    )
+
+    # Create content for the request
+    user_message = "What is the weather like in Boston & new Delhi?"
+    content = Content(
+        role="user",
+        parts=[Part.from_text(text=user_message)],
+    )
+
+    # Create config with tools
+    system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
+    config = GenerateContentConfig(
+        system_instruction=system_instruction,
+        tools=[weather_tool],
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
+
+    # Make the streaming API call
+    if streaming:
+        response = client.models.generate_content_stream(
+            model="gemini-2.0-flash", contents=content, config=config
+        )
+        for rec in response:
+            ...
+        # Collect all chunks from the stream
+        full_response = ""
+    else:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash", contents=content, config=config
+        )
+        # Collect all chunks from the stream
+        full_response = response.text or ""
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": system_instruction,
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # Only add message content if there was actual text (not just tool calls)
+    if full_response:
+        expected_attributes[
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+        ] = full_response
+
+    # Verify tool schema is recorded (same as non-streaming)
+    tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
+    assert tool_schema_key in attributes, "Tool schema not found in attributes"
+    tool_schema_json = attributes.get(tool_schema_key)
+    assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
+
+    # Parse and validate the tool schema matches what we provided
+    tool_schema = json.loads(tool_schema_json)
+
+    # Verify tool matches flattened format
+    expected_tool_schema = {
+        "name": "get_weather",
+        "description": "Get current weather information for a given location",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "location": {
+                    "type": "STRING",
+                    "description": "The city and state/country for weather information",
+                },
+                "unit": {
+                    "type": "STRING",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "Temperature unit",
+                },
+            },
+            "required": ["location"],
+        },
+    }
+    assert tool_schema == expected_tool_schema, (
+        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    )
+
+    expected_locations = ["boston", "new delhi"]
+    for i in range(2):
+        # Check if the model decided to call the tool in streaming response
+        tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+
+        # For this test, we expect a tool call since we're testing tool calling functionality
+        assert tool_call_name_key in attributes, (
+            f"Expected a tool call in the streaming response, but none found. Available keys: {list(attributes.keys())}"
+        )
+
+        # Model decided to call the tool, verify the tool call details
+        assert attributes.get(tool_call_name_key) == "get_weather", (
+            "Expected tool call to be 'get_weather'"
+        )
+
+        tool_call_args = attributes.get(tool_call_args_key)
+        assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
+
+        # Parse and validate tool call arguments
+        args = json.loads(tool_call_args)
+        assert "location" in args, "Tool call should include 'location' parameter"
+        # The location should be something reasonable for San Francisco
+        assert expected_locations[i] in args["location"].lower(), (
+            "Tool call location should reference San Francisco"
+        )
+
+    # Check if token counts are available in the response from the last chunk
+    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+            }
+        )
+
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_streaming_reasoning_with_multiple_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    """Streaming on a thinking-capable model that returns reasoning AND two tool calls.
+
+    Exercises the _PartsAccumulator phase handling end to end: thought parts must be
+    captured as a single reasoning content block, while the two get_weather tool calls
+    must remain separate tool_calls.0 and tool_calls.1 (not merged or dropped).
+    Mirrors examples/multiple_tools_response.py.
+    """
+    client = genai.Client(api_key="dummy-api-key")
+
+    weather_tool = Tool(
+        function_declarations=[
+            FunctionDeclaration(
+                name="get_weather",
+                description="Get current weather information for a given location",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state/country for weather information",
+                        },
+                    },
+                    "required": ["location"],
+                },
+            )
+        ]
+    )
+
+    user_message = "What is the weather like in Boston & new Delhi?"
+    content = Content(role="user", parts=[Part.from_text(text=user_message)])
+    config = GenerateContentConfig(
+        tools=[weather_tool],
+        thinking_config=types.ThinkingConfig(
+            include_thoughts=True,
+            thinking_level=types.ThinkingLevel.LOW,
+        ),
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
+
+    stream = client.models.generate_content_stream(
+        model="gemini-3.5-flash", contents=content, config=config
+    )
+    for _ in stream:
+        ...
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    # The two tool calls must be kept separate (the core _PartsAccumulator guarantee).
+    expected_locations = ["boston", "new delhi"]
+    for i, expected_location in enumerate(expected_locations):
+        name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        assert attributes.get(name_key) == "get_weather", (
+            f"Expected tool_calls.{i} to be get_weather. Keys: {list(attributes.keys())}"
+        )
+        args = json.loads(attributes[args_key])
+        assert expected_location in args["location"].lower(), (
+            f"Tool call {i} location should reference {expected_location}, got {args}"
+        )
+
+    # A third tool call must NOT exist (verifies no over-splitting).
+    third_call_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.2.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    assert third_call_key not in attributes, "Unexpected third tool call (parts over-split)"
+
+    # When the model goes straight to tool calls, reasoning is not surfaced as a
+    # visible text block; it manifests as reasoning tokens plus a thought_signature
+    # carried on the function_call part (-> tool_call.reasoning_signature).
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, 0) > 0
+    reasoning_sig_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}"
+    assert reasoning_sig_key in attributes, (
+        f"Expected reasoning_signature on the first tool call. Keys: {list(attributes.keys())}"
+    )
+    assert attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_streaming_reasoning(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="dummy-api-key")
+    stream = client.models.generate_content_stream(
+        model="gemini-3.5-flash",
+        contents="Tell bed storey for 5 years old boy.",
+        config=types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(
+                include_thoughts=True,
+                thinking_budget=512,
+                # thinking_level=ThinkingLevel.LOW,
+            ),
+        ),
+    )
+
+    for chunk in stream:
+        ...
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    base = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    contents = f"{base}.{MessageAttributes.MESSAGE_CONTENTS}"
+
+    # Gemini streams thought chunks and answer chunks both as parts[0]; the
+    # accumulator must split them into a reasoning block then a text block.
+    assert (
+        attributes.get(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    ), f"contents.0 should be reasoning. Keys: {list(attributes.keys())}"
+    assert attributes.get(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+
+    assert (
+        attributes.get(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    ), "contents.1 should be the answer text block"
+    assert attributes.get(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+
+    # thought_signature rides the answer (text) part for this model.
+    assert attributes.get(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}")
+
+    # Reasoning and answer must not bleed into a third block.
+    assert f"{contents}.2.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}" not in attributes
+
+    # Reasoning text must not leak into the answer block.
+    reasoning_text = attributes[f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"]
+    answer_text = attributes[f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"]
+    assert reasoning_text != answer_text
+    assert reasoning_text not in answer_text
+
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, 0) > 0
+    assert attributes.get(f"{base}.{MessageAttributes.MESSAGE_ROLE}") == "model"
+    assert attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
 def test_chat_session_with_tool(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
@@ -1076,6 +1671,7 @@ def test_chat_session_with_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -1233,9 +1829,8 @@ def test_streaming_tool_call_aggregation(
     accumulator.process_chunk(chunk1)
     accumulator.process_chunk(chunk2)
 
-    # Extract attributes using the response extractor
     extractor = _ResponseExtractor(accumulator)
-    attributes = dict(extractor.get_extra_attributes())
+    attributes = dict(extractor.get_attributes())
 
     # Verify the aggregated tool call - this is the key test!
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
@@ -1257,11 +1852,120 @@ def test_streaming_tool_call_aggregation(
         "Location argument missing from aggregated tool call"
     )
     assert args["unit"] == "fahrenheit", "Unit argument missing from aggregated tool call"
+    assert (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        not in attributes
+    )
+    assert (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        not in attributes
+    )
 
     # Verify token counts from final chunk
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 60
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 50
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 10
+
+
+def test_streaming_multimodal_content_aggregation() -> None:
+    """Test that streamed text and image parts preserve their original positions."""
+    from openinference.instrumentation.google_genai._stream import (
+        _ResponseAccumulator,
+        _ResponseExtractor,
+    )
+
+    class MockChunk:
+        def __init__(self, data):
+            self.data = data
+
+        def model_dump(self, exclude_unset=True, warnings=False):
+            return self.data
+
+    accumulator = _ResponseAccumulator()
+    accumulator.process_chunk(
+        MockChunk(
+            {
+                "candidates": [
+                    {
+                        "index": 0,
+                        "content": {
+                            "role": "model",
+                            "parts": [
+                                {"text": "caption"},
+                                {"inline_data": {"mime_type": "image/png", "data": b"img1"}},
+                                {"inline_data": {"mime_type": "image/png", "data": b"img2"}},
+                            ],
+                        },
+                    }
+                ],
+                "model_version": "gemini-2.5-flash-image",
+            }
+        )
+    )
+
+    attributes = dict(_ResponseExtractor(accumulator).get_attributes())
+    prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+
+    assert attributes.get(f"{prefix}.{MessageAttributes.MESSAGE_ROLE}") == "model"
+    assert f"{prefix}.{MessageAttributes.MESSAGE_CONTENT}" not in attributes
+    assert (
+        attributes.get(
+            f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        == "caption"
+    )
+    assert (
+        attributes.get(
+            f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        == "text"
+    )
+    for index, encoded in ((1, "aW1nMQ=="), (2, "aW1nMg==")):
+        image_url_key = (
+            f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.{index}."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        type_key = (
+            f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.{index}."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        assert attributes.get(image_url_key) == f"data:image/png;base64,{encoded}"
+        assert attributes.get(type_key) == "image"
+
+
+def test_response_attributes_extract_image_from_file_data() -> None:
+    from openinference.instrumentation.google_genai._response_attributes_extractor import (
+        _ResponseAttributesExtractor,
+    )
+
+    file_uri = "https://example.com/cat.jpg"
+    response = types.GenerateContentResponse.model_validate(
+        {
+            "candidates": [
+                {
+                    "content": {
+                        "role": "model",
+                        "parts": [{"file_data": {"mime_type": "image/jpeg", "file_uri": file_uri}}],
+                    }
+                }
+            ],
+            "model_version": "gemini-test",
+        }
+    )
+
+    attributes = dict(_ResponseAttributesExtractor().get_attributes(response, {}))
+    image_url_key = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+        f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    )
+    type_key = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+        f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+    )
+    assert attributes.get(image_url_key) == file_uri
+    assert attributes.get(type_key) == "image"
 
 
 @pytest.mark.vcr(
@@ -1359,6 +2063,7 @@ def test_generate_content_with_automatic_tool_calling(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -1463,6 +2168,94 @@ def test_validate_token_counts(
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
+@pytest.mark.parametrize("streaming", [False, True])
+def test_generate_content_with_file_uri_image(
+    streaming: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    """Test that file_data (URI-based images) are captured as span attributes.
+
+    Uses Part.from_uri which sends fileData in the request body instead of
+    inlineData bytes, allowing the model to fetch the image from the given URI.
+    Delete the cassette and set GEMINI_API_KEY to re-record.
+    """
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+    client = genai.Client(api_key=api_key)
+
+    file_uri = "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U"
+    content = Content(
+        role="user",
+        parts=[
+            Part.from_text(text="Describe this image in one sentence."),
+            Part.from_uri(file_uri=file_uri, mime_type="image/jpeg"),
+        ],
+    )
+    model_name = "gemini-2.5-flash"
+    config = GenerateContentConfig(
+        system_instruction="You are a helpful assistant that can describe images."
+    )
+
+    if streaming:
+        response = client.models.generate_content_stream(
+            model=model_name,
+            contents=content,
+            config=config,
+        )
+        for _ in response:
+            ...
+    else:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=content,
+            config=config,
+        )
+        assert response.text
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Verify core span attributes
+    expected_attributes: Dict[str, Any] = {
+        SpanAttributes.LLM_PROVIDER: "google",
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+        SpanAttributes.LLM_MODEL_NAME: model_name,
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can describe images.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": "Describe this image in one sentence.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "image",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+    }
+
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute '{key}' does not match. Expected: {expected_value!r}, Got: {attributes.get(key)!r}"
+        )
+
+    # Verify the image URL is the file URI passed in
+    image_url_key = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1."
+        f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    )
+    assert attributes.get(image_url_key) == file_uri, (
+        f"Expected image URL to be the file URI '{file_uri}', got: {attributes.get(image_url_key)!r}"
+    )
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
 def test_validate_token_counts_stream(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
@@ -1512,3 +2305,52 @@ def test_validate_token_counts_stream(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
         )
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    ["STOP", "MAX_TOKENS", "SAFETY", "RECITATION", "OTHER"],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    api_key = "fake-key"
+    client = genai.Client(api_key=api_key)
+
+    mock_response = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": "hi there"}],
+                    "role": "model",
+                },
+                "finishReason": finish_reason,
+                "index": 0,
+            }
+        ],
+        "usageMetadata": {
+            "promptTokenCount": 5,
+            "candidatesTokenCount": 3,
+            "totalTokenCount": 8,
+        },
+        "modelVersion": "gemini-2.0-flash",
+    }
+
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        mock_router.post(path__regex=r"/v1beta/models/gemini-2\.0-flash:generateContent.*").mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=Content(role="user", parts=[Part.from_text(text="hello")]),
+        )
+        assert response is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason

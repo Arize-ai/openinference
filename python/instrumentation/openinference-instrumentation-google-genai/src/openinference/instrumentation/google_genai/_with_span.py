@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import Attributes, AttributeValue
@@ -12,7 +12,6 @@ class _WithSpan:
     __slots__ = (
         "_span",
         "_context_attributes",
-        "_extra_attributes",
         "_is_finished",
     )
 
@@ -20,15 +19,13 @@ class _WithSpan:
         self,
         span: trace_api.Span,
         context_attributes: Attributes = None,
-        extra_attributes: Attributes = None,
     ) -> None:
         self._span = span
         self._context_attributes = context_attributes
-        self._extra_attributes = extra_attributes
         try:
             self._is_finished = not self._span.is_recording()
         except Exception:
-            logger.exception("Failed to check if span is recording")
+            logger.warning("Failed to check if span is recording")
             self._is_finished = True
 
     @property
@@ -41,7 +38,7 @@ class _WithSpan:
         try:
             self._span.record_exception(exception)
         except Exception:
-            logger.exception("Failed to record exception on span")
+            logger.warning("Failed to record exception on span")
 
     def add_event(self, name: str) -> None:
         if self._is_finished:
@@ -49,29 +46,26 @@ class _WithSpan:
         try:
             self._span.add_event(name)
         except Exception:
-            logger.exception("Failed to add event to span")
+            logger.warning("Failed to add event to span")
 
-    def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
+    def set_attributes(self, attributes: dict[str, AttributeValue]) -> None:
         if self._is_finished:
             return
         try:
             self._span.set_attributes(attributes)
         except Exception:
-            logger.exception("Failed to set attributes on span")
+            logger.warning("Failed to set attributes on span")
 
     def finish_tracing(
         self,
         status: Optional[trace_api.Status] = None,
         attributes: Attributes = None,
-        extra_attributes: Attributes = None,
     ) -> None:
         if self._is_finished:
             return
         for mapping in (
             attributes,
             self._context_attributes,
-            self._extra_attributes,
-            extra_attributes,
         ):
             if not mapping:
                 continue
@@ -81,14 +75,14 @@ class _WithSpan:
                 try:
                     self._span.set_attribute(key, value)
                 except Exception:
-                    logger.exception("Failed to set attribute on span")
+                    logger.warning("Failed to set attribute on span")
         if status is not None:
             try:
                 self._span.set_status(status=status)
             except Exception:
-                logger.exception("Failed to set status code on span")
+                logger.warning("Failed to set status code on span")
         try:
             self._span.end()
         except Exception:
-            logger.exception("Failed to end span")
+            logger.warning("Failed to end span")
         self._is_finished = True

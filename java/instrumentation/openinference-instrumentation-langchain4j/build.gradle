@@ -19,7 +19,9 @@ dependencies {
     annotationProcessor "com.google.auto.service:auto-service:${autoServiceVersion}"
     
     // Test dependencies
-    testImplementation "dev.langchain4j:langchain4j-core:${langchain4jVersion}"
+    testImplementation "dev.langchain4j:langchain4j:${langchain4jVersion}"           // AiServices, @Tool, MessageWindowChatMemory
+    testImplementation "dev.langchain4j:langchain4j-core:${langchain4jVersion}"      // consistent version with above
     testImplementation "dev.langchain4j:langchain4j-open-ai:${langchain4jVersion}"
     testImplementation "io.opentelemetry:opentelemetry-sdk-testing"
+    testImplementation "org.wiremock:wiremock-standalone:3.6.0"
 } 

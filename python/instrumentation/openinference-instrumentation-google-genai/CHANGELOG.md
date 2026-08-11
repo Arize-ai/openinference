@@ -1,5 +1,117 @@
 # Changelog
 
+## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.3.0...python-openinference-instrumentation-google-genai-v1.4.0) (2026-08-07)
+
+
+### Features
+
+* **google_genai:** Add Finish Reason Attribute ([#3461](https://github.com/Arize-ai/openinference/issues/3461)) ([274f483](https://github.com/Arize-ai/openinference/commit/274f4837579da35778bf244c326d297bb6cff2c6))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.2.0...python-openinference-instrumentation-google-genai-v1.3.0) (2026-07-30)
+
+
+### Features
+
+* **google-genai:** redact images in input.value from TraceConfig ([#3459](https://github.com/Arize-ai/openinference/issues/3459)) ([e8ce013](https://github.com/Arize-ai/openinference/commit/e8ce013ab6e94e11c4a0f31c3e123594ce15d082))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.1.1...python-openinference-instrumentation-google-genai-v1.2.0) (2026-06-30)
+
+
+### Features
+
+* add support for reasoning content and signatures in attributes and types ([#3226](https://github.com/Arize-ai/openinference/issues/3226)) ([7ce4027](https://github.com/Arize-ai/openinference/commit/7ce4027d4ac6bb24bb2da0af085433cbfabb28b5))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.1.0...python-openinference-instrumentation-google-genai-v1.1.1) (2026-06-24)
+
+
+### Bug Fixes
+
+* **google_genai:** support google-genai 2.9.0 (relocated interactions resources) ([#3269](https://github.com/Arize-ai/openinference/issues/3269)) ([4ca2103](https://github.com/Arize-ai/openinference/commit/4ca210349d2b0c1c0428702061246020243dfcda))
+
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.0.2...python-openinference-instrumentation-google-genai-v1.1.0) (2026-06-11)
+
+
+### Features
+
+* **google-genai:** capture Gemini reasoning content and thoughts ([#3194](https://github.com/Arize-ai/openinference/issues/3194)) ([973bfb2](https://github.com/Arize-ai/openinference/commit/973bfb2d8a5c381605f9d06a10ae46c231fc15f6))
+
+## [1.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.0.1...python-openinference-instrumentation-google-genai-v1.0.2) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [1.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.0.0...python-openinference-instrumentation-google-genai-v1.0.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.17...python-openinference-instrumentation-google-genai-v1.0.0) (2026-05-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **google-genai:** require google-genai sdk 2 ([#3098](https://github.com/Arize-ai/openinference/issues/3098))
+
+### Features
+
+* **google-genai:** require google-genai sdk 2 ([#3098](https://github.com/Arize-ai/openinference/issues/3098)) ([ce0dbc8](https://github.com/Arize-ai/openinference/commit/ce0dbc88d0e427fd141d8fd91a9d1a236a2515ae))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.16...python-openinference-instrumentation-google-genai-v0.1.17) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.15...python-openinference-instrumentation-google-genai-v0.1.16) (2026-04-21)
+
+
+### Bug Fixes
+
+* **google-genai:** don't double-count cached tokens in prompt ([#3016](https://github.com/Arize-ai/openinference/issues/3016)) ([4a0b3dd](https://github.com/Arize-ai/openinference/commit/4a0b3ddd4f2c8d8fefc8250f0b8c8cae4d1ea4fb))
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.14...python-openinference-instrumentation-google-genai-v0.1.15) (2026-04-14)
+
+
+### Features
+
+* **google-genai:** Handled Image Data & Multiple tool calls in Response ([#2598](https://github.com/Arize-ai/openinference/issues/2598)) ([7f421cf](https://github.com/Arize-ai/openinference/commit/7f421cfca6d1a8a60ef97e3ea4378d7b5bc807e5))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.13...python-openinference-instrumentation-google-genai-v0.1.14) (2026-03-24)
+
+
+### Features
+
+* **google_genai:** Enable Tracing Support For Embedding Operations ([#2871](https://github.com/Arize-ai/openinference/issues/2871)) ([02b39e5](https://github.com/Arize-ai/openinference/commit/02b39e5639680cf9348b6f5528863918d4b84d99))
+
+
+### Bug Fixes
+
+* **google_genai:** Normalize System Instruction ([#2852](https://github.com/Arize-ai/openinference/issues/2852)) ([92d120f](https://github.com/Arize-ai/openinference/commit/92d120fc52d3f48970a9c2c3be62033761573fa0))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.12...python-openinference-instrumentation-google-genai-v0.1.13) (2026-03-11)
+
+
+### Bug Fixes
+
+* **google-genai:** accept dict-shaped content/part payloads ([#2807](https://github.com/Arize-ai/openinference/issues/2807)) ([304a80d](https://github.com/Arize-ai/openinference/commit/304a80d9a74365cd5083a2cd4f99dd2fe25147d1))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.11...python-openinference-instrumentation-google-genai-v0.1.12) (2026-02-26)
 
 

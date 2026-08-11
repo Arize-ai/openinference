@@ -1,0 +1,20 @@
+interactions:
+- request:
+    body: '{"toolConfig": {"tools": [{"toolSpec": {"name": "top_song", "description":
+      "Get the most popular song played on a radio station.", "inputSchema": {"json":
+      {"type": "object", "properties": {"sign": {"type": "string", "description":
+      "The call sign for the radio station"}}, "required": ["sign"]}}}}]}, "messages":
+      [{"role": "user", "content": [{"text": "What is the most popular song on Radio
+      XYZ?"}]}]}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/mistral.devstral-2-123b/converse
+  response:
+    body:
+      string: '{"metrics":{"latencyMs":19273},"output":{"message":{"content":[{"toolUse":{"input":{"sign":"Radio
+        XYZ"},"name":"top_song","toolUseId":"tooluse_Z4oIdWzp6MUkuN99WX3jLk"}}],"role":"assistant"}},"stopReason":"tool_use","usage":{"inputTokens":90,"outputTokens":14,"serverToolUsage":{},"totalTokens":104}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -19,7 +19,7 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    from mistralai.models import ChatCompletionResponse
+    from mistralai.client.models import ChatCompletionResponse
 
 __all__ = ("_ResponseAttributesExtractor",)
 

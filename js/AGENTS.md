@@ -29,10 +29,15 @@ export class MyInstrumentation extends InstrumentationBase {
 }
 ```
 
+Exception: packages built around an SDK's documented middleware or callback injection model, rather than Node.js module patching, may export a middleware factory instead of extending `InstrumentationBase`. Those packages must still use `OITracer`, respect tracing suppression, propagate context attributes, and support `TraceConfig`.
+
 Every instrumentor **must**:
+
 1. Respect `isTracingSuppressed()` from `@opentelemetry/core`
 2. Propagate context attributes via `OITracer` (session ID, user ID, metadata, tags)
 3. Support data masking via `TraceConfig`
+
+For internal diagnostics use `diag` from `@opentelemetry/api` (`diag.debug`/`diag.warn`) — never `console.*`. (`diag` is JS-only; Python packages use stdlib `logging` instead.)
 
 ## Testing
 
@@ -43,11 +48,11 @@ Every instrumentor **must**:
 
 Use `@arizeai/openinference-core` attribute helpers instead of setting semantic conventions by hand:
 
-| Helper | Purpose |
-| --- | --- |
-| `getInputAttributes(input)` | `{ INPUT_VALUE, INPUT_MIME_TYPE }` — accepts `string` or `{ value, mimeType }` |
-| `getOutputAttributes(output)` | `{ OUTPUT_VALUE, OUTPUT_MIME_TYPE }` — same overloads |
-| `getToolAttributes({ name, parameters })` | `{ TOOL_NAME, TOOL_PARAMETERS }` — stringifies parameters |
+| Helper                                    | Purpose                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `getInputAttributes(input)`               | `{ INPUT_VALUE, INPUT_MIME_TYPE }` — accepts `string` or `{ value, mimeType }` |
+| `getOutputAttributes(output)`             | `{ OUTPUT_VALUE, OUTPUT_MIME_TYPE }` — same overloads                          |
+| `getToolAttributes({ name, parameters })` | `{ TOOL_NAME, TOOL_PARAMETERS }` — stringifies parameters                      |
 
 ## Typing Conventions
 

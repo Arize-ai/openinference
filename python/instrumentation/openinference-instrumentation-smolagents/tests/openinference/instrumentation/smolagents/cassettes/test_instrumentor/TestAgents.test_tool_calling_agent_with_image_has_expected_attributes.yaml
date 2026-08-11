@@ -1,0 +1,75 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You are
+      an expert assistant who can solve any task using tool calls. You will be given
+      a task to solve as best you can.\nTo do so, you have been given access to some
+      tools.\n\nThe tool call you write is an action: after the tool is executed,
+      you will get the result of the tool call as an \"observation\".\nThis Action/Observation
+      can repeat N times, you should take several steps when needed.\n\nYou can use
+      the result of the previous action as input for the next action.\nThe observation
+      will always be a string: it can represent a file, like \"image_1.jpg\".\nThen
+      you can use it as input for the next action. You can do it for instance as follows:\n\nObservation:
+      \"image_1.jpg\"\n\nAction:\n{\n  \"name\": \"image_transformer\",\n  \"arguments\":
+      {\"image\": \"image_1.jpg\"}\n}\n\nTo provide the final answer to the task,
+      use an action blob with \"name\": \"final_answer\" tool. It is the only way
+      to complete the task, else you will be stuck on a loop. So your final output
+      should look like this:\nAction:\n{\n  \"name\": \"final_answer\",\n  \"arguments\":
+      {\"answer\": \"insert your final answer here\"}\n}\n\n\nHere are a few examples
+      using notional tools:\n---\nTask: \"Generate an image of the oldest person in
+      this document.\"\n\nAction:\n{\n  \"name\": \"document_qa\",\n  \"arguments\":
+      {\"document\": \"document.pdf\", \"question\": \"Who is the oldest person mentioned?\"}\n}\nObservation:
+      \"The oldest person in the document is John Doe, a 55 year old lumberjack living
+      in Newfoundland.\"\n\nAction:\n{\n  \"name\": \"image_generator\",\n  \"arguments\":
+      {\"prompt\": \"A portrait of John Doe, a 55-year-old man living in Canada.\"}\n}\nObservation:
+      \"image.png\"\n\nAction:\n{\n  \"name\": \"final_answer\",\n  \"arguments\":
+      \"image.png\"\n}\n\n---\nTask: \"What is the result of the following operation:
+      5 + 3 + 1294.678?\"\n\nAction:\n{\n    \"name\": \"python_interpreter\",\n    \"arguments\":
+      {\"code\": \"5 + 3 + 1294.678\"}\n}\nObservation: 1302.678\n\nAction:\n{\n  \"name\":
+      \"final_answer\",\n  \"arguments\": \"1302.678\"\n}\n\n---\nTask: \"Which city
+      has the highest population , Guangzhou or Shanghai?\"\n\nAction:\n{\n    \"name\":
+      \"web_search\",\n    \"arguments\": \"Population Guangzhou\"\n}\nObservation:
+      [''Guangzhou has a population of 15 million inhabitants as of 2021.'']\n\n\nAction:\n{\n    \"name\":
+      \"web_search\",\n    \"arguments\": \"Population Shanghai\"\n}\nObservation:
+      ''26 million (2019)''\n\nAction:\n{\n  \"name\": \"final_answer\",\n  \"arguments\":
+      \"Shanghai\"\n}\n\nAbove example were using notional tools that might not exist
+      for you. You only have access to these tools:\n- final_answer: Provides a final
+      answer to the given problem.\n    Takes inputs: {''answer'': {''type'': ''any'',
+      ''description'': ''The final answer to the problem''}}\n    Returns an output
+      of type: any\n\nHere are the rules you should always follow to solve your task:\n1.
+      ALWAYS provide a tool call, else you will fail.\n2. Always use the right arguments
+      for the tools. Never use variable names as the action arguments, use the value
+      instead.\n3. Call a tool only when needed: do not call the search agent if you
+      do not need information, try to solve the task yourself. If no tool call is
+      needed, use final_answer tool to return your answer.\n4. Never re-do a tool
+      call that you previously did with the exact same parameters.\n\nNow Begin!"}]},{"role":"user","content":[{"type":"text","text":"New
+      task:\nDescribe what you see in this image briefly."},{"type":"image_url","image_url":{"url":"data:image/png;base64,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"}}]}],"model":"gpt-4o","stop":["Observation:","Calling
+      tools:"],"tool_choice":"required","tools":[{"type":"function","function":{"name":"final_answer","description":"Provides
+      a final answer to the given problem.","parameters":{"type":"object","properties":{"answer":{"type":"string","description":"The
+      final answer to the problem"}},"required":["answer"]}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DVJPdiwp16bKXEYMV5LTiliNkq9Rf\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1776355161,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_UemzWkeWxboyk7wCbBNRfUZp\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"final_answer\",\n
+        \             \"arguments\": \"{\\\"answer\\\":\\\"The image is a generic
+        user avatar icon, typically used as a placeholder for a profile picture. It
+        features a silhouette of a person against a circular background.\\\"}\"\n
+        \           }\n          }\n        ],\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 1102,\n    \"completion_tokens\":
+        44,\n    \"total_tokens\": 1146,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_07a5e8f420\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

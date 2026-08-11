@@ -3,7 +3,14 @@
 
 Python autoinstrumentation library for MistralAI's Python SDK.
 
-The traces emitted by this instrumentation are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix)
+The traces emitted by this instrumentation are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax).
+
+## Compatibility
+
+| `openinference-instrumentation-mistralai` | `mistralai` |
+|-------------------------------------------|-------------|
+| `<2.0.0`                                  | `>=1.0.2, <2.0.0` |
+| `>=2.0.0`                                 | `>=2.0.0`   |
 
 ## Installation
 
@@ -79,5 +86,6 @@ python your_file.py
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [More info on OpenInference and Arize AX](https://arize.com/docs/ax)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

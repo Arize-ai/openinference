@@ -278,6 +278,11 @@ class TraceCollector:
             and "invocationInput" in trace_data["orchestrationTrace"]
             and "agentCollaboratorInvocationInput"
             in trace_data["orchestrationTrace"]["invocationInput"]
+        ) or (
+            "routingClassifierTrace" in trace_data
+            and "invocationInput" in trace_data["routingClassifierTrace"]
+            and "agentCollaboratorInvocationInput"
+            in trace_data["routingClassifierTrace"]["invocationInput"]
         ):
             trace_node = TraceNode(node_trace_id, "agent-collaborator")
             trace_node.chunks.append(trace_data)
@@ -431,6 +436,11 @@ class TraceCollector:
             and "invocationInput" in trace_data["orchestrationTrace"]
             and "agentCollaboratorInvocationInput"
             in trace_data["orchestrationTrace"]["invocationInput"]
+        ) or (
+            "routingClassifierTrace" in trace_data
+            and "invocationInput" in trace_data["routingClassifierTrace"]
+            and "agentCollaboratorInvocationInput"
+            in trace_data["routingClassifierTrace"]["invocationInput"]
         )
         is_agent_collab_output = (
             "orchestrationTrace" in trace_data
@@ -602,6 +612,11 @@ class TraceCollector:
             and "invocationInput" in trace_data["orchestrationTrace"]
             and "agentCollaboratorInvocationInput"
             in trace_data["orchestrationTrace"]["invocationInput"]
+        ) or (
+            "routingClassifierTrace" in trace_data
+            and "invocationInput" in trace_data["routingClassifierTrace"]
+            and "agentCollaboratorInvocationInput"
+            in trace_data["routingClassifierTrace"]["invocationInput"]
         ):
             # Create new Node for Agent Collaboration
             self._handle_new_trace_node(

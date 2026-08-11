@@ -22,8 +22,9 @@ interactions:
         64,\n    \"candidatesTokenCount\": 6,\n    \"totalTokenCount\": 70,\n    \"promptTokensDetails\":
         [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 64\n
         \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
-        \"TEXT\",\n        \"tokenCount\": 6\n      }\n    ]\n  },\n  \"modelVersion\":
-        \"gemini-2.0-flash\",\n  \"responseId\": \"hpGfafeJA8OGz7IP2LSV2Qs\"\n}\n"
+        \"TEXT\",\n        \"tokenCount\": 6\n      }\n    ],\n    \"serviceTier\":
+        \"standard\"\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
+        \"mNcEaoaWM6bMqtsP75j8mA0\"\n}\n"
     headers: {}
     status:
       code: 200
@@ -50,13 +51,13 @@ interactions:
         [\n          {\n            \"text\": \"The weather in San Francisco is foggy
         with a temperature of 65 degrees Fahrenheit and 85% humidity.\"\n          }\n
         \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
-        \"STOP\",\n      \"avgLogprobs\": -0.010326016208399897\n    }\n  ],\n  \"usageMetadata\":
+        \"STOP\",\n      \"avgLogprobs\": -0.0066323545963867855\n    }\n  ],\n  \"usageMetadata\":
         {\n    \"promptTokenCount\": 89,\n    \"candidatesTokenCount\": 23,\n    \"totalTokenCount\":
         112,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
         \       \"tokenCount\": 89\n      }\n    ],\n    \"candidatesTokensDetails\":
         [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 23\n
-        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
-        \"hpGfaZ3dMo-cz7IPmcqV2QQ\"\n}\n"
+        \     }\n    ],\n    \"serviceTier\": \"standard\"\n  },\n  \"modelVersion\":
+        \"gemini-2.0-flash\",\n  \"responseId\": \"mdcEauWdL8qnmtkPyrGawAw\"\n}\n"
     headers: {}
     status:
       code: 200

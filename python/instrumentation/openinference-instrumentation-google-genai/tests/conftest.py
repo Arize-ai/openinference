@@ -39,7 +39,17 @@ def _normalize_request(request: Any) -> Any:
 
 
 def _strip_response_headers(response: Any) -> Any:
-    return {**response, "headers": {}}
+    # Drop all response headers except Content-Type. vcrpy applies this hook both
+    # when recording and when loading a cassette for playback, and the google-genai
+    # SDK (>= 2.x, speakeasy-generated interactions client) inspects the response
+    # Content-Type to decide how to parse the body. Discarding it entirely makes
+    # recorded interactions un-replayable ("Unexpected response ... Content-Type \"\"").
+    headers = response.get("headers") or {}
+    content_type = next(
+        (values for name, values in headers.items() if name.lower() == "content-type"),
+        None,
+    )
+    return {**response, "headers": {"content-type": content_type} if content_type else {}}
 
 
 def _match_method_case_insensitive(r1: Any, r2: Any) -> bool:
@@ -64,10 +74,8 @@ def pytest_recording_configure(config: Any, vcr: Any) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def _bridge_google_api_key() -> None:
-    if not os.environ.get("GEMINI_API_KEY"):
-        google_api_key = os.environ.get("GOOGLE_API_KEY")
-        if google_api_key:
-            os.environ["GEMINI_API_KEY"] = google_api_key
+    if google_api_key := os.environ.get("GOOGLE_API_KEY"):
+        os.environ["GEMINI_API_KEY"] = google_api_key
 
 
 # Three patches for vcrpy's aiohttp stubs (upstream bug: https://github.com/kevin1024/vcrpy/issues/927).

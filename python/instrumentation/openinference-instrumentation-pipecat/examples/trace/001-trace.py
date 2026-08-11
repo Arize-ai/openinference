@@ -11,7 +11,7 @@ from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.frames.frames import LLMRunFrame, TTSSpeakFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
-from pipecat.pipeline.task import PipelineParams, PipelineTask
+from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
@@ -210,8 +210,8 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         ]
     )
 
-    ### TASK ###
-    task = PipelineTask(
+    ### WORKER ###
+    worker = PipelineWorker(
         pipeline,
         params=PipelineParams(
             enable_metrics=True,
@@ -229,7 +229,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         logger.info("Client connected")
         # Kick off the conversation.
         messages.append({"role": "system", "content": "Please introduce yourself to the user."})
-        await task.queue_frames([LLMRunFrame()])
+        await worker.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
@@ -237,13 +237,13 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         Handle the client disconnected event.
         """
         logger.info("Client disconnected")
-        await task.cancel()
+        await worker.cancel()
 
     # Create the Pipecat pipeline runner
     runner = PipelineRunner(handle_sigint=runner_args.handle_sigint)
 
     # Run the Pipecat pipeline
-    await runner.run(task)
+    await runner.run(worker)
 
 
 async def bot(runner_args: RunnerArguments):

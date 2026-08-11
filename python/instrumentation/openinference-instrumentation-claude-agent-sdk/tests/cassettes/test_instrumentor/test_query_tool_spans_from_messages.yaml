@@ -1,0 +1,300 @@
+messages:
+- response:
+    request_id: req_1_ac986294
+    response:
+      account:
+        apiKeySource: ANTHROPIC_API_KEY
+        tokenSource: none
+      agents:
+      - description: General-purpose agent for researching complex questions, searching
+          for code, and executing multi-step tasks. When you are searching for a keyword
+          or file and are not confident that you will find the right match in the
+          first few tries use this agent to perform the search for you.
+        name: general-purpose
+      - description: Use this agent to configure the user's Claude Code status line
+          setting.
+        model: sonnet
+        name: statusline-setup
+      - description: 'Fast agent specialized for exploring codebases. Use this when
+          you need to quickly find files by patterns (eg. "src/components/**/*.tsx"),
+          search code for keywords (eg. "API endpoints"), or answer questions about
+          the codebase (eg. "how do API endpoints work?"). When calling this agent,
+          specify the desired thoroughness level: "quick" for basic searches, "medium"
+          for moderate exploration, or "very thorough" for comprehensive analysis
+          across multiple locations and naming conventions.'
+        model: haiku
+        name: Explore
+      - description: Software architect agent for designing implementation plans.
+          Use this when you need to plan the implementation strategy for a task. Returns
+          step-by-step plans, identifies critical files, and considers architectural
+          trade-offs.
+        name: Plan
+      available_output_styles:
+      - default
+      - Explanatory
+      - Learning
+      commands:
+      - argumentHint: ''
+        description: 'Use when the user wants to customize keyboard shortcuts, rebind
+          keys, add chord bindings, or modify ~/.claude/keybindings.json. Examples:
+          "rebind ctrl+s", "add a chord shortcut", "change the submit key", "customize
+          keybindings". (bundled)'
+        name: keybindings-help
+      - argumentHint: '[issue description]'
+        description: Debug your current Claude Code session by reading the session
+          debug log. (bundled)
+        name: debug
+      - argumentHint: ''
+        description: Review changed code for reuse, quality, and efficiency, then
+          fix any issues found. (bundled)
+        name: simplify
+      - argumentHint: <instruction>
+        description: "Research and plan a large-scale change, then execute it in parallel\
+          \ across 5\u201330 isolated worktree agents that each open a PR. (bundled)"
+        name: batch
+      - argumentHint: <optional custom summarization instructions>
+        description: 'Clear conversation history but keep a summary in context. Optional:
+          /compact [instructions for summarization]'
+        name: compact
+      - argumentHint: ''
+        description: Show current context usage
+        name: context
+      - argumentHint: ''
+        description: Show the total cost and duration of the current session
+        name: cost
+      - argumentHint: ''
+        description: Initialize a new CLAUDE.md file with codebase documentation
+        name: init
+      - argumentHint: ''
+        description: Get comments from a GitHub pull request
+        name: pr-comments
+      - argumentHint: ''
+        description: View release notes
+        name: release-notes
+      - argumentHint: ''
+        description: Review a pull request
+        name: review
+      - argumentHint: ''
+        description: Complete a security review of the pending changes on the current
+          branch
+        name: security-review
+      - argumentHint: ''
+        description: Generate a report analyzing your Claude Code sessions
+        name: insights
+      models:
+      - description: "Use the default model (currently Sonnet 4.6) \xB7 $3/$15 per\
+          \ Mtok"
+        displayName: Default (recommended)
+        supportedEffortLevels:
+        - low
+        - medium
+        - high
+        - max
+        supportsAdaptiveThinking: true
+        supportsEffort: true
+        value: default
+      - description: "Sonnet 4.6 for long sessions \xB7 $6/$22.50 per Mtok"
+        displayName: Sonnet (1M context)
+        supportedEffortLevels:
+        - low
+        - medium
+        - high
+        - max
+        supportsAdaptiveThinking: true
+        supportsEffort: true
+        value: sonnet[1m]
+      - description: "Opus 4.6 \xB7 Most capable for complex work \xB7 $5/$25 per\
+          \ Mtok"
+        displayName: Opus
+        supportedEffortLevels:
+        - low
+        - medium
+        - high
+        - max
+        supportsAdaptiveThinking: true
+        supportsEffort: true
+        value: opus
+      - description: "Opus 4.6 for long sessions \xB7 $10/$37.50 per Mtok"
+        displayName: Opus (1M context)
+        supportedEffortLevels:
+        - low
+        - medium
+        - high
+        - max
+        supportsAdaptiveThinking: true
+        supportsEffort: true
+        value: opus[1m]
+      - description: "Haiku 4.5 \xB7 Fastest for quick answers \xB7 $1/$5 per Mtok"
+        displayName: Haiku
+        value: haiku
+      output_style: default
+      pid: 50475
+    subtype: success
+  type: control_response
+- agents:
+  - general-purpose
+  - statusline-setup
+  - Explore
+  - Plan
+  apiKeySource: ANTHROPIC_API_KEY
+  claude_code_version: 2.1.63
+  cwd: <redacted>
+  fast_mode_state: 'off'
+  mcp_servers: []
+  model: claude-sonnet-4-6
+  output_style: default
+  permissionMode: bypassPermissions
+  plugins: []
+  session_id: 493eec35-215c-4b7b-a7e3-94cce106a7f5
+  skills:
+  - keybindings-help
+  - debug
+  - simplify
+  - batch
+  slash_commands:
+  - keybindings-help
+  - debug
+  - simplify
+  - batch
+  - compact
+  - context
+  - cost
+  - init
+  - pr-comments
+  - release-notes
+  - review
+  - security-review
+  - insights
+  subtype: init
+  tools:
+  - Agent
+  - TaskOutput
+  - Bash
+  - Glob
+  - Grep
+  - ExitPlanMode
+  - Read
+  - Edit
+  - Write
+  - NotebookEdit
+  - WebFetch
+  - TodoWrite
+  - WebSearch
+  - TaskStop
+  - AskUserQuestion
+  - Skill
+  - EnterPlanMode
+  - EnterWorktree
+  type: system
+  uuid: 155f1544-97ea-432d-901a-e031f72c1914
+- message:
+    content:
+    - caller:
+        type: direct
+      id: toolu_0124ngVR3xi5MHkfiCXJtaGQ
+      input:
+        command: wc -c '/Users/REDACTED/openinference/python/instrumentation/openinference-instrumentation-claude-agent-sdk/pyproject.toml'
+        description: Count bytes in pyproject.toml
+      name: Bash
+      type: tool_use
+    context_management: null
+    id: msg_01TKqc1Ksi8fR5STLoQ6YChF
+    model: claude-sonnet-4-6
+    role: assistant
+    stop_reason: null
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 17080
+      inference_geo: global
+      input_tokens: 3
+      output_tokens: 0
+      service_tier: standard
+  parent_tool_use_id: null
+  session_id: 493eec35-215c-4b7b-a7e3-94cce106a7f5
+  type: assistant
+  uuid: e95eb6bc-dd43-4ce5-80bc-eb0bf58d5782
+- message:
+    content:
+    - content: '    2440 /Users/REDACTED/openinference/python/instrumentation/openinference-instrumentation-claude-agent-sdk/pyproject.toml'
+      is_error: false
+      tool_use_id: toolu_0124ngVR3xi5MHkfiCXJtaGQ
+      type: tool_result
+    role: user
+  parent_tool_use_id: null
+  session_id: 493eec35-215c-4b7b-a7e3-94cce106a7f5
+  tool_use_result:
+    interrupted: false
+    isImage: false
+    noOutputExpected: false
+    stderr: ''
+    stdout: '    2440 /Users/REDACTED/openinference/python/instrumentation/openinference-instrumentation-claude-agent-sdk/pyproject.toml'
+  type: user
+  uuid: 6b159aa5-e515-41fa-b1eb-43a79aa049b7
+- message:
+    content:
+    - text: '    2440 /Users/REDACTED/openinference/python/instrumentation/openinference-instrumentation-claude-agent-sdk/pyproject.toml'
+      type: text
+    context_management: null
+    id: msg_01Gz5HvUT3HSZQMNLwsPfNow
+    model: claude-sonnet-4-6
+    role: assistant
+    stop_reason: null
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 17247
+      inference_geo: global
+      input_tokens: 1
+      output_tokens: 1
+      service_tier: standard
+  parent_tool_use_id: null
+  session_id: 493eec35-215c-4b7b-a7e3-94cce106a7f5
+  type: assistant
+  uuid: 633307a5-9cf7-4d15-b9b2-d457975fb649
+- duration_api_ms: 2827
+  duration_ms: 3194
+  fast_mode_state: 'off'
+  is_error: false
+  modelUsage:
+    claude-sonnet-4-6:
+      cacheCreationInputTokens: 0
+      cacheReadInputTokens: 34327
+      contextWindow: 200000
+      costUSD: 0.0210585
+      inputTokens: 4
+      maxOutputTokens: 32000
+      outputTokens: 155
+      webSearchRequests: 0
+  num_turns: 2
+  permission_denials: []
+  result: '    2440 /Users/REDACTED/openinference/python/instrumentation/openinference-instrumentation-claude-agent-sdk/pyproject.toml'
+  session_id: 493eec35-215c-4b7b-a7e3-94cce106a7f5
+  stop_reason: null
+  subtype: success
+  total_cost_usd: 0.0210585
+  type: result
+  usage:
+    cache_creation:
+      ephemeral_1h_input_tokens: 0
+      ephemeral_5m_input_tokens: 0
+    cache_creation_input_tokens: 0
+    cache_read_input_tokens: 34327
+    inference_geo: ''
+    input_tokens: 4
+    iterations: []
+    output_tokens: 155
+    server_tool_use:
+      web_fetch_requests: 0
+      web_search_requests: 0
+    service_tier: standard
+    speed: standard
+  uuid: da7d35e2-104f-4724-b2f6-d44c93568fb7

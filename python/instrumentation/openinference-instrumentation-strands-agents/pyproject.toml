@@ -28,7 +28,7 @@ dependencies = [
     "opentelemetry-api>=1.39.0",
     "opentelemetry-sdk>=1.39.0",
     "opentelemetry-semantic-conventions>=0.52b0",
-    "openinference-semantic-conventions>=0.1.17",
+    "openinference-semantic-conventions>=0.1.31",
     "typing-extensions",
 ]
 
@@ -36,19 +36,12 @@ dependencies = [
 instruments = [
     "strands-agents >= 1.19.0",
 ]
-test = [
-    "pytest",
-    "pytest-asyncio",
-    "strands-agents >= 1.19.0",
-    "openai",
-]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-strands-agents"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/strands_agents/__init__.py"
-pattern = '__version__ = "(?P<version>[^"]+)"'
+path = "src/openinference/instrumentation/strands_agents/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [

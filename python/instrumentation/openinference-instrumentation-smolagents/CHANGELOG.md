@@ -1,5 +1,94 @@
 # Changelog
 
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.33...python-openinference-instrumentation-smolagents-v0.1.34) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.32...python-openinference-instrumentation-smolagents-v0.1.33) (2026-07-30)
+
+
+### Bug Fixes
+
+* **smolagents:** trace streaming model calls ([#3385](https://github.com/Arize-ai/openinference/issues/3385)) ([7638fdf](https://github.com/Arize-ai/openinference/commit/7638fdf867789b8c257be2a400f02630f3913167))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.31...python-openinference-instrumentation-smolagents-v0.1.32) (2026-05-22)
+
+
+### Bug Fixes
+
+* **smolagents:** Handle Crash On Dropped OTEL Span ([#3113](https://github.com/Arize-ai/openinference/issues/3113)) ([be3e8c8](https://github.com/Arize-ai/openinference/commit/be3e8c8ebc29db0695d2c0c5aba1c27c5f16c2ed))
+
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.30...python-openinference-instrumentation-smolagents-v0.1.31) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.29...python-openinference-instrumentation-smolagents-v0.1.30) (2026-05-14)
+
+
+### Features
+
+* Use host-to-provider & model-to-system Resolution Helpers from Common Package ([#2959](https://github.com/Arize-ai/openinference/issues/2959)) ([8475221](https://github.com/Arize-ai/openinference/commit/8475221faf93f21a02f70523963259555a9f8be9))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.28...python-openinference-instrumentation-smolagents-v0.1.29) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.27...python-openinference-instrumentation-smolagents-v0.1.28) (2026-05-10)
+
+
+### Features
+
+* **smolagents:** Smolagents multimodel messages ([#3001](https://github.com/Arize-ai/openinference/issues/3001)) ([96c183a](https://github.com/Arize-ai/openinference/commit/96c183a7f2ede96bd8fb072e57aefa12d2234c6f))
+
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.26...python-openinference-instrumentation-smolagents-v0.1.27) (2026-04-29)
+
+
+### Bug Fixes
+
+* **smolagents:** handle ChatMessage objects in LLM input message parsing ([#3000](https://github.com/Arize-ai/openinference/issues/3000)) ([307c46a](https://github.com/Arize-ai/openinference/commit/307c46a9e08dfb5503be1e23fb80d086a0b1aa08))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.25...python-openinference-instrumentation-smolagents-v0.1.26) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.24...python-openinference-instrumentation-smolagents-v0.1.25) (2026-03-24)
+
+
+### Bug Fixes
+
+* exclude compromised litellm 1.82.7 ([#2915](https://github.com/Arize-ai/openinference/issues/2915)) ([a68bf8e](https://github.com/Arize-ai/openinference/commit/a68bf8ef582d5e8707cd06ea8bb7b1dcd75c0264))
+* Pin litellm&lt;=1.82.7 due to supply chain compromise ([#2914](https://github.com/Arize-ai/openinference/issues/2914)) ([559fb03](https://github.com/Arize-ai/openinference/commit/559fb0314b34c29624d3585bd7dba47f782dcd48))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.23...python-openinference-instrumentation-smolagents-v0.1.24) (2026-03-11)
+
+
+### Bug Fixes
+
+* smolagents threadpool wrapping ([#2814](https://github.com/Arize-ai/openinference/issues/2814)) ([4ccb779](https://github.com/Arize-ai/openinference/commit/4ccb779435eeeae04ba230b1fe7689353429e73a))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.22...python-openinference-instrumentation-smolagents-v0.1.23) (2026-02-24)
 
 

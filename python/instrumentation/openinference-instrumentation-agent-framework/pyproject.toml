@@ -28,26 +28,21 @@ dependencies = [
     "opentelemetry-api>=1.39.0",
     "opentelemetry-sdk>=1.39.0",
     "opentelemetry-semantic-conventions>=0.52b0",
-    "openinference-semantic-conventions>=0.1.25",
+    "openinference-semantic-conventions>=0.1.31",
     "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-    "agent-framework >= 1.0.0rc1",
-]
-test = [
-    "pytest",
-    "pytest-asyncio",
-    "pytest-recording",
+    "agent-framework-core >= 1.0.0",
+    "agent-framework-openai >= 1.0.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agent-framework"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/agent_framework/__init__.py"
-pattern = '__version__ = "(?P<version>[^"]+)"'
+path = "src/openinference/instrumentation/agent_framework/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [

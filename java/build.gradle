@@ -47,7 +47,7 @@ subprojects {
         openTelemetryInstrumentationAlphaVersion = '2.14.0-alpha'
         
         // LangChain4j version
-        langchain4jVersion = '1.0.0'
+        langchain4jVersion = '1.11.0'
         
         // Testing dependencies
         junitVersion = '5.10.2'
@@ -59,6 +59,7 @@ subprojects {
         slf4jVersion = '2.0.12'
         autoServiceVersion = '1.1.1'
         lombokVersion = '1.18.30'
+        byteBuddyVersion = '1.14.12'
     }
 
     dependencies {

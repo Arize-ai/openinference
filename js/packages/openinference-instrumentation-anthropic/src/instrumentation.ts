@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { APIPromise } from "@anthropic-ai/sdk";
 import type { Stream } from "@anthropic-ai/sdk/streaming";
 import type { Attributes, Span, Tracer, TracerProvider } from "@opentelemetry/api";
 import { context, diag, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
@@ -207,6 +208,29 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             },
           );
 
+          // The span can be ended by the parse path, the asResponse() override, or
+          // an error, so guard against ending it more than once.
+          let spanEnded = false;
+          const endSpan = () => {
+            if (spanEnded) {
+              return;
+            }
+            spanEnded = true;
+            span.end();
+          };
+
+          const recordError = (error: Error) => {
+            if (spanEnded) {
+              return;
+            }
+            span.recordException(error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
+            });
+            endSpan();
+          };
+
           const wrappedPromiseThen = (
             result: Anthropic.Messages.Message | Stream<Anthropic.Messages.RawMessageStreamEvent>,
           ) => {
@@ -218,10 +242,10 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getAnthropicOutputMessagesAttributes(result),
-                ...getAnthropicUsageAttributes(result),
+                ...getAnthropicUsageAttributes(result.usage),
               });
               span.setStatus({ code: SpanStatusCode.OK });
-              span.end();
+              endSpan();
             } else if (isAnthropicStream(result)) {
               // This is a streaming response
               // handle the chunks and add them to the span
@@ -234,13 +258,47 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             return result;
           };
 
+          // Use _thenUnwrap so the result stays an APIPromise and keeps
+          // withResponse()/asResponse(). Plain .then() would drop them and break
+          // client.messages.stream().
+          if (hasThenUnwrap(execPromise)) {
+            const wrappedPromise = execPromise._thenUnwrap(wrappedPromiseThen);
+            const rawResponse = wrappedPromise.asResponse.bind(wrappedPromise);
+
+            // Record request failures without triggering parse (which would consume
+            // the body). Covers the await/withResponse and asResponse paths.
+            rawResponse().catch(recordError);
+
+            // Wrap asResponse() itself so the span is finalized only when the caller
+            // actually chooses the raw-response path. Those callers bypass parsing,
+            // so no parsed output attributes are available.
+            wrappedPromise.asResponse = async () => {
+              const response = await rawResponse();
+              span.setStatus({ code: SpanStatusCode.OK });
+              endSpan();
+              return response;
+            };
+
+            // withResponse() calls this.asResponse() internally; reimplement it
+            // against the raw response so the override above doesn't end the span
+            // before wrappedPromiseThen records the output.
+            wrappedPromise.withResponse = async () => {
+              const [data, response] = await Promise.all([
+                wrappedPromise.then((value) => value),
+                rawResponse(),
+              ]);
+              return {
+                data,
+                response,
+                request_id: response.headers.get("request-id"),
+              };
+            };
+
+            return context.bind(execContext, wrappedPromise);
+          }
+
           const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error: Error) => {
-            span.recordException(error);
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: error.message,
-            });
-            span.end();
+            recordError(error);
             throw error;
           });
           return context.bind(execContext, wrappedPromise);
@@ -277,6 +335,13 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
   }
+}
+
+/**
+ * True when create() returned an APIPromise we can transform with _thenUnwrap.
+ */
+function hasThenUnwrap<T>(promise: PromiseLike<T>): promise is APIPromise<T> {
+  return typeof (promise as Partial<APIPromise<T>>)._thenUnwrap === "function";
 }
 
 /**
@@ -342,6 +407,7 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
   if (typeof message.content === "string") {
     attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
   } else if (Array.isArray(message.content)) {
+    let toolIndex = 0;
     message.content.forEach((part, index) => {
       const contentsIndexPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
       if (part.type === "text") {
@@ -358,13 +424,22 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
           ] = part.source.media_type;
         }
       } else if (part.type === "tool_use") {
-        const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
+        const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
         attributes[`${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`] = part.id;
         attributes[`${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
           part.name;
         attributes[
           `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
         ] = JSON.stringify(part.input);
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "tool_use";
+        attributes[`${contentsIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`] = part.id;
+        attributes[`${contentsIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+          part.name;
+        attributes[
+          `${contentsIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+        ] = JSON.stringify(part.input);
+        toolIndex++;
       } else if (part.type === "tool_result") {
         attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
         if (typeof part.content === "string") {
@@ -373,6 +448,19 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
           // Handle complex tool result content
           attributes[SemanticConventions.MESSAGE_CONTENT] = JSON.stringify(part.content);
         }
+      } else if (part.type === "thinking") {
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "reasoning";
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          part.thinking;
+        if (part.signature) {
+          attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+            part.signature;
+        }
+      } else if (part.type === "redacted_thinking") {
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "reasoning";
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = part.data;
       }
     });
   }
@@ -388,7 +476,7 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
   const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
   attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] = message.role;
-
+  let toolIndex = 0;
   // Handle content array
   message.content.forEach((content, contentIndex) => {
     const contentPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
@@ -397,11 +485,28 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.text;
     } else if (content.type === "tool_use") {
-      const toolCallPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.`;
+      const toolCallPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
       attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = content.id;
       attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
       attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
         JSON.stringify(content.input);
+
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "tool_use";
+      attributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_ID}`] = content.id;
+      attributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
+      attributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+        JSON.stringify(content.input);
+      toolIndex++;
+    } else if (content.type === "thinking") {
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.thinking;
+      if (content.signature) {
+        attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+          content.signature;
+      }
+    } else if (content.type === "redacted_thinking") {
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = content.data;
     }
   });
 
@@ -411,16 +516,21 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
 /**
  * Get usage attributes from Anthropic response
  */
-function getAnthropicUsageAttributes(message: Anthropic.Messages.Message): Attributes {
-  if (message.usage) {
-    return {
-      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: message.usage.output_tokens,
-      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: message.usage.input_tokens,
-      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
-        message.usage.input_tokens + message.usage.output_tokens,
-    };
+function getAnthropicUsageAttributes(
+  usage: Anthropic.Messages.Usage | Anthropic.Messages.MessageDeltaUsage,
+): Attributes {
+  const attributes: Attributes = {};
+  if (usage.input_tokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
   }
-  return {};
+  if (usage.output_tokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
+  }
+  if (usage.input_tokens != null && usage.output_tokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] =
+      usage.input_tokens + usage.output_tokens;
+  }
+  return attributes;
 }
 
 /**
@@ -432,28 +542,84 @@ async function consumeAnthropicStreamChunks(
 ) {
   let streamResponse = "";
   const toolCallAttributes: Attributes = {};
-
+  const contentAttributes: Attributes = {};
+  let usageAttributes: Attributes = {};
+  let toolIndex = -1;
   for await (const chunk of stream) {
-    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-      streamResponse += chunk.delta.text;
-    } else if (chunk.type === "content_block_start" && chunk.content_block.type === "tool_use") {
-      const toolCall = chunk.content_block;
-      const toolCallIndex = chunk.index;
-      const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.`;
+    if (chunk.type === "message_start") {
+      usageAttributes = {
+        ...usageAttributes,
+        ...getAnthropicUsageAttributes(chunk.message.usage),
+      };
+    } else if (chunk.type === "message_delta") {
+      usageAttributes = {
+        ...usageAttributes,
+        ...getAnthropicUsageAttributes(chunk.usage),
+      };
+    } else if (chunk.type === "content_block_start") {
+      const contentBlock = chunk.content_block;
+      const contentIndex = chunk.index;
+      const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
 
-      toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = toolCall.id;
-      toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-        toolCall.name;
-    } else if (chunk.type === "content_block_delta" && chunk.delta.type === "input_json_delta") {
-      const toolCallIndex = chunk.index;
-      const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.`;
-      const existingArgs =
+      if (contentBlock.type === "tool_use") {
+        toolIndex++;
+        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
+        toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] =
+          contentBlock.id;
+        toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+          contentBlock.name;
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "tool_use";
+        contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
+        contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+          contentBlock.name;
+      } else if (contentBlock.type === "text") {
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          contentBlock.text;
+      } else if (contentBlock.type === "thinking") {
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "reasoning";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          contentBlock.thinking;
+      } else if (contentBlock.type === "redacted_thinking") {
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+          "reasoning";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
+          contentBlock.data;
+      }
+    } else if (chunk.type === "content_block_delta") {
+      const contentIndex = chunk.index;
+      const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+
+      if (chunk.delta.type === "text_delta") {
+        streamResponse += chunk.delta.text;
+        const existingText =
+          contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] || "";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          existingText + chunk.delta.text;
+      } else if (chunk.delta.type === "thinking_delta") {
+        const existingText =
+          contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] || "";
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+          existingText + chunk.delta.thinking;
+      } else if (chunk.delta.type === "signature_delta") {
+        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+          chunk.delta.signature;
+      } else if (chunk.delta.type === "input_json_delta") {
+        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
+        const existingArgs =
+          toolCallAttributes[
+            `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+          ] || "";
+        const updatedArgs = existingArgs + chunk.delta.partial_json;
         toolCallAttributes[
           `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] || "";
-      toolCallAttributes[
-        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-      ] = existingArgs + chunk.delta.partial_json;
+        ] = updatedArgs;
+        contentAttributes[
+          `${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+        ] = updatedArgs;
+      }
     }
   }
 
@@ -463,14 +629,28 @@ async function consumeAnthropicStreamChunks(
   const attributes: Attributes = {
     [SemanticConventions.OUTPUT_VALUE]: streamResponse,
     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
-    [`${messageIndexPrefix}${SemanticConventions.MESSAGE_CONTENT}`]: streamResponse,
     [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
   };
+
+  // Add the content block attributes
+  for (const [key, value] of Object.entries(contentAttributes)) {
+    attributes[`${messageIndexPrefix}${key}`] = value;
+  }
 
   // Add the tool call attributes
   for (const [key, value] of Object.entries(toolCallAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
+
+  // Add the token usage attributes, recomputing the total in case prompt and
+  // completion counts were captured from different chunks (message_start vs
+  // message_delta)
+  const promptTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT];
+  const completionTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION];
+  if (typeof promptTokens === "number" && typeof completionTokens === "number") {
+    usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = promptTokens + completionTokens;
+  }
+  Object.assign(attributes, usageAttributes);
 
   span.setAttributes(attributes);
   span.setStatus({ code: SpanStatusCode.OK });

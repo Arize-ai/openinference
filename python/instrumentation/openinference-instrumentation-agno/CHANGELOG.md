@@ -1,5 +1,109 @@
 # Changelog
 
+## [1.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.1...python-openinference-instrumentation-agno-v1.0.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* **agno:** guard model_dump_json on non-pydantic run response content ([#3270](https://github.com/Arize-ai/openinference/issues/3270)) ([bbdcfd2](https://github.com/Arize-ai/openinference/commit/bbdcfd25681aa02e828e3722b760217a3af1e764))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [1.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.0...python-openinference-instrumentation-agno-v1.0.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* **agno:** disable agno telemetry in tests to stop background-run CI timeouts ([#3467](https://github.com/Arize-ai/openinference/issues/3467)) ([0e63729](https://github.com/Arize-ai/openinference/commit/0e63729a5288cf1b54ba977ffb19420248b3fc7e))
+
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.38...python-openinference-instrumentation-agno-v1.0.0) (2026-07-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agno:** Handle Background Workflow Runs ([#3301](https://github.com/Arize-ai/openinference/issues/3301))
+
+### Bug Fixes
+
+* **agno:** Handle Background Workflow Runs ([#3301](https://github.com/Arize-ai/openinference/issues/3301)) ([4254eea](https://github.com/Arize-ai/openinference/commit/4254eeaa702cda4518e09b3e44a288091176cd6c))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.37...python-openinference-instrumentation-agno-v0.1.38) (2026-06-19)
+
+
+### Bug Fixes
+
+* **agno:** Serialize Pydantic Content With Correct Mime Type ([#3238](https://github.com/Arize-ai/openinference/issues/3238)) ([73cb6a7](https://github.com/Arize-ai/openinference/commit/73cb6a7d1cdd93890c11b4ecca279e3b11afec48))
+* **agno:** use valid vcr record_mode "none" for cassette replay ([#3258](https://github.com/Arize-ai/openinference/issues/3258)) ([f668990](https://github.com/Arize-ai/openinference/commit/f6689903599ad17fc985e976fffc12a7775929e6))
+
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.36...python-openinference-instrumentation-agno-v0.1.37) (2026-06-11)
+
+
+### Bug Fixes
+
+* **agno:** Stream Context Leak In Workflow, Step, & Parallel Wrappers ([#3195](https://github.com/Arize-ai/openinference/issues/3195)) ([5cb64e4](https://github.com/Arize-ai/openinference/commit/5cb64e430241d7b1a1989a09cc387b810e006d39))
+
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.35...python-openinference-instrumentation-agno-v0.1.36) (2026-06-09)
+
+
+### Bug Fixes
+
+* **agno:** capture workflow run-id properly ([#3221](https://github.com/Arize-ai/openinference/issues/3221)) ([49f536a](https://github.com/Arize-ai/openinference/commit/49f536adf8fb515d58edcae0b276be5bf222c0bc))
+
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.34...python-openinference-instrumentation-agno-v0.1.35) (2026-05-29)
+
+
+### Bug Fixes
+
+* **agno:** agno streaming tool call fix ([#3155](https://github.com/Arize-ai/openinference/issues/3155)) ([8fd49ac](https://github.com/Arize-ai/openinference/commit/8fd49ac66406e2544cd9b9e13336056c694bc499))
+
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.33...python-openinference-instrumentation-agno-v0.1.34) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.32...python-openinference-instrumentation-agno-v0.1.33) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.31...python-openinference-instrumentation-agno-v0.1.32) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.30...python-openinference-instrumentation-agno-v0.1.31) (2026-04-21)
+
+
+### Bug Fixes
+
+* **agno:** finalize arun_stream output on early stream close ([#2977](https://github.com/Arize-ai/openinference/issues/2977)) ([99f74d7](https://github.com/Arize-ai/openinference/commit/99f74d76789039da0e6b1072d92a8e7f9eaccb51))
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.29...python-openinference-instrumentation-agno-v0.1.30) (2026-04-10)
+
+
+### Bug Fixes
+
+* **agno:** Agno Team Span Tree fix, Context issues in streaming and async streaming ([#2935](https://github.com/Arize-ai/openinference/issues/2935)) ([007774a](https://github.com/Arize-ai/openinference/commit/007774a4ebbf7d6d1dd387f337d2b7788306e1fb))
+
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.28...python-openinference-instrumentation-agno-v0.1.29) (2026-03-11)
+
+
+### Bug Fixes
+
+* **agno:** capture metadata for agent and team ([#2876](https://github.com/Arize-ai/openinference/issues/2876)) ([2514a6d](https://github.com/Arize-ai/openinference/commit/2514a6dddd199e8f559147afa0190887178a7909))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.27...python-openinference-instrumentation-agno-v0.1.28) (2026-02-12)
 
 

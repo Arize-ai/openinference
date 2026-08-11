@@ -1,9 +1,9 @@
 interactions:
 - request:
-    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You are
-      a helpful math tutor. Explain concepts simply and provide examples. Always be
-      encouraging.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"What
-      is a prime number?","additional_properties":{}}]}],"model":"gpt-4o-mini","stream":false}'
+    body: '{"input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"You
+      are a helpful math tutor. Explain concepts simply and provide examples. Always
+      be encouraging."}]},{"type":"message","role":"user","content":[{"type":"input_text","text":"What
+      is a prime number?"}]}],"model":"gpt-4o-mini","stream":false}'
     headers:
       Accept:
       - application/json
@@ -12,13 +12,13 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '336'
+      - '325'
       Content-Type:
       - application/json
       Host:
       - api.openai.com
       User-Agent:
-      - agent-framework-python/1.0.0b260130
+      - agent-framework-python/1.0.0
       X-Stainless-Arch:
       - arm64
       X-Stainless-Async:
@@ -28,83 +28,89 @@ interactions:
       X-Stainless-OS:
       - MacOS
       X-Stainless-Package-Version:
-      - 2.16.0
+      - 2.30.0
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
-      - 3.14.0
+      - 3.10.18
       agent-framework-version:
-      - python/1.0.0b260130
+      - python/1.0.0
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
       - '0'
     method: POST
-    uri: https://api.openai.com/v1/chat/completions
+    uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D5h8SKMCpI3JpqsXzELW2LDYiSxFZ\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770249824,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Great question! A prime number is a
-        natural number greater than 1 that cannot be formed by multiplying two smaller
-        natural numbers. In simpler terms, a prime number has exactly two distinct
-        positive divisors: 1 and itself.\\n\\nHere's what that means: \\n\\n- The
-        number 2 is a prime number because its only divisors are 1 and 2.\\n- The
-        number 3 is also prime because it can only be divided by 1 and 3.\\n- However,
-        the number 4 is not a prime number because it can be divided by 1, 2, and
-        4.\\n\\nSome examples of prime numbers are: 2, 3, 5, 7, 11, 13, and so on.
-        \\n\\nAn important thing to note: the number 1 is not considered a prime number
-        because it only has one positive divisor (itself).\\n\\nKeep up the great
-        work, and let me know if you have more questions!\",\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        35,\n    \"completion_tokens\": 194,\n    \"total_tokens\": 229,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+      string: "{\n  \"id\": \"resp_04e611781195bae60069d6f97bb8488191b635c9540b359a21\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1775696251,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1775696255,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-4o-mini-2024-07-18\",\n  \"output\": [\n    {\n      \"id\": \"msg_04e611781195bae60069d6f97c42088191a9a967def93b85ca\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [],\n          \"logprobs\": [],\n          \"text\": \"A prime number is
+        a whole number greater than 1 that can only be divided by 1 and itself without
+        leaving a remainder. This means it has exactly two distinct positive divisors.\\n\\n###
+        Examples of Prime Numbers:\\n\\n- **2**: Can only be divided by 1 and 2 (it's
+        also the only even prime number!).\\n- **3**: Can only be divided by 1 and
+        3.\\n- **5**: Can only be divided by 1 and 5.\\n- **11**: Can only be divided
+        by 1 and 11.\\n  \\n### Not Prime:\\n\\n- **4**: Can be divided by 1, 2, and
+        4 (it has three divisors).\\n- **6**: Can be divided by 1, 2, 3, and 6 (also
+        has four divisors).\\n\\n### Quick Tip:\\n\\nTo check if a number is prime,
+        see if it can be divided evenly by any whole number besides 1 and itself.
+        \\n\\nDon't worry if it feels tricky at first! With practice, identifying
+        prime numbers will become easier and more intuitive. Keep it up! \\ud83d\\ude0a\"\n
+        \       }\n      ],\n      \"role\": \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\":
+        true,\n  \"presence_penalty\": 0.0,\n  \"previous_response_id\": null,\n  \"prompt_cache_key\":
+        null,\n  \"prompt_cache_retention\": null,\n  \"reasoning\": {\n    \"effort\":
+        null,\n    \"summary\": null\n  },\n  \"safety_identifier\": null,\n  \"service_tier\":
+        \"default\",\n  \"store\": true,\n  \"temperature\": 1.0,\n  \"text\": {\n
+        \   \"format\": {\n      \"type\": \"text\"\n    },\n    \"verbosity\": \"medium\"\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [],\n  \"top_logprobs\":
+        0,\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n  \"usage\": {\n    \"input_tokens\":
+        35,\n    \"input_tokens_details\": {\n      \"cached_tokens\": 0\n    },\n
+        \   \"output_tokens\": 232,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\":
+        0\n    },\n    \"total_tokens\": 267\n  },\n  \"user\": null,\n  \"metadata\":
+        {}\n}"
     headers:
       CF-RAY:
-      - 9c8e257a7cea2c39-SJC
+      - 9e958ee31ef5f7cf-LAX
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Thu, 05 Feb 2026 00:03:48 GMT
+      - Thu, 09 Apr 2026 00:57:35 GMT
       Server:
       - cloudflare
-      Set-Cookie:
-      - __cf_bm=PxVJmRm2Se0Uz40yq1ruK6hXJVHJZvH9Q0K8Z_lLVq0-1770249828-1.0.1.1-RnicI6HXIP9V6ehF6SgjGBBPxHnje2vY4A4fMG59bdegMzMawkl0z0Zd9EEYj7jxaMsKdrBGnddqaoDruI_mADP69ZwGn_bsNS.4yvtXk3Y;
-        path=/; expires=Thu, 05-Feb-26 00:33:48 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=6VnJnss2.mvkKNawxgNM4lKSoN_in80DAVbK467Wdyk-1770249828440-0.0.1.1-604800000;
-        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Transfer-Encoding:
       - chunked
       X-Content-Type-Options:
       - nosniff
-      access-control-expose-headers:
-      - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '1566'
+      - '2383'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '4008'
+      - '3688'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
-      x-openai-proxy-wasm:
-      - v0.1
+      set-cookie:
+      - __cf_bm=1pDQGY.9s6cV4Jpy.JzjHZXgVIN_kV1G.P8DjSosdxA-1775696251.3800206-1.0.1.1-.QMRGkiU8jKga6AGQT1zfiOfLN7ELfWLGVrfl32VwIf3H9992zKGkop9V6ijAd0qDqXRMYHNgOZd62tx51d2Mm_zOnC7lNN9yes_jVzakhQjIpwodzHe7QafTksCEWQp;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 09 Apr 2026
+        01:27:35 GMT
       x-ratelimit-limit-requests:
       - '30000'
       x-ratelimit-limit-tokens:
@@ -112,13 +118,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999965'
+      - '149999945'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_7da8202789da46ccb63b017f7f12db9a
+      - req_e84fe6ba23cc417599d2afbd535465be
     status:
       code: 200
       message: OK

@@ -61,14 +61,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         name: str,
         factory: Callable[..., Any],
         args: Tuple[Any, ...] = (),
-        kwargs: Optional[Mapping[str, Any]] = None,
+        kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
         wrap_object(
-            module=module,
-            name=name,
-            factory=factory,
-            args=args,
-            kwargs=kwargs or {},
+            module,
+            name,
+            factory,
+            args,
+            kwargs or {},
         )
         self._originals.append((module, name))
 
@@ -94,14 +94,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module="dspy",
             name="LM.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_LMCallWrapper(self._tracer),),
+            args=(_LMCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module="dspy",
             name="LM.acall",
             factory=CopyableFunctionWrapper,
-            args=(_LMAcallWrapper(self._tracer),),
+            args=(_LMAcallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         # The DummyLM class is the only typical subclass of DSPy's LM class.
@@ -112,14 +112,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module="dspy.utils",
             name="DummyLM.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_LMCallWrapper(self._tracer),),
+            args=(_LMCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module="dspy.utils",
             name="DummyLM.acall",
             factory=CopyableFunctionWrapper,
-            args=(_LMAcallWrapper(self._tracer),),
+            args=(_LMAcallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         # Predict is a concrete (non-abstract) class that may be invoked
@@ -130,13 +130,13 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSPY_MODULE,
             name="Predict.forward",
             factory=CopyableFunctionWrapper,
-            args=(_PredictForwardWrapper(self._tracer),),
+            args=(_PredictForwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Predict.aforward",
             factory=CopyableFunctionWrapper,
-            args=(_PredictAforwardWrapper(self._tracer),),
+            args=(_PredictAforwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         predict_subclasses = Predict.__subclasses__()
@@ -145,20 +145,20 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".forward",
                 factory=CopyableFunctionWrapper,
-                args=(_PredictForwardWrapper(self._tracer),),
+                args=(_PredictForwardWrapper(self._tracer),),  # type: ignore[arg-type]
             )
             self._wrap_object(
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".aforward",
                 factory=CopyableFunctionWrapper,
-                args=(_PredictAforwardWrapper(self._tracer),),
+                args=(_PredictAforwardWrapper(self._tracer),),  # type: ignore[arg-type]
             )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Retrieve.forward",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverForwardWrapper(self._tracer),),
+            args=(_RetrieverForwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
@@ -168,7 +168,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             # forward method and invokes that method using __call__.
             name="Module.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_ModuleForwardWrapper(self._tracer),),
+            args=(_ModuleForwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
@@ -178,7 +178,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             # forward method and invokes that method using __call__.
             name="Module.acall",
             factory=CopyableFunctionWrapper,
-            args=(_ModuleAforwardWrapper(self._tracer),),
+            args=(_ModuleAforwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         # At this time, there is no common parent class for retriever models as
@@ -188,35 +188,35 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSPY_MODULE,
             name="ColBERTv2.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverModelCallWrapper(self._tracer),),
+            args=(_RetrieverModelCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Adapter.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_AdapterCallWrapper(self._tracer),),
+            args=(_AdapterCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Adapter.acall",
             factory=CopyableFunctionWrapper,
-            args=(_AdapterAcallWrapper(self._tracer),),
+            args=(_AdapterAcallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Tool.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_ToolCallWrapper(self._tracer),),
+            args=(_ToolCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Tool.acall",
             factory=CopyableFunctionWrapper,
-            args=(_AsyncToolCallWrapper(self._tracer),),
+            args=(_AsyncToolCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -241,12 +241,12 @@ class CopyableBoundFunctionWrapper(BoundFunctionWrapper):  # type: ignore
     """
 
     def __copy__(self) -> "CopyableBoundFunctionWrapper":
-        return CopyableBoundFunctionWrapper(
+        return CopyableBoundFunctionWrapper(  # type: ignore[call-arg]
             copy(self.__wrapped__), self._self_instance, self._self_wrapper
         )
 
     def __deepcopy__(self, memo: Dict[Any, Any]) -> "CopyableBoundFunctionWrapper":
-        return CopyableBoundFunctionWrapper(
+        return CopyableBoundFunctionWrapper(  # type: ignore[call-arg]
             deepcopy(self.__wrapped__, memo), self._self_instance, self._self_wrapper
         )
 
@@ -295,7 +295,7 @@ class _LMCallWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        arguments = _normalize_lm_arguments(_bind_arguments(wrapped, *args, **kwargs))
         span_name = instance.__class__.__name__ + ".__call__"
         with self._tracer.start_as_current_span(
             span_name,
@@ -342,7 +342,7 @@ class _LMAcallWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        arguments = _normalize_lm_arguments(_bind_arguments(wrapped, *args, **kwargs))
         span_name = instance.__class__.__name__ + ".acall"
         with self._tracer.start_as_current_span(
             span_name,
@@ -1103,6 +1103,27 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
     bound_args = method_signature.bind(*args, **kwargs)
     bound_args.apply_defaults()
     return bound_args.arguments
+
+
+def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalizes bound `LM.__call__` / `LM.acall` arguments across DSPy versions.
+
+    DSPy 3.3.0 changed the signature from `(prompt=None, messages=None, **kwargs)`
+    to `(*items, prompt=None, messages=None, request=None, **kwargs)`, so a
+    positionally-passed prompt string now arrives in `items` instead of `prompt`.
+    Map that shape back to the legacy `prompt` argument so span attributes are
+    stable across DSPy versions, and drop the new parameters when unused.
+    """
+    arguments = dict(arguments)
+    items: Tuple[Any, ...] = tuple(arguments.pop("items", None) or ())
+    if arguments.get("prompt") is None and len(items) == 1 and isinstance(items[0], str):
+        arguments["prompt"] = items[0]
+    elif items:
+        arguments["items"] = list(items)
+    if arguments.get("request", None) is None:
+        arguments.pop("request", None)
+    return arguments
 
 
 def _module_prediction_output_attributes(prediction: Any, instance: Any) -> Dict[str, Any]:

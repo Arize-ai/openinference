@@ -24,12 +24,12 @@ classifiers = [
 ]
 dependencies = [
     "beeai-framework (>=0.1.51,<0.2.0)",
-    "openinference-instrumentation>=0.1.37",
-    "openinference-semantic-conventions>=0.1.25",
+    "openinference-instrumentation>=0.1.51",
+    "openinference-semantic-conventions>=0.1.31",
     "opentelemetry-api>=1.36.0",
-    "opentelemetry-instrumentation>=0.57b0",
+    "opentelemetry-instrumentation>=0.65b0",
     "opentelemetry-semantic-conventions>=0.57b0",
-    "wrapt>=1.17.2"
+    "wrapt",
 ]
 
 [project.optional-dependencies]
@@ -41,10 +41,16 @@ test = [
   "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
   "pytest-recording",
-  "vcrpy>=5.0.0,<8.0.0",
+  "vcrpy",
+  "brotli",
   "beeai-framework[duckduckgo]",
   "pytest-asyncio",
   "pytest",
+  # Security floors for transitive test dependencies pulled in via beeai-framework.
+  # Not added to runtime `dependencies` to keep the public dependency surface unchanged.
+  "aiohttp>=3.14.1",       # GHSA-jg22-mg44-37j8, GHSA-hg6j-4rv6-33pg, GHSA-m6qw-4cw2-hm4m, GHSA-2fqr-mr3j-6wp8, GHSA-hpj7-wq8m-9hgp, GHSA-63hw-fmq6-xxg2, GHSA-g3cq-j2xw-wf74, GHSA-9x8q-7h8h-wcw9, GHSA-4m7w-qmgq-4wj5, GHSA-xcgm-r5h9-7989
+  "litellm>=1.84.0",       # GHSA-wxxx-gvqv-xp7p, GHSA-4xpc-pv4p-pm3w, GHSA-qrc4-49gv-mv9m, GHSA-wpfp-gwwc-vwq6
+  "python-dotenv>=1.2.2",  # GHSA-mf9w-mj56-hr94
 ]
 
 [project.entry-points.opentelemetry_instrumentor]

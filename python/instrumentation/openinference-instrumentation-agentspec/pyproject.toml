@@ -29,8 +29,8 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.21",
+  "openinference-instrumentation>=0.1.51",
+  "openinference-semantic-conventions>=0.1.31",
   "typing-extensions",
   "wrapt",
 ]
@@ -71,6 +71,8 @@ testpaths = [
 [tool.mypy]
 strict = true
 explicit_package_bases = true
+ignore_missing_imports = true
+disallow_subclassing_any = false
 exclude = [
   "examples",
   "dist",

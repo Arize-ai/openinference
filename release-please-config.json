@@ -74,6 +74,18 @@
             "package-name": "python-openinference-instrumentation-groq",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-cohere": {
+            "package-name": "python-openinference-instrumentation-cohere",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-together": {
+            "package-name": "python-openinference-instrumentation-together",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-ollama": {
+            "package-name": "python-openinference-instrumentation-ollama",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-instructor": {
             "package-name": "python-openinference-instrumentation-instructor",
             "release-type": "python"
@@ -82,8 +94,16 @@
             "package-name": "python-openinference-instrumentation-anthropic",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-claude-agent-sdk": {
+            "package-name": "python-openinference-instrumentation-claude-agent-sdk",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-smolagents": {
             "package-name": "python-openinference-instrumentation-smolagents",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-ag2": {
+            "package-name": "python-openinference-instrumentation-ag2",
             "release-type": "python"
         },
         "python/instrumentation/openinference-instrumentation-autogen": {
@@ -181,6 +201,51 @@
                     "path": "java/instrumentation/openinference-instrumentation-springAI/gradle.properties"
                 }
             ]
+        },
+        "java/instrumentation/openinference-instrumentation-annotation": {
+            "package-name": "java-openinference-instrumentation-annotation",
+            "release-type": "simple",
+            "version-file": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties"
+                }
+            ]
+        },
+        "go/openinference-semantic-conventions": {
+            "package-name": "openinference-semantic-conventions-go",
+            "component": "go/openinference-semantic-conventions",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true,
+            "exclude-paths": [
+                "go/openinference-semantic-conventions/README.md"
+            ]
+        },
+        "go/openinference-instrumentation": {
+            "package-name": "openinference-instrumentation-go",
+            "component": "go/openinference-instrumentation",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true,
+            "exclude-paths": [
+                "go/openinference-instrumentation/README.md"
+            ]
+        },
+        "go/openinference-instrumentation-anthropic-sdk-go": {
+            "package-name": "openinference-instrumentation-anthropic-sdk-go",
+            "component": "go/openinference-instrumentation-anthropic-sdk-go",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true
+        },
+        "go/openinference-instrumentation-openai-go": {
+            "package-name": "openinference-instrumentation-openai-go",
+            "component": "go/openinference-instrumentation-openai-go",
+            "release-type": "go",
+            "tag-separator": "/",
+            "include-component-in-tag": true
         }
     }
 }

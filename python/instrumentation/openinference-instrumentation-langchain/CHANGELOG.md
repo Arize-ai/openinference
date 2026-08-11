@@ -1,5 +1,79 @@
 # Changelog
 
+## [0.1.70](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.69...python-openinference-instrumentation-langchain-v0.1.70) (2026-08-07)
+
+
+### Features
+
+* **langchain:** Add Finish Reason Attribute ([#3454](https://github.com/Arize-ai/openinference/issues/3454)) ([51c459d](https://github.com/Arize-ai/openinference/commit/51c459d33c03276ea12075f9e499ef97d3d7e3b5))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.69](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.68...python-openinference-instrumentation-langchain-v0.1.69) (2026-08-04)
+
+
+### Bug Fixes
+
+* **langchain:** map unknown run types (parser) to CHAIN instead of UNKNOWN ([#3486](https://github.com/Arize-ai/openinference/issues/3486)) ([84df77e](https://github.com/Arize-ai/openinference/commit/84df77ea62c1c242493a69c43060736c4be890b5))
+
+## [0.1.68](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.67...python-openinference-instrumentation-langchain-v0.1.68) (2026-07-30)
+
+
+### Bug Fixes
+
+* **langchain:** accept LangGraph interrupt and resume callbacks ([#3308](https://github.com/Arize-ai/openinference/issues/3308)) ([c5bbce6](https://github.com/Arize-ai/openinference/commit/c5bbce69211f9a6b4c18adc46d6295640fbdcc41))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [0.1.67](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.66...python-openinference-instrumentation-langchain-v0.1.67) (2026-07-01)
+
+
+### Features
+
+* **langchain:** Ignore GraphInterrupt Exceptions ([#3316](https://github.com/Arize-ai/openinference/issues/3316)) ([4f10a2a](https://github.com/Arize-ai/openinference/commit/4f10a2ac72662ab5bc6d9f1293ead0c7cff784ae))
+
+## [0.1.66](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.65...python-openinference-instrumentation-langchain-v0.1.66) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.65](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.64...python-openinference-instrumentation-langchain-v0.1.65) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.64](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.63...python-openinference-instrumentation-langchain-v0.1.64) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.63](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.62...python-openinference-instrumentation-langchain-v0.1.63) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [0.1.62](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.61...python-openinference-instrumentation-langchain-v0.1.62) (2026-04-03)
+
+
+### Bug Fixes
+
+* **langchain:** serialize BaseMessage in traced IO ([#2941](https://github.com/Arize-ai/openinference/issues/2941)) ([5fbd529](https://github.com/Arize-ai/openinference/commit/5fbd529df87ff3d201820c53cbd25343483432fa))
+
 ## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.60...python-openinference-instrumentation-langchain-v0.1.61) (2026-02-26)
 
 

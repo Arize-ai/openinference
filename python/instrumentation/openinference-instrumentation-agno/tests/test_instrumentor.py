@@ -1,9 +1,12 @@
-from typing import Any, Generator
+from types import SimpleNamespace
+from typing import Any, Generator, Optional, cast
 
 import pytest
 import vcr  # type: ignore
 from agno.agent import Agent
+from agno.models.base import Model
 from agno.models.openai.chat import OpenAIChat
+from agno.run.agent import RunOutput
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
@@ -20,7 +23,7 @@ from openinference.semconv.trace import SpanAttributes
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/agno/fixtures/",
-    record_mode="never",
+    record_mode="none",
     match_on=["uri", "method"],
 )
 
@@ -49,7 +52,7 @@ def setup_agno_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor",
             name="agno",
         )
@@ -120,8 +123,184 @@ def test_agno_instrumentation(
             assert attributes.get("openinference.span.kind") == "LLM"
             assert attributes.get("llm.model_name") == "gpt-4o-mini"
             assert attributes.get("llm.provider") == "OpenAI"
+            assert attributes.get("llm.system") == "openai"
             assert span.status.is_ok
     assert checked_spans >= 3  # We expect at least agent, tool, and LLM spans
+
+
+def test_agent_metadata_captured() -> None:
+    """Test that Agent.metadata dict is captured as a span attribute."""
+    import json
+
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    agent = Agent(
+        name="Test Agent",
+        metadata={
+            "department": "finance",
+            "cost_center": "dept_123",
+            "environment": "production",
+        },
+    )
+    attributes = dict(_agent_run_attributes(agent))
+
+    raw_metadata = attributes.get("metadata")
+    assert raw_metadata is not None, "metadata attribute should be present"
+    assert isinstance(raw_metadata, str), "metadata should be a JSON string"
+
+    metadata = json.loads(raw_metadata)
+    assert metadata["department"] == "finance"
+    assert metadata["cost_center"] == "dept_123"
+    assert metadata["environment"] == "production"
+
+
+def test_agent_no_metadata() -> None:
+    """Test that no metadata attribute is set when agent has no metadata."""
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    agent = Agent(name="Test Agent")
+    attributes = dict(_agent_run_attributes(agent))
+    assert "metadata" not in attributes
+
+
+def test_team_metadata_captured() -> None:
+    """Test that Team.metadata dict is captured as a span attribute."""
+    import json
+
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    team = Team(
+        name="Test Team",
+        members=[Agent(name="Member Agent")],
+        metadata={
+            "project": "alpha",
+            "priority": "high",
+        },
+    )
+    attributes = dict(_agent_run_attributes(team))
+
+    raw_metadata = attributes.get("metadata")
+    assert raw_metadata is not None, "metadata attribute should be present"
+    assert isinstance(raw_metadata, str), "metadata should be a JSON string"
+
+    metadata = json.loads(raw_metadata)
+    assert metadata["project"] == "alpha"
+    assert metadata["priority"] == "high"
+
+
+@pytest.mark.parametrize(
+    "model_name, expected_system",
+    [
+        ("gpt-4o-mini", "openai"),
+        ("claude-sonnet-4-6", "anthropic"),
+        ("command-r", "cohere"),
+        ("mistral-large-latest", "mistralai"),
+        # Non-inferable model names stay represented by llm.provider only.
+        ("llama-3.1-70b-versatile", None),
+        ("custom-model", None),
+        # Empty / missing model ids yield no llm.system
+        (None, None),
+        ("", None),
+        ("   ", None),
+    ],
+)
+def test_get_llm_system(model_name: Any, expected_system: Any) -> None:
+    """llm.system is derived from the model id, not only the provider."""
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    model = cast(Model, SimpleNamespace(id=model_name))
+    assert _get_llm_system(model) == expected_system
+
+
+@pytest.mark.parametrize(
+    "vertexai, vertexai_env, client_params, expected_system",
+    [
+        (False, None, None, "google"),
+        (True, None, None, "vertexai"),
+        (False, "TRUE", None, "vertexai"),
+        (False, "1", None, "vertexai"),
+        (False, None, {"vertexai": True}, "vertexai"),
+        (True, None, {"vertexai": False}, "google"),
+        (True, None, {"vertexai": None}, "google"),
+        (True, "1", {"vertexai": None}, "vertexai"),
+    ],
+)
+def test_get_llm_system_for_gemini_api_mode(
+    vertexai: bool,
+    vertexai_env: Optional[str],
+    client_params: Optional[dict[str, Any]],
+    expected_system: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    if vertexai_env is None:
+        monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    else:
+        monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", vertexai_env)
+
+    model = cast(
+        Model,
+        SimpleNamespace(
+            id="gemini-2.0-flash",
+            name="Gemini",
+            provider="Google",
+            vertexai=vertexai,
+            client=None,
+            client_params=client_params,
+        ),
+    )
+    assert _get_llm_system(model) == expected_system
+
+
+@pytest.mark.parametrize(
+    "client_vertexai, expected_system",
+    [
+        (False, "google"),
+        (True, "vertexai"),
+        (None, None),
+    ],
+)
+def test_get_llm_system_for_prebuilt_gemini_client(
+    client_vertexai: Optional[bool],
+    expected_system: Optional[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    model = cast(
+        Model,
+        SimpleNamespace(
+            id="gemini-2.0-flash",
+            name="Gemini",
+            provider="Google",
+            vertexai=True,
+            client=SimpleNamespace(vertexai=client_vertexai),
+            client_params={"vertexai": True},
+        ),
+    )
+    assert _get_llm_system(model) == expected_system
+
+
+def test_get_llm_system_for_google_gemini_without_vertexai_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Google's Gemini Interactions API is Developer API-only."""
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    model = cast(
+        Model,
+        SimpleNamespace(
+            id="gemini-3-flash-preview",
+            name="GeminiInteractions",
+            provider="Google",
+            client=None,
+            client_params=None,
+        ),
+    )
+    assert _get_llm_system(model) == "google"
 
 
 def test_agno_team_coordinate_instrumentation(
@@ -243,3 +422,35 @@ def test_agno_team_coordinate_instrumentation(
     assert web_agent_span is not None or finance_agent_span is not None, (
         "At least one agent span should be found"
     )
+
+
+def test_extract_run_response_output_str_content() -> None:
+    """String content is returned verbatim."""
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
+
+    run_response = RunOutput(content="hello world")
+    assert _extract_run_response_output(run_response) == "hello world"
+
+
+def test_extract_run_response_output_pydantic_content() -> None:
+    """Content exposing model_dump_json is serialized via that method."""
+    from types import SimpleNamespace
+
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
+
+    content = SimpleNamespace(model_dump_json=lambda: '{"answer": 42}')
+    run_response = RunOutput(content=content)
+    assert _extract_run_response_output(run_response) == '{"answer": 42}'
+
+
+def test_extract_run_response_output_dict_content() -> None:
+    """Dict content is serialized as valid JSON.
+
+    Standalone ``agent.run`` calls that use ``output_schema``/JSON mode can return
+    a plain ``dict`` as ``content``. Previously this raised
+    ``'dict' object has no attribute 'model_dump_json'``.
+    """
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
+
+    run_response = RunOutput(content={"answer": True})
+    assert _extract_run_response_output(run_response) == '{"answer": true}'

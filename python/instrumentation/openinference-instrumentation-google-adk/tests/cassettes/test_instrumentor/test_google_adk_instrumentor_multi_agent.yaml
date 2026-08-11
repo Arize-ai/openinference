@@ -33,12 +33,12 @@ interactions:
         \             \"args\": {\n                \"agent_name\": \"weather_agent\"\n
         \             }\n            }\n          }\n        ],\n        \"role\":
         \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
-        -0.001281889324838465\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        -0.00047007262368093836\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
         323,\n    \"candidatesTokenCount\": 11,\n    \"totalTokenCount\": 334,\n    \"promptTokensDetails\":
         [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 323\n
         \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
         \"TEXT\",\n        \"tokenCount\": 11\n      }\n    ]\n  },\n  \"modelVersion\":
-        \"gemini-2.0-flash\",\n  \"responseId\": \"jXChacHxL4_Eg8UPwqCXqAw\"\n}\n"
+        \"gemini-2.0-flash\",\n  \"responseId\": \"zXShacjcM8OJmNMPuv3C-A0\"\n}\n"
     headers: {}
     status:
       code: 200
@@ -85,13 +85,13 @@ interactions:
         [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
         \             \"args\": {\n                \"city\": \"New York\"\n              }\n
         \           }\n          }\n        ],\n        \"role\": \"model\"\n      },\n
-        \     \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -0.019353939841190975\n
+        \     \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -0.010176149507363638\n
         \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 453,\n    \"candidatesTokenCount\":
         6,\n    \"totalTokenCount\": 459,\n    \"promptTokensDetails\": [\n      {\n
         \       \"modality\": \"TEXT\",\n        \"tokenCount\": 453\n      }\n    ],\n
         \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
         \       \"tokenCount\": 6\n      }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n
-        \ \"responseId\": \"jnChaZKHPOWlg8UPvd6O8Qc\"\n}\n"
+        \ \"responseId\": \"z3ShaY5T5aWDxQ-93o7xBw\"\n}\n"
     headers: {}
     status:
       code: 200
@@ -139,16 +139,16 @@ interactions:
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
-        [\n          {\n            \"text\": \"The weather in New York is sunny with
-        a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\\n\"\n          }\n
+        [\n          {\n            \"text\": \"OK. The weather in New York is sunny
+        with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\\n\"\n          }\n
         \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
-        \"STOP\",\n      \"avgLogprobs\": -0.0855691847593888\n    }\n  ],\n  \"usageMetadata\":
-        {\n    \"promptTokenCount\": 487,\n    \"candidatesTokenCount\": 23,\n    \"totalTokenCount\":
-        510,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \"STOP\",\n      \"avgLogprobs\": -0.026397113800048829\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 487,\n    \"candidatesTokenCount\": 25,\n    \"totalTokenCount\":
+        512,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
         \       \"tokenCount\": 487\n      }\n    ],\n    \"candidatesTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 23\n
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 25\n
         \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
-        \"kHChadGKCcOJmNMPuv3C-A0\"\n}\n"
+        \"z3ShaanhOaqImNMPtaygiQI\"\n}\n"
     headers: {}
     status:
       code: 200

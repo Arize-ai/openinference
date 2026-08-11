@@ -1,5 +1,102 @@
 # @arizeai/openinference-instrumentation-anthropic
 
+## 0.1.20
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 0.1.19
+
+### Patch Changes
+
+- b067bbb: Preserve `APIPromise` helpers (`withResponse()` / `asResponse()`) on the patched `messages.create`, fixing `client.messages.stream()` throwing `create(...).withResponse is not a function` when instrumented.
+
+## 0.1.18
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
+## 0.1.16
+
+### Patch Changes
+
+- 15cddf4: Anthropic instrumentation now captures Claude extended thinking content in OpenInference message contents. Anthropic thinking blocks are recorded as reasoning content with their text and signature, while redacted_thinking blocks are recorded as reasoning content with their redacted data payload. This works for both streaming and non-streaming Messages responses, preserves content block ordering.
+
+## 0.1.15
+
+### Patch Changes
+
+- Updated dependencies [d0f5a88]
+  - @arizeai/openinference-core@2.4.0
+
+## 0.1.14
+
+### Patch Changes
+
+- Updated dependencies [1fe7927]
+  - @arizeai/openinference-core@2.3.0
+
+## 0.1.13
+
+### Patch Changes
+
+- Updated dependencies [0f0242c]
+- Updated dependencies [26733d8]
+  - @arizeai/openinference-semantic-conventions@2.5.0
+  - @arizeai/openinference-core@2.2.0
+
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies [81b8bdb]
+  - @arizeai/openinference-semantic-conventions@2.4.0
+  - @arizeai/openinference-core@2.1.1
+
+## 0.1.11
+
+### Patch Changes
+
+- Updated dependencies [cfb128c]
+  - @arizeai/openinference-core@2.1.0
+
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [e09ce3f]
+  - @arizeai/openinference-semantic-conventions@2.3.0
+  - @arizeai/openinference-core@2.0.8
+
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [4eebba3]
+  - @arizeai/openinference-core@2.0.7
+
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [7eb1c88]
+- Updated dependencies [3944459]
+  - @arizeai/openinference-semantic-conventions@2.2.0
+  - @arizeai/openinference-core@2.0.6
+
 ## 0.1.7
 
 ### Patch Changes

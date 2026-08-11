@@ -27,18 +27,17 @@ Usage:
     # Use framework normally - spans will be transformed automatically
     from agent_framework.openai import OpenAIChatClient
 
-    client = OpenAIChatClient(model_id="gpt-4o-mini")
-    agent = client.create_agent(name="Assistant")
+    client = OpenAIChatClient(model="gpt-4o-mini")
+    agent = client.as_agent(name="Assistant")
     response = await agent.run("Hello!")
     ```
 """
-
-__version__ = "0.1.0"
 
 from openinference.instrumentation.agent_framework.processor import (
     AgentFrameworkToOpenInferenceProcessor,
 )
 from openinference.instrumentation.agent_framework.utils import is_openinference_span
+from openinference.instrumentation.agent_framework.version import __version__
 
 __all__ = [
     "AgentFrameworkToOpenInferenceProcessor",

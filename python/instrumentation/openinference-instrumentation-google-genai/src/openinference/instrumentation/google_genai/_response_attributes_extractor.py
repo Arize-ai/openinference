@@ -1,5 +1,6 @@
+import base64
 import logging
-from typing import Any, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from google.genai import types
 from opentelemetry.util.types import AttributeValue
@@ -7,10 +8,18 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
+    _get_attributes_from_content_text,
+    _get_attributes_from_file_data,
+    _get_attributes_from_inline_data,
     _get_token_count_attributes_from_usage_metadata,
     _io_value_and_type,
 )
-from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 __all__ = ("_ResponseAttributesExtractor",)
 
@@ -19,16 +28,14 @@ logger.addHandler(logging.NullHandler())
 
 
 class _ResponseAttributesExtractor:
-    def get_attributes(self, response: Any) -> Iterator[Tuple[str, AttributeValue]]:
-        yield from _as_output_attributes(
-            _io_value_and_type(response),
-        )
-
-    def get_extra_attributes(
+    def get_attributes(
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
+        yield from _as_output_attributes(
+            _io_value_and_type(response),
+        )
         yield from self._get_attributes_from_generate_content(
             response=response,
             request_parameters=request_parameters,
@@ -38,7 +45,7 @@ class _ResponseAttributesExtractor:
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/e9e84aa38726e7b65796812684d9609461416b11/google/genai/types.py#L2981  # noqa: E501
         if model_version := getattr(response, "model_version", None):
             yield SpanAttributes.LLM_MODEL_NAME, model_version
@@ -61,6 +68,11 @@ class _ResponseAttributesExtractor:
                     for key, value in self._get_attributes_from_generate_content_content(content):
                         yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
 
+                # Only capture finish_reason for the first candidate.
+                if index == 0:
+                    if (finish_reason := getattr(candidate, "finish_reason", None)) is not None:
+                        yield SpanAttributes.LLM_FINISH_REASON, finish_reason.value
+
         # Handle automatic function calling history
         # For automatic function calling, the function call details are stored separately
         if automatic_history := getattr(response, "automatic_function_calling_history", None):
@@ -71,7 +83,7 @@ class _ResponseAttributesExtractor:
     def _get_attributes_from_generate_content_content(
         self,
         content: object,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         if content_parts := getattr(content, "parts", None):
             yield from self._get_attributes_from_content_parts(content_parts)
         if role := getattr(content, "role", None):
@@ -80,64 +92,107 @@ class _ResponseAttributesExtractor:
     def _get_attributes_from_content_parts(
         self,
         content_parts: Iterable[object],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/e9e84aa38726e7b65796812684d9609461416b11/google/genai/types.py#L565  # noqa: E501
-        text_content = []
         tool_call_index = 0
-
-        for part in content_parts:
-            if text := getattr(part, "text", None):
-                text_content.append(text)
+        content_index = 0
+        parts = list(content_parts)
+        is_single_part = len(parts) == 1
+        for part in parts:
+            increment_content_index = False
+            thought: Optional[bool] = getattr(part, "thought", None)
+            thought_signature: Optional[bytes] = getattr(part, "thought_signature", None)
+            if thought:
+                text = getattr(part, "text", None)
+                if text or thought_signature is not None:
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
+                    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+                    if text:
+                        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+                    if thought_signature is not None:
+                        yield (
+                            f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                            base64.b64encode(thought_signature).decode(),
+                        )
+                    increment_content_index = True
+            elif (text := getattr(part, "text", None)) is not None:
+                if thought_signature is not None:
+                    # Force indexed format so we can attach the signature.
+                    # Guard against empty text (Gemini emits Part(text="", thought_signature=...)
+                    # as the final chunk carrying only the signature).
+                    prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
+                    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+                    if text:
+                        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
+                    yield (
+                        f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+                        base64.b64encode(thought_signature).decode(),
+                    )
+                    increment_content_index = True
+                elif text:
+                    yield from _get_attributes_from_content_text(
+                        text, content_index, is_single_part
+                    )
+                    increment_content_index = True
             elif function_call := getattr(part, "function_call", None):
-                # Handle tool/function calls
-                yield from self._get_attributes_from_function_call(function_call, tool_call_index)
+                yield from self._get_attributes_from_function_call(
+                    function_call, tool_call_index, thought_signature
+                )
                 tool_call_index += 1
-
-        # Always yield message content for consistency, even if empty
-        # This ensures Phoenix can properly display the message structure
-        content = "\n".join(text_content) if text_content else ""
-        yield MessageAttributes.MESSAGE_CONTENT, content
+            if inline_data := getattr(part, "inline_data", None):
+                yield from _get_attributes_from_inline_data(inline_data, content_index)
+                increment_content_index = True
+            if file_data := getattr(part, "file_data", None):
+                yield from _get_attributes_from_file_data(file_data, content_index)
+                increment_content_index = True
+            if increment_content_index:
+                content_index += 1
 
     def _get_attributes_from_function_call(
         self,
         function_call: object,
         tool_call_index: int,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+        thought_signature: Optional[bytes] = None,
+    ) -> Iterator[tuple[str, AttributeValue]]:
         """Extract attributes from a function call in the response."""
         try:
+            tc_prefix = f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}"
             if function_name := getattr(function_call, "name", None):
                 yield (
-                    f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                    f"{tc_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                     function_name,
                 )
-
             if function_args := getattr(function_call, "args", None):
-                # Serialize the function arguments
                 try:
                     args_json = safe_json_dumps(function_args)
                     yield (
-                        f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        f"{tc_prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                         args_json,
                     )
                 except Exception:
-                    logger.exception(
+                    logger.warning(
                         f"Failed to serialize function call args for tool call {tool_call_index}"
                     )
+            if thought_signature is not None:
+                yield (
+                    f"{tc_prefix}.{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+                    base64.b64encode(thought_signature).decode(),
+                )
         except Exception:
-            logger.exception(
+            logger.warning(
                 f"Failed to extract function call attributes for tool call {tool_call_index}"
             )
 
     def _get_attributes_from_generate_content_usage(
         self,
         obj: types.GenerateContentResponseUsageMetadata,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         yield from _get_token_count_attributes_from_usage_metadata(obj)
 
     def _get_attributes_from_automatic_function_calling_history(
         self,
         history: Iterable[object],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         """Extract function call information from automatic_function_calling_history.
 
         This history contains the sequence of model->function call->function response
@@ -155,8 +210,10 @@ class _ResponseAttributesExtractor:
                 parts = getattr(content_entry, "parts", [])
                 for part in parts:
                     if function_call := getattr(part, "function_call", None):
-                        # Extract function call details for the span
+                        thought_signature: Optional[bytes] = getattr(
+                            part, "thought_signature", None
+                        )
                         yield from self._get_attributes_from_function_call(
-                            function_call, tool_call_index
+                            function_call, tool_call_index, thought_signature
                         )
                         tool_call_index += 1

@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Iterator
 
 import litellm
@@ -17,11 +18,7 @@ def instrument(
     yield
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_batch_embedding(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -29,7 +26,7 @@ def test_batch_embedding(
 
     response = litellm.embedding(
         model="openai/text-embedding-ada-002",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input=input_texts,
     )
 
@@ -80,15 +77,13 @@ def test_batch_embedding(
         == '{"model": "openai/text-embedding-ada-002"}'
     )
 
+    assert attributes.pop("llm.cost.total") > 0
+
     # All attributes should be accounted for
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_single_string_embedding(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -96,7 +91,7 @@ def test_single_string_embedding(
 
     response = litellm.embedding(
         model="openai/text-embedding-ada-002",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input=input_text,
     )
 
@@ -145,15 +140,13 @@ def test_single_string_embedding(
         == '{"model": "openai/text-embedding-ada-002"}'
     )
 
+    assert attributes.pop("llm.cost.total") > 0
+
     # All attributes should be accounted for
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_batch_embedding_with_different_model(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -162,7 +155,7 @@ def test_batch_embedding_with_different_model(
 
     response = litellm.embedding(
         model="openai/text-embedding-3-small",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input=input_texts,
     )
 
@@ -212,6 +205,8 @@ def test_batch_embedding_with_different_model(
         attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
         == '{"model": "openai/text-embedding-3-small"}'
     )
+
+    assert attributes.pop("llm.cost.total") > 0
 
     # All attributes should be accounted for
     assert attributes == {}

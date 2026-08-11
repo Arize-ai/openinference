@@ -1,0 +1,4 @@
+claude-agent-sdk>=0.1.45
+openinference-instrumentation-claude-agent-sdk
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-class AgentSpecInstrumentor(BaseInstrumentor):  # type: ignore
+class AgentSpecInstrumentor(BaseInstrumentor):
     """
     An instrumentor for Agent Spec Tracing
     """

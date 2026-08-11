@@ -1,11 +1,11 @@
 interactions:
 - request:
-    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You are
-      a weather expert. Use available tools to provide detailed weather information.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"What''s
-      the weather like in San Francisco? Give me temperature and humidity.","additional_properties":{}}]}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"get_temperature","description":"Get
-      the temperature for a location.","parameters":{"properties":{"location":{"title":"Location","type":"string"}},"required":["location"],"title":"get_temperature_input","type":"object"}}},{"type":"function","function":{"name":"get_humidity","description":"Get
-      the humidity for a location.","parameters":{"properties":{"location":{"title":"Location","type":"string"}},"required":["location"],"title":"get_humidity_input","type":"object"}}},{"type":"function","function":{"name":"calculate_heat_index","description":"Calculate
-      heat index from temperature and humidity.","parameters":{"properties":{"temperature":{"title":"Temperature","type":"string"},"humidity":{"title":"Humidity","type":"string"}},"required":["temperature","humidity"],"title":"calculate_heat_index_input","type":"object"}}}]}'
+    body: '{"input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"You
+      are a weather expert. Use available tools to provide detailed weather information."}]},{"type":"message","role":"user","content":[{"type":"input_text","text":"What''s
+      the weather like in San Francisco? Give me temperature and humidity."}]}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"name":"get_temperature","parameters":{"properties":{"location":{"title":"Location","type":"string"}},"required":["location"],"title":"get_temperature_input","type":"object","additionalProperties":false},"strict":false,"type":"function","description":"Get
+      the temperature for a location."},{"name":"get_humidity","parameters":{"properties":{"location":{"title":"Location","type":"string"}},"required":["location"],"title":"get_humidity_input","type":"object","additionalProperties":false},"strict":false,"type":"function","description":"Get
+      the humidity for a location."},{"name":"calculate_heat_index","parameters":{"properties":{"temperature":{"title":"Temperature","type":"string"},"humidity":{"title":"Humidity","type":"string"}},"required":["temperature","humidity"],"title":"calculate_heat_index_input","type":"object","additionalProperties":false},"strict":false,"type":"function","description":"Calculate
+      heat index from temperature and humidity."}]}'
     headers:
       Accept:
       - application/json
@@ -14,13 +14,13 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '1272'
+      - '1354'
       Content-Type:
       - application/json
       Host:
       - api.openai.com
       User-Agent:
-      - agent-framework-python/1.0.0b260210
+      - agent-framework-python/1.0.0
       X-Stainless-Arch:
       - arm64
       X-Stainless-Async:
@@ -30,48 +30,76 @@ interactions:
       X-Stainless-OS:
       - MacOS
       X-Stainless-Package-Version:
-      - 2.20.0
+      - 2.30.0
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
       - 3.10.18
       agent-framework-version:
-      - python/1.0.0b260210
+      - python/1.0.0
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
       - '0'
     method: POST
-    uri: https://api.openai.com/v1/chat/completions
+    uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D8EhxbO6Ijm3OXuV21Wef3x99R7U8\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770855533,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
-        \           \"id\": \"call_jzYR2r5QpEW38DgIlv2PKr14\",\n            \"type\":
-        \"function\",\n            \"function\": {\n              \"name\": \"get_temperature\",\n
-        \             \"arguments\": \"{\\\"location\\\": \\\"San Francisco\\\"}\"\n
-        \           }\n          },\n          {\n            \"id\": \"call_OK1oM1IdSH2vv6MLsI9WSmfh\",\n
-        \           \"type\": \"function\",\n            \"function\": {\n              \"name\":
-        \"get_humidity\",\n              \"arguments\": \"{\\\"location\\\": \\\"San
-        Francisco\\\"}\"\n            }\n          }\n        ],\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        151,\n    \"completion_tokens\": 47,\n    \"total_tokens\": 198,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+      string: "{\n  \"id\": \"resp_0401f348de3b68550069d6f97bea1081a2b6482c17b3205c9a\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1775696251,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1775696253,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-4o-mini-2024-07-18\",\n  \"output\": [\n    {\n      \"id\": \"fc_0401f348de3b68550069d6f97d291081a288068d10bdc61337\",\n
+        \     \"type\": \"function_call\",\n      \"status\": \"completed\",\n      \"arguments\":
+        \"{\\\"location\\\":\\\"San Francisco\\\"}\",\n      \"call_id\": \"call_J7YUFuqJu49gxvGhUKpb3qQL\",\n
+        \     \"name\": \"get_temperature\"\n    },\n    {\n      \"id\": \"fc_0401f348de3b68550069d6f97d292481a285abf8c9e47fabb2\",\n
+        \     \"type\": \"function_call\",\n      \"status\": \"completed\",\n      \"arguments\":
+        \"{\\\"location\\\":\\\"San Francisco\\\"}\",\n      \"call_id\": \"call_bppU66GAgtTnCo1NPkNe3801\",\n
+        \     \"name\": \"get_humidity\"\n    }\n  ],\n  \"parallel_tool_calls\":
+        true,\n  \"presence_penalty\": 0.0,\n  \"previous_response_id\": null,\n  \"prompt_cache_key\":
+        null,\n  \"prompt_cache_retention\": null,\n  \"reasoning\": {\n    \"effort\":
+        null,\n    \"summary\": null\n  },\n  \"safety_identifier\": null,\n  \"service_tier\":
+        \"default\",\n  \"store\": true,\n  \"temperature\": 1.0,\n  \"text\": {\n
+        \   \"format\": {\n      \"type\": \"text\"\n    },\n    \"verbosity\": \"medium\"\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [\n    {\n      \"type\":
+        \"function\",\n      \"description\": \"Get the temperature for a location.\",\n
+        \     \"name\": \"get_temperature\",\n      \"parameters\": {\n        \"properties\":
+        {\n          \"location\": {\n            \"title\": \"Location\",\n            \"type\":
+        \"string\"\n          }\n        },\n        \"required\": [\n          \"location\"\n
+        \       ],\n        \"title\": \"get_temperature_input\",\n        \"type\":
+        \"object\",\n        \"additionalProperties\": false\n      },\n      \"strict\":
+        false\n    },\n    {\n      \"type\": \"function\",\n      \"description\":
+        \"Get the humidity for a location.\",\n      \"name\": \"get_humidity\",\n
+        \     \"parameters\": {\n        \"properties\": {\n          \"location\":
+        {\n            \"title\": \"Location\",\n            \"type\": \"string\"\n
+        \         }\n        },\n        \"required\": [\n          \"location\"\n
+        \       ],\n        \"title\": \"get_humidity_input\",\n        \"type\":
+        \"object\",\n        \"additionalProperties\": false\n      },\n      \"strict\":
+        false\n    },\n    {\n      \"type\": \"function\",\n      \"description\":
+        \"Calculate heat index from temperature and humidity.\",\n      \"name\":
+        \"calculate_heat_index\",\n      \"parameters\": {\n        \"properties\":
+        {\n          \"temperature\": {\n            \"title\": \"Temperature\",\n
+        \           \"type\": \"string\"\n          },\n          \"humidity\": {\n
+        \           \"title\": \"Humidity\",\n            \"type\": \"string\"\n          }\n
+        \       },\n        \"required\": [\n          \"temperature\",\n          \"humidity\"\n
+        \       ],\n        \"title\": \"calculate_heat_index_input\",\n        \"type\":
+        \"object\",\n        \"additionalProperties\": false\n      },\n      \"strict\":
+        false\n    }\n  ],\n  \"top_logprobs\": 0,\n  \"top_p\": 1.0,\n  \"truncation\":
+        \"disabled\",\n  \"usage\": {\n    \"input_tokens\": 149,\n    \"input_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"output_tokens\": 48,\n    \"output_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 197\n  },\n
+        \ \"user\": null,\n  \"metadata\": {}\n}"
     headers:
       CF-RAY:
-      - 9cc7e94b9ae5fab2-SJC
+      - 9e958ee31fa42f5e-LAX
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Thu, 12 Feb 2026 00:18:54 GMT
+      - Thu, 09 Apr 2026 00:57:33 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -80,28 +108,24 @@ interactions:
       - chunked
       X-Content-Type-Options:
       - nosniff
-      access-control-expose-headers:
-      - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '1352'
+      - '3348'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '1201'
+      - '1368'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
       set-cookie:
-      - __cf_bm=1m_7ORxxIYVcubvmAKY.Vlj9lyfBd_HjVPa_R4FUqrk-1770855533.3772464-1.0.1.1-iYj98eeAsiLjlNJShALNOj8EKkgVhrYDSMEAy3e70XZWSwSu18MC52TfSEfAQufVp.9fsFySsOnS4sCbOI8YaK_yyrNemW2vA382h6mBxq6jyLlnEKaVJWZUF3499Gjs;
-        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
-        00:48:54 GMT
-      x-openai-proxy-wasm:
-      - v0.1
+      - __cf_bm=Xtl7PrhC13jXB6DSD.kHrGDw4rmSaxR9VRU4iLRDkpk-1775696251.3790455-1.0.1.1-tBoStNnGanQzpGjNXlXi8hdnD_DxUwOhG0maIjwGyWows6OaXQdR3shQ.W_aIH7EYafaCBR_ZHY6WYUuy5xeG894PVGlQdCfwYX21oT_vqKaJySNrkPAjh_12T03Eilv;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 09 Apr 2026
+        01:27:33 GMT
       x-ratelimit-limit-requests:
       - '30000'
       x-ratelimit-limit-tokens:
@@ -109,25 +133,21 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999957'
+      - '149999632'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_fe60fc73fec84188aaf4f46d4532a876
+      - req_3382c594cf3c4cf6a88483dac27294b3
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"messages\":[{\"role\":\"system\",\"content\":[{\"type\":\"text\",\"text\":\"You
-      are a weather expert. Use available tools to provide detailed weather information.\",\"additional_properties\":{}}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What's
-      the weather like in San Francisco? Give me temperature and humidity.\",\"additional_properties\":{}}]},{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_jzYR2r5QpEW38DgIlv2PKr14\",\"type\":\"function\",\"function\":{\"name\":\"get_temperature\",\"arguments\":\"{\\\"location\\\":
-      \\\"San Francisco\\\"}\"}},{\"id\":\"call_OK1oM1IdSH2vv6MLsI9WSmfh\",\"type\":\"function\",\"function\":{\"name\":\"get_humidity\",\"arguments\":\"{\\\"location\\\":
-      \\\"San Francisco\\\"}\"}}]},{\"role\":\"tool\",\"tool_call_id\":\"call_jzYR2r5QpEW38DgIlv2PKr14\",\"content\":\"72\xB0F\"},{\"role\":\"tool\",\"tool_call_id\":\"call_OK1oM1IdSH2vv6MLsI9WSmfh\",\"content\":\"65%\"}],\"model\":\"gpt-4o-mini\",\"stream\":false,\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_temperature\",\"description\":\"Get
-      the temperature for a location.\",\"parameters\":{\"properties\":{\"location\":{\"title\":\"Location\",\"type\":\"string\"}},\"required\":[\"location\"],\"title\":\"get_temperature_input\",\"type\":\"object\"}}},{\"type\":\"function\",\"function\":{\"name\":\"get_humidity\",\"description\":\"Get
-      the humidity for a location.\",\"parameters\":{\"properties\":{\"location\":{\"title\":\"Location\",\"type\":\"string\"}},\"required\":[\"location\"],\"title\":\"get_humidity_input\",\"type\":\"object\"}}},{\"type\":\"function\",\"function\":{\"name\":\"calculate_heat_index\",\"description\":\"Calculate
-      heat index from temperature and humidity.\",\"parameters\":{\"properties\":{\"temperature\":{\"title\":\"Temperature\",\"type\":\"string\"},\"humidity\":{\"title\":\"Humidity\",\"type\":\"string\"}},\"required\":[\"temperature\",\"humidity\"],\"title\":\"calculate_heat_index_input\",\"type\":\"object\"}}}]}"
+    body: "{\"input\":[{\"call_id\":\"call_J7YUFuqJu49gxvGhUKpb3qQL\",\"type\":\"function_call_output\",\"output\":\"72\xB0F\"},{\"call_id\":\"call_bppU66GAgtTnCo1NPkNe3801\",\"type\":\"function_call_output\",\"output\":\"65%\"}],\"model\":\"gpt-4o-mini\",\"previous_response_id\":\"resp_0401f348de3b68550069d6f97bea1081a2b6482c17b3205c9a\",\"stream\":false,\"tool_choice\":\"auto\",\"tools\":[{\"name\":\"get_temperature\",\"parameters\":{\"properties\":{\"location\":{\"title\":\"Location\",\"type\":\"string\"}},\"required\":[\"location\"],\"title\":\"get_temperature_input\",\"type\":\"object\",\"additionalProperties\":false},\"strict\":false,\"type\":\"function\",\"description\":\"Get
+      the temperature for a location.\"},{\"name\":\"get_humidity\",\"parameters\":{\"properties\":{\"location\":{\"title\":\"Location\",\"type\":\"string\"}},\"required\":[\"location\"],\"title\":\"get_humidity_input\",\"type\":\"object\",\"additionalProperties\":false},\"strict\":false,\"type\":\"function\",\"description\":\"Get
+      the humidity for a location.\"},{\"name\":\"calculate_heat_index\",\"parameters\":{\"properties\":{\"temperature\":{\"title\":\"Temperature\",\"type\":\"string\"},\"humidity\":{\"title\":\"Humidity\",\"type\":\"string\"}},\"required\":[\"temperature\",\"humidity\"],\"title\":\"calculate_heat_index_input\",\"type\":\"object\",\"additionalProperties\":false},\"strict\":false,\"type\":\"function\",\"description\":\"Calculate
+      heat index from temperature and humidity.\"}]}"
     headers:
       Accept:
       - application/json
@@ -136,15 +156,15 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '1751'
+      - '1298'
       Content-Type:
       - application/json
       Cookie:
-      - __cf_bm=1m_7ORxxIYVcubvmAKY.Vlj9lyfBd_HjVPa_R4FUqrk-1770855533.3772464-1.0.1.1-iYj98eeAsiLjlNJShALNOj8EKkgVhrYDSMEAy3e70XZWSwSu18MC52TfSEfAQufVp.9fsFySsOnS4sCbOI8YaK_yyrNemW2vA382h6mBxq6jyLlnEKaVJWZUF3499Gjs
+      - __cf_bm=Xtl7PrhC13jXB6DSD.kHrGDw4rmSaxR9VRU4iLRDkpk-1775696251.3790455-1.0.1.1-tBoStNnGanQzpGjNXlXi8hdnD_DxUwOhG0maIjwGyWows6OaXQdR3shQ.W_aIH7EYafaCBR_ZHY6WYUuy5xeG894PVGlQdCfwYX21oT_vqKaJySNrkPAjh_12T03Eilv
       Host:
       - api.openai.com
       User-Agent:
-      - agent-framework-python/1.0.0b260210
+      - agent-framework-python/1.0.0
       X-Stainless-Arch:
       - arm64
       X-Stainless-Async:
@@ -154,42 +174,75 @@ interactions:
       X-Stainless-OS:
       - MacOS
       X-Stainless-Package-Version:
-      - 2.20.0
+      - 2.30.0
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
       - 3.10.18
       agent-framework-version:
-      - python/1.0.0b260210
+      - python/1.0.0
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
       - '0'
     method: POST
-    uri: https://api.openai.com/v1/chat/completions
+    uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D8Ehzcf2IG0Fiyw4hVmwyrxQs5lIL\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770855535,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"The current weather in San Francisco
-        is as follows:\\n- **Temperature:** 72\xB0F\\n- **Humidity:** 65%\",\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        220,\n    \"completion_tokens\": 26,\n    \"total_tokens\": 246,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+      string: "{\n  \"id\": \"resp_0401f348de3b68550069d6f97dda8081a2877f0915f49972cf\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1775696254,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1775696255,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-4o-mini-2024-07-18\",\n  \"output\": [\n    {\n      \"id\": \"msg_0401f348de3b68550069d6f97ea26c81a2bb4188aadcae4b62\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [],\n          \"logprobs\": [],\n          \"text\": \"The weather in San
+        Francisco is as follows:\\n- **Temperature:** 72\\u00b0F\\n- **Humidity:**
+        65%\"\n        }\n      ],\n      \"role\": \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\":
+        true,\n  \"presence_penalty\": 0.0,\n  \"previous_response_id\": \"resp_0401f348de3b68550069d6f97bea1081a2b6482c17b3205c9a\",\n
+        \ \"prompt_cache_key\": null,\n  \"prompt_cache_retention\": null,\n  \"reasoning\":
+        {\n    \"effort\": null,\n    \"summary\": null\n  },\n  \"safety_identifier\":
+        null,\n  \"service_tier\": \"default\",\n  \"store\": true,\n  \"temperature\":
+        1.0,\n  \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    },\n
+        \   \"verbosity\": \"medium\"\n  },\n  \"tool_choice\": \"auto\",\n  \"tools\":
+        [\n    {\n      \"type\": \"function\",\n      \"description\": \"Get the
+        temperature for a location.\",\n      \"name\": \"get_temperature\",\n      \"parameters\":
+        {\n        \"properties\": {\n          \"location\": {\n            \"title\":
+        \"Location\",\n            \"type\": \"string\"\n          }\n        },\n
+        \       \"required\": [\n          \"location\"\n        ],\n        \"title\":
+        \"get_temperature_input\",\n        \"type\": \"object\",\n        \"additionalProperties\":
+        false\n      },\n      \"strict\": false\n    },\n    {\n      \"type\": \"function\",\n
+        \     \"description\": \"Get the humidity for a location.\",\n      \"name\":
+        \"get_humidity\",\n      \"parameters\": {\n        \"properties\": {\n          \"location\":
+        {\n            \"title\": \"Location\",\n            \"type\": \"string\"\n
+        \         }\n        },\n        \"required\": [\n          \"location\"\n
+        \       ],\n        \"title\": \"get_humidity_input\",\n        \"type\":
+        \"object\",\n        \"additionalProperties\": false\n      },\n      \"strict\":
+        false\n    },\n    {\n      \"type\": \"function\",\n      \"description\":
+        \"Calculate heat index from temperature and humidity.\",\n      \"name\":
+        \"calculate_heat_index\",\n      \"parameters\": {\n        \"properties\":
+        {\n          \"temperature\": {\n            \"title\": \"Temperature\",\n
+        \           \"type\": \"string\"\n          },\n          \"humidity\": {\n
+        \           \"title\": \"Humidity\",\n            \"type\": \"string\"\n          }\n
+        \       },\n        \"required\": [\n          \"temperature\",\n          \"humidity\"\n
+        \       ],\n        \"title\": \"calculate_heat_index_input\",\n        \"type\":
+        \"object\",\n        \"additionalProperties\": false\n      },\n      \"strict\":
+        false\n    }\n  ],\n  \"top_logprobs\": 0,\n  \"top_p\": 1.0,\n  \"truncation\":
+        \"disabled\",\n  \"usage\": {\n    \"input_tokens\": 197,\n    \"input_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"output_tokens\": 26,\n    \"output_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 223\n  },\n
+        \ \"user\": null,\n  \"metadata\": {}\n}"
     headers:
       CF-RAY:
-      - 9cc7e955cdc1f31f-SJC
+      - 9e958ef05d7b170b-LAX
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Thu, 12 Feb 2026 00:18:56 GMT
+      - Thu, 09 Apr 2026 00:57:35 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -198,28 +251,20 @@ interactions:
       - chunked
       X-Content-Type-Options:
       - nosniff
-      access-control-expose-headers:
-      - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '907'
+      - '3260'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '659'
+      - '1352'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
-      set-cookie:
-      - __cf_bm=NituEJzL5TWlEFhKR13.9LQlblZmByf67MgMRlRRCr8-1770855535.007012-1.0.1.1-iPgJw0PnMd1afbg5sF11vtY2ttn1CpaqQ4go31pqL6RyQE7kQaijYcbOlZPPaXOBKKPXKErz2HCt8etwXPLHklg0SPHC4vRHbAB6BgcxizffIBgjS2fA2UYTixwLMMyF;
-        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
-        00:48:56 GMT
-      x-openai-proxy-wasm:
-      - v0.1
       x-ratelimit-limit-requests:
       - '30000'
       x-ratelimit-limit-tokens:
@@ -227,13 +272,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999952'
+      - '149999587'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_28d6f81a5a064b21966785df7edac4bc
+      - req_c64f55e506fe4bda913035648236420d
     status:
       code: 200
       message: OK

@@ -1,5 +1,7 @@
 """Tests for attribute extraction from Pipecat frames and services."""
 
+import json
+from dataclasses import dataclass
 from unittest.mock import Mock
 
 from pipecat.frames.frames import (
@@ -7,6 +9,7 @@ from pipecat.frames.frames import (
     LLMContextFrame,
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
+    LLMMessagesAppendFrame,
     LLMTextFrame,
     MetricsFrame,
     TextFrame,
@@ -31,7 +34,11 @@ from openinference.instrumentation.pipecat._attributes import (
     get_model_name,
     safe_extract,
 )
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 class TestServiceDetection:
@@ -262,6 +269,77 @@ class TestFrameAttributeExtraction:
         assert attributes["tools.names"] == "get_weather"
         assert "tools.definitions" in attributes
 
+    def test_extract_llm_context_frame_with_multimodal_content(self) -> None:
+        """Test structured message content is JSON-serialized for OTel attributes."""
+        message = LLMContext.create_image_url_message(
+            url="https://example.test/image.png",
+            text="describe this",
+        )
+        context = LLMContext(messages=[message])
+
+        frame = LLMContextFrame(context=context)
+        attributes = extract_attributes_from_frame(frame)
+
+        assert attributes["llm.messages_count"] == 1
+        assert attributes["llm.input_messages.0.message.role"] == "user"
+        assert attributes["llm.input_messages.0.message.content"] == json.dumps(message["content"])
+        assert attributes[SpanAttributes.INPUT_VALUE] == json.dumps(message["content"])
+
+    def test_extract_llm_context_frame_with_tool_calls(self) -> None:
+        """Test assistant tool calls are preserved when context extraction is shared."""
+        context = LLMContext(
+            messages=[
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_123",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": '{"location": "SF"}',
+                            },
+                        }
+                    ],
+                }
+            ]
+        )
+
+        frame = LLMContextFrame(context=context)
+        attributes = extract_attributes_from_frame(frame)
+
+        assert attributes["llm.input_messages.0.message.role"] == "assistant"
+        assert attributes["llm.input_messages.0.message.tool_calls.0.tool_call.id"] == "call_123"
+        assert (
+            attributes["llm.input_messages.0.message.tool_calls.0.tool_call.function.name"]
+            == "get_weather"
+        )
+        assert (
+            attributes["llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments"]
+            == '{"location": "SF"}'
+        )
+
+    def test_extract_llm_messages_append_frame_payload(self) -> None:
+        """LLMMessagesAppendFrame.messages payload should land on the span attrs.
+
+        Pipecat 1.x exposes the messages list as `messages`, not `_messages`.
+        Regression guard: extractor must read the public field so the payload
+        isn't silently dropped.
+        """
+        frame = LLMMessagesAppendFrame(messages=[{"role": "user", "content": "appended turn"}])
+        attributes = extract_attributes_from_frame(frame)
+
+        assert attributes["llm.response_phase"] == "append"
+        assert SpanAttributes.LLM_INPUT_MESSAGES in attributes
+        appended = attributes[SpanAttributes.LLM_INPUT_MESSAGES]
+        assert appended == [
+            {
+                MessageAttributes.MESSAGE_ROLE: "user",
+                MessageAttributes.MESSAGE_CONTENT: "appended turn",
+                MessageAttributes.MESSAGE_NAME: None,
+            }
+        ]
+
     def test_extract_llm_full_response_start_frame(self) -> None:
         """Test LLM full response start frame extraction."""
         frame = LLMFullResponseStartFrame()
@@ -379,3 +457,77 @@ class TestSafeExtraction:
 
         result = safe_extract(failing_extractor)
         assert result is None
+
+
+class TestLLMSettingsMetadataSerialization:
+    """Test that non-dict LLM settings are serialized as valid JSON metadata."""
+
+    def _make_llm_service_with_settings(self, settings: object) -> Mock:
+        """Create a mock LLM service with the given settings object."""
+        from pipecat.services.llm_service import LLMService
+
+        class TestLLMService(LLMService):
+            pass
+
+        service = Mock(spec=TestLLMService)
+        service.__class__ = TestLLMService
+        service.__class__.__module__ = "pipecat.services.google"
+        service.model_name = "gemini-3-flash-preview"
+        service._settings = settings
+        return service
+
+    def test_pydantic_v2_model_dump(self) -> None:
+        """Test that a Pydantic v2 model is serialized via model_dump()."""
+        from pydantic import BaseModel
+
+        class GoogleLLMSettings(BaseModel):
+            model: str = "gemini-3-flash-preview"
+            temperature: float = 0.7
+            max_tokens: int = 4096
+
+        settings = GoogleLLMSettings()
+        service = self._make_llm_service_with_settings(settings)
+        attributes = extract_service_attributes(service)
+
+        metadata = attributes[SpanAttributes.METADATA]
+        parsed = json.loads(metadata)
+        assert parsed["model"] == "gemini-3-flash-preview"
+        assert parsed["temperature"] == 0.7
+        assert parsed["max_tokens"] == 4096
+
+    def test_object_with_dict_method(self) -> None:
+        """Test that an object with a .dict() method is serialized via .dict()."""
+
+        class LegacySettings:
+            def __init__(self) -> None:
+                self.model = "legacy-model"
+                self.temperature = 0.5
+
+            def dict(self) -> dict:
+                return {"model": self.model, "temperature": self.temperature}
+
+        settings = LegacySettings()
+        service = self._make_llm_service_with_settings(settings)
+        attributes = extract_service_attributes(service)
+
+        metadata = attributes[SpanAttributes.METADATA]
+        parsed = json.loads(metadata)
+        assert parsed["model"] == "legacy-model"
+        assert parsed["temperature"] == 0.5
+
+    def test_dataclass_settings(self) -> None:
+        """Test that a dataclass is serialized via __dict__."""
+
+        @dataclass
+        class DataclassSettings:
+            model: str = "dataclass-model"
+            max_tokens: int = 1024
+
+        settings = DataclassSettings()
+        service = self._make_llm_service_with_settings(settings)
+        attributes = extract_service_attributes(service)
+
+        metadata = attributes[SpanAttributes.METADATA]
+        parsed = json.loads(metadata)
+        assert parsed["model"] == "dataclass-model"
+        assert parsed["max_tokens"] == 1024

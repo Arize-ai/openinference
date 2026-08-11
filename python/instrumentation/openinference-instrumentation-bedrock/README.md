@@ -21,6 +21,9 @@ Find the list of Bedrock-supported models and their IDs [here](https://docs.aws.
 | `Anthropic Claude 3.5 Sonnet`       | converse             |
 | `Anthropic Claude 3 Haiku`          | converse             |
 | `Meta Llama 3 8b Instruct`          | converse             |
+| `Amazon Nova Micro`                 | converse, invoke     |
+| `Amazon Nova Lite`                  | converse, invoke     |
+| `Amazon Nova Pro`                   | converse, invoke     |
 | `Meta Llama 3 70b Instruct`         | converse             |
 | `Mistral AI Mistral 7B Instruct`    | converse             |
 | `Mistral AI Mixtral 8X7B Instruct`  | converse             |
@@ -61,7 +64,7 @@ pip install openinference-instrumentation-bedrock arize-phoenix aioboto3
 
 Ensure that `boto3` is [configured with AWS credentials](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html).
 
-## Tracing Setup (Phoenix)
+## Tracing Setup (Phoenix or Arize AX)
 The tracing setup below is shared for both sync (`boto3`) and async (`aioboto3`) usage.
 
 ```python
@@ -140,6 +143,27 @@ response = client.converse(
 out = response['output']['message']
 print(out.get("content")[-1].get("text"))
 ```
+Amazon Nova models are supported via both `invoke_model` and `converse`.
+
+```python
+session = boto3.session.Session()
+client = session.client("bedrock-runtime")
+
+# invoke_model with Nova
+import json
+request_body = {
+    "schemaVersion": "messages-v1",
+    "messages": [{"role": "user", "content": [{"text": "Hello! What is 2+2?"}]}],
+    "inferenceConfig": {"maxTokens": 512, "temperature": 0.7},
+}
+response = client.invoke_model(
+    modelId="amazon.nova-micro-v1:0",
+    body=json.dumps(request_body),
+)
+response_body = json.loads(response["body"].read())
+print(response_body["output"]["message"]["content"][0]["text"])
+```
+
 All calls to `invoke_agent` are instrumented and can be viewed in the `phoenix` UI. You can enable the agent traces by passing `enableTrace=True` argument.
 
 ```python
@@ -240,5 +264,6 @@ asyncio.run(main())
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [More info on OpenInference and Arize AX](https://arize.com/docs/ax)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

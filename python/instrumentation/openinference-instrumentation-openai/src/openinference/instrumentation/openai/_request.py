@@ -3,7 +3,16 @@ from abc import ABC
 from contextlib import contextmanager
 from itertools import chain
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Iterable,
+    Iterator,
+    Mapping,
+    Tuple,
+)
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -12,7 +21,10 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
-from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    infer_llm_provider_from_host,
+)
 from openinference.instrumentation.openai._image_utils import redact_images_from_request_parameters
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -34,7 +46,6 @@ from openinference.instrumentation.openai._utils import (
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import (
-    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -133,24 +144,15 @@ class _WithOpenAI(ABC):
             else OpenInferenceSpanKindValues.LLM.value
         )
 
-    def _get_attributes_from_instance(
-        self, instance: Any, cast_to: type
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        # Skip provider attribute for embedding spans
-        if cast_to is self._openai.types.CreateEmbeddingResponse:
-            return
+    def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
         if (
             not (base_url := getattr(instance, "base_url", None))
             or not (host := getattr(base_url, "host", None))
             or not isinstance(host, str)
         ):
             return
-        if host.endswith("api.openai.com"):
-            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-        elif host.endswith("openai.azure.com"):
-            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
-        elif host.endswith("googleapis.com"):
-            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
+        if provider := infer_llm_provider_from_host(host):
+            yield SpanAttributes.LLM_PROVIDER, provider.value
 
     def _get_attributes_from_request(
         self,
@@ -158,9 +160,7 @@ class _WithOpenAI(ABC):
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
-        # Skip system attribute for embedding spans
-        if cast_to is not self._openai.types.CreateEmbeddingResponse:
-            yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
             # Get the configuration from the tracer to check image hiding settings
             if TYPE_CHECKING:
@@ -321,7 +321,7 @@ class _Request(_WithTracer, _WithOpenAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance, cast_to=cast_to),
+                self._get_attributes_from_instance(instance),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
@@ -382,7 +382,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance, cast_to=cast_to),
+                self._get_attributes_from_instance(instance),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,

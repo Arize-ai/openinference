@@ -54,8 +54,10 @@ from typing import Any
 
 from openinference.semconv.resource import ResourceAttributes
 from openinference.semconv.trace import (
+    AnnotationAttributes,
     DocumentAttributes,
     EmbeddingAttributes,
+    EvaluationAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -79,6 +81,7 @@ class TestSpanAttributes:
     def test_nesting(self) -> None:
         attributes = _get_attributes(SpanAttributes)
         assert _nested_dict(attributes) == {
+            "annotations": SpanAttributes.ANNOTATIONS,
             "agent": {
                 "name": SpanAttributes.AGENT_NAME,
             },
@@ -87,6 +90,7 @@ class TestSpanAttributes:
                 "invocation_parameters": SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS,
                 "model_name": SpanAttributes.EMBEDDING_MODEL_NAME,
             },
+            "evaluations": SpanAttributes.EVALUATIONS,
             "graph": {
                 "node": {
                     "id": SpanAttributes.GRAPH_NODE_ID,
@@ -117,6 +121,7 @@ class TestSpanAttributes:
                     },
                     "total": SpanAttributes.LLM_COST_TOTAL,
                 },
+                "finish_reason": SpanAttributes.LLM_FINISH_REASON,
                 "function_call": SpanAttributes.LLM_FUNCTION_CALL,
                 "input_messages": SpanAttributes.LLM_INPUT_MESSAGES,
                 "invocation_parameters": SpanAttributes.LLM_INVOCATION_PARAMETERS,
@@ -161,6 +166,8 @@ class TestSpanAttributes:
                 "documents": SpanAttributes.RETRIEVAL_DOCUMENTS,
             },
             "session": {
+                "annotations": SpanAttributes.SESSION_ANNOTATIONS,
+                "evaluations": SpanAttributes.SESSION_EVALUATIONS,
                 "id": SpanAttributes.SESSION_ID,
             },
             "tag": {
@@ -168,8 +175,13 @@ class TestSpanAttributes:
             },
             "tool": {
                 "description": SpanAttributes.TOOL_DESCRIPTION,
+                "id": SpanAttributes.TOOL_ID,
                 "name": SpanAttributes.TOOL_NAME,
                 "parameters": SpanAttributes.TOOL_PARAMETERS,
+            },
+            "trace": {
+                "annotations": SpanAttributes.TRACE_ANNOTATIONS,
+                "evaluations": SpanAttributes.TRACE_EVALUATIONS,
             },
             "user": {
                 "id": SpanAttributes.USER_ID,
@@ -179,6 +191,38 @@ class TestSpanAttributes:
                 "url": SpanAttributes.PROMPT_URL,
                 "vendor": SpanAttributes.PROMPT_VENDOR,
             },
+        }
+
+
+class TestAnnotationAttributes:
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(AnnotationAttributes)
+        assert _nested_dict(attributes) == {
+            "annotation": {
+                "annotator_kind": AnnotationAttributes.ANNOTATION_ANNOTATOR_KIND,
+                "explanation": AnnotationAttributes.ANNOTATION_EXPLANATION,
+                "identifier": AnnotationAttributes.ANNOTATION_IDENTIFIER,
+                "label": AnnotationAttributes.ANNOTATION_LABEL,
+                "metadata": AnnotationAttributes.ANNOTATION_METADATA,
+                "name": AnnotationAttributes.ANNOTATION_NAME,
+                "score": AnnotationAttributes.ANNOTATION_SCORE,
+            }
+        }
+
+
+class TestEvaluationAttributes:
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(EvaluationAttributes)
+        assert _nested_dict(attributes) == {
+            "evaluation": {
+                "annotator_kind": EvaluationAttributes.EVALUATION_ANNOTATOR_KIND,
+                "explanation": EvaluationAttributes.EVALUATION_EXPLANATION,
+                "identifier": EvaluationAttributes.EVALUATION_IDENTIFIER,
+                "label": EvaluationAttributes.EVALUATION_LABEL,
+                "metadata": EvaluationAttributes.EVALUATION_METADATA,
+                "name": EvaluationAttributes.EVALUATION_NAME,
+                "score": EvaluationAttributes.EVALUATION_SCORE,
+            }
         }
 
 
@@ -216,7 +260,11 @@ class TestMessageContentAttributes:
         attributes = _get_attributes(MessageContentAttributes)
         assert _nested_dict(attributes) == {
             "message_content": {
+                "data": MessageContentAttributes.MESSAGE_CONTENT_DATA,
+                "encrypted_content": MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT,
+                "id": MessageContentAttributes.MESSAGE_CONTENT_ID,
                 "image": MessageContentAttributes.MESSAGE_CONTENT_IMAGE,
+                "signature": MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE,
                 "text": MessageContentAttributes.MESSAGE_CONTENT_TEXT,
                 "type": MessageContentAttributes.MESSAGE_CONTENT_TYPE,
             }
@@ -312,6 +360,7 @@ class TestToolCallAttributes:
                     "name": ToolCallAttributes.TOOL_CALL_FUNCTION_NAME,
                 },
                 "id": ToolCallAttributes.TOOL_CALL_ID,
+                "reasoning_signature": ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE,
             },
         }
 

@@ -9,8 +9,10 @@ from typing import Any, Optional, Union
 from uuid import UUID
 
 import pytest
+from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
+import openinference.instrumentation.langchain._tracer as tracer_module
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.langchain._tracer import _convert_io
 from openinference.semconv.trace import OpenInferenceMimeTypeValues
@@ -558,6 +560,41 @@ class TestConvertIO:
         # Custom objects fallback to safe_json_dumps, which doesn't start with { or [, so no MIME type
         assert len(result) == 1
         assert result[0] == safe_json_dumps(custom_obj)
+
+    def test_convert_io_langchain_messages_json_not_repr(self) -> None:
+        message = HumanMessage(content="hi")
+
+        result = list(_convert_io({"messages": [message]}))
+
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        parsed = json.loads(result[0])
+        first_message = parsed["messages"][0]
+        assert isinstance(first_message, dict)
+        assert first_message["type"] == "human"
+        assert first_message.get("data", first_message)["content"] == "hi"
+
+    def test_convert_io_langchain_messages_manual_fallback_json_not_repr(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        message = HumanMessage(content="hi")
+        monkeypatch.setattr(tracer_module, "_message_to_dict", None)
+        monkeypatch.setattr(HumanMessage, "model_dump", None, raising=False)
+        monkeypatch.setattr(HumanMessage, "model_dump_json", None, raising=False)
+        monkeypatch.setattr(HumanMessage, "dict", None, raising=False)
+
+        result = list(_convert_io({"messages": [message]}))
+
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        parsed = json.loads(result[0])
+        first_message = parsed["messages"][0]
+        assert isinstance(first_message, dict)
+        assert first_message["type"] == "human"
+        assert first_message["data"]["content"] == "hi"
 
     def test_convert_io_string_vs_bytes_distinction(self) -> None:
         """Test how strings and bytes are handled with current input/output conditions."""

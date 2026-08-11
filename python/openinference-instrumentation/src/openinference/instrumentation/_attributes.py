@@ -20,8 +20,10 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeGuard
 
 from openinference.semconv.trace import (
+    AnnotationAttributes,
     DocumentAttributes,
     EmbeddingAttributes,
+    EvaluationAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -36,6 +38,8 @@ from openinference.semconv.trace import (
 )
 
 from ._types import (
+    Annotation,
+    AnnotationScope,
     Document,
     Embedding,
     Message,
@@ -56,6 +60,87 @@ except ImportError:
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
+
+# Maps hostname suffixes to their corresponding LLM provider value.
+_HOST_SUFFIX_TO_PROVIDER: Dict[str, OpenInferenceLLMProviderValues] = {
+    "api.openai.com": OpenInferenceLLMProviderValues.OPENAI,
+    "openai.azure.com": OpenInferenceLLMProviderValues.AZURE,
+    "services.ai.azure.com": OpenInferenceLLMProviderValues.AZURE,
+    "cognitiveservices.azure.com": OpenInferenceLLMProviderValues.AZURE,
+    "api.anthropic.com": OpenInferenceLLMProviderValues.ANTHROPIC,
+    "api.cohere.com": OpenInferenceLLMProviderValues.COHERE,
+    "api.cohere.ai": OpenInferenceLLMProviderValues.COHERE,
+    "api.mistral.ai": OpenInferenceLLMProviderValues.MISTRALAI,
+    "generativelanguage.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE,
+    "aiplatform.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE,
+    "amazonaws.com": OpenInferenceLLMProviderValues.AWS,
+    "api.x.ai": OpenInferenceLLMProviderValues.XAI,
+    "api.deepseek.com": OpenInferenceLLMProviderValues.DEEPSEEK,
+    "api.groq.com": OpenInferenceLLMProviderValues.GROQ,
+    "api.fireworks.ai": OpenInferenceLLMProviderValues.FIREWORKS,
+    "api.moonshot.cn": OpenInferenceLLMProviderValues.MOONSHOT,
+    "api.cerebras.ai": OpenInferenceLLMProviderValues.CEREBRAS,
+    "api.perplexity.ai": OpenInferenceLLMProviderValues.PERPLEXITY,
+    "api.together.ai": OpenInferenceLLMProviderValues.TOGETHER,
+    "api.together.xyz": OpenInferenceLLMProviderValues.TOGETHER,
+}
+# OLLAMA joined OpenInferenceLLMProviderValues after semconv 0.1.31; guard the
+# reference so importing against an older semconv release degrades to "no
+# ollama host mapping" instead of an import-time AttributeError.
+if _ollama_provider := getattr(OpenInferenceLLMProviderValues, "OLLAMA", None):
+    _HOST_SUFFIX_TO_PROVIDER["ollama.com"] = _ollama_provider
+
+# Maps model name prefixes to their corresponding LLM system value.
+_MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC,
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC,
+    "claude": OpenInferenceLLMSystemValues.ANTHROPIC,
+    "gpt": OpenInferenceLLMSystemValues.OPENAI,
+    "o1": OpenInferenceLLMSystemValues.OPENAI,
+    "o3": OpenInferenceLLMSystemValues.OPENAI,
+    "o4": OpenInferenceLLMSystemValues.OPENAI,
+    "text-embedding": OpenInferenceLLMSystemValues.OPENAI,
+    "davinci": OpenInferenceLLMSystemValues.OPENAI,
+    "curie": OpenInferenceLLMSystemValues.OPENAI,
+    "babbage": OpenInferenceLLMSystemValues.OPENAI,
+    "ada": OpenInferenceLLMSystemValues.OPENAI,
+    "azure": OpenInferenceLLMSystemValues.OPENAI,
+    "openai": OpenInferenceLLMSystemValues.OPENAI,
+    "cohere": OpenInferenceLLMSystemValues.COHERE,
+    "command": OpenInferenceLLMSystemValues.COHERE,
+    "mistral": OpenInferenceLLMSystemValues.MISTRALAI,
+    "mixtral": OpenInferenceLLMSystemValues.MISTRALAI,
+    "pixtral": OpenInferenceLLMSystemValues.MISTRALAI,
+    "gemini": OpenInferenceLLMSystemValues.VERTEXAI,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI,
+}
+
+
+def infer_llm_provider_from_host(host: str) -> Optional[OpenInferenceLLMProviderValues]:
+    """Return the LLM provider name for the given API hostname."""
+    if not isinstance(host, str):
+        return None
+
+    normalised = host.lower().strip()
+    for suffix, provider in _HOST_SUFFIX_TO_PROVIDER.items():
+        # Anchor at a label boundary so e.g. "smollama.com" does not match
+        # the "ollama.com" suffix.
+        if normalised == suffix or normalised.endswith("." + suffix):
+            return provider
+    return None
+
+
+def infer_llm_system_from_model_name(model_name: str) -> Optional[OpenInferenceLLMSystemValues]:
+    """Return the LLM system name for the given model identifier."""
+    if not isinstance(model_name, str):
+        return None
+
+    normalised = model_name.lower().strip()
+    for prefix, system in _MODEL_PREFIX_TO_SYSTEM.items():
+        if normalised.startswith(prefix):
+            return system
+    return None
 
 
 def get_reranker_attributes(
@@ -107,6 +192,124 @@ def get_retriever_attributes(*, documents: List[Document]) -> Dict[str, Attribut
             )
         )
     return attributes
+
+
+def get_annotation_attributes(
+    *,
+    annotations: "Sequence[Annotation]",
+    scope: AnnotationScope = "span",
+) -> Dict[str, AttributeValue]:
+    """Return flattened OpenInference attributes for annotations.
+
+    Collection indices are assigned in input order. Metadata dictionaries are
+    JSON-serialized, while metadata strings are preserved as provided.
+    """
+    return _get_scoped_annotation_attributes(
+        annotations=annotations,
+        terminology="annotation",
+        scope=scope,
+    )
+
+
+def get_evaluation_attributes(
+    *,
+    evaluations: "Sequence[Annotation]",
+    scope: AnnotationScope = "span",
+) -> Dict[str, AttributeValue]:
+    """Return annotations encoded using evaluation terminology.
+
+    Collection indices are assigned in input order. Metadata dictionaries are
+    JSON-serialized, while metadata strings are preserved as provided.
+    """
+    return _get_scoped_annotation_attributes(
+        annotations=evaluations,
+        terminology="evaluation",
+        scope=scope,
+    )
+
+
+def _get_scoped_annotation_attributes(
+    *,
+    annotations: "Sequence[Annotation]",
+    terminology: Literal["annotation", "evaluation"],
+    scope: AnnotationScope,
+) -> Dict[str, AttributeValue]:
+    if isinstance(annotations, (str, bytes)) or not isinstance(annotations, Sequence):
+        raise TypeError("annotations must be a sequence of annotation objects")
+
+    collection_prefix = _get_annotation_collection_prefix(
+        terminology=terminology,
+        scope=scope,
+    )
+    field_names = _get_annotation_field_names(terminology)
+    attributes: Dict[str, AttributeValue] = {}
+
+    for index, result in enumerate(annotations):
+        if not isinstance(result, Mapping):
+            raise TypeError("each annotation must be a mapping")
+        if not isinstance(result.get("name"), str):
+            raise ValueError("each annotation must have a string name")
+        if not any(result.get(field) is not None for field in ("score", "label", "explanation")):
+            raise ValueError(
+                "each annotation must have at least one of score, label, or explanation"
+            )
+
+        for field, semantic_name in field_names.items():
+            value: Any = result.get(field)
+            if value is None:
+                continue
+            if field == "metadata" and not isinstance(value, str):
+                value = safe_json_dumps(value)
+            attributes[f"{collection_prefix}.{index}.{semantic_name}"] = value
+
+    return attributes
+
+
+def _get_annotation_collection_prefix(
+    *,
+    terminology: Literal["annotation", "evaluation"],
+    scope: AnnotationScope,
+) -> str:
+    prefixes = {
+        ("annotation", "span"): SpanAttributes.ANNOTATIONS,
+        ("annotation", "trace"): SpanAttributes.TRACE_ANNOTATIONS,
+        ("annotation", "session"): SpanAttributes.SESSION_ANNOTATIONS,
+        ("evaluation", "span"): SpanAttributes.EVALUATIONS,
+        ("evaluation", "trace"): SpanAttributes.TRACE_EVALUATIONS,
+        ("evaluation", "session"): SpanAttributes.SESSION_EVALUATIONS,
+    }
+    try:
+        return prefixes[(terminology, scope)]
+    except KeyError:
+        raise ValueError(
+            f"Invalid annotation terminology or scope: {terminology!r}, {scope!r}"
+        ) from None
+
+
+def _get_annotation_field_names(
+    terminology: Literal["annotation", "evaluation"],
+) -> Dict[str, str]:
+    if terminology == "annotation":
+        return {
+            "name": AnnotationAttributes.ANNOTATION_NAME,
+            "score": AnnotationAttributes.ANNOTATION_SCORE,
+            "label": AnnotationAttributes.ANNOTATION_LABEL,
+            "explanation": AnnotationAttributes.ANNOTATION_EXPLANATION,
+            "annotator_kind": AnnotationAttributes.ANNOTATION_ANNOTATOR_KIND,
+            "identifier": AnnotationAttributes.ANNOTATION_IDENTIFIER,
+            "metadata": AnnotationAttributes.ANNOTATION_METADATA,
+        }
+    if terminology == "evaluation":
+        return {
+            "name": EvaluationAttributes.EVALUATION_NAME,
+            "score": EvaluationAttributes.EVALUATION_SCORE,
+            "label": EvaluationAttributes.EVALUATION_LABEL,
+            "explanation": EvaluationAttributes.EVALUATION_EXPLANATION,
+            "annotator_kind": EvaluationAttributes.EVALUATION_ANNOTATOR_KIND,
+            "identifier": EvaluationAttributes.EVALUATION_IDENTIFIER,
+            "metadata": EvaluationAttributes.EVALUATION_METADATA,
+        }
+    raise ValueError(f"Invalid annotation terminology: {terminology!r}")
 
 
 def _document_attributes(
@@ -265,7 +468,7 @@ class IOValueJSONEncoder(JSONEncoder):
             if _is_dataclass_instance(obj):
                 return asdict(obj)
             if pydantic is not None and isinstance(obj, pydantic.BaseModel):
-                return obj.model_dump()
+                return obj.model_dump(mode="json")
             if isinstance(obj, datetime):
                 return obj.isoformat()
             return super().default(obj)
@@ -450,6 +653,21 @@ def _llm_messages_attributes(
                             f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
                             url,
                         )
+                if isinstance(signature := content_block.get("signature"), str):
+                    yield (
+                        f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_SIGNATURE}",
+                        signature,
+                    )
+                if isinstance(data := content_block.get("data"), str):
+                    yield (
+                        f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_DATA}",
+                        data,
+                    )
+                if isinstance(encrypted_content := content_block.get("encrypted_content"), str):
+                    yield (
+                        f"{base_key}.{message_index}.{MESSAGE_CONTENTS}.{content_block_index}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}",
+                        encrypted_content,
+                    )
         if isinstance(tool_call_id := message.get("tool_call_id"), str):
             yield f"{base_key}.{message_index}.{MESSAGE_TOOL_CALL_ID}", tool_call_id
         if isinstance(tool_calls := message.get("tool_calls"), Sequence):
@@ -460,6 +678,11 @@ def _llm_messages_attributes(
                     yield (
                         f"{base_key}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_ID}",
                         tool_call_id,
+                    )
+                if isinstance(reasoning_signature := tool_call.get("reasoning_signature"), str):
+                    yield (
+                        f"{base_key}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_REASONING_SIGNATURE}",
+                        reasoning_signature,
                     )
                 if (function := tool_call.get("function")) is not None:
                     if isinstance(function, dict):
@@ -541,7 +764,11 @@ MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 
 # message content attributes
+MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
+MESSAGE_CONTENT_ENCRYPTED_CONTENT = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
+MESSAGE_CONTENT_ID = MessageContentAttributes.MESSAGE_CONTENT_ID
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 
@@ -591,3 +818,4 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+TOOL_CALL_REASONING_SIGNATURE = ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE

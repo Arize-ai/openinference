@@ -25,26 +25,6 @@ from openinference.semconv.trace import (
 )
 
 
-@pytest.fixture
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-0123456789")
-
-
-@pytest.fixture
-def openai_global_llm_service(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GLOBAL_LLM_SERVICE", "OpenAI")
-
-
-@pytest.fixture
-def openai_chat_model_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_CHAT_MODEL_ID", "gpt-4o-mini")
-
-
-@pytest.fixture
-def openai_text_model_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_TEXT_MODEL_ID", "gpt-4o-mini")
-
-
 def is_openinference_span(span: ReadableSpan) -> bool:
     """Check if a span is an OpenInference span."""
     if span.attributes is None:
@@ -52,45 +32,8 @@ def is_openinference_span(span: ReadableSpan) -> bool:
     return SpanAttributes.OPENINFERENCE_SPAN_KIND in span.attributes
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: dict[str, Any]) -> dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
-
-
 class TestOpenLitInstrumentor:
-    @pytest.mark.vcr(
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-        decode_compressed_response=True,
-        filter_headers=["authorization"],
-    )
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.skip(
         reason="OpenLIT v1.36.8 has async generator bug preventing initialization. "

@@ -72,8 +72,8 @@ def test_get_attributes_from_generate_content_usage(
                 thoughts_token_count=20,
             ),
             {
-                "llm.token_count.total": 150,
-                "llm.token_count.prompt": 50,
+                "llm.token_count.total": 130,
+                "llm.token_count.prompt": 30,
                 "llm.token_count.completion": 100,
                 "llm.token_count.completion_details.reasoning": 20,
                 "llm.token_count.prompt_details.cache_read": 20,

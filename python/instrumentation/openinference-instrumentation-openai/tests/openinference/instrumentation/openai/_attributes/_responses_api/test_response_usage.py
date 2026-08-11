@@ -15,7 +15,7 @@ class TestResponseUsage:
                     input_tokens=100,
                     output_tokens=50,
                     total_tokens=150,
-                    input_tokens_details=InputTokensDetails(
+                    input_tokens_details=InputTokensDetails.model_construct(
                         cached_tokens=20,
                     ),
                     output_tokens_details=OutputTokensDetails(
@@ -30,6 +30,21 @@ class TestResponseUsage:
                     "llm.token_count.completion_details.reasoning": 10,
                 },
                 id="with_token_details",
+            ),
+            pytest.param(
+                ResponseUsage.model_construct(
+                    input_tokens=200,
+                    output_tokens=100,
+                    total_tokens=300,
+                    input_tokens_details=None,
+                    output_tokens_details=None,
+                ),
+                {
+                    "llm.token_count.total": 300,
+                    "llm.token_count.prompt": 200,
+                    "llm.token_count.completion": 100,
+                },
+                id="with_none_token_details",
             ),
         ],
     )

@@ -28,8 +28,8 @@ dependencies = [
     "opentelemetry-api",
     "opentelemetry-instrumentation",
     "opentelemetry-semantic-conventions",
-    "openinference-instrumentation>=0.1.27",
-    "openinference-semantic-conventions>=0.1.25",
+    "openinference-instrumentation>=0.1.51",
+    "openinference-semantic-conventions>=0.1.31",
     "wrapt",
     "typing-extensions",
 ]
@@ -38,15 +38,6 @@ dependencies = [
 [project.optional-dependencies]
 instruments = [
     "haystack-ai >= 2.18.0",
-]
-test = [
-    "haystack-ai==2.18.0",
-    "cohere-haystack",
-    "opentelemetry-sdk",
-    # Temporary vcrpy pin to avoid async future await regression
-    "vcrpy>=7.0.0,<8.0.0",
-    "pytest-recording",
-    "pytest-asyncio"
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -87,10 +78,10 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "wrapt",
     "haystack.*",
     "datasets",
     "openinference.instrumentation.haystack.*",
-    "wrapt",
 ]
 
 [tool.ruff]

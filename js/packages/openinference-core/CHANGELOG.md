@@ -1,5 +1,91 @@
 # @arizeai/openinference-core
 
+## 2.5.1
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+
+## 2.5.0
+
+### Minor Changes
+
+- 0168198: Add typed helpers for span-, trace-, and session-scoped annotations and evaluations.
+
+## 2.4.1
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+
+## 2.4.0
+
+### Minor Changes
+
+- d0f5a88: feat(openinference-genai): Improve compatability with gen_ai conventions
+
+## 2.3.0
+
+### Minor Changes
+
+- 1fe7927: Add convenience span wrappers for every OpenInference span kind. In addition to the existing `traceChain`, `traceAgent`, and `traceTool`, the core package now exports `traceLLM`, `traceRetriever`, `traceReranker`, `traceEmbedding`, `traceGuardrail`, `traceEvaluator`, and `tracePrompt`.
+
+## 2.2.0
+
+### Minor Changes
+
+- 26733d8: Add reasoning content support to `getLLMAttributes`. The `Message.contents` array now accepts a `{ type: "reasoning", text?, signature?, data?, encryptedContent? }` entry, and `ToolCall` accepts an optional `reasoningSignature`. These emit:
+
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.type = "reasoning"`
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.text`
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.signature`
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.data`
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.encrypted_content`
+  - `llm.{input,output}_messages.*.message.tool_calls.*.tool_call.reasoning_signature`
+
+  No `message_content.id` is emitted for reasoning entries. Reasoning `text` is human-readable and is redacted by `hideInputText` / `hideOutputText` like other `message_content.text`. The opaque echo-token fields (`signature`, `data`, `encrypted_content`, `tool_call.reasoning_signature`) are removed by `hideInputMessages` / `hideOutputMessages` but are intentionally preserved through `hideInputText` / `hideOutputText`.
+
+### Patch Changes
+
+- Updated dependencies [0f0242c]
+  - @arizeai/openinference-semantic-conventions@2.5.0
+
+## 2.1.1
+
+### Patch Changes
+
+- Updated dependencies [81b8bdb]
+  - @arizeai/openinference-semantic-conventions@2.4.0
+
+## 2.1.0
+
+### Minor Changes
+
+- cfb128c: Add `hideLLMTools` trace config option (and `OPENINFERENCE_HIDE_LLM_TOOLS` env var) to mask the tool definitions advertised to the LLM (`llm.tools.*`). These attributes are also hidden when `hideInputs` is enabled.
+
+## 2.0.8
+
+### Patch Changes
+
+- Updated dependencies [e09ce3f]
+  - @arizeai/openinference-semantic-conventions@2.3.0
+
+## 2.0.7
+
+### Patch Changes
+
+- 4eebba3: Fix `withSpan` to properly handle synchronous errors, preserve `this` binding on the wrapped function, defer default tracer resolution until invocation time, and clarify the agent-facing docs/examples
+
+## 2.0.6
+
+### Patch Changes
+
+- 3944459: Bundle hand-written docs in the npm package and export TraceConfig type and generateTraceConfig
+- Updated dependencies [7eb1c88]
+  - @arizeai/openinference-semantic-conventions@2.2.0
+
 ## 2.0.5
 
 ### Patch Changes
@@ -53,6 +139,7 @@
 ### Major Changes
 
 - d3d7017: # feat: Add tracing capabilities with decorators and function wrappers
+
   - **Function Wrapping**: `withSpan()`, `traceAgent()`, `traceTool()` ....
   - **Decorators**: `@observe()` for class methods
 

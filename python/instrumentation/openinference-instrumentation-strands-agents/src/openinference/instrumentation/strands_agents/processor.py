@@ -15,14 +15,20 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
+from opentelemetry.trace import Span, Status, StatusCode
 
 from openinference.instrumentation.strands_agents.semantic_conventions import (
+    GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_P,
+    GEN_AI_SYSTEM,
     GEN_AI_TOOL_NAME,
+    GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GenAIAttributes,
@@ -35,6 +41,10 @@ from openinference.semconv.trace import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Rules for identifying spans emitted by the Strands Agents SDK.
+_STRANDS_SDK_NAME = "strands-agents"
+_EVENT_LOOP_CYCLE_ID = "event_loop.cycle_id"
 
 
 class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
@@ -61,7 +71,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         super().__init__()
         self.debug = debug
 
-    def on_start(self, span: ReadableSpan, parent_context: Any = None) -> None:
+    def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
         """Called when a span is started."""
         pass
 
@@ -70,10 +80,10 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         Called when a span ends. Transform the span attributes from Strands format
         to OpenInference format.
         """
-        if not hasattr(span, "_attributes") or not span._attributes:
+        if not self._is_strands_span(span):
             return
 
-        original_attrs = dict(span._attributes)
+        original_attrs = dict(span._attributes)  # type: ignore[arg-type]
 
         try:
             events: List[Any] = []
@@ -82,8 +92,13 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             elif hasattr(span, "events"):
                 events = list(span.events)
 
+            # Get the OpenInference attributes from the span.
             transformed_attrs = self._transform_attributes(original_attrs, span, events)
-            span._attributes = transformed_attrs
+
+            # Combine the original attributes with the OpenInference attributes.
+            span._attributes = {**original_attrs, **transformed_attrs}
+            if not span.status.status_code == StatusCode.ERROR:
+                span._status = Status(status_code=StatusCode.OK)
 
             # Strip gen_ai.* events after transformation since their content has been
             # extracted into OpenInference attributes. Keeping them would show empty
@@ -102,6 +117,20 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         except Exception as e:
             logger.error(f"Failed to transform span '{span.name}': {e}", exc_info=True)
             span._attributes = original_attrs
+
+    def _is_strands_span(self, span: ReadableSpan) -> bool:
+        """Return True if the span was emitted by Strands Agents SDK."""
+        attrs = getattr(span, "_attributes", None) or {}
+
+        system = attrs.get(GEN_AI_SYSTEM)
+        provider = attrs.get(GEN_AI_PROVIDER_NAME)
+
+        # If the span identifies its SDK, trust that identifier.
+        if system is not None or provider is not None:
+            return system == _STRANDS_SDK_NAME or provider == _STRANDS_SDK_NAME
+
+        # Current Strands event loop spans do not emit SDK identifiers.
+        return span.name == "execute_event_loop_cycle" and _EVENT_LOOP_CYCLE_ID in attrs
 
     def _strip_genai_events(self, span: ReadableSpan) -> None:
         """Remove gen_ai.* prefixed events from the span after transformation.
@@ -525,7 +554,8 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         """
         graph_attrs: Dict[str, Any] = {}
         span_name = span.name
-        span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
+        span_context = span.get_span_context()
+        span_id = span_context.span_id if span_context is not None else 0
 
         if span_kind == "AGENT":
             graph_attrs["graph.node.id"] = "strands_agent"
@@ -697,6 +727,19 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             value = attrs.get(strands_key)
             if value is not None:
                 result[openinf_key] = value
+
+        cache_read = attrs.get(GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS) or 0
+        cache_write = attrs.get(GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS) or 0
+        if cache_read:
+            result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read
+        if cache_write:
+            result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cache_write
+        if cache_read or cache_write:
+            # Strands' input token count excludes cache reads/writes, but the
+            # OpenInference prompt aggregate includes its prompt_details breakdown
+            # (so prompt + completion == total).
+            input_tokens = result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) or 0
+            result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = input_tokens + cache_read + cache_write
 
     def _map_invocation_parameters(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
         params = {}

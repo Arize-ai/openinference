@@ -3,6 +3,10 @@
  */
 
 export const SemanticAttributePrefixes = {
+  annotations: "annotations",
+  annotation: "annotation",
+  evaluations: "evaluations",
+  evaluation: "evaluation",
   input: "input",
   output: "output",
   llm: "llm",
@@ -17,6 +21,7 @@ export const SemanticAttributePrefixes = {
   metadata: "metadata",
   tag: "tag",
   session: "session",
+  trace: "trace",
   user: "user",
   openinference: "openinference",
   message_content: "message_content",
@@ -40,6 +45,7 @@ export const LLMAttributePostfixes = {
   function_call: "function_call",
   tools: "tools",
   cost: "cost",
+  finish_reason: "finish_reason",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -71,6 +77,7 @@ export const ToolAttributePostfixes = {
   description: "description",
   parameters: "parameters",
   json_schema: "json_schema",
+  id: "id",
 } as const;
 
 export const MessageAttributePostfixes = {
@@ -88,6 +95,10 @@ export const MessageContentsAttributePostfixes = {
   type: "type",
   text: "text",
   image: "image",
+  id: "id",
+  signature: "signature",
+  data: "data",
+  encrypted_content: "encrypted_content",
 } as const;
 
 export const ImageAttributesPostfixes = {
@@ -98,6 +109,7 @@ export const ToolCallAttributePostfixes = {
   function_name: "function.name",
   function_arguments_json: "function.arguments",
   id: "id",
+  reasoning_signature: "reasoning_signature",
 } as const;
 
 export const DocumentAttributePostfixes = {
@@ -140,6 +152,57 @@ export const GraphPostfixes = {
   node_name: "node.name",
   node_parent_id: "node.parent_id",
 } as const;
+
+export const FeedbackAttributePostfixes = {
+  name: "name",
+  score: "score",
+  label: "label",
+  explanation: "explanation",
+  annotator_kind: "annotator_kind",
+  identifier: "identifier",
+  metadata: "metadata",
+} as const;
+
+export const ANNOTATIONS = SemanticAttributePrefixes.annotations;
+export const EVALUATIONS = SemanticAttributePrefixes.evaluations;
+export const TRACE_ANNOTATIONS =
+  `${SemanticAttributePrefixes.trace}.${SemanticAttributePrefixes.annotations}` as const;
+export const TRACE_EVALUATIONS =
+  `${SemanticAttributePrefixes.trace}.${SemanticAttributePrefixes.evaluations}` as const;
+export const SESSION_ANNOTATIONS =
+  `${SemanticAttributePrefixes.session}.${SemanticAttributePrefixes.annotations}` as const;
+export const SESSION_EVALUATIONS =
+  `${SemanticAttributePrefixes.session}.${SemanticAttributePrefixes.evaluations}` as const;
+
+export const ANNOTATION_NAME =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.name}` as const;
+export const ANNOTATION_SCORE =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.score}` as const;
+export const ANNOTATION_LABEL =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.label}` as const;
+export const ANNOTATION_EXPLANATION =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.explanation}` as const;
+export const ANNOTATION_ANNOTATOR_KIND =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.annotator_kind}` as const;
+export const ANNOTATION_IDENTIFIER =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.identifier}` as const;
+export const ANNOTATION_METADATA =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.metadata}` as const;
+
+export const EVALUATION_NAME =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.name}` as const;
+export const EVALUATION_SCORE =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.score}` as const;
+export const EVALUATION_LABEL =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.label}` as const;
+export const EVALUATION_EXPLANATION =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.explanation}` as const;
+export const EVALUATION_ANNOTATOR_KIND =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.annotator_kind}` as const;
+export const EVALUATION_IDENTIFIER =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.identifier}` as const;
+export const EVALUATION_METADATA =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.metadata}` as const;
 /**
  * The input to any span
  */
@@ -233,6 +296,12 @@ export const LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO =
 /** Token count for the entire transaction with the llm (in tokens) */
 export const LLM_TOKEN_COUNT_TOTAL =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.total` as const;
+
+/**
+ * The reason the model stopped generating tokens, e.g. `"stop"` or `"length"`.
+ */
+export const LLM_FINISH_REASON =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.finish_reason}` as const;
 
 /**
  * Key prefix for additional prompt token count details. Each detail should be a separate attribute
@@ -368,6 +437,13 @@ export const TOOL_CALL_ID =
   `${SemanticAttributePrefixes.tool_call}.${ToolCallAttributePostfixes.id}` as const;
 
 /**
+ * Opaque vendor-issued reasoning echo token attached to a tool call. Maps to
+ * Gemini thoughtSignature when it is attached to a functionCall part
+ */
+export const TOOL_CALL_REASONING_SIGNATURE =
+  `${SemanticAttributePrefixes.tool_call}.${ToolCallAttributePostfixes.reasoning_signature}` as const;
+
+/**
  * The LLM function call function name
  */
 export const MESSAGE_FUNCTION_CALL_NAME =
@@ -390,7 +466,8 @@ export const MESSAGE_CONTENT =
 export const MESSAGE_CONTENTS =
   `${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.contents}` as const;
 /**
- * The type of content sent to the LLM
+ * The type of content sent to the LLM, such as "text", "image", "audio",
+ * "reasoning", or "tool_use"
  */
 export const MESSAGE_CONTENT_TYPE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.type}` as const;
@@ -404,6 +481,31 @@ export const MESSAGE_CONTENT_TEXT =
  */
 export const MESSAGE_CONTENT_IMAGE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.image}` as const;
+/**
+ * Provider-assigned identifier for this message content item. For OpenAI
+ * Responses reasoning items, this maps to ResponseReasoningItem.id and should
+ * be preserved for stateless replay
+ */
+export const MESSAGE_CONTENT_ID =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.id}` as const;
+/**
+ * Opaque vendor-issued signature captured verbatim. Maps to provider signature
+ * fields and to Gemini thoughtSignature fields when the signature is attached
+ * to a non-tool content part
+ */
+export const MESSAGE_CONTENT_SIGNATURE =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.signature}` as const;
+/**
+ * Opaque vendor-issued data captured verbatim. Maps to Anthropic
+ * redacted_thinking.data
+ */
+export const MESSAGE_CONTENT_DATA =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.data}` as const;
+/**
+ * OpenAI encrypted_content captured verbatim
+ */
+export const MESSAGE_CONTENT_ENCRYPTED_CONTENT =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.encrypted_content}` as const;
 /**
  * The http or base64 link to the image
  */
@@ -500,6 +602,11 @@ export const TOOL_PARAMETERS =
  */
 export const TOOL_JSON_SCHEMA =
   `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.json_schema}` as const;
+
+/**
+ * The identifier for the result of the tool call (corresponding to tool_call.id).
+ */
+export const TOOL_ID = `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.id}` as const;
 
 /**
  * The session id of a trace. Used to correlate spans in a single session.
@@ -617,6 +724,26 @@ export const GRAPH_NODE_PARENT_ID =
   `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_parent_id}` as const;
 
 export const SemanticConventions = {
+  ANNOTATIONS,
+  TRACE_ANNOTATIONS,
+  SESSION_ANNOTATIONS,
+  ANNOTATION_NAME,
+  ANNOTATION_SCORE,
+  ANNOTATION_LABEL,
+  ANNOTATION_EXPLANATION,
+  ANNOTATION_ANNOTATOR_KIND,
+  ANNOTATION_IDENTIFIER,
+  ANNOTATION_METADATA,
+  EVALUATIONS,
+  TRACE_EVALUATIONS,
+  SESSION_EVALUATIONS,
+  EVALUATION_NAME,
+  EVALUATION_SCORE,
+  EVALUATION_LABEL,
+  EVALUATION_EXPLANATION,
+  EVALUATION_ANNOTATOR_KIND,
+  EVALUATION_IDENTIFIER,
+  EVALUATION_METADATA,
   IMAGE_URL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
@@ -641,6 +768,7 @@ export const SemanticConventions = {
   LLM_SYSTEM,
   LLM_PROVIDER,
   LLM_TOOLS,
+  LLM_FINISH_REASON,
   LLM_COST,
   LLM_COST_PROMPT,
   LLM_COST_COMPLETION,
@@ -658,6 +786,7 @@ export const SemanticConventions = {
   MESSAGE_TOOL_CALLS,
   MESSAGE_TOOL_CALL_ID,
   TOOL_CALL_ID,
+  TOOL_CALL_REASONING_SIGNATURE,
   TOOL_CALL_FUNCTION_NAME,
   TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
   MESSAGE_FUNCTION_CALL_NAME,
@@ -665,6 +794,10 @@ export const SemanticConventions = {
   MESSAGE_CONTENT,
   MESSAGE_CONTENTS,
   MESSAGE_CONTENT_IMAGE,
+  MESSAGE_CONTENT_ID,
+  MESSAGE_CONTENT_SIGNATURE,
+  MESSAGE_CONTENT_DATA,
+  MESSAGE_CONTENT_ENCRYPTED_CONTENT,
   MESSAGE_CONTENT_TEXT,
   MESSAGE_CONTENT_TYPE,
   DOCUMENT_ID,
@@ -679,6 +812,7 @@ export const SemanticConventions = {
   TOOL_NAME,
   TOOL_PARAMETERS,
   TOOL_JSON_SCHEMA,
+  TOOL_ID,
   PROMPT_TEMPLATE_VARIABLES,
   PROMPT_TEMPLATE_TEMPLATE,
   PROMPT_TEMPLATE_VERSION,
@@ -703,6 +837,12 @@ export const SemanticConventions = {
   GRAPH_NODE_PARENT_ID,
 } as const;
 
+export enum AnnotatorKind {
+  HUMAN = "HUMAN",
+  LLM = "LLM",
+  CODE = "CODE",
+}
+
 export enum OpenInferenceSpanKind {
   LLM = "LLM",
   CHAIN = "CHAIN",
@@ -713,6 +853,7 @@ export enum OpenInferenceSpanKind {
   AGENT = "AGENT",
   GUARDRAIL = "GUARDRAIL",
   EVALUATOR = "EVALUATOR",
+  PROMPT = "PROMPT",
 }
 
 /**
@@ -746,4 +887,11 @@ export enum LLMProvider {
   AZURE = "azure",
   XAI = "xai",
   DEEPSEEK = "deepseek",
+  GROQ = "groq",
+  FIREWORKS = "fireworks",
+  MOONSHOT = "moonshot",
+  CEREBRAS = "cerebras",
+  PERPLEXITY = "perplexity",
+  TOGETHER = "together",
+  OLLAMA = "ollama",
 }

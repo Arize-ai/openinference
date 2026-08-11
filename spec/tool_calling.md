@@ -42,6 +42,7 @@ Where:
 - `tool_call.id`: Unique identifier for the tool call
 - `tool_call.function.name`: Name of the function being called
 - `tool_call.function.arguments`: JSON string containing the function arguments
+- `tool_call.reasoning_signature`: Opaque provider-issued reasoning echo token attached to this tool call. Use this when a provider attaches reasoning continuity state to the tool-call part itself, such as Gemini `thoughtSignature` on a `functionCall` part.
 
 ### Example Tool Call
 
@@ -50,9 +51,28 @@ Where:
   "llm.output_messages.0.message.role": "assistant",
   "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc123",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"location\": \"San Francisco, CA\"}"
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"location\": \"San Francisco, CA\"}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.reasoning_signature": "CiQB..."
 }
 ```
+
+### Ordered Tool-Use Content Items
+
+Some providers return tool calls as ordered content parts interleaved with reasoning or text. When preserving that order is necessary for replay, also represent the part in `message.contents` with `message_content.type = "tool_use"` and the same `tool_call.*` suffixes:
+
+```json
+{
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+  "llm.output_messages.0.message.contents.0.message_content.text": "I need the current weather before answering.",
+  "llm.output_messages.0.message.contents.1.message_content.type": "tool_use",
+  "llm.output_messages.0.message.contents.1.tool_call.id": "call_abc123",
+  "llm.output_messages.0.message.contents.1.tool_call.function.name": "get_weather",
+  "llm.output_messages.0.message.contents.1.tool_call.function.arguments": "{\"location\": \"San Francisco, CA\"}"
+}
+```
+
+The `message.tool_calls` array remains the conventional location for generated tool calls. The ordered `message.contents` representation is additive and is used when consumers need to reconstruct the provider's original part sequence.
 
 ## Multiple Tool Calls
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-langchain4j-v0.1.7...java-openinference-instrumentation-langchain4j-v0.1.8) (2026-04-04)
+
+
+### Bug Fixes
+
+* update how hideinputs/outputs is handled ([#2925](https://github.com/Arize-ai/openinference/issues/2925)) ([c65393a](https://github.com/Arize-ai/openinference/commit/c65393a47f4d4c561fefcac52365cb821b0456bd))
+
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-langchain4j-v0.1.6...java-openinference-instrumentation-langchain4j-v0.1.7) (2026-04-03)
+
+
+### Features
+
+* **langchain4j:** Added Agent and Tool Listeners ([#2889](https://github.com/Arize-ai/openinference/issues/2889)) ([ca51aaa](https://github.com/Arize-ai/openinference/commit/ca51aaa93764bff3f02171a728805329cb38f9f2))
+
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-langchain4j-v0.1.5...java-openinference-instrumentation-langchain4j-v0.1.6) (2026-03-11)
+
+
+### Features
+
+* add tool specs to llm spans in langchain4j autoinstrumentor ([#2862](https://github.com/Arize-ai/openinference/issues/2862)) ([491958a](https://github.com/Arize-ai/openinference/commit/491958a9e189f7a0706f80dddd05eebc753403c4))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-langchain4j-v0.1.4...java-openinference-instrumentation-langchain4j-v0.1.5) (2025-08-07)
 
 

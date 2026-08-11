@@ -461,6 +461,24 @@ class _ResponsesApiAttributes:
         elif obj["type"] == "compaction":
             # TODO: Handle compaction response
             pass
+        elif obj["type"] == "tool_search_call":
+            # TODO: Handle tool search call response
+            pass
+        elif obj["type"] == "tool_search_output":
+            # TODO: Handle tool search output response
+            pass
+        elif obj["type"] == "compaction_trigger":
+            # TODO: Handle compaction trigger response
+            pass
+        elif obj["type"] == "additional_tools":
+            # TODO: Handle additional tools
+            pass
+        elif obj["type"] == "program":
+            # TODO: Handle program
+            pass
+        elif obj["type"] == "program_output":
+            # TODO: Handle program output
+            pass
         elif TYPE_CHECKING and obj["type"] is not None:
             assert_never(obj["type"])
 
@@ -602,6 +620,36 @@ class _ResponsesApiAttributes:
         elif obj.type == "compaction":
             # TODO: Handle compaction response
             pass
+        elif obj.type == "tool_search_call":
+            # TODO: Handle tool search call response
+            pass
+        elif obj.type == "tool_search_output":
+            # TODO: Handle tool search output response
+            pass
+        elif obj.type == "function_call_output":
+            # TODO: Handle function call output
+            pass
+        elif obj.type == "computer_call_output":
+            # TODO: Handle computer call output
+            pass
+        elif obj.type == "local_shell_call_output":
+            # TODO: Handle local shell call output
+            pass
+        elif obj.type == "mcp_approval_response":
+            # TODO: Handle mcp approval response
+            pass
+        elif obj.type == "custom_tool_call_output":
+            # TODO: Handle custom tool call output
+            pass
+        elif obj.type == "additional_tools":
+            # TODO: Handle additional tools
+            pass
+        elif obj.type == "program":
+            # TODO: Handle program
+            pass
+        elif obj.type == "program_output":
+            # TODO: Handle program output
+            pass
         elif TYPE_CHECKING:
             assert_never(obj.type)
 
@@ -664,12 +712,20 @@ class _ResponsesApiAttributes:
         obj: responses.response_reasoning_item.ResponseReasoningItem,
         prefix: str = "",
     ) -> Iterator[Tuple[str, AttributeValue]]:
+        content_prefix = f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.0."
+        yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
         if isinstance(obj.summary, Iterable):
-            for i, item in enumerate(obj.summary):
-                yield from cls._get_attributes_from_response_reasoning_item_summary(
-                    item,
-                    f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.{i}.",
+            texts = [item.text for item in obj.summary]
+            if texts:
+                yield (
+                    f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                    "\n".join(texts),
                 )
+        if obj.encrypted_content is not None:
+            yield (
+                f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT}",
+                obj.encrypted_content,
+            )
 
     @classmethod
     @stop_on_exception
@@ -679,38 +735,24 @@ class _ResponsesApiAttributes:
         prefix: str = "",
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+        content_prefix = f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.0."
+        yield f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
         if isinstance((summary := obj.get("summary")), Iterable):
-            for i, item in enumerate(summary):
-                if "type" not in item:
-                    continue
-                if item["type"] == "summary_text":
-                    yield from cls._get_attributes_from_response_reasoning_item_param_summary(
-                        item,
-                        f"{prefix}{MessageAttributes.MESSAGE_CONTENTS}.{i}.",
-                    )
-                elif TYPE_CHECKING:
-                    assert_never(item["type"])
-
-    @classmethod
-    @stop_on_exception
-    def _get_attributes_from_response_reasoning_item_param_summary(
-        cls,
-        obj: responses.response_reasoning_item_param.Summary,
-        prefix: str = "",
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        if (text := obj.get("text")) is not None:
-            yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
-            yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-
-    @classmethod
-    @stop_on_exception
-    def _get_attributes_from_response_reasoning_item_summary(
-        cls,
-        obj: responses.response_reasoning_item.Summary,
-        prefix: str = "",
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", obj.text
+            texts = [
+                item["text"]
+                for item in summary
+                if item.get("type") == "summary_text" and item.get("text") is not None
+            ]
+            if texts:
+                yield (
+                    f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                    "\n".join(texts),
+                )
+        if (encrypted := obj.get("encrypted_content")) is not None:
+            yield (
+                f"{content_prefix}{MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT}",
+                encrypted,
+            )
 
     @classmethod
     @stop_on_exception
@@ -721,11 +763,13 @@ class _ResponsesApiAttributes:
         yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, obj.input_tokens
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, obj.output_tokens
-        yield (
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
-            obj.output_tokens_details.reasoning_tokens,
-        )
-        yield (
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-            obj.input_tokens_details.cached_tokens,
-        )
+        if obj.output_tokens_details is not None:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+                obj.output_tokens_details.reasoning_tokens,
+            )
+        if obj.input_tokens_details is not None:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+                obj.input_tokens_details.cached_tokens,
+            )

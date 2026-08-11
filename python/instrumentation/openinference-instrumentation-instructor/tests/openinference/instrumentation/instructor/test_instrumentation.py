@@ -1,7 +1,11 @@
 import asyncio
 import json
+import logging
 import os
+import types
+from importlib import import_module
 from typing import Any, Generator, Optional
+from unittest import mock
 
 import instructor
 import openai
@@ -17,7 +21,6 @@ from pydantic import BaseModel
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.instructor import InstructorInstrumentor
-from openinference.instrumentation.instructor._wrappers import infer_llm_provider_from_endpoint
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
@@ -49,7 +52,7 @@ def setup_instructor_instrumentation(
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/instructor/fixtures/",
-    record_mode="never",
+    record_mode="none",
     match_on=["uri", "method"],
 )
 
@@ -73,7 +76,7 @@ async def extract() -> UserInfo:
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor", name="instructor"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -82,6 +85,50 @@ class TestInstrumentor:
     # Ensure we're using the common OITracer from common openinference-instrumentation pkg
     def test_oitracer(self, setup_instructor_instrumentation: Any) -> None:
         assert isinstance(InstructorInstrumentor()._tracer, OITracer)
+
+    def test_instrument_does_not_raise_across_instructor_versions(
+        self, tracer_provider: TracerProvider
+    ) -> None:
+        instrumentor = InstructorInstrumentor()
+        try:
+            instrumentor.instrument(tracer_provider=tracer_provider)
+            if instrumentor._patch_module is not None:
+                module = import_module(instrumentor._patch_module)
+                assert hasattr(module, "handle_response_model")
+        finally:
+            instrumentor.uninstrument()
+
+    def test_instrument_degrades_gracefully_when_symbol_missing(
+        self,
+        tracer_provider: TracerProvider,
+        caplog: Any,
+    ) -> None:
+        candidates = {
+            "instructor.core.patch",
+            "instructor.patch",
+            "instructor.processing.response",
+            "instructor.processing",
+        }
+
+        def fake_import_module(name: str) -> Any:
+            if name in candidates:
+                return types.ModuleType(name)
+            return import_module(name)
+
+        instrumentor = InstructorInstrumentor()
+        instrumentor.uninstrument()
+        with mock.patch(
+            "openinference.instrumentation.instructor.import_module",
+            side_effect=fake_import_module,
+        ):
+            try:
+                with caplog.at_level(logging.WARNING):
+                    instrumentor.instrument(tracer_provider=tracer_provider)
+                assert instrumentor._patch_module is None
+                assert instrumentor._original_handle_response_model is None
+                assert "Could not locate `handle_response_model`" in caplog.text
+            finally:
+                instrumentor.uninstrument()
 
 
 @pytest.mark.asyncio
@@ -192,64 +239,3 @@ def test_instructor_instrumentation(
                 assert "max_retries" in invocation_params
                 # Ensure max_retries is JSON-serializable
                 json.dumps(invocation_params)
-
-
-class TestInferLLMProviderFromEndpoint:
-    @pytest.mark.parametrize(
-        "endpoint",
-        [None, ""],
-    )
-    def test_returns_none_for_invalid_input(self, endpoint: Optional[str]) -> None:
-        result = infer_llm_provider_from_endpoint(endpoint)
-        assert result is None
-
-    @pytest.mark.parametrize(
-        "endpoint_url, expected",
-        [
-            ("https://api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
-            ("https://subdomain.api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
-            (
-                "https://my-resource.openai.azure.com/openai/deployments",
-                OpenInferenceLLMProviderValues.AZURE,
-            ),
-            (
-                "https://different-resource.openai.azure.com/v1",
-                OpenInferenceLLMProviderValues.AZURE,
-            ),
-            (
-                "https://generativelanguage.googleapis.com/v1",
-                OpenInferenceLLMProviderValues.GOOGLE,
-            ),
-            ("https://api.anthropic.com/v1", OpenInferenceLLMProviderValues.ANTHROPIC),
-            (
-                "https://bedrock-runtime.us-east-1.amazonaws.com",
-                OpenInferenceLLMProviderValues.AWS,
-            ),
-            ("https://someservice.us-west-2.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
-            ("https://api.cohere.ai/v1", OpenInferenceLLMProviderValues.COHERE),
-            ("https://api.mistral.ai/v1", OpenInferenceLLMProviderValues.MISTRALAI),
-            ("https://api.x.ai/v1", OpenInferenceLLMProviderValues.XAI),
-            ("https://api.deepseek.com/v1", OpenInferenceLLMProviderValues.DEEPSEEK),
-        ],
-    )
-    def test_known_endpoints_return_expected_provider(
-        self, endpoint_url: str, expected: OpenInferenceLLMProviderValues
-    ) -> None:
-        result = infer_llm_provider_from_endpoint(endpoint_url)
-        assert result == expected
-
-    @pytest.mark.parametrize(
-        "endpoint",
-        [
-            "https://unknown-provider-xyz.com/v1",
-            "https://custom-llm-provider.com/v1",
-            "https://my-provider-custom.com/v1",
-        ],
-    )
-    def test_unknown_endpoints_return_none(self, endpoint: str) -> None:
-        result = infer_llm_provider_from_endpoint(endpoint)
-        assert result is None
-
-    def test_case_insensitive_matching(self) -> None:
-        result = infer_llm_provider_from_endpoint("https://API.OPENAI.COM/v1")
-        assert result == OpenInferenceLLMProviderValues.OPENAI

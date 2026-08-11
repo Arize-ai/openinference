@@ -26,7 +26,7 @@ from openinference.instrumentation.mistralai._utils import (
 from openinference.semconv.trace import OpenInferenceMimeTypeValues
 
 if TYPE_CHECKING:
-    from mistralai.models import CompletionEvent
+    from mistralai.client.models import CompletionEvent
 
 __all__ = ("_ChatCompletionAccumulator",)
 

@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference OpenAI Agents Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.15"
+requires-python = ">=3.10, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,7 +18,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -29,16 +28,15 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.21",
+  "openinference-instrumentation>=0.1.51",
+  "openinference-semantic-conventions>=0.1.31",
   "typing-extensions",
   "wrapt",
-  "eval_type_backport ; python_version < '3.10'",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "openai-agents >= 0.2.6",
+  "openai-agents >= 0.11.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -84,15 +82,18 @@ module = [
   "agents.*",
 ]
 
-# openai library types differ between v1.99.9 (py39) and v2.7.2 (py313-latest),
-# causing type ignores to be unused in one version but required in the other.
+# The openai types this file exercises differ across the supported openai range, so the
+# same line needs type: ignore[list-item] against some versions and
+# type: ignore[typeddict-item] against others -- each unused against the version wanting
+# the other. Verified still needed against openai 2.26.0 and 2.53.0; not a leftover of the
+# openai 1.x era, so raising the openai-agents floor does not retire it.
 [[tool.mypy.overrides]]
 module = "tests.test_span_attribute_helpers"
 warn_unused_ignores = false
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]

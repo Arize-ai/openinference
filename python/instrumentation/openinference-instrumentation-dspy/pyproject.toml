@@ -28,8 +28,8 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.17",
+  "openinference-instrumentation>=0.1.51",
+  "openinference-semantic-conventions>=0.1.31",
   "wrapt",
   "typing-extensions",
 ]
@@ -37,14 +37,6 @@ dependencies = [
 [project.optional-dependencies]
 instruments = [
   "dspy >= 2.6.22",
-]
-test = [
-  "dspy>=2.6.22",
-  "opentelemetry-sdk",
-  "pytest-recording",
-  "litellm",
-  "urllib3<3.0",
-  "vcrpy>=5.0.0,<9.0.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]

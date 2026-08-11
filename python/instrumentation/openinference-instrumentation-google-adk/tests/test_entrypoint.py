@@ -4,7 +4,7 @@ from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 
 def test_entrypoint_for_opentelemetry_instrument() -> None:
-    (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+    (instrumentor_entrypoint,) = entry_points(
         group="opentelemetry_instrumentor",
         name="google_adk",
     )

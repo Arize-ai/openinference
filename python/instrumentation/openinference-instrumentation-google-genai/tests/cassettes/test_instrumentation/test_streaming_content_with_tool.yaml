@@ -19,8 +19,8 @@ interactions:
         \"model\"},\"finishReason\": \"STOP\"}],\"usageMetadata\": {\"promptTokenCount\":
         63,\"candidatesTokenCount\": 6,\"totalTokenCount\": 69,\"promptTokensDetails\":
         [{\"modality\": \"TEXT\",\"tokenCount\": 63}],\"candidatesTokensDetails\":
-        [{\"modality\": \"TEXT\",\"tokenCount\": 6}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
-        \"hpGfaf6RBdy47PIPza-mqAk\"}\r\n\r\n"
+        [{\"modality\": \"TEXT\",\"tokenCount\": 6}],\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-2.0-flash\",\"responseId\": \"ldcEapKDBbCH7_UP6LC-6AE\"}\r\n\r\n"
     headers: {}
     status:
       code: 200

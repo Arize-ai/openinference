@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import (
     Any,
     AsyncGenerator,
@@ -16,6 +17,7 @@ from typing import (
     TypedDict,
     Union,
 )
+from uuid import UUID
 
 import jsonschema
 import pydantic
@@ -28,7 +30,7 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import Status, StatusCode, get_current_span
+from opentelemetry.trace import Status, StatusCode, TracerProvider, get_current_span
 from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
 from typing_extensions import Annotated, TypeAlias
@@ -39,26 +41,40 @@ from openinference.instrumentation import (
     Message,
     OITracer,
     PromptDetails,
+    ReasoningMessageContent,
     TextMessageContent,
     TokenCount,
     Tool,
     ToolCall,
     ToolCallFunction,
+    TraceConfig,
     get_llm_attributes,
+    get_output_attributes,
+    infer_llm_provider_from_host,
+    infer_llm_system_from_model_name,
     suppress_tracing,
     using_session,
+)
+from openinference.instrumentation._attributes import (
+    _HOST_SUFFIX_TO_PROVIDER,
+    _MODEL_PREFIX_TO_SYSTEM,
 )
 from openinference.instrumentation._tracers import _infer_tool_parameters
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
 )
+
+ALL_PROVIDER_VALUES: set[str] = {p.value for p in OpenInferenceLLMProviderValues}
+ALL_SYSTEM_VALUES: set[str] = {s.value for s in OpenInferenceLLMSystemValues}
 
 
 def remove_all_vcr_request_headers(request: Any) -> Any:
@@ -667,12 +683,17 @@ class TestTracerChainDecorator:
             pydantic_out = OutputPydanticModel(nested=nested, description="pydantic output")
             dataclass_out = NestedDataclass(count=123, active=True)
             return ComplexOutput(
-                pydantic_part=pydantic_out, dataclass_part=dataclass_out, string_part="complete"
+                pydantic_part=pydantic_out,
+                dataclass_part=dataclass_out,
+                string_part="complete",
             )
 
         input_model = NestedPydanticModel(value=10, name="test")
         decorated_chain_complex_io(
-            model=input_model, text="sample text", number=42, time=datetime(2024, 1, 1, 12, 0)
+            model=input_model,
+            text="sample text",
+            number=42,
+            time=datetime(2024, 1, 1, 12, 0),
         )
 
         spans = in_memory_span_exporter.get_finished_spans()
@@ -937,6 +958,164 @@ class TestTracerChainDecorator:
         assert not span.events
         attributes = dict(span.attributes or {})
         assert attributes[SESSION_ID] == "123"
+
+
+class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
+    """Regression tests for issue #3371: RETRIEVER, RERANKER, GUARDRAIL, and
+    EVALUATOR spans previously had no dedicated tracer decorator, so anyone
+    creating these span kinds had to hand-roll span creation and typically
+    never called set_status, leaving status="UNSET" forever. These decorators
+    mirror @tracer.chain / @tracer.tool, reusing the same _chain machinery,
+    which always sets status to OK on successful completion.
+    """
+
+    def test_retriever_sets_status_ok(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.retriever
+        def decorated_retriever(query: str) -> str:
+            return "output"
+
+        decorated_retriever("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_retriever"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RETRIEVER
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_reranker_sets_status_ok(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.reranker
+        def decorated_reranker(query: str) -> str:
+            return "output"
+
+        decorated_reranker("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_reranker"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RERANKER
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_guardrail_sets_status_ok(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.guardrail
+        def decorated_guardrail(text: str) -> str:
+            return "output"
+
+        decorated_guardrail("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_guardrail"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == GUARDRAIL
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_evaluator_sets_status_ok(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.evaluator
+        def decorated_evaluator(output: str) -> str:
+            return "output"
+
+        decorated_evaluator("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_evaluator"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == EVALUATOR
+        assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(INPUT_VALUE) == "input"
+        assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+        assert attributes.pop(OUTPUT_VALUE) == "output"
+        assert not attributes
+
+    def test_no_parameters(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.retriever()  # apply decorator with no parameters
+        def decorated_retriever_with_empty_parens(query: str) -> str:
+            return "output"
+
+        decorated_retriever_with_empty_parens("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RETRIEVER
+
+    def test_overridden_name(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.reranker(name="overridden-name")
+        def decorated_reranker_with_overridden_name(query: str) -> str:
+            return "output"
+
+        decorated_reranker_with_overridden_name("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "overridden-name"
+        assert span.status.is_ok
+
+    async def test_async(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.evaluator
+        async def decorated_async_evaluator(output: str) -> str:
+            return "output"
+
+        await decorated_async_evaluator("input")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "decorated_async_evaluator"
+        assert span.status.is_ok
 
 
 class TestAgentDecorator:
@@ -1392,7 +1571,9 @@ class TestTracerLLMDecorator:
         sync_openai_client: OpenAI,
     ) -> None:
         @tracer.llm
-        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+        def sync_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
             return sync_openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=input_messages,
@@ -1431,7 +1612,9 @@ class TestTracerLLMDecorator:
         tracer: OITracer,
     ) -> None:
         @tracer.llm
-        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+        def sync_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
             raise ValueError("Something went wrong")
 
         input_messages: List[ChatCompletionMessageParam] = [
@@ -1770,7 +1953,9 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+        def get_output_attributes(
+            output_message: ChatCompletion,
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -1778,7 +1963,9 @@ class TestTracerLLMDecorator:
             process_input=get_input_attributes,
             process_output=get_output_attributes,
         )
-        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+        def sync_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
             return sync_openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=input_messages,
@@ -1817,7 +2004,9 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+        def get_output_attributes(
+            output_message: ChatCompletion,
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -1825,7 +2014,9 @@ class TestTracerLLMDecorator:
             process_input=get_input_attributes,
             process_output=get_output_attributes,
         )
-        def sync_llm_function(input_messages: List[ChatCompletionMessageParam]) -> ChatCompletion:
+        def sync_llm_function(
+            input_messages: List[ChatCompletionMessageParam],
+        ) -> ChatCompletion:
             raise ValueError("Something went wrong")
 
         input_messages: List[ChatCompletionMessageParam] = [
@@ -1872,7 +2063,9 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+        def get_output_attributes(
+            output_message: ChatCompletion,
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -1921,7 +2114,9 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {INPUT_VALUE: "input-messages"}
 
-        def get_output_attributes(output_message: ChatCompletion) -> "Mapping[str, AttributeValue]":
+        def get_output_attributes(
+            output_message: ChatCompletion,
+        ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
         @tracer.llm(
@@ -2208,8 +2403,15 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
             role="user",
             content="Hello",
             contents=[
-                TextMessageContent(type="text", text="Hello"),
+                TextMessageContent(type="text", text="Hello", signature="text-sig-abc"),
                 ImageMessageContent(type="image", image=Image(url="https://example.com/image.jpg")),
+                ReasoningMessageContent(
+                    type="reasoning",
+                    text="Thinking it through...",
+                    signature="thought-sig-456",
+                    data="redacted-thinking-data",
+                    encrypted_content="enc-content-xyz",
+                ),
             ],
             tool_call_id="call-123",
             tool_calls=[
@@ -2219,6 +2421,7 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
                         name="search",
                         arguments='{"query": "test"}',
                     ),
+                    reasoning_signature="tool-call-thought-sig-789",
                 ),
                 ToolCall(
                     id="call-789",
@@ -2251,7 +2454,12 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         Tool(
             json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}})
         ),
-        Tool(json_schema={"type": "object", "properties": {"operation": {"type": "string"}}}),
+        Tool(
+            json_schema={
+                "type": "object",
+                "properties": {"operation": {"type": "string"}},
+            }
+        ),
     ]
     attributes = get_llm_attributes(
         provider="openai",
@@ -2281,6 +2489,10 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         == "Hello"
     )
     assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_SIGNATURE}")
+        == "text-sig-abc"
+    )
+    assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
         == "image"
     )
@@ -2290,10 +2502,38 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         )
         == "https://example.com/image.jpg"
     )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TYPE}")
+        == "reasoning"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_TEXT}")
+        == "Thinking it through..."
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_SIGNATURE}")
+        == "thought-sig-456"
+    )
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_DATA}")
+        == "redacted-thinking-data"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.2.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}"
+        )
+        == "enc-content-xyz"
+    )
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALL_ID}") == "call-123"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
         == "call-456"
+    )
+    assert (
+        attributes.pop(
+            f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}"
+        )
+        == "tool-call-thought-sig-789"
     )
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
@@ -2344,6 +2584,139 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         "type": "object",
         "properties": {"operation": {"type": "string"}},
     }
+
+
+def _reasoning_message(role: str) -> Message:
+    return Message(
+        role=role,
+        contents=[
+            ReasoningMessageContent(
+                type="reasoning",
+                text="Thinking it through...",
+                signature="thought-sig-456",
+                data="redacted-thinking-data",
+                encrypted_content="enc-content-xyz",
+            ),
+        ],
+        tool_calls=[
+            ToolCall(
+                id="call-1",
+                function=ToolCallFunction(name="search", arguments='{"query": "test"}'),
+                reasoning_signature="tool-call-thought-sig-789",
+            ),
+        ],
+    )
+
+
+def test_context_manager_llm_span_emits_reasoning_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer: OITracer,
+) -> None:
+    with tracer.start_as_current_span(
+        "llm-span",
+        openinference_span_kind="llm",
+    ) as span:
+        span.set_attributes(
+            get_llm_attributes(
+                input_messages=[_reasoning_message("user")],
+                output_messages=[_reasoning_message("assistant")],
+            )
+        )
+        span.set_status(Status(StatusCode.OK))
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    for base in (LLM_INPUT_MESSAGES, LLM_OUTPUT_MESSAGES):
+        content = f"{base}.0.{MESSAGE_CONTENTS}.0"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_TYPE}") == "reasoning"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_TEXT}") == "Thinking it through..."
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_SIGNATURE}") == "thought-sig-456"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_DATA}") == "redacted-thinking-data"
+        assert attributes.pop(f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}") == "enc-content-xyz"
+        assert (
+            attributes.pop(f"{base}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}")
+            == "tool-call-thought-sig-789"
+        )
+
+
+def test_llm_decorator_emits_reasoning_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer: OITracer,
+) -> None:
+    def process_input(prompt: str) -> "Mapping[str, AttributeValue]":
+        return get_llm_attributes(input_messages=[_reasoning_message("user")])
+
+    def process_output(_: object) -> "Mapping[str, AttributeValue]":
+        return get_llm_attributes(output_messages=[_reasoning_message("assistant")])
+
+    @tracer.llm(process_input=process_input, process_output=process_output)
+    def call(prompt: str) -> str:
+        return "ok"
+
+    call("hello")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    content = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0"
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_TYPE}") == "reasoning"
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_TEXT}") == "Thinking it through..."
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_SIGNATURE}") == "thought-sig-456"
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_DATA}") == "redacted-thinking-data"
+    assert attributes.get(f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}") == "enc-content-xyz"
+    assert (
+        attributes.get(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}"
+        )
+        == "tool-call-thought-sig-789"
+    )
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+def test_reasoning_content_masking(
+    direction: str,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from openinference.instrumentation.config import REDACTED_VALUE
+
+    base = LLM_INPUT_MESSAGES if direction == "input" else LLM_OUTPUT_MESSAGES
+    role = "user" if direction == "input" else "assistant"
+    content = f"{base}.0.{MESSAGE_CONTENTS}.0"
+    text_key = f"{content}.{MESSAGE_CONTENT_TEXT}"
+    opaque_keys = [
+        f"{content}.{MESSAGE_CONTENT_SIGNATURE}",
+        f"{content}.{MESSAGE_CONTENT_DATA}",
+        f"{content}.{MESSAGE_CONTENT_ENCRYPTED_CONTENT}",
+        f"{base}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_REASONING_SIGNATURE}",
+    ]
+
+    def span_attributes_for(config: TraceConfig) -> Dict[str, AttributeValue]:
+        tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+        if direction == "input":
+            attrs = get_llm_attributes(input_messages=[_reasoning_message(role)])
+        else:
+            attrs = get_llm_attributes(output_messages=[_reasoning_message(role)])
+        tracer.start_span("llm-span", attributes=attrs).end()
+        return dict(in_memory_span_exporter.get_finished_spans()[-1].attributes or {})
+
+    attrs = span_attributes_for(TraceConfig())
+    assert attrs[text_key] == "Thinking it through..."
+    for key in opaque_keys:
+        assert attrs[key] is not None
+
+    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_messages": True}))  # type: ignore[arg-type]
+    assert text_key not in attrs
+    for key in opaque_keys:
+        assert key not in attrs
+
+    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_text": True}))  # type: ignore[arg-type]
+    assert attrs[text_key] == REDACTED_VALUE
+    assert attrs[opaque_keys[0]] == "thought-sig-456"
+    assert attrs[opaque_keys[1]] == "redacted-thinking-data"
+    assert attrs[opaque_keys[2]] == "enc-content-xyz"
+    assert attrs[opaque_keys[3]] == "tool-call-thought-sig-789"
 
 
 def test_infer_tool_parameters() -> None:
@@ -2703,7 +3076,11 @@ MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 
 # Message content attributes
+MESSAGE_CONTENT_DATA = MessageContentAttributes.MESSAGE_CONTENT_DATA
+MESSAGE_CONTENT_ENCRYPTED_CONTENT = MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT
+MESSAGE_CONTENT_ID = MessageContentAttributes.MESSAGE_CONTENT_ID
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_SIGNATURE = MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 
@@ -2739,6 +3116,7 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+TOOL_CALL_REASONING_SIGNATURE = ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE
 
 # Mime types
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
@@ -2749,6 +3127,10 @@ AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 TOOL = OpenInferenceSpanKindValues.TOOL.value
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
+RERANKER = OpenInferenceSpanKindValues.RERANKER.value
+GUARDRAIL = OpenInferenceSpanKindValues.GUARDRAIL.value
+EVALUATOR = OpenInferenceSpanKindValues.EVALUATOR.value
 
 # Session ID
 SESSION_ID = SpanAttributes.SESSION_ID
@@ -2794,7 +3176,11 @@ class TestSamplerAttributeAccess:
 
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-        from openinference.instrumentation import TraceConfig, TracerProvider, using_attributes
+        from openinference.instrumentation import (
+            TraceConfig,
+            TracerProvider,
+            using_attributes,
+        )
 
         # Create TracerProvider with custom sampler
         tracer_provider = TracerProvider(config=TraceConfig(), sampler=AttributeCapturingSampler())
@@ -2869,7 +3255,10 @@ class TestSamplerAttributeAccess:
         from openinference.instrumentation import TraceConfig, TracerProvider
 
         class CustomTraceConfig(TraceConfig):
-            def mask(
+            # Deliberately overrides with the legacy two-argument signature
+            # (no `externalize` keyword) to exercise the signature-tolerant
+            # fallback in mask_without_externalization.
+            def mask(  # type: ignore[override]
                 self,
                 key: str,
                 value: Union[AttributeValue, Callable[[], AttributeValue]],
@@ -2909,3 +3298,192 @@ class TestSamplerAttributeAccess:
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
+
+
+class _DictKeyEnum(Enum):
+    INTEGER_ENUM = 2
+    STRING_ENUM = "str_enum"
+
+
+class _ModelWithDictAttributes(BaseModel):
+    attributes: dict[Any, Any]
+
+
+class TestGetOutputAttributes:
+    def test_pydantic_model_with_non_json_dict_keys(self) -> None:
+        model = _ModelWithDictAttributes(
+            attributes={
+                _DictKeyEnum.INTEGER_ENUM: "an integer enum key",
+                _DictKeyEnum.STRING_ENUM: "a string enum key",
+                UUID("00000000-0000-0000-0000-000000000011"): "a uuid key",
+                "str": "a string key",
+                9: "an integer key",
+                0.1: "a float key",
+                True: "a boolean key",
+                None: "a null key",
+            },
+        )
+
+        result = get_output_attributes(model)
+        output_value = result["output.value"]
+        assert isinstance(output_value, str)
+        parsed = json.loads(output_value)
+
+        expected = {
+            "attributes": {
+                "2": "an integer enum key",
+                "str_enum": "a string enum key",
+                "00000000-0000-0000-0000-000000000011": "a uuid key",
+                "str": "a string key",
+                "9": "an integer key",
+                "0.1": "a float key",
+                "true": "a boolean key",
+                "None": "a null key",
+            },
+        }
+
+        assert parsed == expected
+        assert result["output.mime_type"] == "application/json"
+
+
+class TestGetProviderFromHost:
+    @pytest.mark.parametrize(
+        "host, expected",
+        [
+            ("api.openai.com", OpenInferenceLLMProviderValues.OPENAI),
+            ("openai.azure.com", OpenInferenceLLMProviderValues.AZURE),
+            ("services.ai.azure.com", OpenInferenceLLMProviderValues.AZURE),
+            ("cognitiveservices.azure.com", OpenInferenceLLMProviderValues.AZURE),
+            ("api.anthropic.com", OpenInferenceLLMProviderValues.ANTHROPIC),
+            ("api.cohere.com", OpenInferenceLLMProviderValues.COHERE),
+            ("api.cohere.ai", OpenInferenceLLMProviderValues.COHERE),
+            ("api.mistral.ai", OpenInferenceLLMProviderValues.MISTRALAI),
+            (
+                "generativelanguage.googleapis.com",
+                OpenInferenceLLMProviderValues.GOOGLE,
+            ),
+            ("aiplatform.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE),
+            ("bedrock-runtime.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            (
+                "bedrock-runtime.us-east-1.amazonaws.com",
+                OpenInferenceLLMProviderValues.AWS,
+            ),
+            (
+                "bedrock-runtime.eu-west-1.amazonaws.com",
+                OpenInferenceLLMProviderValues.AWS,
+            ),
+            ("api.x.ai", OpenInferenceLLMProviderValues.XAI),
+            ("api.deepseek.com", OpenInferenceLLMProviderValues.DEEPSEEK),
+            ("api.groq.com", OpenInferenceLLMProviderValues.GROQ),
+            ("api.fireworks.ai", OpenInferenceLLMProviderValues.FIREWORKS),
+            ("api.moonshot.cn", OpenInferenceLLMProviderValues.MOONSHOT),
+            ("api.cerebras.ai", OpenInferenceLLMProviderValues.CEREBRAS),
+            ("api.perplexity.ai", OpenInferenceLLMProviderValues.PERPLEXITY),
+            ("api.together.ai", OpenInferenceLLMProviderValues.TOGETHER),
+            ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER),
+        ],
+    )
+    def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:
+        assert infer_llm_provider_from_host(host) == expected
+
+    @pytest.mark.parametrize("host", ["API.OPENAI.COM", "Api.Openai.Com"])
+    def test_case_insensitive(self, host: str) -> None:
+        assert infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
+
+    @pytest.mark.parametrize("host", ["  api.openai.com  ", "\tapi.openai.com\t"])
+    def test_whitespace_stripped(self, host: str) -> None:
+        assert infer_llm_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI
+
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "api.unknown-provider.com",
+            "storage.googleapis.com",
+            "",
+        ],
+    )
+    def test_unrecognised_host_returns_none(self, host: str) -> None:
+        assert infer_llm_provider_from_host(host) is None
+
+    def test_every_provider_has_at_least_one_host_entry(self) -> None:
+        mapped = {provider.value for provider in _HOST_SUFFIX_TO_PROVIDER.values()}
+        missing = ALL_PROVIDER_VALUES - mapped
+        assert not missing, f"Providers without a hostname entry: {missing}"
+
+    def test_all_suffix_values_are_valid_provider_values(self) -> None:
+        mapped = {provider.value for provider in _HOST_SUFFIX_TO_PROVIDER.values()}
+        invalid = mapped - ALL_PROVIDER_VALUES
+        assert not invalid, f"Suffixes map to unknown provider values: {invalid}"
+
+
+class TestGetSystemFromModel:
+    @pytest.mark.parametrize(
+        "model_name, expected",
+        [
+            ("gpt-4o", OpenInferenceLLMSystemValues.OPENAI),
+            ("gpt-3.5-turbo", OpenInferenceLLMSystemValues.OPENAI),
+            ("o1-preview", OpenInferenceLLMSystemValues.OPENAI),
+            ("o3-mini", OpenInferenceLLMSystemValues.OPENAI),
+            ("o4-mini", OpenInferenceLLMSystemValues.OPENAI),
+            ("text-embedding-ada-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("text-embedding-3-large", OpenInferenceLLMSystemValues.OPENAI),
+            ("davinci-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("curie", OpenInferenceLLMSystemValues.OPENAI),
+            ("babbage-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("ada", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure-gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("openai-gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("claude-3-5-sonnet-20241022", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("claude-3-haiku", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("anthropic.claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("google_anthropic_vertex.claude", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE),
+            ("command-r-plus", OpenInferenceLLMSystemValues.COHERE),
+            ("command-light", OpenInferenceLLMSystemValues.COHERE),
+            ("mistral-large-latest", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mistral-7b-instruct", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("gemini-2.0-flash", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertex-ai-model", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("google-palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+        ],
+    )
+    def test_known_models(self, model_name: str, expected: OpenInferenceLLMSystemValues) -> None:
+        assert infer_llm_system_from_model_name(model_name) == expected
+
+    @pytest.mark.parametrize("model_name", ["GPT-4O", "Claude-3-Haiku", "GEMINI-1.5-PRO"])
+    def test_case_insensitive(self, model_name: str) -> None:
+        assert infer_llm_system_from_model_name(model_name) is not None
+
+    @pytest.mark.parametrize("model_name", ["  gpt-4o  ", "\tclaude-3\t"])
+    def test_whitespace_stripped(self, model_name: str) -> None:
+        assert infer_llm_system_from_model_name(model_name) is not None
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "unknown-model-xyz",
+            "llama-3-70b",
+            "",
+        ],
+    )
+    def test_unrecognised_model_returns_none(self, model_name: str) -> None:
+        assert infer_llm_system_from_model_name(model_name) is None
+
+    def test_every_system_has_at_least_one_prefix_entry(self) -> None:
+        mapped = {system.value for system in _MODEL_PREFIX_TO_SYSTEM.values()}
+        missing = ALL_SYSTEM_VALUES - mapped
+        assert not missing, f"Systems without a prefix entry: {missing}"
+
+    def test_all_prefix_values_are_valid_system_values(self) -> None:
+        mapped = {system.value for system in _MODEL_PREFIX_TO_SYSTEM.values()}
+        invalid = mapped - ALL_SYSTEM_VALUES
+        assert not invalid, f"Prefixes map to unknown system values: {invalid}"
+
+    def test_google_anthropic_vertex_resolves_to_anthropic_not_vertexai(self) -> None:
+        assert (
+            infer_llm_system_from_model_name("google_anthropic_vertex.claude-3")
+            == OpenInferenceLLMSystemValues.ANTHROPIC
+        )

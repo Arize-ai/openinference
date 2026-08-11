@@ -1,6 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
+from os import getenv
 from typing import (
     Any,
     Awaitable,
@@ -18,15 +19,61 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
 from agno.models.base import Model
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    infer_llm_system_from_model_name,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
 )
+
+
+def _get_gemini_vertexai_mode(model: Model) -> Optional[bool]:
+    """Return whether an Agno Gemini model uses Vertex AI."""
+    # Agno returns a prebuilt client without consulting its other configuration.
+    client = getattr(model, "client", None)
+    if client is not None:
+        client_vertexai = getattr(client, "vertexai", None)
+        return client_vertexai if isinstance(client_vertexai, bool) else None
+
+    vertexai_env = getenv("GOOGLE_GENAI_USE_VERTEXAI", "false").lower()
+    vertexai_mode: Optional[bool] = (
+        True if bool(getattr(model, "vertexai", False)) or vertexai_env == "true" else None
+    )
+    client_params = getattr(model, "client_params", None)
+    # Agno applies client_params last, so an explicit value overrides the flag.
+    if isinstance(client_params, Mapping) and "vertexai" in client_params:
+        client_param_vertexai = client_params["vertexai"]
+        if client_param_vertexai is None:
+            vertexai_mode = None
+        elif isinstance(client_param_vertexai, bool):
+            vertexai_mode = client_param_vertexai
+        else:
+            return None
+    if vertexai_mode is not None:
+        return vertexai_mode
+    return vertexai_env in {"true", "1"}
+
+
+def _get_llm_system(model: Model) -> Optional[str]:
+    """Derive the OpenInference ``llm.system`` value from an Agno model."""
+    system = infer_llm_system_from_model_name(model.id or "")
+    if system is None:
+        return None
+    if system is OpenInferenceLLMSystemValues.VERTEXAI and (
+        hasattr(model, "vertexai") or getattr(model, "provider", None) == "Google"
+    ):
+        if (vertexai := _get_gemini_vertexai_mode(model)) is None:
+            return None
+        return "vertexai" if vertexai else "google"
+    return system.value
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
@@ -72,6 +119,9 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     def process_message(idx: int, message: Any) -> Iterator[Tuple[str, Any]]:
         yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", message.role
+        # tool_call_id links a role=tool result message back to the original tool call request
+        if message.tool_call_id:
+            yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_TOOL_CALL_ID}", message.tool_call_id
         if message.content:
             yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENT}", message.get_content_string()
         if message.tool_calls:
@@ -85,9 +135,10 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                     f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
                     _get_attr(function_obj, "name"),
                 )
+                arguments = _get_attr(function_obj, "arguments")
                 yield (
                     f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                    safe_json_dumps(_get_attr(function_obj, "arguments", {})),
+                    json.dumps(arguments) if isinstance(arguments, dict) else (arguments or "{}"),
                 )
 
     messages = arguments.get("messages", [])
@@ -199,9 +250,12 @@ def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
                             f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
                             _get_attr(function_obj, "name"),
                         )
+                        arguments = _get_attr(function_obj, "arguments")
                         yield (
                             f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(_get_attr(function_obj, "arguments", {})),
+                            json.dumps(arguments)
+                            if isinstance(arguments, dict)
+                            else (arguments or "{}"),
                         )
 
             yield OUTPUT_VALUE, safe_json_dumps(messages)
@@ -241,32 +295,56 @@ def _parse_model_output(output: Any) -> str:
 
 
 def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
-    # Accumulate all content and tool calls across chunks
     accumulated_content = ""
-    all_tool_calls: list[Dict[str, Any]] = []
+    indexed_tool_calls: Dict[int, Dict[str, Any]] = {}
+    non_indexed_tool_calls: list[Dict[str, Any]] = []
 
     for chunk in output:
-        # Accumulate content from this chunk
-        if chunk.content:
-            accumulated_content += chunk.content
+        if chunk.content is not None and chunk.content != "":
+            accumulated_content += str(chunk.content)
 
-        # Collect tool calls from this chunk
         if chunk.tool_calls:
             for tool_call in chunk.tool_calls:
-                if _get_attr(tool_call, "id"):
-                    tool_call_dict = {
-                        "id": _get_attr(tool_call, "id"),
-                        "type": _get_attr(tool_call, "type"),
-                    }
+                index = _get_attr(tool_call, "index")
+
+                if index is not None:
+                    # OpenAI sends args as fragments keyed by index
+                    if index not in indexed_tool_calls:
+                        indexed_tool_calls[index] = {
+                            "id": None,
+                            "type": None,
+                            "function": {"name": None, "arguments": ""},
+                        }
+                    entry = indexed_tool_calls[index]
+                    if _get_attr(tool_call, "id"):
+                        entry["id"] = _get_attr(tool_call, "id")
+                    if _get_attr(tool_call, "type"):
+                        entry["type"] = _get_attr(tool_call, "type")
                     function_obj = _get_attr(tool_call, "function")
                     if function_obj:
-                        tool_call_dict["function"] = {
-                            "name": _get_attr(function_obj, "name"),
-                            "arguments": _get_attr(function_obj, "arguments"),
+                        if _get_attr(function_obj, "name"):
+                            entry["function"]["name"] = _get_attr(function_obj, "name")
+                        entry["function"]["arguments"] += _get_attr(function_obj, "arguments") or ""
+                else:
+                    # Anthropic / Gemini send complete tool call in one chunk
+                    if _get_attr(tool_call, "id"):
+                        tool_call_dict: Dict[str, Any] = {
+                            "id": _get_attr(tool_call, "id"),
+                            "type": _get_attr(tool_call, "type"),
                         }
-                    all_tool_calls.append(tool_call_dict)
+                        function_obj = _get_attr(tool_call, "function")
+                        if function_obj:
+                            tool_call_dict["function"] = {
+                                "name": _get_attr(function_obj, "name"),
+                                "arguments": _get_attr(function_obj, "arguments"),
+                            }
+                        non_indexed_tool_calls.append(tool_call_dict)
 
-    # Create single message with accumulated content and all tool calls
+    all_tool_calls: list[Dict[str, Any]] = [
+        indexed_tool_calls[i] for i in sorted(indexed_tool_calls)
+    ]
+    all_tool_calls.extend(non_indexed_tool_calls)
+
     messages: list[Dict[str, Any]] = []
     if accumulated_content or all_tool_calls:
         result_dict: Dict[str, Any] = {"role": "assistant"}
@@ -280,6 +358,33 @@ def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
         messages.append(result_dict)
 
     return {"messages": messages}
+
+
+def _stream_output_messages(output: Dict[str, Any]) -> Iterator[Tuple[str, Any]]:
+    for i, message in enumerate(output.get("messages", [])):
+        if role := _get_attr(message, "role"):
+            yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
+        if content := _get_attr(message, "content"):
+            yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+        if tool_calls := _get_attr(message, "tool_calls"):
+            for j, tool_call in enumerate(tool_calls):
+                if tc_id := _get_attr(tool_call, "id"):
+                    yield (
+                        f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_ID}",
+                        tc_id,
+                    )
+                function_obj = _get_attr(tool_call, "function", {})
+                if fn_name := _get_attr(function_obj, "name"):
+                    yield (
+                        f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_FUNCTION_NAME}",
+                        fn_name,
+                    )
+                fn_args = _get_attr(function_obj, "arguments")
+                if fn_args is not None:
+                    yield (
+                        f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        fn_args,
+                    )
 
 
 class _ModelWrapper:
@@ -315,6 +420,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model):
+                span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = wrapped(*args, **kwargs)
             output_message = _parse_model_output(response)
@@ -372,6 +479,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model):
+                span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 
             responses = []
@@ -383,6 +492,7 @@ class _ModelWrapper:
             output_message = json.dumps(output_message_dict)
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_attribute(OUTPUT_VALUE, output_message)
+            span.set_attributes(dict(_stream_output_messages(output_message_dict)))
 
             # Find the final response with complete metrics (last one with response_usage)
             final_response_with_metrics = None
@@ -442,6 +552,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model):
+                span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = await wrapped(*args, **kwargs)
             output_message = _parse_model_output(response)
@@ -505,6 +617,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model):
+                span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 
             responses = []
@@ -516,6 +630,7 @@ class _ModelWrapper:
             output_message = json.dumps(output_message_dict)
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_attribute(OUTPUT_VALUE, output_message)
+            span.set_attributes(dict(_stream_output_messages(output_message_dict)))
 
             # Find the final response with complete metrics (last one with response_usage)
             final_response_with_metrics = None
@@ -556,6 +671,7 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
@@ -573,6 +689,7 @@ MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_A
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
 
 # mime types

@@ -70,7 +70,7 @@ class _AsyncIterator:
             raise
 
 
-class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc]
+class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __wrapped__: EventStream
 
     def __init__(

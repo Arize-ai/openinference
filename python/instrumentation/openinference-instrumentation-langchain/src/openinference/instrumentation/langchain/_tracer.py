@@ -34,7 +34,7 @@ from typing import (
 )
 from uuid import UUID
 
-import wrapt  # type: ignore
+import wrapt
 from langchain_core.messages import BaseMessage
 from langchain_core.messages.ai import UsageMetadata
 from langchain_core.tracers import BaseTracer, LangChainTracer
@@ -65,6 +65,12 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
+_message_to_dict: Optional[Callable[[BaseMessage], Dict[Any, Any]]]
+try:
+    from langchain_core.messages.base import message_to_dict as _message_to_dict
+except ImportError:
+    _message_to_dict = None
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -76,10 +82,11 @@ _AUDIT_TIMING = False
 IGNORED_EXCEPTION_PATTERNS = [
     r"^Command\(",
     r"^ParentCommand\(",
+    r"^GraphInterrupt\(",
 ]
 
 
-@wrapt.decorator  # type: ignore
+@wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
 def audit_timing(wrapped: Any, _: Any, args: Any, kwargs: Any) -> Any:
     if not _AUDIT_TIMING:
         return wrapped(*args, **kwargs)
@@ -95,7 +102,7 @@ K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")
 
 
-class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
+class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """
     A wrapped dictionary with lock
     """
@@ -114,15 +121,15 @@ class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
 
     def __getitem__(self, key: K) -> V:
         with self._self_lock:
-            return cast(V, super().__getitem__(key))
+            return cast(V, super().__getitem__(key))  # type: ignore[misc,no-untyped-call,unused-ignore]
 
     def __setitem__(self, key: K, value: V) -> None:
         with self._self_lock:
-            super().__setitem__(key, value)
+            super().__setitem__(key, value)  # type: ignore[misc,no-untyped-call,unused-ignore]
 
     def __delitem__(self, key: K) -> None:
         with self._self_lock:
-            super().__delitem__(key)
+            super().__delitem__(key)  # type: ignore[misc,no-untyped-call,unused-ignore]
 
 
 class OpenInferenceTracer(BaseTracer):
@@ -152,10 +159,10 @@ class OpenInferenceTracer(BaseTracer):
         if TYPE_CHECKING:
             # check that `run_map` still exists in parent class
             assert self.run_map
-        self.run_map = _DictWithLock[str, Run](self.run_map)
+        self.run_map = _DictWithLock[str, Run](self.run_map)  # type: ignore[assignment]
         self._tracer = tracer
         self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
-        self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
+        self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()  # type: ignore[assignment]
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
     def get_span(self, run_id: UUID) -> Optional[Span]:
@@ -233,6 +240,22 @@ class OpenInferenceTracer(BaseTracer):
             _record_exception(span, error)
         return super().on_tool_error(error, *args, run_id=run_id, **kwargs)
 
+    def on_interrupt(self, event: Any) -> None:
+        # LangGraph dispatches its graph-level lifecycle callbacks (`on_interrupt`
+        # and `on_resume`) to every registered handler. Because the LangChain
+        # instrumentor injects this tracer into every callback manager, the tracer
+        # receives these events even though they are not part of the `BaseTracer`
+        # interface. Without these no-ops, `langchain_core` would call
+        # `getattr(handler, "on_interrupt")`, raise `AttributeError`, and log a
+        # warning on every interrupt. The tracer has no span work to do here, so
+        # the handlers intentionally do nothing.
+        pass
+
+    def on_resume(self, event: Any) -> None:
+        # See `on_interrupt`: no-op handler for LangGraph's graph-level resume
+        # lifecycle callback.
+        pass
+
     def on_chat_model_start(self, *args: Any, **kwargs: Any) -> Run:
         """
         This emulates the behavior of the LangChainTracer.
@@ -248,7 +271,7 @@ class OpenInferenceTracer(BaseTracer):
         return LangChainTracer.on_chat_model_start(self, *args, **kwargs)  # type: ignore
 
 
-@audit_timing  # type: ignore
+@audit_timing
 def _record_exception(span: Span, error: BaseException) -> None:
     if isinstance(error, Exception):
         span.record_exception(error)
@@ -270,7 +293,7 @@ def _record_exception(span: Span, error: BaseException) -> None:
     span.add_event(name="exception", attributes=attributes)
 
 
-@audit_timing  # type: ignore
+@audit_timing
 def _update_span(span: Span, run: Run) -> None:
     # If there  is no error or if there is an agent control exception, set the span to OK
     if run.error is None or any(
@@ -302,6 +325,7 @@ def _update_span(span: Span, run: Run) -> None:
                     _model_name(run.outputs, run.extra),
                     _token_counts(run.outputs),
                     _function_calls(run.outputs),
+                    _finish_reason(run.outputs),
                     _tools(run),
                     _retrieval_documents(run),
                     _metadata(run),
@@ -315,7 +339,10 @@ def _langchain_run_type_to_span_kind(run_type: str) -> OpenInferenceSpanKindValu
     try:
         return OpenInferenceSpanKindValues(run_type.upper())
     except ValueError:
-        return OpenInferenceSpanKindValues.UNKNOWN
+        # Run types without a dedicated span kind (e.g. `parser`) fall back to
+        # `CHAIN`, not `UNKNOWN`, to match the JS instrumentor. See:
+        # js/packages/openinference-instrumentation-langchain/src/utils.ts
+        return OpenInferenceSpanKindValues.CHAIN
 
 
 def stop_on_exception(
@@ -459,6 +486,11 @@ class _OpenInferenceJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for OpenInference with comprehensive type support."""
 
     def default(self, obj: Any) -> Any:
+        # Handle LangChain messages before generic Pydantic handling so
+        # older supported langchain_core versions still produce structured JSON.
+        if isinstance(obj, BaseMessage):
+            return _serialize_langchain_message(obj)
+
         # Handle Pydantic models
         if hasattr(obj, "model_dump") and callable(obj.model_dump):
             return obj.model_dump()
@@ -499,6 +531,83 @@ class _OpenInferenceJSONEncoder(json.JSONEncoder):
 
         # Let the base class handle everything else (will raise TypeError for unsupported types)
         return super().default(obj)
+
+
+def _serialize_langchain_message(message: BaseMessage) -> Any:
+    if _message_to_dict is not None:
+        try:
+            return _message_to_dict(message)
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with message_to_dict.",
+                exc_info=True,
+            )
+
+    if hasattr(message, "model_dump") and callable(message.model_dump):
+        try:
+            return message.model_dump()
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with model_dump.",
+                exc_info=True,
+            )
+
+    if hasattr(message, "model_dump_json") and callable(message.model_dump_json):
+        try:
+            return json.loads(message.model_dump_json())
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with model_dump_json.",
+                exc_info=True,
+            )
+
+    if hasattr(message, "dict") and callable(message.dict):
+        try:
+            return message.dict()
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with dict.",
+                exc_info=True,
+            )
+
+    message_data = _serialize_langchain_message_data(message)
+    if message_data:
+        return {"type": getattr(message, "type", message.__class__.__name__), "data": message_data}
+
+    if hasattr(message, "to_json") and callable(message.to_json):
+        try:
+            serialized = message.to_json()
+            if isinstance(serialized, str):
+                return json.loads(serialized)
+            if isinstance(serialized, Mapping):
+                return dict(serialized)
+            return serialized
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with to_json.",
+                exc_info=True,
+            )
+
+    return str(message)
+
+
+def _serialize_langchain_message_data(message: BaseMessage) -> Dict[str, Any]:
+    data: Dict[str, Any] = {}
+    for attribute_name in (
+        "content",
+        "additional_kwargs",
+        "response_metadata",
+        "type",
+        "name",
+        "id",
+        "example",
+    ):
+        if not hasattr(message, attribute_name):
+            continue
+        value = getattr(message, attribute_name)
+        if value is not None:
+            data[attribute_name] = value
+    return data
 
 
 def _json_dumps(obj: Any) -> str:
@@ -1191,6 +1300,16 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
         yield from _token_counts_from_raw_anthropic_usage_with_cache_read_or_write(token_usage)
 
 
+def _get_first_generation(outputs: Optional[Mapping[str, Any]]) -> Any:
+    """Returns the first generation from run outputs, or None if not present."""
+    if not outputs:
+        return None
+    try:
+        return outputs["generations"][0][0]
+    except Exception:
+        return None
+
+
 def _parse_token_usage_for_vertexai(
     outputs: Optional[Mapping[str, Any]],
 ) -> Any:
@@ -1201,13 +1320,7 @@ def _parse_token_usage_for_vertexai(
     https://github.com/langchain-ai/langchain/blob/langchain%3D%3D0.3.12/libs/core/langchain_core/outputs/generation.py#L28
     """
     if (
-        outputs
-        and hasattr(outputs, "get")
-        and (generations := outputs.get("generations"))
-        and hasattr(generations, "__getitem__")
-        and generations[0]
-        and hasattr(generations[0], "__getitem__")
-        and (generation := generations[0][0])
+        (generation := _get_first_generation(outputs))
         and hasattr(generation, "get")
         and (
             generation_info := generation.get("generation_info")
@@ -1253,13 +1366,7 @@ def _parse_token_usage_for_streaming_outputs(
     `stream_usage` is set to true.
     """
     if (
-        outputs
-        and hasattr(outputs, "get")
-        and (generations := outputs.get("generations"))
-        and hasattr(generations, "__getitem__")
-        and generations[0]
-        and hasattr(generations[0], "__getitem__")
-        and (generation := generations[0][0])
+        (generation := _get_first_generation(outputs))
         and hasattr(generation, "get")
         and (message := generation.get("message"))
         and hasattr(message, "get")
@@ -1285,6 +1392,34 @@ def _function_calls(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str,
         yield LLM_FUNCTION_CALL, safe_json_dumps(function_call_data)
     except Exception:
         pass
+
+
+@stop_on_exception
+def _finish_reason(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, str]]:
+    """Yields the finish reason for the first generation, if present."""
+    if not (generation := _get_first_generation(outputs)) or not hasattr(generation, "get"):
+        return
+    finish_reason_keys = (
+        "finish_reason",
+        "stop_reason",  # Anthropic-specific key
+    )
+    # For non-streaming case, most chat providers populate generation_info.
+    if (generation_info := generation.get("generation_info")) and (
+        finish_reason := _get_first_value(generation_info, finish_reason_keys)
+    ):
+        yield LLM_FINISH_REASON, str(finish_reason)
+        return
+    # For streaming case, finish_reason often lands in the message's response_metadata instead.
+    response_metadata: Any = None
+    if message := generation.get("message"):
+        if isinstance(message, BaseMessage):
+            response_metadata = getattr(message, "response_metadata", None)
+        elif hasattr(message, "get") and (kwargs := message.get("kwargs")):
+            response_metadata = kwargs.get("response_metadata") if hasattr(kwargs, "get") else None
+    if response_metadata and (
+        finish_reason := _get_first_value(response_metadata, finish_reason_keys)
+    ):
+        yield LLM_FINISH_REASON, str(finish_reason)
 
 
 @stop_on_exception
@@ -1432,6 +1567,7 @@ LLM_FUNCTION_CALL = SpanAttributes.LLM_FUNCTION_CALL
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

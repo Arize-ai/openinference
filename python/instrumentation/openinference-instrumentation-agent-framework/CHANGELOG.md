@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.6...python-openinference-instrumentation-agent-framework-v0.1.7) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.5...python-openinference-instrumentation-agent-framework-v0.1.6) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.4...python-openinference-instrumentation-agent-framework-v0.1.5) (2026-05-22)
+
+
+### Bug Fixes
+
+* **agent_framework:** bump test pin to agent-framework 1.4.0 ([#3129](https://github.com/Arize-ai/openinference/issues/3129)) ([a380ac0](https://github.com/Arize-ai/openinference/commit/a380ac07a41377ce55ef07d77fb59a2a18150280))
+
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.3...python-openinference-instrumentation-agent-framework-v0.1.4) (2026-04-09)
+
+
+### Features
+
+* **agent-framework:** support v_1.0.0 ([#2966](https://github.com/Arize-ai/openinference/issues/2966)) ([e8e4dac](https://github.com/Arize-ai/openinference/commit/e8e4dac31afeaf198440429ff565eb48105c1fc5))
+
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.2...python-openinference-instrumentation-agent-framework-v0.1.3) (2026-02-28)
+
+
+### Bug Fixes
+
+* add version.py ([#2821](https://github.com/Arize-ai/openinference/issues/2821)) ([5ee2716](https://github.com/Arize-ai/openinference/commit/5ee271613c925a60f5e4127d063359c469be77b5))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.1...python-openinference-instrumentation-agent-framework-v0.1.2) (2026-02-12)
 
 

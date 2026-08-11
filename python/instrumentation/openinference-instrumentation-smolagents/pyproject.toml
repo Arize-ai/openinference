@@ -28,21 +28,15 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.17",
+  "openinference-instrumentation>=0.1.51",
+  "openinference-semantic-conventions>=0.1.31",
   "wrapt",
   "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "smolagents>=1.21.2",
-]
-test = [
-  "smolagents[litellm]==1.21.2",
-  "opentelemetry-sdk",
-  "pytest-recording",
-  "openai",
+  "smolagents>=1.24.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -83,8 +77,8 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
-  "smolagents",
   "wrapt",
+  "smolagents",
 ]
 
 [tool.ruff]

@@ -1,5 +1,88 @@
 # Changelog
 
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.1...python-openinference-instrumentation-anthropic-v1.1.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* **anthropic:** don't let a span-finalization error escape into user code ([#3500](https://github.com/Arize-ai/openinference/issues/3500)) ([#3505](https://github.com/Arize-ai/openinference/issues/3505)) ([15e93f7](https://github.com/Arize-ai/openinference/commit/15e93f7525d640298303ab78f4dafe6a3bd3a2aa))
+* **anthropic:** emit llm.token_count.total on the non-streaming path ([#3498](https://github.com/Arize-ai/openinference/issues/3498)) ([32c30ba](https://github.com/Arize-ai/openinference/commit/32c30baafa2c9a203837d7590989eb54830c535b))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.0...python-openinference-instrumentation-anthropic-v1.1.1) (2026-08-04)
+
+
+### Bug Fixes
+
+* **anthropic:** record cache read/write token details on streaming paths ([#3488](https://github.com/Arize-ai/openinference/issues/3488)) ([3b9b5b4](https://github.com/Arize-ai/openinference/commit/3b9b5b4f954c28c9dcd18576a533119040cc4ac2))
+
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.6...python-openinference-instrumentation-anthropic-v1.1.0) (2026-07-30)
+
+
+### Features
+
+* **anthropic:** Add Finish Reason Attribute ([#3460](https://github.com/Arize-ai/openinference/issues/3460)) ([48b8e7a](https://github.com/Arize-ai/openinference/commit/48b8e7a19611e1292951113caea33af657cd4e18))
+* **python:** anthropic capture thinking and reducted thinking ([#3237](https://github.com/Arize-ai/openinference/issues/3237)) ([bf2e889](https://github.com/Arize-ai/openinference/commit/bf2e889e3fbd347a6f3219645fcb2bc46464ad6c))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [1.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.5...python-openinference-instrumentation-anthropic-v1.0.6) (2026-06-02)
+
+
+### Bug Fixes
+
+* **anthropic:** handle MidConversationSystemBlockParam in input message parsing ([#3191](https://github.com/Arize-ai/openinference/issues/3191)) ([0ee46c6](https://github.com/Arize-ai/openinference/commit/0ee46c6c0d8e95441bd57074c9c372b4afffb3ee))
+
+## [1.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.4...python-openinference-instrumentation-anthropic-v1.0.5) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [1.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.3...python-openinference-instrumentation-anthropic-v1.0.4) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [1.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.2...python-openinference-instrumentation-anthropic-v1.0.3) (2026-05-11)
+
+
+### Bug Fixes
+
+* **anthropic:** add system message in input messages ([#3076](https://github.com/Arize-ai/openinference/issues/3076)) ([9f3d0d0](https://github.com/Arize-ai/openinference/commit/9f3d0d05d6f818d7e6d9abe4c02e0b5ab23c5fb0))
+
+## [1.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.1...python-openinference-instrumentation-anthropic-v1.0.2) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [1.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.0...python-openinference-instrumentation-anthropic-v1.0.1) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.20...python-openinference-instrumentation-anthropic-v1.0.0) (2026-03-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* Add support for messages.parse()  ([#2694](https://github.com/Arize-ai/openinference/issues/2694))
+
+### Features
+
+* Add support for messages.parse()  ([#2694](https://github.com/Arize-ai/openinference/issues/2694)) ([298e48b](https://github.com/Arize-ai/openinference/commit/298e48b52845319f814162b4a92a593d0b8d9ae2))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.19...python-openinference-instrumentation-anthropic-v0.1.20) (2025-10-10)
 
 

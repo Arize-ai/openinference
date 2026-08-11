@@ -11,6 +11,7 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    Optional,
     OrderedDict,
     TypedDict,
     TypeVar,
@@ -90,7 +91,10 @@ class _RunnerRunAsync(_WithTracer):
 
         tracer = self._tracer
         name = f"invocation [{instance.app_name}]"
-        attributes = dict(get_attributes_from_context())
+
+        # Materialize ambient context once to detect if we are inside an existing session.
+        ambient_attributes = dict(get_attributes_from_context())
+        attributes = dict(ambient_attributes)
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.CHAIN.value
 
         arguments = bind_args_kwargs(wrapped, *args, **kwargs)
@@ -106,10 +110,15 @@ class _RunnerRunAsync(_WithTracer):
 
         if (user_id := kwargs.get("user_id")) is not None:
             attributes[SpanAttributes.USER_ID] = user_id
-        if (session_id := kwargs.get("session_id")) is not None:
+
+        session_id = kwargs.get("session_id")
+        if SpanAttributes.SESSION_ID in ambient_attributes:
+            # Inherit the parent session ID to discard the ADK-internal UUID passed by AgentTool.
+            attributes[SpanAttributes.SESSION_ID] = ambient_attributes[SpanAttributes.SESSION_ID]
+        elif session_id is not None:
             attributes[SpanAttributes.SESSION_ID] = session_id
 
-        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc]
+        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
             __wrapped__: AsyncGenerator[Event, None]
 
             async def __aiter__(self) -> Any:
@@ -122,10 +131,21 @@ class _RunnerRunAsync(_WithTracer):
                     )
                     if user_id is not None:
                         stack.enter_context(using_user(user_id))
-                    if session_id is not None:
+
+                    # Skip pushing a new session context if one already exists in ambient context.
+                    if (
+                        session_id is not None
+                        and SpanAttributes.SESSION_ID not in ambient_attributes
+                    ):
                         stack.enter_context(using_session(session_id))
+
+                    has_output_with_content = False
                     async for event in self.__wrapped__:
                         if event.is_final_response():
+                            event_has_content = _event_has_content(event)
+                            if has_output_with_content and not event_has_content:
+                                yield event
+                                continue
                             try:
                                 span.set_attribute(
                                     SpanAttributes.OUTPUT_VALUE,
@@ -138,6 +158,10 @@ class _RunnerRunAsync(_WithTracer):
                             except Exception:
                                 logger.exception(
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                                )
+                            else:
+                                has_output_with_content = (
+                                    has_output_with_content or event_has_content
                                 )
                         yield event
                     span.set_status(StatusCode.OK)
@@ -162,24 +186,27 @@ class _BaseAgentRunAsync(_WithTracer):
         attributes = dict(get_attributes_from_context())
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
         attributes[SpanAttributes.AGENT_NAME] = instance.name
-
         if description := getattr(instance, "description", None):
             attributes["gen_ai.agent.description"] = description
 
-        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc]
+        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
             __wrapped__: AsyncGenerator[Event, None]
 
             async def __aiter__(self) -> Any:
-                has_final_response = False
-                last_event = None
                 with tracer.start_as_current_span(
                     name=name,
                     attributes=attributes,
                 ) as span:
+                    last_escalation_event: Optional[Event] = None
+                    has_output_with_content = False
                     async for event in self.__wrapped__:
-                        last_event = event
+                        if event.actions.escalate:
+                            last_escalation_event = event
                         if event.is_final_response():
-                            has_final_response = True
+                            event_has_content = _event_has_content(event)
+                            if has_output_with_content and not event_has_content:
+                                yield event
+                                continue
                             try:
                                 span.set_attribute(
                                     SpanAttributes.OUTPUT_VALUE,
@@ -193,26 +220,32 @@ class _BaseAgentRunAsync(_WithTracer):
                                 logger.exception(
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
                                 )
+                            else:
+                                has_output_with_content = (
+                                    has_output_with_content or event_has_content
+                                )
                         yield event
-                    if last_event and not has_final_response:
+                    if last_escalation_event is not None and not has_output_with_content:
                         try:
                             span.set_attribute(
                                 SpanAttributes.OUTPUT_VALUE,
-                                last_event.model_dump_json(exclude_none=True),
+                                last_escalation_event.model_dump_json(exclude_none=True),
                             )
                             span.set_attribute(
                                 SpanAttributes.OUTPUT_MIME_TYPE,
                                 OpenInferenceMimeTypeValues.JSON.value,
                             )
                         except Exception:
-                            pass
+                            logger.exception(
+                                f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                            )
                     span.set_status(StatusCode.OK)
 
         return _AsyncGenerator(generator)
 
 
 class _TraceCallLlm(_WithTracer):
-    @wrapt.decorator  # type: ignore[misc]
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
         wrapped: Callable[..., T],
@@ -307,7 +340,7 @@ class _TraceCallLlm(_WithTracer):
 
 
 class _TraceToolCall(_WithTracer):
-    @wrapt.decorator  # type: ignore[misc]
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
         wrapped: Callable[..., T],
@@ -351,6 +384,8 @@ class _TraceToolCall(_WithTracer):
         if event := next((arg for arg in arguments.values() if isinstance(arg, Event)), None):
             if responses := event.get_function_responses():
                 try:
+                    if responses[0].id:
+                        span.set_attribute(SpanAttributes.TOOL_ID, responses[0].id)
                     span.set_attribute(
                         SpanAttributes.OUTPUT_VALUE,
                         responses[0].model_dump_json(exclude_none=True),
@@ -419,7 +454,8 @@ def _get_attributes_from_usage_metadata(
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
                 prompt_details_audio,
             )
-    if prompt := obj.prompt_token_count:
+    prompt = (obj.prompt_token_count or 0) + (obj.tool_use_prompt_token_count or 0)
+    if prompt:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
     if obj.candidates_tokens_details:
         completion_details_audio = 0
@@ -439,7 +475,16 @@ def _get_attributes_from_usage_metadata(
         completion += candidates
     if thoughts := obj.thoughts_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
-        completion += thoughts
+        total = obj.total_token_count
+        has_prompt_side_count = (
+            obj.prompt_token_count is not None or obj.tool_use_prompt_token_count is not None
+        )
+        # Check whether thinking tokens are already folded into the candidates count.
+        candidates_already_include_thoughts = (
+            has_prompt_side_count and total is not None and (prompt + (candidates or 0)) == total
+        )
+        if not candidates_already_include_thoughts:
+            completion += thoughts
     if completion:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion
 
@@ -497,6 +542,8 @@ def _get_attributes_from_parts(
             yield from _get_attributes_from_text_part(
                 text,
                 prefix=prefix,
+                thought=bool(part.thought),
+                signature=part.thought_signature,
             )
         elif text_only:
             continue
@@ -505,12 +552,15 @@ def _get_attributes_from_parts(
             yield from _get_attributes_from_function_call(
                 function_call,
                 prefix=prefix,
+                signature=part.thought_signature,
             )
         elif (function_response := part.function_response) is not None:
             prefix = f"{span_attribute}.{message_index}."
             yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
             if function_response.name:
                 yield f"{prefix}{MessageAttributes.MESSAGE_NAME}", function_response.name
+            if function_response.id:
+                yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", function_response.id
             if function_response.response:
                 yield (
                     f"{prefix}{MessageAttributes.MESSAGE_CONTENT}",
@@ -528,9 +578,19 @@ def _get_attributes_from_text_part(
     /,
     *,
     prefix: str = "",
+    thought: bool = False,
+    signature: Optional[bytes] = None,
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", obj
-    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+    yield (
+        f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+        "reasoning" if thought else "text",
+    )
+    if signature:
+        yield (
+            f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+            base64.b64encode(signature).decode() if isinstance(signature, bytes) else signature,
+        )
 
 
 @stop_on_exception
@@ -539,6 +599,7 @@ def _get_attributes_from_function_call(
     /,
     *,
     prefix: str = "",
+    signature: Optional[bytes] = None,
 ) -> Iterator[tuple[str, AttributeValue]]:
     if id_ := obj.id:
         yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", id_
@@ -549,23 +610,10 @@ def _get_attributes_from_function_call(
             f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
             safe_json_dumps(function_arguments),
         )
-
-
-@stop_on_exception
-def _get_attributes_from_function_response(
-    obj: types.FunctionResponse,
-    /,
-    *,
-    prefix: str = "",
-) -> Iterator[tuple[str, AttributeValue]]:
-    if id_ := obj.id:
-        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", id_
-    if name := obj.name:
-        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", name
-    if response := obj.response:
+    if signature:
         yield (
-            f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-            safe_json_dumps(response),
+            f"{prefix}{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+            base64.b64encode(signature).decode() if isinstance(signature, bytes) else signature,
         )
 
 
@@ -588,6 +636,10 @@ def bind_args_kwargs(func: Any, *args: Any, **kwargs: Any) -> OrderedDict[str, A
     bound = sig.bind(*args, **kwargs)
     bound.apply_defaults()
     return bound.arguments
+
+
+def _event_has_content(event: Event) -> bool:
+    return bool(event.content and event.content.parts)
 
 
 def _default(obj: Any) -> Any:

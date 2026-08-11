@@ -20,6 +20,10 @@ def _strip_response_headers(response: Any) -> Any:
     return {**response, "headers": {}}
 
 
+def _match_method_case_insensitive(r1: Any, r2: Any) -> bool:
+    return (r1.method or "").upper() == (r2.method or "").upper()
+
+
 @pytest.fixture(scope="session")
 def vcr_config() -> dict[str, Any]:
     return {
@@ -27,7 +31,13 @@ def vcr_config() -> dict[str, Any]:
         "before_record_response": _strip_response_headers,
         "decode_compressed_response": True,
         "record_mode": "once",
+        "match_on": ["method_case_insensitive", "scheme", "host", "port", "path", "query"],
+        "custom_matchers": {"method_case_insensitive": _match_method_case_insensitive},
     }
+
+
+def pytest_recording_configure(config: Any, vcr: Any) -> None:
+    vcr.register_matcher("method_case_insensitive", _match_method_case_insensitive)
 
 
 @pytest.fixture

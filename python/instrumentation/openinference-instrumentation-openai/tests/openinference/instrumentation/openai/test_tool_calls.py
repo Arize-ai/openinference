@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import string
 from importlib import import_module
@@ -13,11 +14,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_tool_calls(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
@@ -29,7 +26,7 @@ def test_tool_calls(
         ChatCompletionToolParam,
     )
 
-    client = openai.OpenAI(api_key="sk-")
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-"))
     input_tools = [
         ChatCompletionToolParam(
             type="function",
@@ -168,11 +165,7 @@ def test_tool_calls(
     )
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_cached_tokens(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
@@ -181,7 +174,7 @@ def test_cached_tokens(
         pytest.skip("Not supported")
     openai = import_module("openai")
 
-    client = openai.OpenAI(api_key="sk-")
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-"))
     random_1024_token_prefix = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
     client.chat.completions.create(
         extra_headers={"Accept-Encoding": "gzip"},
@@ -203,11 +196,19 @@ def test_cached_tokens(
             },
         ],
     )
-    spans = get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
+    spans = tuple(
+        span
+        for span in get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
+        if random_1024_token_prefix
+        in str((span.attributes or {}).get(SpanAttributes.INPUT_VALUE, ""))
+    )
     assert len(spans) == 2
-    span = spans[1]
-    attributes = dict(span.attributes or {})
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 1280
+    cache_reads = []
+    for span in spans:
+        cache_read = dict(span.attributes or {}).get("llm.token_count.prompt_details.cache_read")
+        assert isinstance(cache_read, int)
+        cache_reads.append(cache_read)
+    assert sorted(cache_reads) == [0, 1280]
 
 
 def _openai_version() -> Tuple[int, int, int]:

@@ -46,7 +46,7 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
-    from mistralai import Mistral
+    from mistralai.client import Mistral
 
 __all__ = ("_SyncChatWrapper",)
 
@@ -169,8 +169,8 @@ class _WithMistralAI(ABC):
         Monkey-patch the response object to trace the stream, or finish tracing if the response is
         not a stream.
         """
-        from mistralai.models.chatcompletionresponse import ChatCompletionResponse
-        from mistralai.models.completionevent import CompletionEvent
+        from mistralai.client.models.chatcompletionresponse import ChatCompletionResponse
+        from mistralai.client.models.completionevent import CompletionEvent
 
         if not isinstance(response, ChatCompletionResponse):  # assume it's a stream
             response_accumulator = _ChatCompletionAccumulator(

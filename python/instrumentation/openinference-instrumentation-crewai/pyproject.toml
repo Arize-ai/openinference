@@ -27,15 +27,15 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.21",
+  "openinference-instrumentation>=0.1.51",
+  "openinference-semantic-conventions>=0.1.31",
   "wrapt",
   "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "crewai >= 1.9.0",
+  "crewai >= 1.10.1",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -63,6 +63,9 @@ asyncio_mode = "auto"
 testpaths = [
   "tests",
 ]
+markers = [
+  "no_autoinstrument: disable the default wrapper instrumentor fixture for event-listener tests",
+]
 
 [tool.mypy]
 strict = true
@@ -76,9 +79,9 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "wrapt",
   "crewai",
   "crewai.*",
-  "wrapt",
 ]
 
 [tool.ruff]

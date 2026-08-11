@@ -59,6 +59,9 @@ public class TraceConfig {
     private final boolean hideToolParameters = false;
 
     @Builder.Default
+    private final boolean suppressTracing = false;
+
+    @Builder.Default
     private final String base64ImageMaxLength = "unlimited";
 
     public static TraceConfig getDefault() {

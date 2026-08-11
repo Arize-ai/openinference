@@ -1,0 +1,177 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"You are a helpful AI assistant.","role":"system"},{"name":"user","role":"user","content":"Write
+      a short poem about the fall season."}],"model":"gpt-4o-2024-08-06","stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DD5ZV1RFVgjGgvEZmdfI85xOkXVtf\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772012053,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Golden leaves dance in the gentle breeze,
+        \ \\nWhispering secrets among the trees.  \\nCrisp air tingles under the azure
+        sky,  \\nAs pumpkins and spices warm the eye.  \\n\\nFields of harvest, rich
+        and ripe,  \\nNature dons her boldest stripe.  \\nWith each step, the crunch
+        of leaves,  \\nA symphony autumn lovingly weaves.  \\n\\nDays grow shorter,
+        nights invite  \\nA cozy embrace, fires alight.  \\nAs fall's magic softly
+        descends,  \\nIn this fleeting grace, the heart transcends.  \",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        28,\n    \"completion_tokens\": 111,\n    \"total_tokens\": 139,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_16396ea983\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"content":"\n            Provide constructive feedback.\n            Respond
+      with ''APPROVE'' when your feedbacks are addressed.\n            ","role":"system"},{"name":"user","role":"user","content":"Write
+      a short poem about the fall season."},{"name":"primary","role":"user","content":"Golden
+      leaves dance in the gentle breeze,  \nWhispering secrets among the trees.  \nCrisp
+      air tingles under the azure sky,  \nAs pumpkins and spices warm the eye.  \n\nFields
+      of harvest, rich and ripe,  \nNature dons her boldest stripe.  \nWith each step,
+      the crunch of leaves,  \nA symphony autumn lovingly weaves.  \n\nDays grow shorter,
+      nights invite  \nA cozy embrace, fires alight.  \nAs fall''s magic softly descends,  \nIn
+      this fleeting grace, the heart transcends.  "}],"model":"gpt-4o-2024-08-06","stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DD5ZYsJGBvpFOLLW70DLQljgXEwJX\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772012056,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Your poem beautifully captures the
+        essence of the fall season with vivid imagery and a rhythmic flow. Here are
+        a few suggestions to enhance it further:\\n\\n1. Consider varying the sentence
+        structure for added musicality. For instance, you might start a line with
+        a verb for a more active voice.\\n2. The line \\\"Nature dons her boldest
+        stripe\\\" is a colorful metaphor. Consider expanding or clarifying this phrase
+        to deepen the imagery.\\n3. The transition from the day's activities to the
+        cozy nights is lovely. You might add a line to connect these two sections
+        more fluidly.\\n4. The final stanza could evoke a stronger emotional resonance
+        by slightly altering some wording for greater impact.\\n\\nOverall, this poem
+        elegantly portrays the charm of autumn. Making these minor adjustments can
+        enrich the reader's experience. Once you address these feedback points, please
+        resubmit for approval.\",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 160,\n    \"completion_tokens\":
+        170,\n    \"total_tokens\": 330,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_ba7ef93c30\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"content":"You are a helpful AI assistant.","role":"system"},{"name":"user","role":"user","content":"Write
+      a short poem about the fall season."},{"name":"primary","role":"assistant","content":"Golden
+      leaves dance in the gentle breeze,  \nWhispering secrets among the trees.  \nCrisp
+      air tingles under the azure sky,  \nAs pumpkins and spices warm the eye.  \n\nFields
+      of harvest, rich and ripe,  \nNature dons her boldest stripe.  \nWith each step,
+      the crunch of leaves,  \nA symphony autumn lovingly weaves.  \n\nDays grow shorter,
+      nights invite  \nA cozy embrace, fires alight.  \nAs fall''s magic softly descends,  \nIn
+      this fleeting grace, the heart transcends.  "},{"name":"critic","role":"user","content":"Your
+      poem beautifully captures the essence of the fall season with vivid imagery
+      and a rhythmic flow. Here are a few suggestions to enhance it further:\n\n1.
+      Consider varying the sentence structure for added musicality. For instance,
+      you might start a line with a verb for a more active voice.\n2. The line \"Nature
+      dons her boldest stripe\" is a colorful metaphor. Consider expanding or clarifying
+      this phrase to deepen the imagery.\n3. The transition from the day''s activities
+      to the cozy nights is lovely. You might add a line to connect these two sections
+      more fluidly.\n4. The final stanza could evoke a stronger emotional resonance
+      by slightly altering some wording for greater impact.\n\nOverall, this poem
+      elegantly portrays the charm of autumn. Making these minor adjustments can enrich
+      the reader''s experience. Once you address these feedback points, please resubmit
+      for approval."}],"model":"gpt-4o-2024-08-06","stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DD5Zea099FRoq55esxEu5LgUywj2E\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772012062,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Golden leaves in the breeze, twirling
+        free,  \\nWhisper secrets among the towering trees.  \\nCrisp air tingles
+        'neath an azure dome,  \\nPumpkins and spices beckon us home.  \\n\\nFields
+        of harvest, all bright and aglow,  \\nNature, in splendor, puts on her show.
+        \ \\nWith each footstep, crunching leaves sing,  \\nA symphony of autumn,
+        alive and blooming.  \\n\\nShortening days give way to night,  \\nA cozy embrace
+        where fires ignite.  \\nAs fall's magic softly descends,  \\nOur hearts, in
+        its warmth, are gently cleansed.  \\n\\nLet the season's grace linger awhile,
+        \ \\nIn its fleeting embrace, we find our smile.  \",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        321,\n    \"completion_tokens\": 147,\n    \"total_tokens\": 468,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_a147b6a959\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"content":"\n            Provide constructive feedback.\n            Respond
+      with ''APPROVE'' when your feedbacks are addressed.\n            ","role":"system"},{"name":"user","role":"user","content":"Write
+      a short poem about the fall season."},{"name":"primary","role":"user","content":"Golden
+      leaves dance in the gentle breeze,  \nWhispering secrets among the trees.  \nCrisp
+      air tingles under the azure sky,  \nAs pumpkins and spices warm the eye.  \n\nFields
+      of harvest, rich and ripe,  \nNature dons her boldest stripe.  \nWith each step,
+      the crunch of leaves,  \nA symphony autumn lovingly weaves.  \n\nDays grow shorter,
+      nights invite  \nA cozy embrace, fires alight.  \nAs fall''s magic softly descends,  \nIn
+      this fleeting grace, the heart transcends.  "},{"name":"critic","role":"assistant","content":"Your
+      poem beautifully captures the essence of the fall season with vivid imagery
+      and a rhythmic flow. Here are a few suggestions to enhance it further:\n\n1.
+      Consider varying the sentence structure for added musicality. For instance,
+      you might start a line with a verb for a more active voice.\n2. The line \"Nature
+      dons her boldest stripe\" is a colorful metaphor. Consider expanding or clarifying
+      this phrase to deepen the imagery.\n3. The transition from the day''s activities
+      to the cozy nights is lovely. You might add a line to connect these two sections
+      more fluidly.\n4. The final stanza could evoke a stronger emotional resonance
+      by slightly altering some wording for greater impact.\n\nOverall, this poem
+      elegantly portrays the charm of autumn. Making these minor adjustments can enrich
+      the reader''s experience. Once you address these feedback points, please resubmit
+      for approval."},{"name":"primary","role":"user","content":"Golden leaves in
+      the breeze, twirling free,  \nWhisper secrets among the towering trees.  \nCrisp
+      air tingles ''neath an azure dome,  \nPumpkins and spices beckon us home.  \n\nFields
+      of harvest, all bright and aglow,  \nNature, in splendor, puts on her show.  \nWith
+      each footstep, crunching leaves sing,  \nA symphony of autumn, alive and blooming.  \n\nShortening
+      days give way to night,  \nA cozy embrace where fires ignite.  \nAs fall''s
+      magic softly descends,  \nOur hearts, in its warmth, are gently cleansed.  \n\nLet
+      the season''s grace linger awhile,  \nIn its fleeting embrace, we find our smile.  "}],"model":"gpt-4o-2024-08-06","stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DD5ZhPvFFFLRwDIFtmDNRSHC3MOBZ\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772012065,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Your revised poem is enchanting and
+        effectively evokes the spirit of fall! The changes you've made enhance the
+        imagery and rhythm, creating a more immersive and emotional experience for
+        the reader. The connections between sections flow seamlessly, and the added
+        lines contribute to the overall warmth and charm. Your final stanza's sentiment
+        is beautifully expressed, tying the poem together with a lasting impression.
+        Excellent work!\\n\\nAPPROVE\",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 489,\n    \"completion_tokens\":
+        77,\n    \"total_tokens\": 566,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_ba7ef93c30\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

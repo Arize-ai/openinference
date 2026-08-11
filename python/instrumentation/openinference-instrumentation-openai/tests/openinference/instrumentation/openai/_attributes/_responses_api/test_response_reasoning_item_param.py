@@ -14,24 +14,47 @@ class TestResponseReasoningItemParam:
                     type="reasoning",
                     id="reason_456",
                     summary=[
-                        Summary(
-                            type="summary_text",
-                            text="First",
-                        ),
-                        Summary(
-                            type="summary_text",
-                            text="Second",
-                        ),
+                        Summary(type="summary_text", text="First"),
+                        Summary(type="summary_text", text="Second"),
                     ],
                 ),
                 {
                     "message.role": "assistant",
-                    "message.contents.0.message_content.type": "text",
-                    "message.contents.0.message_content.text": "First",
-                    "message.contents.1.message_content.type": "text",
-                    "message.contents.1.message_content.text": "Second",
+                    "message.contents.0.message_content.type": "reasoning",
+                    "message.contents.0.message_content.text": "First\nSecond",
                 },
-                id="reasoning_item_with_multiple_steps",
+                id="multiple_summary_entries_concatenated",
+            ),
+            pytest.param(
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason_789",
+                    summary=[
+                        Summary(type="summary_text", text="Single summary"),
+                    ],
+                    encrypted_content="gAAAAA==",
+                ),
+                {
+                    "message.role": "assistant",
+                    "message.contents.0.message_content.type": "reasoning",
+                    "message.contents.0.message_content.text": "Single summary",
+                    "message.contents.0.message_content.encrypted_content": "gAAAAA==",
+                },
+                id="with_encrypted_content",
+            ),
+            pytest.param(
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason_000",
+                    summary=[],
+                    encrypted_content="gAAAAA==",
+                ),
+                {
+                    "message.role": "assistant",
+                    "message.contents.0.message_content.type": "reasoning",
+                    "message.contents.0.message_content.encrypted_content": "gAAAAA==",
+                },
+                id="empty_summary_with_encrypted_content",
             ),
         ],
     )

@@ -28,23 +28,15 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions>=0.54b1",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.17",
+  "openinference-instrumentation>=0.1.51",
+  "openinference-semantic-conventions>=0.1.31",
   "typing-extensions",
   "wrapt",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "pydantic-ai>=0.2.0",
-]
-test = [
-  "pytest>=7.4.0",
-  "pytest-cov>=4.1.0",
-  "opentelemetry-sdk>=1.20.0",
-  "opentelemetry-exporter-otlp-proto-http",
-  "pydantic-ai>=0.2.0",
-  "pytest-vcr",
+  "pydantic-ai>=0.7.5",
 ]
 
 [project.urls]

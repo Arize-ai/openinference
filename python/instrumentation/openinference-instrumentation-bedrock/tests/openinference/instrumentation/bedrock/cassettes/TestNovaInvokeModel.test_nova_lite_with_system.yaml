@@ -1,0 +1,38 @@
+interactions:
+- request:
+    body: '{"schemaVersion": "messages-v1", "system": [{"text": "You are a helpful
+      assistant. Keep responses brief."}], "messages": [{"role": "user", "content":
+      [{"text": "Hello! Who are you?"}]}], "inferenceConfig": {"maxTokens": 128, "temperature":
+      0.5}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.nova-lite-v1%3A0/invoke
+  response:
+    body:
+      string: '{"output":{"message":{"content":[{"text":"Hello! I''m an AI assistant
+        here to help with any questions or tasks you have. How can I assist you today?"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":16,"outputTokens":27,"totalTokens":43,"cacheReadInputTokenCount":0,"cacheWriteInputTokenCount":0}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '317'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 28 Apr 2026 16:42:30 GMT
+      X-Amzn-Bedrock-Cache-Read-Input-Token-Count:
+      - '0'
+      X-Amzn-Bedrock-Cache-Write-Input-Token-Count:
+      - '0'
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '16'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '359'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '27'
+      x-amzn-RequestId:
+      - d5f772e3-1883-4149-ac2e-5233e3bb7238
+    status:
+      code: 200
+      message: OK
+version: 1

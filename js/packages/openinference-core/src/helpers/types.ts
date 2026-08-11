@@ -161,11 +161,11 @@ export type OutputToAttributesFn<Fn extends AnyFn = AnyFn> = (
  * // Advanced configuration with custom processing and base attributes
  * const advancedOptions: SpanTraceOptions = {
  *   name: "llm-call",
- *   kind: "llm",
+ *   kind: "LLM",
  *   openTelemetrySpanKind: SpanKind.CLIENT,
  *   attributes: {
  *     'service.name': 'ai-assistant',
- *     'llm.model': 'gpt-4',
+ *     'llm.model_name': 'gpt-4',
  *     'environment': 'production'
  *   },
  *   processInput: (...args) => ({ "llm.prompt": args[0] }),
@@ -174,7 +174,7 @@ export type OutputToAttributesFn<Fn extends AnyFn = AnyFn> = (
  *
  * // Agent-specific configuration with context attributes
  * const agentOptions: SpanTraceOptions = {
- *   kind: OpenInferenceSpanKind.AGENT,
+ *   kind: "AGENT",
  *   attributes: {
  *     'agent.type': 'decision-maker',
  *     'agent.version': '2.1.0'
@@ -201,9 +201,10 @@ export interface SpanTraceOptions<Fn extends AnyFn = AnyFn> {
   /**
    * Custom OpenTelemetry tracer instance to use for this span.
    *
-   * If not provided, the global tracer will be used. This allows for using
-   * different tracers for different parts of the application or for testing
-   * purposes with mock tracers.
+   * If not provided, the current global tracer provider is consulted when the
+   * wrapped function is invoked. This allows wrappers created before provider
+   * registration or replacement to pick up the latest global tracer unless you
+   * pin a specific tracer here.
    *
    * @example
    * ```typescript
@@ -258,7 +259,7 @@ export interface SpanTraceOptions<Fn extends AnyFn = AnyFn> {
    * ```typescript
    * processInput: (...args) => ({
    *   'input.value': JSON.stringify(args),
-   *   'input.mimeType': MimeType.JSON
+   *   'input.mime_type': MimeType.JSON
    * })
    * ```
    */
@@ -278,7 +279,7 @@ export interface SpanTraceOptions<Fn extends AnyFn = AnyFn> {
    * ```typescript
    * processOutput: (result) => ({
    *   'output.value': JSON.stringify(result),
-   *   'output.mimeType': MimeType.JSON
+   *   'output.mime_type': MimeType.JSON
    * })
    * ```
    */
@@ -337,12 +338,47 @@ export interface ImageMessageContent {
 }
 
 /**
+ * Reasoning-based message content.
+ *
+ * Represents an opaque reasoning entry produced by an LLM. The fields are
+ * vendor-issued echo tokens that should be preserved verbatim for stateless
+ * replay (e.g. Gemini `thoughtSignature`, Anthropic `redacted_thinking.data`,
+ * OpenAI Responses `encrypted_content`). No `id` is emitted for reasoning
+ * content — providers either omit it or it is captured separately.
+ */
+export interface ReasoningMessageContent {
+  type: "reasoning";
+  /**
+   * Human-readable reasoning text emitted by the model (e.g. Anthropic
+   * `thinking` blocks, OpenAI Responses reasoning summary text). Emitted as
+   * `message_content.text` and therefore subject to `hideInputText` /
+   * `hideOutputText` masking.
+   */
+  text?: string;
+  /**
+   * Opaque vendor-issued signature captured verbatim. Maps to provider
+   * signature fields and to Gemini `thoughtSignature` when the signature is
+   * attached to a non-tool content part.
+   */
+  signature?: string;
+  /**
+   * Opaque vendor-issued data captured verbatim. Maps to Anthropic
+   * `redacted_thinking.data`.
+   */
+  data?: string;
+  /**
+   * OpenAI `encrypted_content` captured verbatim.
+   */
+  encryptedContent?: string;
+}
+
+/**
  * Union type for different types of message content.
  *
- * Supports both text and image content types for multimodal
+ * Supports text, image, and reasoning content types for multimodal
  * LLM applications that can handle various input formats.
  */
-export type MessageContent = TextMessageContent | ImageMessageContent;
+export type MessageContent = TextMessageContent | ImageMessageContent | ReasoningMessageContent;
 
 /**
  * Function call details for tool invocations.
@@ -364,6 +400,12 @@ export interface ToolCallFunction {
 export interface ToolCall {
   id?: string;
   function?: ToolCallFunction;
+  /**
+   * Opaque vendor-issued reasoning echo token attached to a tool call. Maps to
+   * Gemini `thoughtSignature` when it is attached to a `functionCall` part.
+   * The value is preserved verbatim for stateless replay.
+   */
+  reasoningSignature?: string;
 }
 
 /**
@@ -438,3 +480,30 @@ export interface Document {
   metadata?: string | Record<string, unknown>;
   score?: number;
 }
+
+/** The target scope described by an annotation or evaluation. */
+export type AnnotationScope = "span" | "trace" | "session";
+
+interface AnnotationBase {
+  /** Criterion or metric name, such as `correctness` or `hallucination`. */
+  name: string;
+  /** The kind of judge, conventionally `HUMAN`, `LLM`, or `CODE`. */
+  annotatorKind?: string;
+  /** Stable producer-assigned identifier for this result. */
+  identifier?: string;
+  /** Additional result or annotator data, encoded as a JSON object string. */
+  metadata?: string | Record<string, unknown>;
+}
+
+type AnnotationResult =
+  | { score: number; label?: string; explanation?: string }
+  | { score?: number; label: string; explanation?: string }
+  | { score?: number; label?: string; explanation: string };
+
+/**
+ * A single annotation or evaluation result.
+ *
+ * Every result requires a name and at least one of `score`, `label`, or
+ * `explanation`.
+ */
+export type Annotation = AnnotationBase & AnnotationResult;

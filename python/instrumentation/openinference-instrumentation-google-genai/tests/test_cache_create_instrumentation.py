@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any, Dict
 
@@ -26,7 +27,7 @@ def test_create_cache(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     # Initialize the client
     client = genai.Client(api_key=api_key)
     with open(Path(__file__).parent / "fixtures/story.txt") as f:
@@ -50,8 +51,9 @@ def test_create_cache(
     )
     assert cache_response is not None
     assert cache_response.display_name == "test story cache"
-    cache_response_name = "cachedContents/uobv7aizzgq7740tjs73702f6vllkr01skajj6oo"
-    assert cache_response.name == cache_response_name
+    cache_response_name = cache_response.name
+    assert cache_response_name is not None
+    assert cache_response_name.startswith("cachedContents/")
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})
@@ -83,7 +85,7 @@ async def test_create_cache_async(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     # Initialize the client
     client = genai.Client(api_key=api_key).aio
     with open(Path(__file__).parent / "fixtures/story.txt") as f:
@@ -107,8 +109,9 @@ async def test_create_cache_async(
     )
     assert cache_response is not None
     assert cache_response.display_name == "test story cache"
-    cache_response_name = "cachedContents/sfxrxenk39uyl210qrj8cca9suzbgf94x6agipzz"
-    assert cache_response.name == cache_response_name
+    cache_response_name = cache_response.name
+    assert cache_response_name is not None
+    assert cache_response_name.startswith("cachedContents/")
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})

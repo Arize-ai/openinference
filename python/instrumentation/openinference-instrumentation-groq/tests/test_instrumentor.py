@@ -89,6 +89,46 @@ async def _async_mock_post(
     return cast(ResponseT, MOCK_COMPLETION)
 
 
+def _make_mock_post(finish_reason: str) -> Any:
+    completion = ChatCompletion(
+        id="chat_comp_0",
+        choices=[
+            Choice(
+                finish_reason=finish_reason,  # type: ignore[arg-type]
+                index=0,
+                logprobs=None,
+                message=ChatCompletionMessage(
+                    content="hi", role="assistant", function_call=None, tool_calls=None
+                ),
+            )
+        ],
+        created=1722531851,
+        model="fake_model",
+        object="chat.completion",
+        system_fingerprint="fp0",
+        usage=CompletionUsage(
+            completion_tokens=5,
+            prompt_tokens=5,
+            total_tokens=10,
+        ),
+    )
+
+    def _post(
+        self: Any,
+        path: str = "fake/url",
+        *,
+        cast_to: Type[ResponseT],
+        body: Optional[Body] = None,
+        options: RequestOptions = {},
+        files: Optional[RequestFiles] = None,
+        stream: bool = False,
+        stream_cls: Optional[Type[_StreamT]] = None,
+    ) -> Union[ResponseT, _StreamT]:
+        return cast(ResponseT, completion)
+
+    return _post
+
+
 @pytest.fixture()
 def session_id() -> str:
     return "my-test-session-id"
@@ -153,7 +193,7 @@ def _check_context_attributes(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor",
             name="groq",
         )
@@ -226,6 +266,8 @@ def test_groq_instrumentation(
         attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == "idk, sorry!"
     )
+    assert attributes[SpanAttributes.LLM_MODEL_NAME] == "fake_model"
+    assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
 
 
 def test_groq_async_instrumentation(
@@ -294,6 +336,28 @@ def test_groq_async_instrumentation(
         attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == "idk, sorry!"
     )
+    assert attributes[SpanAttributes.LLM_MODEL_NAME] == "fake_model"
+    assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
+
+
+@pytest.mark.parametrize("finish_reason", ["stop", "length", "tool_calls", "function_call"])
+def test_finish_reason_values(
+    finish_reason: str,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_groq_instrumentation: Any,
+) -> None:
+    client = Groq(api_key="fake")
+    client.chat.completions._post = _make_mock_post(finish_reason)
+
+    client.chat.completions.create(
+        messages=[{"role": "user", "content": "hello"}],
+        model="fake_model",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
 
 
 def test_groq_uninstrumentation(

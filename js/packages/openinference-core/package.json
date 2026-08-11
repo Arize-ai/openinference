@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-core",
-  "version": "2.0.5",
+  "version": "2.5.1",
   "private": false,
   "description": "OpenInference Core provides utilities shared by all OpenInference SDK packages.",
   "keywords": [
@@ -20,7 +20,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "docs"
   ],
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
@@ -42,7 +43,7 @@
   "dependencies": {
     "@arizeai/openinference-semantic-conventions": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/core": "^1.25.1"
+    "@opentelemetry/core": "^2.8.0"
   },
   "devDependencies": {
     "@opentelemetry/context-async-hooks": "^1.25.1",
@@ -51,7 +52,7 @@
     "@opentelemetry/sdk-trace-node": "^2.2.0",
     "@opentelemetry/semantic-conventions": "^1.19.0",
     "@types/node": "^20.14.11",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.3"
   }
 }

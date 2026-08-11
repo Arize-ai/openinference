@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.4...python-openinference-instrumentation-strands-agents-v0.1.5) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.3...python-openinference-instrumentation-strands-agents-v0.1.4) (2026-07-30)
+
+
+### Bug Fixes
+
+* **strands_agents:** Prevent Non-Strands Span Attribute Overwrite ([#3347](https://github.com/Arize-ai/openinference/issues/3347)) ([f356cce](https://github.com/Arize-ai/openinference/commit/f356ccea34f0faa2f00526562c2de12864240f3e))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.2...python-openinference-instrumentation-strands-agents-v0.1.3) (2026-06-11)
+
+
+### Bug Fixes
+
+* **strands-agents:** map prompt-cache token counts to llm.token_count.prompt_details ([#3243](https://github.com/Arize-ai/openinference/issues/3243)) ([f1b3248](https://github.com/Arize-ai/openinference/commit/f1b324887fe38878ce016413146bd345e7e71a3a))
+
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.1...python-openinference-instrumentation-strands-agents-v0.1.2) (2026-02-28)
+
+
+### Bug Fixes
+
+* add version.py ([#2821](https://github.com/Arize-ai/openinference/issues/2821)) ([5ee2716](https://github.com/Arize-ai/openinference/commit/5ee271613c925a60f5e4127d063359c469be77b5))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.0...python-openinference-instrumentation-strands-agents-v0.1.1) (2026-01-26)
 
 

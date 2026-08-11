@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.38...python-openinference-instrumentation-dspy-v0.1.39) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+* **dspy:** support dspy 3.3.0 LM call signature with positional items ([#3509](https://github.com/Arize-ai/openinference/issues/3509)) ([7651572](https://github.com/Arize-ai/openinference/commit/765157205e8c77e910d9752a0ae6f683a41b41fd))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.37...python-openinference-instrumentation-dspy-v0.1.38) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.36...python-openinference-instrumentation-dspy-v0.1.37) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.35...python-openinference-instrumentation-dspy-v0.1.36) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.34...python-openinference-instrumentation-dspy-v0.1.35) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.33...python-openinference-instrumentation-dspy-v0.1.34) (2026-03-24)
+
+
+### Bug Fixes
+
+* exclude compromised litellm 1.82.7 ([#2915](https://github.com/Arize-ai/openinference/issues/2915)) ([a68bf8e](https://github.com/Arize-ai/openinference/commit/a68bf8ef582d5e8707cd06ea8bb7b1dcd75c0264))
+* Pin litellm&lt;=1.82.7 due to supply chain compromise ([#2914](https://github.com/Arize-ai/openinference/issues/2914)) ([559fb03](https://github.com/Arize-ai/openinference/commit/559fb0314b34c29624d3585bd7dba47f782dcd48))
+
 ## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.32...python-openinference-instrumentation-dspy-v0.1.33) (2026-01-08)
 
 

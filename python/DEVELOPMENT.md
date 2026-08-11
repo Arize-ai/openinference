@@ -1,6 +1,7 @@
 # OpenInference Development Guide <!-- omit in toc -->
 
 - [Development](#development)
+  - [Bazel and rules_python](#bazel-and-rules_python)
   - [Testing](#testing)
     - [Introduction to `tox`](#introduction-to-tox)
     - [`tox` Example Commands](#tox-example-commands)
@@ -42,6 +43,24 @@ From the root of the repository install `openinference-instrumentation` package 
 ```sh
 pip install -e ./python/openinference-instrumentation
 ```
+
+### Bazel and `rules_python`
+
+OpenInference's Python instrumentation packages share the
+`openinference.instrumentation` namespace. When consuming these packages from
+Bazel through `rules_python`, enable implicit namespace package support in the
+generated wheel repositories so sibling instrumentation packages are importable
+from the same namespace:
+
+```starlark
+pip.parse(
+    ...
+    enable_implicit_namespace_pkgs = True,
+)
+```
+
+This setting complements the namespace path extension in
+`python/openinference-instrumentation/src/openinference/instrumentation/__init__.py`.
 
 ### Testing
 
@@ -195,6 +214,10 @@ You can copy and modify any of the `pyproject.toml` files that we have in any ot
 ##### Setup `tox.ini`
 
 For your tests to be run in CI (and we also recommend running `tox` locally for uniform environments), you need to add to the `tox.ini` [file](https://github.com/Arize-ai/openinference/blob/main/python/tox.ini). Specifically, you need to add to the `changedir` and `commands_pre` sections.
+
+##### Update the root README
+
+Add rows for your package to the root `README.md`: one in the Python "Libraries" table (with the PyPI badge) and, if your package ships an `examples/` directory, one in the "Examples" table.
 
 ## Publishing
 

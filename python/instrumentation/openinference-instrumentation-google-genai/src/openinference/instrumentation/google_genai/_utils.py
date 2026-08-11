@@ -1,3 +1,4 @@
+import base64
 import logging
 import warnings
 from functools import wraps
@@ -19,7 +20,13 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._with_span import _WithSpan
-from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+)
 
 if TYPE_CHECKING:
     from google.genai import types
@@ -30,7 +37,7 @@ logger.addHandler(logging.NullHandler())
 
 def _get_token_count_attributes_from_usage_metadata(
     usage_metadata: "types.GenerateContentResponseUsageMetadata",
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     """Extract token count attributes from usage metadata."""
     from google.genai import types
 
@@ -46,7 +53,7 @@ def _get_token_count_attributes_from_usage_metadata(
         if prompt_details_audio:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, prompt_details_audio
 
-    # Calculate total prompt tokens (base + tool use + cached)
+    # Calculate total prompt tokens (base + tool use; cached is already in `prompt_token_count`)
     prompt_token_count = 0
     if usage_metadata.prompt_token_count:
         prompt_token_count += usage_metadata.prompt_token_count
@@ -57,7 +64,6 @@ def _get_token_count_attributes_from_usage_metadata(
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
             usage_metadata.cached_content_token_count,
         )
-        prompt_token_count += usage_metadata.cached_content_token_count
     if prompt_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_token_count
 
@@ -107,14 +113,14 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
                 value = obj.model_dump_json(exclude_unset=True)
             assert isinstance(value, str)
         except Exception:
-            logger.exception("Failed to get model dump json")
+            logger.warning("Failed to get model dump json")
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
     if not isinstance(obj, str) and isinstance(obj, (Sequence, Mapping)):
         try:
             value = safe_json_dumps(obj)
         except Exception:
-            logger.exception("Failed to dump json")
+            logger.warning("Failed to dump json")
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
 
@@ -123,7 +129,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
 
 def _as_input_attributes(
     value_and_type: Optional[_ValueAndType],
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     if not value_and_type:
         return
     yield SpanAttributes.INPUT_VALUE, value_and_type.value
@@ -134,7 +140,7 @@ def _as_input_attributes(
 
 def _as_output_attributes(
     value_and_type: Optional[_ValueAndType],
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     if not value_and_type:
         return
     yield SpanAttributes.OUTPUT_VALUE, value_and_type.value
@@ -145,26 +151,74 @@ def _as_output_attributes(
 
 def _finish_tracing(
     with_span: _WithSpan,
-    attributes: Iterable[Tuple[str, AttributeValue]],
-    extra_attributes: Iterable[Tuple[str, AttributeValue]],
+    attributes: Iterable[tuple[str, AttributeValue]],
     status: Optional[trace_api.Status] = None,
 ) -> None:
     try:
         attributes_dict = dict(attributes)
     except Exception:
-        logger.exception("Failed to get attributes")
-    try:
-        extra_attributes_dict = dict(extra_attributes)
-    except Exception:
-        logger.exception("Failed to get extra attributes")
+        logger.warning("Failed to get attributes")
     try:
         with_span.finish_tracing(
             status=status,
             attributes=attributes_dict,
-            extra_attributes=extra_attributes_dict,
         )
     except Exception:
         logger.exception("Failed to finish tracing")
+
+
+def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(attr_name, default)
+    return getattr(obj, attr_name, default)
+
+
+def _get_attributes_from_content_text(
+    text: str, index: int, only_text: bool
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if only_text:
+        yield MessageAttributes.MESSAGE_CONTENT, text
+    else:
+        yield (
+            f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+            text,
+        )
+        yield (
+            f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+            "text",
+        )
+
+
+def _get_attributes_from_file_data(
+    file_data: Any, content_index: int
+) -> Iterator[Tuple[str, AttributeValue]]:
+    mime_type = get_attribute(file_data, "mime_type")
+    if mime_type and "image" in mime_type:
+        if file_uri := get_attribute(file_data, "file_uri"):
+            prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                file_uri,
+            )
+            yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+
+
+def _get_attributes_from_inline_data(
+    inline_data: Any, content_index: int
+) -> Iterator[Tuple[str, AttributeValue]]:
+    mime_type = get_attribute(inline_data, "mime_type")
+    if (
+        mime_type
+        and "image" in mime_type
+        and (data := get_attribute(inline_data, "data")) is not None
+    ):
+        prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
+        image_url = f"data:{mime_type};base64,{base64.b64encode(data).decode()}"
+        yield (
+            f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+            image_url,
+        )
+        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
 
 
 def _stop_on_exception_for_dict(

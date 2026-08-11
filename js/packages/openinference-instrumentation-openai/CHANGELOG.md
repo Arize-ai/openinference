@@ -1,5 +1,95 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.1.8
+
+### Patch Changes
+
+- 237ce2b: Add OLLAMA to the LLMProvider enum, map the ollama.com host to it, and anchor host-suffix matching at label boundaries
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 4.1.6
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
+## 4.1.5
+
+### Patch Changes
+
+- Updated dependencies [d0f5a88]
+  - @arizeai/openinference-core@2.4.0
+
+## 4.1.4
+
+### Patch Changes
+
+- Updated dependencies [1fe7927]
+  - @arizeai/openinference-core@2.3.0
+
+## 4.1.3
+
+### Patch Changes
+
+- Updated dependencies [0f0242c]
+- Updated dependencies [26733d8]
+  - @arizeai/openinference-semantic-conventions@2.5.0
+  - @arizeai/openinference-core@2.2.0
+
+## 4.1.2
+
+### Patch Changes
+
+- Updated dependencies [81b8bdb]
+  - @arizeai/openinference-semantic-conventions@2.4.0
+  - @arizeai/openinference-core@2.1.1
+
+## 4.1.1
+
+### Patch Changes
+
+- Updated dependencies [cfb128c]
+  - @arizeai/openinference-core@2.1.0
+
+## 4.1.0
+
+### Minor Changes
+
+- b95d3f7: Capture `llm.finish_reason` on chat completion spans for both streaming and non-streaming responses.
+
+### Patch Changes
+
+- Updated dependencies [e09ce3f]
+  - @arizeai/openinference-semantic-conventions@2.3.0
+  - @arizeai/openinference-core@2.0.8
+
+## 4.0.7
+
+### Patch Changes
+
+- Updated dependencies [4eebba3]
+  - @arizeai/openinference-core@2.0.7
+
+## 4.0.6
+
+### Patch Changes
+
+- Updated dependencies [7eb1c88]
+- Updated dependencies [3944459]
+  - @arizeai/openinference-semantic-conventions@2.2.0
+  - @arizeai/openinference-core@2.0.6
+
 ## 4.0.5
 
 ### Patch Changes

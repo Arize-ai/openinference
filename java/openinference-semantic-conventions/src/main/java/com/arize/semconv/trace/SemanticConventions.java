@@ -5,6 +5,10 @@ import lombok.experimental.UtilityClass;
 public class SemanticConventions {
     @UtilityClass
     public static class SemanticAttributePrefixes {
+        public static final String ANNOTATIONS = "annotations";
+        public static final String ANNOTATION = "annotation";
+        public static final String EVALUATIONS = "evaluations";
+        public static final String EVALUATION = "evaluation";
         public static final String INPUT = "input";
         public static final String OUTPUT = "output";
         public static final String LLM = "llm";
@@ -19,6 +23,7 @@ public class SemanticConventions {
         public static final String METADATA = "metadata";
         public static final String TAG = "tag";
         public static final String SESSION = "session";
+        public static final String TRACE = "trace";
         public static final String USER = "user";
         public static final String OPENINFERENCE = "openinference";
         public static final String MESSAGE_CONTENT = "message_content";
@@ -43,6 +48,8 @@ public class SemanticConventions {
         public static final String FUNCTION_CALL = "function_call";
         public static final String TOOLS = "tools";
         public static final String COST = "cost";
+        public static final String CHOICES = "choices";
+        public static final String FINISH_REASON = "finish_reason";
     }
 
     @UtilityClass
@@ -68,6 +75,7 @@ public class SemanticConventions {
     @UtilityClass
     public static class EmbeddingAttributePostfixes {
         public static final String EMBEDDINGS = "embeddings";
+        public static final String INVOCATION_PARAMETERS = "invocation_parameters";
         public static final String TEXT = "text";
         public static final String MODEL_NAME = "model_name";
         public static final String VECTOR = "vector";
@@ -75,6 +83,7 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class ToolAttributePostfixes {
+        public static final String ID = "id";
         public static final String NAME = "name";
         public static final String DESCRIPTION = "description";
         public static final String PARAMETERS = "parameters";
@@ -98,6 +107,10 @@ public class SemanticConventions {
         public static final String TYPE = "type";
         public static final String TEXT = "text";
         public static final String IMAGE = "image";
+        public static final String ID = "id";
+        public static final String SIGNATURE = "signature";
+        public static final String DATA = "data";
+        public static final String ENCRYPTED_CONTENT = "encrypted_content";
     }
 
     @UtilityClass
@@ -110,6 +123,7 @@ public class SemanticConventions {
         public static final String FUNCTION_NAME = "function.name";
         public static final String FUNCTION_ARGUMENTS = "function.arguments";
         public static final String ID = "id";
+        public static final String REASONING_SIGNATURE = "reasoning_signature";
     }
 
     @UtilityClass
@@ -160,6 +174,58 @@ public class SemanticConventions {
         public static final String NODE_NAME = "node.name";
         public static final String NODE_PARENT_ID = "node.parent_id";
     }
+
+    @UtilityClass
+    public static class FeedbackAttributePostfixes {
+        public static final String NAME = "name";
+        public static final String SCORE = "score";
+        public static final String LABEL = "label";
+        public static final String EXPLANATION = "explanation";
+        public static final String ANNOTATOR_KIND = "annotator_kind";
+        public static final String IDENTIFIER = "identifier";
+        public static final String METADATA = "metadata";
+    }
+
+    public static final String ANNOTATIONS = SemanticAttributePrefixes.ANNOTATIONS;
+    public static final String EVALUATIONS = SemanticAttributePrefixes.EVALUATIONS;
+    public static final String TRACE_ANNOTATIONS =
+            SemanticAttributePrefixes.TRACE + "." + SemanticAttributePrefixes.ANNOTATIONS;
+    public static final String TRACE_EVALUATIONS =
+            SemanticAttributePrefixes.TRACE + "." + SemanticAttributePrefixes.EVALUATIONS;
+    public static final String SESSION_ANNOTATIONS =
+            SemanticAttributePrefixes.SESSION + "." + SemanticAttributePrefixes.ANNOTATIONS;
+    public static final String SESSION_EVALUATIONS =
+            SemanticAttributePrefixes.SESSION + "." + SemanticAttributePrefixes.EVALUATIONS;
+
+    public static final String ANNOTATION_NAME =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.NAME;
+    public static final String ANNOTATION_SCORE =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.SCORE;
+    public static final String ANNOTATION_LABEL =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.LABEL;
+    public static final String ANNOTATION_EXPLANATION =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.EXPLANATION;
+    public static final String ANNOTATION_ANNOTATOR_KIND =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.ANNOTATOR_KIND;
+    public static final String ANNOTATION_IDENTIFIER =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.IDENTIFIER;
+    public static final String ANNOTATION_METADATA =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.METADATA;
+
+    public static final String EVALUATION_NAME =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.NAME;
+    public static final String EVALUATION_SCORE =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.SCORE;
+    public static final String EVALUATION_LABEL =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.LABEL;
+    public static final String EVALUATION_EXPLANATION =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.EXPLANATION;
+    public static final String EVALUATION_ANNOTATOR_KIND =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.ANNOTATOR_KIND;
+    public static final String EVALUATION_IDENTIFIER =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.IDENTIFIER;
+    public static final String EVALUATION_METADATA =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.METADATA;
 
     /**
      * The input to any span
@@ -265,6 +331,12 @@ public class SemanticConventions {
     /** Token count for the entire transaction with the llm (in tokens) */
     public static final String LLM_TOKEN_COUNT_TOTAL =
             SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".total";
+
+    /**
+     * The reason the model stopped generating tokens, e.g. {@code "stop"} or {@code "length"}.
+     */
+    public static final String LLM_FINISH_REASON =
+            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.FINISH_REASON;
 
     /**
      * Key prefix for additional prompt token count details. Each detail should be a separate attribute
@@ -391,6 +463,13 @@ public class SemanticConventions {
     public static final String TOOL_CALL_ID = SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.ID;
 
     /**
+     * Opaque vendor-issued reasoning echo token attached to a tool call. Maps to
+     * Gemini thoughtSignature when it is attached to a functionCall part
+     */
+    public static final String TOOL_CALL_REASONING_SIGNATURE =
+            SemanticAttributePrefixes.TOOL_CALL + "." + ToolCallAttributePostfixes.REASONING_SIGNATURE;
+
+    /**
      * The LLM function call function name
      */
     public static final String MESSAGE_FUNCTION_CALL_NAME =
@@ -410,7 +489,8 @@ public class SemanticConventions {
             SemanticAttributePrefixes.MESSAGE + "." + MessageAttributePostfixes.CONTENTS;
 
     /**
-     * The type of content sent to the LLM
+     * The type of content sent to the LLM, such as "text", "image", "audio",
+     * "reasoning", or "tool_use"
      */
     public static final String MESSAGE_CONTENT_TYPE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.TYPE;
@@ -426,6 +506,35 @@ public class SemanticConventions {
      */
     public static final String MESSAGE_CONTENT_IMAGE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.IMAGE;
+
+    /**
+     * Provider-assigned identifier for this message content item. For OpenAI
+     * Responses reasoning items, this maps to ResponseReasoningItem.id and should
+     * be preserved for stateless replay
+     */
+    public static final String MESSAGE_CONTENT_ID =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.ID;
+
+    /**
+     * Opaque vendor-issued signature captured verbatim. Maps to provider signature
+     * fields and to Gemini thoughtSignature fields when the signature is attached
+     * to a non-tool content part
+     */
+    public static final String MESSAGE_CONTENT_SIGNATURE =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.SIGNATURE;
+
+    /**
+     * Opaque vendor-issued data captured verbatim. Maps to Anthropic
+     * redacted_thinking.data
+     */
+    public static final String MESSAGE_CONTENT_DATA =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.DATA;
+
+    /**
+     * OpenAI encrypted_content captured verbatim
+     */
+    public static final String MESSAGE_CONTENT_ENCRYPTED_CONTENT =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.ENCRYPTED_CONTENT;
 
     /**
      * The http or base64 link to the image
@@ -454,6 +563,12 @@ public class SemanticConventions {
      */
     public static final String EMBEDDING_MODEL_NAME =
             SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.MODEL_NAME;
+
+    /**
+     * Parameters used during the invocation of an embedding model or API (excluding input).
+     */
+    public static final String EMBEDDING_INVOCATION_PARAMETERS =
+            SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.INVOCATION_PARAMETERS;
 
     /**
      * The embedding vector. Typically a high dimensional vector of floats or ints
@@ -487,6 +602,11 @@ public class SemanticConventions {
     public static final String PROMPT_TEMPLATE_VERSION = PROMPT_TEMPLATE_PREFIX + ".version";
 
     /**
+     * Text choices returned from a completions API.
+     */
+    public static final String LLM_CHOICES = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.CHOICES;
+
+    /**
      * The JSON representation of a function call of an LLM
      */
     public static final String LLM_FUNCTION_CALL =
@@ -496,6 +616,11 @@ public class SemanticConventions {
      * List of tools that are advertised to the LLM to be able to call
      */
     public static final String LLM_TOOLS = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOOLS;
+
+    /**
+     * The identifier for the result of the tool call.
+     */
+    public static final String TOOL_ID = SemanticAttributePrefixes.TOOL + "." + ToolAttributePostfixes.ID;
 
     /**
      * The name of a tool
@@ -638,11 +763,33 @@ public class SemanticConventions {
         EMBEDDING("EMBEDDING"),
         AGENT("AGENT"),
         GUARDRAIL("GUARDRAIL"),
-        EVALUATOR("EVALUATOR");
+        EVALUATOR("EVALUATOR"),
+        PROMPT("PROMPT");
 
         private final String value;
 
         OpenInferenceSpanKind(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        @Override
+        public String toString() {
+            return value;
+        }
+    }
+
+    public enum AnnotatorKind {
+        HUMAN("HUMAN"),
+        LLM("LLM"),
+        CODE("CODE");
+
+        private final String value;
+
+        AnnotatorKind(String value) {
             this.value = value;
         }
 
@@ -685,7 +832,11 @@ public class SemanticConventions {
         ANTHROPIC("anthropic"),
         MISTRALAI("mistralai"),
         COHERE("cohere"),
-        VERTEXAI("vertexai");
+        VERTEXAI("vertexai"),
+        DEEPSEEK("deepseek"),
+        AMAZON("amazon"),
+        META("meta"),
+        AI21("ai21");
 
         private final String value;
 
@@ -713,7 +864,14 @@ public class SemanticConventions {
         AWS("aws"),
         AZURE("azure"),
         XAI("xai"),
-        DEEPSEEK("deepseek");
+        DEEPSEEK("deepseek"),
+        GROQ("groq"),
+        FIREWORKS("fireworks"),
+        MOONSHOT("moonshot"),
+        CEREBRAS("cerebras"),
+        PERPLEXITY("perplexity"),
+        TOGETHER("together"),
+        OLLAMA("ollama");
 
         private final String value;
 

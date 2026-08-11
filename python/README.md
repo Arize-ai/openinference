@@ -4,7 +4,7 @@ This is the Python version of OpenInference instrumentation, a framework for col
 
 ## Getting Started
 
-Instrumentation is the act of adding observability code to an application. OpenInference provides [instrumentors](https://github.com/Arize-ai/openinference?tab=readme-ov-file#python) for several popular LLM frameworks and SDKs. The instrumentors emit traces from the LLM applications, and the traces can be collected by a collector, e.g. by the [Phoenix Collector](#phoenix-collector).
+Instrumentation is the act of adding observability code to an application. OpenInference provides [instrumentors](https://github.com/Arize-ai/openinference?tab=readme-ov-file#python) for several popular LLM frameworks and SDKs. The instrumentors emit traces from the LLM applications, and the traces can be collected by a collector, e.g. by the [Phoenix Collector](#phoenix-collector), or sent directly to [Arize AX](https://arize.com/docs/ax).
 
 ## Example
 
@@ -69,9 +69,40 @@ if __name__ == "__main__":
     print(response.choices[0].message.content)
 ```
 
+## Bazel and `rules_python`
+
+The `openinference-instrumentation` core package and every
+`openinference-instrumentation-<name>` instrumentor share the
+`openinference.instrumentation` namespace (a [PEP 420 implicit namespace
+package](https://peps.python.org/pep-0420/)). With pip this works transparently,
+but Bazel's `rules_python` defaults to treating every wheel as a regular
+package, which causes only one of the sibling packages to be importable at a
+time (e.g. `from openinference.instrumentation.openai import OpenAIInstrumentor`
+fails even though the wheel is present).
+
+To consume these packages from Bazel, enable implicit namespace package support
+when parsing the wheel repository:
+
+```starlark
+pip.parse(
+    ...
+    enable_implicit_namespace_pkgs = True,
+)
+```
+
+The equivalent flag on the legacy `pip_parse` repository rule is also called
+`enable_implicit_namespace_pkgs = True`. This setting complements the namespace
+path extension in
+`python/openinference-instrumentation/src/openinference/instrumentation/__init__.py`
+and is required whenever you depend on the core package alongside one or more
+instrumentors in the same `py_binary` / `py_library`.
+
+See [`python/DEVELOPMENT.md`](./DEVELOPMENT.md#bazel-and-rules_python) for more
+details.
+
 ## Phoenix Collector
 
-Phoenix runs locally on your machine and does not send data over the internet.
+[Phoenix](https://github.com/Arize-ai/phoenix) runs locally on your machine and does not send data over the internet. If you'd rather use a hosted collector, point the same OTLP exporter at [Arize AX](https://arize.com/docs/ax) instead.
 
 Install using:
 

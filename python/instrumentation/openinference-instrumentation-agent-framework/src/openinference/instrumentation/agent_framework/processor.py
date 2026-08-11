@@ -17,9 +17,9 @@ from typing import Any, Dict, Optional
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import Status, StatusCode
 
-from openinference.instrumentation.agent_framework import __version__
 from openinference.instrumentation.agent_framework.semantic_conventions import get_attributes
 from openinference.instrumentation.agent_framework.utils import SpanFilter, should_export_span
+from openinference.instrumentation.agent_framework.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,10 @@ class AgentFrameworkToOpenInferenceProcessor(SpanProcessor):
 
         try:
             # Get span context information
-            span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
+            span_context = span.get_span_context()
+            if span_context is None:
+                return
+            span_id = span_context.span_id
 
             # Get OpenInference attributes from the transformation function
             openinference_attributes_iter = get_attributes(

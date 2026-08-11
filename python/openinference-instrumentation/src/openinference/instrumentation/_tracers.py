@@ -60,6 +60,7 @@ from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
+    mask_without_externalization,
 )
 from .context_attributes import get_attributes_from_context
 
@@ -93,7 +94,7 @@ class _IdGenerator(IdGenerator):
         return trace_id
 
 
-class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
+class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(self, wrapped: Tracer, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
@@ -176,7 +177,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         else:
             tracer = cast(Tracer, self.__wrapped__)
             otel_span = tracer.__class__.start_span(
-                self,
+                self,  # type: ignore[arg-type,unused-ignore]
                 name=name,
                 context=context,
                 kind=kind,
@@ -209,10 +210,17 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         This ensures samplers don't see sensitive data that should be masked
         according to the TraceConfig, while maintaining the same masking logic
         as OpenInferenceSpan.
+
+        Masking runs with ``externalize=False`` — a pure view with no side
+        effects — because this happens before the suppression check and
+        before the sampler: blob uploads must not fire for suppressed or
+        sampled-out spans, and must not run twice for sampled-in spans
+        (the real, uploader-enabled masking happens exactly once in
+        ``OpenInferenceSpan.set_attribute`` after the span exists).
         """
         masked_attributes = {}
         for key, value in attributes.items():
-            masked_value = self._self_config.mask(key, value)
+            masked_value = mask_without_externalization(self._self_config, key, value)
             if masked_value is not None:
                 masked_attributes[key] = masked_value
         return masked_attributes
@@ -281,6 +289,126 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
     ]:
         return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.CHAIN, name=name)
 
+    @overload  # for @tracer.retriever usage (no parameters)
+    def retriever(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.retriever(name="name") usage (with parameters)
+    def retriever(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def retriever(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.RETRIEVER, name=name)
+
+    @overload  # for @tracer.reranker usage (no parameters)
+    def reranker(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.reranker(name="name") usage (with parameters)
+    def reranker(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def reranker(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.RERANKER, name=name)
+
+    @overload  # for @tracer.guardrail usage (no parameters)
+    def guardrail(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.guardrail(name="name") usage (with parameters)
+    def guardrail(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def guardrail(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.GUARDRAIL, name=name)
+
+    @overload  # for @tracer.evaluator usage (no parameters)
+    def evaluator(
+        self,
+        wrapped_function: Callable[ParametersType, ReturnType],
+        /,
+        *,
+        name: None = None,
+    ) -> Callable[ParametersType, ReturnType]: ...
+
+    @overload  # for @tracer.evaluator(name="name") usage (with parameters)
+    def evaluator(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    def evaluator(
+        self,
+        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+        /,
+        *,
+        name: Optional[str] = None,
+    ) -> Union[
+        Callable[ParametersType, ReturnType],
+        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+    ]:
+        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.EVALUATOR, name=name)
+
     def _chain(
         self,
         wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
@@ -292,7 +420,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
@@ -313,7 +441,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 chain_context.process_output(output)
                 return output
 
-        @wrapt.decorator  #  type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_wrapper(
             wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
@@ -336,9 +464,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         if wrapped_function is not None:
             if asyncio.iscoroutinefunction(wrapped_function):
-                return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
-            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
+                return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
 
     @overload  # for @tracer.tool usage (no parameters)
     def tool(
@@ -374,7 +502,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
@@ -396,7 +524,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 tool_context.process_output(output)
                 return output
 
-        @wrapt.decorator  #  type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_wrapper(
             wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
@@ -420,9 +548,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
 
         if wrapped_function is not None:
             if asyncio.iscoroutinefunction(wrapped_function):
-                return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
-            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
+                return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
 
     @overload  # @tracer.llm usage with no explicit application of the decorator
     def llm(
@@ -461,7 +589,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_function_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
@@ -483,7 +611,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 llm_context.process_output(output)
                 return output
 
-        @wrapt.decorator  #  type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_function_wrapper(
             wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
@@ -505,7 +633,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 llm_context.process_output(output)
                 return output
 
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_generator_function_wrapper(
             wrapped: Callable[ParametersType, Generator[ReturnType, None, None]],
             instance: Any,
@@ -537,7 +665,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                     yield output
                 llm_context.process_output(outputs)
 
-        @wrapt.decorator  # type: ignore[misc]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_generator_function_wrapper(
             wrapped: Callable[ParametersType, AsyncGenerator[ReturnType, None]],
             instance: Any,
