@@ -138,6 +138,30 @@ def _state_delta_event(*, timestamp: float) -> Event:
     )
 
 
+def _function_response_event(
+    *,
+    timestamp: float,
+    actions: EventActions,
+) -> Event:
+    return Event(
+        author="test-agent",
+        invocation_id="test-invocation",
+        actions=actions,
+        timestamp=timestamp,
+        content=types.Content(
+            role="user",
+            parts=[
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        name="approve_response",
+                        response={"approved": True},
+                    )
+                )
+            ],
+        ),
+    )
+
+
 async def _event_stream(events: list[Event]) -> AsyncGenerator[Event, None]:
     for event in events:
         yield event
@@ -206,6 +230,77 @@ async def test_base_agent_run_async_keeps_content_output_after_state_delta_final
     assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
         exclude_none=True
     )
+
+
+async def test_base_agent_run_async_captures_escalation_output_and_description(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    escalation_event = _function_response_event(
+        timestamp=1.0,
+        actions=EventActions(escalate=True),
+    )
+    assert not escalation_event.is_final_response()
+    state_delta_event = _state_delta_event(timestamp=2.0)
+    assert state_delta_event.is_final_response()
+
+    async def run_async() -> AsyncGenerator[Event, None]:
+        yield escalation_event
+        yield state_delta_event
+
+    wrapped = _BaseAgentRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(
+            Any,
+            SimpleNamespace(
+                name="test-agent",
+                description="Approves a response and ends the loop.",
+            ),
+        ),
+        (),
+        {},
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [escalation_event, state_delta_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes
+    assert span.attributes["gen_ai.agent.description"] == ("Approves a response and ends the loop.")
+    assert span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == "application/json"
+    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == escalation_event.model_dump_json(
+        exclude_none=True
+    )
+
+
+async def test_base_agent_run_async_does_not_capture_transfer_event_as_output(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    transfer_event = _function_response_event(
+        timestamp=1.0,
+        actions=EventActions(transfer_to_agent="weather-agent"),
+    )
+    assert not transfer_event.is_final_response()
+
+    async def run_async() -> AsyncGenerator[Event, None]:
+        yield transfer_event
+
+    wrapped = _BaseAgentRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(Any, SimpleNamespace(name="test-agent", description="")),
+        (),
+        {},
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [transfer_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(span.attributes or {})
+    assert "gen_ai.agent.description" not in attributes
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+    assert SpanAttributes.OUTPUT_VALUE not in attributes
 
 
 @pytest.mark.skipif(

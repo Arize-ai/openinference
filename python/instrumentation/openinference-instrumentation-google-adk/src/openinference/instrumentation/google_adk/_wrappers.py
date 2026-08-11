@@ -186,6 +186,8 @@ class _BaseAgentRunAsync(_WithTracer):
         attributes = dict(get_attributes_from_context())
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
         attributes[SpanAttributes.AGENT_NAME] = instance.name
+        if description := getattr(instance, "description", None):
+            attributes["gen_ai.agent.description"] = description
 
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
             __wrapped__: AsyncGenerator[Event, None]
@@ -195,8 +197,11 @@ class _BaseAgentRunAsync(_WithTracer):
                     name=name,
                     attributes=attributes,
                 ) as span:
+                    last_escalation_event: Optional[Event] = None
                     has_output_with_content = False
                     async for event in self.__wrapped__:
+                        if event.actions.escalate:
+                            last_escalation_event = event
                         if event.is_final_response():
                             event_has_content = _event_has_content(event)
                             if has_output_with_content and not event_has_content:
@@ -220,6 +225,20 @@ class _BaseAgentRunAsync(_WithTracer):
                                     has_output_with_content or event_has_content
                                 )
                         yield event
+                    if last_escalation_event is not None and not has_output_with_content:
+                        try:
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_VALUE,
+                                last_escalation_event.model_dump_json(exclude_none=True),
+                            )
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_MIME_TYPE,
+                                OpenInferenceMimeTypeValues.JSON.value,
+                            )
+                        except Exception:
+                            logger.exception(
+                                f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                            )
                     span.set_status(StatusCode.OK)
 
         return _AsyncGenerator(generator)
