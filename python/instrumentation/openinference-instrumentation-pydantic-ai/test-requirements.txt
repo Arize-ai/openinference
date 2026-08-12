@@ -3,3 +3,7 @@ pytest-cov
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
 pytest-recording
+
+# Pin the supported dependency floor for the default tox environment.
+pydantic-ai==2.24.0
+genai-prices==0.1.1

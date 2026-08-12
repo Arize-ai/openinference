@@ -1,5 +1,0 @@
--r test-requirements.txt
-
-# Pin the minimum supported pair so the compatibility floor is tested directly.
-pydantic-ai==2.24.0
-genai-prices==0.1.1
