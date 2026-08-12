@@ -124,7 +124,7 @@ export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
  * Strings produce text/plain attributes; objects are JSON-stringified.
  * Delegates to {@link getInputAttributes} from `@arizeai/openinference-core`.
  */
-export function formatPromptAttributes(prompt: string | unknown): Attributes {
+export function formatPromptAttributes(prompt: unknown): Attributes {
   if (typeof prompt === "string") {
     return getInputAttributes(prompt);
   }

@@ -76,5 +76,5 @@ export function isAttributes(value: unknown): value is Attributes {
  * ```
  */
 export function assertUnreachable(value: never): never {
-  throw new Error(`Unreachable code reached with value: ${value}`);
+  throw new Error(`Unreachable code reached with value: ${String(value)}`);
 }

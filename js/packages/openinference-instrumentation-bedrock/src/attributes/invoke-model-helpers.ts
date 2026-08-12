@@ -75,8 +75,7 @@ export const parseRequestBody = withSafety({
     } else if (command.input.body instanceof ArrayBuffer) {
       bodyString = new TextDecoder().decode(new Uint8Array(command.input.body));
     } else {
-      // For other types, convert to string safely
-      bodyString = String(command.input.body);
+      throw new TypeError("Unsupported InvokeModel request body type");
     }
     return JSON.parse(bodyString) as InvokeModelRequestBody;
   },
