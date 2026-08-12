@@ -1,0 +1,5 @@
+portkey-ai
+openinference-instrumentation-portkey
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation-httpx

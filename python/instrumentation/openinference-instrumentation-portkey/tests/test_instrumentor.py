@@ -2,6 +2,8 @@ import json
 from importlib import import_module
 
 import pytest
+import respx
+from httpx import Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -47,6 +49,7 @@ def test_chat_completion(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gpt-4o-mini-2024-07-18",
+        SpanAttributes.LLM_FINISH_REASON: resp.choices[0].finish_reason,
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
@@ -103,6 +106,7 @@ def test_prompt_template(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gpt-4.1-2025-04-14",
+        SpanAttributes.LLM_FINISH_REASON: resp.choices[0].finish_reason,
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
@@ -160,6 +164,7 @@ async def test_async_chat_completion(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gpt-4o-mini-2024-07-18",
+        SpanAttributes.LLM_FINISH_REASON: resp.choices[0].finish_reason,
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
@@ -218,6 +223,7 @@ async def test_async_prompt_template(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gpt-4.1-2025-04-14",
+        SpanAttributes.LLM_FINISH_REASON: resp.choices[0].finish_reason,
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
@@ -232,3 +238,68 @@ async def test_async_prompt_template(
 
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    [
+        "stop",
+        "length",
+        "tool_calls",
+        "content_filter",
+    ],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with respx.mock(
+        base_url="https://api.portkey.ai",
+        assert_all_called=True,
+    ) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(
+                status_code=200,
+                json={
+                    "id": "chatcmpl-test",
+                    "object": "chat.completion",
+                    "created": 1750000000,
+                    "model": "gpt-4o-mini-2024-07-18",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "Hello!",
+                            },
+                            "finish_reason": finish_reason,
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 5,
+                        "completion_tokens": 10,
+                        "total_tokens": 15,
+                    },
+                },
+            )
+        )
+
+        portkey = import_module("portkey_ai")
+        client = portkey.Portkey(
+            api_key="REDACTED",
+            virtual_key="REDACTED",
+        )
+        client.chat.completions.create(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="gpt-4o-mini",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
