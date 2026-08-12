@@ -1,5 +1,4 @@
 # Core dependencies
-openai>=1.0.0
 grpcio>=1.60.0
 
 # OpenTelemetry and Observability
@@ -10,6 +9,7 @@ opentelemetry-exporter-otlp-proto-grpc>=1.22.0
 
 # provider dependencies
 langchain>=0.1.0
+langchain-openai>=1.4.0
 langgraph>=0.0.15
 typing-extensions>=4.8.0
 openai>=1.0.0
