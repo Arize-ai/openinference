@@ -818,11 +818,6 @@ def _set_token_counts_from_usage(span: trace_api.Span, result: Any) -> None:
             _set_span_attribute(
                 span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio_tokens
             )
-        text_tokens = _get_value(prompt_token_details, "text_tokens")
-        if text_tokens is not None:
-            _set_span_attribute(
-                span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT, text_tokens
-            )
 
     completion_tokens = _get_value(usage, "completion_tokens") or _get_value(usage, "output_tokens")
     if completion_tokens is not None:
@@ -836,12 +831,6 @@ def _set_token_counts_from_usage(span: trace_api.Span, result: Any) -> None:
         if reasoning_tokens is not None:
             _set_span_attribute(
                 span, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
-            )
-
-        text_tokens = _get_value(completion_tokens_details, "text_tokens")
-        if text_tokens is not None:
-            _set_span_attribute(
-                span, SpanAttributes.LLM_COST_COMPLETION_DETAILS_OUTPUT, text_tokens
             )
 
         completion_audio_tokens = _get_value(completion_tokens_details, "audio_tokens")
