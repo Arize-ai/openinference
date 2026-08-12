@@ -1,0 +1,7 @@
+-r test-requirements.txt
+
+# Pydantic AI V1 cannot accept the expanded usage fields from genai-prices 0.1 and
+# silently drops all token-usage telemetry. Keep the current security-fixed V1 and
+# known-good genai-prices release pinned together.
+pydantic-ai==1.107.2
+genai-prices==0.0.73

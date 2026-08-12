@@ -1,3 +1,4 @@
 opentelemetry-sdk
 opentelemetry-exporter-otlp
-pydantic-ai
+pydantic-ai>=2.24.0
+genai-prices>=0.1.0
