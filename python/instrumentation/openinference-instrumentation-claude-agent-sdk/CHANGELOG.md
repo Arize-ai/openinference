@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.9...python-openinference-instrumentation-claude-agent-sdk-v0.1.10) (2026-08-12)
+
+
+### Bug Fixes
+
+* **claude-agent-sdk:** set llm.provider on the agent spans ([#3535](https://github.com/Arize-ai/openinference/issues/3535)) ([dd79ed9](https://github.com/Arize-ai/openinference/commit/dd79ed9fe3ba4232528ba507069d15d804f12d8c))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.8...python-openinference-instrumentation-claude-agent-sdk-v0.1.9) (2026-08-07)
 
 

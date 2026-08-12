@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.19...python-openinference-instrumentation-groq-v0.1.20) (2026-08-12)
+
+
+### Bug Fixes
+
+* **groq:** set llm.provider on Groq LLM spans ([#3533](https://github.com/Arize-ai/openinference/issues/3533)) ([44cdf79](https://github.com/Arize-ai/openinference/commit/44cdf7996e05a5f16b2e38d0cbb500b1403fbaf1))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.18...python-openinference-instrumentation-groq-v0.1.19) (2026-08-07)
 
 

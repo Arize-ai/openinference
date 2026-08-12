@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.36...python-openinference-instrumentation-litellm-v0.1.37) (2026-08-12)
+
+
+### Features
+
+* **litellm:** Add Finish Reason Attribute ([#3541](https://github.com/Arize-ai/openinference/issues/3541)) ([b698c35](https://github.com/Arize-ai/openinference/commit/b698c357bc7edb6406a87314f30965a20453d43b))
+
 ## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.35...python-openinference-instrumentation-litellm-v0.1.36) (2026-08-07)
 
 

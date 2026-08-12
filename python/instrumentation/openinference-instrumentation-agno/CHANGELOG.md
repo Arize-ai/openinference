@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.2...python-openinference-instrumentation-agno-v1.0.3) (2026-08-12)
+
+
+### Bug Fixes
+
+* **agno:** Handle Missing Reasoning Content ([#3416](https://github.com/Arize-ai/openinference/issues/3416)) ([55a2d22](https://github.com/Arize-ai/openinference/commit/55a2d22ac16cb1799403e4ccacdcad1da7273a6b))
+* **agno:** populate llm.system on LLM spans ([#3457](https://github.com/Arize-ai/openinference/issues/3457)) ([d5b736e](https://github.com/Arize-ai/openinference/commit/d5b736e9179335bb239d40cd2326e0be25698d0d))
+
 ## [1.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.1...python-openinference-instrumentation-agno-v1.0.2) (2026-08-07)
 
 
