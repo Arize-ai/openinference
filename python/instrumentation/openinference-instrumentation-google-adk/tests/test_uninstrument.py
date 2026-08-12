@@ -6,7 +6,7 @@
 This test verifies that the GoogleADKInstrumentor correctly patches and unpatchs:
 - Runner.run_async method
 - BaseAgent.run_async method
-- All tracers (runners, agents, llm_flows, functions/telemetry.tracing)
+- All tracers (runners, agents, llm_flows, functions/telemetry.tracing, compaction)
 - trace_call_llm and trace_tool_call methods
 """
 
@@ -65,6 +65,11 @@ def test_instrumentation_patching() -> None:
 
         original_agents_tracer = base_agent.tracer
 
+    if _ADK_VERSION >= (1, 32, 0):
+        from google.adk.apps import compaction as adk_compaction
+
+        original_compaction_tracer = adk_compaction.tracer
+
     # Apply instrumentation
     GoogleADKInstrumentor().instrument()
 
@@ -89,6 +94,7 @@ def test_instrumentation_patching() -> None:
         from google.adk.flows.llm_flows import functions as _functions
 
         assert isinstance(_functions.tracer, _SelectiveExecuteToolTracer)
+        assert isinstance(adk_compaction.tracer, OITracer)
     else:
         # functions.tracer is module-local; we substitute our OITracer directly
         assert isinstance(trace_tool_module.tracer, OITracer)
@@ -111,3 +117,6 @@ def test_instrumentation_patching() -> None:
 
     if _ADK_VERSION < (1, 32, 0):
         assert base_agent.tracer is original_agents_tracer  # noqa: F821
+
+    if _ADK_VERSION >= (1, 32, 0):
+        assert adk_compaction.tracer is original_compaction_tracer  # noqa: F821
