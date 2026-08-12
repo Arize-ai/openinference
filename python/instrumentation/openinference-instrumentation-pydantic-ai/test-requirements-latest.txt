@@ -1,6 +1,5 @@
 -r test-requirements.txt
 
-# Resolve the newest compatible modern pair directly instead of upgrading over the
-# legacy environment and relying on command ordering.
+# Resolve the newest supported pair directly.
 pydantic-ai>=2.24.0
 genai-prices>=0.1.0
