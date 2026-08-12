@@ -36,6 +36,7 @@ jobs:
             diff:
               - "python/instrumentation/**/*.py"
               - "python/instrumentation/**/*.pyi"
+              - "python/instrumentation/**/*.txt"
               - "python/instrumentation/**/*.toml"
               - "python/instrumentation/**/*.yaml"
               - "python/openinference-*/**/*.py"

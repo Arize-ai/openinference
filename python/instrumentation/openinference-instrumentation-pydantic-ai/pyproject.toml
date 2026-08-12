@@ -36,7 +36,12 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "pydantic-ai>=0.7.5",
+  "pydantic-ai>=2.24.0",
+  "genai-prices>=0.1.0",
+]
+instruments-legacy = [
+  "pydantic-ai>=1.107.2,<2.0.0",
+  "genai-prices>=0.0.62,<0.1",
 ]
 
 [project.urls]
