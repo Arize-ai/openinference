@@ -223,6 +223,25 @@ def _find_llm_output_tool_calls(output_messages: List[Dict[str, Any]]) -> List[D
     return tool_calls
 
 
+def _extract_output_value_attributes(
+    output_value: Optional[str], output_tool_calls: List[Dict[str, Any]]
+) -> Iterator[Tuple[str, Any]]:
+    """Select a consistent output.value representation for text and tool calls."""
+    regular_tool_calls = [
+        call
+        for call in output_tool_calls
+        if call.get(GenAIFunctionFields.NAME) != PydanticFinalResult.FINAL_RESULT
+    ]
+    if regular_tool_calls:
+        payload: Any = regular_tool_calls
+        if output_value is not None:
+            payload = {"content": output_value, "tool_calls": regular_tool_calls}
+        yield SpanAttributes.OUTPUT_VALUE, safe_json_dumps(payload)
+        yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+    elif output_value is not None:
+        yield SpanAttributes.OUTPUT_VALUE, output_value
+
+
 def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
     Main function to extract OpenInference attributes from GenAI attributes.
@@ -374,17 +393,8 @@ def _extract_llm_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[s
                     yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
 
             output_value = _find_llm_output_value(output_messages)
-            if output_value is not None:
-                yield SpanAttributes.OUTPUT_VALUE, output_value
-            else:
-                # If no output, fall back to the tool calls
-                output_tool_calls = _find_llm_output_tool_calls(output_messages)
-                if output_tool_calls:
-                    yield SpanAttributes.OUTPUT_VALUE, safe_json_dumps(output_tool_calls)
-                    yield (
-                        SpanAttributes.OUTPUT_MIME_TYPE,
-                        OpenInferenceMimeTypeValues.JSON.value,
-                    )
+            output_tool_calls = _find_llm_output_tool_calls(output_messages)
+            yield from _extract_output_value_attributes(output_value, output_tool_calls)
 
 
 def _flatten_message(message: Dict[str, Any]) -> Dict[str, Any]:
@@ -949,10 +959,4 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                             output_tool_calls.append(normalized)
             except json.JSONDecodeError:
                 pass
-    if output_value is not None:
-        yield SpanAttributes.OUTPUT_VALUE, output_value
-    elif output_tool_calls:
-        # A generation whose only output is tool calls has no text content to use, so fall
-        # back to the tool calls themselves.
-        yield SpanAttributes.OUTPUT_VALUE, safe_json_dumps(output_tool_calls)
-        yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+    yield from _extract_output_value_attributes(output_value, output_tool_calls)

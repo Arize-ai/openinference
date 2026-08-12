@@ -421,9 +421,8 @@ def test_llm_output_value_from_tool_call_in_gen_ai_output_messages() -> None:
     )
 
 
-def test_llm_output_value_from_tool_call_in_v1_events() -> None:
-    """Instrumentation version 1 reports the generation as a gen_ai.choice event instead. Both
-    paths must produce the same output.value shape."""
+def test_llm_text_output_does_not_overwrite_tool_calls_in_v1_events() -> None:
+    """Instrumentation version 1 preserves both text and tool calls in output.value."""
     gen_ai_attrs: Dict[str, Any] = {
         GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
         "events": json.dumps(
@@ -438,6 +437,7 @@ def test_llm_output_value_from_tool_call_in_v1_events() -> None:
                     "index": 0,
                     "message": {
                         "role": "assistant",
+                        "content": "I will check.",
                         "tool_calls": [
                             {
                                 "id": "call_123",
@@ -457,14 +457,15 @@ def test_llm_output_value_from_tool_call_in_v1_events() -> None:
     attributes = dict(get_attributes(gen_ai_attrs))
 
     assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
-    assert json.loads(attributes[SpanAttributes.OUTPUT_VALUE]) == [
-        {"id": "call_123", "name": "get_weather", "arguments": {"city": "Paris"}}
-    ]
+    assert json.loads(attributes[SpanAttributes.OUTPUT_VALUE]) == {
+        "content": "I will check.",
+        "tool_calls": [{"id": "call_123", "name": "get_weather", "arguments": {"city": "Paris"}}],
+    }
 
 
-def test_llm_text_output_still_wins_over_tool_calls() -> None:
-    """The tool-call payload is only a fallback: a generation that produced text keeps reporting
-    that text as a plain-text output.value."""
+def test_llm_text_output_does_not_overwrite_tool_calls() -> None:
+    """If the instrumentor emits output text along with tool calls, then both are written to the
+    output.value field."""
     gen_ai_attrs: Dict[str, Any] = {
         GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
         GEN_AI_INPUT_MESSAGES: _USER_INPUT_MESSAGES,
@@ -488,8 +489,54 @@ def test_llm_text_output_still_wins_over_tool_calls() -> None:
 
     attributes = dict(get_attributes(gen_ai_attrs))
 
-    assert attributes[SpanAttributes.OUTPUT_VALUE] == "It's sunny in Paris."
-    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+    assert json.loads(attributes[SpanAttributes.OUTPUT_VALUE]) == {
+        "content": "It's sunny in Paris.",
+        "tool_calls": [
+            {"id": "call_123", "name": "get_weather", "arguments": {"city": "Paris"}},
+        ],
+    }
+    assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+
+
+def test_final_result_is_not_included_in_output_value() -> None:
+    """Pydantic's final_result attributes should be excluded from output.value.tool_calls
+    attribute."""
+    gen_ai_attrs: Dict[str, Any] = {
+        GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value,
+        GEN_AI_INPUT_MESSAGES: _USER_INPUT_MESSAGES,
+        GEN_AI_OUTPUT_MESSAGES: json.dumps(
+            [
+                {
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool_call",
+                            "id": "call_123",
+                            "name": "get_weather",
+                            "arguments": {"city": "Paris"},
+                        },
+                        {"type": "text", "content": "It's sunny in Paris."},
+                        {
+                            "type": "tool_call",
+                            "id": "call_456",
+                            "name": "final_result",
+                            "arguments": {"answer": "It's sunny in Paris."},
+                        },
+                    ],
+                }
+            ]
+        ),
+    }
+
+    attributes = dict(get_attributes(gen_ai_attrs))
+
+    assert json.loads(attributes[SpanAttributes.OUTPUT_VALUE]) == {
+        "content": json.dumps({"answer": "It's sunny in Paris."}),
+        "tool_calls": [
+            {"id": "call_123", "name": "get_weather", "arguments": {"city": "Paris"}},
+        ],
+    }
+    assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
 
 
 def test_llm_final_result_tool_call_still_reports_its_arguments() -> None:
