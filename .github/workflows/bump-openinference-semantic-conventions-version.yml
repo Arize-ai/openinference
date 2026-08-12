@@ -24,9 +24,27 @@ jobs:
         run: |
           TAG="$RELEASE_TAG"
           VERSION="${TAG#python-openinference-semantic-conventions-v}"
+          # Require a bare semver suffix so a malformed tag cannot send the wait
+          # step below spinning until it times out.
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::notice::Tag $TAG is not a core openinference-semantic-conventions release (extracted '$VERSION'); skipping."
+            exit 0
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # The `release: published` event fires as soon as release-please creates the
+      # GitHub release, which is minutes ahead of the publish workflow uploading the
+      # sdist/wheel to PyPI. Opening the bump PR before then makes every instrumentor
+      # CI job fail to resolve the new floor, so hold until PyPI can actually serve it.
+      - name: Wait for openinference-semantic-conventions on PyPI
+        if: steps.version.outputs.version
+        uses: ./.github/actions/wait-for-pypi-version
+        with:
+          package: openinference-semantic-conventions
+          version: ${{ steps.version.outputs.version }}
+
       - name: Update pyproject.toml files
+        if: steps.version.outputs.version
         env:
           NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -38,6 +56,7 @@ jobs:
             sed -i 's/"openinference-semantic-conventions>=.*"/"openinference-semantic-conventions>='"$NEW_VERSION"'"/' {} +
 
       - name: Create pull request
+        if: steps.version.outputs.version
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
           token: ${{ secrets.MY_RELEASE_PLEASE }}
