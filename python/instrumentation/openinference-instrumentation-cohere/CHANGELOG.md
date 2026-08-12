@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.2...python-openinference-instrumentation-cohere-v0.1.3) (2026-08-12)
+
+
+### Features
+
+* **cohere:** instrument ClientV2.embed and AsyncClientV2.embed ([#3526](https://github.com/Arize-ai/openinference/issues/3526)) ([879f103](https://github.com/Arize-ai/openinference/commit/879f10347b1cf390d21c1ea5cb70bf6d1a887bbc))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.1...python-openinference-instrumentation-cohere-v0.1.2) (2026-08-07)
 
 

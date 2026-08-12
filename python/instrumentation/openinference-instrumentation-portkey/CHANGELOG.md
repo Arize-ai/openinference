@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.12...python-openinference-instrumentation-portkey-v0.1.13) (2026-08-12)
+
+
+### Features
+
+* **portkey:** Add Finish Reason Attribute ([#3546](https://github.com/Arize-ai/openinference/issues/3546)) ([39a9f24](https://github.com/Arize-ai/openinference/commit/39a9f242226386ca9df3c816986b98c6636634a6))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.11...python-openinference-instrumentation-portkey-v0.1.12) (2026-08-07)
 
 
