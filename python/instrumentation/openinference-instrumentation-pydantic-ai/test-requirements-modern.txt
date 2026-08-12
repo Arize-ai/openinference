@@ -1,7 +1,0 @@
--r test-requirements.txt
-
-# Pydantic AI 2.17 is the first release that accepts arbitrary usage fields from
-# genai-prices 0.1. Version 2.24 is the first currently supported release that also
-# includes the subsequent download-size security fix.
-pydantic-ai==2.24.0
-genai-prices==0.1.1

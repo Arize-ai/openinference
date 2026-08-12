@@ -17,22 +17,8 @@ genai-prices 0.1 or newer. Pydantic AI 2.17.0 first added support for the additi
 usage fields in genai-prices 0.1; the supported floor is 2.24.0 so new installations
 also include Pydantic AI's subsequent security fixes.
 
-Supported Pydantic AI V1 releases must use genai-prices below 0.1. With genai-prices
-0.1 or newer, Pydantic AI V1 can silently omit token counts from its spans.
-Pydantic AI 2.0.0 through 2.23.x are outside the supported ranges; upgrade to 2.24.0
-or newer.
-
-| Pydantic AI version | Compatible genai-prices version |
-|---|---|
-| `>=1.107.2,<2.0.0` | `>=0.0.62,<0.1` |
-| `>=2.24.0` | `>=0.1` |
-
-Install the `instruments-legacy` extra to use a supported Pydantic AI V1 release with
-a safe genai-prices constraint:
-
-```shell
-pip install "openinference-instrumentation-pydantic-ai[instruments-legacy]"
-```
+Older Pydantic AI releases are not supported. In particular, Pydantic AI V1 can
+silently omit token counts when paired with genai-prices 0.1 or newer.
 
 ## Quickstart
 
