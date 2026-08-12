@@ -6,6 +6,7 @@ import respx
 from httpx import Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.sdk.trace import TracerProvider
 
 from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
@@ -303,3 +304,35 @@ def test_finish_reason_values(
     span = spans[0]
     attributes = dict(span.attributes or {})
     assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
+
+def test_uninstrument(tracer_provider: TracerProvider) -> None:
+    from portkey_ai.api_resources.apis.chat_complete import (
+        AsyncCompletions as ChatAsyncCompletions,
+        Completions as ChatCompletions,
+    )
+    from portkey_ai.api_resources.apis.generation import (
+        AsyncCompletions as GenerationAsyncCompletions,
+        Completions as GenerationCompletions,
+    )
+
+    from openinference.instrumentation.portkey import PortkeyInstrumentor
+
+    chat_sync_orig = ChatCompletions.create
+    chat_async_orig = ChatAsyncCompletions.create
+    gen_sync_orig = GenerationCompletions.create
+    gen_async_orig = GenerationAsyncCompletions.create
+
+    instrumentor = PortkeyInstrumentor()
+    instrumentor.instrument(tracer_provider=tracer_provider)
+
+    assert ChatCompletions.create is not chat_sync_orig
+    assert ChatAsyncCompletions.create is not chat_async_orig
+    assert GenerationCompletions.create is not gen_sync_orig
+    assert GenerationAsyncCompletions.create is not gen_async_orig
+
+    instrumentor.uninstrument()
+
+    assert ChatCompletions.create is chat_sync_orig
+    assert ChatAsyncCompletions.create is chat_async_orig
+    assert GenerationCompletions.create is gen_sync_orig
+    assert GenerationAsyncCompletions.create is gen_async_orig
