@@ -100,6 +100,17 @@ export function getProviderFromHost(host: string): LLMProvider | undefined {
 let _isOpenInferencePatched = false;
 
 /**
+ * The OpenAI classes that have already been patched, tracked by identity.
+ * The SDK ships separate CJS and ESM builds with separate class objects, so a
+ * module-global boolean cannot guard them independently: whichever build was
+ * patched first would block the other one forever (#3557). A WeakSet is
+ * scoped to the object, and needs no write to the module, so it also keeps
+ * the double-patch guard working when the module is immutable (e.g. Deno,
+ * webpack) and the `openInferencePatched` property cannot be set.
+ */
+const _patchedModules = new WeakSet<object>();
+
+/**
  * function to check if instrumentation is enabled / disabled
  */
 export function isPatched() {
@@ -255,7 +266,9 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     moduleVersion?: string,
   ) {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
-    if (module?.openInferencePatched || _isOpenInferencePatched) {
+    // WeakSet.has() returns false for non-objects, so an unexpected module
+    // shape falls through here and fails loudly below instead.
+    if (module?.openInferencePatched || _patchedModules.has(module.OpenAI)) {
       return module;
     }
     // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -559,6 +572,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     }
 
     _isOpenInferencePatched = true;
+    _patchedModules.add(module.OpenAI);
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       module.openInferencePatched = true;
@@ -581,6 +595,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
 
     _isOpenInferencePatched = false;
+    // Keyed the same way patch() keys it, so a re-patch is possible after.
+    _patchedModules.delete(moduleExports.OpenAI);
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       moduleExports.openInferencePatched = false;
