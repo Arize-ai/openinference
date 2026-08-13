@@ -39,6 +39,17 @@ const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-anthropic";
 let _isOpenInferencePatched = false;
 
 /**
+ * The Anthropic classes that have already been patched, tracked by identity.
+ * The SDK ships separate CJS and ESM builds with separate class objects, so a
+ * module-global boolean cannot guard them independently: whichever build was
+ * patched first would block the other one forever (#3557). A WeakSet is
+ * scoped to the object, and needs no write to the module, so it also keeps
+ * the double-patch guard working when the module is immutable (e.g. Deno,
+ * webpack) and the `openInferencePatched` property cannot be set.
+ */
+const _patchedModules = new WeakSet<object>();
+
+/**
  * function to check if instrumentation is enabled / disabled
  */
 export function isPatched() {
@@ -147,13 +158,17 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
   ) {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
 
-    if (module?.openInferencePatched || _isOpenInferencePatched) {
+    if (module?.openInferencePatched) {
       return module;
     }
 
     // Handle ES module default export structure
     const anthropicModule =
       (module as typeof Anthropic & { default?: typeof Anthropic }).default || module;
+
+    if (anthropicModule && _patchedModules.has(anthropicModule)) {
+      return module;
+    }
 
     if (!anthropicModule?.Messages?.prototype?.create) {
       diag.warn(`Cannot find Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
@@ -307,6 +322,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     );
 
     _isOpenInferencePatched = true;
+    _patchedModules.add(anthropicModule);
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       module.openInferencePatched = true;
@@ -328,6 +344,10 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     this._unwrap(moduleExports.Messages.prototype, "create");
 
     _isOpenInferencePatched = false;
+    // Keyed the same way patch() keys it, so a re-patch is possible after.
+    _patchedModules.delete(
+      (moduleExports as typeof Anthropic & { default?: typeof Anthropic }).default || moduleExports,
+    );
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       moduleExports.openInferencePatched = false;
