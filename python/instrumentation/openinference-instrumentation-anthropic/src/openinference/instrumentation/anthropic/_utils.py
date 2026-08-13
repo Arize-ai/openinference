@@ -30,7 +30,7 @@ def _get_token_counts(usage: "Usage") -> Iterator[Tuple[str, AttributeValue]]:
     in the span metadata.
     """
     prompt_tokens = (
-        usage.input_tokens
+        (usage.input_tokens or 0)
         + (usage.cache_creation_input_tokens or 0)
         + (usage.cache_read_input_tokens or 0)
     )
