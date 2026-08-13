@@ -495,7 +495,7 @@ class TraceConfig:
                 return True
             if isinstance(value, str) and value.lower() == "false":
                 return False
-            raise
+            raise ValueError(f"Cannot cast {value!r} to bool.")
         else:
             return cast_to(value)
 
