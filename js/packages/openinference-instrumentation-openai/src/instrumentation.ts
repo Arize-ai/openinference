@@ -335,7 +335,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               // handle the chunks and add them to the span
               // First split the stream via tee
               const [leftStream, rightStream] = result.tee();
-              consumeChatCompletionStreamChunks(rightStream, span);
+              void consumeChatCompletionStreamChunks(rightStream, span);
               result = leftStream;
             }
 
@@ -547,7 +547,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 const [leftStream, rightStream] = result.tee();
                 // take the right stream, consuming it and then recording the final chunk
                 // into the span
-                consumeResponseStreamEvents(rightStream).then(recordSpan);
+                void consumeResponseStreamEvents(rightStream).then(recordSpan);
                 // give the left stream back to the caller
                 result = leftStream;
               }

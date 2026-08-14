@@ -164,7 +164,7 @@ describe("ClaudeAgentSDKInstrumentation", () => {
   it("should not double-patch the module", () => {
     const callCount = { value: 0 };
     const mockModule = {
-      query: function () {
+      query: () => {
         callCount.value++;
         return {
           [Symbol.asyncIterator]() {
@@ -190,7 +190,7 @@ describe("ClaudeAgentSDKInstrumentation", () => {
 
   it("should handle V1-only module (no V2 exports)", () => {
     const mockModule = {
-      query: function () {
+      query: () => {
         return {
           [Symbol.asyncIterator]() {
             return {

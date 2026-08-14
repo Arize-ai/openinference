@@ -3752,9 +3752,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
       instrumentation.enable();
     });
 
-    afterAll(() => {
+    afterAll(async () => {
       instrumentation.disable();
-      customTracerProvider.shutdown();
+      await customTracerProvider.shutdown();
     });
 
     beforeEach(() => {
@@ -3816,9 +3816,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
       instrumentation.enable();
     });
 
-    afterAll(() => {
+    afterAll(async () => {
       instrumentation.disable();
-      customTracerProvider.shutdown();
+      await customTracerProvider.shutdown();
     });
 
     beforeEach(() => {
@@ -3883,9 +3883,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
       instrumentation.enable();
     });
 
-    afterAll(() => {
+    afterAll(async () => {
       instrumentation.disable();
-      customTracerProvider.shutdown();
+      await customTracerProvider.shutdown();
     });
 
     beforeEach(() => {
