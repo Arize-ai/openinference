@@ -1,9 +1,4 @@
-import type {
-  ContentBlock,
-  ConversationRole,
-  Message,
-  SystemContentBlock,
-} from "@aws-sdk/client-bedrock-runtime";
+import type { ContentBlock, Message, SystemContentBlock } from "@aws-sdk/client-bedrock-runtime";
 import type { Attributes, AttributeValue, Span } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 
@@ -22,6 +17,8 @@ import {
   isConverseToolUseContent,
 } from "../types/bedrock-types";
 import { formatImageUrl } from "./invoke-model-helpers";
+
+type ProcessableMessage = Omit<Message, "role"> & { role: string | undefined };
 
 /**
  * Sets a span attribute only if the value is not null, undefined, or empty string
@@ -91,12 +88,12 @@ export function aggregateSystemPrompts(systemPrompts: SystemContentBlock[]): str
 export function aggregateMessages(
   systemPrompts: SystemContentBlock[] = [],
   messages: Message[] = [],
-): Message[] {
-  const aggregated: Message[] = [];
+): ProcessableMessage[] {
+  const aggregated: ProcessableMessage[] = [];
 
   if (systemPrompts.length > 0) {
     aggregated.push({
-      role: "system" as ConversationRole,
+      role: "system",
       content: [{ text: aggregateSystemPrompts(systemPrompts) }],
     });
   }
@@ -112,7 +109,7 @@ export function aggregateMessages(
 const toBase64ImageBytes = withSafety({
   fn: (bytes: Uint8Array | Buffer): string | undefined => {
     if (Buffer.isBuffer(bytes)) {
-      return (bytes as Buffer).toString("base64");
+      return bytes.toString("base64");
     }
     if (bytes instanceof Uint8Array) {
       return Buffer.from(bytes).toString("base64");
@@ -121,7 +118,7 @@ const toBase64ImageBytes = withSafety({
     return undefined;
   },
   onError: (error) => {
-    diag.warn("Failed to convert image bytes to base64", error as Error);
+    diag.warn("Failed to convert image bytes to base64", error);
   },
 });
 
@@ -167,7 +164,7 @@ export function getAttributesFromMessageContent(content: ContentBlock): Attribut
  * @param message The Bedrock message to extract attributes from
  * @returns {Record<string, AttributeValue>} Object containing semantic convention attributes
  */
-export function getAttributesFromMessage(message: Message): Attributes {
+export function getAttributesFromMessage(message: ProcessableMessage): Attributes {
   const attributes: Attributes = {};
 
   if (message.role) {
@@ -230,7 +227,7 @@ export function processMessages({
   baseKey,
 }: {
   span: Span;
-  messages: Message[];
+  messages: ProcessableMessage[];
   baseKey:
     | typeof SemanticConventions.LLM_INPUT_MESSAGES
     | typeof SemanticConventions.LLM_OUTPUT_MESSAGES;

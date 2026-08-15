@@ -166,6 +166,54 @@ interface DelegatingTracker extends ToolSpanTracker {
   clearDelegate(): void;
 }
 
+class DelegatingToolSpanTracker extends ToolSpanTracker implements DelegatingTracker {
+  private readonly fallbackTracker: ToolSpanTracker;
+  private activeTracker: ToolSpanTracker;
+  private currentParentSpan?: Span;
+
+  constructor(oiTracer: OITracer) {
+    super(oiTracer);
+    this.fallbackTracker = new ToolSpanTracker(oiTracer);
+    this.activeTracker = this.fallbackTracker;
+  }
+
+  setDelegate(tracker: ToolSpanTracker, parentSpan: Span): void {
+    this.activeTracker = tracker;
+    this.currentParentSpan = parentSpan;
+  }
+
+  clearDelegate(): void {
+    this.activeTracker = this.fallbackTracker;
+    this.currentParentSpan = undefined;
+  }
+
+  override startToolSpan(
+    toolName: string,
+    toolInput: unknown,
+    toolUseId: string,
+    parentContext?: ReturnType<typeof context.active>,
+  ): void {
+    const parentCtx = this.currentParentSpan
+      ? trace.setSpan(context.active(), this.currentParentSpan)
+      : parentContext;
+    this.activeTracker.startToolSpan(toolName, toolInput, toolUseId, parentCtx);
+  }
+
+  override endToolSpan(...args: Parameters<ToolSpanTracker["endToolSpan"]>): void {
+    this.activeTracker.endToolSpan(...args);
+  }
+
+  override endToolSpanWithError(
+    ...args: Parameters<ToolSpanTracker["endToolSpanWithError"]>
+  ): void {
+    this.activeTracker.endToolSpanWithError(...args);
+  }
+
+  override endAllInFlight(): void {
+    this.activeTracker.endAllInFlight();
+  }
+}
+
 /**
  * Creates a delegating ToolSpanTracker, merges hooks into session options,
  * and calls the factory to produce the real SDK session.
@@ -179,42 +227,8 @@ function createInstrumentedSession(
   options: SDKSessionOptions,
   factory: (modifiedOptions: SDKSessionOptions) => SDKSession,
 ): { session: SDKSession; delegatingTracker: DelegatingTracker } {
-  // Fallback tracker for calls that arrive before the first send()
-  const fallbackTracker = new ToolSpanTracker(oiTracer);
-  let activeTracker: ToolSpanTracker = fallbackTracker;
-  let currentParentSpan: Span | undefined;
-
-  // Build a delegating tracker that forwards to the per-turn active tracker.
-  // `startToolSpan` injects the current turn span as the parent context so
-  // tool spans are properly parented even when the SDK invokes hooks outside
-  // our OTel context.with() scope.
-  const delegatingTracker: DelegatingTracker = Object.create(fallbackTracker) as DelegatingTracker;
-  delegatingTracker.setDelegate = (tracker: ToolSpanTracker, parentSpan: Span) => {
-    activeTracker = tracker;
-    currentParentSpan = parentSpan;
-  };
-  delegatingTracker.clearDelegate = () => {
-    activeTracker = fallbackTracker;
-    currentParentSpan = undefined;
-  };
-  delegatingTracker.startToolSpan = (
-    toolName: string,
-    toolInput: unknown,
-    toolUseId: string,
-    _parentContext?: ReturnType<typeof context.active>,
-  ) => {
-    // Override the parent context with the current turn span
-    const parentCtx = currentParentSpan
-      ? trace.setSpan(context.active(), currentParentSpan)
-      : _parentContext;
-    activeTracker.startToolSpan(toolName, toolInput, toolUseId, parentCtx);
-  };
-  delegatingTracker.endToolSpan = (...args: Parameters<ToolSpanTracker["endToolSpan"]>) =>
-    activeTracker.endToolSpan(...args);
-  delegatingTracker.endToolSpanWithError = (
-    ...args: Parameters<ToolSpanTracker["endToolSpanWithError"]>
-  ) => activeTracker.endToolSpanWithError(...args);
-  delegatingTracker.endAllInFlight = () => activeTracker.endAllInFlight();
+  // Forward hooks registered at session creation to the active turn tracker.
+  const delegatingTracker = new DelegatingToolSpanTracker(oiTracer);
 
   // Create a non-recording sentinel span for hook registration.
   // The hooks themselves use the delegating tracker, so the sentinel is
