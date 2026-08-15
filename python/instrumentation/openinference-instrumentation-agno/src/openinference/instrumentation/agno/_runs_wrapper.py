@@ -117,6 +117,20 @@ def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
 
 
+def _span_method_name(wrapped: Callable[..., Any], default: str) -> str:
+    """Span-name suffix for the wrapped run function.
+
+    The continue-run entrypoints (_continue_run, _acontinue_run, and their
+    _stream variants) share the run/arun wrappers; reflect the continuation in
+    the span name, collapsing stream variants to the base name exactly like
+    the run spans do.
+    """
+    name = getattr(wrapped, "__name__", "")
+    if "continue" in name:
+        return name.lstrip("_").removesuffix("_stream")
+    return default
+
+
 def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
     user_id = arguments.get("user_id")
     session_id = arguments.get("session_id")
@@ -310,7 +324,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'run')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -388,7 +402,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'run')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -480,7 +494,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.arun"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'arun')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -559,7 +573,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.arun"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'arun')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
