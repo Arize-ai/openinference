@@ -1753,6 +1753,46 @@ describe.each([
       expect(llm?.parentSpanId).toBe(topId);
     });
 
+    // Regression for #3292: re-rooting must NOT mutate the caller's live span. Clearing the
+    // live span's parent at onStart severed a linkage a host runtime (e.g. Vercel's `eve`
+    // workflow runtime) still referenced, driving it into operations on already-ended spans
+    // and flooding logs with "Operation attempted on ended Span" warnings. The caller's span
+    // must keep its parent; only the exported view is re-rooted.
+    it("re-roots the exported span without mutating the caller's live span", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const http = tracer.startSpan("GET /chat", {
+        attributes: { "http.request.method": "GET" },
+      });
+      const httpId = http.spanContext().spanId;
+      const top = tracer.startSpan(
+        "ai.generateText",
+        { attributes: { "operation.name": "ai.generateText" } },
+        trace.setSpan(context.active(), http),
+      );
+      const topId = top.spanContext().spanId;
+      const liveParentOf = (span: typeof top) =>
+        (span as unknown as { parentSpanId?: string }).parentSpanId;
+
+      // The live span's parent is intact immediately after start — it is not cleared in place.
+      expect(liveParentOf(top)).toBe(httpId);
+
+      top.end();
+      http.end();
+
+      // ...and still intact after the span has ended and been exported: never mutated.
+      expect(liveParentOf(top)).toBe(httpId);
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      // The exported span, by contrast, is re-rooted (detached from the filtered-out parent).
+      const exported = spans.find((s) => s.spanContext().spanId === topId);
+      expect(exported).toBeDefined();
+      expect(exported?.parentSpanId).toBeUndefined();
+    });
+
     it("leaves the top AI span orphaned when reparentOrphanedSpans is off (default)", async () => {
       const { exporter, provider, tracer } = build(); // default: off
       const { httpId } = emitHttpWrappedAI(tracer);
