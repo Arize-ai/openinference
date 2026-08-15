@@ -28,6 +28,7 @@ class _ChunkAccumulator:
         self._usage: Any = None
         self._roles: Dict[int, str] = {}
         self._contents: Dict[int, List[str]] = defaultdict(list)
+        self._finish_reasons: Dict[int, Optional[str]] = {}
         self._tool_calls: Dict[int, Dict[int, Dict[str, Any]]] = defaultdict(dict)
         self._completion: Optional[SimpleNamespace] = None
 
@@ -39,6 +40,8 @@ class _ChunkAccumulator:
                 self._usage = usage
             for choice in getattr(chunk, "choices", None) or ():
                 index = getattr(choice, "index", None) or 0
+                if (finish_reason := getattr(choice, "finish_reason", None)) is not None:
+                    self._finish_reasons[index] = finish_reason
                 if (delta := getattr(choice, "delta", None)) is None:
                     continue
                 if (role := getattr(delta, "role", None)) and index not in self._roles:
@@ -67,7 +70,12 @@ class _ChunkAccumulator:
         if self._completion is not None:
             return self._completion
         choices = []
-        for index in sorted(self._roles.keys() | self._contents.keys() | self._tool_calls.keys()):
+        for index in sorted(
+            self._roles.keys()
+            | self._contents.keys()
+            | self._finish_reasons.keys()
+            | self._tool_calls.keys()
+        ):
             tool_calls = [
                 SimpleNamespace(
                     id=entry["id"],
@@ -83,7 +91,13 @@ class _ChunkAccumulator:
                 function_call=None,
                 tool_calls=tool_calls or None,
             )
-            choices.append(SimpleNamespace(index=index, message=message))
+            choices.append(
+                SimpleNamespace(
+                    index=index,
+                    message=message,
+                    finish_reason=self._finish_reasons.get(index),
+                )
+            )
         self._completion = SimpleNamespace(model=self._model, usage=self._usage, choices=choices)
         return self._completion
 

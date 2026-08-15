@@ -2,6 +2,8 @@ import json
 from typing import List
 
 import pytest
+import respx
+from httpx import Response
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
@@ -60,11 +62,13 @@ def test_chat(in_memory_span_exporter: InMemorySpanExporter) -> None:
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
-    assert spans[0].name == "Completions"
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Completions"
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
-    assert "Llama-3.3-70B" in str(attrs[SpanAttributes.LLM_MODEL_NAME])
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == _MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert (
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "user"
     )
@@ -92,7 +96,13 @@ def test_chat_with_tool_call(in_memory_span_exporter: InMemorySpanExporter) -> N
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Completions"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == _MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "tool_calls"
     prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}"]
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_current_weather"
@@ -115,9 +125,13 @@ async def test_async_chat(in_memory_span_exporter: InMemorySpanExporter) -> None
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].name == "AsyncCompletions"
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncCompletions"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == _MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert isinstance(attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL], int)
 
 
@@ -139,8 +153,13 @@ def test_chat_stream(in_memory_span_exporter: InMemorySpanExporter) -> None:
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].name == "Completions"
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Completions"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == _MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert attrs[SpanAttributes.OUTPUT_VALUE] == content
     assert (
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
@@ -150,7 +169,6 @@ def test_chat_stream(in_memory_span_exporter: InMemorySpanExporter) -> None:
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == content
     )
-    assert "Llama-3.3-70B" in str(attrs[SpanAttributes.LLM_MODEL_NAME])
 
 
 @pytest.mark.vcr
@@ -170,8 +188,13 @@ async def test_async_chat_stream(in_memory_span_exporter: InMemorySpanExporter) 
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].name == "AsyncCompletions"
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncCompletions"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == _MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert attrs[SpanAttributes.OUTPUT_VALUE] == content
 
 
@@ -204,7 +227,13 @@ def test_context_attributes_propagation(in_memory_span_exporter: InMemorySpanExp
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Completions"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == _MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert attrs[SpanAttributes.SESSION_ID] == "session-1"
     assert attrs[SpanAttributes.USER_ID] == "user-1"
     assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
@@ -227,8 +256,72 @@ def test_trace_config_hide_inputs(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Completions"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == _MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert "sensitive" not in json.dumps({key: str(value) for key, value in attrs.items()})
-    # Outputs remain visible.
     assert SpanAttributes.OUTPUT_VALUE in attrs
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    [
+        "stop",
+        "length",
+        "tool_calls",
+        "content_filter",
+    ],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with respx.mock(
+        base_url="https://api.together.ai",
+        assert_all_called=True,
+    ) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(
+                status_code=200,
+                json={
+                    "id": "chatcmpl-test",
+                    "object": "chat.completion",
+                    "created": 1750000000,
+                    "model": _MODEL,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "Hello!",
+                            },
+                            "finish_reason": finish_reason,
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 5,
+                        "completion_tokens": 10,
+                        "total_tokens": 15,
+                    },
+                },
+            )
+        )
+
+        client = Together()
+        client.chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == finish_reason
