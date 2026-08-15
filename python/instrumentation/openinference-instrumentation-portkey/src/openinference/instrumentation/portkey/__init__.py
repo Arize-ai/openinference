@@ -37,6 +37,8 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         from portkey_ai.api_resources.apis.chat_complete import AsyncCompletions, Completions
         from portkey_ai.api_resources.apis.generation import (
             AsyncCompletions as AsyncPromptCompletions,
+        )
+        from portkey_ai.api_resources.apis.generation import (
             Completions as PromptCompletions,
         )
 

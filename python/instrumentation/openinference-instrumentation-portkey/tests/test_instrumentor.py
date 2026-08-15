@@ -308,8 +308,9 @@ def test_finish_reason_values(
 def test_uninstrument_restores_all_wrapped_methods(
     tracer_provider: trace_api.TracerProvider,
 ) -> None:
-    from openinference.instrumentation.portkey import PortkeyInstrumentor
     from portkey_ai.api_resources.apis import chat_complete, generation
+
+    from openinference.instrumentation.portkey import PortkeyInstrumentor
 
     instrumentor = PortkeyInstrumentor()
     original_chat_create = chat_complete.Completions.create
