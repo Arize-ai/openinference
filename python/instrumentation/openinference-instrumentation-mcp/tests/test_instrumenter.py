@@ -239,3 +239,41 @@ async def test_stream_writer_exception_handling(tracer: Tracer) -> None:
         # Verify the exception was passed through correctly
         received = await read_stream.receive()
         assert isinstance(received, ValidationError)
+
+def test_uninstrument_removes_all_wrappers() -> None:
+    """uninstrument() fully reverses all seven wrapping targets."""
+    import mcp.client.sse
+    import mcp.client.stdio
+    import mcp.client.streamable_http
+    import mcp.server.session
+    import mcp.server.sse
+    import mcp.server.stdio
+    import mcp.server.streamable_http
+
+    from openinference.instrumentation.mcp import MCPInstrumentor
+
+    # The autouse fixture called instrument() which wrapped each module upon import.
+    # Verify all seven are removed when uninstrument() is called.
+    MCPInstrumentor().uninstrument()
+
+    assert not hasattr(mcp.client.streamable_http.streamable_http_client, "__wrapped__"), (
+        "mcp.client.streamable_http.streamable_http_client is still wrapped"
+    )
+    assert not hasattr(
+        mcp.server.streamable_http.StreamableHTTPServerTransport.connect, "__wrapped__"
+    ), "mcp.server.streamable_http.StreamableHTTPServerTransport.connect is still wrapped"
+    assert not hasattr(mcp.client.sse.sse_client, "__wrapped__"), (
+        "mcp.client.sse.sse_client is still wrapped"
+    )
+    assert not hasattr(mcp.server.sse.SseServerTransport.connect_sse, "__wrapped__"), (
+        "mcp.server.sse.SseServerTransport.connect_sse is still wrapped"
+    )
+    assert not hasattr(mcp.client.stdio.stdio_client, "__wrapped__"), (
+        "mcp.client.stdio.stdio_client is still wrapped"
+    )
+    assert not hasattr(mcp.server.stdio.stdio_server, "__wrapped__"), (
+        "mcp.server.stdio.stdio_server is still wrapped"
+    )
+    assert not hasattr(mcp.server.session.ServerSession.__init__, "__wrapped__"), (
+        "mcp.server.session.ServerSession.__init__ is still wrapped"
+    )
