@@ -1,5 +1,7 @@
 import contextvars
+import logging
 import sys
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Callable, Collection, Tuple
@@ -11,11 +13,50 @@ from wrapt import ObjectProxy, register_post_import_hook, wrap_function_wrapper
 
 from openinference.instrumentation.mcp.package import _instruments
 
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+# The (module, target, wrapper method) triples wrapped by MCPInstrumentor. Class methods
+# are expressed as dotted "Class.method" targets. This single table drives _instrument,
+# _uninstrument, and the uninstrument test so the three cannot drift apart.
+#
+# While we prefer to instrument the lowest level primitive, the transports, it doesn't
+# mean context will be propagated to handlers automatically. Notably, the MCP SDK passes
+# server messages to a handler with a separate stream in between, losing context. We go
+# ahead and instrument this second stream (ServerSession.__init__ below) just to
+# propagate context so transports can still be used independently while also supporting
+# the major usage of the MCP SDK. Notably, this may be a reasonable generic
+# instrumentation for anyio itself to allow its streams to propagate context broadly.
+_WRAP_TARGETS: Tuple[Tuple[str, str, str], ...] = (
+    ("mcp.client.streamable_http", "streamable_http_client", "_wrap_transport_with_callback"),
+    (
+        "mcp.server.streamable_http",
+        "StreamableHTTPServerTransport.connect",
+        "_wrap_plain_transport",
+    ),
+    ("mcp.client.sse", "sse_client", "_wrap_plain_transport"),
+    ("mcp.server.sse", "SseServerTransport.connect_sse", "_wrap_plain_transport"),
+    ("mcp.client.stdio", "stdio_client", "_wrap_plain_transport"),
+    ("mcp.server.stdio", "stdio_server", "_wrap_plain_transport"),
+    ("mcp.server.session", "ServerSession.__init__", "_base_session_init_wrapper"),
+)
+
 
 class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     """
     An instrumenter for MCP.
     """
+
+    # Generation counter guarding deferred post-import hooks. BaseInstrumentor is a
+    # singleton, so this state is shared by all MCPInstrumentor() constructions. A
+    # boolean would not suffice: instrument() -> uninstrument() -> instrument() leaves
+    # multiple pending hooks for a not-yet-imported module, and all of them would wrap
+    # (double-wrapping) when the module is finally imported; with the counter, only the
+    # hooks from the latest instrument() call match and wrap exactly once.
+    _generation: int = 0
+    # Serializes generation checks/bumps against hook firing so a deferred hook cannot
+    # wrap a module concurrently with (or after) an uninstrument() call.
+    _lock = threading.Lock()
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -23,94 +64,50 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     def _instrument(self, **kwargs: Any) -> None:
         # Bump the generation counter so that any post-import hooks registered in a
         # previous instrument() call become no-ops if they fire after uninstrument().
-        self._self_generation: int = getattr(self, "_self_generation", 0) + 1
-        generation = self._self_generation
+        with self._lock:
+            MCPInstrumentor._generation += 1
+            generation = MCPInstrumentor._generation
 
-        def _guarded(module: str, target: str, wrapper: Any) -> Any:
-            def hook(_: Any) -> None:
-                if getattr(self, "_self_generation", 0) == generation:
-                    wrap_function_wrapper(module, target, wrapper)
+        def _guarded(target: str, wrapper: Callable[..., Any]) -> Callable[[Any], None]:
+            def hook(module: Any) -> None:
+                with self._lock:
+                    if MCPInstrumentor._generation != generation:
+                        return
+                    try:
+                        wrap_function_wrapper(module, target, wrapper)
+                    except Exception:
+                        # This hook runs inside the user's import statement; never let
+                        # instrumentation failures raise into user code.
+                        logger.exception(
+                            "Failed to instrument %s.%s",
+                            getattr(module, "__name__", module),
+                            target,
+                        )
 
             return hook
 
-        register_post_import_hook(
-            _guarded(
-                "mcp.client.streamable_http",
-                "streamable_http_client",
-                self._wrap_transport_with_callback,
-            ),
-            "mcp.client.streamable_http",
-        )
-
-        register_post_import_hook(
-            _guarded(
-                "mcp.server.streamable_http",
-                "StreamableHTTPServerTransport.connect",
-                self._wrap_plain_transport,
-            ),
-            "mcp.server.streamable_http",
-        )
-
-        register_post_import_hook(
-            _guarded("mcp.client.sse", "sse_client", self._wrap_plain_transport),
-            "mcp.client.sse",
-        )
-        register_post_import_hook(
-            _guarded(
-                "mcp.server.sse", "SseServerTransport.connect_sse", self._wrap_plain_transport
-            ),
-            "mcp.server.sse",
-        )
-        register_post_import_hook(
-            _guarded("mcp.client.stdio", "stdio_client", self._wrap_plain_transport),
-            "mcp.client.stdio",
-        )
-        register_post_import_hook(
-            _guarded("mcp.server.stdio", "stdio_server", self._wrap_plain_transport),
-            "mcp.server.stdio",
-        )
-
-        # While we prefer to instrument the lowest level primitive, the transports above, it
-        # doesn't mean context will be propagated to handlers automatically. Notably, the MCP SDK
-        # passes server messages to a handler with a separate stream in between, losing context. We
-        # go ahead and instrument this second stream just to propagate context so transports can
-        # still be used independently while also supporting the major usage of the MCP SDK.
-        # Notably, this may be a reasonable generic instrumentation for anyio itself to allow its
-        # streams to propagate context broadly.
-        register_post_import_hook(
-            _guarded(
-                "mcp.server.session", "ServerSession.__init__", self._base_session_init_wrapper
-            ),
-            "mcp.server.session",
-        )
+        for module_name, target, wrapper_name in _WRAP_TARGETS:
+            register_post_import_hook(_guarded(target, getattr(self, wrapper_name)), module_name)
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        # Invalidate any pending deferred post-import hooks registered by this instrumentor
-        # so they become no-ops if a not-yet-imported module is loaded later.
-        self._self_generation = getattr(self, "_self_generation", 0) + 1
+        with self._lock:
+            # Invalidate any pending deferred post-import hooks registered by this
+            # instrumentor so they become no-ops if a not-yet-imported module is loaded
+            # later.
+            MCPInstrumentor._generation += 1
 
-        # Unwrap top-level transport functions (module -> function).
-        for module_name, func_name in (
-            ("mcp.client.streamable_http", "streamable_http_client"),
-            ("mcp.client.sse", "sse_client"),
-            ("mcp.client.stdio", "stdio_client"),
-            ("mcp.server.stdio", "stdio_server"),
-        ):
-            module = sys.modules.get(module_name)
-            if module is not None:
-                unwrap(module, func_name)
-
-        # Unwrap class methods (module -> class -> method).
-        for module_name, class_name, method_name in (
-            ("mcp.server.streamable_http", "StreamableHTTPServerTransport", "connect"),
-            ("mcp.server.sse", "SseServerTransport", "connect_sse"),
-            ("mcp.server.session", "ServerSession", "__init__"),
-        ):
-            module = sys.modules.get(module_name)
-            if module is not None:
-                cls = getattr(module, class_name, None)
-                if cls is not None:
-                    unwrap(cls, method_name)
+            for module_name, target, _ in _WRAP_TARGETS:
+                # Only unwrap modules that are already imported; unwrap()'s dotted-path
+                # form would import them as a side effect.
+                obj: Any = sys.modules.get(module_name)
+                if obj is None:
+                    continue
+                prefix, _sep, attr = target.rpartition(".")
+                if prefix:  # resolve the class for "Class.method" targets
+                    obj = getattr(obj, prefix, None)
+                    if obj is None:
+                        continue
+                unwrap(obj, attr)
 
     @asynccontextmanager
     async def _wrap_transport_with_callback(

@@ -240,40 +240,38 @@ async def test_stream_writer_exception_handling(tracer: Tracer) -> None:
         received = await read_stream.receive()
         assert isinstance(received, ValidationError)
 
+
 def test_uninstrument_removes_all_wrappers() -> None:
-    """uninstrument() fully reverses all seven wrapping targets."""
-    import mcp.client.sse
-    import mcp.client.stdio
-    import mcp.client.streamable_http
-    import mcp.server.session
-    import mcp.server.sse
-    import mcp.server.stdio
-    import mcp.server.streamable_http
+    """uninstrument() fully reverses every wrapping target."""
+    import importlib
+    import inspect
 
-    from openinference.instrumentation.mcp import MCPInstrumentor
+    import wrapt
 
-    # The autouse fixture called instrument() which wrapped each module upon import.
-    # Verify all seven are removed when uninstrument() is called.
+    from openinference.instrumentation.mcp import _WRAP_TARGETS, MCPInstrumentor
+
+    def resolve(module_name: str, target: str) -> Any:
+        # inspect.getattr_static avoids descriptor binding, which for class methods
+        # would hide the wrapt FunctionWrapper behind a BoundFunctionWrapper. A plain
+        # hasattr(obj, "__wrapped__") check would be wrong in the other direction:
+        # several MCP transports are @asynccontextmanager functions, whose
+        # functools.wraps sets __wrapped__ even on the pristine, never-wrapped function.
+        obj: Any = importlib.import_module(module_name)
+        prefix, _, attr = target.rpartition(".")
+        if prefix:
+            obj = getattr(obj, prefix)
+        return inspect.getattr_static(obj, attr)
+
+    # The autouse fixture called instrument(), which wrapped each module upon import.
+    for module_name, target, _ in _WRAP_TARGETS:
+        assert isinstance(resolve(module_name, target), wrapt.FunctionWrapper), (
+            f"{module_name}.{target} is not wrapped after instrument()"
+        )
+
+    # Verify every wrapper is removed when uninstrument() is called.
     MCPInstrumentor().uninstrument()
 
-    assert not hasattr(mcp.client.streamable_http.streamable_http_client, "__wrapped__"), (
-        "mcp.client.streamable_http.streamable_http_client is still wrapped"
-    )
-    assert not hasattr(
-        mcp.server.streamable_http.StreamableHTTPServerTransport.connect, "__wrapped__"
-    ), "mcp.server.streamable_http.StreamableHTTPServerTransport.connect is still wrapped"
-    assert not hasattr(mcp.client.sse.sse_client, "__wrapped__"), (
-        "mcp.client.sse.sse_client is still wrapped"
-    )
-    assert not hasattr(mcp.server.sse.SseServerTransport.connect_sse, "__wrapped__"), (
-        "mcp.server.sse.SseServerTransport.connect_sse is still wrapped"
-    )
-    assert not hasattr(mcp.client.stdio.stdio_client, "__wrapped__"), (
-        "mcp.client.stdio.stdio_client is still wrapped"
-    )
-    assert not hasattr(mcp.server.stdio.stdio_server, "__wrapped__"), (
-        "mcp.server.stdio.stdio_server is still wrapped"
-    )
-    assert not hasattr(mcp.server.session.ServerSession.__init__, "__wrapped__"), (
-        "mcp.server.session.ServerSession.__init__ is still wrapped"
-    )
+    for module_name, target, _ in _WRAP_TARGETS:
+        assert not isinstance(resolve(module_name, target), wrapt.FunctionWrapper), (
+            f"{module_name}.{target} is still wrapped after uninstrument()"
+        )
