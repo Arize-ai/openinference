@@ -1,3 +1,4 @@
+import type { Exception } from "@opentelemetry/api";
 import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 
 import {
@@ -12,6 +13,25 @@ import { getTracer, wrapTracer } from "./tracerHelpers";
 import type { AnyFn, InputToAttributesFn, OutputToAttributesFn, SpanTraceOptions } from "./types";
 
 const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
+
+/**
+ * True when the thrown value is a valid OpenTelemetry {@link Exception} — a string or an
+ * object carrying at least one of message, name, or code — so it can be recorded on the
+ * span without losing its structured error details.
+ */
+function isException(error: unknown): error is Exception {
+  if (typeof error === "string") {
+    return true;
+  }
+  if (typeof error !== "object" || error == null) {
+    return false;
+  }
+  return (
+    ("message" in error && typeof error.message === "string") ||
+    ("name" in error && typeof error.name === "string") ||
+    ("code" in error && (typeof error.code === "string" || typeof error.code === "number"))
+  );
+}
 
 /**
  * Wraps a function with openinference tracing capabilities, creating spans for execution monitoring.
@@ -108,7 +128,7 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
       },
       (span) => {
         const recordError = (error: unknown) => {
-          span.recordException(error instanceof Error ? error : String(error));
+          span.recordException(isException(error) ? error : String(error));
           span.setStatus({
             code: SpanStatusCode.ERROR,
             message: getErrorMessage(error),

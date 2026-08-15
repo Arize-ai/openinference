@@ -112,6 +112,19 @@ export class ToolSpanTracker {
 }
 
 /**
+ * The hook events this instrumentation registers matchers for. Single source of truth
+ * shared by {@link createToolHookMatchers} (which returns exactly these keys) and
+ * {@link mergeHooks} (which merges exactly these keys).
+ */
+const TOOL_HOOK_EVENTS = [
+  "PreToolUse",
+  "PostToolUse",
+  "PostToolUseFailure",
+] as const satisfies readonly HookEvent[];
+
+type ToolHookEvent = (typeof TOOL_HOOK_EVENTS)[number];
+
+/**
  * Creates hook callback matchers for PreToolUse, PostToolUse, and PostToolUseFailure
  * that track tool spans via the provided ToolSpanTracker.
  *
@@ -120,7 +133,7 @@ export class ToolSpanTracker {
 function createToolHookMatchers(
   toolTracker: ToolSpanTracker,
   parentSpan: Span,
-): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
+): Record<ToolHookEvent, HookCallbackMatcher[]> {
   const parentContext = trace.setSpan(context.active(), parentSpan);
 
   const preToolUseHook: HookCallback = async (input) => {
@@ -188,9 +201,8 @@ export function mergeHooks({
   const ourHooks = createToolHookMatchers(toolTracker, parentSpan);
 
   const mergedHooks: HooksOption = { ...existingHooks };
-  const toolHookEvents = ["PreToolUse", "PostToolUse", "PostToolUseFailure"] as const;
-  for (const event of toolHookEvents) {
-    const matchers = ourHooks[event] ?? [];
+  for (const event of TOOL_HOOK_EVENTS) {
+    const matchers = ourHooks[event];
     const existing = mergedHooks[event] ?? [];
     mergedHooks[event] = [...existing, ...matchers];
   }

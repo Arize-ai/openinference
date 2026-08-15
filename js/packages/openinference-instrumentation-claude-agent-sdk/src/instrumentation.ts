@@ -170,7 +170,14 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
    */
   manuallyInstrument<TModule extends ClaudeAgentSDKModule>(module: TModule): TModule {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
-    return Object.assign({}, module, this.patch(module));
+    const patched = this.patch(module);
+    if (patched === module) {
+      // Patched in place — return the caller's own module so a later
+      // unpatch()/disable() restoring the originals stays visible to the caller.
+      return module;
+    }
+    // Native ESM namespace (or default-export wrapper): return a patched copy.
+    return Object.assign({}, module, patched);
   }
 
   get tracer(): Tracer {

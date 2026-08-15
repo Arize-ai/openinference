@@ -30,21 +30,32 @@ import {
 const isExtendedConversationRole = (value: unknown): value is ExtendedConversationRole =>
   value === "assistant" || value === "user" || value === "system" || value === "tool";
 
-const isMessageContent = (value: unknown): value is MessageContent =>
-  typeof value === "string" ||
-  (Array.isArray(value) &&
-    value.every(
-      (item) =>
-        isTextContent(item) ||
-        isImageContent(item) ||
-        isToolUseContent(item) ||
-        isToolResultContent(item),
-    ));
+const isMessageContentBlock = (
+  item: unknown,
+): item is TextContent | ImageContent | ToolUseContent | ToolResultContent =>
+  isTextContent(item) ||
+  isImageContent(item) ||
+  isToolUseContent(item) ||
+  isToolResultContent(item);
 
-const isBedrockMessage = (value: unknown): value is BedrockMessage =>
-  isObjectWithStringKeys(value) &&
-  isExtendedConversationRole(value.role) &&
-  isMessageContent(value.content);
+/**
+ * Coerces an unknown value into a {@link BedrockMessage} for telemetry capture, or returns
+ * undefined when the value is not message-shaped. Unrecognized content blocks (e.g. thinking,
+ * document) are dropped per-block so a single unknown block never erases the whole message
+ * from the recorded input messages.
+ */
+const toBedrockMessage = (value: unknown): BedrockMessage | undefined => {
+  if (!isObjectWithStringKeys(value) || !isExtendedConversationRole(value.role)) {
+    return undefined;
+  }
+  if (typeof value.content === "string") {
+    return { role: value.role, content: value.content };
+  }
+  if (Array.isArray(value.content)) {
+    return { role: value.role, content: value.content.filter(isMessageContentBlock) };
+  }
+  return undefined;
+};
 
 /**
  * Type guard to check if message contains a simple single text content
@@ -328,19 +339,15 @@ function convertMistralChatToBedrockMessages(
       for (const rawToolCall of message.tool_calls) {
         if (!isObjectWithStringKeys(rawToolCall)) continue;
         const fn = isObjectWithStringKeys(rawToolCall.function) ? rawToolCall.function : undefined;
-        if (
-          typeof rawToolCall.id !== "string" ||
-          typeof fn?.name !== "string" ||
-          typeof fn.arguments !== "string"
-        ) {
+        if (typeof fn?.name !== "string" || typeof fn.arguments !== "string") {
           continue;
         }
         const parsedInput: unknown = JSON.parse(fn.arguments);
         content.push({
           type: "tool_use",
-          id: rawToolCall.id,
+          id: typeof rawToolCall.id === "string" ? rawToolCall.id : "unknown",
           name: fn.name,
-          input: isObjectWithStringKeys(parsedInput) ? parsedInput : {},
+          input: parsedInput,
         });
       }
 
@@ -467,7 +474,7 @@ function fallbackNormalizeRequestContentBlocks(
     Array.isArray(requestBody.messages) &&
     requestBody.messages.length > 0
   ) {
-    return requestBody.messages.filter(isBedrockMessage);
+    return requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? []);
   } else if ("prompt" in requestBody && typeof requestBody.prompt === "string") {
     return convertSimpleTextToBedrockMessages(requestBody, "prompt");
   } else if ("inputText" in requestBody && typeof requestBody.inputText === "string") {
@@ -491,7 +498,7 @@ export const normalizeRequestContentBlocks = withSafety({
 
     if (llm_system === LLMSystem.ANTHROPIC) {
       messages = Array.isArray(requestBody.messages)
-        ? requestBody.messages.filter(isBedrockMessage)
+        ? requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? [])
         : [];
     } else if (llm_system === LLMSystem.AMAZON) {
       if (isNovaRequest(requestBody)) {
@@ -822,13 +829,7 @@ export const normalizeResponseContentBlocks = withSafety({
       responseBody.content.length > 0
     ) {
       // Anthropic format: { content: [{ type: "text", text: "..." }] }
-      content = responseBody.content.filter(
-        (item): item is TextContent | ImageContent | ToolUseContent | ToolResultContent =>
-          isTextContent(item) ||
-          isImageContent(item) ||
-          isToolUseContent(item) ||
-          isToolResultContent(item),
-      );
+      content = responseBody.content.filter(isMessageContentBlock);
     } else if (llm_system === LLMSystem.AMAZON) {
       // Distinguish between Nova and Titan by response structure
       if (isNovaResponse(responseBody)) {

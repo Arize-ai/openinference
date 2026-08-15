@@ -168,7 +168,39 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
       // Wrap the client's send method to intercept commands
       this._wrap(moduleExports.BedrockRuntimeClient.prototype, "send", (original: SendMethod) => {
+        // Shimmer (used by _wrap/_unwrap) defines marker properties (__original,
+        // __unwrap, __wrapped) on the wrapper it receives back. A transparent Proxy
+        // would forward those defineProperty calls to the original send method,
+        // permanently polluting the shared SDK prototype (isWrapped() would stay true
+        // even after unpatch). Keep wrapper-own properties in a shadow store instead.
+        const shadow = new Map<PropertyKey, PropertyDescriptor>();
         return new Proxy(original, {
+          defineProperty(_target, property, descriptor) {
+            shadow.set(property, descriptor);
+            return true;
+          },
+          getOwnPropertyDescriptor(target, property) {
+            return shadow.get(property) ?? Reflect.getOwnPropertyDescriptor(target, property);
+          },
+          get(target, property, receiver) {
+            const descriptor = shadow.get(property);
+            if (descriptor) {
+              return descriptor.value;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+          set(_target, property, value) {
+            shadow.set(property, {
+              configurable: true,
+              enumerable: true,
+              writable: true,
+              value,
+            });
+            return true;
+          },
+          has(target, property) {
+            return shadow.has(property) || Reflect.has(target, property);
+          },
           apply(target, client, args) {
             const command = args[0];
             if (command instanceof InvokeModelCommand) {
@@ -234,7 +266,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     command: InvokeModelCommand,
     original: SendMethod,
     client: BedrockClient,
-  ): Promise<InvokeModelResponse> {
+  ): unknown {
     const span = this.oiTracer.startSpan("bedrock.invoke_model", {
       kind: SpanKind.INTERNAL,
     });
@@ -259,7 +291,9 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
           message: "Unexpected return type from AWS SDK",
         });
         span.end();
-        return Promise.reject(new TypeError("Unexpected return type from AWS SDK"));
+        // Pass the SDK's actual result through untouched (e.g. callback-style send()
+        // returns void) — instrumentation must never replace the app's return value.
+        return result;
       }
 
       return result
@@ -342,7 +376,9 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
         message: "Unexpected return type from AWS SDK",
       });
       span.end();
-      return Promise.reject(new TypeError("Unexpected return type from AWS SDK"));
+      // Pass the SDK's actual result through untouched (e.g. callback-style send()
+      // returns void) — the user stream is ALWAYS returned, regardless of instrumentation.
+      return result;
     }
 
     return result
@@ -423,7 +459,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     command: ConverseCommand,
     original: SendMethod,
     client: BedrockClient,
-  ): Promise<ConverseResponse> {
+  ): unknown {
     const span = this.oiTracer.startSpan("bedrock.converse", {
       kind: SpanKind.INTERNAL,
     });
@@ -448,7 +484,9 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
           message: "Unexpected return type from AWS SDK",
         });
         span.end();
-        return Promise.reject(new TypeError("Unexpected return type from AWS SDK"));
+        // Pass the SDK's actual result through untouched (e.g. callback-style send()
+        // returns void) — instrumentation must never replace the app's return value.
+        return result;
       }
 
       return result
@@ -526,7 +564,9 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
         message: "Unexpected return type from AWS SDK",
       });
       span.end();
-      return Promise.reject(new TypeError("Unexpected return type from AWS SDK"));
+      // Pass the SDK's actual result through untouched (e.g. callback-style send()
+      // returns void) — the user stream is ALWAYS returned, regardless of instrumentation.
+      return result;
     }
 
     return result

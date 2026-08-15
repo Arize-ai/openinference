@@ -191,7 +191,8 @@ export interface ToolUseContent {
   type: "tool_use";
   id: string;
   name: string;
-  input: Record<string, unknown>;
+  /** Parsed tool arguments — usually an object, but providers may emit any JSON value. */
+  input: unknown;
 }
 
 /** Tool result content used by legacy InvokeModel APIs. */

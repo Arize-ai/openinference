@@ -138,10 +138,12 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
     // First try to get baseURL from the instance itself
     if (clientInstance != null && typeof clientInstance === "object") {
       baseURL = Reflect.get(clientInstance, "baseURL");
-      // If not found, try the _client property (this is where Azure OpenAI stores it)
-      const nestedClient = Reflect.get(clientInstance, "_client");
-      if (baseURL == null && nestedClient != null && typeof nestedClient === "object") {
-        baseURL = Reflect.get(nestedClient, "baseURL");
+      // If not found (or empty), try the _client property (this is where Azure OpenAI stores it)
+      if (!baseURL) {
+        const nestedClient = Reflect.get(clientInstance, "_client");
+        if (nestedClient != null && typeof nestedClient === "object") {
+          baseURL = Reflect.get(nestedClient, "baseURL");
+        }
       }
     }
 
