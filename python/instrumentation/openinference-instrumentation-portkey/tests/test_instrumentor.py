@@ -303,3 +303,31 @@ def test_finish_reason_values(
     span = spans[0]
     attributes = dict(span.attributes or {})
     assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
+
+
+def test_uninstrument_restores_all_wrapped_methods(
+    tracer_provider: trace_api.TracerProvider,
+) -> None:
+    from openinference.instrumentation.portkey import PortkeyInstrumentor
+    from portkey_ai.api_resources.apis import chat_complete, generation
+
+    instrumentor = PortkeyInstrumentor()
+    original_chat_create = chat_complete.Completions.create
+    original_async_chat_create = chat_complete.AsyncCompletions.create
+    original_prompt_create = generation.Completions.create
+    original_async_prompt_create = generation.AsyncCompletions.create
+
+    try:
+        instrumentor.instrument(tracer_provider=tracer_provider)
+
+        assert chat_complete.Completions.create is not original_chat_create
+        assert chat_complete.AsyncCompletions.create is not original_async_chat_create
+        assert generation.Completions.create is not original_prompt_create
+        assert generation.AsyncCompletions.create is not original_async_prompt_create
+    finally:
+        instrumentor.uninstrument()
+
+    assert chat_complete.Completions.create is original_chat_create
+    assert chat_complete.AsyncCompletions.create is original_async_chat_create
+    assert generation.Completions.create is original_prompt_create
+    assert generation.AsyncCompletions.create is original_async_prompt_create
