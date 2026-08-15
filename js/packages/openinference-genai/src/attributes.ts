@@ -155,16 +155,15 @@ const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
  * @param toolDefinition - The tool definition to normalize
  * @returns The normalized tool definition, or the original value when it cannot be normalized
  */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 const normalizeToolDefinition = (toolDefinition: unknown): unknown => {
-  if (
-    typeof toolDefinition !== "object" ||
-    toolDefinition === null ||
-    Array.isArray(toolDefinition)
-  ) {
+  if (!isRecord(toolDefinition)) {
     return toolDefinition;
   }
 
-  const definition = toolDefinition as Record<string, unknown>;
+  const definition = toolDefinition;
   if (typeof definition.function === "object" && definition.function !== null) {
     return definition;
   }

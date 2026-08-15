@@ -7,6 +7,7 @@ import {
   getInputAttributes,
   getOutputAttributes,
   getToolAttributes,
+  isObjectWithStringKeys,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
 import {
@@ -25,10 +26,7 @@ type HooksOption = Partial<Record<HookEvent, HookCallbackMatcher[]>>;
  * Returns an empty object for non-object values (strings, arrays, null, etc.).
  */
 function asRecord(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
+  return isObjectWithStringKeys(value) ? value : {};
 }
 
 /**
@@ -171,23 +169,30 @@ function createToolHookMatchers(
  *
  * Returns a new options object (does not mutate the original).
  */
-export function mergeHooks<T extends { hooks?: HooksOption }>({
+export function mergeHooks<T extends { hooks?: HooksOption }>(args: {
+  options: T | undefined;
+  toolTracker: ToolSpanTracker;
+  parentSpan: Span;
+}): T & { hooks: HooksOption };
+export function mergeHooks({
   options,
   toolTracker,
   parentSpan,
 }: {
-  options: T | undefined;
+  options: { hooks?: HooksOption } | undefined;
   toolTracker: ToolSpanTracker;
   parentSpan: Span;
-}): T {
-  const opts = options ?? ({} as T);
+}): { hooks: HooksOption } {
+  const opts = options ?? {};
   const existingHooks = opts.hooks ?? {};
   const ourHooks = createToolHookMatchers(toolTracker, parentSpan);
 
   const mergedHooks: HooksOption = { ...existingHooks };
-  for (const [event, matchers] of Object.entries(ourHooks)) {
-    const existing = mergedHooks[event as HookEvent] ?? [];
-    mergedHooks[event as HookEvent] = [...existing, ...matchers];
+  const toolHookEvents = ["PreToolUse", "PostToolUse", "PostToolUseFailure"] as const;
+  for (const event of toolHookEvents) {
+    const matchers = ourHooks[event] ?? [];
+    const existing = mergedHooks[event] ?? [];
+    mergedHooks[event] = [...existing, ...matchers];
   }
 
   return { ...opts, hooks: mergedHooks };

@@ -16,16 +16,13 @@
 
 import { diag } from "@opentelemetry/api";
 import { BaseAgent } from "beeai-framework/agents/base";
-import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
-import type { ChatModelEvents } from "beeai-framework/backend/chat";
 import { ChatModel } from "beeai-framework/backend/chat";
-import type { Message, MessageContentPart } from "beeai-framework/backend/message";
-import type { EventMeta, InferCallbackValue } from "beeai-framework/emitter/types";
+import type { EventMeta } from "beeai-framework/emitter/types";
 import { getProp } from "beeai-framework/internals/helpers/object";
 import { Serializable } from "beeai-framework/internals/serializable";
-import type { ToolEvents } from "beeai-framework/tools/base";
 import { Tool } from "beeai-framework/tools/base";
 
+import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 import {
   LLMAttributePostfixes,
   MessageAttributePostfixes,
@@ -57,98 +54,109 @@ import {
   updateEventName,
 } from "../config";
 
-function parserLLMInputMessages(messages: readonly Message<MessageContentPart, string>[]) {
-  return messages.reduce(
-    (acc, item, key) => ({
-      ...acc,
-      [`${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.input_messages}.${key}.${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.role}`]:
-        item.role,
-      [`${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.input_messages}.${key}.${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.content}`]:
-        item.content
-          .filter((c) => c.type === "text")
-          .map((c) => c.text)
-          .join(""),
-    }),
-    {},
-  );
+function getMessageParts(message: unknown): { role?: string; text: string } {
+  if (!isObjectWithStringKeys(message)) return { text: "" };
+  const role = typeof message.role === "string" ? message.role : undefined;
+  const content = Array.isArray(message.content) ? message.content : [];
+  const text = content
+    .filter(isObjectWithStringKeys)
+    .filter((part) => part.type === "text" && typeof part.text === "string")
+    .map((part) => String(part.text))
+    .join("");
+  return { role, text };
 }
 
-function parseLLMOutputMessages(messages: readonly Message<MessageContentPart, string>[]) {
-  return messages.reduce(
-    (acc, item, key) => ({
-      ...acc,
-      [`${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.output_messages}.${key}.${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.role}`]:
-        item.role,
-      [`${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.output_messages}.${key}.${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.content}`]:
-        item.content
-          .filter((c) => c.type === "text")
-          .map((c) => c.text)
-          .join(""),
-    }),
-    {},
-  );
+function parserLLMInputMessages(messages: readonly unknown[]) {
+  return messages.reduce((acc: Record<string, string>, item, key) => {
+    const { role, text } = getMessageParts(item);
+    if (role != null) {
+      acc[
+        `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.input_messages}.${key}.${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.role}`
+      ] = role;
+    }
+    acc[
+      `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.input_messages}.${key}.${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.content}`
+    ] = text;
+    return acc;
+  }, {});
 }
+
+function parseLLMOutputMessages(messages: readonly unknown[]) {
+  return messages.reduce((acc: Record<string, string>, item, key) => {
+    const { role, text } = getMessageParts(item);
+    if (role != null) {
+      acc[
+        `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.output_messages}.${key}.${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.role}`
+      ] = role;
+    }
+    acc[
+      `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.output_messages}.${key}.${SemanticAttributePrefixes.message}.${MessageAttributePostfixes.content}`
+    ] = text;
+    return acc;
+  }, {});
+}
+
+const matchesEvent = (name: string, events: readonly string[]): boolean => events.includes(name);
 
 export function getSerializedObjectSafe(dataObject: unknown, meta: EventMeta<unknown>) {
   try {
     // agent events
     if (
-      [startEventName, successEventName, errorEventName, retryEventName].includes(
-        meta.name as keyof ReActAgentCallbacks,
-      ) &&
+      matchesEvent(meta.name, [startEventName, successEventName, errorEventName, retryEventName]) &&
       meta.creator instanceof BaseAgent
     ) {
-      const { meta, tools, memory, error, data } = dataObject as InferCallbackValue<
-        | ReActAgentCallbacks["start"]
-        | ReActAgentCallbacks["error"]
-        | ReActAgentCallbacks["success"]
-        | ReActAgentCallbacks["retry"]
-      >;
+      const event = isObjectWithStringKeys(dataObject) ? dataObject : {};
+      const agentMeta = isObjectWithStringKeys(event.meta) ? event.meta : undefined;
+      const tools = Array.isArray(event.tools) ? event.tools.filter(isObjectWithStringKeys) : [];
+      const memory = isObjectWithStringKeys(event.memory) ? event.memory : undefined;
+      const messages = memory && Array.isArray(memory.messages) ? memory.messages : [];
+      const error = event.error instanceof Error ? event.error : undefined;
+      const data = event.data;
       return {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
-        iteration: meta?.iteration,
+        ...(typeof agentMeta?.iteration === "number" && { iteration: agentMeta.iteration }),
         ...(tools?.length > 0 && {
           [SemanticConventions.LLM_TOOLS]: tools.map((tool) => ({
-            [SemanticConventions.TOOL_NAME]: tool.name,
-            [SemanticConventions.TOOL_DESCRIPTION]: tool.description,
+            [SemanticConventions.TOOL_NAME]: typeof tool.name === "string" ? tool.name : undefined,
+            [SemanticConventions.TOOL_DESCRIPTION]:
+              typeof tool.description === "string" ? tool.description : undefined,
             "tool.options": tool.options,
           })),
         }),
-        ...(memory?.messages.length > 0 && {
+        ...(messages.length > 0 && {
           [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-          [SemanticConventions.INPUT_VALUE]: JSON.stringify(memory.messages),
+          [SemanticConventions.INPUT_VALUE]: JSON.stringify(messages),
         }),
         ...(error && {
           "exception.message": error.message,
           "exception.stacktrace": error.stack,
           "exception.type": error.name,
         }),
-        ...(data && {
-          [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-          [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(data),
-        }),
+        ...(data != null
+          ? {
+              [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+              [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(data),
+            }
+          : {}),
       };
     }
 
     // update events
-    if (
-      [updateEventName, partialUpdateEventName].includes(meta.name as keyof ReActAgentCallbacks)
-    ) {
-      const { data } = dataObject as InferCallbackValue<
-        ReActAgentCallbacks["partialUpdate"] | ReActAgentCallbacks["update"]
-      >;
+    if (matchesEvent(meta.name, [updateEventName, partialUpdateEventName])) {
+      const event = isObjectWithStringKeys(dataObject) ? dataObject : {};
+      const data = isObjectWithStringKeys(event.data) ? event.data : {};
 
-      const output = data?.final_answer || data?.tool_output;
+      const output = data.final_answer || data.tool_output;
       return {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
-        thought: data.thought,
-        ...(data?.tool_name && {
+        ...(typeof data.thought === "string" && { thought: data.thought }),
+        ...(typeof data.tool_name === "string" && {
           [SemanticConventions.TOOL_NAME]: data.tool_name,
         }),
-        ...(data?.tool_input && {
-          [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(data.tool_input),
-        }),
-        ...(output && {
+        ...(data.tool_input != null
+          ? { [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(data.tool_input) }
+          : {}),
+        ...(typeof output === "string" && {
           [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
           [SemanticConventions.OUTPUT_VALUE]: output,
         }),
@@ -156,41 +164,34 @@ export function getSerializedObjectSafe(dataObject: unknown, meta: EventMeta<unk
     }
 
     // tool events (from agent)
-    if (
-      [toolErrorEventName, toolStartEventName, toolSuccessEventName].includes(
-        meta.name as keyof ReActAgentCallbacks,
-      )
-    ) {
-      const { data } = dataObject as InferCallbackValue<
-        | ReActAgentCallbacks["toolError"]
-        | ReActAgentCallbacks["toolStart"]
-        | ReActAgentCallbacks["toolSuccess"]
-      >;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const output: any = data?.result && data.result.createSnapshot();
+    if (matchesEvent(meta.name, [toolErrorEventName, toolStartEventName, toolSuccessEventName])) {
+      const event = isObjectWithStringKeys(dataObject) ? dataObject : {};
+      const data = isObjectWithStringKeys(event.data) ? event.data : {};
+      const iteration = isObjectWithStringKeys(data.iteration) ? data.iteration : undefined;
+      const tool = isObjectWithStringKeys(data.tool) ? data.tool : undefined;
+      const error = data.error instanceof Error ? data.error : undefined;
+      const output = data.result instanceof Serializable ? data.result.createSnapshot() : undefined;
 
       return {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
-        thought: data?.iteration?.thought,
+        ...(typeof iteration?.thought === "string" && { thought: iteration.thought }),
         ...(data?.input
           ? {
               [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(data.input),
             }
           : {}),
-        ...(data?.tool.description && {
-          [SemanticConventions.TOOL_DESCRIPTION]: data.tool.description,
+        ...(typeof tool?.description === "string" && {
+          [SemanticConventions.TOOL_DESCRIPTION]: tool.description,
         }),
-        ...(data?.tool.name && {
-          [SemanticConventions.TOOL_NAME]: data.tool.name,
+        ...(typeof tool?.name === "string" && {
+          [SemanticConventions.TOOL_NAME]: tool.name,
         }),
-        ...(data?.error && {
-          "exception.message": data.error.message,
-          "exception.stacktrace": data.error.stack,
-          "exception.type": data.error.name,
+        ...(error && {
+          "exception.message": error.message,
+          "exception.stacktrace": error.stack,
+          "exception.type": error.name,
         }),
-        ...(output && {
-          [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(output),
-        }),
+        ...(output != null ? { [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(output) } : {}),
       };
     }
     // tool events native
@@ -201,7 +202,7 @@ export function getSerializedObjectSafe(dataObject: unknown, meta: EventMeta<unk
         finishToolEventName,
         errorToolEventName,
         retryToolEventName,
-      ].includes(meta.name as keyof ToolEvents) &&
+      ].some((eventName) => eventName === meta.name) &&
       meta.creator instanceof Tool
     ) {
       if (!dataObject) {
@@ -209,16 +210,14 @@ export function getSerializedObjectSafe(dataObject: unknown, meta: EventMeta<unk
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
         };
       }
-      const { input, output, error } = dataObject as InferCallbackValue<
-        ToolEvents["start"] | ToolEvents["success"] | ToolEvents["retry"] | ToolEvents["error"]
-      >;
+      const event = isObjectWithStringKeys(dataObject) ? dataObject : {};
+      const { input, output } = event;
+      const error = event.error instanceof Error ? event.error : undefined;
 
       return {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
-        ...(input ? { [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(input) } : {}),
-        ...(output && {
-          [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(output),
-        }),
+        ...(input != null ? { [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(input) } : {}),
+        ...(output != null ? { [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(output) } : {}),
         ...(error && {
           "exception.message": error.message,
           "exception.stacktrace": error.stack,
@@ -229,58 +228,67 @@ export function getSerializedObjectSafe(dataObject: unknown, meta: EventMeta<unk
 
     // llm events
     if (
-      [successLLMEventName, startLLMEventName, errorLLMEventName, newTokenLLMEventName].includes(
-        meta.name as keyof ChatModelEvents,
-      ) &&
+      matchesEvent(meta.name, [
+        successLLMEventName,
+        startLLMEventName,
+        errorLLMEventName,
+        newTokenLLMEventName,
+      ]) &&
       meta.creator instanceof ChatModel
     ) {
-      const { value, input, error } = dataObject as InferCallbackValue<
-        | ChatModelEvents["success"]
-        | ChatModelEvents["start"]
-        | ChatModelEvents["error"]
-        | ChatModelEvents["newToken"]
-      >;
+      const event = isObjectWithStringKeys(dataObject) ? dataObject : {};
+      const value = isObjectWithStringKeys(event.value) ? event.value : undefined;
+      const input = isObjectWithStringKeys(event.input) ? event.input : undefined;
+      const usage = value && isObjectWithStringKeys(value.usage) ? value.usage : undefined;
+      const inputMessages = input && Array.isArray(input.messages) ? input.messages : [];
+      const outputMessages = value && Array.isArray(value.messages) ? value.messages : [];
+      const error = event.error instanceof Error ? event.error : undefined;
 
-      const creator = meta.creator.createSnapshot();
+      const creatorSnapshot = meta.creator.createSnapshot();
+      const creator: Record<string, unknown> = isObjectWithStringKeys(creatorSnapshot)
+        ? creatorSnapshot
+        : {};
       return {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-        ...(value?.usage?.completionTokens && {
-          [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: value?.usage?.completionTokens,
+        ...(typeof usage?.completionTokens === "number" && {
+          [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: usage.completionTokens,
         }),
-        ...(value?.usage?.promptTokens && {
-          [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: value?.usage?.promptTokens,
+        ...(typeof usage?.promptTokens === "number" && {
+          [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: usage.promptTokens,
         }),
-        ...(value?.usage?.totalTokens && {
-          [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: value?.usage?.totalTokens,
+        ...(typeof usage?.totalTokens === "number" && {
+          [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: usage.totalTokens,
         }),
-        ...(input?.messages.length > 0 && {
+        ...(inputMessages.length > 0 && {
           [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-          [SemanticConventions.INPUT_VALUE]: JSON.stringify(input.messages),
-          ...parserLLMInputMessages(input.messages),
+          [SemanticConventions.INPUT_VALUE]: JSON.stringify(inputMessages),
+          ...parserLLMInputMessages(inputMessages),
         }),
-        ...(value?.messages.length > 0 && {
+        ...(outputMessages.length > 0 && {
           [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-          [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(value.messages),
-          ...parseLLMOutputMessages(value.messages),
+          [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(outputMessages),
+          ...parseLLMOutputMessages(outputMessages),
         }),
         ...(error && {
           "exception.message": error.message,
           "exception.stacktrace": error.stack,
           "exception.type": error.name,
         }),
-        ...("providerId" in creator && {
+        ...(typeof creator.providerId === "string" && {
           [SemanticConventions.LLM_PROVIDER]: creator.providerId,
           [`${SemanticAttributePrefixes.metadata}.${LLMAttributePostfixes.provider}`]:
             creator.providerId,
         }),
-        ...("modelId" in creator && {
+        ...(typeof creator.modelId === "string" && {
           [SemanticConventions.LLM_MODEL_NAME]: creator.modelId,
           [`${SemanticAttributePrefixes.metadata}.${LLMAttributePostfixes.model_name}`]:
             creator.modelId,
         }),
-        ...(creator?.parameters && {
-          [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(creator.parameters),
-        }),
+        ...(creator.parameters != null
+          ? {
+              [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(creator.parameters),
+            }
+          : {}),
       };
     }
     if (meta.name === finishLLMEventName && meta.creator instanceof ChatModel) {

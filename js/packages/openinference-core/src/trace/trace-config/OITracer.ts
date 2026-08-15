@@ -19,7 +19,7 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
 ) {
   let opts: SpanOptions | undefined;
   let ctx: Context | undefined;
-  let fn: F;
+  let fn: F | undefined;
 
   if (typeof arg2 === "function") {
     fn = arg2;
@@ -29,8 +29,10 @@ function formatStartActiveSpanParams<F extends OpenInferenceActiveSpanCallback>(
   } else {
     opts = arg2;
     ctx = arg3;
-    fn = arg4 as F;
+    fn = arg4;
   }
+
+  if (fn == null) return;
 
   opts = opts ?? {};
   ctx = ctx ?? apiContext.active();

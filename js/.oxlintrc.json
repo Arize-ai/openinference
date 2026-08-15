@@ -24,7 +24,7 @@
       }
     ],
     "typescript/consistent-return": "warn",
-    "typescript/no-unsafe-type-assertion": "warn",
+    "typescript/no-unsafe-type-assertion": "error",
     "typescript/prefer-reduce-type-parameter": "warn",
     "typescript/no-floating-promises": "warn",
     "typescript/unbound-method": "warn",

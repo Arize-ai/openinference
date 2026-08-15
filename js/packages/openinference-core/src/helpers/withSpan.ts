@@ -94,7 +94,7 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
     return String(error);
   };
   // TODO: infer the name from the target
-  const wrappedFn: Fn = function (this: ThisParameterType<Fn>, ...args: Parameters<Fn>) {
+  const wrappedFn = function (this: ThisParameterType<Fn>, ...args: Parameters<Fn>) {
     const tracer = configuredTracer ?? getTracer();
     return tracer.startActiveSpan(
       spanName,
@@ -108,7 +108,7 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
       },
       (span) => {
         const recordError = (error: unknown) => {
-          span.recordException(error as Error);
+          span.recordException(error instanceof Error ? error : String(error));
           span.setStatus({
             code: SpanStatusCode.ERROR,
             message: getErrorMessage(error),
@@ -116,8 +116,8 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
         };
 
         try {
-          const result = fn.apply(this, args) as ReturnType<Fn>;
-          if (isPromise(result)) {
+          const result = fn.apply(this, args);
+          if (isPromise<Awaited<ReturnType<Fn>>>(result)) {
             // Execute the promise and return the promise chain
             return result
               .then((value: Awaited<ReturnType<Fn>>) => {
@@ -152,6 +152,6 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
         }
       },
     );
-  } as Fn;
-  return wrappedFn;
+  };
+  return Object.assign(wrappedFn, fn);
 }
