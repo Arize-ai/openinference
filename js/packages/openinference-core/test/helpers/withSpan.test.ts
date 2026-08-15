@@ -37,10 +37,10 @@ describe("withSpan", () => {
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // Clean up after each test
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 
@@ -92,7 +92,7 @@ describe("withSpan", () => {
     expect(span.attributes["output.value"]).toBe("processed: test");
   });
 
-  it("should resolve the default tracer when invoked", () => {
+  it("should resolve the default tracer when invoked", async () => {
     const wrappedFn = withSpan(() => "dynamic tracer", {
       name: "dynamic-tracer",
     });
@@ -115,10 +115,10 @@ describe("withSpan", () => {
     expect(spans[0].name).toBe("dynamic-tracer");
 
     updatedSpanExporter.reset();
-    updatedTracerProvider.shutdown();
+    await updatedTracerProvider.shutdown();
   });
 
-  it("should continue using an explicit tracer after the global provider changes", () => {
+  it("should continue using an explicit tracer after the global provider changes", async () => {
     const wrappedFn = withSpan(() => "explicit tracer", {
       name: "explicit-tracer",
       tracer: tracerProvider.getTracer("test"),
@@ -142,7 +142,7 @@ describe("withSpan", () => {
     expect(updatedSpanExporter.getFinishedSpans()).toHaveLength(0);
 
     updatedSpanExporter.reset();
-    updatedTracerProvider.shutdown();
+    await updatedTracerProvider.shutdown();
   });
 
   it("should handle promise rejections and record exceptions", async () => {
@@ -296,6 +296,7 @@ describe("withSpan", () => {
 
     const service = new Service();
     const tracer = tracerProvider.getTracer("test");
+    // oxlint-disable-next-line typescript/unbound-method -- this behavior is under test.
     service.run = withSpan(service.run, {
       name: "service-run",
       tracer,
@@ -337,9 +338,9 @@ describe("traceChain", () => {
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 
@@ -372,9 +373,9 @@ describe("withAgentSpan", () => {
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 
@@ -407,9 +408,9 @@ describe("traceTool", () => {
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 
@@ -474,9 +475,9 @@ describe.each([
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 

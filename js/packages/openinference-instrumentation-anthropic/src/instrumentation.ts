@@ -251,7 +251,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
               // handle the chunks and add them to the span
               // First split the stream via tee
               const [leftStream, rightStream] = result.tee();
-              consumeAnthropicStreamChunks(rightStream, span);
+              void consumeAnthropicStreamChunks(rightStream, span);
               result = leftStream;
             }
 

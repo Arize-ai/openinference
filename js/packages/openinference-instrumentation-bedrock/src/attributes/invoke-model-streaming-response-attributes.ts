@@ -482,7 +482,7 @@ export function safelySplitStream({ originalStream }: { originalStream: AsyncIte
     };
 
     // Start consuming in the background (non-blocking)
-    consumeAndDuplicate();
+    void consumeAndDuplicate();
 
     return {
       instrumentationStream,
