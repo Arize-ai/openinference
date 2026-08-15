@@ -205,6 +205,7 @@ def test_synchronous_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
     assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
@@ -376,6 +377,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
     assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "tool_calls"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
@@ -538,6 +540,7 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 74
     assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
@@ -769,6 +772,7 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
     assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
@@ -986,6 +990,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 4
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 30
     assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
@@ -1109,6 +1114,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 2
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 26
     assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
@@ -1251,6 +1257,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
     assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "tool_calls"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
@@ -1265,6 +1272,52 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
             prompt_template_variables,
         )
     assert attributes == {}  # test should account for all span attributes
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    ["stop", "length", "model_length", "error", "tool_calls"],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    mistral_sync_client: Mistral,
+    in_memory_span_exporter: InMemorySpanExporter,
+    respx_mock: Any,
+) -> None:
+    respx.post("https://api.mistral.ai/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "test_id",
+                "object": "chat.completion",
+                "created": 1711044439,
+                "model": "mistral-large-latest",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "hi",
+                            "tool_calls": None,
+                        },
+                        "finish_reason": finish_reason,
+                        "logprobs": None,
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+            },
+        )
+    )
+
+    mistral_sync_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[{"content": "hello", "role": "user"}],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.get(LLM_FINISH_REASON) == finish_reason
 
 
 def _check_context_attributes(
@@ -1384,6 +1437,7 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
