@@ -16,30 +16,84 @@ from openinference.instrumentation.mcp.package import _instruments
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-# The (module, target, wrapper method) triples wrapped by MCPInstrumentor. Class methods
-# are expressed as dotted "Class.method" targets. This single table drives _instrument,
-# _uninstrument, and the uninstrument test so the three cannot drift apart.
-#
-# While we prefer to instrument the lowest level primitive, the transports, it doesn't
-# mean context will be propagated to handlers automatically. Notably, the MCP SDK passes
-# server messages to a handler with a separate stream in between, losing context. We go
-# ahead and instrument this second stream (ServerSession.__init__ below) just to
-# propagate context so transports can still be used independently while also supporting
-# the major usage of the MCP SDK. Notably, this may be a reasonable generic
-# instrumentation for anyio itself to allow its streams to propagate context broadly.
-_WRAP_TARGETS: Tuple[Tuple[str, str, str], ...] = (
-    ("mcp.client.streamable_http", "streamable_http_client", "_wrap_transport_with_callback"),
+
+@asynccontextmanager
+async def _wrap_transport_with_callback(
+    wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> AsyncGenerator[Tuple[Any, ...], None]:
+    async with wrapped(*args, **kwargs) as streams:
+        read_stream, write_stream, *extra = streams
+        yield (
+            InstrumentedStreamReader(read_stream),  # type: ignore[no-untyped-call,unused-ignore]
+            InstrumentedStreamWriter(write_stream),  # type: ignore[no-untyped-call,unused-ignore]
+            *extra,
+        )
+
+
+@asynccontextmanager
+async def _wrap_plain_transport(
+    wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter"], None]:
+    async with wrapped(*args, **kwargs) as (read_stream, write_stream):
+        yield InstrumentedStreamReader(read_stream), InstrumentedStreamWriter(write_stream)  # type: ignore[no-untyped-call,unused-ignore]
+
+
+def _base_session_init_wrapper(
+    wrapped: Callable[..., None], instance: Any, args: Any, kwargs: Any
+) -> None:
+    wrapped(*args, **kwargs)
+    reader = getattr(instance, "_incoming_message_stream_reader", None)
+    writer = getattr(instance, "_incoming_message_stream_writer", None)
+    if reader and writer:
+        setattr(
+            instance,
+            "_incoming_message_stream_reader",
+            ContextAttachingStreamReader(reader),  # type: ignore[no-untyped-call,unused-ignore]
+        )
+        setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))  # type: ignore[no-untyped-call,unused-ignore]
+
+
+# The (module, target, wrapper) triples wrapped by MCPInstrumentor; class methods are
+# dotted "Class.method" targets. This table drives both _instrument and _uninstrument.
+_WRAP_TARGETS: Tuple[Tuple[str, str, Callable[..., Any]], ...] = (
+    ("mcp.client.streamable_http", "streamable_http_client", _wrap_transport_with_callback),
     (
         "mcp.server.streamable_http",
         "StreamableHTTPServerTransport.connect",
-        "_wrap_plain_transport",
+        _wrap_plain_transport,
     ),
-    ("mcp.client.sse", "sse_client", "_wrap_plain_transport"),
-    ("mcp.server.sse", "SseServerTransport.connect_sse", "_wrap_plain_transport"),
-    ("mcp.client.stdio", "stdio_client", "_wrap_plain_transport"),
-    ("mcp.server.stdio", "stdio_server", "_wrap_plain_transport"),
-    ("mcp.server.session", "ServerSession.__init__", "_base_session_init_wrapper"),
+    ("mcp.client.sse", "sse_client", _wrap_plain_transport),
+    ("mcp.server.sse", "SseServerTransport.connect_sse", _wrap_plain_transport),
+    ("mcp.client.stdio", "stdio_client", _wrap_plain_transport),
+    ("mcp.server.stdio", "stdio_server", _wrap_plain_transport),
+    # Instrumenting the transports alone does not propagate context to handlers: the MCP
+    # SDK passes server messages to handlers through a separate internal stream, losing
+    # context. Wrapping ServerSession.__init__ instruments that stream as well.
+    ("mcp.server.session", "ServerSession.__init__", _base_session_init_wrapper),
 )
+
+
+def _resolve_target(module: Any, target: str) -> Tuple[Any, str]:
+    """Resolves a dotted target to the object holding the wrapped attribute."""
+    prefix, _, attr = target.rpartition(".")
+    owner = getattr(module, prefix, None) if prefix else module
+    return owner, attr
+
+
+def _register_guarded_hook(
+    module_name: str, target: str, wrapper: Callable[..., Any], generation: int
+) -> None:
+    def hook(module: Any) -> None:
+        with MCPInstrumentor._lock:
+            if MCPInstrumentor._generation != generation:
+                return  # uninstrument() has run since this hook was registered
+            try:
+                wrap_function_wrapper(module, target, wrapper)
+            except Exception:
+                # Runs inside the user's import statement; never raise into user code.
+                logger.exception("Failed to instrument %s.%s", module_name, target)
+
+    register_post_import_hook(hook, module_name)
 
 
 class MCPInstrumentor(BaseInstrumentor):  # type: ignore
@@ -47,100 +101,29 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     An instrumenter for MCP.
     """
 
-    # Generation counter guarding deferred post-import hooks. BaseInstrumentor is a
-    # singleton, so this state is shared by all MCPInstrumentor() constructions. A
-    # boolean would not suffice: instrument() -> uninstrument() -> instrument() leaves
-    # multiple pending hooks for a not-yet-imported module, and all of them would wrap
-    # (double-wrapping) when the module is finally imported; with the counter, only the
-    # hooks from the latest instrument() call match and wrap exactly once.
+    # Deferred post-import hooks capture this counter and wrap only while their value is
+    # current; uninstrument() bumps it to neutralize every hook registered so far. A
+    # counter (not a boolean) so stale hooks cannot double-wrap after re-instrumenting.
     _generation: int = 0
-    # Serializes generation checks/bumps against hook firing so a deferred hook cannot
-    # wrap a module concurrently with (or after) an uninstrument() call.
     _lock = threading.Lock()
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        # Bump the generation counter so that any post-import hooks registered in a
-        # previous instrument() call become no-ops if they fire after uninstrument().
-        with self._lock:
-            MCPInstrumentor._generation += 1
+        with MCPInstrumentor._lock:
             generation = MCPInstrumentor._generation
-
-        def _guarded(target: str, wrapper: Callable[..., Any]) -> Callable[[Any], None]:
-            def hook(module: Any) -> None:
-                with self._lock:
-                    if MCPInstrumentor._generation != generation:
-                        return
-                    try:
-                        wrap_function_wrapper(module, target, wrapper)
-                    except Exception:
-                        # This hook runs inside the user's import statement; never let
-                        # instrumentation failures raise into user code.
-                        logger.exception(
-                            "Failed to instrument %s.%s",
-                            getattr(module, "__name__", module),
-                            target,
-                        )
-
-            return hook
-
-        for module_name, target, wrapper_name in _WRAP_TARGETS:
-            register_post_import_hook(_guarded(target, getattr(self, wrapper_name)), module_name)
+        for module_name, target, wrapper in _WRAP_TARGETS:
+            _register_guarded_hook(module_name, target, wrapper, generation)
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        with self._lock:
-            # Invalidate any pending deferred post-import hooks registered by this
-            # instrumentor so they become no-ops if a not-yet-imported module is loaded
-            # later.
+        with MCPInstrumentor._lock:
             MCPInstrumentor._generation += 1
-
             for module_name, target, _ in _WRAP_TARGETS:
-                # Only unwrap modules that are already imported; unwrap()'s dotted-path
-                # form would import them as a side effect.
-                obj: Any = sys.modules.get(module_name)
-                if obj is None:
-                    continue
-                prefix, _sep, attr = target.rpartition(".")
-                if prefix:  # resolve the class for "Class.method" targets
-                    obj = getattr(obj, prefix, None)
-                    if obj is None:
-                        continue
-                unwrap(obj, attr)
-
-    @asynccontextmanager
-    async def _wrap_transport_with_callback(
-        self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
-    ) -> AsyncGenerator[Tuple[Any, ...], None]:
-        async with wrapped(*args, **kwargs) as streams:
-            read_stream, write_stream, *extra = streams
-            yield (
-                InstrumentedStreamReader(read_stream),  # type: ignore[no-untyped-call,unused-ignore]
-                InstrumentedStreamWriter(write_stream),  # type: ignore[no-untyped-call,unused-ignore]
-                *extra,
-            )
-
-    @asynccontextmanager
-    async def _wrap_plain_transport(
-        self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
-    ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter"], None]:
-        async with wrapped(*args, **kwargs) as (read_stream, write_stream):
-            yield InstrumentedStreamReader(read_stream), InstrumentedStreamWriter(write_stream)  # type: ignore[no-untyped-call,unused-ignore]
-
-    def _base_session_init_wrapper(
-        self, wrapped: Callable[..., None], instance: Any, args: Any, kwargs: Any
-    ) -> None:
-        wrapped(*args, **kwargs)
-        reader = getattr(instance, "_incoming_message_stream_reader", None)
-        writer = getattr(instance, "_incoming_message_stream_writer", None)
-        if reader and writer:
-            setattr(
-                instance,
-                "_incoming_message_stream_reader",
-                ContextAttachingStreamReader(reader),  # type: ignore[no-untyped-call,unused-ignore]
-            )
-            setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))  # type: ignore[no-untyped-call,unused-ignore]
+                # Modules never imported were never wrapped; avoid importing them here.
+                module = sys.modules.get(module_name)
+                if module is not None:
+                    unwrap(*_resolve_target(module, target))
 
 
 class InstrumentedStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]

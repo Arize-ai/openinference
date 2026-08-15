@@ -4,7 +4,7 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, List
 
 import pytest
 from mcp import ClientSession
@@ -248,30 +248,33 @@ def test_uninstrument_removes_all_wrappers() -> None:
 
     import wrapt
 
-    from openinference.instrumentation.mcp import _WRAP_TARGETS, MCPInstrumentor
+    from openinference.instrumentation.mcp import _WRAP_TARGETS, MCPInstrumentor, _resolve_target
 
-    def resolve(module_name: str, target: str) -> Any:
+    # An independent statement of the wrapped targets, so dropping a row from
+    # _WRAP_TARGETS cannot silently shrink this test's coverage.
+    expected = [
+        "mcp.client.streamable_http.streamable_http_client",
+        "mcp.server.streamable_http.StreamableHTTPServerTransport.connect",
+        "mcp.client.sse.sse_client",
+        "mcp.server.sse.SseServerTransport.connect_sse",
+        "mcp.client.stdio.stdio_client",
+        "mcp.server.stdio.stdio_server",
+        "mcp.server.session.ServerSession.__init__",
+    ]
+    assert [f"{m}.{t}" for m, t, _ in _WRAP_TARGETS] == expected
+
+    def wrapped_targets() -> List[str]:
         # inspect.getattr_static avoids descriptor binding, which for class methods
-        # would hide the wrapt FunctionWrapper behind a BoundFunctionWrapper. A plain
-        # hasattr(obj, "__wrapped__") check would be wrong in the other direction:
-        # several MCP transports are @asynccontextmanager functions, whose
-        # functools.wraps sets __wrapped__ even on the pristine, never-wrapped function.
-        obj: Any = importlib.import_module(module_name)
-        prefix, _, attr = target.rpartition(".")
-        if prefix:
-            obj = getattr(obj, prefix)
-        return inspect.getattr_static(obj, attr)
+        # would hide the FunctionWrapper behind a BoundFunctionWrapper.
+        names = []
+        for module_name, target, _ in _WRAP_TARGETS:
+            owner, attr = _resolve_target(importlib.import_module(module_name), target)
+            if isinstance(inspect.getattr_static(owner, attr), wrapt.FunctionWrapper):
+                names.append(f"{module_name}.{target}")
+        return names
 
     # The autouse fixture called instrument(), which wrapped each module upon import.
-    for module_name, target, _ in _WRAP_TARGETS:
-        assert isinstance(resolve(module_name, target), wrapt.FunctionWrapper), (
-            f"{module_name}.{target} is not wrapped after instrument()"
-        )
+    assert wrapped_targets() == expected
 
-    # Verify every wrapper is removed when uninstrument() is called.
     MCPInstrumentor().uninstrument()
-
-    for module_name, target, _ in _WRAP_TARGETS:
-        assert not isinstance(resolve(module_name, target), wrapt.FunctionWrapper), (
-            f"{module_name}.{target} is still wrapped after uninstrument()"
-        )
+    assert wrapped_targets() == []
