@@ -251,7 +251,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
               // handle the chunks and add them to the span
               // First split the stream via tee
               const [leftStream, rightStream] = result.tee();
-              consumeAnthropicStreamChunks(rightStream, span);
+              void consumeAnthropicStreamChunks(rightStream, span);
               result = leftStream;
             }
 
@@ -341,7 +341,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
  * True when create() returned an APIPromise we can transform with _thenUnwrap.
  */
 function hasThenUnwrap<T>(promise: PromiseLike<T>): promise is APIPromise<T> {
-  return typeof (promise as Partial<APIPromise<T>>)._thenUnwrap === "function";
+  return "_thenUnwrap" in promise && typeof promise._thenUnwrap === "function";
 }
 
 /**

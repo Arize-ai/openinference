@@ -1,5 +1,11 @@
 # @arizeai/openinference-core
 
+## 2.5.2
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+
 ## 2.5.1
 
 ### Patch Changes

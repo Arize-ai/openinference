@@ -812,17 +812,20 @@ describe("openInferenceMiddleware", () => {
       ["benchmark", "tanstack"],
     );
 
-    context.with(activeContext, () => {
-      middleware.onStart?.(createContext());
-      middleware.onConfig?.(ctx, createConfig(ctx.messages as ChatMiddlewareConfig["messages"]));
-      middleware.onChunk?.(ctx, {
+    await context.with(activeContext, async () => {
+      await middleware.onStart?.(createContext());
+      await middleware.onConfig?.(
+        ctx,
+        createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
+      );
+      await middleware.onChunk?.(ctx, {
         type: "TEXT_MESSAGE_CONTENT",
         timestamp: Date.now(),
         messageId: "msg-1",
         delta: "A traced response.",
         content: "A traced response.",
       });
-      middleware.onChunk?.(ctx, {
+      await middleware.onChunk?.(ctx, {
         type: "RUN_FINISHED",
         timestamp: Date.now(),
         runId: "run-1",
@@ -833,7 +836,7 @@ describe("openInferenceMiddleware", () => {
           totalTokens: 6,
         },
       });
-      middleware.onFinish?.(ctx, {
+      await middleware.onFinish?.(ctx, {
         finishReason: "stop",
         duration: 10,
         content: "A traced response.",

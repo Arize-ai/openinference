@@ -1,3 +1,4 @@
+import type { Exception } from "@opentelemetry/api";
 import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 
 import {
@@ -12,6 +13,25 @@ import { getTracer, wrapTracer } from "./tracerHelpers";
 import type { AnyFn, InputToAttributesFn, OutputToAttributesFn, SpanTraceOptions } from "./types";
 
 const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
+
+/**
+ * True when the thrown value is a valid OpenTelemetry {@link Exception} — a string or an
+ * object carrying at least one of message, name, or code — so it can be recorded on the
+ * span without losing its structured error details.
+ */
+function isException(error: unknown): error is Exception {
+  if (typeof error === "string") {
+    return true;
+  }
+  if (typeof error !== "object" || error == null) {
+    return false;
+  }
+  return (
+    ("message" in error && typeof error.message === "string") ||
+    ("name" in error && typeof error.name === "string") ||
+    ("code" in error && (typeof error.code === "string" || typeof error.code === "number"))
+  );
+}
 
 /**
  * Wraps a function with openinference tracing capabilities, creating spans for execution monitoring.
@@ -94,7 +114,7 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
     return String(error);
   };
   // TODO: infer the name from the target
-  const wrappedFn: Fn = function (this: ThisParameterType<Fn>, ...args: Parameters<Fn>) {
+  const wrappedFn = function (this: ThisParameterType<Fn>, ...args: Parameters<Fn>) {
     const tracer = configuredTracer ?? getTracer();
     return tracer.startActiveSpan(
       spanName,
@@ -108,7 +128,7 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
       },
       (span) => {
         const recordError = (error: unknown) => {
-          span.recordException(error as Error);
+          span.recordException(isException(error) ? error : String(error));
           span.setStatus({
             code: SpanStatusCode.ERROR,
             message: getErrorMessage(error),
@@ -116,8 +136,8 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
         };
 
         try {
-          const result = fn.apply(this, args) as ReturnType<Fn>;
-          if (isPromise(result)) {
+          const result = fn.apply(this, args);
+          if (isPromise<Awaited<ReturnType<Fn>>>(result)) {
             // Execute the promise and return the promise chain
             return result
               .then((value: Awaited<ReturnType<Fn>>) => {
@@ -152,6 +172,6 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
         }
       },
     );
-  } as Fn;
-  return wrappedFn;
+  };
+  return Object.assign(wrappedFn, fn);
 }

@@ -89,10 +89,14 @@ function getOpenInferenceSpanKindFromRunType(runType: string) {
     return OpenInferenceSpanKind.AGENT;
   }
 
-  if (normalizedRunType in OpenInferenceSpanKind) {
-    return OpenInferenceSpanKind[normalizedRunType as keyof typeof OpenInferenceSpanKind];
+  if (isOpenInferenceSpanKind(normalizedRunType)) {
+    return OpenInferenceSpanKind[normalizedRunType];
   }
   return OpenInferenceSpanKind.CHAIN;
+}
+
+function isOpenInferenceSpanKind(value: string): value is keyof typeof OpenInferenceSpanKind {
+  return value in OpenInferenceSpanKind;
 }
 
 /**
