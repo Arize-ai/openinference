@@ -120,8 +120,14 @@ def get_tool_attributes() -> Iterator[tuple[str, AttributeValue]]:
                         schema["name"] = func_decl["name"]
                     if "description" in func_decl:
                         schema["description"] = func_decl["description"]
+                    # google-genai >= 2.x populates ``parameters_json_schema`` (standard
+                    # JSON Schema) for auto-generated declarations, while the older Gemini
+                    # ``parameters`` field uses the proprietary Schema format. Prefer the
+                    # explicit ``parameters`` field, falling back to the JSON Schema one.
                     if "parameters" in func_decl:
                         schema["parameters"] = func_decl["parameters"]
+                    elif "parameters_json_schema" in func_decl:
+                        schema["parameters"] = func_decl["parameters_json_schema"]
                     yield (
                         f"{SpanAttributes.LLM_TOOLS}.{tool_index}.{ToolAttributes.TOOL_JSON_SCHEMA}",
                         safe_json_dumps(schema),
