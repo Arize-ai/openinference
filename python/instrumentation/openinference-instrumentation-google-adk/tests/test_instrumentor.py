@@ -613,6 +613,7 @@ async def test_google_adk_instrumentor(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.name", None)
     tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
@@ -898,6 +899,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.name", None)
     tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
@@ -1023,6 +1025,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_attributes1.pop("gen_ai.tool.description", None)
     tool_attributes1.pop("gen_ai.tool.name", None)
     tool_attributes1.pop("gen_ai.tool.type", None)
+    tool_attributes1.pop("gen_ai.agent.name", None)
     tool_attributes1.pop("gen_ai.agent.version", None)
     assert not tool_attributes1
 
@@ -1434,6 +1437,7 @@ async def test_google_adk_instrumentor_multi_agent(
     transfer_tool_attributes.pop("gen_ai.tool.description", None)
     transfer_tool_attributes.pop("gen_ai.tool.name", None)
     transfer_tool_attributes.pop("gen_ai.tool.type", None)
+    transfer_tool_attributes.pop("gen_ai.agent.name", None)
     assert not transfer_tool_attributes
 
     # 5. agent_run [weather_agent]
@@ -1616,6 +1620,7 @@ async def test_google_adk_instrumentor_multi_agent(
     get_weather_tool_attributes.pop("gen_ai.tool.description", None)
     get_weather_tool_attributes.pop("gen_ai.tool.name", None)
     get_weather_tool_attributes.pop("gen_ai.tool.type", None)
+    get_weather_tool_attributes.pop("gen_ai.agent.name", None)
     assert not get_weather_tool_attributes
 
     # 8. call_llm (weather agent - final response)
@@ -2004,6 +2009,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.name", None)
     assert not tool_attributes
 
     tool_span1 = spans_by_name["execute_tool load_artifacts"][0]
@@ -2036,6 +2042,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     tool_attributes1.pop("gen_ai.tool.description", None)
     tool_attributes1.pop("gen_ai.tool.name", None)
     tool_attributes1.pop("gen_ai.tool.type", None)
+    tool_attributes1.pop("gen_ai.agent.name", None)
     assert not tool_attributes1
 
 
