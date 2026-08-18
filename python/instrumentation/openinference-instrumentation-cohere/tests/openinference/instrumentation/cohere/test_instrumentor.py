@@ -405,6 +405,44 @@ def test_trace_config_masking(
     assert not any("sensitive" in str(value) for value in attrs.values())
 
 
+def test_rerank_trace_config_masking(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        RawV2Client,
+        "rerank",
+        lambda self, **kwargs: SimpleNamespace(data=_rerank_response()),
+    )
+    CohereInstrumentor().uninstrument()
+    CohereInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+
+    _client().rerank(
+        model="rerank-v3.5",
+        query="sensitive query",
+        documents=["sensitive first document", "sensitive second document"],
+        top_n=2,
+    )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    assert attrs[RerankerAttributes.RERANKER_QUERY] == REDACTED_VALUE
+    assert attrs[RerankerAttributes.RERANKER_MODEL_NAME] == "rerank-v3.5"
+    assert attrs[RerankerAttributes.RERANKER_TOP_K] == 2
+    assert not any(
+        key.startswith(RerankerAttributes.RERANKER_INPUT_DOCUMENTS)
+        or key.startswith(RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS)
+        for key in attrs
+    )
+    assert not any("sensitive" in str(value) for value in attrs.values())
+
+
 def test_request_options_are_not_recorded(
     in_memory_span_exporter: InMemorySpanExporter,
     monkeypatch: pytest.MonkeyPatch,
