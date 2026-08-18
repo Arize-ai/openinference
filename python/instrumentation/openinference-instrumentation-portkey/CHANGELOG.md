@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.13...python-openinference-instrumentation-portkey-v0.1.14) (2026-08-18)
+
+
+### Bug Fixes
+
+* **portkey:** restore prompt completion methods on uninstrument ([#3563](https://github.com/Arize-ai/openinference/issues/3563)) ([9182abb](https://github.com/Arize-ai/openinference/commit/9182abb423dc377a9e7b1ab745c0679e3ef8eb51))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.12...python-openinference-instrumentation-portkey-v0.1.13) (2026-08-12)
 
 

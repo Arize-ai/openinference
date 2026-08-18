@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.0.6...python-openinference-instrumentation-mistralai-v2.1.0) (2026-08-18)
+
+
+### Features
+
+* **mistralai:** Add Finish Reason Attribute ([#3503](https://github.com/Arize-ai/openinference/issues/3503)) ([c11b953](https://github.com/Arize-ai/openinference/commit/c11b9533f42f36238ea31fa3b23f7b5acd9ceffb))
+
 ## [2.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.0.5...python-openinference-instrumentation-mistralai-v2.0.6) (2026-08-07)
 
 

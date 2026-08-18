@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.5...python-openinference-instrumentation-mcp-v2.0.6) (2026-08-18)
+
+
+### Bug Fixes
+
+* **mcp:** uninstrument all seven wrapping targets and guard deferred hooks ([#3567](https://github.com/Arize-ai/openinference/issues/3567)) ([6689a74](https://github.com/Arize-ai/openinference/commit/6689a74ebe2518920be505ac1787da5a3fa6d799))
+
 ## [2.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.4...python-openinference-instrumentation-mcp-v2.0.5) (2026-08-01)
 
 
