@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.0...python-openinference-instrumentation-google-genai-v1.4.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **google_genai:** record tool parameters from parameters_json_schema for google-genai &gt;= 2.x ([#3579](https://github.com/Arize-ai/openinference/issues/3579)) ([e333dbc](https://github.com/Arize-ai/openinference/commit/e333dbc2578b1edd44700b739817e41cf92a29ac))
+
 ## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.3.0...python-openinference-instrumentation-google-genai-v1.4.0) (2026-08-07)
 
 
