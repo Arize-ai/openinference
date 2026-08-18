@@ -31,6 +31,12 @@ def test_suppress_tracing() -> None:
     assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is None
 
 
+async def test_suppress_tracing_async() -> None:
+    async with suppress_tracing():
+        assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is True
+    assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is None
+
+
 def test_using_session(session_id: str) -> None:
     with using_session(session_id):
         assert get_value(SpanAttributes.SESSION_ID) == session_id
