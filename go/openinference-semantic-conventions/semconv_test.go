@@ -45,6 +45,8 @@ func TestAttributeKeys(t *testing.T) {
 		{EvaluationMetadata, "evaluation.metadata"},
 
 		{LLMModelName, "llm.model_name"},
+		{LLMInputModelName, "llm.input_model_name"},
+		{LLMOutputModelName, "llm.output_model_name"},
 		{LLMProvider, "llm.provider"},
 		{LLMSystem, "llm.system"},
 		{LLMInvocationParameters, "llm.invocation_parameters"},
