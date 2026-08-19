@@ -12,6 +12,8 @@ All LLM spans MUST include:
 
 LLM spans typically include:
 - `llm.model_name`: The specific model used (e.g., "gpt-4-0613")
+- `llm.input_model_name`: The model requested by the caller, when it can differ from the model that served the response (e.g., provider-side fallback)
+- `llm.output_model_name`: The model that actually generated the response, when it can differ from the requested model
 - `llm.invocation_parameters`: JSON string of parameters sent to the model
 - `input.value`: The raw input as a JSON string
 - `input.mime_type`: Usually "application/json"

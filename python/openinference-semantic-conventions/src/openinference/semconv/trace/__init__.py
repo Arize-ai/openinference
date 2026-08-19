@@ -63,6 +63,18 @@ class SpanAttributes:
     """
     The name of the model being used.
     """
+    LLM_INPUT_MODEL_NAME = "llm.input_model_name"
+    """
+    The model requested by the caller, as sent in the request. May differ from
+    llm.output_model_name when the provider routes the request to a different
+    model (e.g. classifier-triggered fallback).
+    """
+    LLM_OUTPUT_MODEL_NAME = "llm.output_model_name"
+    """
+    The model that actually generated the response, as reported by the provider.
+    May differ from llm.input_model_name when the provider routes the request
+    to a different model (e.g. classifier-triggered fallback).
+    """
     LLM_PROVIDER = "llm.provider"
     """
     The provider of the model, such as OpenAI, Azure, Google, etc.
