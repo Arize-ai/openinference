@@ -1,5 +1,8 @@
 from contextlib import ContextDecorator
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
+from copy import copy
+from functools import wraps
+from inspect import iscoroutinefunction
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, TypeVar, cast
 
 from opentelemetry.context import (
     attach,
@@ -25,6 +28,8 @@ CONTEXT_ATTRIBUTES = (
     SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES,
 )
 
+_CallableT = TypeVar("_CallableT", bound=Callable[..., Any])
+
 
 class _UsingAttributesContextManager(ContextDecorator):
     def __init__(
@@ -45,6 +50,20 @@ class _UsingAttributesContextManager(ContextDecorator):
         self._prompt_template = prompt_template
         self._prompt_template_version = prompt_template_version
         self._prompt_template_variables = prompt_template_variables
+
+    def _recreate_cm(self) -> Self:
+        return copy(self)
+
+    def __call__(self, func: _CallableT) -> _CallableT:
+        if not iscoroutinefunction(func):
+            return super().__call__(func)
+
+        @wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            async with self._recreate_cm():
+                return await func(*args, **kwargs)
+
+        return cast(_CallableT, async_wrapper)
 
     def attach_context(self) -> None:
         ctx = get_current()

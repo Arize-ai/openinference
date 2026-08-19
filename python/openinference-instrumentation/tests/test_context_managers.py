@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any, Dict, List, cast
 
@@ -115,6 +116,44 @@ def test_using_session_decorator(session_id: str) -> None:
         assert get_value(SpanAttributes.SESSION_ID) == session_id
 
     f()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_session_async_decorator(session_id: str) -> None:
+    @using_session(session_id)
+    async def f() -> None:
+        await asyncio.sleep(0)
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+
+    await f()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_session_async_decorator_supports_concurrent_calls(session_id: str) -> None:
+    calls = 0
+    calls_ready = asyncio.Event()
+
+    @using_session(session_id)
+    async def f() -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            calls_ready.set()
+        await calls_ready.wait()
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+
+    await asyncio.gather(f(), f())
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_session_async_decorator_detaches_after_exception(session_id: str) -> None:
+    @using_session(session_id)
+    async def f() -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+        raise RuntimeError("test error")
+
+    with pytest.raises(RuntimeError, match="test error"):
+        await f()
     assert get_value(SpanAttributes.SESSION_ID) is None
 
 
