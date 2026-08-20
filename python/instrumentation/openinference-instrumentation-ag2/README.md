@@ -5,7 +5,7 @@
 Python auto-instrumentation library for [AG2](https://github.com/ag2ai/ag2) agents, capturing chats,
 agent replies, and synchronous or asynchronous tool execution.
 
-The following instrumentation is fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for monitoring, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
+The following instrumentation is fully OpenTelemetry-compatible and can be sent to an OpenTelemetry collector for monitoring, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
 ## Installation
 
@@ -105,6 +105,6 @@ quickest way to confirm traces are reaching Phoenix.
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
-* [More info on OpenInference and Arize AX](https://arize.com/docs/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
+* [More info on OpenInference and Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

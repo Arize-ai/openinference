@@ -214,7 +214,7 @@ cd java
 # View traces at http://localhost:6006
 ```
 
-Traces can also be sent to [Arize AX](https://arize.com/docs/ax?utm_source=docs&utm_medium=web&utm_content=openinference) — point the OTLP exporter at your AX endpoint instead of the local Phoenix container.
+Traces can also be sent to [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference) — point the OTLP exporter at your AX endpoint instead of the local Phoenix container.
 
 ## Requirements
 

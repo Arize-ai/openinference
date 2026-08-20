@@ -12,7 +12,7 @@
 
 OpenInference is a set of conventions and plugins that is complimentary to [OpenTelemetry](https://opentelemetry.io/) to
 enable tracing of AI applications. OpenInference is natively supported
-by [Arize Phoenix](https://github.com/Arize-ai/phoenix) and [Arize AX](https://arize.com/docs/ax?utm_source=docs&utm_medium=web&utm_content=openinference), but can be used with any OpenTelemetry-compatible backend as
+by [Arize Phoenix](https://github.com/Arize-ai/phoenix) and [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), but can be used with any OpenTelemetry-compatible backend as
 well.
 
 ## Specification
@@ -161,14 +161,14 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`openinference-instrumentation-anthropic-sdk-go`](./go/openinference-instrumentation-anthropic-sdk-go) | OpenInference Instrumentation for the Anthropic Go SDK (`anthropics/anthropic-sdk-go`). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-anthropic-sdk-go` |
 | [`openinference-instrumentation-openai-go`](./go/openinference-instrumentation-openai-go) | OpenInference Instrumentation for the official OpenAI Go SDK ([`openai/openai-go`](https://github.com/openai/openai-go)). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-openai-go` |
 
-Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to [Arize AX](https://arize.com/docs/ax?utm_source=docs&utm_medium=web&utm_content=openinference), or wire up any OTel exporter (e.g. [Phoenix](https://github.com/Arize-ai/phoenix) at `http://localhost:6006/v1/traces`).
+Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), or wire up any OTel exporter (e.g. [Phoenix](https://github.com/Arize-ai/phoenix) at `http://localhost:6006/v1/traces`).
 
 ## Supported Destinations
 
 OpenInference supports the following destinations as span collectors.
 
 - ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
-- ✅ [Arize AX](https://arize.com/docs/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
+- ✅ [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 - ✅ Any OTEL-compatible collector
 
 ## Community

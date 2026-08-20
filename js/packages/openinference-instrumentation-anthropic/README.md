@@ -6,7 +6,7 @@ This package implements OpenInference tracing for the following Anthropic SDK me
 
 - `messages.create` (including streaming)
 
-These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
+These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
 ## Installation
 

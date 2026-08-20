@@ -1,7 +1,7 @@
 # OpenInference LlamaIndex Instrumentation
 Python auto-instrumentation library for LlamaIndex.
 
-These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
+These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-llama-index.svg)](https://pypi.org/project/openinference-instrumentation-llama-index/)
 
@@ -94,6 +94,6 @@ Visit the Phoenix app at `http://localhost:6006` to see the traces.
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
-* [More info on OpenInference and Arize AX](https://arize.com/docs/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
+* [More info on OpenInference and Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)
