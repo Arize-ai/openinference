@@ -8,6 +8,7 @@ from typing import (
     Any,
     AsyncGenerator,
     Callable,
+    Dict,
     Iterable,
     Iterator,
     Mapping,
@@ -245,6 +246,51 @@ class _BaseAgentRunAsync(_WithTracer):
 
 
 class _TraceCallLlm(_WithTracer):
+    """Traces ADK's ``trace_call_llm``, which is called once per streamed chunk.
+
+    ADK opens the ``call_llm`` span *outside* its streaming loop and calls
+    ``trace_call_llm`` from inside it, so this wrapper runs once per chunk against the same
+    span while ``llm_request`` never changes. Only the response-side attributes differ
+    between those calls; re-deriving the request-side ones just overwrites them with the
+    same values.
+
+    ``_request_attributes_written`` remembers, per span, which request has already been
+    written. Notes on that bookkeeping:
+
+    * The span's own attributes cannot serve as the marker. They are bounded
+      (``SpanLimits.max_attributes``, 128 by default) and evict oldest-first, so a long
+      enough message history drops ``INPUT_VALUE`` within the first chunk, which would
+      silently disable this guard for exactly the requests that cost the most to re-derive.
+    * The remembered value is the request's identity, so a span that ever serves a second,
+      different request still gets that request's attributes written.
+    * The record is bounded and least-recently-used first. Losing an entry only costs one
+      redundant re-derivation for that span; it can never leave an attribute unwritten.
+    * Every access is a single dict operation, so concurrent callers can at worst duplicate
+      work -- never drop it.
+    """
+
+    _MAX_REMEMBERED_SPANS = 1024
+
+    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+        super().__init__(tracer, *args, **kwargs)
+        self._request_written_for_span: Dict[int, int] = {}
+
+    def _request_attributes_written(self, span: Any, llm_request: LlmRequest) -> bool:
+        remembered = self._request_written_for_span
+        span_id = span.get_span_context().span_id
+        if remembered.get(span_id) != id(llm_request):
+            return False
+        remembered[span_id] = remembered.pop(span_id)  # refresh recency
+        return True
+
+    def _remember_request_attributes(self, span: Any, llm_request: LlmRequest) -> None:
+        remembered = self._request_written_for_span
+        span_id = span.get_span_context().span_id
+        remembered.pop(span_id, None)
+        remembered[span_id] = id(llm_request)
+        while len(remembered) > self._MAX_REMEMBERED_SPANS:
+            del remembered[next(iter(remembered))]
+
     @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
@@ -262,13 +308,15 @@ class _TraceCallLlm(_WithTracer):
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.LLM.value,
         )
+        if not span.is_recording():
+            return ans
         arguments = bind_args_kwargs(wrapped, *args, **kwargs)
         llm_request = next((arg for arg in arguments.values() if isinstance(arg, LlmRequest)), None)
         llm_response = next(
             (arg for arg in arguments.values() if isinstance(arg, LlmResponse)), None
         )
         input_messages_index = 0
-        if llm_request:
+        if llm_request and not self._request_attributes_written(span, llm_request):
             span.set_attribute(
                 SpanAttributes.LLM_PROVIDER,
                 OpenInferenceLLMProviderValues.GOOGLE.value,
@@ -333,6 +381,10 @@ class _TraceCallLlm(_WithTracer):
                         message_index=i,
                     ):
                         span.set_attribute(k, v)
+
+            # Only once the whole block above has succeeded: a partial pass must be
+            # retried on the next chunk rather than suppressed for the rest of the span.
+            self._remember_request_attributes(span, llm_request)
         if llm_response:
             for k, v in _get_attributes_from_llm_response(llm_response):
                 span.set_attribute(k, v)
