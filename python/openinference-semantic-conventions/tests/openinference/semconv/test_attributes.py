@@ -124,11 +124,9 @@ class TestSpanAttributes:
                 "finish_reason": SpanAttributes.LLM_FINISH_REASON,
                 "function_call": SpanAttributes.LLM_FUNCTION_CALL,
                 "input_messages": SpanAttributes.LLM_INPUT_MESSAGES,
-                "input_model_name": SpanAttributes.LLM_INPUT_MODEL_NAME,
                 "invocation_parameters": SpanAttributes.LLM_INVOCATION_PARAMETERS,
                 "model_name": SpanAttributes.LLM_MODEL_NAME,
                 "output_messages": SpanAttributes.LLM_OUTPUT_MESSAGES,
-                "output_model_name": SpanAttributes.LLM_OUTPUT_MODEL_NAME,
                 "prompt_template": {
                     "template": SpanAttributes.LLM_PROMPT_TEMPLATE,
                     "variables": SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES,
@@ -136,6 +134,12 @@ class TestSpanAttributes:
                 },
                 "prompts": SpanAttributes.LLM_PROMPTS,
                 "provider": SpanAttributes.LLM_PROVIDER,
+                "request": {
+                    "model_name": SpanAttributes.LLM_REQUEST_MODEL_NAME,
+                },
+                "response": {
+                    "model_name": SpanAttributes.LLM_RESPONSE_MODEL_NAME,
+                },
                 "system": SpanAttributes.LLM_SYSTEM,
                 "token_count": {
                     "completion": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
