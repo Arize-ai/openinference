@@ -1267,6 +1267,48 @@ def test_get_attributes_from_function_span_data(
             },
             id="mixed_content_types",
         ),
+        pytest.param(
+            [{"type": "input_image", "detail": "auto", "image_url": "https://a.com/b.png"}],
+            {
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": "https://a.com/b.png",
+            },
+            id="input_image_http_url",
+        ),
+        pytest.param(
+            [
+                {
+                    "type": "input_image",
+                    "detail": "auto",
+                    "image_url": "data:image/png;base64,iVBORw0KGgo=",
+                }
+            ],
+            {
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": (
+                    "data:image/png;base64,iVBORw0KGgo="
+                ),
+            },
+            id="input_image_base64_data_uri",
+        ),
+        pytest.param(
+            [{"type": "input_image", "detail": "auto", "file_id": "file-123"}],
+            {},
+            id="input_image_without_url",
+        ),
+        pytest.param(
+            [
+                {"type": "input_text", "text": "What is in this screenshot?"},
+                {"type": "input_image", "detail": "auto", "image_url": "https://a.com/b.png"},
+            ],
+            {
+                "message.contents.0.message_content.type": "text",
+                "message.contents.0.message_content.text": "What is in this screenshot?",
+                "message.contents.1.message_content.type": "image",
+                "message.contents.1.message_content.image.image.url": "https://a.com/b.png",
+            },
+            id="text_and_image",
+        ),
     ],
 )
 def test_get_attributes_from_message_content_list(
