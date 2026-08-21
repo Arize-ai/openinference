@@ -62,6 +62,7 @@ packages = ["src/openinference"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+addopts = "-p openinference.instrumentation.anthropic._httpx2_compat"
 testpaths = [
     "tests",
 ]
@@ -79,6 +80,7 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
+    "httpx2",
     "anthropic.*",
     "openinference.instrumentation.anthropic.*",
 ]
