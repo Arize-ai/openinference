@@ -1,5 +1,7 @@
+import importlib
 import logging
-from typing import Any, Collection
+from types import ModuleType
+from typing import Any, Collection, Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
@@ -27,6 +29,17 @@ from openinference.instrumentation.anthropic.version import __version__
 logger = logging.getLogger(__name__)
 
 _instruments = ("anthropic >= 0.84.0",)
+
+
+def _legacy_completions_module() -> Optional[ModuleType]:
+    """
+    The resource module backing the legacy Text Completions API
+    (``client.completions``), or ``None`` on anthropic>=1.0, which removed it.
+    """
+    try:
+        return importlib.import_module("anthropic.resources.completions")
+    except ImportError:
+        return None
 
 
 class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
@@ -59,7 +72,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _instrument(self, **kwargs: Any) -> None:
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
         from anthropic.resources.beta.messages import Messages as BetaMessages
-        from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
@@ -73,25 +85,29 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config=config,
         )
 
-        self._original_completions_create = Completions.create
-        wrap_function_wrapper(
-            "anthropic.resources.completions",
-            "Completions.create",
-            _CompletionsWrapper(
-                tracer=self._tracer,  # type: ignore[arg-type]
-                span_name="completions.create",
-            ),
-        )
+        # Only wrap the legacy Text Completions API when the installed SDK ships it.
+        self._original_completions_create = None
+        self._original_async_completions_create = None
+        if (completions := _legacy_completions_module()) is not None:
+            self._original_completions_create = completions.Completions.create
+            wrap_function_wrapper(
+                "anthropic.resources.completions",
+                "Completions.create",
+                _CompletionsWrapper(
+                    tracer=self._tracer,  # type: ignore[arg-type]
+                    span_name="completions.create",
+                ),
+            )
 
-        self._original_async_completions_create = AsyncCompletions.create
-        wrap_function_wrapper(
-            "anthropic.resources.completions",
-            "AsyncCompletions.create",
-            _AsyncCompletionsWrapper(
-                tracer=self._tracer,  # type: ignore[arg-type]
-                span_name="completions.create",
-            ),
-        )
+            self._original_async_completions_create = completions.AsyncCompletions.create
+            wrap_function_wrapper(
+                "anthropic.resources.completions",
+                "AsyncCompletions.create",
+                _AsyncCompletionsWrapper(
+                    tracer=self._tracer,  # type: ignore[arg-type]
+                    span_name="completions.create",
+                ),
+            )
 
         self._original_messages_create = Messages.create
         wrap_function_wrapper(
@@ -237,13 +253,13 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         import anthropic._utils._transform as _transform_module
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
         from anthropic.resources.beta.messages import Messages as BetaMessages
-        from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
 
-        if self._original_completions_create is not None:
-            Completions.create = self._original_completions_create  # type: ignore[method-assign]
-        if self._original_async_completions_create is not None:
-            AsyncCompletions.create = self._original_async_completions_create  # type: ignore[method-assign]
+        if (completions := _legacy_completions_module()) is not None:
+            if self._original_completions_create is not None:
+                completions.Completions.create = self._original_completions_create
+            if self._original_async_completions_create is not None:
+                completions.AsyncCompletions.create = self._original_async_completions_create
 
         if self._original_messages_create is not None:
             Messages.create = self._original_messages_create  # type: ignore[method-assign]

@@ -34,7 +34,7 @@ from openinference.semconv.trace import (
 
 if TYPE_CHECKING:
     from anthropic import Stream
-    from anthropic.types import Completion, RawMessageStreamEvent
+    from anthropic.types import RawMessageStreamEvent
 
 
 class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
@@ -103,6 +103,12 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
 
 
 class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """
+    Wraps a stream of the legacy Text Completions API. Chunks are typed as ``Any``
+    rather than ``anthropic.types.Completion`` because anthropic>=1.0 removed that
+    type along with the API itself.
+    """
+
     __slots__ = (
         "_response_accumulator",
         "_with_span",
@@ -110,14 +116,14 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
 
     def __init__(
         self,
-        stream: "Stream[Completion]",
+        stream: "Stream[Any]",
         with_span: _WithSpan,
     ) -> None:
         super().__init__(stream)
         self._response_accumulator = _ResponseAccumulator()
         self._with_span = with_span
 
-    def __iter__(self) -> Iterator["Completion"]:
+    def __iter__(self) -> Iterator[Any]:
         try:
             for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
@@ -136,7 +142,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         )
         self._finish_tracing(status=status)
 
-    async def __aiter__(self) -> AsyncIterator["Completion"]:
+    async def __aiter__(self) -> AsyncIterator[Any]:
         try:
             async for item in self.__wrapped__:
                 self._response_accumulator.process_chunk(item)
@@ -180,7 +186,7 @@ class _ResponseAccumulator:
             stop_reason=_SimpleStringReplace(),
         )
 
-    def process_chunk(self, chunk: "Completion") -> None:
+    def process_chunk(self, chunk: Any) -> None:
         self._is_null = False
         values = chunk.model_dump(exclude_unset=True, warnings=False)
         self._values += values

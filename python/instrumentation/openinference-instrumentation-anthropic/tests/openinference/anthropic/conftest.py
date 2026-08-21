@@ -44,7 +44,14 @@ def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProv
 @pytest.fixture()
 def setup_anthropic_instrumentation(
     tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
+    """
+    Requested explicitly rather than autouse: the trace-config tests instrument with
+    their own TraceConfig, and the uninstrumentation test drives the lifecycle itself.
+    """
     AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    in_memory_span_exporter.clear()
     yield
     AnthropicInstrumentor().uninstrument()
+    in_memory_span_exporter.clear()

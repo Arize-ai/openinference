@@ -1,3 +1,6 @@
+# Requires anthropic<1.0: the legacy Text Completions API used here
+# (client.completions, HUMAN_PROMPT, AI_PROMPT) was removed in anthropic 1.0.
+# See messages_create.py for the Messages API equivalent.
 import anthropic
 from anthropic import Anthropic
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter

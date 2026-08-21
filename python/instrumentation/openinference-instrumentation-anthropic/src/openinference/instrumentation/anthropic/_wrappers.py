@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import importlib
 import logging
 from abc import ABC
 from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
 from contextvars import ContextVar, Token
+from functools import lru_cache
 from itertools import chain
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Iterable,
     Iterator,
     Mapping,
@@ -62,6 +65,55 @@ if TYPE_CHECKING:
     )
     from anthropic.types import Message, MessageParam, TextBlockParam, ToolUnionParam, Usage
     from anthropic.types.message_create_params import MessageCreateParamsBase
+
+
+#: Per-request transport options rather than model parameters. They must never reach a
+#: span: ``extra_headers`` carries a per-call auth override in the SDK's own documented
+#: pattern, so recording it would put a credential in ``input.value``.
+_REQUEST_OPTIONS = frozenset(("extra_headers", "extra_query", "extra_body", "timeout"))
+
+
+@lru_cache(maxsize=1)
+def _not_given_types() -> Tuple[type, ...]:
+    """
+    The SDK's "not given" sentinel classes, or an empty tuple if neither is present.
+
+    Callers pass a sentinel to mean "leave this parameter unset", so a sentinel must
+    never reach a span attribute. anthropic 1.0 makes the leak worse than a stray
+    ``"NOT_GIVEN"`` string: ``Omit`` defines no ``__repr__``, so serializing one
+    writes a heap address into the attribute and no two runs agree.
+    """
+    types = []
+    for name in ("NotGiven", "Omit"):
+        try:
+            types.append(getattr(importlib.import_module("anthropic"), name))
+        except (ImportError, AttributeError):
+            continue
+    return tuple(types)
+
+
+def _scrub_not_given(value: Any, sentinels: Tuple[type, ...]) -> Any:
+    """Removes sentinels nested inside the mappings and sequences of a request."""
+    if isinstance(value, Mapping):
+        return {
+            k: _scrub_not_given(v, sentinels)
+            for k, v in value.items()
+            if not isinstance(v, sentinels)
+        }
+    if isinstance(value, (list, tuple)):
+        return [_scrub_not_given(v, sentinels) for v in value if not isinstance(v, sentinels)]
+    return value
+
+
+def _traceable_arguments(arguments: Mapping[str, Any]) -> Dict[str, Any]:
+    """Drops transport options and the parameters a caller explicitly left unset."""
+    if not (sentinels := _not_given_types()):
+        return {k: v for k, v in arguments.items() if k not in _REQUEST_OPTIONS}
+    return {
+        key: _scrub_not_given(value, sentinels)
+        for key, value in arguments.items()
+        if key not in _REQUEST_OPTIONS and not isinstance(value, sentinels)
+    }
 
 
 def _stop_on_exception(
@@ -197,8 +249,7 @@ def _get_attributes_from_completions_create(
     kwargs: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield from _get_llm_model_name_from_input(kwargs)
-    invocation_parameters = dict(kwargs)
-    invocation_parameters.pop("extra_headers", None)
+    invocation_parameters = _traceable_arguments(kwargs)
     invocation_parameters.pop("model", None)
     if prompt := invocation_parameters.pop("prompt", None):
         yield from _get_llm_prompts(prompt)
@@ -304,8 +355,7 @@ def _get_attributes_from_messages_create(
     kwargs: MessageCreateParamsBase,
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield from _get_llm_model_name_from_input(kwargs)
-    invocation_parameters = dict(kwargs)
-    invocation_parameters.pop("extra_headers", None)
+    invocation_parameters = _traceable_arguments(kwargs)
     invocation_parameters.pop("model", None)
     invocation_parameters.pop("output_format", None)
     system = invocation_parameters.pop("system", None)
@@ -661,7 +711,7 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-def
 
 @_stop_on_exception
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    yield INPUT_VALUE, safe_json_dumps(arguments)
+    yield INPUT_VALUE, safe_json_dumps(_traceable_arguments(arguments))
     yield INPUT_MIME_TYPE, JSON
 
 

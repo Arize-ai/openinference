@@ -1,7 +1,9 @@
 # ruff: noqa: E501
+import importlib
 import json
 import random
 import string
+from types import ModuleType
 from typing import Any, Dict, Optional
 
 import anthropic
@@ -9,7 +11,6 @@ import pytest
 from anthropic import Anthropic, AsyncAnthropic
 from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
 from anthropic.resources.beta.messages import Messages as BetaMessages
-from anthropic.resources.completions import AsyncCompletions, Completions
 from anthropic.resources.messages import AsyncMessages, Messages
 from anthropic.types import (
     ImageBlockParam,
@@ -30,12 +31,19 @@ from anthropic.types import (
 from httpx import Response
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
 from pydantic import BaseModel
 from respx import MockRouter
 from wrapt import BoundFunctionWrapper
 
-from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation import (
+    REDACTED_VALUE,
+    OITracer,
+    TraceConfig,
+    suppress_tracing,
+    using_attributes,
+)
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
 from openinference.instrumentation.anthropic._stream import _MessageExtractor
 from openinference.instrumentation.anthropic._wrappers import (
@@ -57,6 +65,28 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+
+def _legacy_completions() -> Optional[ModuleType]:
+    """
+    The legacy Text Completions API and the ``HUMAN_PROMPT``/``AI_PROMPT`` constants
+    that went with it were removed in anthropic 1.0.
+    """
+    try:
+        return importlib.import_module("anthropic.resources.completions")
+    except ImportError:
+        return None
+
+
+_completions = _legacy_completions()
+
+requires_legacy_completions = pytest.mark.skipif(
+    _completions is None,
+    reason="anthropic>=1.0 removed the legacy Text Completions API",
+)
+
+HUMAN_PROMPT = "\n\nHuman:"
+AI_PROMPT = "\n\nAssistant:"
 
 
 def _get_tool_use_id(message: Message) -> Optional[str]:
@@ -86,6 +116,162 @@ def assert_output_value_contains(output_value: str, expected: Any) -> None:
     assert_json_contains(json.loads(output_value), expected)
 
 
+def _message_json(
+    text: str,
+    *,
+    model: str = "claude-sonnet-4-6",
+    message_id: str = "msg_1",
+    usage: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """A minimal non-streamed assistant message holding a single text block."""
+    return {
+        "id": message_id,
+        "type": "message",
+        "role": "assistant",
+        "model": model,
+        "content": [{"type": "text", "text": text}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": usage or {"input_tokens": 14, "output_tokens": 11},
+    }
+
+
+FINISH_REASON_USAGE = {"input_tokens": 10, "output_tokens": 5}
+
+
+def _pop_finish_reason_attributes(
+    attributes: Dict[str, Any],
+    invocation_parameters: Dict[str, Any],
+) -> None:
+    """
+    Pops everything the finish-reason cases carry apart from LLM_FINISH_REASON, which the
+    caller asserts on. Shared by the streamed and non-streamed parametrisations, which
+    differ only in their invocation parameters.
+    """
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_parameters
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hello"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert attributes.pop(
+        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    ) == ("hi")
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == FINISH_REASON_USAGE["input_tokens"]
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == FINISH_REASON_USAGE["output_tokens"]
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == sum(FINISH_REASON_USAGE.values())
+
+
+def _pop_message_attributes(
+    attributes: Dict[str, Any],
+    *,
+    input_message: str = "hello",
+    output_text: str = "hi",
+) -> None:
+    """
+    Pops every attribute a non-streamed message span carries apart from INPUT_VALUE and
+    LLM_INVOCATION_PARAMETERS, which the caller asserts on before `assert not attributes`.
+    Assumes the response came from `_message_json` with its default usage.
+    """
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == output_text
+    )
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 14
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 11
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 25
+
+
+def _text_message_sse(
+    text: str,
+    usage: Dict[str, Any],
+    *,
+    model: str = "claude-sonnet-4-6",
+    message_id: str = "msg_1",
+    stop_reason: str = "end_turn",
+) -> bytes:
+    """
+    Server-sent events for one streamed assistant message holding a single text block.
+    The Messages API and the beta Messages API share this wire format.
+    """
+
+    def event(name: str, data: Dict[str, Any]) -> bytes:
+        return f"event: {name}\ndata: ".encode() + json.dumps(data).encode() + b"\n\n"
+
+    return b"".join(
+        [
+            event(
+                "message_start",
+                {
+                    "type": "message_start",
+                    "message": {
+                        "id": message_id,
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [],
+                        "model": model,
+                        "stop_reason": None,
+                        "stop_sequence": None,
+                        "usage": usage,
+                    },
+                },
+            ),
+            event(
+                "content_block_start",
+                {
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {"type": "text", "text": ""},
+                },
+            ),
+            event(
+                "content_block_delta",
+                {
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {"type": "text_delta", "text": text},
+                },
+            ),
+            event("content_block_stop", {"type": "content_block_stop", "index": 0}),
+            event(
+                "message_delta",
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": stop_reason, "stop_sequence": None},
+                    "usage": usage,
+                },
+            ),
+            event("message_stop", {"type": "message_stop"}),
+        ]
+    )
+
+
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
         (instrumentor_entrypoint,) = entry_points(
@@ -99,19 +285,16 @@ class TestInstrumentor:
         assert isinstance(AnthropicInstrumentor()._tracer, OITracer)
 
 
+@requires_legacy_completions
 @pytest.mark.vcr
 def test_anthropic_instrumentation_completions_streaming(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = Anthropic(api_key="sk-ant-fake")
+    client: Any = Anthropic(api_key="sk-ant-fake")
 
-    prompt = (
-        f"{anthropic.HUMAN_PROMPT}"
-        f" why is the sky blue? respond in five words or less."
-        f" {anthropic.AI_PROMPT}"
-    )
+    prompt = f"{HUMAN_PROMPT} why is the sky blue? respond in five words or less. {AI_PROMPT}"
 
     stream = client.completions.create(
         model="claude-sonnet-4-6",
@@ -351,6 +534,7 @@ async def test_anthropic_instrumentation_async_stream_message(
     assert not attributes
 
 
+@requires_legacy_completions
 @pytest.mark.asyncio
 @pytest.mark.vcr
 async def test_anthropic_instrumentation_async_completions_streaming(
@@ -358,13 +542,9 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = AsyncAnthropic(api_key="sk-ant-fake")
+    client: Any = AsyncAnthropic(api_key="sk-ant-fake")
 
-    prompt = (
-        f"{anthropic.HUMAN_PROMPT}"
-        f" why is the sky blue? respond in five words or less."
-        f" {anthropic.AI_PROMPT}"
-    )
+    prompt = f"{HUMAN_PROMPT} why is the sky blue? respond in five words or less. {AI_PROMPT}"
 
     stream = await client.completions.create(
         model="claude-2.1",
@@ -413,21 +593,18 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     assert not attributes
 
 
+@requires_legacy_completions
 @pytest.mark.vcr
 def test_anthropic_instrumentation_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = Anthropic(api_key="sk-ant-fake")
+    client: Any = Anthropic(api_key="sk-ant-fake")
 
     invocation_params = {"max_tokens_to_sample": 1000}
 
-    prompt = (
-        f"{anthropic.HUMAN_PROMPT}"
-        f" how does a court case get to the Supreme Court?"
-        f" {anthropic.AI_PROMPT}"
-    )
+    prompt = f"{HUMAN_PROMPT} how does a court case get to the Supreme Court? {AI_PROMPT}"
 
     client.completions.create(
         model="claude-sonnet-4-6",
@@ -755,21 +932,18 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     assert not attributes
 
 
+@requires_legacy_completions
 @pytest.mark.vcr
 async def test_anthropic_instrumentation_async_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = AsyncAnthropic(api_key="sk-ant-fake")
+    client: Any = AsyncAnthropic(api_key="sk-ant-fake")
 
     invocation_params = {"max_tokens_to_sample": 1000}
 
-    prompt = (
-        f"{anthropic.HUMAN_PROMPT}"
-        f" how does a court case get to the Supreme Court?"
-        f" {anthropic.AI_PROMPT}"
-    )
+    prompt = f"{HUMAN_PROMPT} how does a court case get to the Supreme Court? {AI_PROMPT}"
 
     await client.completions.create(
         model="claude-sonnet-4-6",
@@ -1618,28 +1792,83 @@ def test_anthropic_instrumentation_tool_use_in_input(
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
-
+    assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})
 
+    tool_arguments = '{"location": "San Francisco, CA", "unit": "fahrenheit"}'
+    tool_use_id = "toolu_01KBqpqR73qWGsMaW3vBzEjz"
+
+    # The assistant turn carries the tool call both as a message-level tool_calls entry
+    # and as a content block.
+    assistant = f"{LLM_INPUT_MESSAGES}.1"
+    assert attributes.pop(f"{assistant}.{MESSAGE_ROLE}") == "assistant"
     assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
+        attributes.pop(f"{assistant}.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
         == "get_weather"
     )
     assert (
-        attributes.get(
-            f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
-        )
-        == '{"location": "San Francisco, CA", "unit": "fahrenheit"}'
+        attributes.pop(f"{assistant}.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}")
+        == tool_arguments
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
-
+    assert attributes.pop(f"{assistant}.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}") == tool_use_id
+    assert attributes.pop(f"{assistant}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}") == "text"
+    assert isinstance(
+        attributes.pop(f"{assistant}.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
+    )
+    assert attributes.pop(f"{assistant}.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}") == "tool_use"
     assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
+        attributes.pop(f"{assistant}.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_NAME}")
+        == "get_weather"
+    )
+    assert (
+        attributes.pop(f"{assistant}.{MESSAGE_CONTENTS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}")
+        == tool_arguments
+    )
+    assert attributes.pop(f"{assistant}.{MESSAGE_CONTENTS}.1.{TOOL_CALL_ID}") == tool_use_id
+
+    # The tool result turn keeps the id that ties it back to the call above.
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
         == '{"weather": "sunny", "temperature": "75"}'
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}") == tool_use_id
+
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "What is the weather like in San Francisco in Fahrenheit?"
+    )
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == {"max_tokens": 1024}
+    assert isinstance(tool_schema := attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str)
+    assert json.loads(tool_schema)["name"] == "get_weather"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert isinstance(
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"), str
+    )
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+
+    assert not attributes
 
 
+@requires_legacy_completions
 @pytest.mark.vcr
 def test_anthropic_instrumentation_context_attributes_existence(
     tracer_provider: TracerProvider,
@@ -1669,13 +1898,9 @@ def test_anthropic_instrumentation_context_attributes_existence(
         "var_list": [1, 2, 3],
     }
 
-    client = Anthropic(api_key="sk-ant-fake")
+    client: Any = Anthropic(api_key="sk-ant-fake")
 
-    prompt = (
-        f"{anthropic.HUMAN_PROMPT}"
-        f" how does a court case get to the Supreme Court?"
-        f" {anthropic.AI_PROMPT}"
-    )
+    prompt = f"{HUMAN_PROMPT} how does a court case get to the Supreme Court? {AI_PROMPT}"
 
     with using_attributes(
         session_id=session_id,
@@ -1694,15 +1919,105 @@ def test_anthropic_instrumentation_context_attributes_existence(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    for span in spans:
-        att = dict(span.attributes or {})
-        assert att.get(SESSION_ID, None)
-        assert att.get(USER_ID, None)
-        assert att.get(METADATA, None)
-        assert att.get(TAG_TAGS, None)
-        assert att.get(LLM_PROMPT_TEMPLATE, None)
-        assert att.get(LLM_PROMPT_TEMPLATE_VERSION, None)
-        assert att.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
+    assert len(spans) == 1
+    assert spans[0].name == "completions.create"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(SESSION_ID) == session_id
+    assert attributes.pop(USER_ID) == user_id
+    assert isinstance(recorded_metadata := attributes.pop(METADATA), str)
+    assert json.loads(recorded_metadata) == metadata
+    assert attributes.pop(TAG_TAGS) == tuple(tags)
+    assert attributes.pop(LLM_PROMPT_TEMPLATE) == prompt_template
+    assert attributes.pop(LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+    assert isinstance(recorded_variables := attributes.pop(LLM_PROMPT_TEMPLATE_VARIABLES), str)
+    assert json.loads(recorded_variables) == prompt_template_variables
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_PROMPTS) == (prompt,)
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == {"max_tokens_to_sample": 1000}
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert not attributes
+
+
+def test_anthropic_instrumentation_messages_context_attributes_existence(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Context attributes propagate onto messages spans on every supported SDK version."""
+    session_id = "my-test-session-id"
+    user_id = "my-test-user-id"
+    metadata = {
+        "test-int": 1,
+        "test-str": "string",
+        "test-list": [1, 2, 3],
+        "test-dict": {
+            "key-1": "val-1",
+            "key-2": "val-2",
+        },
+    }
+    tags = ["tag-1", "tag-2"]
+    prompt_template = (
+        "This is a test prompt template with int {var_int}, "
+        "string {var_string}, and list {var_list}"
+    )
+    prompt_template_version = "v1.0"
+    prompt_template_variables = {
+        "var_int": 1,
+        "var_str": "2",
+        "var_list": [1, 2, 3],
+    }
+
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(status_code=200, json=_message_json("hi"))
+    )
+    client = Anthropic(api_key="sk-ant-fake")
+
+    with using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    ):
+        client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": "hello"}],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "messages.create"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(SESSION_ID) == session_id
+    assert attributes.pop(USER_ID) == user_id
+    assert isinstance(recorded_metadata := attributes.pop(METADATA), str)
+    assert json.loads(recorded_metadata) == metadata
+    assert attributes.pop(TAG_TAGS) == tuple(tags)
+    assert attributes.pop(LLM_PROMPT_TEMPLATE) == prompt_template
+    assert attributes.pop(LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+    assert isinstance(recorded_variables := attributes.pop(LLM_PROMPT_TEMPLATE_VARIABLES), str)
+    assert json.loads(recorded_variables) == prompt_template_variables
+
+    _pop_message_attributes(attributes)
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == {"max_tokens": 1000}
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+
+    assert not attributes
 
 
 @pytest.mark.vcr
@@ -1764,9 +2079,50 @@ def test_anthropic_instrumentation_messages_token_counts(
         == 1733
     )
     # first request doesn't hit cache
-    assert att1.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) is None
+    assert LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ not in att1
     # second request doesn't write cache
-    assert att2.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) is None
+    assert LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE not in att2
+
+    # Both spans otherwise carry the same shape: a cached system prompt split into two
+    # content blocks, then the user turn.
+    for attributes in (att1, att2):
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+        assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+        assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+        assert attributes.pop(LLM_MODEL_NAME) == "claude-3-7-sonnet-20250219"
+        assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == {"max_tokens": 2048}
+
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
+        for index in (0, 1):
+            prefix = f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.{index}"
+            assert attributes.pop(f"{prefix}.{MESSAGE_CONTENT_TYPE}") == "text"
+            assert isinstance(attributes.pop(f"{prefix}.{MESSAGE_CONTENT_TEXT}"), str)
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}")
+            == "Analyze the major themes in 'Pride and Prejudice'."
+        )
+
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert isinstance(
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"),
+            str,
+        )
+
+        assert isinstance(attributes.pop(INPUT_VALUE), str)
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+
+        assert not attributes
 
 
 @pytest.mark.vcr
@@ -2222,8 +2578,9 @@ def test_anthropic_uninstrumentation(
 ) -> None:
     AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
 
-    assert isinstance(Completions.create, BoundFunctionWrapper)
-    assert isinstance(AsyncCompletions.create, BoundFunctionWrapper)
+    if _completions is not None:
+        assert isinstance(_completions.Completions.create, BoundFunctionWrapper)
+        assert isinstance(_completions.AsyncCompletions.create, BoundFunctionWrapper)
 
     assert isinstance(Messages.create, BoundFunctionWrapper)
     assert isinstance(AsyncMessages.create, BoundFunctionWrapper)
@@ -2241,8 +2598,9 @@ def test_anthropic_uninstrumentation(
 
     AnthropicInstrumentor().uninstrument()
 
-    assert not isinstance(Completions.create, BoundFunctionWrapper)
-    assert not isinstance(AsyncCompletions.create, BoundFunctionWrapper)
+    if _completions is not None:
+        assert not isinstance(_completions.Completions.create, BoundFunctionWrapper)
+        assert not isinstance(_completions.AsyncCompletions.create, BoundFunctionWrapper)
 
     assert not isinstance(Messages.create, BoundFunctionWrapper)
     assert not isinstance(AsyncMessages.create, BoundFunctionWrapper)
@@ -2441,6 +2799,469 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+
+    assert not attributes
+
+
+BETA_STREAM_USAGE = {"input_tokens": 14, "output_tokens": 11}
+BETA_STREAM_TEXT = "The capital of France is Paris."
+
+
+def _assert_beta_stream_attributes(
+    span: Any,
+    span_name: str,
+    input_message: str,
+    invocation_params: Dict[str, Any],
+) -> None:
+    """Every beta streaming path must record the same span shape."""
+    assert span.name == span_name
+    attributes = dict(span.attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == BETA_STREAM_TEXT
+    )
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_1",
+            "content": [{"text": BETA_STREAM_TEXT, "type": "text"}],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "type": "message",
+        },
+    )
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
+
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == BETA_STREAM_USAGE["input_tokens"]
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == BETA_STREAM_USAGE["output_tokens"]
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == sum(BETA_STREAM_USAGE.values())
+
+    assert not attributes
+
+
+def test_anthropic_instrumentation_beta_messages_stream(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """beta.messages.stream() records one span when the stream is exhausted."""
+    input_message = "What's the capital of France?"
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(
+            status_code=200,
+            content=_text_message_sse(BETA_STREAM_TEXT, BETA_STREAM_USAGE),
+        )
+    )
+    client = Anthropic(api_key="sk-ant-fake")
+
+    with client.beta.messages.stream(
+        max_tokens=1024,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-6",
+    ) as stream:
+        assert "".join(stream.text_stream) == BETA_STREAM_TEXT
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    _assert_beta_stream_attributes(
+        spans[0],
+        "beta.messages.stream",
+        input_message,
+        {"max_tokens": 1024, "stream": True},
+    )
+
+
+async def test_anthropic_instrumentation_async_beta_messages_stream(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """The async beta.messages.stream() records the same span as the sync one."""
+    input_message = "What's the capital of France?"
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(
+            status_code=200,
+            content=_text_message_sse(BETA_STREAM_TEXT, BETA_STREAM_USAGE),
+        )
+    )
+    client = AsyncAnthropic(api_key="sk-ant-fake")
+
+    text = ""
+    async with client.beta.messages.stream(
+        max_tokens=1024,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-6",
+    ) as stream:
+        async for chunk in stream.text_stream:
+            text += chunk
+    assert text == BETA_STREAM_TEXT
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    _assert_beta_stream_attributes(
+        spans[0],
+        "beta.messages.stream",
+        input_message,
+        {"max_tokens": 1024, "stream": True},
+    )
+
+
+def test_anthropic_instrumentation_beta_messages_create_streaming(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """beta.messages.create(stream=True) ends its span when iteration completes."""
+    input_message = "What's the capital of France?"
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(
+            status_code=200,
+            content=_text_message_sse(BETA_STREAM_TEXT, BETA_STREAM_USAGE),
+        )
+    )
+    client = Anthropic(api_key="sk-ant-fake")
+
+    stream = client.beta.messages.create(
+        max_tokens=1024,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-6",
+        stream=True,
+    )
+    # The span must stay open until the caller drains the stream.
+    assert not in_memory_span_exporter.get_finished_spans()
+    for _ in stream:
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    _assert_beta_stream_attributes(
+        spans[0],
+        "beta.messages.create",
+        input_message,
+        {"max_tokens": 1024, "stream": True},
+    )
+
+
+async def test_anthropic_instrumentation_async_beta_messages_create_streaming(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """The async beta.messages.create(stream=True) records the same span as the sync one."""
+    input_message = "What's the capital of France?"
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(
+            status_code=200,
+            content=_text_message_sse(BETA_STREAM_TEXT, BETA_STREAM_USAGE),
+        )
+    )
+    client = AsyncAnthropic(api_key="sk-ant-fake")
+
+    stream = await client.beta.messages.create(
+        max_tokens=1024,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-6",
+        stream=True,
+    )
+    assert not in_memory_span_exporter.get_finished_spans()
+    async for _ in stream:
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    _assert_beta_stream_attributes(
+        spans[0],
+        "beta.messages.create",
+        input_message,
+        {"max_tokens": 1024, "stream": True},
+    )
+
+
+def test_not_given_parameters_are_omitted_from_attributes(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    A caller may pass the SDK's sentinels to leave parameters unset. Those must not
+    reach a span: anthropic>=1.0 renders `Omit` as a heap address, which would make
+    input.value differ between otherwise identical runs.
+    """
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(status_code=200, json=_message_json("hi"))
+    )
+    # Typed as Any because the two SDK versions disagree on which sentinel each
+    # parameter accepts: anthropic<1.0 types them as NotGiven, anthropic>=1.0 as Omit.
+    # Both must be filtered at runtime, so the test passes one of each.
+    client: Any = Anthropic(api_key="sk-ant-fake")
+
+    client.beta.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=64,
+        messages=[{"role": "user", "content": "hello"}],
+        system=anthropic.Omit(),
+        stop_sequences=anthropic.NotGiven(),
+        # Nested one level down, which the top-level filter alone would miss.
+        metadata={"user_id": anthropic.Omit()},
+    )
+
+    attributes = dict(in_memory_span_exporter.get_finished_spans()[0].attributes or {})
+    rendered = str(attributes)
+    _pop_message_attributes(attributes)
+
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == {"max_tokens": 64, "metadata": {}}
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    assert json.loads(input_value) == {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 64,
+        "messages": [{"role": "user", "content": "hello"}],
+        "metadata": {},
+    }
+
+    assert not attributes
+
+    for sentinel in ("NotGiven", "NOT_GIVEN", "Omit", "not_given"):
+        assert sentinel not in rendered
+
+
+def test_request_options_are_omitted_from_attributes(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    Per-request transport options are not model parameters and must not be recorded.
+    extra_headers is the SDK's documented way to override auth for one call, so
+    recording it would put a credential in input.value.
+    """
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(status_code=200, json=_message_json("hi"))
+    )
+    client = Anthropic(api_key="sk-ant-fake")
+
+    client.beta.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=64,
+        messages=[{"role": "user", "content": "hello"}],
+        extra_headers={"x-api-key": "sk-ant-super-secret"},
+        extra_query={"trace": "no"},
+        extra_body={"internal": "no"},
+        timeout=30.0,
+    )
+
+    attributes = dict(in_memory_span_exporter.get_finished_spans()[0].attributes or {})
+    rendered = str(attributes)
+    _pop_message_attributes(attributes)
+
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == {"max_tokens": 64}
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    assert set(json.loads(input_value)) == {"model", "max_tokens", "messages"}
+
+    assert not attributes
+
+    assert "sk-ant-super-secret" not in rendered
+
+
+def test_suppress_tracing_emits_no_spans(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """suppress_tracing must stop both the plain and the streaming beta paths."""
+    route = respx_mock.post("https://api.anthropic.com/v1/messages")
+    client = Anthropic(api_key="sk-ant-fake")
+    kwargs: Dict[str, Any] = {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 64,
+        "messages": [{"role": "user", "content": "hello"}],
+    }
+
+    with suppress_tracing():
+        route.mock(return_value=Response(status_code=200, json=_message_json("hi")))
+        client.beta.messages.create(**kwargs)
+
+        route.mock(
+            return_value=Response(
+                status_code=200, content=_text_message_sse("hi", BETA_STREAM_USAGE)
+            )
+        )
+        with client.beta.messages.stream(**kwargs) as stream:
+            "".join(stream.text_stream)
+
+    assert in_memory_span_exporter.get_finished_spans() == ()
+
+    # Tracing resumes once the suppression scope exits.
+    route.mock(return_value=Response(status_code=200, json=_message_json("hi")))
+    client.beta.messages.create(**kwargs)
+    assert len(in_memory_span_exporter.get_finished_spans()) == 1
+
+
+def test_trace_config_hides_inputs(
+    respx_mock: MockRouter,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """hide_inputs must redact input.value and drop the input messages."""
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(status_code=200, json=_message_json("hi"))
+    )
+    AnthropicInstrumentor().instrument(
+        tracer_provider=tracer_provider, config=TraceConfig(hide_inputs=True)
+    )
+    try:
+        Anthropic(api_key="sk-ant-fake").beta.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=64,
+            messages=[{"role": "user", "content": "hello"}],
+        )
+    finally:
+        AnthropicInstrumentor().uninstrument()
+
+    attributes = dict(in_memory_span_exporter.get_finished_spans()[0].attributes or {})
+
+    # The input is redacted, and its mime type and messages are dropped entirely.
+    assert attributes.pop(INPUT_VALUE) == REDACTED_VALUE
+    assert INPUT_MIME_TYPE not in attributes
+    assert not [key for key in attributes if key.startswith(LLM_INPUT_MESSAGES)]
+
+    # Everything else, including the output, is untouched.
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == {"max_tokens": 64}
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "hi"
+    )
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 14
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 11
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 25
+
+    assert not attributes
+
+
+def test_trace_config_hides_outputs_on_beta_stream(
+    respx_mock: MockRouter,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """hide_outputs must reach the streaming path, which finishes its span later."""
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(status_code=200, content=_text_message_sse("hi", BETA_STREAM_USAGE))
+    )
+    AnthropicInstrumentor().instrument(
+        tracer_provider=tracer_provider, config=TraceConfig(hide_outputs=True)
+    )
+    try:
+        client = Anthropic(api_key="sk-ant-fake")
+        with client.beta.messages.stream(
+            model="claude-sonnet-4-6",
+            max_tokens=64,
+            messages=[{"role": "user", "content": "hello"}],
+        ) as stream:
+            "".join(stream.text_stream)
+    finally:
+        AnthropicInstrumentor().uninstrument()
+
+    attributes = dict(in_memory_span_exporter.get_finished_spans()[0].attributes or {})
+
+    # The output is redacted, and its mime type and messages are dropped entirely.
+    assert attributes.pop(OUTPUT_VALUE) == REDACTED_VALUE
+    assert OUTPUT_MIME_TYPE not in attributes
+    assert not [key for key in attributes if key.startswith(LLM_OUTPUT_MESSAGES)]
+
+    # Everything else, including the input, is untouched.
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == {"max_tokens": 64, "stream": True}
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hello"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == BETA_STREAM_USAGE["input_tokens"]
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == BETA_STREAM_USAGE["output_tokens"]
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == sum(BETA_STREAM_USAGE.values())
+
+    assert not attributes
+
+
+def test_api_error_ends_span_with_error_status(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """A failed request must still close its span, marked as an error."""
+    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=Response(status_code=500, json={"type": "error", "error": {"message": "boom"}})
+    )
+    client = Anthropic(api_key="sk-ant-fake", max_retries=0)
+
+    with pytest.raises(anthropic.APIStatusError):
+        client.beta.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=64,
+            messages=[{"role": "user", "content": "hello"}],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "beta.messages.create"
+    assert span.status.status_code is StatusCode.ERROR
+    assert span.events, "the exception must be recorded on the span"
+
+    # Inputs are recorded even though the call failed. Nothing about the response is.
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hello"
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == {"max_tokens": 64}
 
     assert not attributes
 
@@ -2675,56 +3496,7 @@ def test_cache_token_details_match_between_streaming_and_non_streaming(
         "cache_creation_input_tokens": 1733,
         "cache_read_input_tokens": 512,
     }
-    sse_events = [
-        b"event: message_start\ndata: "
-        + json.dumps(
-            {
-                "type": "message_start",
-                "message": {
-                    "id": "msg_1",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [],
-                    "model": "claude-sonnet-4-6",
-                    "stop_reason": None,
-                    "stop_sequence": None,
-                    "usage": usage,
-                },
-            }
-        ).encode()
-        + b"\n\n",
-        b"event: content_block_start\ndata: "
-        + json.dumps(
-            {
-                "type": "content_block_start",
-                "index": 0,
-                "content_block": {"type": "text", "text": ""},
-            }
-        ).encode()
-        + b"\n\n",
-        b"event: content_block_delta\ndata: "
-        + json.dumps(
-            {
-                "type": "content_block_delta",
-                "index": 0,
-                "delta": {"type": "text_delta", "text": "hi"},
-            }
-        ).encode()
-        + b"\n\n",
-        b"event: content_block_stop\ndata: "
-        + json.dumps({"type": "content_block_stop", "index": 0}).encode()
-        + b"\n\n",
-        b"event: message_delta\ndata: "
-        + json.dumps(
-            {
-                "type": "message_delta",
-                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
-                "usage": usage,
-            }
-        ).encode()
-        + b"\n\n",
-        b"event: message_stop\ndata: " + json.dumps({"type": "message_stop"}).encode() + b"\n\n",
-    ]
+    sse = _text_message_sse("hi", usage)
     route = respx_mock.post("https://api.anthropic.com/v1/messages")
     client = Anthropic(api_key="sk-ant-fake")
     kwargs: Dict[str, Any] = {
@@ -2750,30 +3522,59 @@ def test_cache_token_details_match_between_streaming_and_non_streaming(
     )
     client.messages.create(**kwargs)
 
-    route.mock(return_value=Response(status_code=200, content=b"".join(sse_events)))
+    route.mock(return_value=Response(status_code=200, content=sse))
     for _ in client.messages.create(stream=True, **kwargs):
         pass
 
-    route.mock(return_value=Response(status_code=200, content=b"".join(sse_events)))
+    route.mock(return_value=Response(status_code=200, content=sse))
     with client.messages.stream(**kwargs) as stream:
         for _ in stream:
             pass
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 3
-    expected = {
-        LLM_TOKEN_COUNT_PROMPT: 2255,
-        LLM_TOKEN_COUNT_COMPLETION: 5,
-        LLM_TOKEN_COUNT_TOTAL: 2260,
-        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 512,
-        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: 1733,
-    }
+    assert [span.name for span in spans] == [
+        "messages.create",
+        "messages.create",
+        "messages.stream",
+    ]
+
     for span in spans:
         attributes = dict(span.attributes or {})
-        assert {k: attributes.get(k) for k in expected} == expected
 
-    # message_content.id must never be emitted for thinking/redacted_thinking blocks
-    assert not any(key.endswith("message_content.id") for key in attributes)
+        # The point of the test: identical usage must yield identical token attributes
+        # whichever way it was served.
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 2255
+        assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 5
+        assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 2260
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 512
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 1733
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+        assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+        assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+        assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
+        assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params).get("max_tokens") == 1000
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hello"
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
+        assert (
+            attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == "hi"
+        )
+        assert isinstance(attributes.pop(INPUT_VALUE), str)
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+        # Nothing left over, so message_content.id can never have been emitted for a
+        # thinking or redacted_thinking block.
+        assert not attributes
 
 
 @pytest.mark.parametrize(
@@ -2869,20 +3670,10 @@ def test_finish_reason_values_messages_create(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
+    message = _message_json("hi", message_id="msg_test123", usage=FINISH_REASON_USAGE)
+    message["stop_reason"] = stop_reason
     respx_mock.post("https://api.anthropic.com/v1/messages").mock(
-        return_value=Response(
-            status_code=200,
-            json={
-                "id": "msg_test123",
-                "type": "message",
-                "role": "assistant",
-                "model": "claude-sonnet-4-6",
-                "content": [{"type": "text", "text": "hi"}],
-                "stop_reason": stop_reason,
-                "stop_sequence": None,
-                "usage": {"input_tokens": 10, "output_tokens": 5},
-            },
-        )
+        return_value=Response(status_code=200, json=message)
     )
     client = Anthropic(api_key="sk-ant-fake")
     client.messages.create(
@@ -2890,10 +3681,13 @@ def test_finish_reason_values_messages_create(
         max_tokens=1000,
         messages=[{"role": "user", "content": "hello"}],
     )
+
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})
-    assert attributes.get(LLM_FINISH_REASON) == stop_reason
+    assert attributes.pop(LLM_FINISH_REASON) == stop_reason
+    _pop_finish_reason_attributes(attributes, {"max_tokens": 1000})
+    assert not attributes
 
 
 @pytest.mark.parametrize(
@@ -2906,58 +3700,11 @@ def test_finish_reason_values_messages_create_streaming(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    sse_events = [
-        b"event: message_start\ndata: "
-        + json.dumps(
-            {
-                "type": "message_start",
-                "message": {
-                    "id": "msg_1",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [],
-                    "model": "claude-sonnet-4-6",
-                    "stop_reason": None,
-                    "stop_sequence": None,
-                    "usage": {"input_tokens": 10, "output_tokens": 1},
-                },
-            }
-        ).encode()
-        + b"\n\n",
-        b"event: content_block_start\ndata: "
-        + json.dumps(
-            {
-                "type": "content_block_start",
-                "index": 0,
-                "content_block": {"type": "text", "text": ""},
-            }
-        ).encode()
-        + b"\n\n",
-        b"event: content_block_delta\ndata: "
-        + json.dumps(
-            {
-                "type": "content_block_delta",
-                "index": 0,
-                "delta": {"type": "text_delta", "text": "hi"},
-            }
-        ).encode()
-        + b"\n\n",
-        b"event: content_block_stop\ndata: "
-        + json.dumps({"type": "content_block_stop", "index": 0}).encode()
-        + b"\n\n",
-        b"event: message_delta\ndata: "
-        + json.dumps(
-            {
-                "type": "message_delta",
-                "delta": {"stop_reason": stop_reason, "stop_sequence": None},
-                "usage": {"output_tokens": 5},
-            }
-        ).encode()
-        + b"\n\n",
-        b"event: message_stop\ndata: " + json.dumps({"type": "message_stop"}).encode() + b"\n\n",
-    ]
     respx_mock.post("https://api.anthropic.com/v1/messages").mock(
-        return_value=Response(status_code=200, content=b"".join(sse_events))
+        return_value=Response(
+            status_code=200,
+            content=_text_message_sse("hi", FINISH_REASON_USAGE, stop_reason=stop_reason),
+        )
     )
     client = Anthropic(api_key="sk-ant-fake")
     stream = client.messages.create(
@@ -2968,10 +3715,13 @@ def test_finish_reason_values_messages_create_streaming(
     )
     for _ in stream:
         pass
+
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})
-    assert attributes.get(LLM_FINISH_REASON) == stop_reason
+    assert attributes.pop(LLM_FINISH_REASON) == stop_reason
+    _pop_finish_reason_attributes(attributes, {"max_tokens": 1000, "stream": True})
+    assert not attributes
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
@@ -3013,6 +3763,7 @@ MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_A
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
