@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+* **anthropic:** instrument the beta tool runner with a parent chain span and tool child spans ([#3392](https://github.com/Arize-ai/openinference/issues/3392))
+
 ## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.1...python-openinference-instrumentation-anthropic-v1.1.2) (2026-08-07)
 
 

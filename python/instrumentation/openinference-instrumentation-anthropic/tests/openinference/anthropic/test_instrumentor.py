@@ -3037,3 +3037,172 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER_ANTHROPIC = OpenInferenceLLMProviderValues.ANTHROPIC.value
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
+
+
+def test_tool_runner_produces_a_parent_span_with_tool_children(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    from anthropic.lib.tools import beta_tool
+
+    @beta_tool
+    def get_weather(location: str) -> str:
+        """Get the weather for a location."""
+        return "65 degrees and sunny"
+
+    respx_mock.post("https://api.anthropic.com/v1/messages").side_effect = [
+        Response(
+            200,
+            json={
+                "id": "msg_01",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-5-sonnet-20241022",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_01",
+                        "name": "get_weather",
+                        "input": {"location": "San Francisco"},
+                    }
+                ],
+                "stop_reason": "tool_use",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 10, "output_tokens": 20},
+            },
+        ),
+        Response(
+            200,
+            json={
+                "id": "msg_02",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-5-sonnet-20241022",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The weather in San Francisco is 65 degrees and sunny.",
+                    }
+                ],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 30, "output_tokens": 15},
+            },
+        ),
+    ]
+
+    client = Anthropic(api_key="sk-ant-fake")
+    runner = client.beta.messages.tool_runner(
+        model="claude-3-5-sonnet-20241022",
+        max_tokens=1000,
+        tools=[get_weather],
+        messages=[{"role": "user", "content": "What is the weather in SF?"}],
+    )
+    final_message = runner.until_done()
+    assert final_message is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    parent_spans = [s for s in spans if s.name == "beta.messages.tool_runner"]
+    assert len(parent_spans) == 1
+    parent_span = parent_spans[0]
+    parent_attributes = dict(parent_span.attributes or {})
+    assert parent_attributes.get(OPENINFERENCE_SPAN_KIND) == CHAIN.value
+
+    child_spans = [s for s in spans if s.parent and s.parent.span_id == parent_span.context.span_id]
+    llm_children = [
+        s for s in child_spans if s.name in ("beta.messages.parse", "beta.messages.create")
+    ]
+    tool_children = [s for s in child_spans if s.name == "get_weather"]
+
+    assert len(llm_children) == 2
+    assert len(tool_children) == 1
+    tool_span = tool_children[0]
+    tool_attributes = dict(tool_span.attributes or {})
+    assert tool_attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
+    assert tool_attributes.get(SpanAttributes.TOOL_NAME) == "get_weather"
+
+
+@pytest.mark.asyncio
+async def test_async_tool_runner_produces_a_parent_span_with_tool_children(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    from anthropic.lib.tools import beta_async_tool
+
+    @beta_async_tool
+    async def get_weather(location: str) -> str:
+        """Get the weather for a location."""
+        return "65 degrees and sunny"
+
+    respx_mock.post("https://api.anthropic.com/v1/messages").side_effect = [
+        Response(
+            200,
+            json={
+                "id": "msg_01",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-5-sonnet-20241022",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_01",
+                        "name": "get_weather",
+                        "input": {"location": "San Francisco"},
+                    }
+                ],
+                "stop_reason": "tool_use",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 10, "output_tokens": 20},
+            },
+        ),
+        Response(
+            200,
+            json={
+                "id": "msg_02",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-3-5-sonnet-20241022",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The weather in San Francisco is 65 degrees and sunny.",
+                    }
+                ],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 30, "output_tokens": 15},
+            },
+        ),
+    ]
+
+    client = AsyncAnthropic(api_key="sk-ant-fake")
+    runner = client.beta.messages.tool_runner(
+        model="claude-3-5-sonnet-20241022",
+        max_tokens=1000,
+        tools=[get_weather],
+        messages=[{"role": "user", "content": "What is the weather in SF?"}],
+    )
+    final_message = await runner.until_done()
+    assert final_message is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    parent_spans = [s for s in spans if s.name == "beta.messages.tool_runner"]
+    assert len(parent_spans) == 1
+    parent_span = parent_spans[0]
+    parent_attributes = dict(parent_span.attributes or {})
+    assert parent_attributes.get(OPENINFERENCE_SPAN_KIND) == CHAIN.value
+
+    child_spans = [s for s in spans if s.parent and s.parent.span_id == parent_span.context.span_id]
+    llm_children = [
+        s for s in child_spans if s.name in ("beta.messages.parse", "beta.messages.create")
+    ]
+    tool_children = [s for s in child_spans if s.name == "get_weather"]
+
+    assert len(llm_children) == 2
+    assert len(tool_children) == 1
+    tool_span = tool_children[0]
+    tool_attributes = dict(tool_span.attributes or {})
+    assert tool_attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
+    assert tool_attributes.get(SpanAttributes.TOOL_NAME) == "get_weather"

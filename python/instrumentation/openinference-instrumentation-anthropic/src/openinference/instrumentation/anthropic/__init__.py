@@ -9,6 +9,7 @@ from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.anthropic._wrappers import (
+    _AsyncBetaToolRunnerWrapper,
     _AsyncCompletionsWrapper,
     _AsyncMessagesStreamWrapper,
     _AsyncMessageStreamManager,
@@ -16,6 +17,7 @@ from openinference.instrumentation.anthropic._wrappers import (
     _AsyncTransformWrapper,
     _BetaAsyncMessageStreamManager,
     _BetaMessageStreamManager,
+    _BetaToolRunnerWrapper,
     _CompletionsWrapper,
     _MessagesStreamWrapper,
     _MessageStreamManager,
@@ -47,6 +49,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_async_beta_messages_stream",
         "_original_beta_messages_parse",
         "_original_async_beta_messages_parse",
+        "_original_beta_messages_tool_runner",
+        "_original_async_beta_messages_tool_runner",
         "_original_transform",
         "_original_async_transform",
         "_instruments",
@@ -217,6 +221,26 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ),
         )
 
+        self._original_beta_messages_tool_runner = BetaMessages.tool_runner
+        wrap_function_wrapper(
+            "anthropic.resources.beta.messages",
+            "Messages.tool_runner",
+            _BetaToolRunnerWrapper(
+                tracer=self._tracer,  # type: ignore[arg-type]
+                span_name="beta.messages.tool_runner",
+            ),
+        )
+
+        self._original_async_beta_messages_tool_runner = AsyncBetaMessages.tool_runner
+        wrap_function_wrapper(
+            "anthropic.resources.beta.messages",
+            "AsyncMessages.tool_runner",
+            _AsyncBetaToolRunnerWrapper(
+                tracer=self._tracer,  # type: ignore[arg-type]
+                span_name="beta.messages.tool_runner",
+            ),
+        )
+
         import anthropic._utils._transform as _transform_module
 
         self._original_transform = _transform_module.transform
@@ -275,6 +299,10 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if self._original_async_beta_messages_parse is not None:
             AsyncBetaMessages.parse = self._original_async_beta_messages_parse  # type: ignore[method-assign]
 
+        if self._original_beta_messages_tool_runner is not None:
+            BetaMessages.tool_runner = self._original_beta_messages_tool_runner  # type: ignore[method-assign]
+        if self._original_async_beta_messages_tool_runner is not None:
+            AsyncBetaMessages.tool_runner = self._original_async_beta_messages_tool_runner  # type: ignore[method-assign]
         if self._original_transform is not None:
             _transform_module.transform = self._original_transform
         if self._original_async_transform is not None:
