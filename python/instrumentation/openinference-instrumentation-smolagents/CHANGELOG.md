@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.34...python-openinference-instrumentation-smolagents-v0.1.35) (2026-08-21)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.33...python-openinference-instrumentation-smolagents-v0.1.34) (2026-08-07)
 
 

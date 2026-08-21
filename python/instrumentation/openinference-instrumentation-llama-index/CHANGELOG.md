@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.4.5...python-openinference-instrumentation-llama-index-v4.4.6) (2026-08-21)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [4.4.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.4.4...python-openinference-instrumentation-llama-index-v4.4.5) (2026-08-07)
 
 

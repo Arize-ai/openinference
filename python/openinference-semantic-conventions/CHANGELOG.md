@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.32...python-openinference-semantic-conventions-v0.1.33) (2026-08-21)
+
+
+### Features
+
+* **semconv:** add llm.input_model_name and llm.output_model_name ([#3585](https://github.com/Arize-ai/openinference/issues/3585)) ([1fe497f](https://github.com/Arize-ai/openinference/commit/1fe497f1d9f45a07eee55d97fe185e020560f9c7))
+
 ## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.31...python-openinference-semantic-conventions-v0.1.32) (2026-08-07)
 
 

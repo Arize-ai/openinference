@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.1...python-openinference-instrumentation-google-genai-v1.4.2) (2026-08-21)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [1.4.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.0...python-openinference-instrumentation-google-genai-v1.4.1) (2026-08-18)
 
 
