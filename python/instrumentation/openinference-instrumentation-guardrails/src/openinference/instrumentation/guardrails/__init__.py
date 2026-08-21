@@ -42,6 +42,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_guardrails_llm_providers_call",
         "_original_guardrails_runner_step",
         "_original_guardrails_validation_after_run",
+        "_original_guard_from_constructors",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -68,6 +69,10 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
 
         gd.guard.contextvars = _Contextvars(gd.guard.contextvars)
         gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
+        self._original_guard_from_constructors = {
+            name: gd.guard.Guard.__dict__[f"from_{name}"]
+            for name in ("pydantic", "string", "rail_string", "rail")
+        }
         for name in ("pydantic", "string", "rail_string", "rail"):
             wrap_function_wrapper(
                 "guardrails.guard",
@@ -132,3 +137,8 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
             gd.guard.contextvars = wrapped
         if wrapped := getattr(gd.async_guard.contextvars, "__wrapped__", None):
             gd.async_guard.contextvars = wrapped
+
+        if self._original_guard_from_constructors is not None:
+            for name, original in self._original_guard_from_constructors.items():
+                setattr(gd.guard.Guard, f"from_{name}", original)
+            self._original_guard_from_constructors = None
