@@ -55,6 +55,7 @@ from typing_extensions import assert_never
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceLLMSystemValues,
@@ -623,8 +624,12 @@ def _get_attributes_from_message_content_list(
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item["text"]
         elif item["type"] == "input_image":
-            # TODO
-            ...
+            if image_url := item.get("image_url"):
+                yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "image"
+                yield (
+                    f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+                    image_url,
+                )
         elif item["type"] == "input_file":
             # TODO
             ...
@@ -887,6 +892,8 @@ TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 AGENT_NAME = SpanAttributes.AGENT_NAME
+
+IMAGE_URL = ImageAttributes.IMAGE_URL
 
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
