@@ -356,11 +356,19 @@ def _(resp: GenerateContentResponse, span: Span) -> None:
         # Only capture finish_reason for the first candidate.
         if candidate.index == 0:
             finish_reason = candidate.finish_reason
-            if finish_reason is not None:
+            # Skip both "unset" and the explicit UNSPECIFIED value, as proto3 enums default
+            # to 0 (FINISH_REASON_UNSPECIFIED) when the field is unset.
+            if finish_reason:
                 try:
                     value = finish_reason.name
                 except AttributeError:
-                    value = Candidate.FinishReason(finish_reason).name  # type: ignore[attr-defined]
+                    # Use the concrete type of the actual candidate instance.
+                    try:
+                        value = type(candidate).FinishReason(finish_reason).name
+                    except ValueError:
+                        # For truly unrecognized value, fallback to the raw integer as a string
+                        # rather than dropping the attribute entirely.
+                        value = str(finish_reason)
                 span.set_attribute(LLM_FINISH_REASON, value)
 
 

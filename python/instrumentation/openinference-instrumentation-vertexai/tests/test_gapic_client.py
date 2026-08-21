@@ -742,6 +742,121 @@ def test_finish_reason_values(
     assert attributes.get(LLM_FINISH_REASON) == finish_reason.name
 
 
+def test_finish_reason_unspecified_value(
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    tracer: Tracer,
+) -> None:
+    response = GenerateContentResponse(
+        dict(
+            candidates=[
+                Candidate(
+                    dict(
+                        index=0,
+                        content=dict(role="model", parts=[dict(text="hi")]),
+                        finish_reason=Candidate.FinishReason.FINISH_REASON_UNSPECIFIED,
+                    )
+                )
+            ],
+            usage_metadata=dict(
+                prompt_token_count=5,
+                candidates_token_count=2,
+                total_token_count=7,
+            ),
+        )
+    )
+    with ExitStack() as stack:
+        args = (mock_generate_content_request, response, False, stack, tracer)
+        mock_generate_content(*args)
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = next(
+        s
+        for s in spans
+        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value  # type: ignore[union-attr]
+    )
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert LLM_FINISH_REASON not in attributes
+
+
+def test_finish_reason_unknown_integer_value(
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    tracer: Tracer,
+) -> None:
+    # A value outside the known FinishReason enum range, simulating a newer
+    # API version returning a reason this SDK build doesn't recognize yet.
+    unknown_value = 999
+    response = GenerateContentResponse(
+        dict(
+            candidates=[
+                Candidate(
+                    dict(
+                        index=0,
+                        content=dict(role="model", parts=[dict(text="hi")]),
+                    )
+                )
+            ],
+            usage_metadata=dict(
+                prompt_token_count=5,
+                candidates_token_count=2,
+                total_token_count=7,
+            ),
+        )
+    )
+    # proto-plus enum fields reject unknown ints via the constructor/dict path,
+    # so set it directly on the underlying pb2 message to simulate a
+    # forward-compatible unknown value arriving over the wire.
+    response.candidates[0]._pb.finish_reason = unknown_value
+
+    with ExitStack() as stack:
+        args = (mock_generate_content_request, response, False, stack, tracer)
+        mock_generate_content(*args)
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = next(
+        s
+        for s in spans
+        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value  # type: ignore[union-attr]
+    )
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(LLM_FINISH_REASON) == str(unknown_value)
+
+
+def test_finish_reason_intentionally_omitted(
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    tracer: Tracer,
+) -> None:
+    response = GenerateContentResponse(
+        dict(
+            candidates=[
+                Candidate(
+                    dict(
+                        index=0,
+                        content=dict(role="model", parts=[dict(text="hi")]),
+                        # finish_reason intentionally omitted
+                    )
+                )
+            ],
+            usage_metadata=dict(
+                prompt_token_count=5,
+                candidates_token_count=2,
+                total_token_count=7,
+            ),
+        )
+    )
+    with ExitStack() as stack:
+        args = (mock_generate_content_request, response, False, stack, tracer)
+        mock_generate_content(*args)
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = next(
+        s
+        for s in spans
+        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value  # type: ignore[union-attr]
+    )
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert LLM_FINISH_REASON not in attributes
+
+
 class HasTracer:
     def __init__(self, tracer: Tracer) -> None:
         self._tracer = tracer
