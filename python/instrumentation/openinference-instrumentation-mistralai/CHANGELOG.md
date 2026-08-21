@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.1.0...python-openinference-instrumentation-mistralai-v2.1.1) (2026-08-21)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [2.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.0.6...python-openinference-instrumentation-mistralai-v2.1.0) (2026-08-18)
 
 
