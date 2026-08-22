@@ -33,6 +33,7 @@ import {
   LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+  LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
   LLM_TOKEN_COUNT_TOTAL,
   LLM_TOOLS,
   LLMProvider,
@@ -419,10 +420,12 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
   let totalCompletionTokens = 0;
   let totalTokens = 0;
   let totalCacheReadTokens = 0;
+  let totalCacheWriteTokens = 0;
   let totalReasoningTokens = 0;
   let hasPromptTokens = false;
   let hasCompletionTokens = false;
   let hasCacheReadTokens = false;
+  let hasCacheWriteTokens = false;
   let hasReasoningTokens = false;
   let hasTotalTokens = false;
 
@@ -458,6 +461,13 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
       ) {
         totalCacheReadTokens += usage.prompt_tokens_details.cached_tokens;
         hasCacheReadTokens = true;
+      }
+      if (
+        isRecord(usage.prompt_tokens_details) &&
+        isNumber(usage.prompt_tokens_details.cache_write_tokens)
+      ) {
+        totalCacheWriteTokens += usage.prompt_tokens_details.cache_write_tokens;
+        hasCacheWriteTokens = true;
       }
       // o-series completion_tokens_details.reasoning_tokens
       if (
@@ -518,6 +528,8 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
   if (hasTotalTokens) attributes[LLM_TOKEN_COUNT_TOTAL] = totalTokens;
   if (hasCacheReadTokens)
     attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totalCacheReadTokens;
+  if (hasCacheWriteTokens)
+    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = totalCacheWriteTokens;
   if (hasReasoningTokens)
     attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = totalReasoningTokens;
 
@@ -544,6 +556,9 @@ function getGenerationUsageAttributes(usage: GenerationUsageData): Attributes {
   if (isRecord(usage.details)) {
     if (isNumber(usage.details.cached_tokens)) {
       attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = usage.details.cached_tokens;
+    }
+    if (isNumber(usage.details.cache_write_tokens)) {
+      attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = usage.details.cache_write_tokens;
     }
     if (isNumber(usage.details.reasoning_tokens)) {
       attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = usage.details.reasoning_tokens;
@@ -756,6 +771,13 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
     ) {
       attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
         usage.input_tokens_details.cached_tokens;
+    }
+    if (
+      isRecord(usage.input_tokens_details) &&
+      isNumber(usage.input_tokens_details.cache_write_tokens)
+    ) {
+      attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] =
+        usage.input_tokens_details.cache_write_tokens;
     }
     if (
       isRecord(usage.output_tokens_details) &&
