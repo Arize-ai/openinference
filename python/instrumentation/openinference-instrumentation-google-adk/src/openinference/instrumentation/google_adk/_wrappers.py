@@ -257,7 +257,6 @@ class _TraceCallLlm(_WithTracer):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return ans
         span = get_current_span()
-        span.set_status(StatusCode.OK)  # Pre-emptively set status to OK
         span.set_attribute(
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.LLM.value,
@@ -336,6 +335,10 @@ class _TraceCallLlm(_WithTracer):
         if llm_response:
             for k, v in _get_attributes_from_llm_response(llm_response):
                 span.set_attribute(k, v)
+            if not llm_response.partial:
+                # This is the final chunk for this LLM turn, so no further
+                # trace_call_llm calls will land on this span.
+                span.set_status(StatusCode.OK)
         return ans
 
 
@@ -352,12 +355,19 @@ class _TraceToolCall(_WithTracer):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return ans
         span = get_current_span()
-        span.set_status(StatusCode.OK)  # Pre-emptively set status to OK
+        arguments = bind_args_kwargs(wrapped, *args, **kwargs)
+        error = arguments.get("error")
+        error_type = arguments.get("error_type")
+        if isinstance(error, BaseException):
+            span.set_status(StatusCode.ERROR, description=f"{type(error).__name__}: {error}")
+        elif error_type is not None:
+            span.set_status(StatusCode.ERROR, description=str(error_type))
+        else:
+            span.set_status(StatusCode.OK)
         span.set_attribute(
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.TOOL.value,
         )
-        arguments = bind_args_kwargs(wrapped, *args, **kwargs)
         if base_tool := next(
             (arg for arg in arguments.values() if isinstance(arg, BaseTool)), None
         ):
