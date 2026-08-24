@@ -9,14 +9,12 @@ from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.anthropic._wrappers import (
-    _AsyncCompletionsWrapper,
     _AsyncMessagesStreamWrapper,
     _AsyncMessageStreamManager,
     _AsyncMessagesWrapper,
     _AsyncTransformWrapper,
     _BetaAsyncMessageStreamManager,
     _BetaMessageStreamManager,
-    _CompletionsWrapper,
     _MessagesStreamWrapper,
     _MessageStreamManager,
     _MessagesWrapper,
@@ -33,8 +31,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     """An instrumentor for the Anthropic framework."""
 
     __slots__ = (
-        "_original_completions_create",
-        "_original_async_completions_create",
         "_original_messages_create",
         "_original_async_messages_create",
         "_original_messages_stream",
@@ -59,7 +55,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _instrument(self, **kwargs: Any) -> None:
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
         from anthropic.resources.beta.messages import Messages as BetaMessages
-        from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
@@ -71,26 +66,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
-        )
-
-        self._original_completions_create = Completions.create
-        wrap_function_wrapper(
-            "anthropic.resources.completions",
-            "Completions.create",
-            _CompletionsWrapper(
-                tracer=self._tracer,  # type: ignore[arg-type]
-                span_name="completions.create",
-            ),
-        )
-
-        self._original_async_completions_create = AsyncCompletions.create
-        wrap_function_wrapper(
-            "anthropic.resources.completions",
-            "AsyncCompletions.create",
-            _AsyncCompletionsWrapper(
-                tracer=self._tracer,  # type: ignore[arg-type]
-                span_name="completions.create",
-            ),
         )
 
         self._original_messages_create = Messages.create
@@ -237,13 +212,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         import anthropic._utils._transform as _transform_module
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
         from anthropic.resources.beta.messages import Messages as BetaMessages
-        from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
-
-        if self._original_completions_create is not None:
-            Completions.create = self._original_completions_create  # type: ignore[method-assign]
-        if self._original_async_completions_create is not None:
-            AsyncCompletions.create = self._original_async_completions_create  # type: ignore[method-assign]
 
         if self._original_messages_create is not None:
             Messages.create = self._original_messages_create  # type: ignore[method-assign]
