@@ -291,6 +291,10 @@ def _attributes_from_image_param(
             f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
             source["url"],
         )
+    elif source["type"] == "file":
+        # File sources only carry a `file_id` referencing a previously
+        # uploaded file, so there is no inline image URL to surface.
+        yield from ()
     elif TYPE_CHECKING:
         assert_never(source["type"])
 
