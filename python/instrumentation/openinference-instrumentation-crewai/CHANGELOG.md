@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.12...python-openinference-instrumentation-crewai-v1.1.13) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [1.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.11...python-openinference-instrumentation-crewai-v1.1.12) (2026-08-07)
 
 

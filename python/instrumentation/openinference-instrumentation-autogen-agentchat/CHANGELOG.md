@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.11...python-openinference-instrumentation-autogen-agentchat-v0.1.12) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.10...python-openinference-instrumentation-autogen-agentchat-v0.1.11) (2026-08-07)
 
 

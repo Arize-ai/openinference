@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.5...python-openinference-instrumentation-strands-agents-v0.1.6) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-strands-agents-v0.1.4...python-openinference-instrumentation-strands-agents-v0.1.5) (2026-08-07)
 
 
