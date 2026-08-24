@@ -328,7 +328,9 @@ def test_callback_llm(
                 OTELSpanAttributes.EXCEPTION_TYPE
             )
             assert isinstance(exception_type, str)
-            assert exception_type.endswith("BadRequestError")
+            # langchain-openai >= 1.6 wraps openai.BadRequestError in its own
+            # OpenAIInvalidRequestError; both end with "RequestError".
+            assert exception_type.endswith("RequestError")
 
         # Ignore metadata since LC adds a bunch of unstable metadata
         rqa_attributes.pop(METADATA, None)
@@ -352,7 +354,9 @@ def test_callback_llm(
                 OTELSpanAttributes.EXCEPTION_TYPE
             )
             assert isinstance(exception_type, str)
-            assert exception_type.endswith("BadRequestError")
+            # langchain-openai >= 1.6 wraps openai.BadRequestError in its own
+            # OpenAIInvalidRequestError; both end with "RequestError".
+            assert exception_type.endswith("RequestError")
 
         # Ignore metadata since LC adds a bunch of unstable metadata
         sd_attributes.pop(METADATA, None)
@@ -401,7 +405,9 @@ def test_callback_llm(
                 OTELSpanAttributes.EXCEPTION_TYPE
             )
             assert isinstance(exception_type, str)
-            assert exception_type.endswith("BadRequestError")
+            # langchain-openai >= 1.6 wraps openai.BadRequestError in its own
+            # OpenAIInvalidRequestError; both end with "RequestError".
+            assert exception_type.endswith("RequestError")
         langchain_prompt_variables = {
             "context": "\n\n".join(documents),
             "question": question,
@@ -477,7 +483,9 @@ def test_callback_llm(
                 OTELSpanAttributes.EXCEPTION_TYPE
             )
             assert isinstance(exception_type, str)
-            assert exception_type.endswith("BadRequestError")
+            # langchain-openai >= 1.6 wraps openai.BadRequestError in its own
+            # OpenAIInvalidRequestError; both end with "RequestError".
+            assert exception_type.endswith("RequestError")
         else:
             if LANGCHAIN_VERSION >= (0, 2):
                 assert isinstance(_metadata := oai_attributes.pop(METADATA, None), str)
