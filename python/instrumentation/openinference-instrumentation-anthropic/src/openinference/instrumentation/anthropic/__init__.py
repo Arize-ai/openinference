@@ -24,7 +24,7 @@ from openinference.instrumentation.anthropic.version import __version__
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("anthropic >= 0.84.0",)
+_instruments = ("anthropic >= 1.0.0",)
 
 
 class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]

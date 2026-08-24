@@ -1,12 +1,11 @@
 # ruff: noqa: E501
-import importlib
 import json
 import random
 import string
 from typing import Any, Callable, Dict, Optional
 
 import anthropic
-import httpx
+import httpx2
 import pytest
 from anthropic import Anthropic, AsyncAnthropic
 from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
@@ -57,20 +56,11 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-# anthropic >= 1.0 ships its own ``httpx`` fork (``httpx2``); older releases use
-# ``httpx``. respx only patches ``httpx``, so mock the SDK's transport directly via
-# whichever httpx the installed anthropic uses to stay version-agnostic.
-_sdk_httpx: Any
-try:
-    _sdk_httpx = importlib.import_module("httpx2")
-except ImportError:  # pragma: no cover - anthropic < 1.0
-    _sdk_httpx = httpx
-
 
 def _mock_anthropic_client(handler: Callable[[Any], Any]) -> Anthropic:
     """Build an ``Anthropic`` client whose HTTP transport is mocked by ``handler``."""
-    transport = _sdk_httpx.MockTransport(handler)
-    return Anthropic(api_key="sk-ant-fake", http_client=_sdk_httpx.Client(transport=transport))
+    transport = httpx2.MockTransport(handler)
+    return Anthropic(api_key="sk-ant-fake", http_client=httpx2.Client(transport=transport))
 
 
 def _get_tool_use_id(message: Message) -> Optional[str]:
@@ -2502,7 +2492,7 @@ def test_cache_token_details_match_between_streaming_and_non_streaming(
     }
 
     def json_handler(request: Any) -> Any:
-        return _sdk_httpx.Response(
+        return httpx2.Response(
             status_code=200,
             json={
                 "id": "msg_1",
@@ -2517,7 +2507,7 @@ def test_cache_token_details_match_between_streaming_and_non_streaming(
         )
 
     def sse_handler(request: Any) -> Any:
-        return _sdk_httpx.Response(status_code=200, content=b"".join(sse_events))
+        return httpx2.Response(status_code=200, content=b"".join(sse_events))
 
     _mock_anthropic_client(json_handler).messages.create(**kwargs)
 
@@ -2638,7 +2628,7 @@ def test_finish_reason_values_messages_create(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     def handler(request: Any) -> Any:
-        return _sdk_httpx.Response(
+        return httpx2.Response(
             status_code=200,
             json={
                 "id": "msg_test123",
@@ -2725,7 +2715,7 @@ def test_finish_reason_values_messages_create_streaming(
     ]
 
     def handler(request: Any) -> Any:
-        return _sdk_httpx.Response(status_code=200, content=b"".join(sse_events))
+        return httpx2.Response(status_code=200, content=b"".join(sse_events))
 
     client = _mock_anthropic_client(handler)
     stream = client.messages.create(
