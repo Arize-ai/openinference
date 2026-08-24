@@ -197,6 +197,9 @@ class _MessageExtractor:
             return
         yield SpanAttributes.OUTPUT_VALUE, snapshot.model_dump_json()
         yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+        if model_name := getattr(snapshot, "model", None):
+            yield SpanAttributes.LLM_MODEL_NAME, model_name
+            yield SpanAttributes.LLM_RESPONSE_MODEL_NAME, model_name
         yield (
             f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}",
             snapshot.role,

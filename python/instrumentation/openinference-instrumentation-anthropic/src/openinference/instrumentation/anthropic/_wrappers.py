@@ -593,12 +593,14 @@ def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
 def _get_llm_model_name_from_input(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     if model_name := arguments.get("model"):
         yield LLM_MODEL_NAME, model_name
+        yield LLM_REQUEST_MODEL_NAME, model_name
 
 
 @_stop_on_exception
 def _get_llm_model_name_from_response(message: "Message") -> Iterator[Tuple[str, Any]]:
     if model_name := message.model:
         yield LLM_MODEL_NAME, model_name
+        yield LLM_RESPONSE_MODEL_NAME, model_name
 
 
 @_stop_on_exception
@@ -865,6 +867,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_REQUEST_MODEL_NAME = SpanAttributes.LLM_REQUEST_MODEL_NAME
+LLM_RESPONSE_MODEL_NAME = SpanAttributes.LLM_RESPONSE_MODEL_NAME
 LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
