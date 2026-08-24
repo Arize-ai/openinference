@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.1...python-openinference-instrumentation-pipecat-v2.0.2) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [2.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.0...python-openinference-instrumentation-pipecat-v2.0.1) (2026-07-30)
 
 
