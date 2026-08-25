@@ -179,6 +179,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
               [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
               [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
@@ -241,6 +242,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
                 ...getAnthropicOutputMessagesAttributes(result),
                 ...getAnthropicUsageAttributes(result.usage),
               });
@@ -544,9 +546,11 @@ async function consumeAnthropicStreamChunks(
   const toolCallAttributes: Attributes = {};
   const contentAttributes: Attributes = {};
   let usageAttributes: Attributes = {};
+  let responseModel: string | undefined;
   let toolIndex = -1;
   for await (const chunk of stream) {
     if (chunk.type === "message_start") {
+      responseModel = chunk.message.model;
       usageAttributes = {
         ...usageAttributes,
         ...getAnthropicUsageAttributes(chunk.message.usage),
@@ -631,6 +635,12 @@ async function consumeAnthropicStreamChunks(
     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
     [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
   };
+
+  if (responseModel != null) {
+    // Override the model from the value sent by the server
+    attributes[SemanticConventions.LLM_MODEL_NAME] = responseModel;
+    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = responseModel;
+  }
 
   // Add the content block attributes
   for (const [key, value] of Object.entries(contentAttributes)) {

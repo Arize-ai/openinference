@@ -20,6 +20,8 @@ const {
   LLM_PROVIDER,
   LLM_SYSTEM,
   LLM_MODEL_NAME,
+  LLM_REQUEST_MODEL_NAME,
+  LLM_RESPONSE_MODEL_NAME,
   LLM_INVOCATION_PARAMETERS,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_COMPLETION,
@@ -113,6 +115,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     const inputValue = pop(attributes, INPUT_VALUE);
     expect(inputValue).toBe(JSON.stringify(requestBody));
@@ -199,6 +203,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
@@ -275,6 +281,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
@@ -350,6 +358,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
@@ -432,6 +442,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
       expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
       expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+      expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+      expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
       const inputValue = pop(attributes, INPUT_VALUE);
       expect(inputValue).toEqual(expect.any(String));
@@ -560,6 +572,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
@@ -692,6 +706,8 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_SYSTEM)).toBe(LLMSystem.ANTHROPIC);
     expect(pop(attributes, LLM_PROVIDER)).toBe(LLMProvider.ANTHROPIC);
     expect(pop(attributes, LLM_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_REQUEST_MODEL_NAME)).toBe("claude-sonnet-4-6");
+    expect(pop(attributes, LLM_RESPONSE_MODEL_NAME)).toBe("claude-sonnet-4-6");
 
     expect(pop(attributes, INPUT_VALUE)).toBe(JSON.stringify(requestBody));
     expect(pop(attributes, INPUT_MIME_TYPE)).toBe(MimeType.JSON);
