@@ -2263,6 +2263,409 @@ async def test_google_adk_instrumentor_parallel_tool_calls(
     assert merged_span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
 
 
+def _build_compaction_app() -> "tuple[Any, str]":
+    from google.adk.apps.app import (  # type: ignore[import-not-found,unused-ignore]
+        App,
+        EventsCompactionConfig,
+    )
+    from google.adk.apps.base_events_summarizer import (  # type: ignore[import-not-found,unused-ignore]
+        BaseEventsSummarizer,
+    )
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    class _NoOpSummarizer(BaseEventsSummarizer):  # type: ignore[misc,unused-ignore]
+        async def maybe_summarize_events(self, *, events: "list[Any]") -> Any:
+            return None
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            yield LlmResponse(
+                content=types.Content(
+                    role="model", parts=[types.Part(text="Paris is the capital of France.")]
+                )
+            )
+
+    agent = Agent(
+        name=f"_{token_hex(4)}",
+        model=_StubLlm(),
+        description="Agent that answers geography questions.",
+        instruction="Answer briefly.",
+    )
+    app_name = f"app{token_hex(4)}"
+    app = App(
+        name=app_name,
+        root_agent=agent,
+        events_compaction_config=EventsCompactionConfig(
+            summarizer=_NoOpSummarizer(),
+            compaction_interval=1,
+            overlap_size=0,
+        ),
+    )
+    return app, app_name
+
+
+def _build_token_threshold_app() -> "tuple[Any, str, str]":
+    from google.adk.apps.app import (  # type: ignore[import-not-found,unused-ignore]
+        App,
+        EventsCompactionConfig,
+    )
+    from google.adk.apps.base_events_summarizer import (  # type: ignore[import-not-found,unused-ignore]
+        BaseEventsSummarizer,
+    )
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    class _NoOpSummarizer(BaseEventsSummarizer):  # type: ignore[misc,unused-ignore]
+        async def maybe_summarize_events(self, *, events: "list[Any]") -> Any:
+            return None
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            yield LlmResponse(
+                content=types.Content(
+                    role="model", parts=[types.Part(text="Paris is the capital of France.")]
+                )
+            )
+
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model=_StubLlm(),
+        description="Agent that answers geography questions.",
+        instruction="Answer briefly.",
+    )
+    app_name = f"app{token_hex(4)}"
+    app = App(
+        name=app_name,
+        root_agent=agent,
+        events_compaction_config=EventsCompactionConfig(
+            summarizer=_NoOpSummarizer(),
+            token_threshold=1,
+            event_retention_size=0,
+            compaction_interval=1_000_000,
+            overlap_size=0,
+        ),
+    )
+    return app, app_name, agent_name
+
+
+async def _run_compaction_query(app: Any, app_name: str) -> "tuple[InMemoryRunner, str, str]":
+    runner = InMemoryRunner(app=app)  # type: ignore[call-arg,unused-ignore]
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=app_name, user_id=user_id, session_id=session_id
+    )
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user", parts=[types.Part(text="What is the capital of France?")]
+        ),
+    ):
+        ...
+    return runner, user_id, session_id
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_sliding_window_span(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    app, app_name = _build_compaction_app()
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        _, user_id, session_id = await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    compaction_spans = spans_by_name["compact_events sliding_window"]
+    assert len(compaction_spans) == 1
+    compaction_span = compaction_spans[0]
+    assert compaction_span.status.is_ok
+
+    invocation_spans = spans_by_name[f"invocation [{app_name}]"]
+    assert len(invocation_spans) == 1
+    invocation_span = invocation_spans[0]
+
+    # Same trace as the invocation, parented directly under it.
+    assert compaction_span.context is not None and invocation_span.context is not None
+    assert compaction_span.context.trace_id == invocation_span.context.trace_id
+    assert compaction_span.parent is invocation_span.get_span_context()
+
+    assert compaction_span.instrumentation_scope is not None
+    assert compaction_span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
+
+    compaction_attributes = dict(compaction_span.attributes or {})
+    # Context propagation: session/user id land on every span in the trace
+    # via OITracer, compaction included.
+    assert compaction_attributes.pop("session.id", None) == session_id
+    assert compaction_attributes.pop("user.id", None) == user_id
+    assert compaction_attributes.pop("openinference.span.kind", None) == "CHAIN"
+    assert compaction_attributes.pop("gen_ai.operation.name", None) == "compact_events"
+    assert compaction_attributes.pop("gen_ai.compaction.trigger", None) == "sliding_window"
+    assert compaction_attributes.pop("gen_ai.compaction.summarizer_type", None) == "_NoOpSummarizer"
+    event_count = compaction_attributes.pop("gen_ai.compaction.event_count", None)
+    assert event_count
+    assert compaction_attributes.pop("gen_ai.compaction.compaction_interval", None) == 1
+    assert compaction_attributes.pop("gen_ai.compaction.overlap_size", None) == 0
+    compaction_attributes.pop("gen_ai.system", None)
+    compaction_attributes.pop("gen_ai.conversation.id", None)
+
+    # Generic OI input/output: safe non-content JSON summaries built directly
+    # from `_build_compaction_attributes`/`_build_compaction_result_attributes`'s
+    # own return values (patched at the source), not read back from the span.
+    assert compaction_attributes.pop("input.mime_type", None) == "application/json"
+    assert json.loads(cast(str, compaction_attributes.pop("input.value", None))) == {
+        "gen_ai.compaction.trigger": "sliding_window",
+        "gen_ai.compaction.summarizer_type": "_NoOpSummarizer",
+        "gen_ai.compaction.event_count": event_count,
+        "gen_ai.compaction.compaction_interval": 1,
+        "gen_ai.compaction.overlap_size": 0,
+    }
+    assert compaction_attributes.pop("output.mime_type", None) == "application/json"
+    # _NoOpSummarizer always returns None, so no compaction event is produced.
+    assert json.loads(cast(str, compaction_attributes.pop("output.value", None))) == {
+        "compacted": False
+    }
+    assert not compaction_attributes
+
+    # Compaction attributes must never leak onto the parent invocation span.
+    invocation_attributes = dict(invocation_span.attributes or {})
+    assert not any(key.startswith("gen_ai.compaction.") for key in invocation_attributes)
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_token_threshold_both_paths(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    app, app_name, agent_name = _build_token_threshold_app()
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        _, user_id, session_id = await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    compaction_spans = spans_by_name["compact_events token_threshold"]
+    assert len(compaction_spans) == 2
+    assert all(span.status.is_ok for span in compaction_spans)
+
+    invocation_spans = spans_by_name[f"invocation [{app_name}]"]
+    assert len(invocation_spans) == 1
+    invocation_span = invocation_spans[0]
+
+    agent_run_spans = spans_by_name[f"agent_run [{agent_name}]"]
+    assert len(agent_run_spans) == 1
+    agent_run_span = agent_run_spans[0]
+
+    # Same trace as the invocation for both spans, but different parents.
+    assert invocation_span.context is not None and agent_run_span.context is not None
+    invocation_context = invocation_span.get_span_context()
+    agent_run_context = agent_run_span.get_span_context()
+    assert invocation_context is not None and agent_run_context is not None
+    parent_span_ids = {span.parent.span_id for span in compaction_spans if span.parent}
+    assert parent_span_ids == {invocation_context.span_id, agent_run_context.span_id}
+    for span in compaction_spans:
+        assert span.context is not None
+        assert span.context.trace_id == invocation_span.context.trace_id
+
+    for span in compaction_spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.pop("session.id", None) == session_id
+        assert attributes.pop("user.id", None) == user_id
+        assert attributes.pop("openinference.span.kind", None) == "CHAIN"
+        assert attributes.pop("gen_ai.operation.name", None) == "compact_events"
+        assert attributes.pop("gen_ai.compaction.trigger", None) == "token_threshold"
+        assert attributes.pop("gen_ai.compaction.summarizer_type", None) == "_NoOpSummarizer"
+        event_count = attributes.pop("gen_ai.compaction.event_count", None)
+        assert event_count
+        assert attributes.pop("gen_ai.compaction.token_threshold", None) == 1
+        assert attributes.pop("gen_ai.compaction.event_retention_size", None) == 0
+        assert attributes.pop("gen_ai.compaction.compaction_interval", None) == 1_000_000
+        assert attributes.pop("gen_ai.compaction.overlap_size", None) == 0
+        attributes.pop("gen_ai.system", None)
+        attributes.pop("gen_ai.conversation.id", None)
+
+        assert attributes.pop("input.mime_type", None) == "application/json"
+        assert json.loads(cast(str, attributes.pop("input.value", None))) == {
+            "gen_ai.compaction.trigger": "token_threshold",
+            "gen_ai.compaction.summarizer_type": "_NoOpSummarizer",
+            "gen_ai.compaction.event_count": event_count,
+            "gen_ai.compaction.token_threshold": 1,
+            "gen_ai.compaction.event_retention_size": 0,
+            "gen_ai.compaction.compaction_interval": 1_000_000,
+            "gen_ai.compaction.overlap_size": 0,
+        }
+        assert attributes.pop("output.mime_type", None) == "application/json"
+        # `_NoOpSummarizer` never produces an event, so no result attributes.
+        assert json.loads(cast(str, attributes.pop("output.value", None))) == {"compacted": False}
+        assert not attributes
+
+    for parent_span in (invocation_span, agent_run_span):
+        parent_attributes = dict(parent_span.attributes or {})
+        assert not any(key.startswith("gen_ai.compaction.") for key in parent_attributes)
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_suppresses_tracing(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Running inside ``suppress_tracing()`` must not emit a compaction span."""
+    app, app_name = _build_compaction_app()
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        with suppress_tracing():
+            await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_trace_config_hides_io(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """``TraceConfig(hide_inputs=True, hide_outputs=True)`` masks the
+    compaction span's generic input.value/output.value like any other span."""
+    app, app_name = _build_compaction_app()
+
+    GoogleADKInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+    try:
+        await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    compaction_spans = [s for s in spans if s.name == "compact_events sliding_window"]
+    assert len(compaction_spans) == 1
+    attributes = dict(compaction_spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == REDACTED_VALUE
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == REDACTED_VALUE
+    assert SpanAttributes.INPUT_MIME_TYPE not in attributes
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+    # Masking only touches input/output -- span kind and gen_ai.* attributes
+    # are unaffected.
+    assert attributes.get("openinference.span.kind") == "CHAIN"
+    assert attributes.get("gen_ai.compaction.trigger") == "sliding_window"
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_span_error_preserves_input(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from google.adk.apps.app import (  # type: ignore[import-not-found,unused-ignore]
+        App,
+        EventsCompactionConfig,
+    )
+    from google.adk.apps.base_events_summarizer import (  # type: ignore[import-not-found,unused-ignore]
+        BaseEventsSummarizer,
+    )
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    class _RaisingSummarizer(BaseEventsSummarizer):  # type: ignore[misc,unused-ignore]
+        async def maybe_summarize_events(self, *, events: "list[Any]") -> Any:
+            raise RuntimeError("boom")
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            yield LlmResponse(
+                content=types.Content(
+                    role="model", parts=[types.Part(text="Paris is the capital of France.")]
+                )
+            )
+
+    agent = Agent(
+        name=f"_{token_hex(4)}",
+        model=_StubLlm(),
+        description="Agent that answers geography questions.",
+        instruction="Answer briefly.",
+    )
+    app_name = f"app{token_hex(4)}"
+    app = App(
+        name=app_name,
+        root_agent=agent,
+        events_compaction_config=EventsCompactionConfig(
+            summarizer=_RaisingSummarizer(),
+            compaction_interval=1,
+            overlap_size=0,
+        ),
+    )
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        with pytest.raises(RuntimeError, match="boom"):
+            await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    compaction_spans = [s for s in spans if s.name == "compact_events sliding_window"]
+    assert len(compaction_spans) == 1
+    compaction_span = compaction_spans[0]
+    assert not compaction_span.status.is_ok
+
+    attributes = dict(compaction_span.attributes or {})
+    assert attributes.get("openinference.span.kind") == "CHAIN"
+    assert attributes.get("gen_ai.compaction.trigger") == "sliding_window"
+    assert attributes.get("gen_ai.compaction.summarizer_type") == "_RaisingSummarizer"
+    assert attributes.get("input.mime_type") == "application/json"
+    assert attributes.get("input.value")
+    assert "output.value" not in attributes
+    assert "output.mime_type" not in attributes
+
+
 @pytest.mark.vcr
 async def test_google_adk_instrumentor_suppresses_tracing(
     instrument: Any,
