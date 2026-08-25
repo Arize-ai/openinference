@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.22...python-openinference-instrumentation-google-adk-v0.1.23) (2026-08-25)
+
+
+### Bug Fixes
+
+* Fix: google-adk tool/LLM spans locked at OK on ADK 2.x failures ([#3542](https://github.com/Arize-ai/openinference/issues/3542)) ([24271a9](https://github.com/Arize-ai/openinference/commit/24271a9a708e843ac3a353d0b8340ebe5f7e438f))
+* **google-adk:** trace compaction spans on ADK 1.32+ ([#3478](https://github.com/Arize-ai/openinference/issues/3478)) ([aa72912](https://github.com/Arize-ai/openinference/commit/aa729129304c407eb83605172738342daf25d190))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.21...python-openinference-instrumentation-google-adk-v0.1.22) (2026-08-25)
 
 
