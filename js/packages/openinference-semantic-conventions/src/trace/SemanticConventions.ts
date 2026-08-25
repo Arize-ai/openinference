@@ -36,6 +36,8 @@ export const LLMAttributePostfixes = {
   provider: "provider",
   system: "system",
   model_name: "model_name",
+  request: "request",
+  response: "response",
   token_count: "token_count",
   input_messages: "input_messages",
   output_messages: "output_messages",
@@ -248,6 +250,22 @@ export const LLM_OUTPUT_MESSAGES =
  */
 export const LLM_MODEL_NAME =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.model_name}` as const;
+
+/**
+ * The model requested by the caller, as sent in the request. May differ from
+ * llm.response.model_name when the provider routes the request to a
+ * different model (e.g. classifier-triggered fallback).
+ */
+export const LLM_REQUEST_MODEL_NAME =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.request}.${LLMAttributePostfixes.model_name}` as const;
+
+/**
+ * The model that actually generated the response, as reported by the
+ * provider. May differ from llm.request.model_name when the provider routes
+ * the request to a different model (e.g. classifier-triggered fallback).
+ */
+export const LLM_RESPONSE_MODEL_NAME =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.response}.${LLMAttributePostfixes.model_name}` as const;
 
 /**
  * The provider of the inferences. E.g. the cloud provider
@@ -752,6 +770,8 @@ export const SemanticConventions = {
   LLM_INPUT_MESSAGES,
   LLM_OUTPUT_MESSAGES,
   LLM_MODEL_NAME,
+  LLM_REQUEST_MODEL_NAME,
+  LLM_RESPONSE_MODEL_NAME,
   LLM_PROMPTS,
   LLM_INVOCATION_PARAMETERS,
   LLM_TOKEN_COUNT_COMPLETION,

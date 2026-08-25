@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.8.0
+
+### Minor Changes
+
+- 1fe497f: Add `llm.request.model_name` and `llm.response.model_name` semantic conventions, letting instrumentation record the model requested by the caller separately from the model that actually generated the response (e.g. provider-side classifier/fallback routing). `llm.model_name` keeps its existing meaning.
+
 ## 2.7.0
 
 ### Minor Changes
