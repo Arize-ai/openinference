@@ -61,6 +61,16 @@ def _test_openai_agent_plain_text_output(
     llm_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
     attributes = dict(cast(Mapping[str, AttributeValue], llm_span.attributes))
 
+    assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
+    # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
+    provider = attributes.pop(LLM_PROVIDER, None)
+    if provider is not None:
+        assert provider == OpenInferenceLLMProviderValues.OPENAI.value
+    system = attributes.pop(LLM_SYSTEM, None)
+    if system is not None:
+        assert system == OpenInferenceLLMSystemValues.OPENAI.value
+
     message_content = attributes.get(
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
     )
@@ -142,6 +152,7 @@ def _verify_llm_span(span: ReadableSpan) -> None:
     )
 
     assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "tool_call"
     # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
     provider = attributes.pop(LLM_PROVIDER, None)
     if provider is not None:
@@ -292,6 +303,7 @@ MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 
@@ -354,6 +366,16 @@ def test_openai_tool_span_instrumentation_v5(
         assert llm_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None, (
             f"LLM span {llm_span.name!r} is missing output.value"
         )
+        assert llm_attrs.pop(LLM_MODEL_NAME, None) == "gpt-4o-mini"
+        assert llm_attrs.pop(LLM_FINISH_REASON, None) in ["stop", "tool_call"]
+        # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
+        provider = llm_attrs.pop(LLM_PROVIDER, None)
+        if provider is not None:
+            assert provider == OpenInferenceLLMProviderValues.OPENAI.value
+        system = llm_attrs.pop(LLM_SYSTEM, None)
+        if system is not None:
+            assert system == OpenInferenceLLMSystemValues.OPENAI.value
+
     # Exactly one of them is the tool-calling step, and its output.value is the tool call
     tool_calling_outputs = [
         json.loads(cast(str, span.attributes[SpanAttributes.OUTPUT_VALUE]))

@@ -29,7 +29,6 @@ from openinference.instrumentation import get_attributes_from_context, safe_json
 from openinference.instrumentation.anthropic._stream import (
     _MessagesStream,
     _RawStreamInterceptor,
-    _Stream,
 )
 from openinference.instrumentation.anthropic._utils import _get_token_counts
 from openinference.instrumentation.anthropic._with_span import _WithSpan
@@ -190,113 +189,6 @@ class _WithTracer(ABC):
                 )
             )
             yield _WithSpan(span=span, params=stack.enter_context(params))
-
-
-@_stop_on_exception
-def _get_attributes_from_completions_create(
-    kwargs: Mapping[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    yield from _get_llm_model_name_from_input(kwargs)
-    invocation_parameters = dict(kwargs)
-    invocation_parameters.pop("extra_headers", None)
-    invocation_parameters.pop("model", None)
-    if prompt := invocation_parameters.pop("prompt", None):
-        yield from _get_llm_prompts(prompt)
-    if isinstance(tools := invocation_parameters.pop("tools", None), Iterable):
-        yield from _get_llm_tools(tools)
-    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
-
-
-class _CompletionsWrapper(_WithTracer):
-    """
-    Wrapper for the pipeline processing
-    Captures all calls to the pipeline
-    """
-
-    __slots__ = "_response_accumulator"
-
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
-
-        with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_completions_create),
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_span_kind(),
-                    _get_inputs(kwargs),
-                )
-            ),
-        ) as span:
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                span.finish_tracing()
-                raise
-        streaming = kwargs.get("stream", False)
-        if streaming:
-            return _Stream(response, span)
-        else:
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(_get_outputs(response)))
-            span.finish_tracing()
-            return response
-
-
-class _AsyncCompletionsWrapper(_WithTracer):
-    """
-    Wrapper for the pipeline processing
-    Captures all calls to the pipeline
-    """
-
-    async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
-
-        with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_completions_create),
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_span_kind(),
-                    _get_inputs(kwargs),
-                )
-            ),
-        ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                span.finish_tracing()
-                raise
-        streaming = kwargs.get("stream", False)
-        if streaming:
-            return _Stream(response, span)
-        else:
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(_get_outputs(response)))
-            span.finish_tracing()
-            return response
 
 
 @_stop_on_exception
@@ -710,11 +602,6 @@ def _get_llm_model_name_from_response(message: "Message") -> Iterator[Tuple[str,
 
 
 @_stop_on_exception
-def _get_llm_prompts(prompt: str) -> Iterator[Tuple[str, Any]]:
-    yield LLM_PROMPTS, [prompt]
-
-
-@_stop_on_exception
 def _get_llm_input_messages(
     messages: Iterable[MessageParam],
     system: str | Iterable[TextBlockParam] | None = None,
@@ -980,7 +867,6 @@ LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
-LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
