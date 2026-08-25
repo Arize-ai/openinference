@@ -1,5 +1,5 @@
 ollama
 openinference-instrumentation-ollama
+arize-phoenix
 opentelemetry-sdk
 opentelemetry-exporter-otlp
-opentelemetry-instrumentation-httpx
