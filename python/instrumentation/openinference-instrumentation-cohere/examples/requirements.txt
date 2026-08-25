@@ -2,4 +2,3 @@ cohere
 openinference-instrumentation-cohere
 opentelemetry-sdk
 opentelemetry-exporter-otlp
-opentelemetry-instrumentation-httpx
