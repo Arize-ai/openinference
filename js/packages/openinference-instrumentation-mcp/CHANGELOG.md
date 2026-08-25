@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-mcp
 
+## 0.2.26
+
+### Patch Changes
+
+- 3e25f67: Bump @opentelemetry/core to ^2.8.0 to address the W3C Baggage denial-of-service security advisory.
+
 ## 0.2.25
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 3.1.7
+
+### Patch Changes
+
+- 3e25f67: Bump @opentelemetry/core to ^2.8.0 to address the W3C Baggage denial-of-service security advisory.
+
 ## 3.1.6
 
 ### Patch Changes

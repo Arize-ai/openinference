@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.2.0
+
+### Minor Changes
+
+- 3c31b68: Support `openai@^7`. The v7 major's only breaking change is requiring Node.js 22; every patched surface is unchanged, so the supported version range is widened with no other modifications.
+
 ## 4.1.10
 
 ### Patch Changes
