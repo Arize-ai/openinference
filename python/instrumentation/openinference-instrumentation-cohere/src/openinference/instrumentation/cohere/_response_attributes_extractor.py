@@ -2,11 +2,15 @@ import base64
 import logging
 import struct
 import warnings
-from typing import Any, Iterable, Iterator, Mapping, Sequence, Tuple
+from typing import Any, Iterable, Iterator, List, Mapping, Sequence, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import get_reranker_attributes, safe_json_dumps
+from openinference.instrumentation.cohere._request_attributes_extractor import (
+    _as_reranker_documents,
+    _replayable_sequence,
+)
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
@@ -58,6 +62,37 @@ class _ResponseAttributesExtractor:
                 f"{EmbeddingAttributes.EMBEDDING_VECTOR}",
                 vector,
             )
+
+    def get_extra_attributes_from_rerank_response(
+        self,
+        response: Any,
+        input_documents: Any,
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        documents = _replayable_sequence(input_documents)
+        if documents is None:
+            return
+        converted_input_documents = _as_reranker_documents(documents)
+        results = _get_attribute(response, "results")
+        if not isinstance(results, Sequence) or isinstance(results, (str, bytes)):
+            return
+
+        output_documents: List[Any] = []
+        for result in results:
+            index = _get_attribute(result, "index")
+            if (
+                not isinstance(index, int)
+                or isinstance(index, bool)
+                or index < 0
+                or index >= len(converted_input_documents)
+            ):
+                continue
+            document = dict(converted_input_documents[index])
+            score = _get_attribute(result, "relevance_score")
+            if isinstance(score, (int, float)) and not isinstance(score, bool):
+                document["score"] = float(score)
+            output_documents.append(document)
+
+        yield from get_reranker_attributes(output_documents=output_documents).items()
 
     def _get_attributes_from_response_message(
         self,
