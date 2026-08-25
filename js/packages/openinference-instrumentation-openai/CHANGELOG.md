@@ -1,5 +1,45 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.1.10
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+
+## 4.1.9
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+
+## 4.1.8
+
+### Patch Changes
+
+- 237ce2b: Add OLLAMA to the LLMProvider enum, map the ollama.com host to it, and anchor host-suffix matching at label boundaries
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 4.1.6
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
 ## 4.1.5
 
 ### Patch Changes

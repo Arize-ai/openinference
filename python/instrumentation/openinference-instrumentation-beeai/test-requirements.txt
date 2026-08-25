@@ -7,5 +7,8 @@ pytest-asyncio
 pytest
 # Security floors for transitive dependencies pulled in via beeai-framework.
 aiohttp>=3.14.1
-litellm>=1.84.0
+# litellm>=1.92.0 imports litellm.proxy MCP handler code from completion() when
+# tools are passed; those modules require the [proxy] extras (fastapi, orjson,
+# ...), so install the extra to keep tool-using tests working.
+litellm[proxy]>=1.84.0
 python-dotenv>=1.2.2

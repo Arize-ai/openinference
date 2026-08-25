@@ -75,6 +75,7 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
   "api.perplexity.ai": LLMProvider.PERPLEXITY,
   "api.together.ai": LLMProvider.TOGETHER,
   "api.together.xyz": LLMProvider.TOGETHER,
+  "ollama.com": LLMProvider.OLLAMA,
 };
 
 /**
@@ -83,7 +84,9 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
 export function getProviderFromHost(host: string): LLMProvider | undefined {
   const normalised = host.toLowerCase().trim();
   for (const [suffix, provider] of Object.entries(HOST_SUFFIX_TO_PROVIDER)) {
-    if (normalised.endsWith(suffix)) {
+    // Anchor at a label boundary so e.g. "smollama.com" does not match the
+    // "ollama.com" suffix.
+    if (normalised === suffix || normalised.endsWith("." + suffix)) {
       return provider;
     }
   }
@@ -129,23 +132,19 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
   try {
     // The clientInstance might be a sub-object (like Completions) that has a _client property
     // pointing to the actual OpenAI/AzureOpenAI client
-    const instance = clientInstance as {
-      baseURL?: string | { host?: string };
-      _client?: {
-        baseURL?: string | { host?: string };
-      };
-    };
-
     let host: string | undefined;
-    let baseURL: string | { host?: string } | undefined;
+    let baseURL: unknown;
 
     // First try to get baseURL from the instance itself
-    if (instance.baseURL) {
-      baseURL = instance.baseURL;
-    }
-    // If not found, try the _client property (this is where Azure OpenAI stores it)
-    else if (instance._client?.baseURL) {
-      baseURL = instance._client.baseURL;
+    if (clientInstance != null && typeof clientInstance === "object") {
+      baseURL = Reflect.get(clientInstance, "baseURL");
+      // If not found (or empty), try the _client property (this is where Azure OpenAI stores it)
+      if (!baseURL) {
+        const nestedClient = Reflect.get(clientInstance, "_client");
+        if (nestedClient != null && typeof nestedClient === "object") {
+          baseURL = Reflect.get(nestedClient, "baseURL");
+        }
+      }
     }
 
     if (typeof baseURL === "string") {
@@ -159,7 +158,7 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
       }
     } else if (baseURL && typeof baseURL === "object" && "host" in baseURL) {
       // Direct host property
-      host = baseURL.host;
+      host = typeof baseURL.host === "string" ? baseURL.host : undefined;
     }
 
     if (host && typeof host === "string") {
@@ -215,7 +214,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     const module = new InstrumentationNodeModuleDefinition<typeof openai>(
       "openai",
       // 5.x is best effort
-      ["^6.0.0", "^5.0.0"],
+      ["^7.0.0", "^6.0.0", "^5.0.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -332,7 +331,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               // handle the chunks and add them to the span
               // First split the stream via tee
               const [leftStream, rightStream] = result.tee();
-              consumeChatCompletionStreamChunks(rightStream, span);
+              void consumeChatCompletionStreamChunks(rightStream, span);
               result = leftStream;
             }
 
@@ -544,7 +543,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 const [leftStream, rightStream] = result.tee();
                 // take the right stream, consuming it and then recording the final chunk
                 // into the span
-                consumeResponseStreamEvents(rightStream).then(recordSpan);
+                void consumeResponseStreamEvents(rightStream).then(recordSpan);
                 // give the left stream back to the caller
                 result = leftStream;
               }
@@ -1002,15 +1001,14 @@ function isAPIPromise<T>(promise: unknown): promise is APIPromise<T> {
  * @param then - The thennable to invoke
  * @returns The promise with the thennable invoked
  */
-function invokeMaybeAPIPromise<T>(
-  promise: T,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  then: (value: any) => unknown,
-): T {
-  if (isAPIPromise<T>(promise)) {
-    return promise._thenUnwrap(then) as T;
+function invokeMaybeAPIPromise<T>(promise: APIPromise<T>, then: (value: T) => T): APIPromise<T>;
+function invokeMaybeAPIPromise<T>(promise: Promise<T>, then: (value: T) => T): Promise<T>;
+function invokeMaybeAPIPromise<T>(promise: T, then: (value: T) => T): T;
+function invokeMaybeAPIPromise(promise: unknown, then: (value: unknown) => unknown): unknown {
+  if (isAPIPromise<unknown>(promise)) {
+    return promise._thenUnwrap(then);
   } else if (promise instanceof Promise) {
-    return promise.then(then) as T;
+    return promise.then(then);
   } else {
     // eslint-disable-next-line no-console
     console.warn("Promise is not an APIPromise or a regular promise, cannot instrument.");

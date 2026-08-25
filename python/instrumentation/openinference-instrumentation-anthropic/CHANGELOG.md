@@ -1,5 +1,57 @@
 # Changelog
 
+## [2.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.0.0...python-openinference-instrumentation-anthropic-v2.0.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.2...python-openinference-instrumentation-anthropic-v2.0.0) (2026-08-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **anthropic:** require Anthropic v1 and remove legacy Text Completions instrumentation ([#3605](https://github.com/Arize-ai/openinference/issues/3605))
+
+### Bug Fixes
+
+* **anthropic:** require Anthropic v1 and remove legacy Text Completions instrumentation ([#3605](https://github.com/Arize-ai/openinference/issues/3605)) ([5d50132](https://github.com/Arize-ai/openinference/commit/5d50132277fa02694c6e3ac2c0760f20240f85f7))
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.1...python-openinference-instrumentation-anthropic-v1.1.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* **anthropic:** don't let a span-finalization error escape into user code ([#3500](https://github.com/Arize-ai/openinference/issues/3500)) ([#3505](https://github.com/Arize-ai/openinference/issues/3505)) ([15e93f7](https://github.com/Arize-ai/openinference/commit/15e93f7525d640298303ab78f4dafe6a3bd3a2aa))
+* **anthropic:** emit llm.token_count.total on the non-streaming path ([#3498](https://github.com/Arize-ai/openinference/issues/3498)) ([32c30ba](https://github.com/Arize-ai/openinference/commit/32c30baafa2c9a203837d7590989eb54830c535b))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.0...python-openinference-instrumentation-anthropic-v1.1.1) (2026-08-04)
+
+
+### Bug Fixes
+
+* **anthropic:** record cache read/write token details on streaming paths ([#3488](https://github.com/Arize-ai/openinference/issues/3488)) ([3b9b5b4](https://github.com/Arize-ai/openinference/commit/3b9b5b4f954c28c9dcd18576a533119040cc4ac2))
+
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.6...python-openinference-instrumentation-anthropic-v1.1.0) (2026-07-30)
+
+
+### Features
+
+* **anthropic:** Add Finish Reason Attribute ([#3460](https://github.com/Arize-ai/openinference/issues/3460)) ([48b8e7a](https://github.com/Arize-ai/openinference/commit/48b8e7a19611e1292951113caea33af657cd4e18))
+* **python:** anthropic capture thinking and reducted thinking ([#3237](https://github.com/Arize-ai/openinference/issues/3237)) ([bf2e889](https://github.com/Arize-ai/openinference/commit/bf2e889e3fbd347a6f3219645fcb2bc46464ad6c))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [1.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.0.5...python-openinference-instrumentation-anthropic-v1.0.6) (2026-06-02)
 
 

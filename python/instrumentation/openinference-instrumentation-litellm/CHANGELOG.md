@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.38...python-openinference-instrumentation-litellm-v0.1.39) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.37...python-openinference-instrumentation-litellm-v0.1.38) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.36...python-openinference-instrumentation-litellm-v0.1.37) (2026-08-12)
+
+
+### Features
+
+* **litellm:** Add Finish Reason Attribute ([#3541](https://github.com/Arize-ai/openinference/issues/3541)) ([b698c35](https://github.com/Arize-ai/openinference/commit/b698c357bc7edb6406a87314f30965a20453d43b))
+
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.35...python-openinference-instrumentation-litellm-v0.1.36) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.34...python-openinference-instrumentation-litellm-v0.1.35) (2026-07-30)
+
+
+### Features
+
+* **litellm:** instrument Anthropic messages create and acreate ([#3388](https://github.com/Arize-ai/openinference/issues/3388)) ([e1b6748](https://github.com/Arize-ai/openinference/commit/e1b67487fcbe918a9d6caae800a6d3655493eccc))
+* **litellm:** reasoning blocks implementation ([#3317](https://github.com/Arize-ai/openinference/issues/3317)) ([5d5efd0](https://github.com/Arize-ai/openinference/commit/5d5efd0e1217d84d3b899cbed3a40f9c606870c0))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.33...python-openinference-instrumentation-litellm-v0.1.34) (2026-05-18)
 
 

@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.21...python-openinference-instrumentation-pydantic-ai-v0.1.22) (2026-08-25)
+
+
+### Features
+
+* **pydantic_ai:** Add Finish Reason Attribute ([#3601](https://github.com/Arize-ai/openinference/issues/3601)) ([6d4c5ce](https://github.com/Arize-ai/openinference/commit/6d4c5cecb2274c4b249c7437ed9ecde87d62194f))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.20...python-openinference-instrumentation-pydantic-ai-v0.1.21) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.19...python-openinference-instrumentation-pydantic-ai-v0.1.20) (2026-08-12)
+
+
+### Bug Fixes
+
+* pydantic io should include tool calls in input.value/output.value ([#3529](https://github.com/Arize-ai/openinference/issues/3529)) ([4249a33](https://github.com/Arize-ai/openinference/commit/4249a33d6e35772058f4b68af47c22d28267b338))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.18...python-openinference-instrumentation-pydantic-ai-v0.1.19) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.17...python-openinference-instrumentation-pydantic-ai-v0.1.18) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.16...python-openinference-instrumentation-pydantic-ai-v0.1.17) (2026-06-30)
 
 

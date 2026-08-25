@@ -52,6 +52,10 @@ def _get_attributes_from_chat_completion_response(
             if message := _get_attribute_or_value(choice, "message"):
                 for key, value in _get_attributes_from_chat_completion_message(message):
                     yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+            # Only capture finish_reason for the first choice.
+            if index == 0:
+                if (finish_reason := _get_attribute_or_value(choice, "finish_reason")) is not None:
+                    yield SpanAttributes.LLM_FINISH_REASON, finish_reason
 
 
 class _StreamResponseAttributesExtractor:
@@ -80,6 +84,10 @@ def _get_attributes_from_stream_chat_completion_response(
             if message := _get_attribute_or_value(choice, "message"):
                 for key, value in _get_attributes_from_chat_completion_message(message):
                     yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+            # Only capture finish_reason for the first choice.
+            if index == 0:
+                if (finish_reason := _get_attribute_or_value(choice, "finish_reason")) is not None:
+                    yield SpanAttributes.LLM_FINISH_REASON, finish_reason
 
 
 def _get_attributes_from_chat_completion_message(

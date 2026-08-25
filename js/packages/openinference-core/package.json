@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-core",
-  "version": "2.4.0",
+  "version": "2.5.3",
   "private": false,
   "description": "OpenInference Core provides utilities shared by all OpenInference SDK packages.",
   "keywords": [
@@ -52,7 +52,7 @@
     "@opentelemetry/sdk-trace-node": "^2.2.0",
     "@opentelemetry/semantic-conventions": "^1.19.0",
     "@types/node": "^20.14.11",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.0.3"
   }
 }

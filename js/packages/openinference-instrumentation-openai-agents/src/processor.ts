@@ -294,8 +294,10 @@ function extractMessageList(
       } else if (isString(message.output)) {
         attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = message.output;
       } else if (message.output != null) {
-        attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] =
-          safelyJSONStringify(message.output) ?? String(message.output);
+        const output = safelyJSONStringify(message.output);
+        if (output != null) {
+          attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = output;
+        }
       }
       continue;
     }

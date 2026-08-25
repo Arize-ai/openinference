@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.4.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.2...python-openinference-instrumentation-google-genai-v1.4.3) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [1.4.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.1...python-openinference-instrumentation-google-genai-v1.4.2) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [1.4.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.0...python-openinference-instrumentation-google-genai-v1.4.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **google_genai:** record tool parameters from parameters_json_schema for google-genai &gt;= 2.x ([#3579](https://github.com/Arize-ai/openinference/issues/3579)) ([e333dbc](https://github.com/Arize-ai/openinference/commit/e333dbc2578b1edd44700b739817e41cf92a29ac))
+
+## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.3.0...python-openinference-instrumentation-google-genai-v1.4.0) (2026-08-07)
+
+
+### Features
+
+* **google_genai:** Add Finish Reason Attribute ([#3461](https://github.com/Arize-ai/openinference/issues/3461)) ([274f483](https://github.com/Arize-ai/openinference/commit/274f4837579da35778bf244c326d297bb6cff2c6))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.2.0...python-openinference-instrumentation-google-genai-v1.3.0) (2026-07-30)
+
+
+### Features
+
+* **google-genai:** redact images in input.value from TraceConfig ([#3459](https://github.com/Arize-ai/openinference/issues/3459)) ([e8ce013](https://github.com/Arize-ai/openinference/commit/e8ce013ab6e94e11c4a0f31c3e123594ce15d082))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.1.1...python-openinference-instrumentation-google-genai-v1.2.0) (2026-06-30)
 
 

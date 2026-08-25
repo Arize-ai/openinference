@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.15...python-openinference-instrumentation-openllmetry-v0.1.16) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.14...python-openinference-instrumentation-openllmetry-v0.1.15) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.13...python-openinference-instrumentation-openllmetry-v0.1.14) (2026-08-12)
+
+
+### Features
+
+* **openllmetry:** Add Finish Reason Attribute ([#3550](https://github.com/Arize-ai/openinference/issues/3550)) ([5c7dd2c](https://github.com/Arize-ai/openinference/commit/5c7dd2c8c1ac09bf0ceec805e290c40734fbc539))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.12...python-openinference-instrumentation-openllmetry-v0.1.13) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+* **openllmetry:** map retrieval task spans ([#3424](https://github.com/Arize-ai/openinference/issues/3424)) ([d4a4a6a](https://github.com/Arize-ai/openinference/commit/d4a4a6ad63e7e37d9ec9db85193e82e4543752fa))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.11...python-openinference-instrumentation-openllmetry-v0.1.12) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.10...python-openinference-instrumentation-openllmetry-v0.1.11) (2026-06-30)
 
 

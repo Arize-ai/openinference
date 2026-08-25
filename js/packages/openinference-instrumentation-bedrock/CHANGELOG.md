@@ -1,5 +1,56 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.4.24
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+
+## 0.4.23
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+
+## 0.4.22
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 0.4.21
+
+### Patch Changes
+
+- 3f55abd: Fix the Bedrock instrumentation ESM build by removing runtime imports and exports for AWS SDK types.
+
+## 0.4.20
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 0.4.19
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
+## 0.4.18
+
+### Patch Changes
+
+- bafd80e: Update Bedrock instrumentation to use @opentelemetry/core ^2.8.0, which includes the W3C Baggage denial-of-service fix.
+
 ## 0.4.17
 
 ### Patch Changes

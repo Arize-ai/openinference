@@ -28,6 +28,7 @@ import { FrameworkError } from "beeai-framework/errors";
 import { Version } from "beeai-framework/version";
 import { findLast, isEmpty } from "remeda";
 
+import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 import type { OITracer } from "@arizeai/openinference-core";
 import type { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
@@ -78,7 +79,10 @@ export function createTelemetryMiddleware(tracer: OITracer, mainSpanKind: OpenIn
 
     let prompt: string | undefined | null = null;
     if (instance instanceof BaseAgent) {
-      prompt = (runParams as Parameters<ReActAgent["run"]>)[0].prompt;
+      const firstParam = Array.isArray(runParams) ? runParams[0] : undefined;
+      if (isObjectWithStringKeys(firstParam) && typeof firstParam.prompt === "string") {
+        prompt = firstParam.prompt;
+      }
     }
 
     const spansMap = new Map<string, FrameworkSpan>();
@@ -227,7 +231,10 @@ export function createTelemetryMiddleware(tracer: OITracer, mainSpanKind: OpenIn
         const serializedData = getSerializedObjectSafe(data, meta);
 
         // skip partialUpdate events with no data
-        if (meta.name === partialUpdateEventName && isEmpty(serializedData)) {
+        if (
+          meta.name === partialUpdateEventName &&
+          (serializedData == null || isEmpty(serializedData))
+        ) {
           return;
         }
 

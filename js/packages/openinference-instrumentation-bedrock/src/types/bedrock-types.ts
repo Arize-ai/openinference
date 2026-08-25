@@ -5,7 +5,7 @@
  * custom types for structures not exposed by the SDK.
  */
 
-import {
+import type {
   // Core content and message types from SDK
   ContentBlock,
   ContentBlockDelta,
@@ -36,7 +36,7 @@ import { diag } from "@opentelemetry/api";
 import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 
 // Re-export AWS SDK types for convenience
-export {
+export type {
   ContentBlock,
   Message,
   SystemContentBlock,
@@ -191,7 +191,8 @@ export interface ToolUseContent {
   type: "tool_use";
   id: string;
   name: string;
-  input: Record<string, unknown>;
+  /** Parsed tool arguments — usually an object, but providers may emit any JSON value. */
+  input: unknown;
 }
 
 /** Tool result content used by legacy InvokeModel APIs. */

@@ -8,7 +8,10 @@
  * - Invocation parameters
  */
 
-import type { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import type {
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
 import type { Span } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 
@@ -212,7 +215,7 @@ function extractBaseRequestAttributes({
   system,
 }: {
   span: Span;
-  command: InvokeModelCommand;
+  command: InvokeModelCommand | InvokeModelWithResponseStreamCommand;
   requestBody: InvokeModelRequestBody;
   system: LLMSystem;
 }): void {
@@ -330,7 +333,7 @@ export const extractInvokeModelRequestAttributes = withSafety({
     system,
   }: {
     span: Span;
-    command: InvokeModelCommand;
+    command: InvokeModelCommand | InvokeModelWithResponseStreamCommand;
     system: LLMSystem;
   }): void => {
     const requestBody = parseRequestBody(command);

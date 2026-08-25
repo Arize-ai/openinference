@@ -1,5 +1,44 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.5.23
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+
+## 1.5.22
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+
+## 1.5.21
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 1.5.20
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 1.5.19
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
 ## 1.5.18
 
 ### Patch Changes

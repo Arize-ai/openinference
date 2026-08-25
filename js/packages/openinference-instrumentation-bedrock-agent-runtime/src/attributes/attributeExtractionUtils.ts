@@ -452,7 +452,7 @@ function getOutputMessages(modelInvocationOutput: StringKeyedObject): Message[] 
   if (outputContent == null) {
     return null;
   }
-  let parsedContent: unknown | null = null;
+  let parsedContent: unknown = null;
   if (typeof outputContent === "string") {
     parsedContent = parseSanitizedJson(outputContent) ?? outputContent;
     if (!isObjectWithStringKeys(parsedContent)) {

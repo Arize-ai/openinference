@@ -4,7 +4,6 @@
     "outDir": "dist/esm",
     "rootDir": "src",
     "tsBuildInfoFile": "dist/esm/tsconfig.esm.tsbuildinfo",
-    "baseUrl": "./src",
     "experimentalDecorators": true
   },
   "include": ["src/**/*.ts"],

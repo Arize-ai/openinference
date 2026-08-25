@@ -3,7 +3,12 @@ import { diag } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
-import { safelyJSONParse, safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
+import {
+  isObjectWithStringKeys,
+  safelyJSONParse,
+  safelyJSONStringify,
+  withSafety,
+} from "@arizeai/openinference-core";
 import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "@arizeai/openinference-genai";
 import {
   MimeType,
@@ -21,7 +26,7 @@ import { VercelAISemanticConventions } from "./VercelAISemanticConventions.js";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(
-    `Unable to get OpenInference ${attributeType} attributes from AI attributes falling back to null: ${error}`,
+    `Unable to get OpenInference ${attributeType} attributes from AI attributes falling back to null: ${String(error)}`,
   );
 };
 
@@ -394,16 +399,16 @@ const getInputMessagesFromPrompt = (promptValue?: AttributeValue) => {
   }
 
   const parsed = safelyJSONParse(promptValue);
-  if (parsed == null || typeof parsed !== "object") {
-    return null;
-  }
-
   // If the prompt itself is an array of messages, use it directly
   if (Array.isArray(parsed)) {
     return getInputMessageAttributes(promptValue);
   }
 
-  const prompt = parsed as Record<string, unknown>;
+  if (!isObjectWithStringKeys(parsed)) {
+    return null;
+  }
+
+  const prompt = parsed;
   const messagesArray: unknown[] = [];
 
   // Prepend system message if present at the top level
@@ -1293,7 +1298,7 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
   // newer versions of opentelemetry will not allow you to reassign
   // the attributes object, so you must edit it by keyname instead
   Object.entries(newAttributes).forEach(([key, value]) => {
-    span.attributes[key] = value as AttributeValue;
+    span.attributes[key] = value;
   });
 
   // Remove GenAI semantic convention events (e.g., ai.stream.firstChunk, ai.stream.finish)

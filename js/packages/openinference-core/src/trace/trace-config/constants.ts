@@ -46,7 +46,7 @@ export const REDACTED_VALUE = "__REDACTED__";
  * The default, environment, and type information for each value on the TraceConfig
  * Used to generate a full TraceConfig object with the correct types and default values
  */
-export const traceConfigMetadata: Readonly<Record<TraceConfigKey, TraceConfigFlag>> = {
+export const traceConfigMetadata = {
   hideLLMTools: {
     default: DEFAULT_HIDE_LLM_TOOLS,
     envKey: OPENINFERENCE_HIDE_LLM_TOOLS,
@@ -102,7 +102,7 @@ export const traceConfigMetadata: Readonly<Record<TraceConfigKey, TraceConfigFla
     envKey: OPENINFERENCE_HIDE_PROMPTS,
     type: "boolean",
   },
-};
+} satisfies Readonly<Record<TraceConfigKey, TraceConfigFlag>>;
 
 export const DefaultTraceConfig: TraceConfig = {
   hideLLMTools: DEFAULT_HIDE_LLM_TOOLS,

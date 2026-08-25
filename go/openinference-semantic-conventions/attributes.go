@@ -2,6 +2,15 @@ package semconv
 
 // Span-level attributes — set on the span representing the operation.
 const (
+	// Feedback collection prefixes. Use the indexer helpers to build flattened
+	// span-, trace-, and session-scoped attribute keys.
+	Annotations        = "annotations"
+	Evaluations        = "evaluations"
+	TraceAnnotations   = "trace.annotations"
+	TraceEvaluations   = "trace.evaluations"
+	SessionAnnotations = "session.annotations"
+	SessionEvaluations = "session.evaluations"
+
 	// OpenInferenceSpanKind classifies the span (LLM, CHAIN, TOOL, etc.).
 	// Use the SpanKind* constants below as the value.
 	OpenInferenceSpanKind = "openinference.span.kind"
@@ -38,9 +47,39 @@ const (
 	GraphNodeParentID = "graph.node.parent_id"
 )
 
+// Feedback object attributes — nested under Annotations or Evaluations.
+const (
+	AnnotationName          = "annotation.name"
+	AnnotationScore         = "annotation.score"
+	AnnotationLabel         = "annotation.label"
+	AnnotationExplanation   = "annotation.explanation"
+	AnnotationAnnotatorKind = "annotation.annotator_kind"
+	AnnotationIdentifier    = "annotation.identifier"
+	AnnotationMetadata      = "annotation.metadata"
+
+	EvaluationName          = "evaluation.name"
+	EvaluationScore         = "evaluation.score"
+	EvaluationLabel         = "evaluation.label"
+	EvaluationExplanation   = "evaluation.explanation"
+	EvaluationAnnotatorKind = "evaluation.annotator_kind"
+	EvaluationIdentifier    = "evaluation.identifier"
+	EvaluationMetadata      = "evaluation.metadata"
+)
+
 // LLM-span attributes — set when the span represents an LLM API call.
 const (
-	LLMModelName            = "llm.model_name"
+	LLMModelName = "llm.model_name"
+
+	// LLMRequestModelName is the model requested by the caller, as sent in the
+	// request. May differ from LLMResponseModelName when the provider routes
+	// the request to a different model (e.g. classifier-triggered fallback).
+	LLMRequestModelName = "llm.request.model_name"
+
+	// LLMResponseModelName is the model that actually generated the response,
+	// as reported by the provider. May differ from LLMRequestModelName when
+	// the provider routes the request to a different model.
+	LLMResponseModelName = "llm.response.model_name"
+
 	LLMProvider             = "llm.provider"
 	LLMSystem               = "llm.system"
 	LLMInvocationParameters = "llm.invocation_parameters"

@@ -1,5 +1,56 @@
 # @arizeai/openinference-vercel
 
+## 3.1.6
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+  - @arizeai/openinference-genai@0.3.5
+
+## 3.1.5
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+  - @arizeai/openinference-genai@0.3.4
+
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+  - @arizeai/openinference-genai@0.3.3
+
+## 3.1.3
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 3.1.2
+
+### Patch Changes
+
+- Updated dependencies [b1cdcb5]
+- Updated dependencies [3f3b146]
+  - @arizeai/openinference-genai@0.3.2
+
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+  - @arizeai/openinference-genai@0.3.1
+
 ## 3.1.0
 
 ### Minor Changes

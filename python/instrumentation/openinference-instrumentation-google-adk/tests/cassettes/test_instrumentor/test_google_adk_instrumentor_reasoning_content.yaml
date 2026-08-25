@@ -1,0 +1,77 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "A train leaves Boston at 60 mph. Two
+      hours later a second train leaves the same station at 90 mph on the same track.
+      How long after the first train leaves does the second train catch up? Reason
+      through it step by step."}], "role": "user"}], "systemInstruction": {"parts":
+      [{"text": "Think step by step before answering.\n\nYou are an agent. Your internal
+      name is \"_905ee93c\". The description about you is \"Agent that reasons through
+      arithmetic word problems.\"."}], "role": "user"}, "generationConfig": {"thinkingConfig":
+      {"include_thoughts": true, "thinking_budget": 1024}}}'
+    headers: {}
+    method: post
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"**Breaking Down the Train Problem**\\n\\nAlright,
+        this looks like a straightforward arithmetic problem disguised as a word puzzle.
+        My strategy here is to decompose it into manageable pieces. First, I need
+        to clearly define the situation: Train 1 travels at 60 mph, Train 2 at 90
+        mph, and Train 2 leaves two hours after Train 1, both on the same track. The
+        ultimate goal is to figure out when Train 2 overtakes Train 1, measured from
+        the time Train 1 departs.\\n\\nMy plan unfolds in a few key steps. I'm going
+        to start by calculating the distance Train 1 has already covered when Train
+        2 begins its journey. Then, I'll figure out the relative speed \u2013 the
+        rate at which Train 2 is \\\"closing the gap\\\". This is crucial for determining
+        how long it takes Train 2 to eliminate Train 1's lead. Finally, I'll calculate
+        the total time it takes for Train 2 to catch up, measured from the moment
+        Train 1 departs.\\n\\nNow, let's work through the calculations.\\n\\n*   **Step
+        1:** The initial conditions are clearly stated, nothing to expand on here.\\n*
+        \  **Step 2:** I can easily calculate Train 1's head start. It traveled for
+        2 hours at 60 mph, meaning it covered 120 miles.\\n*   **Step 3:** The relative
+        speed is the difference between the two train's speeds: 90 mph - 60 mph =
+        30 mph. This means that every hour, Train 2 decreases the distance between
+        itself and Train 1 by 30 miles.\\n*   **Step 4:** Using the head start distance
+        (120 miles) and the relative speed (30 mph), I can now compute the time it
+        takes Train 2 to catch up: 120 miles / 30 mph = 4 hours.\\n*   **Step 5:**
+        Finally, I must remember the time Train 1 traveled before Train 2 started
+        to calculate how long it took from the point the first train left to the meeting
+        point. This is the 2-hour head start + 4 hours (the time it took Train 2 to
+        catch up) = 6 hours in total.\\n\\nTo be sure, I should always verify my answer.
+        Train 1 will have traveled for a total of 6 hours, which means 60 mph * 6
+        hours = 360 miles. Train 2 traveled for 4 hours (2 hours less), for 90 mph
+        * 4 hours = 360 miles, so the answer is the same as the Train 1, and so the
+        answer checks out! Train 2 catches up at 360 miles from the starting point,
+        6 hours after Train 1 leaves.\\n\",\n            \"thought\": true\n          },\n
+        \         {\n            \"text\": \"Here's a step-by-step reasoning to solve
+        the problem:\\n\\n1.  **Determine the head start of the first train:**\\n
+        \   *   The first train leaves at 60 mph.\\n    *   It travels for 2 hours
+        before the second train leaves.\\n    *   Distance covered by the first train
+        in 2 hours = Speed \xD7 Time = 60 mph \xD7 2 hours = 120 miles.\\n    *   So,
+        when the second train leaves, the first train is 120 miles ahead.\\n\\n2.
+        \ **Calculate the relative speed at which the second train closes the gap:**\\n
+        \   *   The second train travels at 90 mph.\\n    *   The first train continues
+        to travel at 60 mph.\\n    *   The difference in their speeds is how quickly
+        the second train catches up: Relative Speed = 90 mph - 60 mph = 30 mph.\\n\\n3.
+        \ **Calculate the time it takes for the second train to catch up to the first
+        train (after the second train leaves):**\\n    *   The second train needs
+        to close a 120-mile gap.\\n    *   Using the relative speed: Time = Distance
+        / Speed = 120 miles / 30 mph = 4 hours.\\n    *   So, the second train catches
+        up 4 hours *after it leaves*.\\n\\n4.  **Calculate the total time after the
+        first train leaves:**\\n    *   The first train traveled for 2 hours before
+        the second train even started.\\n    *   Then, it took another 4 hours for
+        the second train to catch up.\\n    *   Total time = 2 hours (head start)
+        + 4 hours (catch-up time) = 6 hours.\\n\\n**Answer:** The second train catches
+        up 6 hours after the first train leaves.\"\n          }\n        ],\n        \"role\":
+        \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"index\": 0\n
+        \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 93,\n    \"candidatesTokenCount\":
+        398,\n    \"totalTokenCount\": 1259,\n    \"promptTokensDetails\": [\n      {\n
+        \       \"modality\": \"TEXT\",\n        \"tokenCount\": 93\n      }\n    ],\n
+        \   \"thoughtsTokenCount\": 768,\n    \"serviceTier\": \"standard\"\n  },\n
+        \ \"modelVersion\": \"gemini-2.5-flash\",\n  \"responseId\": \"wktaapOsJ4-zvdIP-87u6Qg\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

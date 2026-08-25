@@ -11,6 +11,7 @@ import pytest
 from google.adk import Agent, __version__
 from google.adk.code_executors.built_in_code_executor import BuiltInCodeExecutor
 from google.adk.events import Event, EventActions
+from google.adk.planners import BuiltInPlanner
 from google.adk.runners import InMemoryRunner
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool as load_artifacts
@@ -137,6 +138,30 @@ def _state_delta_event(*, timestamp: float) -> Event:
     )
 
 
+def _function_response_event(
+    *,
+    timestamp: float,
+    actions: EventActions,
+) -> Event:
+    return Event(
+        author="test-agent",
+        invocation_id="test-invocation",
+        actions=actions,
+        timestamp=timestamp,
+        content=types.Content(
+            role="user",
+            parts=[
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        name="approve_response",
+                        response={"approved": True},
+                    )
+                )
+            ],
+        ),
+    )
+
+
 async def _event_stream(events: list[Event]) -> AsyncGenerator[Event, None]:
     for event in events:
         yield event
@@ -205,6 +230,77 @@ async def test_base_agent_run_async_keeps_content_output_after_state_delta_final
     assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
         exclude_none=True
     )
+
+
+async def test_base_agent_run_async_captures_escalation_output_and_description(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    escalation_event = _function_response_event(
+        timestamp=1.0,
+        actions=EventActions(escalate=True),
+    )
+    assert not escalation_event.is_final_response()
+    state_delta_event = _state_delta_event(timestamp=2.0)
+    assert state_delta_event.is_final_response()
+
+    async def run_async() -> AsyncGenerator[Event, None]:
+        yield escalation_event
+        yield state_delta_event
+
+    wrapped = _BaseAgentRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(
+            Any,
+            SimpleNamespace(
+                name="test-agent",
+                description="Approves a response and ends the loop.",
+            ),
+        ),
+        (),
+        {},
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [escalation_event, state_delta_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes
+    assert span.attributes["gen_ai.agent.description"] == ("Approves a response and ends the loop.")
+    assert span.attributes[SpanAttributes.OUTPUT_MIME_TYPE] == "application/json"
+    assert span.attributes[SpanAttributes.OUTPUT_VALUE] == escalation_event.model_dump_json(
+        exclude_none=True
+    )
+
+
+async def test_base_agent_run_async_does_not_capture_transfer_event_as_output(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    transfer_event = _function_response_event(
+        timestamp=1.0,
+        actions=EventActions(transfer_to_agent="weather-agent"),
+    )
+    assert not transfer_event.is_final_response()
+
+    async def run_async() -> AsyncGenerator[Event, None]:
+        yield transfer_event
+
+    wrapped = _BaseAgentRunAsync(tracer_provider.get_tracer(__name__))(
+        run_async,
+        cast(Any, SimpleNamespace(name="test-agent", description="")),
+        (),
+        {},
+    )
+
+    streamed_events = [event async for event in wrapped]
+
+    assert streamed_events == [transfer_event]
+    [span] = in_memory_span_exporter.get_finished_spans()
+    attributes = dict(span.attributes or {})
+    assert "gen_ai.agent.description" not in attributes
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+    assert SpanAttributes.OUTPUT_VALUE not in attributes
 
 
 @pytest.mark.skipif(
@@ -517,6 +613,7 @@ async def test_google_adk_instrumentor(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.name", None)
     tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
@@ -732,6 +829,9 @@ async def test_google_adk_instrumentor_multi_tool_call(
         )
         == "get_weather"
     )
+    assert call_llm_attributes0.pop(
+        "llm.output_messages.0.message.tool_calls.0.tool_call.reasoning_signature", None
+    )
     assert call_llm_attributes0.pop("llm.token_count.completion", None) == 92
     assert call_llm_attributes0.pop("llm.token_count.completion_details.reasoning", None) == 76
     assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 136
@@ -799,6 +899,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.name", None)
     tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
@@ -842,6 +943,9 @@ async def test_google_adk_instrumentor_multi_tool_call(
             "llm.input_messages.2.message.tool_calls.0.tool_call.function.name", None
         )
         == "get_weather"
+    )
+    assert call_llm_attributes1.pop(
+        "llm.input_messages.2.message.tool_calls.0.tool_call.reasoning_signature", None
     )
     assert (
         call_llm_attributes1.pop("llm.input_messages.3.message.content", None)
@@ -921,6 +1025,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_attributes1.pop("gen_ai.tool.description", None)
     tool_attributes1.pop("gen_ai.tool.name", None)
     tool_attributes1.pop("gen_ai.tool.type", None)
+    tool_attributes1.pop("gen_ai.agent.name", None)
     tool_attributes1.pop("gen_ai.agent.version", None)
     assert not tool_attributes1
 
@@ -964,6 +1069,9 @@ async def test_google_adk_instrumentor_multi_tool_call(
             "llm.input_messages.2.message.tool_calls.0.tool_call.function.name", None
         )
         == "get_weather"
+    )
+    assert call_llm_attributes2.pop(
+        "llm.input_messages.2.message.tool_calls.0.tool_call.reasoning_signature", None
     )
     assert (
         call_llm_attributes2.pop("llm.input_messages.3.message.content", None)
@@ -1329,6 +1437,7 @@ async def test_google_adk_instrumentor_multi_agent(
     transfer_tool_attributes.pop("gen_ai.tool.description", None)
     transfer_tool_attributes.pop("gen_ai.tool.name", None)
     transfer_tool_attributes.pop("gen_ai.tool.type", None)
+    transfer_tool_attributes.pop("gen_ai.agent.name", None)
     assert not transfer_tool_attributes
 
     # 5. agent_run [weather_agent]
@@ -1511,6 +1620,7 @@ async def test_google_adk_instrumentor_multi_agent(
     get_weather_tool_attributes.pop("gen_ai.tool.description", None)
     get_weather_tool_attributes.pop("gen_ai.tool.name", None)
     get_weather_tool_attributes.pop("gen_ai.tool.type", None)
+    get_weather_tool_attributes.pop("gen_ai.agent.name", None)
     assert not get_weather_tool_attributes
 
     # 8. call_llm (weather agent - final response)
@@ -1899,6 +2009,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.name", None)
     assert not tool_attributes
 
     tool_span1 = spans_by_name["execute_tool load_artifacts"][0]
@@ -1931,6 +2042,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     tool_attributes1.pop("gen_ai.tool.description", None)
     tool_attributes1.pop("gen_ai.tool.name", None)
     tool_attributes1.pop("gen_ai.tool.type", None)
+    tool_attributes1.pop("gen_ai.agent.name", None)
     assert not tool_attributes1
 
 
@@ -2213,3 +2325,98 @@ async def test_google_adk_instrumentor_trace_config_hides_inputs(
         if span.name.startswith("call_llm"):
             assert attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert saw_redacted_input
+
+
+@pytest.mark.vcr
+async def test_google_adk_instrumentor_reasoning_content(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Verify that thought and thought_signature on a reasoning part are captured."""
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model="gemini-2.5-flash",
+        description="Agent that reasons through arithmetic word problems.",
+        instruction="Think step by step before answering.",
+        planner=BuiltInPlanner(
+            thinking_config=types.ThinkingConfig(
+                include_thoughts=True,
+                thinking_budget=1024,
+            ),
+        ),
+    )
+
+    app_name = f"app{token_hex(4)}"
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+    runner = InMemoryRunner(agent=agent, app_name=app_name)
+    session_service = runner.session_service
+    await session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user",
+            parts=[
+                types.Part(
+                    text=(
+                        "A train leaves Boston at 60 mph. Two hours later a second "
+                        "train leaves the same station at 90 mph on the same track. "
+                        "How long after the first train leaves does the second train "
+                        "catch up? Reason through it step by step."
+                    )
+                )
+            ],
+        ),
+    ):
+        ...
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    call_llm_span = spans_by_name["call_llm"][0]
+    assert call_llm_span.status.is_ok
+    call_llm_attributes = dict(call_llm_span.attributes or {})
+
+    contents_prefix = "llm.output_messages.0.message.contents"
+
+    # Verify the reasoning/thought content.
+    reasoning_type = call_llm_attributes.pop(f"{contents_prefix}.0.message_content.type", None)
+    assert reasoning_type == "reasoning"
+    reasoning_text = call_llm_attributes.pop(f"{contents_prefix}.0.message_content.text", None)
+    assert reasoning_text
+
+    # Signature is opaque provider-issued data.
+    call_llm_attributes.pop(f"{contents_prefix}.0.message_content.signature", None)
+
+    # Verify the final answer text.
+    final_answer_type = call_llm_attributes.pop(f"{contents_prefix}.1.message_content.type", None)
+    assert final_answer_type == "text"
+    final_answer_text = call_llm_attributes.pop(f"{contents_prefix}.1.message_content.text", None)
+    assert final_answer_text
+
+    assert call_llm_attributes.pop("llm.output_messages.0.message.role", None) == "model"
+
+    # Span-level reasoning token count should be present.
+    assert call_llm_attributes.pop(
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, None
+    )
+
+    # Everything else on the span is boilerplate covered by other tests.
+    for key in list(call_llm_attributes):
+        if key.startswith("llm.") or key.startswith("gcp.") or key.startswith("gen_ai."):
+            call_llm_attributes.pop(key, None)
+    for key in (
+        "user.id",
+        "session.id",
+        "openinference.span.kind",
+        "output.mime_type",
+        "output.value",
+        "input.mime_type",
+        "input.value",
+    ):
+        call_llm_attributes.pop(key, None)
+    assert not call_llm_attributes

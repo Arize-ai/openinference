@@ -20,7 +20,15 @@ function sanitizeTestName(name: string): string {
 // Normalize a JSON body to a canonical key-sorted string so cassette matching
 // is invariant to key-order drift across AWS SDK versions.
 function normalizeBody(body: unknown): string {
-  if (typeof body !== "string" || body.length === 0) return String(body ?? "");
+  if (body == null) return "";
+  if (typeof body !== "string") {
+    try {
+      return JSON.stringify(sortKeys(body)) ?? "";
+    } catch {
+      return "";
+    }
+  }
+  if (body.length === 0) return "";
   try {
     return JSON.stringify(sortKeys(JSON.parse(body)));
   } catch {

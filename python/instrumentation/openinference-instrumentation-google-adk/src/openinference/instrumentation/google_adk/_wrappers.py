@@ -11,6 +11,7 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    Optional,
     OrderedDict,
     TypedDict,
     TypeVar,
@@ -185,6 +186,8 @@ class _BaseAgentRunAsync(_WithTracer):
         attributes = dict(get_attributes_from_context())
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
         attributes[SpanAttributes.AGENT_NAME] = instance.name
+        if description := getattr(instance, "description", None):
+            attributes["gen_ai.agent.description"] = description
 
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
             __wrapped__: AsyncGenerator[Event, None]
@@ -194,8 +197,11 @@ class _BaseAgentRunAsync(_WithTracer):
                     name=name,
                     attributes=attributes,
                 ) as span:
+                    last_escalation_event: Optional[Event] = None
                     has_output_with_content = False
                     async for event in self.__wrapped__:
+                        if event.actions.escalate:
+                            last_escalation_event = event
                         if event.is_final_response():
                             event_has_content = _event_has_content(event)
                             if has_output_with_content and not event_has_content:
@@ -219,6 +225,20 @@ class _BaseAgentRunAsync(_WithTracer):
                                     has_output_with_content or event_has_content
                                 )
                         yield event
+                    if last_escalation_event is not None and not has_output_with_content:
+                        try:
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_VALUE,
+                                last_escalation_event.model_dump_json(exclude_none=True),
+                            )
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_MIME_TYPE,
+                                OpenInferenceMimeTypeValues.JSON.value,
+                            )
+                        except Exception:
+                            logger.exception(
+                                f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                            )
                     span.set_status(StatusCode.OK)
 
         return _AsyncGenerator(generator)
@@ -522,6 +542,8 @@ def _get_attributes_from_parts(
             yield from _get_attributes_from_text_part(
                 text,
                 prefix=prefix,
+                thought=bool(part.thought),
+                signature=part.thought_signature,
             )
         elif text_only:
             continue
@@ -530,6 +552,7 @@ def _get_attributes_from_parts(
             yield from _get_attributes_from_function_call(
                 function_call,
                 prefix=prefix,
+                signature=part.thought_signature,
             )
         elif (function_response := part.function_response) is not None:
             prefix = f"{span_attribute}.{message_index}."
@@ -555,9 +578,19 @@ def _get_attributes_from_text_part(
     /,
     *,
     prefix: str = "",
+    thought: bool = False,
+    signature: Optional[bytes] = None,
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", obj
-    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+    yield (
+        f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+        "reasoning" if thought else "text",
+    )
+    if signature:
+        yield (
+            f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE}",
+            base64.b64encode(signature).decode() if isinstance(signature, bytes) else signature,
+        )
 
 
 @stop_on_exception
@@ -566,6 +599,7 @@ def _get_attributes_from_function_call(
     /,
     *,
     prefix: str = "",
+    signature: Optional[bytes] = None,
 ) -> Iterator[tuple[str, AttributeValue]]:
     if id_ := obj.id:
         yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", id_
@@ -575,6 +609,11 @@ def _get_attributes_from_function_call(
         yield (
             f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
             safe_json_dumps(function_arguments),
+        )
+    if signature:
+        yield (
+            f"{prefix}{ToolCallAttributes.TOOL_CALL_REASONING_SIGNATURE}",
+            base64.b64encode(signature).decode() if isinstance(signature, bytes) else signature,
         )
 
 

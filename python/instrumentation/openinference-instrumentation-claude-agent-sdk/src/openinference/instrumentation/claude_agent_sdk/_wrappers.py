@@ -20,6 +20,7 @@ from openinference.instrumentation import (
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -49,6 +50,8 @@ LLM_COST_TOTAL = SpanAttributes.LLM_COST_TOTAL
 AGENT_NAME = SpanAttributes.AGENT_NAME
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_PROVIDER_ANTHROPIC = OpenInferenceLLMProviderValues.ANTHROPIC.value
 TOOL_ID = SpanAttributes.TOOL_ID
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
@@ -1030,6 +1033,7 @@ class _QueryWrapper:
                 [
                     (OPENINFERENCE_SPAN_KIND, AGENT),
                     (LLM_SYSTEM, LLM_SYSTEM_ANTHROPIC),
+                    (LLM_PROVIDER, LLM_PROVIDER_ANTHROPIC),
                     *_format_prompt_attributes(prompt).items(),
                 ]
                 + list(get_attributes_from_context())
@@ -1165,6 +1169,7 @@ class _ClientReceiveResponseWrapper:
                 [
                     (OPENINFERENCE_SPAN_KIND, AGENT),
                     (LLM_SYSTEM, LLM_SYSTEM_ANTHROPIC),
+                    (LLM_PROVIDER, LLM_PROVIDER_ANTHROPIC),
                     *_format_prompt_attributes(prompt).items(),
                 ]
                 + list(get_attributes_from_context())

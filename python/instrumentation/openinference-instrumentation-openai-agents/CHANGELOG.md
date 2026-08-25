@@ -1,5 +1,43 @@
 # Changelog
 
+## [2.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.0.1...python-openinference-instrumentation-openai-agents-v2.0.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [2.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.0.0...python-openinference-instrumentation-openai-agents-v2.0.1) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.6.2...python-openinference-instrumentation-openai-agents-v2.0.0) (2026-08-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **openai-agents:** scope llm.system to LLM spans, add agent name, tool schema, and handoff I/O ([#3492](https://github.com/Arize-ai/openinference/issues/3492))
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+* **openai-agents:** scope llm.system to LLM spans, add agent name, tool schema, and handoff I/O ([#3492](https://github.com/Arize-ai/openinference/issues/3492)) ([8053d84](https://github.com/Arize-ai/openinference/commit/8053d845d90ae1ad4796c7e2c5eaf807e932f5b4))
+
+## [1.6.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.6.1...python-openinference-instrumentation-openai-agents-v1.6.2) (2026-07-30)
+
+
+### Bug Fixes
+
+* **openai_agents:** Missing Output Content & Dropped Reasoning Items ([#3391](https://github.com/Arize-ai/openinference/issues/3391)) ([5ee0e65](https://github.com/Arize-ai/openinference/commit/5ee0e65c5f1a449b37cb41191329ca5916c46686))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [1.6.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.6.0...python-openinference-instrumentation-openai-agents-v1.6.1) (2026-06-05)
 
 

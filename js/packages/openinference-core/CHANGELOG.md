@@ -1,5 +1,38 @@
 # @arizeai/openinference-core
 
+## 2.5.3
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+
+## 2.5.2
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+
+## 2.5.1
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+
+## 2.5.0
+
+### Minor Changes
+
+- 0168198: Add typed helpers for span-, trace-, and session-scoped annotations and evaluations.
+
+## 2.4.1
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+
 ## 2.4.0
 
 ### Minor Changes
