@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.58...python-openinference-instrumentation-v0.1.59) (2026-08-25)
+
+
+### Features
+
+* **cohere:** instrument ClientV2.rerank ([#3530](https://github.com/Arize-ai/openinference/issues/3530)) ([4f34a5a](https://github.com/Arize-ai/openinference/commit/4f34a5a69191569c06b893f7f974e1a41de84c86))
+
 ## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.57...python-openinference-instrumentation-v0.1.58) (2026-08-25)
 
 
