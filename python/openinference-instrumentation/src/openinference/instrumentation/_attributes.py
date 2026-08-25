@@ -547,6 +547,8 @@ def get_llm_attributes(
     provider: Optional[OpenInferenceLLMProvider] = None,
     system: Optional[OpenInferenceLLMSystem] = None,
     model_name: Optional[str] = None,
+    request_model_name: Optional[str] = None,
+    response_model_name: Optional[str] = None,
     invocation_parameters: Optional[Union[str, Dict[str, Any]]] = None,
     input_messages: Optional["Sequence[Message]"] = None,
     output_messages: Optional["Sequence[Message]"] = None,
@@ -557,6 +559,8 @@ def get_llm_attributes(
         **get_llm_provider_attributes(provider),
         **get_llm_system_attributes(system),
         **get_llm_model_name_attributes(model_name),
+        **get_llm_request_model_name_attributes(request_model_name or model_name),
+        **get_llm_response_model_name_attributes(response_model_name or model_name),
         **get_llm_invocation_parameter_attributes(invocation_parameters),
         **get_llm_input_message_attributes(input_messages),
         **get_llm_output_message_attributes(output_messages),
@@ -590,6 +594,22 @@ def get_llm_model_name_attributes(
 ) -> "Mapping[str, AttributeValue]":
     if isinstance(model_name, str):
         return {LLM_MODEL_NAME: model_name}
+    return {}
+
+
+def get_llm_request_model_name_attributes(
+    request_model_name: Optional[str],
+) -> "Mapping[str, AttributeValue]":
+    if isinstance(request_model_name, str):
+        return {LLM_REQUEST_MODEL_NAME: request_model_name}
+    return {}
+
+
+def get_llm_response_model_name_attributes(
+    response_model_name: Optional[str],
+) -> "Mapping[str, AttributeValue]":
+    if isinstance(response_model_name, str):
+        return {LLM_RESPONSE_MODEL_NAME: response_model_name}
     return {}
 
 
@@ -788,6 +808,8 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_REQUEST_MODEL_NAME = SpanAttributes.LLM_REQUEST_MODEL_NAME
+LLM_RESPONSE_MODEL_NAME = SpanAttributes.LLM_RESPONSE_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

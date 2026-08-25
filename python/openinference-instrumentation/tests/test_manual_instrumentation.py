@@ -2465,6 +2465,8 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         provider="openai",
         system="openai",
         model_name="gpt-4",
+        request_model_name="gpt-4",
+        response_model_name="gpt-4-0613",
         invocation_parameters={"temperature": 0.7, "max_tokens": 100},
         input_messages=input_messages,
         output_messages=output_messages,
@@ -2474,6 +2476,8 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     assert attributes.pop(LLM_PROVIDER) == "openai"
     assert attributes.pop(LLM_SYSTEM) == "openai"
     assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "gpt-4"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "gpt-4-0613"
     invocation_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(invocation_params, str)
     params_dict = json.loads(invocation_params)
@@ -2583,6 +2587,30 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     assert json.loads(tool_schema) == {
         "type": "object",
         "properties": {"operation": {"type": "string"}},
+    }
+
+
+def test_get_llm_attributes_request_and_response_model_name_fall_back_to_model_name() -> None:
+    attributes = get_llm_attributes(model_name="gpt-4")
+    assert attributes == {
+        LLM_MODEL_NAME: "gpt-4",
+        LLM_REQUEST_MODEL_NAME: "gpt-4",
+        LLM_RESPONSE_MODEL_NAME: "gpt-4",
+    }
+
+
+def test_get_llm_attributes_request_and_response_model_name_take_precedence_over_model_name() -> (
+    None
+):
+    attributes = get_llm_attributes(
+        model_name="gpt-4",
+        request_model_name="gpt-4",
+        response_model_name="gpt-4-0613",
+    )
+    assert attributes == {
+        LLM_MODEL_NAME: "gpt-4",
+        LLM_REQUEST_MODEL_NAME: "gpt-4",
+        LLM_RESPONSE_MODEL_NAME: "gpt-4-0613",
     }
 
 
@@ -3091,6 +3119,8 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_REQUEST_MODEL_NAME = SpanAttributes.LLM_REQUEST_MODEL_NAME
+LLM_RESPONSE_MODEL_NAME = SpanAttributes.LLM_RESPONSE_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
