@@ -281,12 +281,16 @@ def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
         if usage.get("cache_write_input_tokens") is not None
         else usage.get("cache_creation_input_tokens")
     )
+    # Anthropic's input_tokens excludes cache tokens by design; fold cache_read/write
+    # back in so prompt/total reflect the true prompt size, matching the sibling
+    # openinference-instrumentation-anthropic package's _get_token_counts convention.
     if input_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_PROMPT] = input_tokens
+        prompt_tokens = input_tokens + (cache_read_tokens or 0) + (cache_write_tokens or 0)
+        attributes[LLM_TOKEN_COUNT_PROMPT] = prompt_tokens
     if output_tokens is not None:
         attributes[LLM_TOKEN_COUNT_COMPLETION] = output_tokens
     if input_tokens is not None and output_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_TOTAL] = input_tokens + output_tokens
+        attributes[LLM_TOKEN_COUNT_TOTAL] = prompt_tokens + output_tokens
     if cache_read_tokens is not None:
         attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read_tokens
     if cache_write_tokens is not None:
