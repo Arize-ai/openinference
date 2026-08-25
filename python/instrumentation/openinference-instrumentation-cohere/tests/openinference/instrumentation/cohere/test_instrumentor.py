@@ -1426,3 +1426,43 @@ def test_rerank_suppressed(
         )
 
     assert in_memory_span_exporter.get_finished_spans() == ()
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    [
+        "COMPLETE",
+        "STOP_SEQUENCE",
+        "MAX_TOKENS",
+        "TOOL_CALL",
+        "ERROR",
+        "ERROR_TOXIC",
+        "ERROR_LIMIT",
+        "USER_CANCEL",
+    ],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = V2ChatResponse(
+        id="c-finish-reason-test",
+        finish_reason=finish_reason,
+        message=AssistantMessageResponse(
+            role="assistant",
+            content=[TextAssistantMessageResponseContentItem(type="text", text="hi")],
+        ),
+        usage=Usage(tokens=UsageTokens(input_tokens=5, output_tokens=2)),
+    )
+    monkeypatch.setattr(RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=response))
+
+    _client().chat(
+        model="command-a-03-2025",
+        messages=[_user_message("hi")],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
