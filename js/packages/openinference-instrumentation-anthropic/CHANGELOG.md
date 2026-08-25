@@ -1,5 +1,13 @@
 # @arizeai/openinference-instrumentation-anthropic
 
+## 0.1.22
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+
 ## 0.1.21
 
 ### Patch Changes
