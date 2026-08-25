@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.35...python-openinference-instrumentation-smolagents-v0.1.36) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
 ## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.34...python-openinference-instrumentation-smolagents-v0.1.35) (2026-08-24)
 
 
