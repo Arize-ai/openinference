@@ -195,6 +195,8 @@ def test_anthropic_instrumentation_stream_message(
     assert isinstance(raw_inv, str)
     assert json.loads(raw_inv) == invocation_params
 
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-sonnet-4-6"
     assert not attributes
 
 
@@ -291,6 +293,8 @@ async def test_anthropic_instrumentation_async_stream_message(
     assert isinstance(raw_inv, str)
     assert json.loads(raw_inv) == invocation_params
 
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-sonnet-4-6"
     assert not attributes
 
 
@@ -381,6 +385,8 @@ def test_anthropic_instrumentation_messages(
     assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-sonnet-4-6"
     assert not attributes
 
 
@@ -479,6 +485,147 @@ def test_anthropic_instrumentation_messages_streaming(
     assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-sonnet-4-6"
+    assert not attributes
+
+
+@pytest.mark.vcr
+def test_anthropic_instrumentation_messages_model_fallback(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Covers provider-side classifier/fallback routing: the response is served
+    by a different model than the one requested (e.g. Opus 5 requested, routed
+    to Opus 4.8). llm.request.model_name and llm.response.model_name must be
+    captured as distinct values, and llm.model_name must reflect the model
+    that actually served the response.
+    """
+    client = Anthropic(api_key="sk-ant-fake")
+    input_message = "What's the capital of France?"
+
+    invocation_params = {"max_tokens": 1024}
+
+    client.messages.create(
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": input_message,
+            }
+        ],
+        model="claude-opus-5",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "messages.create"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "The capital of France is **Paris**."
+    )
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 14
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 11
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 25
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert_output_value_contains(output_value, {"model": "claude-opus-4-8"})
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
+
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-opus-5"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-opus-4-8"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-opus-4-8"
+    assert not attributes
+
+
+@pytest.mark.vcr
+def test_anthropic_instrumentation_messages_streaming_model_fallback(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Streaming counterpart of test_anthropic_instrumentation_messages_model_fallback.
+    Also guards against the pre-fix regression where the streaming path never
+    read the response model at all, leaving llm.model_name stuck at the
+    requested model.
+    """
+    client = Anthropic(api_key="sk-ant-fake")
+    input_message = "What's the capital of France?"
+
+    invocation_params = {"max_tokens": 1024, "stream": True}
+
+    stream = client.messages.create(
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": input_message,
+            }
+        ],
+        model="claude-opus-5",
+        stream=True,
+    )
+
+    for _ in stream:
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "messages.create"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "The capital of France is **Paris**."
+    )
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 14
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 11
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 25
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert_output_value_contains(output_value, {"model": "claude-opus-4-8"})
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
+
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-opus-5"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-opus-4-8"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-opus-4-8"
     assert not attributes
 
 
@@ -578,6 +725,8 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-sonnet-4-6"
     assert not attributes
 
 
@@ -665,6 +814,8 @@ async def test_anthropic_instrumentation_async_messages(
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
 
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-sonnet-4-6"
     assert not attributes
 
 
@@ -857,6 +1008,8 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert isinstance(attributes.pop(LLM_REQUEST_MODEL_NAME), str)
+    assert isinstance(attributes.pop(LLM_RESPONSE_MODEL_NAME), str)
     assert not attributes
 
 
@@ -1049,6 +1202,8 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
     assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert isinstance(attributes.pop(LLM_REQUEST_MODEL_NAME), str)
+    assert isinstance(attributes.pop(LLM_RESPONSE_MODEL_NAME), str)
     assert not attributes
 
 
@@ -1183,6 +1338,8 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     assert attributes.pop(f"{LLM_TOKEN_COUNT_PROMPT}") == 78
     assert attributes.pop(f"{LLM_TOKEN_COUNT_TOTAL}") == 374
     assert attributes.pop(f"{OPENINFERENCE_SPAN_KIND}") == "LLM"
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-3-5-sonnet-20240620"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-3-5-sonnet-20240620"
     assert not attributes
 
 
@@ -1288,6 +1445,8 @@ def test_anthropic_instrumentation_image_input_messages(
     assert attributes.pop(f"{LLM_TOKEN_COUNT_PROMPT}") == 78
     assert attributes.pop(f"{LLM_TOKEN_COUNT_TOTAL}") == 341
     assert attributes.pop(f"{OPENINFERENCE_SPAN_KIND}") == "LLM"
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-3-5-sonnet-20240620"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-3-5-sonnet-20240620"
     assert not attributes
 
 
@@ -1643,6 +1802,8 @@ def test_anthropic_instrumentation_messages_parse(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
+    assert isinstance(attributes.pop(LLM_REQUEST_MODEL_NAME), str)
+    assert isinstance(attributes.pop(LLM_RESPONSE_MODEL_NAME), str)
     assert not attributes
 
 
@@ -1754,6 +1915,8 @@ async def test_anthropic_instrumentation_async_messages_parse(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
+    assert isinstance(attributes.pop(LLM_REQUEST_MODEL_NAME), str)
+    assert isinstance(attributes.pop(LLM_RESPONSE_MODEL_NAME), str)
     assert not attributes
 
 
@@ -1867,6 +2030,8 @@ def test_anthropic_instrumentation_beta_messages_parse(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
+    assert isinstance(attributes.pop(LLM_REQUEST_MODEL_NAME), str)
+    assert isinstance(attributes.pop(LLM_RESPONSE_MODEL_NAME), str)
     assert not attributes
 
 
@@ -1981,6 +2146,8 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
+    assert isinstance(attributes.pop(LLM_REQUEST_MODEL_NAME), str)
+    assert isinstance(attributes.pop(LLM_RESPONSE_MODEL_NAME), str)
     assert not attributes
 
 
@@ -2113,6 +2280,8 @@ def test_anthropic_instrumentation_beta_messages_create(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-sonnet-4-6"
     assert not attributes
 
 
@@ -2203,6 +2372,8 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
 
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-sonnet-4-6"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-sonnet-4-6"
     assert not attributes
 
 
@@ -2751,6 +2922,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_REQUEST_MODEL_NAME = SpanAttributes.LLM_REQUEST_MODEL_NAME
+LLM_RESPONSE_MODEL_NAME = SpanAttributes.LLM_RESPONSE_MODEL_NAME
 LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
