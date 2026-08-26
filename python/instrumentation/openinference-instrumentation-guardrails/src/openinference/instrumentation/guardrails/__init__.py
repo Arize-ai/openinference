@@ -82,7 +82,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
 
         runner_module = import_module(_RUNNER_MODULE)
         self._original_guardrails_runner_step = runner_module.Runner.step
-        runner_wrapper = _ParseCallableWrapper(tracer=self._tracer)
+        runner_wrapper = _ParseCallableWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         wrap_function_wrapper(
             _RUNNER_MODULE,
             "Runner.step",
@@ -93,7 +93,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_guardrails_llm_providers_call = (
             llm_providers_module.PromptCallableBase.__call__
         )
-        prompt_callable_wrapper = _PromptCallableWrapper(tracer=self._tracer)
+        prompt_callable_wrapper = _PromptCallableWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         wrap_function_wrapper(
             _LLM_PROVIDERS_MODULE,
             "PromptCallableBase.__call__",
@@ -104,7 +104,7 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_guardrails_validation_after_run = (
             validation_module.ValidatorServiceBase.after_run_validator
         )
-        post_validator_wrapper = _PostValidationWrapper(tracer=self._tracer)
+        post_validator_wrapper = _PostValidationWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         wrap_function_wrapper(
             _VALIDATION_MODULE,
             "ValidatorServiceBase.after_run_validator",
@@ -141,4 +141,4 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_guard_from_constructors is not None:
             for name, original in self._original_guard_from_constructors.items():
                 setattr(gd.guard.Guard, f"from_{name}", original)
-            self._original_guard_from_constructors = None
+            self._original_guard_from_constructors = None  # type: ignore[assignment]
