@@ -505,6 +505,8 @@ def test_anthropic_instrumentation_messages_model_fallback(
     client = Anthropic(api_key="sk-ant-fake")
     input_message = "What's the capital of France?"
 
+    invocation_params = {"max_tokens": 1024}
+
     client.messages.create(
         max_tokens=1024,
         messages=[
@@ -517,11 +519,43 @@ def test_anthropic_instrumentation_messages_model_fallback(
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "messages.create"
     attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "The capital of France is **Paris**."
+    )
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 14
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 11
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 25
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert_output_value_contains(output_value, {"model": "claude-opus-4-8"})
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
 
     assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-opus-5"
     assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-opus-4-8"
     assert attributes.pop(LLM_MODEL_NAME) == "claude-opus-4-8"
+    assert not attributes
 
 
 @pytest.mark.vcr
@@ -537,6 +571,8 @@ def test_anthropic_instrumentation_messages_streaming_model_fallback(
     """
     client = Anthropic(api_key="sk-ant-fake")
     input_message = "What's the capital of France?"
+
+    invocation_params = {"max_tokens": 1024, "stream": True}
 
     stream = client.messages.create(
         max_tokens=1024,
@@ -554,11 +590,43 @@ def test_anthropic_instrumentation_messages_streaming_model_fallback(
         pass
 
     spans = in_memory_span_exporter.get_finished_spans()
+
+    assert spans[0].name == "messages.create"
     attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+        == "The capital of France is **Paris**."
+    )
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 14
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 11
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 25
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str)
+    assert_output_value_contains(output_value, {"model": "claude-opus-4-8"})
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
 
     assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "claude-opus-5"
     assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "claude-opus-4-8"
     assert attributes.pop(LLM_MODEL_NAME) == "claude-opus-4-8"
+    assert not attributes
 
 
 @pytest.mark.asyncio
