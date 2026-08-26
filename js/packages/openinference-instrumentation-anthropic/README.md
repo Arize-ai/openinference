@@ -122,21 +122,16 @@ pnpx tsx examples/basic-usage.ts # or streaming.ts, tool-use.ts, etc
 
 See the [examples](./examples) directory for more detailed usage examples.
 
-To exercise server-side fallback and export the spans to a local Phoenix instance:
+To exercise server-side fallback:
 
 ```shell
 export ANTHROPIC_API_KEY=your-api-key
-export PHOENIX_PROJECT_NAME=anthropic-fallback-roundtrip
 
 # Real Anthropic beta request that triggers a reasoning-extraction fallback
 pnpm exec tsx examples/server-side-fallback.ts
 
 # Deterministic SSE fixture that guarantees a mid-stream fallback boundary
 pnpm exec tsx examples/server-side-fallback-streaming.ts
-
-# Inspect the exported spans
-px span list --endpoint http://localhost:6006 \
-  --project anthropic-fallback-roundtrip --format raw --no-progress
 ```
 
 ## License
