@@ -92,7 +92,8 @@ The `AnthropicInstrumentation` constructor accepts the following options:
 
 - **Messages API**: Full support for `anthropic.messages.create()`
 - **Beta Messages API**: Full support for `anthropic.beta.messages.create()`
-- **Server-Side Fallback**: Captures requested and serving models across fallback boundaries
+- **Server-Side Fallback**: Captures requested and serving models across fallback boundaries, records the `fallback` handoff (declining model and refusal category) as message content, and takes token counts from the attempt that served the response
+- **Refusals**: Records `llm.finish_reason`, so a classifier decline (`stop_reason: "refusal"`) is visible on the span
 - **Streaming**: Automatic handling of streaming responses
 - **Tool Use**: Captures tool/function calling information
 - **Token Usage**: Records input/output token counts when available

@@ -25,6 +25,7 @@ const {
   LLM_INVOCATION_PARAMETERS,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_COMPLETION,
+  LLM_FINISH_REASON,
   LLM_TOKEN_COUNT_TOTAL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
@@ -164,6 +165,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(221);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(273);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
     expect(attributes).toEqual({});
   });
 
@@ -249,6 +251,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(204);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(256);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
     expect(attributes).toEqual({});
   });
 
@@ -319,6 +322,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(5);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(54);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
     expect(attributes).toEqual({});
   });
 
@@ -395,6 +399,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(5);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(54);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
     expect(attributes).toEqual({});
   });
 
@@ -526,6 +531,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
       expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toEqual(expect.any(Number));
       expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toEqual(expect.any(Number));
 
+      expect(pop(attributes, LLM_FINISH_REASON)).toBe("end_turn");
       expect(attributes).toEqual({});
     },
   );
@@ -654,6 +660,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(99);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(695);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("tool_use");
     expect(attributes).toEqual({});
   });
 
@@ -789,6 +796,7 @@ describe("AnthropicInstrumentation - reasoning content", () => {
     expect(pop(attributes, LLM_TOKEN_COUNT_COMPLETION)).toBe(99);
     expect(pop(attributes, LLM_TOKEN_COUNT_TOTAL)).toBe(695);
 
+    expect(pop(attributes, LLM_FINISH_REASON)).toBe("tool_use");
     expect(attributes).toEqual({});
   });
 });

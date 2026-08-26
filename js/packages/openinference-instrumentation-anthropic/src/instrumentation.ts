@@ -44,7 +44,8 @@ type MessageUsage =
   | Anthropic.Messages.Usage
   | Anthropic.Messages.MessageDeltaUsage
   | Anthropic.Beta.Messages.BetaUsage
-  | Anthropic.Beta.Messages.BetaMessageDeltaUsage;
+  | Anthropic.Beta.Messages.BetaMessageDeltaUsage
+  | Anthropic.Beta.Messages.BetaFallbackMessageIterationUsage;
 type AnthropicModuleWithOptionalBeta = Omit<typeof Anthropic, "Beta"> & {
   Beta?: { Messages?: typeof Anthropic.Beta.Messages };
 };
@@ -178,7 +179,9 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       return module;
     }
     if (!betaMessages?.prototype?.create) {
-      diag.warn(`Cannot find Beta.Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
+      // Beta instrumentation is optional: the stable Messages patch below still
+      // applies, so this is not a failure worth warning about.
+      diag.debug(`Cannot find Beta.Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -263,6 +266,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
+                ...getAnthropicFinishReasonAttributes(result.stop_reason),
                 ...getAnthropicOutputMessagesAttributes(result),
                 ...getAnthropicUsageAttributes(result.usage),
               });
@@ -394,6 +398,47 @@ function isAnthropicStream(response: unknown): response is Stream<RawMessageStre
 }
 
 /**
+ * Records the reason the model stopped generating tokens. `"refusal"` is the
+ * signal that a safety classifier declined the request.
+ *
+ * @see https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback
+ */
+function getAnthropicFinishReasonAttributes(stopReason: string | null | undefined): Attributes {
+  if (stopReason == null) {
+    return {};
+  }
+  return { [SemanticConventions.LLM_FINISH_REASON]: stopReason };
+}
+
+/**
+ * Summarizes a server-side fallback handoff so the boundary is visible on the
+ * span. Without this the block would occupy an index in the flattened
+ * `message_contents` list while contributing no attributes, leaving a hole in
+ * the list and dropping which model declined and why.
+ *
+ * @see https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#server-side-fallback
+ */
+function getAnthropicFallbackContentAttributes(
+  prefix: string,
+  block: {
+    from: Anthropic.Beta.Messages.BetaFallbackInfo;
+    to: Anthropic.Beta.Messages.BetaFallbackInfo;
+    trigger?: unknown;
+  },
+): Attributes {
+  const trigger = block.trigger;
+  const category =
+    typeof trigger === "object" && trigger !== null && "category" in trigger
+      ? trigger.category
+      : undefined;
+  const reason = typeof category === "string" ? ` (refusal: ${category})` : "";
+  return {
+    [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: "fallback",
+    [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`]: `${block.from.model} -> ${block.to.model}${reason}`,
+  };
+}
+
+/**
  * Converts the body of an Anthropic messages request to LLM input messages
  */
 function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attributes {
@@ -490,6 +535,9 @@ function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
         attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
           "reasoning";
         attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = part.data;
+      } else if (part.type === "fallback") {
+        // A prior turn's fallback boundary echoed back to the API
+        Object.assign(attributes, getAnthropicFallbackContentAttributes(contentsIndexPrefix, part));
       }
     });
   }
@@ -536,6 +584,8 @@ function getAnthropicOutputMessagesAttributes(message: Message): Attributes {
     } else if (content.type === "redacted_thinking") {
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = content.data;
+    } else if (content.type === "fallback") {
+      Object.assign(attributes, getAnthropicFallbackContentAttributes(contentPrefix, content));
     }
   });
 
@@ -568,7 +618,10 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
   const toolCallAttributes: Attributes = {};
   const contentAttributes: Attributes = {};
   let usageAttributes: Attributes = {};
+  let deltaUsageAttributes: Attributes = {};
   let responseModel: string | undefined;
+  let finishReason: string | undefined;
+  let servingIterationUsage: Anthropic.Beta.Messages.BetaFallbackMessageIterationUsage | undefined;
   let toolIndex = -1;
   for await (const chunk of stream) {
     if (chunk.type === "message_start") {
@@ -578,14 +631,22 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
         ...getAnthropicUsageAttributes(chunk.message.usage),
       };
     } else if (chunk.type === "message_delta") {
+      deltaUsageAttributes = getAnthropicUsageAttributes(chunk.usage);
       usageAttributes = {
         ...usageAttributes,
-        ...getAnthropicUsageAttributes(chunk.usage),
+        ...deltaUsageAttributes,
       };
+      if (chunk.delta.stop_reason != null) {
+        finishReason = chunk.delta.stop_reason;
+      }
       if ("iterations" in chunk.usage && chunk.usage.iterations != null) {
         for (const iteration of chunk.usage.iterations) {
           if (iteration.type === "fallback_message") {
             responseModel = iteration.model;
+            // Remember the serving hop's own counts: on a fallback stream the
+            // counts carried over from message_start belong to the declined
+            // model, and must not be mixed with the serving model's.
+            servingIterationUsage = iteration;
           }
         }
       }
@@ -622,6 +683,10 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
           contentBlock.data;
       } else if (contentBlock.type === "fallback") {
         responseModel = contentBlock.to.model;
+        Object.assign(
+          contentAttributes,
+          getAnthropicFallbackContentAttributes(contentPrefix, contentBlock),
+        );
       }
     } else if (chunk.type === "content_block_delta") {
       const contentIndex = chunk.index;
@@ -673,6 +738,8 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
     attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = responseModel;
   }
 
+  Object.assign(attributes, getAnthropicFinishReasonAttributes(finishReason));
+
   // Add the content block attributes
   for (const [key, value] of Object.entries(contentAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
@@ -681,6 +748,18 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
   // Add the tool call attributes
   for (const [key, value] of Object.entries(toolCallAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
+  }
+
+  // On a server-side fallback stream, message_start carries the declined
+  // attempt's counts. Fill any count the final message_delta did not report
+  // from the serving hop's own iteration entry rather than leaving the declined
+  // model's value in place, so prompt and completion describe the same model.
+  if (servingIterationUsage != null) {
+    usageAttributes = {
+      ...usageAttributes,
+      ...getAnthropicUsageAttributes(servingIterationUsage),
+      ...deltaUsageAttributes,
+    };
   }
 
   // Add the token usage attributes, recomputing the total in case prompt and
