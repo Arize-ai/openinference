@@ -20,7 +20,7 @@ const collectorEndpoint =
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
-export const provider = new NodeTracerProvider({
+const provider = new NodeTracerProvider({
   resource: new Resource({
     [ATTR_SERVICE_NAME]: projectName,
     [SEMRESATTRS_PROJECT_NAME]: projectName,
@@ -44,3 +44,12 @@ provider.register();
 
 // eslint-disable-next-line no-console
 console.log("👀 OpenInference initialized");
+
+/**
+ * Flushes and shuts the exporter down. Examples are short-lived processes, so
+ * without this the last spans can be dropped on exit.
+ */
+export async function shutdownTracing() {
+  await provider.forceFlush();
+  await provider.shutdown();
+}

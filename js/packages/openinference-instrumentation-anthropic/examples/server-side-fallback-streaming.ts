@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { provider } from "./instrumentation";
+import { shutdownTracing } from "./instrumentation";
 
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -114,8 +114,7 @@ async function main() {
       JSON.stringify({ requestedModel, responseModel: fallbackModel, transitions }, null, 2),
     );
   } finally {
-    await provider.forceFlush();
-    await provider.shutdown();
+    await shutdownTracing();
   }
 }
 

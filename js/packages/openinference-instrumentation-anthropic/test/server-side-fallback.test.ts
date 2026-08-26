@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 import { AnthropicInstrumentation } from "../src/instrumentation";
+import { waitForSpans as waitForSpansOn } from "./helpers/waitForSpans";
 
 const {
   LLM_FINISH_REASON,
@@ -28,15 +29,7 @@ const requestedModel = "claude-fable-5";
 const fallbackModel = "claude-opus-4-8";
 
 const memoryExporter = new InMemorySpanExporter();
-
-async function waitForSpans(count: number) {
-  for (let i = 0; i < 50; i++) {
-    if (memoryExporter.getFinishedSpans().length >= count) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
+const waitForSpans = (count: number) => waitForSpansOn(memoryExporter, count);
 
 function createJSONFetch(): typeof fetch {
   return async () =>
@@ -75,9 +68,8 @@ function createStreamingFetch({
         type: "message",
         role: "assistant",
         model: requestedModel,
-        // The declined model's counts, which must not leak into the span when
-        // the serving model's counts are reported separately.
-        usage: { input_tokens: deltaInputTokens == null ? 99 : 12, output_tokens: 1 },
+        // The declined model's counts, which must never leak into the span.
+        usage: { input_tokens: 99, output_tokens: 1 },
         content: [],
         stop_reason: null,
         stop_sequence: null,

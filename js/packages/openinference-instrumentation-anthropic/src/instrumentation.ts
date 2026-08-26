@@ -51,6 +51,20 @@ type AnthropicModuleWithOptionalBeta = Omit<typeof Anthropic, "Beta"> & {
 };
 
 /**
+ * Resolves the Anthropic namespace and its optional `Beta.Messages` from a
+ * module export, unwrapping the ES-module default. `patch` and `unpatch` must
+ * agree on the object they (un)wrap, so they share this one resolution.
+ */
+function resolveAnthropicModule(moduleExports: typeof Anthropic) {
+  const anthropicModule =
+    (moduleExports as typeof Anthropic & { default?: typeof Anthropic }).default || moduleExports;
+  return {
+    anthropicModule,
+    betaMessages: (anthropicModule as AnthropicModuleWithOptionalBeta).Beta?.Messages,
+  };
+}
+
+/**
  * Flag to check if the anthropic module has been patched
  * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
  */
@@ -169,19 +183,11 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       return module;
     }
 
-    // Handle ES module default export structure
-    const anthropicModule =
-      (module as typeof Anthropic & { default?: typeof Anthropic }).default || module;
-    const betaMessages = (anthropicModule as AnthropicModuleWithOptionalBeta).Beta?.Messages;
+    const { anthropicModule, betaMessages } = resolveAnthropicModule(module);
 
     if (!anthropicModule?.Messages?.prototype?.create) {
       diag.warn(`Cannot find Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
       return module;
-    }
-    if (!betaMessages?.prototype?.create) {
-      // Beta instrumentation is optional: the stable Messages patch below still
-      // applies, so this is not a failure worth warning about.
-      diag.debug(`Cannot find Beta.Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -335,6 +341,9 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     this._wrap(anthropicModule.Messages.prototype, "create", patchCreate);
     if (betaMessages?.prototype?.create) {
       this._wrap(betaMessages.prototype, "create", patchCreate);
+    } else {
+      // Beta instrumentation is optional: the stable Messages patch still applies.
+      diag.debug(`Cannot find Beta.Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
     }
 
     _isOpenInferencePatched = true;
@@ -356,9 +365,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     moduleVersion?: string,
   ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
-    const anthropicModule =
-      (moduleExports as typeof Anthropic & { default?: typeof Anthropic }).default || moduleExports;
-    const betaMessages = (anthropicModule as AnthropicModuleWithOptionalBeta).Beta?.Messages;
+    const { anthropicModule, betaMessages } = resolveAnthropicModule(moduleExports);
     this._unwrap(anthropicModule.Messages.prototype, "create");
     if (betaMessages?.prototype?.create) {
       this._unwrap(betaMessages.prototype, "create");
@@ -420,13 +427,12 @@ function getAnthropicFinishReasonAttributes(stopReason: string | null | undefine
  */
 function getAnthropicFallbackContentAttributes(
   prefix: string,
-  block: {
-    from: Anthropic.Beta.Messages.BetaFallbackInfo;
-    to: Anthropic.Beta.Messages.BetaFallbackInfo;
-    trigger?: unknown;
-  },
+  block: Anthropic.Beta.Messages.BetaFallbackBlock | Anthropic.Beta.Messages.BetaFallbackBlockParam,
 ): Attributes {
-  const trigger = block.trigger;
+  // The response block types `trigger` as a refusal trigger, but the param
+  // variant echoed back on a later turn declares it `unknown` — the server
+  // accepts and ignores any object there — so it has to be narrowed.
+  const trigger: unknown = block.trigger;
   const category =
     typeof trigger === "object" && trigger !== null && "category" in trigger
       ? trigger.category
@@ -617,25 +623,22 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
   let streamResponse = "";
   const toolCallAttributes: Attributes = {};
   const contentAttributes: Attributes = {};
-  let usageAttributes: Attributes = {};
+  // Usage is reported per attempt: message_start describes the first attempt,
+  // which on a server-side fallback stream is the one that declined. Each
+  // source is captured on its own so the precedence between them is stated
+  // once, where they are merged after the loop.
+  let startUsageAttributes: Attributes = {};
   let deltaUsageAttributes: Attributes = {};
+  let servingUsageAttributes: Attributes = {};
   let responseModel: string | undefined;
   let finishReason: string | undefined;
-  let servingIterationUsage: Anthropic.Beta.Messages.BetaFallbackMessageIterationUsage | undefined;
   let toolIndex = -1;
   for await (const chunk of stream) {
     if (chunk.type === "message_start") {
       responseModel = chunk.message.model;
-      usageAttributes = {
-        ...usageAttributes,
-        ...getAnthropicUsageAttributes(chunk.message.usage),
-      };
+      startUsageAttributes = getAnthropicUsageAttributes(chunk.message.usage);
     } else if (chunk.type === "message_delta") {
       deltaUsageAttributes = getAnthropicUsageAttributes(chunk.usage);
-      usageAttributes = {
-        ...usageAttributes,
-        ...deltaUsageAttributes,
-      };
       if (chunk.delta.stop_reason != null) {
         finishReason = chunk.delta.stop_reason;
       }
@@ -643,10 +646,7 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
         for (const iteration of chunk.usage.iterations) {
           if (iteration.type === "fallback_message") {
             responseModel = iteration.model;
-            // Remember the serving hop's own counts: on a fallback stream the
-            // counts carried over from message_start belong to the declined
-            // model, and must not be mixed with the serving model's.
-            servingIterationUsage = iteration;
+            servingUsageAttributes = getAnthropicUsageAttributes(iteration);
           }
         }
       }
@@ -738,7 +738,9 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
     attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = responseModel;
   }
 
-  Object.assign(attributes, getAnthropicFinishReasonAttributes(finishReason));
+  if (finishReason != null) {
+    attributes[SemanticConventions.LLM_FINISH_REASON] = finishReason;
+  }
 
   // Add the content block attributes
   for (const [key, value] of Object.entries(contentAttributes)) {
@@ -750,21 +752,18 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
 
-  // On a server-side fallback stream, message_start carries the declined
-  // attempt's counts. Fill any count the final message_delta did not report
-  // from the serving hop's own iteration entry rather than leaving the declined
-  // model's value in place, so prompt and completion describe the same model.
-  if (servingIterationUsage != null) {
-    usageAttributes = {
-      ...usageAttributes,
-      ...getAnthropicUsageAttributes(servingIterationUsage),
-      ...deltaUsageAttributes,
-    };
-  }
+  // Later sources win: on a server-side fallback stream the serving hop's
+  // counts displace the declined attempt's counts from message_start, and the
+  // final message_delta wins over both, so prompt and completion describe the
+  // same model.
+  const usageAttributes: Attributes = {
+    ...startUsageAttributes,
+    ...servingUsageAttributes,
+    ...deltaUsageAttributes,
+  };
 
-  // Add the token usage attributes, recomputing the total in case prompt and
-  // completion counts were captured from different chunks (message_start vs
-  // message_delta)
+  // Recompute the total in case prompt and completion counts came from
+  // different sources.
   const promptTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT];
   const completionTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION];
   if (typeof promptTokens === "number" && typeof completionTokens === "number") {

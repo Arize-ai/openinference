@@ -14,6 +14,7 @@ import {
 
 import { AnthropicInstrumentation } from "../src/instrumentation";
 import { vcrFetch } from "./helpers/vcr";
+import { waitForSpans as waitForSpansOn } from "./helpers/waitForSpans";
 
 const {
   OPENINFERENCE_SPAN_KIND,
@@ -25,15 +26,7 @@ const {
 } = SemanticConventions;
 
 const memoryExporter = new InMemorySpanExporter();
-
-async function waitForSpans(count: number) {
-  for (let i = 0; i < 50; i++) {
-    if (memoryExporter.getFinishedSpans().length >= count) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
+const waitForSpans = (count: number) => waitForSpansOn(memoryExporter, count);
 
 describe("AnthropicInstrumentation - APIPromise compatibility", () => {
   const tracerProvider = new NodeTracerProvider({
