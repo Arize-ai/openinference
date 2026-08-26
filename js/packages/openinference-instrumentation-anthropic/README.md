@@ -5,6 +5,7 @@ JavaScript auto-instrumentation library for the [Anthropic](https://www.anthropi
 This package implements OpenInference tracing for the following Anthropic SDK methods:
 
 - `messages.create` (including streaming)
+- `beta.messages.create` (including server-side fallback and streaming)
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
@@ -90,6 +91,9 @@ The `AnthropicInstrumentation` constructor accepts the following options:
 ## Supported Features
 
 - **Messages API**: Full support for `anthropic.messages.create()`
+- **Beta Messages API**: Full support for `anthropic.beta.messages.create()`
+- **Server-Side Fallback**: Captures requested and serving models across fallback boundaries, records the `fallback` handoff (declining model and refusal category) as message content, and takes token counts from the attempt that served the response
+- **Refusals**: Records `llm.finish_reason`, so a classifier decline (`stop_reason: "refusal"`) is visible on the span
 - **Streaming**: Automatic handling of streaming responses
 - **Tool Use**: Captures tool/function calling information
 - **Token Usage**: Records input/output token counts when available
@@ -117,6 +121,18 @@ pnpx tsx examples/basic-usage.ts # or streaming.ts, tool-use.ts, etc
 ```
 
 See the [examples](./examples) directory for more detailed usage examples.
+
+To exercise server-side fallback:
+
+```shell
+export ANTHROPIC_API_KEY=your-api-key
+
+# Real Anthropic beta request that triggers a reasoning-extraction fallback
+pnpm exec tsx examples/server-side-fallback.ts
+
+# Deterministic SSE fixture that guarantees a mid-stream fallback boundary
+pnpm exec tsx examples/server-side-fallback-streaming.ts
+```
 
 ## License
 
