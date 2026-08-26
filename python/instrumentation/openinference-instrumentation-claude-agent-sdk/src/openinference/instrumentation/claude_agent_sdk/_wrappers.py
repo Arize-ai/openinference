@@ -276,25 +276,20 @@ def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
     input_tokens = _safe_int(usage.get("input_tokens"))
     output_tokens = _safe_int(usage.get("output_tokens"))
     cache_read_tokens = _safe_int(usage.get("cache_read_input_tokens"))
-    # Coalesce on the parsed values (not the raw ones) so a present-but-unparseable
-    # cache_write_input_tokens still falls back to cache_creation_input_tokens.
+    # Fall back to cache_creation_input_tokens when cache_write is absent or unparseable.
     cache_write_tokens = _safe_int(usage.get("cache_write_input_tokens"))
     if cache_write_tokens is None:
         cache_write_tokens = _safe_int(usage.get("cache_creation_input_tokens"))
-    # Anthropic's input_tokens excludes cache tokens by design; fold cache_read/write
-    # back in so prompt/total reflect the true prompt size, matching the sibling
-    # openinference-instrumentation-anthropic package's _get_token_counts convention.
-    # Compute the folded prompt whenever any component is known, so a payload that
-    # reports only cache tokens still yields a prompt count consistent with the
-    # prompt_details breakouts below.
-    prompt_tokens: int | None = None
-    if input_tokens is not None or cache_read_tokens is not None or cache_write_tokens is not None:
-        prompt_tokens = (input_tokens or 0) + (cache_read_tokens or 0) + (cache_write_tokens or 0)
-        attributes[LLM_TOKEN_COUNT_PROMPT] = prompt_tokens
+    # Anthropic's input_tokens excludes cache tokens; fold them back into prompt/total.
+    prompt_parts = [
+        t for t in (input_tokens, cache_read_tokens, cache_write_tokens) if t is not None
+    ]
+    if prompt_parts:
+        attributes[LLM_TOKEN_COUNT_PROMPT] = sum(prompt_parts)
     if output_tokens is not None:
         attributes[LLM_TOKEN_COUNT_COMPLETION] = output_tokens
-    if prompt_tokens is not None or output_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_TOTAL] = (prompt_tokens or 0) + (output_tokens or 0)
+    if prompt_parts or output_tokens is not None:
+        attributes[LLM_TOKEN_COUNT_TOTAL] = sum(prompt_parts) + (output_tokens or 0)
     if cache_read_tokens is not None:
         attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read_tokens
     if cache_write_tokens is not None:
