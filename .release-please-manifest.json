@@ -18,7 +18,7 @@
     "python/instrumentation/openinference-instrumentation-ollama": "0.1.4",
     "python/instrumentation/openinference-instrumentation-together": "0.1.5",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.22",
-    "python/instrumentation/openinference-instrumentation-anthropic": "2.0.1",
+    "python/instrumentation/openinference-instrumentation-anthropic": "2.1.0",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.36",
     "python/instrumentation/openinference-instrumentation-ag2": "0.1.4",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.15",

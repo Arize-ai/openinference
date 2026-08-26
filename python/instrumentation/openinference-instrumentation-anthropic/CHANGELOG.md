@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.0.1...python-openinference-instrumentation-anthropic-v2.1.0) (2026-08-26)
+
+
+### Features
+
+* **anthropic:** capture request and response model names ([#3600](https://github.com/Arize-ai/openinference/issues/3600)) ([50ce986](https://github.com/Arize-ai/openinference/commit/50ce986c63bf36b99309dc23f6cb3064610b2fc7))
+
 ## [2.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.0.0...python-openinference-instrumentation-anthropic-v2.0.1) (2026-08-25)
 
 
