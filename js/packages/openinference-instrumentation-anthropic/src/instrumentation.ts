@@ -32,6 +32,23 @@ const MODULE_NAME = "@anthropic-ai/sdk";
 
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-anthropic";
 
+type MessageCreateParams =
+  | Parameters<typeof Anthropic.Messages.prototype.create>[0]
+  | Parameters<typeof Anthropic.Beta.Messages.prototype.create>[0];
+type MessageParam = Anthropic.Messages.MessageParam | Anthropic.Beta.Messages.BetaMessageParam;
+type Message = Anthropic.Messages.Message | Anthropic.Beta.Messages.BetaMessage;
+type RawMessageStreamEvent =
+  | Anthropic.Messages.RawMessageStreamEvent
+  | Anthropic.Beta.Messages.BetaRawMessageStreamEvent;
+type MessageUsage =
+  | Anthropic.Messages.Usage
+  | Anthropic.Messages.MessageDeltaUsage
+  | Anthropic.Beta.Messages.BetaUsage
+  | Anthropic.Beta.Messages.BetaMessageDeltaUsage;
+type AnthropicModuleWithOptionalBeta = Omit<typeof Anthropic, "Beta"> & {
+  Beta?: { Messages?: typeof Anthropic.Beta.Messages };
+};
+
 /**
  * Flag to check if the anthropic module has been patched
  * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
@@ -154,25 +171,29 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     // Handle ES module default export structure
     const anthropicModule =
       (module as typeof Anthropic & { default?: typeof Anthropic }).default || module;
+    const betaMessages = (anthropicModule as AnthropicModuleWithOptionalBeta).Beta?.Messages;
 
     if (!anthropicModule?.Messages?.prototype?.create) {
       diag.warn(`Cannot find Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
       return module;
     }
+    if (!betaMessages?.prototype?.create) {
+      diag.warn(`Cannot find Beta.Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: AnthropicInstrumentation = this;
 
-    // Patch messages.create
+    // Patch stable and beta messages.create using the same span lifecycle.
     type MessagesCreateType = typeof anthropicModule.Messages.prototype.create;
+    type BetaMessagesCreateType = typeof anthropicModule.Beta.Messages.prototype.create;
+    type AnyMessagesCreateType = MessagesCreateType | BetaMessagesCreateType;
 
-    this._wrap(
-      anthropicModule.Messages.prototype,
-      "create",
+    const patchCreate =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (original: MessagesCreateType): any => {
-        return function patchedCreate(this: unknown, ...args: Parameters<MessagesCreateType>) {
-          const body = args[0] as Anthropic.Messages.MessageCreateParams;
+      <CreateType extends AnyMessagesCreateType>(original: CreateType): any => {
+        return function patchedCreate(this: unknown, ...args: Parameters<CreateType>) {
+          const body = args[0];
           const { messages: _messages, ...invocationParameters } = body;
           const span = instrumentation.oiTracer.startSpan(`Anthropic Messages`, {
             kind: SpanKind.INTERNAL,
@@ -193,7 +214,8 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
           const execPromise = safeExecuteInTheMiddle(
             () => {
               return context.with(trace.setSpan(execContext, span), () => {
-                return original.apply(this, args);
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+                return Reflect.apply(original, this, args) as ReturnType<CreateType>;
               });
             },
             (error: Error | undefined) => {
@@ -207,7 +229,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 span.end();
               }
             },
-          );
+          ) as APIPromise<Message | Stream<RawMessageStreamEvent>>;
 
           // The span can be ended by the parse path, the asResponse() override, or
           // an error, so guard against ending it more than once.
@@ -232,9 +254,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             endSpan();
           };
 
-          const wrappedPromiseThen = (
-            result: Anthropic.Messages.Message | Stream<Anthropic.Messages.RawMessageStreamEvent>,
-          ) => {
+          const wrappedPromiseThen = (result: Message | Stream<RawMessageStreamEvent>) => {
             if (isAnthropicMessageResponse(result)) {
               // Record the results
               span.setAttributes({
@@ -293,6 +313,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 data,
                 response,
                 request_id: response.headers.get("request-id"),
+                workspace_id: response.headers.get("anthropic-workspace-id"),
               };
             };
 
@@ -305,8 +326,12 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
           });
           return context.bind(execContext, wrappedPromise);
         };
-      },
-    );
+      };
+
+    this._wrap(anthropicModule.Messages.prototype, "create", patchCreate);
+    if (betaMessages?.prototype?.create) {
+      this._wrap(betaMessages.prototype, "create", patchCreate);
+    }
 
     _isOpenInferencePatched = true;
     try {
@@ -327,7 +352,13 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     moduleVersion?: string,
   ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
-    this._unwrap(moduleExports.Messages.prototype, "create");
+    const anthropicModule =
+      (moduleExports as typeof Anthropic & { default?: typeof Anthropic }).default || moduleExports;
+    const betaMessages = (anthropicModule as AnthropicModuleWithOptionalBeta).Beta?.Messages;
+    this._unwrap(anthropicModule.Messages.prototype, "create");
+    if (betaMessages?.prototype?.create) {
+      this._unwrap(betaMessages.prototype, "create");
+    }
 
     _isOpenInferencePatched = false;
     try {
@@ -349,7 +380,7 @@ function hasThenUnwrap<T>(promise: PromiseLike<T>): promise is APIPromise<T> {
 /**
  * type-guard that checks if the response is an Anthropic message response
  */
-function isAnthropicMessageResponse(response: unknown): response is Anthropic.Messages.Message {
+function isAnthropicMessageResponse(response: unknown): response is Message {
   return (
     response != null && typeof response === "object" && "content" in response && "role" in response
   );
@@ -358,19 +389,15 @@ function isAnthropicMessageResponse(response: unknown): response is Anthropic.Me
 /**
  * type-guard that checks if the response is an Anthropic stream
  */
-function isAnthropicStream(
-  response: unknown,
-): response is Stream<Anthropic.Messages.RawMessageStreamEvent> {
+function isAnthropicStream(response: unknown): response is Stream<RawMessageStreamEvent> {
   return response != null && typeof response === "object" && "tee" in response;
 }
 
 /**
  * Converts the body of an Anthropic messages request to LLM input messages
  */
-function getAnthropicInputMessagesAttributes(
-  body: Anthropic.Messages.MessageCreateParams,
-): Attributes {
-  return body.messages.reduce((acc, message, index) => {
+function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attributes {
+  return body.messages.reduce<Attributes>((acc, message, index) => {
     const messageAttributes = getAnthropicInputMessageAttributes(message);
     const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
     // Flatten the attributes on the index prefix
@@ -378,13 +405,13 @@ function getAnthropicInputMessagesAttributes(
       acc[`${indexPrefix}${key}`] = value;
     }
     return acc;
-  }, {} as Attributes);
+  }, {});
 }
 
 /**
  * Converts each tool definition into a json schema
  */
-function getAnthropicToolsJSONSchema(body: Anthropic.Messages.MessageCreateParams): Attributes {
+function getAnthropicToolsJSONSchema(body: MessageCreateParams): Attributes {
   if (!body.tools) {
     // If tools is undefined, return an empty object
     return {};
@@ -399,7 +426,7 @@ function getAnthropicToolsJSONSchema(body: Anthropic.Messages.MessageCreateParam
   }, {});
 }
 
-function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageParam): Attributes {
+function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
   const role = message.role;
   const attributes: Attributes = {
     [SemanticConventions.MESSAGE_ROLE]: role,
@@ -473,7 +500,7 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
 /**
  * Converts the Anthropic message result to LLM output attributes
  */
-function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Message): Attributes {
+function getAnthropicOutputMessagesAttributes(message: Message): Attributes {
   const attributes: Attributes = {};
   const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
@@ -518,9 +545,7 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
 /**
  * Get usage attributes from Anthropic response
  */
-function getAnthropicUsageAttributes(
-  usage: Anthropic.Messages.Usage | Anthropic.Messages.MessageDeltaUsage,
-): Attributes {
+function getAnthropicUsageAttributes(usage: MessageUsage): Attributes {
   const attributes: Attributes = {};
   if (usage.input_tokens != null) {
     attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
@@ -538,10 +563,7 @@ function getAnthropicUsageAttributes(
 /**
  * Consumes the stream chunks and adds them to the span
  */
-async function consumeAnthropicStreamChunks(
-  stream: Stream<Anthropic.Messages.RawMessageStreamEvent>,
-  span: Span,
-) {
+async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent>, span: Span) {
   let streamResponse = "";
   const toolCallAttributes: Attributes = {};
   const contentAttributes: Attributes = {};
@@ -560,6 +582,13 @@ async function consumeAnthropicStreamChunks(
         ...usageAttributes,
         ...getAnthropicUsageAttributes(chunk.usage),
       };
+      if ("iterations" in chunk.usage && chunk.usage.iterations != null) {
+        for (const iteration of chunk.usage.iterations) {
+          if (iteration.type === "fallback_message") {
+            responseModel = iteration.model;
+          }
+        }
+      }
     } else if (chunk.type === "content_block_start") {
       const contentBlock = chunk.content_block;
       const contentIndex = chunk.index;
@@ -591,6 +620,8 @@ async function consumeAnthropicStreamChunks(
           "reasoning";
         contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
           contentBlock.data;
+      } else if (contentBlock.type === "fallback") {
+        responseModel = contentBlock.to.model;
       }
     } else if (chunk.type === "content_block_delta") {
       const contentIndex = chunk.index;
