@@ -182,8 +182,7 @@ def test_guardrails_uninstrumentation(tracer_provider: TracerProvider) -> None:
         is original_guard_from_constructors["pydantic"]
     ), "Expected Guard.from_pydantic to be unwrapped"
     assert (
-        guardrails.guard.Guard.__dict__["from_string"]
-        is original_guard_from_constructors["string"]
+        guardrails.guard.Guard.__dict__["from_string"] is original_guard_from_constructors["string"]
     ), "Expected Guard.from_string to be unwrapped"
     assert (
         guardrails.guard.Guard.__dict__["from_rail_string"]
