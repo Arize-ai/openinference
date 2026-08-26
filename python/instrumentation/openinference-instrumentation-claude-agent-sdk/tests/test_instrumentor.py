@@ -1059,10 +1059,13 @@ async def test_query_real_agent_span(
     assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
     llm_provider = attrs.pop(SpanAttributes.LLM_PROVIDER, None)
     assert llm_provider == OpenInferenceLLMProviderValues.ANTHROPIC.value
+    # Exact values pinned to the recorded cassette (usage: input_tokens=3,
+    # output_tokens=4, cache_read=17024, cache_creation=0): prompt/total must
+    # fold the cache tokens back in, since Anthropic's input_tokens excludes them.
     prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
     completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
-    assert isinstance(prompt_tokens, int)
-    assert isinstance(completion_tokens, int)
+    assert prompt_tokens == 3 + 17024
+    assert completion_tokens == 4
     cache_read_tokens = attrs.pop(
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
         None,
@@ -1071,11 +1074,10 @@ async def test_query_real_agent_span(
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
         None,
     )
-    assert isinstance(cache_read_tokens, int)
-    assert isinstance(cache_write_tokens, int)
+    assert cache_read_tokens == 17024
+    assert cache_write_tokens == 0
     total_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, None)
-    if total_tokens is not None:
-        assert total_tokens == prompt_tokens + completion_tokens
+    assert total_tokens == prompt_tokens + completion_tokens
     cost_total = attrs.pop(SpanAttributes.LLM_COST_TOTAL, None)
     assert isinstance(cost_total, (int, float))
     # Output messages — text-only assistant turn
@@ -1129,10 +1131,13 @@ async def test_client_real_agent_span(
     assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
     llm_provider = attrs.pop(SpanAttributes.LLM_PROVIDER, None)
     assert llm_provider == OpenInferenceLLMProviderValues.ANTHROPIC.value
+    # Exact values pinned to the recorded cassette (usage: input_tokens=3,
+    # output_tokens=4, cache_read=17024, cache_creation=0): prompt/total must
+    # fold the cache tokens back in, since Anthropic's input_tokens excludes them.
     prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
     completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
-    assert isinstance(prompt_tokens, int)
-    assert isinstance(completion_tokens, int)
+    assert prompt_tokens == 3 + 17024
+    assert completion_tokens == 4
     cache_read_tokens = attrs.pop(
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
         None,
@@ -1141,11 +1146,10 @@ async def test_client_real_agent_span(
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
         None,
     )
-    assert isinstance(cache_read_tokens, int)
-    assert isinstance(cache_write_tokens, int)
+    assert cache_read_tokens == 17024
+    assert cache_write_tokens == 0
     total_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, None)
-    if total_tokens is not None:
-        assert total_tokens == prompt_tokens + completion_tokens
+    assert total_tokens == prompt_tokens + completion_tokens
     cost_total = attrs.pop(SpanAttributes.LLM_COST_TOTAL, None)
     assert isinstance(cost_total, (int, float))
     # Output messages — text-only assistant turn

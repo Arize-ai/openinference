@@ -197,6 +197,13 @@ used; otherwise, a custom value MAY be used.
   to cache. This metric is specific to Anthropic and corresponds to the `cache_write_input_tokens` field in their
   Messages API responses.
 
+The `prompt_details.*` values are sub-counts of `llm.token_count.prompt`: they are already included in it, and
+`llm.token_count.prompt` must therefore be greater than or equal to their sum. For providers whose reported input
+token count excludes cache tokens (e.g. Anthropic's `input_tokens`), instrumentations fold the cache read/write
+tokens back into `llm.token_count.prompt` (and `llm.token_count.total`) rather than reporting the exclusive value.
+Consumers deriving cost should price the uncached portion as `prompt - cache_read - cache_write` instead of adding
+the cache details on top of the prompt count.
+
 The extended token count attributes follow the naming pattern:
 
 - `llm.token_count.prompt_details.*` for prompt-related token counts
