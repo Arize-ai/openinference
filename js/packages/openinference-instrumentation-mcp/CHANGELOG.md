@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-mcp
 
+## 0.2.27
+
+### Patch Changes
+
+- Updated dependencies [0071b37]
+  - @arizeai/openinference-core@2.5.4
+
 ## 0.2.26
 
 ### Patch Changes
