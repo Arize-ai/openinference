@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.20...python-openinference-instrumentation-vertexai-v0.1.21) (2026-08-27)
+
+
+### Features
+
+* **vertexai:** Add Finish Reason Attribute ([#3484](https://github.com/Arize-ai/openinference/issues/3484)) ([411f2a7](https://github.com/Arize-ai/openinference/commit/411f2a7214276a791a0d0f02b0603cfa95d8760e))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.19...python-openinference-instrumentation-vertexai-v0.1.20) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.18...python-openinference-instrumentation-vertexai-v0.1.19) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.17...python-openinference-instrumentation-vertexai-v0.1.18) (2026-08-07)
 
 

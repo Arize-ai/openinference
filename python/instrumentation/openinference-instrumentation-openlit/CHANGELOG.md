@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.11...python-openinference-instrumentation-openlit-v0.1.12) (2026-08-26)
+
+
+### Features
+
+* **openlit:** Add Finish Reason Attribute ([#3596](https://github.com/Arize-ai/openinference/issues/3596)) ([01b632a](https://github.com/Arize-ai/openinference/commit/01b632a750327e2b084715d27a28e1802ea43209))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.10...python-openinference-instrumentation-openlit-v0.1.11) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.9...python-openinference-instrumentation-openlit-v0.1.10) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.8...python-openinference-instrumentation-openlit-v0.1.9) (2026-08-07)
 
 

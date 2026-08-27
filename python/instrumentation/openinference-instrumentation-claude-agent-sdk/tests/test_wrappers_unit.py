@@ -1,17 +1,20 @@
 """Unit tests for helpers in `_wrappers.py` that don't need the full instrumentor.
 
-Currently focused on `_extract_model_name_from_usage` (regression coverage for
-issue #3136, where the helper returned the first dict key instead of the model
-that actually did the bulk of the work in a multi-model run).
+Covers `_extract_model_name_from_usage` (issue #3136) and
+`_extract_usage_and_cost_attributes` (cache-token undercount, #3611).
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 import pytest
 
 from openinference.instrumentation.claude_agent_sdk._wrappers import (
     _extract_model_name_from_usage,
+    _extract_usage_and_cost_attributes,
 )
+from openinference.semconv.trace import SpanAttributes
 
 # ---------------------------------------------------------------------------
 # Mapping-shaped `modelUsage` — the case #3136 was about
@@ -121,3 +124,117 @@ def test_none_returns_none() -> None:
 @pytest.mark.parametrize("value", ["", 0, [], {}])
 def test_falsy_inputs_return_none(value: object) -> None:
     assert _extract_model_name_from_usage(value) is None
+
+
+# ---------------------------------------------------------------------------
+# `_extract_usage_and_cost_attributes` — cache tokens fold into prompt/total
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "usage,expected_prompt,expected_completion,expected_total,"
+    "expected_cache_read,expected_cache_write",
+    [
+        pytest.param(
+            # Payload from the package's own cassette.
+            {
+                "input_tokens": 3,
+                "output_tokens": 4,
+                "cache_read_input_tokens": 17024,
+                "cache_creation_input_tokens": 0,
+            },
+            17027,
+            4,
+            17031,
+            17024,
+            0,
+            id="cache_read_folded_into_prompt_and_total",
+        ),
+        pytest.param(
+            # Both cache terms nonzero catches a dropped term.
+            {
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "cache_read_input_tokens": 200,
+                "cache_creation_input_tokens": 500,
+            },
+            710,
+            5,
+            715,
+            200,
+            500,
+            id="both_cache_terms_folded_into_prompt_and_total",
+        ),
+        pytest.param(
+            {"input_tokens": 12, "output_tokens": 8},
+            12,
+            8,
+            20,
+            None,
+            None,
+            id="no_cache_tokens_leaves_prompt_and_total_unchanged",
+        ),
+        pytest.param(
+            # input_tokens absent: prompt still emitted from cache tokens.
+            {"output_tokens": 4, "cache_read_input_tokens": 17024},
+            17024,
+            4,
+            17028,
+            17024,
+            None,
+            id="cache_only_payload_still_yields_prompt_and_total",
+        ),
+        pytest.param(
+            # output_tokens absent (error/aborted results): total = prompt.
+            {"input_tokens": 3, "cache_read_input_tokens": 17024},
+            17027,
+            None,
+            17027,
+            17024,
+            None,
+            id="missing_output_tokens_still_yields_total",
+        ),
+        pytest.param(
+            # Unparseable cache_write falls back to cache_creation.
+            {
+                "input_tokens": 3,
+                "output_tokens": 4,
+                "cache_write_input_tokens": {"ephemeral_5m_input_tokens": 500},
+                "cache_creation_input_tokens": 500,
+            },
+            503,
+            4,
+            507,
+            None,
+            500,
+            id="unparseable_cache_write_falls_back_to_cache_creation",
+        ),
+        pytest.param(
+            {},
+            None,
+            None,
+            None,
+            None,
+            None,
+            id="empty_usage_sets_no_token_attributes",
+        ),
+    ],
+)
+def test_token_counts_fold_cache_tokens(
+    usage: dict[str, Any],
+    expected_prompt: int | None,
+    expected_completion: int | None,
+    expected_total: int | None,
+    expected_cache_read: int | None,
+    expected_cache_write: int | None,
+) -> None:
+    attrs = _extract_usage_and_cost_attributes({"usage": usage})
+    assert attrs.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == expected_prompt
+    assert attrs.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == expected_completion
+    assert attrs.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == expected_total
+    assert (
+        attrs.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == expected_cache_read
+    )
+    assert (
+        attrs.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == expected_cache_write
+    )

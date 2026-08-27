@@ -4,14 +4,24 @@ Python autoinstrumentation library for the [Anthropic](https://www.anthropic.com
 
 This package implements the following Anthropic clients:
 - `Messages`
-- `Completions`
 - `AsyncMessages`
-- `AsyncCompletions`
 - `BetaMessagesParse`
 - `AsyncBetaMessagesParse`
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
+## Compatibility
+
+| `openinference-instrumentation-anthropic` | `anthropic`       | Python          |
+| ------------------------------------------ | ----------------- | --------------- |
+| `>=2.0`                                    | `>=1.0.0`         | `>=3.10, <3.15` |
+| `>=1.0.1, <2.0`                            | `>=0.84.0, <1.0`  | `>=3.10, <3.15` |
+| `1.0.0`                                    | `>=0.84.0, <1.0`  | `>=3.9, <3.15`  |
+
+Anthropic 1.0 removed the legacy Text Completions API. Instrumentor 2.0 therefore
+requires `anthropic>=1.0.0` and instruments the Messages and Beta Messages APIs.
+See Anthropic's [v1 migration guide](https://github.com/anthropics/anthropic-sdk-python/blob/main/MIGRATION.md)
+for the upstream breaking changes.
 
 ## Installation
 

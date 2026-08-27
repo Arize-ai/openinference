@@ -71,6 +71,8 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `llm.provider`                                 | String                      | `openai`, `azure`                                                                                                             | The hosting provider of the llm, e.x. `azure`                                                                                                                                       |
 | `llm.system`                                   | String                      | `anthropic`, `openai`                                                                                                         | The AI product as identified by the client or server instrumentation.                                                                                                               |
 | `llm.model_name`                               | String                      | `"gpt-3.5-turbo"`                                                                                                             | The name of the language model being utilized                                                                                                                                       |
+| `llm.request.model_name`                       | String                      | `"claude-opus-5"`                                                                                                        | The model requested by the caller, as sent in the request. May differ from `llm.response.model_name` when the provider routes the request to a different model.                    |
+| `llm.response.model_name`                      | String                      | `"claude-opus-4-8"`                                                                                                      | The model that actually generated the response, as reported by the provider. May differ from `llm.request.model_name` when the provider routes the request to a different model.   |
 | `llm.output_messages`                          | List of objects<sup>†</sup> | `[{"message.role": "assistant", "message.content": "hello"}]`                                                                 | List of messages received from the LLM in a chat API response. Uses flattened attributes with indexed prefixes (e.g., `llm.output_messages.0.message.role`)                         |
 | `llm.prompt_template.template`                 | String                      | `"Weather forecast for {city} on {date}"`                                                                                     | Template used to generate prompts (e.g., using `{variable}` placeholder syntax)                                                                                                     |
 | `llm.prompt_template.variables`                | JSON String                 | `{ context: "<context from retrieval>", subject: "math" }`                                                                    | JSON of key value pairs applied to the prompt template                                                                                                                              |
@@ -192,8 +194,14 @@ used; otherwise, a custom value MAY be used.
   corresponds to the `usage.prompt_tokens_details.cached_tokens` field in completion API responses. For Anthropic, when
   using a cache_control block, this maps to the `cache_read_input_tokens` field in Messages API responses.
 - `cache_write` represents the number of prompt tokens not found in cache (cache misses) that were subsequently written
-  to cache. This metric is specific to Anthropic and corresponds to the `cache_write_input_tokens` field in their
+  to cache. This metric is specific to Anthropic and corresponds to the `cache_creation_input_tokens` field in their
   Messages API responses.
+
+The `prompt_details.*` values are sub-counts of `llm.token_count.prompt`: they are already included in it, so
+`llm.token_count.prompt` is expected to be greater than or equal to their sum. For providers whose reported input
+token count excludes cache tokens (e.g. Anthropic's `input_tokens`), instrumentations should fold the cache
+read/write tokens back into `llm.token_count.prompt` (and `llm.token_count.total`) rather than reporting the
+exclusive value.
 
 The extended token count attributes follow the naming pattern:
 
@@ -216,6 +224,18 @@ The `llm.system` attribute identifies the AI product/vendor, while `llm.model_na
 - `llm.system` should use well-known values when applicable (e.g., "openai", "anthropic", "cohere")
 - `llm.model_name` should contain the actual model name returned by the API (e.g., "gpt-4-0613", "claude-3-opus-20240229")
 - The `llm.provider` attribute can be used to identify the hosting provider when different from the system (e.g., "azure" for Azure-hosted OpenAI)
+
+Some providers can route a request to a different model than the one the caller specified (for example,
+classifier-triggered fallback). `llm.request.model_name` and `llm.response.model_name` let instrumentation
+record both values as distinct, queryable attributes when it can tell them apart:
+
+- `llm.request.model_name` is the model string the caller sent in the request.
+- `llm.response.model_name` is the model the provider reports as having generated the response.
+- Both are optional — only set them when the underlying API response actually distinguishes requested from
+  effective model. Most providers echo the same model back, so these attributes will typically be unset.
+- `llm.model_name` keeps its existing meaning and remains required where applicable: it should equal
+  `llm.response.model_name` when known, falling back to `llm.request.model_name` otherwise. This keeps
+  `llm.model_name` backward compatible for consumers that don't yet read the new attributes.
 
 **For embedding operations (`openinference.span.kind: "EMBEDDING"`):**
 

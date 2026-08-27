@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.58...python-openinference-instrumentation-v0.1.59) (2026-08-25)
+
+
+### Features
+
+* **cohere:** instrument ClientV2.rerank ([#3530](https://github.com/Arize-ai/openinference/issues/3530)) ([4f34a5a](https://github.com/Arize-ai/openinference/commit/4f34a5a69191569c06b893f7f974e1a41de84c86))
+
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.57...python-openinference-instrumentation-v0.1.58) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
 ## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.56...python-openinference-instrumentation-v0.1.57) (2026-08-07)
 
 

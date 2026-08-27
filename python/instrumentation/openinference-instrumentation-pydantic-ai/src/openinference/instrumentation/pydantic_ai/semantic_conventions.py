@@ -16,6 +16,7 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_K,
     GEN_AI_REQUEST_TOP_P,
+    GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_SYSTEM,
     GEN_AI_SYSTEM_INSTRUCTIONS,
     GEN_AI_TOOL_CALL_ID,
@@ -284,6 +285,11 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
 
     if GEN_AI_REQUEST_MODEL in gen_ai_attrs:
         yield SpanAttributes.LLM_MODEL_NAME, gen_ai_attrs[GEN_AI_REQUEST_MODEL]
+
+    if GEN_AI_RESPONSE_FINISH_REASONS in gen_ai_attrs:
+        response_finish_reasons = gen_ai_attrs[GEN_AI_RESPONSE_FINISH_REASONS]
+        finish_reason = response_finish_reasons[0] if response_finish_reasons else "stop"
+        yield SpanAttributes.LLM_FINISH_REASON, finish_reason
 
     if GEN_AI_PROVIDER_NAME in gen_ai_attrs:
         yield SpanAttributes.LLM_PROVIDER, gen_ai_attrs[GEN_AI_PROVIDER_NAME]

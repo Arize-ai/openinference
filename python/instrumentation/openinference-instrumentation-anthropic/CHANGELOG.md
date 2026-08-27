@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.0.1...python-openinference-instrumentation-anthropic-v2.1.0) (2026-08-26)
+
+
+### Features
+
+* **anthropic:** capture request and response model names ([#3600](https://github.com/Arize-ai/openinference/issues/3600)) ([50ce986](https://github.com/Arize-ai/openinference/commit/50ce986c63bf36b99309dc23f6cb3064610b2fc7))
+
+## [2.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.0.0...python-openinference-instrumentation-anthropic-v2.0.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.2...python-openinference-instrumentation-anthropic-v2.0.0) (2026-08-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **anthropic:** require Anthropic v1 and remove legacy Text Completions instrumentation ([#3605](https://github.com/Arize-ai/openinference/issues/3605))
+
+### Bug Fixes
+
+* **anthropic:** require Anthropic v1 and remove legacy Text Completions instrumentation ([#3605](https://github.com/Arize-ai/openinference/issues/3605)) ([5d50132](https://github.com/Arize-ai/openinference/commit/5d50132277fa02694c6e3ac2c0760f20240f85f7))
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v1.1.1...python-openinference-instrumentation-anthropic-v1.1.2) (2026-08-07)
 
 

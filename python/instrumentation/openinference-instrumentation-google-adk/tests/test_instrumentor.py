@@ -11,6 +11,9 @@ import pytest
 from google.adk import Agent, __version__
 from google.adk.code_executors.built_in_code_executor import BuiltInCodeExecutor
 from google.adk.events import Event, EventActions
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
 from google.adk.planners import BuiltInPlanner
 from google.adk.runners import InMemoryRunner
 from google.adk.tools.agent_tool import AgentTool
@@ -32,6 +35,8 @@ from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from openinference.instrumentation.google_adk._wrappers import (
     _BaseAgentRunAsync,
     _RunnerRunAsync,
+    _TraceCallLlm,
+    _TraceToolCall,
 )
 from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
 
@@ -97,6 +102,41 @@ async def _run_weather_query(runner: InMemoryRunner, user_id: str, session_id: s
         new_message=types.Content(role="user", parts=[types.Part(text=_WEATHER_QUESTION)]),
     ):
         ...
+
+
+class _StaticFunctionCallLlm(BaseLlm):
+    """A fake model that always asks to call the named tool, no network needed."""
+
+    function_name: str
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[
+                    types.Part(function_call=types.FunctionCall(name=self.function_name, args={}))
+                ],
+            )
+        )
+
+
+class _StreamFailureLlm(BaseLlm):
+    """A fake model that yields one partial chunk, then fails mid-stream."""
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(
+            content=types.Content(role="model", parts=[types.Part(text="partial answer")]),
+            partial=True,
+        )
+        raise RuntimeError("stream failed")
+
+
+def _failing_tool() -> dict[str, str]:
+    raise RuntimeError("tool boom")
 
 
 def _get_usage_metadata_from_llm_response(attributes: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -202,6 +242,191 @@ async def test_runner_run_async_keeps_content_output_after_state_delta_final_eve
     assert span.attributes[SpanAttributes.OUTPUT_VALUE] == content_event.model_dump_json(
         exclude_none=True
     )
+
+
+def test_trace_tool_call_marks_span_error_on_raised_exception(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_tool_call(*, error: Any = None, error_type: Any = None) -> None:
+        return None
+
+    wrapped = _TraceToolCall(tracer)(fake_trace_tool_call)
+
+    with tracer.start_as_current_span("execute_tool test_tool"):
+        wrapped(error=ValueError("boom"))
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_trace_tool_call_marks_span_error_on_structured_error_type(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_tool_call(*, error: Any = None, error_type: Any = None) -> None:
+        return None
+
+    wrapped = _TraceToolCall(tracer)(fake_trace_tool_call)
+
+    with tracer.start_as_current_span("execute_tool test_tool"):
+        wrapped(error_type="HTTP_ERROR")
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_trace_tool_call_marks_span_ok_on_success(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_tool_call(*, error: Any = None, error_type: Any = None) -> None:
+        return None
+
+    wrapped = _TraceToolCall(tracer)(fake_trace_tool_call)
+
+    with tracer.start_as_current_span("execute_tool test_tool"):
+        wrapped()
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+
+
+def test_trace_call_llm_does_not_lock_span_ok_before_later_stream_exception(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_call_llm(llm_response: LlmResponse) -> None:
+        return None
+
+    wrapped = _TraceCallLlm(tracer)(fake_trace_call_llm)
+    partial_response = LlmResponse(partial=True)
+
+    with pytest.raises(RuntimeError):
+        with tracer.start_as_current_span("call_llm"):
+            wrapped(partial_response)
+            raise RuntimeError("stream failed")
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+
+
+def test_trace_call_llm_marks_span_ok_on_final_response(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_call_llm(llm_response: LlmResponse) -> None:
+        return None
+
+    wrapped = _TraceCallLlm(tracer)(fake_trace_call_llm)
+    final_response = LlmResponse()
+
+    with tracer.start_as_current_span("call_llm"):
+        wrapped(final_response)
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+
+
+def test_trace_call_llm_leaves_span_unset_for_lone_partial_response(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = tracer_provider.get_tracer(__name__)
+
+    def fake_trace_call_llm(llm_response: LlmResponse) -> None:
+        return None
+
+    wrapped = _TraceCallLlm(tracer)(fake_trace_call_llm)
+    partial_response = LlmResponse(partial=True)
+
+    with tracer.start_as_current_span("call_llm"):
+        wrapped(partial_response)
+
+    [span] = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+
+
+async def test_execute_tool_span_ends_error_on_real_adk_tool_exception(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = Agent(
+        name=f"agent{token_hex(4)}",
+        model=_StaticFunctionCallLlm(model="fake-model", function_name="_failing_tool"),
+        tools=[_failing_tool],
+    )
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+
+    with pytest.raises(RuntimeError, match="tool boom"):
+        async for _ in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=types.Content(role="user", parts=[types.Part(text="please fail")]),
+        ):
+            ...
+
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in in_memory_span_exporter.get_finished_spans():
+        spans_by_name[span.name].append(span)
+
+    [tool_span] = spans_by_name["execute_tool _failing_tool"]
+    assert tool_span.status.status_code == trace_api.StatusCode.ERROR
+
+    # agent_run/invocation already correctly ended ERROR before this fix;
+    # asserted here too as a regression guard.
+    [agent_run_span] = spans_by_name[f"agent_run [{agent.name}]"]
+    assert agent_run_span.status.status_code == trace_api.StatusCode.ERROR
+
+    [invocation_span] = spans_by_name[f"invocation [{runner.app_name}]"]
+    assert invocation_span.status.status_code == trace_api.StatusCode.ERROR
+
+
+async def test_call_llm_span_ends_error_on_real_adk_stream_exception(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Reproduces issue #3415's call_llm row: a stream that fails after a
+    partial chunk must not leave the call_llm span locked at OK by the
+    earlier, successful trace_call_llm call for that chunk. Drives ADK's real
+    base_llm_flow streaming path using a fake model so no network is needed.
+    """
+    agent = Agent(
+        name=f"agent{token_hex(4)}",
+        model=_StreamFailureLlm(model="fake-model"),
+    )
+    runner = InMemoryRunner(agent=agent, app_name=f"app{token_hex(4)}")
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=runner.app_name, user_id=user_id, session_id=session_id
+    )
+
+    with pytest.raises(RuntimeError, match="stream failed"):
+        async for _ in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=types.Content(role="user", parts=[types.Part(text="hi")]),
+        ):
+            ...
+
+    [call_llm_span] = [
+        s for s in in_memory_span_exporter.get_finished_spans() if s.name == "call_llm"
+    ]
+    assert call_llm_span.status.status_code == trace_api.StatusCode.ERROR
 
 
 async def test_base_agent_run_async_keeps_content_output_after_state_delta_final_event(
@@ -2261,6 +2486,409 @@ async def test_google_adk_instrumentor_parallel_tool_calls(
     merged_span = merged_spans[0]
     assert merged_span.instrumentation_scope is not None
     assert merged_span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
+
+
+def _build_compaction_app() -> "tuple[Any, str]":
+    from google.adk.apps.app import (  # type: ignore[import-not-found,unused-ignore]
+        App,
+        EventsCompactionConfig,
+    )
+    from google.adk.apps.base_events_summarizer import (  # type: ignore[import-not-found,unused-ignore]
+        BaseEventsSummarizer,
+    )
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    class _NoOpSummarizer(BaseEventsSummarizer):  # type: ignore[misc,unused-ignore]
+        async def maybe_summarize_events(self, *, events: "list[Any]") -> Any:
+            return None
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            yield LlmResponse(
+                content=types.Content(
+                    role="model", parts=[types.Part(text="Paris is the capital of France.")]
+                )
+            )
+
+    agent = Agent(
+        name=f"_{token_hex(4)}",
+        model=_StubLlm(),
+        description="Agent that answers geography questions.",
+        instruction="Answer briefly.",
+    )
+    app_name = f"app{token_hex(4)}"
+    app = App(
+        name=app_name,
+        root_agent=agent,
+        events_compaction_config=EventsCompactionConfig(
+            summarizer=_NoOpSummarizer(),
+            compaction_interval=1,
+            overlap_size=0,
+        ),
+    )
+    return app, app_name
+
+
+def _build_token_threshold_app() -> "tuple[Any, str, str]":
+    from google.adk.apps.app import (  # type: ignore[import-not-found,unused-ignore]
+        App,
+        EventsCompactionConfig,
+    )
+    from google.adk.apps.base_events_summarizer import (  # type: ignore[import-not-found,unused-ignore]
+        BaseEventsSummarizer,
+    )
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    class _NoOpSummarizer(BaseEventsSummarizer):  # type: ignore[misc,unused-ignore]
+        async def maybe_summarize_events(self, *, events: "list[Any]") -> Any:
+            return None
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            yield LlmResponse(
+                content=types.Content(
+                    role="model", parts=[types.Part(text="Paris is the capital of France.")]
+                )
+            )
+
+    agent_name = f"_{token_hex(4)}"
+    agent = Agent(
+        name=agent_name,
+        model=_StubLlm(),
+        description="Agent that answers geography questions.",
+        instruction="Answer briefly.",
+    )
+    app_name = f"app{token_hex(4)}"
+    app = App(
+        name=app_name,
+        root_agent=agent,
+        events_compaction_config=EventsCompactionConfig(
+            summarizer=_NoOpSummarizer(),
+            token_threshold=1,
+            event_retention_size=0,
+            compaction_interval=1_000_000,
+            overlap_size=0,
+        ),
+    )
+    return app, app_name, agent_name
+
+
+async def _run_compaction_query(app: Any, app_name: str) -> "tuple[InMemoryRunner, str, str]":
+    runner = InMemoryRunner(app=app)  # type: ignore[call-arg,unused-ignore]
+    user_id, session_id = token_hex(4), token_hex(4)
+    await runner.session_service.create_session(
+        app_name=app_name, user_id=user_id, session_id=session_id
+    )
+    async for _ in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(
+            role="user", parts=[types.Part(text="What is the capital of France?")]
+        ),
+    ):
+        ...
+    return runner, user_id, session_id
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_sliding_window_span(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    app, app_name = _build_compaction_app()
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        _, user_id, session_id = await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    compaction_spans = spans_by_name["compact_events sliding_window"]
+    assert len(compaction_spans) == 1
+    compaction_span = compaction_spans[0]
+    assert compaction_span.status.is_ok
+
+    invocation_spans = spans_by_name[f"invocation [{app_name}]"]
+    assert len(invocation_spans) == 1
+    invocation_span = invocation_spans[0]
+
+    # Same trace as the invocation, parented directly under it.
+    assert compaction_span.context is not None and invocation_span.context is not None
+    assert compaction_span.context.trace_id == invocation_span.context.trace_id
+    assert compaction_span.parent is invocation_span.get_span_context()
+
+    assert compaction_span.instrumentation_scope is not None
+    assert compaction_span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
+
+    compaction_attributes = dict(compaction_span.attributes or {})
+    # Context propagation: session/user id land on every span in the trace
+    # via OITracer, compaction included.
+    assert compaction_attributes.pop("session.id", None) == session_id
+    assert compaction_attributes.pop("user.id", None) == user_id
+    assert compaction_attributes.pop("openinference.span.kind", None) == "CHAIN"
+    assert compaction_attributes.pop("gen_ai.operation.name", None) == "compact_events"
+    assert compaction_attributes.pop("gen_ai.compaction.trigger", None) == "sliding_window"
+    assert compaction_attributes.pop("gen_ai.compaction.summarizer_type", None) == "_NoOpSummarizer"
+    event_count = compaction_attributes.pop("gen_ai.compaction.event_count", None)
+    assert event_count
+    assert compaction_attributes.pop("gen_ai.compaction.compaction_interval", None) == 1
+    assert compaction_attributes.pop("gen_ai.compaction.overlap_size", None) == 0
+    compaction_attributes.pop("gen_ai.system", None)
+    compaction_attributes.pop("gen_ai.conversation.id", None)
+
+    # Generic OI input/output: safe non-content JSON summaries built directly
+    # from `_build_compaction_attributes`/`_build_compaction_result_attributes`'s
+    # own return values (patched at the source), not read back from the span.
+    assert compaction_attributes.pop("input.mime_type", None) == "application/json"
+    assert json.loads(cast(str, compaction_attributes.pop("input.value", None))) == {
+        "gen_ai.compaction.trigger": "sliding_window",
+        "gen_ai.compaction.summarizer_type": "_NoOpSummarizer",
+        "gen_ai.compaction.event_count": event_count,
+        "gen_ai.compaction.compaction_interval": 1,
+        "gen_ai.compaction.overlap_size": 0,
+    }
+    assert compaction_attributes.pop("output.mime_type", None) == "application/json"
+    # _NoOpSummarizer always returns None, so no compaction event is produced.
+    assert json.loads(cast(str, compaction_attributes.pop("output.value", None))) == {
+        "compacted": False
+    }
+    assert not compaction_attributes
+
+    # Compaction attributes must never leak onto the parent invocation span.
+    invocation_attributes = dict(invocation_span.attributes or {})
+    assert not any(key.startswith("gen_ai.compaction.") for key in invocation_attributes)
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_token_threshold_both_paths(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    app, app_name, agent_name = _build_token_threshold_app()
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        _, user_id, session_id = await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+
+    compaction_spans = spans_by_name["compact_events token_threshold"]
+    assert len(compaction_spans) == 2
+    assert all(span.status.is_ok for span in compaction_spans)
+
+    invocation_spans = spans_by_name[f"invocation [{app_name}]"]
+    assert len(invocation_spans) == 1
+    invocation_span = invocation_spans[0]
+
+    agent_run_spans = spans_by_name[f"agent_run [{agent_name}]"]
+    assert len(agent_run_spans) == 1
+    agent_run_span = agent_run_spans[0]
+
+    # Same trace as the invocation for both spans, but different parents.
+    assert invocation_span.context is not None and agent_run_span.context is not None
+    invocation_context = invocation_span.get_span_context()
+    agent_run_context = agent_run_span.get_span_context()
+    assert invocation_context is not None and agent_run_context is not None
+    parent_span_ids = {span.parent.span_id for span in compaction_spans if span.parent}
+    assert parent_span_ids == {invocation_context.span_id, agent_run_context.span_id}
+    for span in compaction_spans:
+        assert span.context is not None
+        assert span.context.trace_id == invocation_span.context.trace_id
+
+    for span in compaction_spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.pop("session.id", None) == session_id
+        assert attributes.pop("user.id", None) == user_id
+        assert attributes.pop("openinference.span.kind", None) == "CHAIN"
+        assert attributes.pop("gen_ai.operation.name", None) == "compact_events"
+        assert attributes.pop("gen_ai.compaction.trigger", None) == "token_threshold"
+        assert attributes.pop("gen_ai.compaction.summarizer_type", None) == "_NoOpSummarizer"
+        event_count = attributes.pop("gen_ai.compaction.event_count", None)
+        assert event_count
+        assert attributes.pop("gen_ai.compaction.token_threshold", None) == 1
+        assert attributes.pop("gen_ai.compaction.event_retention_size", None) == 0
+        assert attributes.pop("gen_ai.compaction.compaction_interval", None) == 1_000_000
+        assert attributes.pop("gen_ai.compaction.overlap_size", None) == 0
+        attributes.pop("gen_ai.system", None)
+        attributes.pop("gen_ai.conversation.id", None)
+
+        assert attributes.pop("input.mime_type", None) == "application/json"
+        assert json.loads(cast(str, attributes.pop("input.value", None))) == {
+            "gen_ai.compaction.trigger": "token_threshold",
+            "gen_ai.compaction.summarizer_type": "_NoOpSummarizer",
+            "gen_ai.compaction.event_count": event_count,
+            "gen_ai.compaction.token_threshold": 1,
+            "gen_ai.compaction.event_retention_size": 0,
+            "gen_ai.compaction.compaction_interval": 1_000_000,
+            "gen_ai.compaction.overlap_size": 0,
+        }
+        assert attributes.pop("output.mime_type", None) == "application/json"
+        # `_NoOpSummarizer` never produces an event, so no result attributes.
+        assert json.loads(cast(str, attributes.pop("output.value", None))) == {"compacted": False}
+        assert not attributes
+
+    for parent_span in (invocation_span, agent_run_span):
+        parent_attributes = dict(parent_span.attributes or {})
+        assert not any(key.startswith("gen_ai.compaction.") for key in parent_attributes)
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_suppresses_tracing(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Running inside ``suppress_tracing()`` must not emit a compaction span."""
+    app, app_name = _build_compaction_app()
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        with suppress_tracing():
+            await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    assert not in_memory_span_exporter.get_finished_spans()
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_trace_config_hides_io(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """``TraceConfig(hide_inputs=True, hide_outputs=True)`` masks the
+    compaction span's generic input.value/output.value like any other span."""
+    app, app_name = _build_compaction_app()
+
+    GoogleADKInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+    try:
+        await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    compaction_spans = [s for s in spans if s.name == "compact_events sliding_window"]
+    assert len(compaction_spans) == 1
+    attributes = dict(compaction_spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == REDACTED_VALUE
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) == REDACTED_VALUE
+    assert SpanAttributes.INPUT_MIME_TYPE not in attributes
+    assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
+    # Masking only touches input/output -- span kind and gen_ai.* attributes
+    # are unaffected.
+    assert attributes.get("openinference.span.kind") == "CHAIN"
+    assert attributes.get("gen_ai.compaction.trigger") == "sliding_window"
+
+
+@pytest.mark.skipif(
+    _VERSION < (1, 32, 0),
+    reason="Event compaction was added in google-adk 1.32.0.",
+)
+async def test_google_adk_instrumentor_compaction_span_error_preserves_input(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    from google.adk.apps.app import (  # type: ignore[import-not-found,unused-ignore]
+        App,
+        EventsCompactionConfig,
+    )
+    from google.adk.apps.base_events_summarizer import (  # type: ignore[import-not-found,unused-ignore]
+        BaseEventsSummarizer,
+    )
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.models.llm_response import LlmResponse
+
+    class _RaisingSummarizer(BaseEventsSummarizer):  # type: ignore[misc,unused-ignore]
+        async def maybe_summarize_events(self, *, events: "list[Any]") -> Any:
+            raise RuntimeError("boom")
+
+    class _StubLlm(BaseLlm):
+        model: str = "stub"
+
+        async def generate_content_async(
+            self, llm_request: LlmRequest, stream: bool = False
+        ) -> AsyncGenerator[LlmResponse, None]:
+            yield LlmResponse(
+                content=types.Content(
+                    role="model", parts=[types.Part(text="Paris is the capital of France.")]
+                )
+            )
+
+    agent = Agent(
+        name=f"_{token_hex(4)}",
+        model=_StubLlm(),
+        description="Agent that answers geography questions.",
+        instruction="Answer briefly.",
+    )
+    app_name = f"app{token_hex(4)}"
+    app = App(
+        name=app_name,
+        root_agent=agent,
+        events_compaction_config=EventsCompactionConfig(
+            summarizer=_RaisingSummarizer(),
+            compaction_interval=1,
+            overlap_size=0,
+        ),
+    )
+
+    GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        with pytest.raises(RuntimeError, match="boom"):
+            await _run_compaction_query(app, app_name)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    compaction_spans = [s for s in spans if s.name == "compact_events sliding_window"]
+    assert len(compaction_spans) == 1
+    compaction_span = compaction_spans[0]
+    assert not compaction_span.status.is_ok
+
+    attributes = dict(compaction_span.attributes or {})
+    assert attributes.get("openinference.span.kind") == "CHAIN"
+    assert attributes.get("gen_ai.compaction.trigger") == "sliding_window"
+    assert attributes.get("gen_ai.compaction.summarizer_type") == "_RaisingSummarizer"
+    assert attributes.get("input.mime_type") == "application/json"
+    assert attributes.get("input.value")
+    assert "output.value" not in attributes
+    assert "output.mime_type" not in attributes
 
 
 @pytest.mark.vcr

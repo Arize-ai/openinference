@@ -39,6 +39,8 @@ public class SemanticConventions {
         public static final String PROVIDER = "provider";
         public static final String SYSTEM = "system";
         public static final String MODEL_NAME = "model_name";
+        public static final String REQUEST = "request";
+        public static final String RESPONSE = "response";
         public static final String TOKEN_COUNT = "token_count";
         public static final String INPUT_MESSAGES = "input_messages";
         public static final String OUTPUT_MESSAGES = "output_messages";
@@ -259,6 +261,26 @@ public class SemanticConventions {
      * The model name used for the LLM
      */
     public static final String LLM_MODEL_NAME = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The model requested by the caller, as sent in the request. May differ from LLM_RESPONSE_MODEL_NAME
+     * when the provider routes the request to a different model (e.g. classifier-triggered fallback).
+     */
+    public static final String LLM_REQUEST_MODEL_NAME = SemanticAttributePrefixes.LLM
+            + "."
+            + LLMAttributePostfixes.REQUEST
+            + "."
+            + LLMAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The model that actually generated the response, as reported by the provider. May differ from
+     * LLM_REQUEST_MODEL_NAME when the provider routes the request to a different model.
+     */
+    public static final String LLM_RESPONSE_MODEL_NAME = SemanticAttributePrefixes.LLM
+            + "."
+            + LLMAttributePostfixes.RESPONSE
+            + "."
+            + LLMAttributePostfixes.MODEL_NAME;
 
     /**
      * Document content in retrieval operations

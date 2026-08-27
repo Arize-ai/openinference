@@ -25,6 +25,7 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    RerankerAttributes,
     SpanAttributes,
 )
 
@@ -346,9 +347,21 @@ class TraceConfig:
             value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
             return None
+        elif self.hide_inputs and key == RerankerAttributes.RERANKER_QUERY:
+            value = REDACTED_VALUE
+        elif self.hide_inputs and (
+            key == RerankerAttributes.RERANKER_INPUT_DOCUMENTS
+            or key.startswith(f"{RerankerAttributes.RERANKER_INPUT_DOCUMENTS}.")
+        ):
+            return None
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_MIME_TYPE:
+            return None
+        elif self.hide_outputs and (
+            key == RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
+            or key.startswith(f"{RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS}.")
+        ):
             return None
         elif (
             self.hide_inputs or self.hide_input_messages

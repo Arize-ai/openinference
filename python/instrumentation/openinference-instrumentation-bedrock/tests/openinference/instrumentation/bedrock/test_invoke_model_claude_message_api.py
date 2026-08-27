@@ -9,7 +9,20 @@ import pytest
 from aioresponses import aioresponses
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation.bedrock.utils.anthropic._messages import (
+    _attributes_from_image_param,
+)
+
 _CASSETTES_DIR = Path(__file__).resolve().parent / "cassettes"
+
+
+def test_file_image_source_emits_no_attributes() -> None:
+    image_block: Any = {
+        "type": "image",
+        "source": {"type": "file", "file_id": "file_123"},
+    }
+
+    assert list(_attributes_from_image_param(image_block, "prefix.")) == []
 
 
 def _assert_invoke_model_span_attributes(

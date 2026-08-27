@@ -68,7 +68,18 @@ const (
 
 // LLM-span attributes — set when the span represents an LLM API call.
 const (
-	LLMModelName            = "llm.model_name"
+	LLMModelName = "llm.model_name"
+
+	// LLMRequestModelName is the model requested by the caller, as sent in the
+	// request. May differ from LLMResponseModelName when the provider routes
+	// the request to a different model (e.g. classifier-triggered fallback).
+	LLMRequestModelName = "llm.request.model_name"
+
+	// LLMResponseModelName is the model that actually generated the response,
+	// as reported by the provider. May differ from LLMRequestModelName when
+	// the provider routes the request to a different model.
+	LLMResponseModelName = "llm.response.model_name"
+
 	LLMProvider             = "llm.provider"
 	LLMSystem               = "llm.system"
 	LLMInvocationParameters = "llm.invocation_parameters"

@@ -134,6 +134,12 @@ class TestSpanAttributes:
                 },
                 "prompts": SpanAttributes.LLM_PROMPTS,
                 "provider": SpanAttributes.LLM_PROVIDER,
+                "request": {
+                    "model_name": SpanAttributes.LLM_REQUEST_MODEL_NAME,
+                },
+                "response": {
+                    "model_name": SpanAttributes.LLM_RESPONSE_MODEL_NAME,
+                },
                 "system": SpanAttributes.LLM_SYSTEM,
                 "token_count": {
                     "completion": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
