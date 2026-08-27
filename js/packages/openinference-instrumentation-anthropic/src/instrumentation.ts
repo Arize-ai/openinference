@@ -617,138 +617,150 @@ function getAnthropicUsageAttributes(usage: MessageUsage): Attributes {
 }
 
 /**
- * Consumes the stream chunks and adds them to the span
+ * Mutable state accumulated while consuming an Anthropic message stream.
+ *
+ * Usage is reported per attempt: message_start describes the first attempt,
+ * which on a server-side fallback stream is the one that declined. Each source
+ * is captured on its own so the precedence between them is stated once, where
+ * they are merged in {@link getAnthropicStreamAttributes}.
  */
-async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent>, span: Span) {
-  let streamResponse = "";
-  const toolCallAttributes: Attributes = {};
-  const contentAttributes: Attributes = {};
-  // Usage is reported per attempt: message_start describes the first attempt,
-  // which on a server-side fallback stream is the one that declined. Each
-  // source is captured on its own so the precedence between them is stated
-  // once, where they are merged after the loop.
-  let startUsageAttributes: Attributes = {};
-  let deltaUsageAttributes: Attributes = {};
-  let servingUsageAttributes: Attributes = {};
-  let responseModel: string | undefined;
-  let finishReason: string | undefined;
-  let toolIndex = -1;
-  for await (const chunk of stream) {
-    if (chunk.type === "message_start") {
-      responseModel = chunk.message.model;
-      startUsageAttributes = getAnthropicUsageAttributes(chunk.message.usage);
-    } else if (chunk.type === "message_delta") {
-      deltaUsageAttributes = getAnthropicUsageAttributes(chunk.usage);
-      if (chunk.delta.stop_reason != null) {
-        finishReason = chunk.delta.stop_reason;
-      }
-      if ("iterations" in chunk.usage && chunk.usage.iterations != null) {
-        for (const iteration of chunk.usage.iterations) {
-          if (iteration.type === "fallback_message") {
-            responseModel = iteration.model;
-            servingUsageAttributes = getAnthropicUsageAttributes(iteration);
-          }
-        }
-      }
-    } else if (chunk.type === "content_block_start") {
-      const contentBlock = chunk.content_block;
-      const contentIndex = chunk.index;
-      const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+interface AnthropicStreamState {
+  streamResponse: string;
+  toolCallAttributes: Attributes;
+  contentAttributes: Attributes;
+  startUsageAttributes: Attributes;
+  deltaUsageAttributes: Attributes;
+  servingUsageAttributes: Attributes;
+  responseModel?: string;
+  finishReason?: string;
+  toolIndex: number;
+}
 
-      if (contentBlock.type === "tool_use") {
-        toolIndex++;
-        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
-        toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] =
-          contentBlock.id;
-        toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-          contentBlock.name;
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-          "tool_use";
-        contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
-        contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-          contentBlock.name;
-      } else if (contentBlock.type === "text") {
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-          contentBlock.text;
-      } else if (contentBlock.type === "thinking") {
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-          "reasoning";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-          contentBlock.thinking;
-      } else if (contentBlock.type === "redacted_thinking") {
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-          "reasoning";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
-          contentBlock.data;
-      } else if (contentBlock.type === "fallback") {
-        responseModel = contentBlock.to.model;
-        Object.assign(
-          contentAttributes,
-          getAnthropicFallbackContentAttributes(contentPrefix, contentBlock),
-        );
-      }
-    } else if (chunk.type === "content_block_delta") {
-      const contentIndex = chunk.index;
-      const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
-
-      if (chunk.delta.type === "text_delta") {
-        streamResponse += chunk.delta.text;
-        const existingText =
-          contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] || "";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-          existingText + chunk.delta.text;
-      } else if (chunk.delta.type === "thinking_delta") {
-        const existingText =
-          contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] || "";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-          existingText + chunk.delta.thinking;
-      } else if (chunk.delta.type === "signature_delta") {
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
-          chunk.delta.signature;
-      } else if (chunk.delta.type === "input_json_delta") {
-        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
-        const existingArgs =
-          toolCallAttributes[
-            `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-          ] || "";
-        const updatedArgs = existingArgs + chunk.delta.partial_json;
-        toolCallAttributes[
-          `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] = updatedArgs;
-        contentAttributes[
-          `${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] = updatedArgs;
-      }
+/**
+ * Applies a `message_delta` event, capturing usage, finish reason and any
+ * server-side fallback hop.
+ */
+function applyAnthropicMessageDelta(
+  chunk: Extract<RawMessageStreamEvent, { type: "message_delta" }>,
+  state: AnthropicStreamState,
+) {
+  state.deltaUsageAttributes = getAnthropicUsageAttributes(chunk.usage);
+  if (chunk.delta.stop_reason != null) {
+    state.finishReason = chunk.delta.stop_reason;
+  }
+  if (!("iterations" in chunk.usage) || chunk.usage.iterations == null) {
+    return;
+  }
+  for (const iteration of chunk.usage.iterations) {
+    if (iteration.type === "fallback_message") {
+      state.responseModel = iteration.model;
+      state.servingUsageAttributes = getAnthropicUsageAttributes(iteration);
     }
   }
+}
 
+/**
+ * Applies a `content_block_start` event, recording the content block's type and
+ * any tool call it starts.
+ */
+function applyAnthropicContentBlockStart(
+  chunk: Extract<RawMessageStreamEvent, { type: "content_block_start" }>,
+  state: AnthropicStreamState,
+) {
+  const contentBlock = chunk.content_block;
+  const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${chunk.index}.`;
+  const { contentAttributes, toolCallAttributes } = state;
+
+  if (contentBlock.type === "tool_use") {
+    state.toolIndex++;
+    const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${state.toolIndex}.`;
+    toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
+    toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+      contentBlock.name;
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "tool_use";
+    contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
+    contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+      contentBlock.name;
+  } else if (contentBlock.type === "text") {
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+      contentBlock.text;
+  } else if (contentBlock.type === "thinking") {
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+      contentBlock.thinking;
+  } else if (contentBlock.type === "redacted_thinking") {
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
+      contentBlock.data;
+  } else if (contentBlock.type === "fallback") {
+    state.responseModel = contentBlock.to.model;
+    Object.assign(
+      contentAttributes,
+      getAnthropicFallbackContentAttributes(contentPrefix, contentBlock),
+    );
+  }
+}
+
+/**
+ * Applies a `content_block_delta` event, accumulating streamed text, reasoning
+ * and tool call arguments.
+ */
+function applyAnthropicContentBlockDelta(
+  chunk: Extract<RawMessageStreamEvent, { type: "content_block_delta" }>,
+  state: AnthropicStreamState,
+) {
+  const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${chunk.index}.`;
+  const { contentAttributes, toolCallAttributes } = state;
+  const textKey = `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`;
+
+  if (chunk.delta.type === "text_delta") {
+    state.streamResponse += chunk.delta.text;
+    contentAttributes[textKey] = (contentAttributes[textKey] || "") + chunk.delta.text;
+  } else if (chunk.delta.type === "thinking_delta") {
+    contentAttributes[textKey] = (contentAttributes[textKey] || "") + chunk.delta.thinking;
+  } else if (chunk.delta.type === "signature_delta") {
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+      chunk.delta.signature;
+  } else if (chunk.delta.type === "input_json_delta") {
+    const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${state.toolIndex}.`;
+    const argumentsKey = `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`;
+    const updatedArgs = (toolCallAttributes[argumentsKey] || "") + chunk.delta.partial_json;
+    toolCallAttributes[argumentsKey] = updatedArgs;
+    contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+      updatedArgs;
+  }
+}
+
+/**
+ * Builds the span attributes for a fully consumed Anthropic message stream.
+ */
+function getAnthropicStreamAttributes(state: AnthropicStreamState): Attributes {
   const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
-  // Append the attributes to the span as a message
   const attributes: Attributes = {
-    [SemanticConventions.OUTPUT_VALUE]: streamResponse,
+    [SemanticConventions.OUTPUT_VALUE]: state.streamResponse,
     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
     [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
   };
 
-  if (responseModel != null) {
+  if (state.responseModel != null) {
     // Override the model from the value sent by the server
-    attributes[SemanticConventions.LLM_MODEL_NAME] = responseModel;
-    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = responseModel;
+    attributes[SemanticConventions.LLM_MODEL_NAME] = state.responseModel;
+    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = state.responseModel;
   }
 
-  if (finishReason != null) {
-    attributes[SemanticConventions.LLM_FINISH_REASON] = finishReason;
+  if (state.finishReason != null) {
+    attributes[SemanticConventions.LLM_FINISH_REASON] = state.finishReason;
   }
 
   // Add the content block attributes
-  for (const [key, value] of Object.entries(contentAttributes)) {
+  for (const [key, value] of Object.entries(state.contentAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
 
   // Add the tool call attributes
-  for (const [key, value] of Object.entries(toolCallAttributes)) {
+  for (const [key, value] of Object.entries(state.toolCallAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
 
@@ -757,9 +769,9 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
   // final message_delta wins over both, so prompt and completion describe the
   // same model.
   const usageAttributes: Attributes = {
-    ...startUsageAttributes,
-    ...servingUsageAttributes,
-    ...deltaUsageAttributes,
+    ...state.startUsageAttributes,
+    ...state.servingUsageAttributes,
+    ...state.deltaUsageAttributes,
   };
 
   // Recompute the total in case prompt and completion counts came from
@@ -771,7 +783,37 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
   }
   Object.assign(attributes, usageAttributes);
 
-  span.setAttributes(attributes);
+  return attributes;
+}
+
+/**
+ * Consumes the stream chunks and adds them to the span
+ */
+async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent>, span: Span) {
+  const state: AnthropicStreamState = {
+    streamResponse: "",
+    toolCallAttributes: {},
+    contentAttributes: {},
+    startUsageAttributes: {},
+    deltaUsageAttributes: {},
+    servingUsageAttributes: {},
+    toolIndex: -1,
+  };
+
+  for await (const chunk of stream) {
+    if (chunk.type === "message_start") {
+      state.responseModel = chunk.message.model;
+      state.startUsageAttributes = getAnthropicUsageAttributes(chunk.message.usage);
+    } else if (chunk.type === "message_delta") {
+      applyAnthropicMessageDelta(chunk, state);
+    } else if (chunk.type === "content_block_start") {
+      applyAnthropicContentBlockStart(chunk, state);
+    } else if (chunk.type === "content_block_delta") {
+      applyAnthropicContentBlockDelta(chunk, state);
+    }
+  }
+
+  span.setAttributes(getAnthropicStreamAttributes(state));
   span.setStatus({ code: SpanStatusCode.OK });
   span.end();
 }

@@ -167,6 +167,7 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
   } catch (error) {
     diag.debug("Failed to determine LLM provider from instance", error);
   }
+  return undefined;
 }
 
 /**
@@ -624,7 +625,7 @@ function isPromptStringArray(
  * Converts the body of a chat completions request to LLM input messages
  */
 function getLLMInputMessagesAttributes(body: ChatCompletionCreateParamsBase): Attributes {
-  return body.messages.reduce((acc, message, index) => {
+  return body.messages.reduce<Attributes>((acc, message, index) => {
     const messageAttributes = getChatCompletionInputMessageAttributes(message);
     const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
     // Flatten the attributes on the index prefix
@@ -632,7 +633,7 @@ function getLLMInputMessagesAttributes(body: ChatCompletionCreateParamsBase): At
       acc[`${indexPrefix}${key}`] = value;
     }
     return acc;
-  }, {} as Attributes);
+  }, {});
 }
 
 /**
@@ -780,7 +781,7 @@ function getChatCompletionLLMOutputMessagesAttributes(chatCompletion: ChatComple
   if (!choice) {
     return {};
   }
-  return [choice.message].reduce((acc, message, index) => {
+  return [choice.message].reduce<Attributes>((acc, message, index) => {
     const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}.`;
     const messageAttributes = getChatCompletionOutputMessageAttributes(message);
     // Flatten the attributes on the index prefix
@@ -788,7 +789,7 @@ function getChatCompletionLLMOutputMessagesAttributes(chatCompletion: ChatComple
       acc[`${indexPrefix}${key}`] = value;
     }
     return acc;
-  }, {} as Attributes);
+  }, {});
 }
 
 /**
@@ -867,11 +868,11 @@ function getEmbeddingTextAttributes(request: EmbeddingCreateParams): Attributes 
     request.input.length > 0 &&
     typeof request.input[0] === "string"
   ) {
-    return request.input.reduce((acc, input, index) => {
+    return request.input.reduce<Attributes>((acc, input, index) => {
       const indexPrefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}.`;
       acc[`${indexPrefix}${SemanticConventions.EMBEDDING_TEXT}`] = input;
       return acc;
-    }, {} as Attributes);
+    }, {});
   }
   // Ignore other cases where input is a number or an array of numbers
   return {};
@@ -881,11 +882,11 @@ function getEmbeddingTextAttributes(request: EmbeddingCreateParams): Attributes 
  * Converts the embedding result payload to embedding attributes
  */
 function getEmbeddingEmbeddingsAttributes(response: CreateEmbeddingResponse): Attributes {
-  return response.data.reduce((acc, embedding, index) => {
+  return response.data.reduce<Attributes>((acc, embedding, index) => {
     const indexPrefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}.`;
     acc[`${indexPrefix}${SemanticConventions.EMBEDDING_VECTOR}`] = embedding.embedding;
     return acc;
-  }, {} as Attributes);
+  }, {});
 }
 
 /**

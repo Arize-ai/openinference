@@ -74,6 +74,14 @@ interface StreamProcessingResult {
   stopReason?: string;
 }
 
+/** Mutable state accumulated while consuming a Converse Stream response. */
+interface StreamAccumulator {
+  fullText: string;
+  toolCalls: any[];
+  tokenUsage: any;
+  stopReason?: string;
+}
+
 class ConverseStreamPhoenixValidator {
   private client: any; // Will be loaded dynamically
   private provider: NodeTracerProvider;
@@ -192,92 +200,122 @@ class ConverseStreamPhoenixValidator {
   }
 
   /**
+   * Applies a contentBlockStart event, recording any tool use that begins there.
+   */
+  private applyContentBlockStart(chunk: any, state: StreamAccumulator) {
+    const contentBlock = chunk.contentBlockStart.start;
+    if (contentBlock?.toolUse) {
+      state.toolCalls.push({
+        id: contentBlock.toolUse.toolUseId,
+        name: contentBlock.toolUse.name,
+        input: contentBlock.toolUse.input || {},
+        index: chunk.contentBlockStart.contentBlockIndex,
+      });
+    }
+  }
+
+  /**
+   * Applies a contentBlockDelta event, accumulating text and partial tool input.
+   */
+  private applyContentBlockDelta(chunk: any, state: StreamAccumulator) {
+    const delta = chunk.contentBlockDelta.delta;
+    if (delta?.text) {
+      state.fullText += delta.text;
+      return;
+    }
+    if (!delta?.toolUse?.input) {
+      return;
+    }
+    // Handle streaming tool input (partial JSON)
+    const toolCallIndex = state.toolCalls.findIndex(
+      (tc) => tc.index === chunk.contentBlockDelta.contentBlockIndex,
+    );
+    if (toolCallIndex < 0) {
+      return;
+    }
+    // Accumulate partial tool input
+    if (!state.toolCalls[toolCallIndex].partialInput) {
+      state.toolCalls[toolCallIndex].partialInput = "";
+    }
+    state.toolCalls[toolCallIndex].partialInput += String(delta.toolUse.input);
+  }
+
+  /**
+   * Applies a single Converse Stream event to the accumulated stream state.
+   */
+  private applyStreamChunk(chunk: any, state: StreamAccumulator) {
+    if (chunk.messageStop) {
+      // Message stop event with stop reason
+      state.stopReason = chunk.messageStop.stopReason;
+      return;
+    }
+    if (chunk.contentBlockStart) {
+      this.applyContentBlockStart(chunk, state);
+      return;
+    }
+    if (chunk.contentBlockDelta) {
+      this.applyContentBlockDelta(chunk, state);
+      return;
+    }
+    if (chunk.metadata) {
+      // Metadata with usage information
+      state.tokenUsage = {
+        inputTokens: chunk.metadata.usage?.inputTokens,
+        outputTokens: chunk.metadata.usage?.outputTokens,
+        totalTokens: chunk.metadata.usage?.totalTokens,
+      };
+    }
+    // messageStart and contentBlockStop carry nothing we need.
+  }
+
+  /**
+   * Parses any accumulated partial tool input into the final tool call input.
+   */
+  private resolvePartialToolInputs(toolCalls: any[]) {
+    toolCalls.forEach((toolCall) => {
+      if (!toolCall.partialInput) {
+        return;
+      }
+      try {
+        toolCall.input = JSON.parse(toolCall.partialInput);
+      } catch {
+        // Keep partial input if JSON parsing fails
+        toolCall.input = { partial: toolCall.partialInput };
+      }
+      delete toolCall.partialInput;
+    });
+  }
+
+  /**
    * Consumes a Converse Stream response and processes all streaming events
    */
   private async consumeStreamResponse(stream: any): Promise<StreamProcessingResult> {
-    let fullText = "";
-    const toolCalls: any[] = [];
-    let tokenUsage: any = {};
+    const state: StreamAccumulator = {
+      fullText: "",
+      toolCalls: [],
+      tokenUsage: {},
+    };
     let eventCount = 0;
-    let stopReason: string | undefined;
 
     try {
       // Process the streaming response
       for await (const chunk of stream) {
         eventCount++;
-
-        // Handle different event types in the stream
-        if (chunk.messageStart) {
-          // Message start event
-          continue;
-        } else if (chunk.messageStop) {
-          // Message stop event with stop reason
-          stopReason = chunk.messageStop.stopReason;
-          continue;
-        } else if (chunk.contentBlockStart) {
-          // Content block start - handle tool use starts
-          const contentBlock = chunk.contentBlockStart.start;
-          if (contentBlock?.toolUse) {
-            toolCalls.push({
-              id: contentBlock.toolUse.toolUseId,
-              name: contentBlock.toolUse.name,
-              input: contentBlock.toolUse.input || {},
-              index: chunk.contentBlockStart.contentBlockIndex,
-            });
-          }
-        } else if (chunk.contentBlockDelta) {
-          // Content block delta - handle text and tool input deltas
-          const delta = chunk.contentBlockDelta.delta;
-          if (delta?.text) {
-            fullText += delta.text;
-          } else if (delta?.toolUse?.input) {
-            // Handle streaming tool input (partial JSON)
-            const toolCallIndex = toolCalls.findIndex(
-              (tc) => tc.index === chunk.contentBlockDelta.contentBlockIndex,
-            );
-            if (toolCallIndex >= 0) {
-              // Accumulate partial tool input
-              if (!toolCalls[toolCallIndex].partialInput) {
-                toolCalls[toolCallIndex].partialInput = "";
-              }
-              toolCalls[toolCallIndex].partialInput += String(delta.toolUse.input);
-            }
-          }
-        } else if (chunk.contentBlockStop) {
-          // Content block stop event
-          continue;
-        } else if (chunk.metadata) {
-          // Metadata with usage information
-          tokenUsage = {
-            inputTokens: chunk.metadata.usage?.inputTokens,
-            outputTokens: chunk.metadata.usage?.outputTokens,
-            totalTokens: chunk.metadata.usage?.totalTokens,
-          };
-        }
+        this.applyStreamChunk(chunk, state);
       }
 
       // Process any partial tool inputs
-      toolCalls.forEach((toolCall) => {
-        if (toolCall.partialInput) {
-          try {
-            toolCall.input = JSON.parse(toolCall.partialInput);
-          } catch {
-            // Keep partial input if JSON parsing fails
-            toolCall.input = { partial: toolCall.partialInput };
-          }
-          delete toolCall.partialInput;
-        }
-      });
+      this.resolvePartialToolInputs(state.toolCalls);
     } catch (error) {
       console.log("   ⚠️ Error processing stream:", error.message);
     }
 
     return {
-      fullText,
-      toolCalls,
-      tokenUsage,
+      fullText: state.fullText,
+      toolCalls: state.toolCalls,
+      tokenUsage: state.tokenUsage,
       eventCount,
-      stopReason,
+      stopReason: state.stopReason,
     };
   }
 

@@ -109,6 +109,113 @@ function createFakeTextAdapter(
   };
 }
 
+/**
+ * Drives a two-iteration tool-calling run through the middleware hooks so the
+ * assertions below can focus on the spans the run produced.
+ */
+async function driveToolCallRun(
+  middleware: ReturnType<typeof openInferenceMiddleware>,
+  toolCall: ToolCall,
+) {
+  const firstCtx = createContext({ phase: "beforeModel", iteration: 0 });
+  await middleware.onStart?.(createContext());
+  await middleware.onConfig?.(
+    firstCtx,
+    createConfig(firstCtx.messages as ChatMiddlewareConfig["messages"]),
+  );
+  await middleware.onChunk?.(firstCtx, {
+    type: "TOOL_CALL_START",
+    timestamp: Date.now(),
+    toolCallId: "tool-1",
+    toolName: "get_weather",
+  });
+  await middleware.onChunk?.(firstCtx, {
+    type: "TOOL_CALL_ARGS",
+    timestamp: Date.now(),
+    toolCallId: "tool-1",
+    delta: JSON.stringify({ city: "Boston" }),
+    args: JSON.stringify({ city: "Boston" }),
+  });
+  await middleware.onChunk?.(firstCtx, {
+    type: "TOOL_CALL_END",
+    timestamp: Date.now(),
+    toolCallId: "tool-1",
+    toolName: "get_weather",
+    input: { city: "Boston" },
+  });
+  await middleware.onChunk?.(firstCtx, {
+    type: "RUN_FINISHED",
+    timestamp: Date.now(),
+    runId: "run-1",
+    finishReason: "tool_calls",
+    usage: {
+      promptTokens: 10,
+      completionTokens: 4,
+      totalTokens: 14,
+    },
+  });
+  await middleware.onBeforeToolCall?.(createContext({ phase: "beforeTools", iteration: 0 }), {
+    toolCall,
+    tool: undefined,
+    args: { city: "Boston" },
+    toolName: "get_weather",
+    toolCallId: "tool-1",
+  });
+  await middleware.onAfterToolCall?.(createContext({ phase: "afterTools", iteration: 0 }), {
+    toolCall,
+    tool: undefined,
+    toolName: "get_weather",
+    toolCallId: "tool-1",
+    ok: true,
+    duration: 12,
+    result: { forecast: "sunny", temperatureF: 70 },
+  });
+
+  const secondMessages: ChatMiddlewareConfig["messages"] = [
+    { role: "user", content: "What is the weather?" },
+    { role: "assistant", content: null, toolCalls: [toolCall] },
+    {
+      role: "tool",
+      content: JSON.stringify({ forecast: "sunny", temperatureF: 70 }),
+      toolCallId: "tool-1",
+    },
+  ];
+  const secondCtx = createContext({
+    phase: "beforeModel",
+    iteration: 1,
+    messages: secondMessages,
+  });
+  await middleware.onConfig?.(secondCtx, createConfig(secondMessages));
+  await middleware.onChunk?.(secondCtx, {
+    type: "TEXT_MESSAGE_CONTENT",
+    timestamp: Date.now(),
+    messageId: "msg-2",
+    delta: "It is sunny in Boston.",
+    content: "It is sunny in Boston.",
+  });
+  await middleware.onChunk?.(secondCtx, {
+    type: "RUN_FINISHED",
+    timestamp: Date.now(),
+    runId: "run-2",
+    finishReason: "stop",
+    usage: {
+      promptTokens: 12,
+      completionTokens: 5,
+      totalTokens: 17,
+    },
+  });
+  await middleware.onFinish?.(createContext({ iteration: 1, messages: secondMessages }), {
+    finishReason: "stop",
+    duration: 25,
+    content: "It is sunny in Boston.",
+    usage: {
+      promptTokens: 22,
+      completionTokens: 9,
+      totalTokens: 31,
+    },
+  });
+}
+
 describe("openInferenceMiddleware", () => {
   it("emits agent, llm, and tool spans in logical order", async () => {
     const { exporter, tracer } = createTracer();
@@ -122,103 +229,7 @@ describe("openInferenceMiddleware", () => {
       },
     };
 
-    const firstCtx = createContext({ phase: "beforeModel", iteration: 0 });
-    await middleware.onStart?.(createContext());
-    await middleware.onConfig?.(
-      firstCtx,
-      createConfig(firstCtx.messages as ChatMiddlewareConfig["messages"]),
-    );
-    await middleware.onChunk?.(firstCtx, {
-      type: "TOOL_CALL_START",
-      timestamp: Date.now(),
-      toolCallId: "tool-1",
-      toolName: "get_weather",
-    });
-    await middleware.onChunk?.(firstCtx, {
-      type: "TOOL_CALL_ARGS",
-      timestamp: Date.now(),
-      toolCallId: "tool-1",
-      delta: JSON.stringify({ city: "Boston" }),
-      args: JSON.stringify({ city: "Boston" }),
-    });
-    await middleware.onChunk?.(firstCtx, {
-      type: "TOOL_CALL_END",
-      timestamp: Date.now(),
-      toolCallId: "tool-1",
-      toolName: "get_weather",
-      input: { city: "Boston" },
-    });
-    await middleware.onChunk?.(firstCtx, {
-      type: "RUN_FINISHED",
-      timestamp: Date.now(),
-      runId: "run-1",
-      finishReason: "tool_calls",
-      usage: {
-        promptTokens: 10,
-        completionTokens: 4,
-        totalTokens: 14,
-      },
-    });
-    await middleware.onBeforeToolCall?.(createContext({ phase: "beforeTools", iteration: 0 }), {
-      toolCall,
-      tool: undefined,
-      args: { city: "Boston" },
-      toolName: "get_weather",
-      toolCallId: "tool-1",
-    });
-    await middleware.onAfterToolCall?.(createContext({ phase: "afterTools", iteration: 0 }), {
-      toolCall,
-      tool: undefined,
-      toolName: "get_weather",
-      toolCallId: "tool-1",
-      ok: true,
-      duration: 12,
-      result: { forecast: "sunny", temperatureF: 70 },
-    });
-
-    const secondMessages: ChatMiddlewareConfig["messages"] = [
-      { role: "user", content: "What is the weather?" },
-      { role: "assistant", content: null, toolCalls: [toolCall] },
-      {
-        role: "tool",
-        content: JSON.stringify({ forecast: "sunny", temperatureF: 70 }),
-        toolCallId: "tool-1",
-      },
-    ];
-    const secondCtx = createContext({
-      phase: "beforeModel",
-      iteration: 1,
-      messages: secondMessages,
-    });
-    await middleware.onConfig?.(secondCtx, createConfig(secondMessages));
-    await middleware.onChunk?.(secondCtx, {
-      type: "TEXT_MESSAGE_CONTENT",
-      timestamp: Date.now(),
-      messageId: "msg-2",
-      delta: "It is sunny in Boston.",
-      content: "It is sunny in Boston.",
-    });
-    await middleware.onChunk?.(secondCtx, {
-      type: "RUN_FINISHED",
-      timestamp: Date.now(),
-      runId: "run-2",
-      finishReason: "stop",
-      usage: {
-        promptTokens: 12,
-        completionTokens: 5,
-        totalTokens: 17,
-      },
-    });
-    await middleware.onFinish?.(createContext({ iteration: 1, messages: secondMessages }), {
-      finishReason: "stop",
-      duration: 25,
-      content: "It is sunny in Boston.",
-      usage: {
-        promptTokens: 22,
-        completionTokens: 9,
-        totalTokens: 31,
-      },
-    });
+    await driveToolCallRun(middleware, toolCall);
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(4);

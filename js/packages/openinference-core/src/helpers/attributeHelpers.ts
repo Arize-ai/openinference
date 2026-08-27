@@ -48,12 +48,12 @@ import type {
  */
 export function toInputType(...args: unknown[]): SpanInput | undefined {
   if (args.length === 0) {
-    return;
+    return undefined;
   }
   if (args.length === 1) {
     const value = args[0];
     if (value == null) {
-      return;
+      return undefined;
     }
     if (typeof value === "string") {
       return {
@@ -68,7 +68,7 @@ export function toInputType(...args: unknown[]): SpanInput | undefined {
   }
   const value = safelyJSONStringify(args);
   if (value == null) {
-    return;
+    return undefined;
   }
   return {
     value,
@@ -100,7 +100,7 @@ export function toInputType(...args: unknown[]): SpanInput | undefined {
  */
 export function toOutputType(result: unknown): SpanOutput | undefined {
   if (result == null) {
-    return;
+    return undefined;
   }
   if (typeof result === "string") {
     return {
