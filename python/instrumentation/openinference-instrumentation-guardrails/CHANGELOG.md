@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-guardrails-v0.1.18...python-openinference-instrumentation-guardrails-v0.1.19) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+* **guardrails:** restore Guard.from_* constructors on uninstrument ([#3565](https://github.com/Arize-ai/openinference/issues/3565)) ([d2c6cae](https://github.com/Arize-ai/openinference/commit/d2c6cae70c5772d3fee72a08bd506c4631213187))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-guardrails-v0.1.17...python-openinference-instrumentation-guardrails-v0.1.18) (2026-08-25)
 
 
