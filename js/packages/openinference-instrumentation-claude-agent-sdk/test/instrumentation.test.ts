@@ -88,8 +88,10 @@ describe("ClaudeAgentSDKInstrumentation", () => {
       };
 
     expect(Object.getOwnPropertyDescriptor(nativeModule, "query")?.writable).toBe(true);
+    // Native ESM namespaces reject writes even when the value is unchanged.
+    const sameQuery = nativeModule.query;
     expect(() => {
-      nativeModule.query = nativeModule.query;
+      nativeModule.query = sameQuery;
     }).toThrow(TypeError);
 
     const patchedModule = instrumentation.manuallyInstrument(nativeModule);

@@ -249,6 +249,128 @@ function assignToolCallAttributes(
 }
 
 /**
+ * Writes the attributes for a `function_call` entry onto {@link attributes}.
+ */
+function assignFunctionCallMessageAttributes({
+  attributes,
+  messagePrefix,
+  message,
+}: {
+  attributes: Attributes;
+  messagePrefix: string;
+  message: Record<string, unknown>;
+}) {
+  attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = "assistant";
+  const toolCallPrefix = `${messagePrefix}.${MESSAGE_TOOL_CALLS}.0`;
+  const callId = isString(message.callId) ? message.callId : message.call_id;
+  if (isString(callId)) {
+    attributes[`${toolCallPrefix}.${TOOL_CALL_ID}`] = callId;
+  }
+  if (isString(message.name)) {
+    attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = message.name;
+  }
+  if (isString(message.arguments)) {
+    attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = message.arguments;
+  }
+}
+
+/**
+ * Writes the attributes for a `function_call_result` entry onto {@link attributes}.
+ */
+function assignFunctionCallResultMessageAttributes({
+  attributes,
+  messagePrefix,
+  message,
+}: {
+  attributes: Attributes;
+  messagePrefix: string;
+  message: Record<string, unknown>;
+}) {
+  attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = "tool";
+  const callId = isString(message.callId) ? message.callId : message.call_id;
+  if (isString(callId)) {
+    attributes[`${messagePrefix}.${MESSAGE_TOOL_CALL_ID}`] = callId;
+  }
+  if (isRecord(message.output) && isString(message.output.text)) {
+    attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = message.output.text;
+  } else if (isString(message.output)) {
+    attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = message.output;
+  } else if (message.output != null) {
+    const output = safelyJSONStringify(message.output);
+    if (output != null) {
+      attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = output;
+    }
+  }
+}
+
+/**
+ * Writes a chat message's content onto {@link attributes}, either as a single
+ * string or as indexed per-part content attributes.
+ */
+function assignMessageContentAttributes({
+  attributes,
+  messagePrefix,
+  content,
+}: {
+  attributes: Attributes;
+  messagePrefix: string;
+  content: unknown;
+}) {
+  if (isString(content)) {
+    attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = content;
+    return;
+  }
+  if (!Array.isArray(content)) {
+    return;
+  }
+  for (let partIndex = 0; partIndex < content.length; partIndex++) {
+    const part = content[partIndex];
+    if (!isRecord(part)) continue;
+    const partPrefix = `${messagePrefix}.${MESSAGE_CONTENTS}.${partIndex}`;
+    if (isMessageTextPart(part)) {
+      attributes[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
+      attributes[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
+    }
+  }
+}
+
+/**
+ * Writes the attributes for a chat-style message onto {@link attributes}.
+ */
+function assignChatMessageAttributes({
+  attributes,
+  messagePrefix,
+  message,
+}: {
+  attributes: Attributes;
+  messagePrefix: string;
+  message: Record<string, unknown>;
+}) {
+  if (isString(message.role)) {
+    attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = message.role;
+  }
+
+  assignMessageContentAttributes({ attributes, messagePrefix, content: message.content });
+
+  if (isString(message.tool_call_id)) {
+    attributes[`${messagePrefix}.${MESSAGE_TOOL_CALL_ID}`] = message.tool_call_id;
+  }
+
+  if (Array.isArray(message.tool_calls)) {
+    let toolCallIndex = 0;
+    for (const toolCall of message.tool_calls) {
+      if (!isRecord(toolCall)) continue;
+      assignToolCallAttributes(
+        attributes,
+        `${messagePrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
+        toolCall,
+      );
+      toolCallIndex++;
+    }
+  }
+}
+
+/**
  * Extracts indexed message attributes from a list of chat-style messages.
  *
  * Each message contributes `${prefix}.${messageIndex}.message.role`, `.message.content`
@@ -268,75 +390,16 @@ function extractMessageList(
     const messagePrefix = `${prefix}.${startIndex + messageIndex}`;
 
     if (message.type === "function_call") {
-      attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = "assistant";
-      const toolCallPrefix = `${messagePrefix}.${MESSAGE_TOOL_CALLS}.0`;
-      const callId = isString(message.callId) ? message.callId : message.call_id;
-      if (isString(callId)) {
-        attributes[`${toolCallPrefix}.${TOOL_CALL_ID}`] = callId;
-      }
-      if (isString(message.name)) {
-        attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = message.name;
-      }
-      if (isString(message.arguments)) {
-        attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = message.arguments;
-      }
+      assignFunctionCallMessageAttributes({ attributes, messagePrefix, message });
       continue;
     }
 
     if (message.type === "function_call_result") {
-      attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = "tool";
-      const callId = isString(message.callId) ? message.callId : message.call_id;
-      if (isString(callId)) {
-        attributes[`${messagePrefix}.${MESSAGE_TOOL_CALL_ID}`] = callId;
-      }
-      if (isRecord(message.output) && isString(message.output.text)) {
-        attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = message.output.text;
-      } else if (isString(message.output)) {
-        attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = message.output;
-      } else if (message.output != null) {
-        const output = safelyJSONStringify(message.output);
-        if (output != null) {
-          attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = output;
-        }
-      }
+      assignFunctionCallResultMessageAttributes({ attributes, messagePrefix, message });
       continue;
     }
 
-    if (isString(message.role)) {
-      attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = message.role;
-    }
-
-    const content = message.content;
-    if (isString(content)) {
-      attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = content;
-    } else if (Array.isArray(content)) {
-      for (let partIndex = 0; partIndex < content.length; partIndex++) {
-        const part = content[partIndex];
-        if (!isRecord(part)) continue;
-        const partPrefix = `${messagePrefix}.${MESSAGE_CONTENTS}.${partIndex}`;
-        if (isMessageTextPart(part)) {
-          attributes[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
-          attributes[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
-        }
-      }
-    }
-
-    if (isString(message.tool_call_id)) {
-      attributes[`${messagePrefix}.${MESSAGE_TOOL_CALL_ID}`] = message.tool_call_id;
-    }
-
-    if (Array.isArray(message.tool_calls)) {
-      let toolCallIndex = 0;
-      for (const toolCall of message.tool_calls) {
-        if (!isRecord(toolCall)) continue;
-        assignToolCallAttributes(
-          attributes,
-          `${messagePrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
-          toolCall,
-        );
-        toolCallIndex++;
-      }
-    }
+    assignChatMessageAttributes({ attributes, messagePrefix, message });
   }
 
   return attributes;
@@ -406,6 +469,60 @@ function getGenerationAttributes(data: GenerationSpanData): Attributes {
 }
 
 /**
+ * Running token totals aggregated across ChatCompletion responses. A field is
+ * undefined until a count is observed, so legitimate zeros are reported and
+ * absent counts are omitted.
+ */
+interface ChatCompletionTokenTotals {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  cacheReadTokens?: number;
+  reasoningTokens?: number;
+}
+
+/**
+ * Adds one ChatCompletion `usage` object into the running {@link totals}.
+ */
+function accumulateChatCompletionUsage({
+  totals,
+  usage,
+}: {
+  totals: ChatCompletionTokenTotals;
+  usage: Record<string, unknown>;
+}) {
+  const promptTokens = isNumber(usage.prompt_tokens) ? usage.prompt_tokens : undefined;
+  const completionTokens = isNumber(usage.completion_tokens) ? usage.completion_tokens : undefined;
+  if (promptTokens !== undefined) {
+    totals.promptTokens = (totals.promptTokens ?? 0) + promptTokens;
+  }
+  if (completionTokens !== undefined) {
+    totals.completionTokens = (totals.completionTokens ?? 0) + completionTokens;
+  }
+  if (isNumber(usage.total_tokens)) {
+    totals.totalTokens = (totals.totalTokens ?? 0) + usage.total_tokens;
+  } else if (promptTokens !== undefined || completionTokens !== undefined) {
+    totals.totalTokens = (totals.totalTokens ?? 0) + (promptTokens ?? 0) + (completionTokens ?? 0);
+  }
+  // OpenAI / DeepSeek prompt_tokens_details.cached_tokens
+  if (
+    isRecord(usage.prompt_tokens_details) &&
+    isNumber(usage.prompt_tokens_details.cached_tokens)
+  ) {
+    totals.cacheReadTokens =
+      (totals.cacheReadTokens ?? 0) + usage.prompt_tokens_details.cached_tokens;
+  }
+  // o-series completion_tokens_details.reasoning_tokens
+  if (
+    isRecord(usage.completion_tokens_details) &&
+    isNumber(usage.completion_tokens_details.reasoning_tokens)
+  ) {
+    totals.reasoningTokens =
+      (totals.reasoningTokens ?? 0) + usage.completion_tokens_details.reasoning_tokens;
+  }
+}
+
+/**
  * Extracts output messages and aggregated token counts from an array of
  * ChatCompletion response objects (chat_completions transport).
  *
@@ -414,112 +531,39 @@ function getGenerationAttributes(data: GenerationSpanData): Attributes {
  */
 function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): Attributes {
   const attributes: Attributes = {};
+  const totals: ChatCompletionTokenTotals = {};
   let messageIndex = 0;
-  let totalPromptTokens = 0;
-  let totalCompletionTokens = 0;
-  let totalTokens = 0;
-  let totalCacheReadTokens = 0;
-  let totalReasoningTokens = 0;
-  let hasPromptTokens = false;
-  let hasCompletionTokens = false;
-  let hasCacheReadTokens = false;
-  let hasReasoningTokens = false;
-  let hasTotalTokens = false;
 
   for (const response of responses) {
     if (!isRecord(response)) continue;
 
     // Token usage
     if (isRecord(response.usage)) {
-      const usage = response.usage;
-      const promptTokens = isNumber(usage.prompt_tokens) ? usage.prompt_tokens : undefined;
-      const completionTokens = isNumber(usage.completion_tokens)
-        ? usage.completion_tokens
-        : undefined;
-      if (promptTokens !== undefined) {
-        totalPromptTokens += promptTokens;
-        hasPromptTokens = true;
-      }
-      if (completionTokens !== undefined) {
-        totalCompletionTokens += completionTokens;
-        hasCompletionTokens = true;
-      }
-      if (isNumber(usage.total_tokens)) {
-        totalTokens += usage.total_tokens;
-        hasTotalTokens = true;
-      } else if (promptTokens !== undefined || completionTokens !== undefined) {
-        totalTokens += (promptTokens ?? 0) + (completionTokens ?? 0);
-        hasTotalTokens = true;
-      }
-      // OpenAI / DeepSeek prompt_tokens_details.cached_tokens
-      if (
-        isRecord(usage.prompt_tokens_details) &&
-        isNumber(usage.prompt_tokens_details.cached_tokens)
-      ) {
-        totalCacheReadTokens += usage.prompt_tokens_details.cached_tokens;
-        hasCacheReadTokens = true;
-      }
-      // o-series completion_tokens_details.reasoning_tokens
-      if (
-        isRecord(usage.completion_tokens_details) &&
-        isNumber(usage.completion_tokens_details.reasoning_tokens)
-      ) {
-        totalReasoningTokens += usage.completion_tokens_details.reasoning_tokens;
-        hasReasoningTokens = true;
-      }
+      accumulateChatCompletionUsage({ totals, usage: response.usage });
     }
 
     // Output messages
     if (!Array.isArray(response.choices)) continue;
     for (const choice of response.choices) {
       if (!isRecord(choice) || !isRecord(choice.message)) continue;
-      const message = choice.message;
-      const messagePrefix = `${LLM_OUTPUT_MESSAGES}.${messageIndex}`;
-
-      if (isString(message.role)) {
-        attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = message.role;
-      }
-
-      const content = message.content;
-      if (isString(content)) {
-        attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = content;
-      } else if (Array.isArray(content)) {
-        for (let partIndex = 0; partIndex < content.length; partIndex++) {
-          const part = content[partIndex];
-          if (!isRecord(part)) continue;
-          const partPrefix = `${messagePrefix}.${MESSAGE_CONTENTS}.${partIndex}`;
-          if (part.type === "text" && isString(part.text)) {
-            attributes[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
-            attributes[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
-          }
-        }
-      }
-
-      if (Array.isArray(message.tool_calls)) {
-        let toolCallIndex = 0;
-        for (const toolCall of message.tool_calls) {
-          if (!isRecord(toolCall)) continue;
-          assignToolCallAttributes(
-            attributes,
-            `${messagePrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
-            toolCall,
-          );
-          toolCallIndex++;
-        }
-      }
-
+      assignChatMessageAttributes({
+        attributes,
+        messagePrefix: `${LLM_OUTPUT_MESSAGES}.${messageIndex}`,
+        message: choice.message,
+      });
       messageIndex++;
     }
   }
 
   // Record any counts that were actually observed, including legitimate zeros.
-  if (hasPromptTokens) attributes[LLM_TOKEN_COUNT_PROMPT] = totalPromptTokens;
-  if (hasCompletionTokens) attributes[LLM_TOKEN_COUNT_COMPLETION] = totalCompletionTokens;
-  if (hasTotalTokens) attributes[LLM_TOKEN_COUNT_TOTAL] = totalTokens;
-  if (hasCacheReadTokens)
-    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totalCacheReadTokens;
-  if (hasReasoningTokens)
-    attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = totalReasoningTokens;
+  if (totals.promptTokens !== undefined) attributes[LLM_TOKEN_COUNT_PROMPT] = totals.promptTokens;
+  if (totals.completionTokens !== undefined)
+    attributes[LLM_TOKEN_COUNT_COMPLETION] = totals.completionTokens;
+  if (totals.totalTokens !== undefined) attributes[LLM_TOKEN_COUNT_TOTAL] = totals.totalTokens;
+  if (totals.cacheReadTokens !== undefined)
+    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totals.cacheReadTokens;
+  if (totals.reasoningTokens !== undefined)
+    attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = totals.reasoningTokens;
 
   return attributes;
 }
@@ -675,6 +719,107 @@ const RESPONSE_NON_INVOCATION_PARAM_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Extracts the input attributes from {@link ResponseSpanData}.
+ *
+ * @param data The response span data
+ * @param startIndex The input message index to start at, leaving room for a
+ * system instruction message when the response carries one
+ */
+function getResponseInputAttributes({
+  data,
+  startIndex,
+}: {
+  data: ResponseSpanData;
+  startIndex: number;
+}): Attributes {
+  const attributes: Attributes = {};
+  if (data._input == null) {
+    return attributes;
+  }
+  if (isString(data._input)) {
+    attributes[INPUT_VALUE] = data._input;
+    Object.assign(
+      attributes,
+      extractMessageList([{ role: "user", content: data._input }], LLM_INPUT_MESSAGES, startIndex),
+    );
+  } else if (Array.isArray(data._input)) {
+    const inputJson = safelyJSONStringify(data._input);
+    if (inputJson) {
+      attributes[INPUT_VALUE] = inputJson;
+      attributes[INPUT_MIME_TYPE] = MimeType.JSON;
+    }
+    Object.assign(attributes, extractMessageList(data._input, LLM_INPUT_MESSAGES, startIndex));
+  }
+  return attributes;
+}
+
+/**
+ * Extracts the invocation parameters from a raw `Response` object: the response
+ * minus output/usage/tools, matching the Python instrumentation's model_dump
+ * exclusions.
+ */
+function getResponseInvocationParameterAttributes(response: Record<string, unknown>): Attributes {
+  const invocationParameters: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(response)) {
+    if (value == null || RESPONSE_NON_INVOCATION_PARAM_KEYS.has(key)) continue;
+    invocationParameters[key] = value;
+  }
+  if (Object.keys(invocationParameters).length === 0) {
+    return {};
+  }
+  const invocationParametersJson = safelyJSONStringify(invocationParameters);
+  return invocationParametersJson ? { [LLM_INVOCATION_PARAMETERS]: invocationParametersJson } : {};
+}
+
+/**
+ * Extracts token usage attributes from a Responses API `usage` object, which
+ * uses input_tokens/output_tokens/total_tokens and nests cache and reasoning
+ * details under *_tokens_details.
+ */
+function getResponseUsageAttributes(usage: Record<string, unknown>): Attributes {
+  const attributes: Attributes = {};
+  if (isNumber(usage.input_tokens)) attributes[LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
+  if (isNumber(usage.output_tokens)) attributes[LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
+  if (isNumber(usage.total_tokens)) attributes[LLM_TOKEN_COUNT_TOTAL] = usage.total_tokens;
+  if (isRecord(usage.input_tokens_details) && isNumber(usage.input_tokens_details.cached_tokens)) {
+    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
+      usage.input_tokens_details.cached_tokens;
+  }
+  if (
+    isRecord(usage.output_tokens_details) &&
+    isNumber(usage.output_tokens_details.reasoning_tokens)
+  ) {
+    attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] =
+      usage.output_tokens_details.reasoning_tokens;
+  }
+  return attributes;
+}
+
+/**
+ * Extracts the tool JSON schema attributes from a raw `Response` object's tools.
+ */
+function getResponseToolAttributes(tools: ReadonlyArray<unknown>): Attributes {
+  const attributes: Attributes = {};
+  for (let toolIndex = 0; toolIndex < tools.length; toolIndex++) {
+    const tool = tools[toolIndex];
+    if (!isRecord(tool) || tool.type !== "function") continue;
+    const schema = safelyJSONStringify({
+      type: "function",
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+        strict: tool.strict,
+      },
+    });
+    if (schema) {
+      attributes[`${LLM_TOOLS}.${toolIndex}.${TOOL_JSON_SCHEMA}`] = schema;
+    }
+  }
+  return attributes;
+}
+
+/**
  * Extracts attributes from {@link ResponseSpanData}.
  *
  * The SDK exposes the input as `_input` (string or list of input items) and
@@ -691,29 +836,10 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
     isRecord(data._response) &&
     isString(data._response.instructions) &&
     data._response.instructions.length > 0;
-  if (data._input != null) {
-    if (isString(data._input)) {
-      attributes[INPUT_VALUE] = data._input;
-      Object.assign(
-        attributes,
-        extractMessageList(
-          [{ role: "user", content: data._input }],
-          LLM_INPUT_MESSAGES,
-          hasSystemInstruction ? 1 : 0,
-        ),
-      );
-    } else if (Array.isArray(data._input)) {
-      const inputJson = safelyJSONStringify(data._input);
-      if (inputJson) {
-        attributes[INPUT_VALUE] = inputJson;
-        attributes[INPUT_MIME_TYPE] = MimeType.JSON;
-      }
-      Object.assign(
-        attributes,
-        extractMessageList(data._input, LLM_INPUT_MESSAGES, hasSystemInstruction ? 1 : 0),
-      );
-    }
-  }
+  Object.assign(
+    attributes,
+    getResponseInputAttributes({ data, startIndex: hasSystemInstruction ? 1 : 0 }),
+  );
 
   // Response
   if (!isRecord(data._response)) return attributes;
@@ -729,61 +855,15 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
     attributes[LLM_MODEL_NAME] = response.model;
   }
 
-  // Invocation parameters: the Response object minus output/usage/tools,
-  // matching the Python instrumentation's model_dump exclusions.
-  const invocationParameters: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(response)) {
-    if (value == null || RESPONSE_NON_INVOCATION_PARAM_KEYS.has(key)) continue;
-    invocationParameters[key] = value;
-  }
-  if (Object.keys(invocationParameters).length > 0) {
-    const invocationParametersJson = safelyJSONStringify(invocationParameters);
-    if (invocationParametersJson) {
-      attributes[LLM_INVOCATION_PARAMETERS] = invocationParametersJson;
-    }
-  }
+  Object.assign(attributes, getResponseInvocationParameterAttributes(response));
 
-  // Token usage. The Responses API uses input_tokens/output_tokens/total_tokens
-  // and nests cache/reasoning details under *_tokens_details.
   if (isRecord(response.usage)) {
-    const usage = response.usage;
-    if (isNumber(usage.input_tokens)) attributes[LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
-    if (isNumber(usage.output_tokens)) attributes[LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
-    if (isNumber(usage.total_tokens)) attributes[LLM_TOKEN_COUNT_TOTAL] = usage.total_tokens;
-    if (
-      isRecord(usage.input_tokens_details) &&
-      isNumber(usage.input_tokens_details.cached_tokens)
-    ) {
-      attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
-        usage.input_tokens_details.cached_tokens;
-    }
-    if (
-      isRecord(usage.output_tokens_details) &&
-      isNumber(usage.output_tokens_details.reasoning_tokens)
-    ) {
-      attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] =
-        usage.output_tokens_details.reasoning_tokens;
-    }
+    Object.assign(attributes, getResponseUsageAttributes(response.usage));
   }
 
   // Tools
   if (Array.isArray(response.tools)) {
-    for (let toolIndex = 0; toolIndex < response.tools.length; toolIndex++) {
-      const tool = response.tools[toolIndex];
-      if (!isRecord(tool) || tool.type !== "function") continue;
-      const schema = safelyJSONStringify({
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-          strict: tool.strict,
-        },
-      });
-      if (schema) {
-        attributes[`${LLM_TOOLS}.${toolIndex}.${TOOL_JSON_SCHEMA}`] = schema;
-      }
-    }
+    Object.assign(attributes, getResponseToolAttributes(response.tools));
   }
 
   // Output messages and function calls

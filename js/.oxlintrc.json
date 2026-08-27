@@ -13,6 +13,7 @@
     "typescript/prefer-ts-expect-error": "error",
     "typescript/consistent-type-imports": "error",
     "eqeqeq": ["error", "smart"],
+    "eslint/complexity": "error",
     "eslint/prefer-const": "error",
     "eslint/no-implicit-coercion": ["error", { "boolean": false, "number": true, "string": false }],
     "typescript/no-unused-vars": [

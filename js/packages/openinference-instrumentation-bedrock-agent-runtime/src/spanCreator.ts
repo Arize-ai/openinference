@@ -395,7 +395,7 @@ export class SpanCreator {
         };
       }
       default: {
-        assertUnreachable(traceEventType);
+        return assertUnreachable(traceEventType);
       }
     }
   }

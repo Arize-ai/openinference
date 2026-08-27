@@ -23,4 +23,5 @@ export function getErrorSafe(data: unknown): string | undefined {
   if (error instanceof FrameworkError) {
     return FrameworkError.ensure(error).explain();
   }
+  return undefined;
 }

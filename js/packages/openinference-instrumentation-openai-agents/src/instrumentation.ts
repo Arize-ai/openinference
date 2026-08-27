@@ -316,7 +316,7 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
     }
 
     if (typeof require !== "function") {
-      return;
+      return undefined;
     }
 
     try {
@@ -325,6 +325,7 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
     } catch (error) {
       diag.debug(`Failed to require ${MODULE_NAME}`, error);
     }
+    return undefined;
   }
 
   private getInstrumentedModuleExports(): AgentsModuleWithPatchState | undefined {
@@ -334,12 +335,13 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
     try {
       const modules = Reflect.get(this, "_modules");
       if (!Array.isArray(modules)) {
-        return;
+        return undefined;
       }
       const moduleExports = modules[0]?.moduleExports;
       return isAgentsModule(moduleExports) ? moduleExports : undefined;
     } catch (error) {
       diag.debug(`Failed to read instrumented module exports for ${MODULE_NAME}`, error);
     }
+    return undefined;
   }
 }

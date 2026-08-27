@@ -36,6 +36,7 @@ export function getEventType(traceData: StringKeyedObject): TraceEventType | und
   for (const eventType of TRACE_EVENT_TYPES) {
     if (eventType in traceData) return eventType;
   }
+  return undefined;
 }
 
 /**
@@ -45,14 +46,14 @@ export function getEventType(traceData: StringKeyedObject): TraceEventType | und
 export function extractTraceId(traceData: StringKeyedObject): string | undefined {
   const eventType = getEventType(traceData);
   if (eventType == null) {
-    return;
+    return undefined;
   }
   const eventData = getObjectDataFromUnknown({
     data: traceData,
     key: eventType,
   });
   if (!eventData) {
-    return;
+    return undefined;
   }
   if (eventData && "traceId" in eventData && typeof eventData.traceId === "string") {
     return eventData.traceId;
@@ -67,6 +68,7 @@ export function extractTraceId(traceData: StringKeyedObject): string | undefined
       return chunkData["traceId"];
     }
   }
+  return undefined;
 }
 
 /**
@@ -77,6 +79,7 @@ export function getChunkType(eventData: StringKeyedObject): ChunkType | undefine
   for (const chunkType of CHUNK_TYPES) {
     if (chunkType in eventData) return chunkType;
   }
+  return undefined;
 }
 
 /**
@@ -372,6 +375,7 @@ function getModelName(
       }
     }
   }
+  return undefined;
 }
 
 /**
@@ -598,6 +602,30 @@ export function getAttributesFromInvocationInput(invocationInput: StringKeyedObj
 }
 
 /**
+ * Copies a truthy invocation input field onto the invocation parameters,
+ * stringifying values that are not already valid attribute values.
+ * @param params.invocationParameters The invocation parameters to write onto.
+ * @param params.key The invocation parameter key to write.
+ * @param params.value The raw value from the invocation input.
+ */
+function setInvocationParameter({
+  invocationParameters,
+  key,
+  value,
+}: {
+  invocationParameters: Attributes;
+  key: string;
+  value: unknown;
+}): void {
+  if (!value) {
+    return;
+  }
+  invocationParameters[key] = isAttributeValue(value)
+    ? value
+    : (safelyJSONStringify(value) ?? undefined);
+}
+
+/**
  * Extract attributes from action group invocation input.
  * Extracts tool call, messages, tool attributes, and metadata for action group invocation.
  */
@@ -623,31 +651,31 @@ function getAttributesFromActionGroupInvocationInput(actionInput: StringKeyedObj
   const llmInvocationParameters: Attributes = {
     invocation_type: "action_group_invocation",
   };
-  if (actionInput.actionGroupName) {
-    llmInvocationParameters["action_group_name"] = isAttributeValue(actionInput.actionGroupName)
-      ? actionInput.actionGroupName
-      : (safelyJSONStringify(actionInput.actionGroupName) ?? undefined);
-  }
-  if (actionInput.executionType) {
-    llmInvocationParameters["execution_type"] = isAttributeValue(actionInput.executionType)
-      ? actionInput.executionType
-      : (safelyJSONStringify(actionInput.executionType) ?? undefined);
-  }
-  if (actionInput.invocationId) {
-    llmInvocationParameters["invocation_id"] = isAttributeValue(actionInput.invocationId)
-      ? actionInput.invocationId
-      : (safelyJSONStringify(actionInput.invocationId) ?? undefined);
-  }
-  if (actionInput.verb) {
-    llmInvocationParameters["verb"] = isAttributeValue(actionInput.verb)
-      ? actionInput.verb
-      : (safelyJSONStringify(actionInput.verb) ?? undefined);
-  }
-  if (actionInput.apiPath) {
-    llmInvocationParameters["api_path"] = isAttributeValue(actionInput.apiPath)
-      ? actionInput.apiPath
-      : (safelyJSONStringify(actionInput.apiPath) ?? undefined);
-  }
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "action_group_name",
+    value: actionInput.actionGroupName,
+  });
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "execution_type",
+    value: actionInput.executionType,
+  });
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "invocation_id",
+    value: actionInput.invocationId,
+  });
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "verb",
+    value: actionInput.verb,
+  });
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "api_path",
+    value: actionInput.apiPath,
+  });
   return {
     ...getLLMInputMessageAttributes(messages),
     ...toolAttributes,
@@ -825,12 +853,12 @@ function getAttributesFromCodeInterpreterOutput(
 function getAttributesFromKnowledgeBaseLookupOutput(
   retrievedReferences: Array<StringKeyedObject>,
 ): Attributes {
-  return retrievedReferences.reduce((acc: Attributes, ref, i) => {
+  return retrievedReferences.reduce<Attributes>((acc, ref, i) => {
     return {
       ...acc,
       ...getDocumentAttributes(i, ref),
     };
-  }, {} as Attributes);
+  }, {});
 }
 
 /**

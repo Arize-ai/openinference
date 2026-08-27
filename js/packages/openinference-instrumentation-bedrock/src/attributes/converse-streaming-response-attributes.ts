@@ -52,6 +52,7 @@ function resolveToolUseId({
   if (contentBlockIndex !== undefined && indexMap) {
     return indexMap[contentBlockIndex];
   }
+  return undefined;
 }
 
 /**

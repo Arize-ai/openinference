@@ -179,6 +179,90 @@ export function createTelemetryMiddleware(tracer: OITracer, mainSpanKind: OpenIn
     );
 
     /**
+     * Creates the artificial "iteration" tree level for a top-level groupId the
+     * first time it is seen. Nested groups (like tokens) are skipped because
+     * they would introduce unuseful complexity.
+     */
+    function createGroupSpanIfNeeded({
+      groupId,
+      parentRunId,
+      createdAt,
+    }: {
+      groupId: string | undefined;
+      parentRunId: string | undefined;
+      createdAt: Date;
+    }) {
+      if (!groupId || parentRunId || groupIterations.includes(groupId)) {
+        return;
+      }
+      spansMap.set(
+        groupId,
+        createSpan({
+          id: groupId,
+          name: groupId,
+          target: "groupId",
+          data: {
+            [SemanticConventions.OPENINFERENCE_SPAN_KIND]: "Chain",
+          },
+          startedAt: convertDateToPerformance(createdAt),
+        }),
+      );
+      groupIterations.push(groupId);
+    }
+
+    /**
+     * Drops the previous `partialUpdate` span for this iteration once a newer one
+     * arrives, unless it has nested spans, in which case it is only marked for
+     * deletion.
+     */
+    function dropSupersededPartialUpdateSpan({
+      eventName,
+      lastIteration,
+    }: {
+      eventName: string;
+      lastIteration: string | undefined;
+    }) {
+      if (lastIteration == null || partialUpdateEventName !== eventName) {
+        return;
+      }
+      const lastIterationEventSpanId = eventsIterationsMap.get(lastIteration)?.get(eventName);
+      if (!lastIterationEventSpanId || !spansMap.has(lastIterationEventSpanId)) {
+        return;
+      }
+      const { context: spanContext } = spansMap.get(lastIterationEventSpanId)!;
+      if (parentIdsMap.has(spanContext.span_id)) {
+        spansToDeleteMap.set(lastIterationEventSpanId, undefined);
+        return;
+      }
+      // delete span
+      cleanSpanSources({ spanId: lastIterationEventSpanId });
+      spansMap.delete(lastIterationEventSpanId);
+    }
+
+    /**
+     * Saves the last event span for each iteration.
+     */
+    function recordIterationEventSpan({
+      eventName,
+      lastIteration,
+      spanId,
+    }: {
+      eventName: string;
+      lastIteration: string | undefined;
+      spanId: string;
+    }) {
+      if (lastIteration == null) {
+        return;
+      }
+      const iterationEvents = eventsIterationsMap.get(lastIteration);
+      if (iterationEvents) {
+        iterationEvents.set(eventName, spanId);
+      } else {
+        eventsIterationsMap.set(lastIteration, new Map<string, string>([[eventName, spanId]]));
+      }
+    }
+
+    /**
      * This block collects all "not run category" events with their data and prepares spans for the OpenTelemetry.
      * The huge number of `newToken` events are skipped and only the last one for each parent event is saved because of `generated_token_count` information
      * The framework event tree structure is different from the open-telemetry tree structure and must be transformed from groupId and parentGroupId pattern via idNameManager
@@ -204,21 +288,11 @@ export function createTelemetryMiddleware(tracer: OITracer, mainSpanKind: OpenIn
          * create groupId span level (id does not exist)
          * I use only the top-level groups like iterations other nested groups like tokens would introduce unuseful complexity
          */
-        if (meta.groupId && !meta.trace.parentRunId && !groupIterations.includes(meta.groupId)) {
-          spansMap.set(
-            meta.groupId,
-            createSpan({
-              id: meta.groupId,
-              name: meta.groupId,
-              target: "groupId",
-              data: {
-                [SemanticConventions.OPENINFERENCE_SPAN_KIND]: "Chain",
-              },
-              startedAt: convertDateToPerformance(meta.createdAt),
-            }),
-          );
-          groupIterations.push(meta.groupId);
-        }
+        createGroupSpanIfNeeded({
+          groupId: meta.groupId,
+          parentRunId: meta.trace.parentRunId,
+          createdAt: meta.createdAt,
+        });
 
         const { spanId, parentSpanId } = idNameManager.getIds({
           path: meta.path,
@@ -252,21 +326,7 @@ export function createTelemetryMiddleware(tracer: OITracer, mainSpanKind: OpenIn
         const lastIteration = groupIterations[groupIterations.length - 1];
 
         // delete the `partialUpdate` event if does not have nested spans
-        const lastIterationEventSpanId = eventsIterationsMap.get(lastIteration)?.get(meta.name);
-        if (
-          lastIterationEventSpanId &&
-          partialUpdateEventName === meta.name &&
-          spansMap.has(lastIterationEventSpanId)
-        ) {
-          const { context } = spansMap.get(lastIterationEventSpanId)!;
-          if (parentIdsMap.has(context.span_id)) {
-            spansToDeleteMap.set(lastIterationEventSpanId, undefined);
-          } else {
-            // delete span
-            cleanSpanSources({ spanId: lastIterationEventSpanId });
-            spansMap.delete(lastIterationEventSpanId);
-          }
-        }
+        dropSupersededPartialUpdateSpan({ eventName: meta.name, lastIteration });
 
         // create new span
         spansMap.set(span.context.span_id, span);
@@ -276,13 +336,11 @@ export function createTelemetryMiddleware(tracer: OITracer, mainSpanKind: OpenIn
         }
 
         // save the last event for each iteration
-        if (groupIterations.length > 0) {
-          if (eventsIterationsMap.has(lastIteration)) {
-            eventsIterationsMap.get(lastIteration)!.set(meta.name, span.context.span_id);
-          } else {
-            eventsIterationsMap.set(lastIteration, new Map().set(meta.name, span.context.span_id));
-          }
-        }
+        recordIterationEventSpan({
+          eventName: meta.name,
+          lastIteration,
+          spanId: span.context.span_id,
+        });
       } catch (e) {
         diag.warn("Instrumentation error", e);
       }

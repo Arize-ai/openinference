@@ -168,7 +168,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     moduleVersion?: string,
   ) {
     if (module == null) {
-      return;
+      return undefined;
     }
     diag.debug(
       `Removing patch for ${MODULE_NAME}${moduleVersion != null ? `@${moduleVersion}` : ""}`,
