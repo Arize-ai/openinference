@@ -74,12 +74,14 @@ let _isOpenInferencePatched = false;
  * The Anthropic classes that have already been patched, tracked by identity.
  * The SDK ships separate CJS and ESM builds with separate class objects, so a
  * module-global boolean cannot guard them independently: whichever build was
- * patched first would block the other one forever (#3557). A WeakSet is
+ * patched first would block the other one forever (#3557). A Set is
  * scoped to the object, and needs no write to the module, so it also keeps
  * the double-patch guard working when the module is immutable (e.g. Deno,
- * webpack) and the `openInferencePatched` property cannot be set.
+ * webpack) and the `openInferencePatched` property cannot be set. Entries
+ * are removed when their wrappers are removed, so the Set does not retain
+ * unpatched SDK builds.
  */
-const _patchedModules = new WeakSet<object>();
+const _patchedModules = new Set<object>();
 
 /**
  * function to check if instrumentation is enabled / disabled
@@ -113,6 +115,10 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
   private oiTracer: OITracer;
   private tracerProvider?: TracerProvider;
   private traceConfig?: TraceConfigOptions;
+  private readonly patchedModuleExports = new Map<
+    typeof Anthropic,
+    typeof Anthropic & { openInferencePatched?: boolean }
+  >();
 
   constructor({
     instrumentationConfig,
@@ -163,6 +169,13 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
   manuallyInstrument(module: typeof Anthropic) {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
+  }
+
+  disable(): void {
+    super.disable();
+    for (const moduleExports of [...this.patchedModuleExports.values()]) {
+      this.unpatch(moduleExports);
+    }
   }
 
   get tracer(): Tracer {
@@ -363,6 +376,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
 
     _isOpenInferencePatched = true;
     _patchedModules.add(anthropicModule);
+    this.patchedModuleExports.set(anthropicModule, module);
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       module.openInferencePatched = true;
@@ -387,11 +401,10 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
       this._unwrap(betaMessages.prototype, "create");
     }
 
-    _isOpenInferencePatched = false;
     // Keyed the same way patch() keys it, so a re-patch is possible after.
-    _patchedModules.delete(
-      (moduleExports as typeof Anthropic & { default?: typeof Anthropic }).default || moduleExports,
-    );
+    _patchedModules.delete(anthropicModule);
+    this.patchedModuleExports.delete(anthropicModule);
+    _isOpenInferencePatched = _patchedModules.size > 0;
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       moduleExports.openInferencePatched = false;

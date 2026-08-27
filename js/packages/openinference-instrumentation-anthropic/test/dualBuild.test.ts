@@ -51,6 +51,11 @@ describe("dual-build patching", () => {
     expect(isWrapped(EsmAnthropic.Messages.prototype.create)).toBe(true);
 
     expect(isPatched()).toBe(true);
+
+    instrumentation.disable();
+    expect(isWrapped(CjsAnthropic.Messages.prototype.create)).toBe(false);
+    expect(isWrapped(EsmAnthropic.Messages.prototype.create)).toBe(false);
+    expect(isPatched()).toBe(false);
   });
 
   it("does not double-wrap a build on a repeated patch", async () => {
@@ -79,5 +84,7 @@ describe("dual-build patching", () => {
     const esmPatched = EsmAnthropic.Messages.prototype.create;
     instrumentation.manuallyInstrument(esm as unknown as ManualModule);
     expect(EsmAnthropic.Messages.prototype.create).toBe(esmPatched);
+
+    instrumentation.disable();
   });
 });

@@ -47,6 +47,11 @@ describe("dual-build patching", () => {
     expect(isWrapped(esm.OpenAI.Chat.Completions.prototype.create)).toBe(true);
 
     expect(isPatched()).toBe(true);
+
+    instrumentation.disable();
+    expect(isWrapped(cjs.OpenAI.Chat.Completions.prototype.create)).toBe(false);
+    expect(isWrapped(esm.OpenAI.Chat.Completions.prototype.create)).toBe(false);
+    expect(isPatched()).toBe(false);
   });
 
   it("does not double-wrap a build on a repeated patch", async () => {
@@ -71,5 +76,7 @@ describe("dual-build patching", () => {
     const esmPatched = esm.OpenAI.Chat.Completions.prototype.create;
     instrumentation.manuallyInstrument(esm as unknown as ManualModule);
     expect(esm.OpenAI.Chat.Completions.prototype.create).toBe(esmPatched);
+
+    instrumentation.disable();
   });
 });
