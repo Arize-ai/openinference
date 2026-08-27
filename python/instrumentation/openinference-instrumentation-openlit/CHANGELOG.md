@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.11...python-openinference-instrumentation-openlit-v0.1.12) (2026-08-26)
+
+
+### Features
+
+* **openlit:** Add Finish Reason Attribute ([#3596](https://github.com/Arize-ai/openinference/issues/3596)) ([01b632a](https://github.com/Arize-ai/openinference/commit/01b632a750327e2b084715d27a28e1802ea43209))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.10...python-openinference-instrumentation-openlit-v0.1.11) (2026-08-25)
 
 
