@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.0.2...python-openinference-instrumentation-openai-agents-v2.1.0) (2026-08-27)
+
+
+### Features
+
+* **openai-agents:** capture input images in message content attributes ([#3593](https://github.com/Arize-ai/openinference/issues/3593)) ([a82d2be](https://github.com/Arize-ai/openinference/commit/a82d2be28e0159b0df3cc1ee0c324130b9c0effd))
+
 ## [2.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.0.1...python-openinference-instrumentation-openai-agents-v2.0.2) (2026-08-25)
 
 
