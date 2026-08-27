@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.23...python-openinference-instrumentation-google-adk-v0.1.24) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.22...python-openinference-instrumentation-google-adk-v0.1.23) (2026-08-25)
 
 
