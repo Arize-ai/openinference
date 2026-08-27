@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import litellm
 import pytest
-from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -16,6 +15,7 @@ from openinference.instrumentation.litellm import (
     LiteLLMInstrumentor,
     _set_token_counts_from_usage,
 )
+from openinference.semconv.trace import SpanAttributes
 
 
 @pytest.fixture(autouse=True)
