@@ -276,17 +276,20 @@ def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
     input_tokens = _safe_int(usage.get("input_tokens"))
     output_tokens = _safe_int(usage.get("output_tokens"))
     cache_read_tokens = _safe_int(usage.get("cache_read_input_tokens"))
-    cache_write_tokens = _safe_int(
-        usage.get("cache_write_input_tokens")
-        if usage.get("cache_write_input_tokens") is not None
-        else usage.get("cache_creation_input_tokens")
-    )
-    if input_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_PROMPT] = input_tokens
+    # Fall back to cache_creation_input_tokens when cache_write is absent or unparseable.
+    cache_write_tokens = _safe_int(usage.get("cache_write_input_tokens"))
+    if cache_write_tokens is None:
+        cache_write_tokens = _safe_int(usage.get("cache_creation_input_tokens"))
+    # Anthropic's input_tokens excludes cache tokens; fold them back into prompt/total.
+    prompt_parts = [
+        t for t in (input_tokens, cache_read_tokens, cache_write_tokens) if t is not None
+    ]
+    if prompt_parts:
+        attributes[LLM_TOKEN_COUNT_PROMPT] = sum(prompt_parts)
     if output_tokens is not None:
         attributes[LLM_TOKEN_COUNT_COMPLETION] = output_tokens
-    if input_tokens is not None and output_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_TOTAL] = input_tokens + output_tokens
+    if prompt_parts or output_tokens is not None:
+        attributes[LLM_TOKEN_COUNT_TOTAL] = sum(prompt_parts) + (output_tokens or 0)
     if cache_read_tokens is not None:
         attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read_tokens
     if cache_write_tokens is not None:

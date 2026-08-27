@@ -194,8 +194,14 @@ used; otherwise, a custom value MAY be used.
   corresponds to the `usage.prompt_tokens_details.cached_tokens` field in completion API responses. For Anthropic, when
   using a cache_control block, this maps to the `cache_read_input_tokens` field in Messages API responses.
 - `cache_write` represents the number of prompt tokens not found in cache (cache misses) that were subsequently written
-  to cache. This metric is specific to Anthropic and corresponds to the `cache_write_input_tokens` field in their
+  to cache. This metric is specific to Anthropic and corresponds to the `cache_creation_input_tokens` field in their
   Messages API responses.
+
+The `prompt_details.*` values are sub-counts of `llm.token_count.prompt`: they are already included in it, so
+`llm.token_count.prompt` is expected to be greater than or equal to their sum. For providers whose reported input
+token count excludes cache tokens (e.g. Anthropic's `input_tokens`), instrumentations should fold the cache
+read/write tokens back into `llm.token_count.prompt` (and `llm.token_count.total`) rather than reporting the
+exclusive value.
 
 The extended token count attributes follow the naming pattern:
 
