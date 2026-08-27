@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace.sampling import ALWAYS_OFF
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.google_adk import _wrappers
 from openinference.instrumentation.google_adk._wrappers import _TraceCallLlm
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import SpanAttributes, ToolAttributes
 
 
 class _CountingTool(FunctionTool):
@@ -97,7 +97,7 @@ def test_request_attributes_are_written_once_per_span(
     attributes = dict(span.attributes or {})
     assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gemini-2.0-flash"
     assert SpanAttributes.INPUT_VALUE in attributes
-    assert f"{SpanAttributes.LLM_TOOLS}.0.tool.json_schema" in attributes
+    assert f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}" in attributes
 
 
 def test_response_attributes_are_written_for_every_chunk(
@@ -179,26 +179,30 @@ def test_declaration_cost_does_not_scale_with_chunk_count(
     assert tool.calls == 1
 
 
-def test_guard_survives_the_span_attribute_limit(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
+def test_guard_survives_the_span_attribute_limit() -> None:
     """A long request fills the span's bounded attribute dict and evicts the earliest keys,
     `INPUT_VALUE` among them. The guard must not depend on those surviving, or it would
-    switch itself off for exactly the requests that are most expensive to re-derive."""
+    switch itself off for exactly the requests that are most expensive to re-derive.
+
+    Uses its own provider with a pinned limit so `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT` /
+    `OTEL_ATTRIBUTE_COUNT_LIMIT` in the environment cannot change the preconditions."""
+    max_attributes = 128
+    exporter = InMemorySpanExporter()
+    provider = trace_sdk.TracerProvider(span_limits=SpanLimits(max_attributes=max_attributes))
+    provider.add_span_processor(SimpleSpanProcessor(span_exporter=exporter))
     tool = _tool()
     request = _request(tool, history=200)
-    tracer = _oi_tracer(tracer_provider)
+    tracer = _oi_tracer(provider)
     wrapped = _TraceCallLlm(tracer)(_noop_trace_call_llm)
 
     with tracer.start_as_current_span("call_llm"):
         for i in range(5):
             wrapped(None, "e1", request, _chunk(f"c{i}"), None)
 
-    span = in_memory_span_exporter.get_finished_spans()[0]
+    span = exporter.get_finished_spans()[0]
     attributes = dict(span.attributes or {})
     # Precondition: the limit really was hit and the obvious marker really is gone.
-    assert len(attributes) == SpanLimits().max_attributes
+    assert len(attributes) == max_attributes
     assert SpanAttributes.INPUT_VALUE not in attributes
 
     assert tool.calls == 1
@@ -236,8 +240,10 @@ def test_a_failed_first_pass_is_retried_rather_than_suppressed(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     """The span is marked only once the request-side block has completed. If a pass raises
-    part way through, the next chunk must redo it rather than skip it for the rest of the
-    span. (The attribute extractors are `@stop_on_exception`, so this forces the case.)"""
+    part way through, the exception is caught and logged (instrumentation must never raise
+    into user code) and the next chunk must redo the pass rather than skip it for the rest
+    of the span. (The attribute extractors are `@stop_on_exception`, so this forces the
+    escaping-exception case by monkeypatching the already-decorated module-level name.)"""
     tool = _tool()
     request = _request(tool)
     tracer = _oi_tracer(tracer_provider)
@@ -255,12 +261,12 @@ def test_a_failed_first_pass_is_retried_rather_than_suppressed(
     monkeypatch.setattr(_wrappers, "_get_attributes_from_base_tool", _boom)
 
     with tracer.start_as_current_span("call_llm"):
-        with pytest.raises(RuntimeError):
-            wrapped(None, "e1", request, _chunk("a"), None)
+        wrapped(None, "e1", request, _chunk("a"), None)  # fails inside; logged, not raised
         wrapped(None, "e1", request, _chunk("b"), None)
         wrapped(None, "e1", request, _chunk("c"), None)
 
     assert tool.calls == 1  # the retry succeeded, and only the retry did the work
 
     span = in_memory_span_exporter.get_finished_spans()[0]
-    assert f"{SpanAttributes.LLM_TOOLS}.0.tool.json_schema" in (span.attributes or {})
+    attributes = dict(span.attributes or {})
+    assert f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}" in attributes
