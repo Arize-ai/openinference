@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.12...python-openinference-instrumentation-claude-agent-sdk-v0.1.13) (2026-08-27)
+
+
+### Bug Fixes
+
+* **claude-agent-sdk:** fold cache tokens into prompt and total counts ([#3611](https://github.com/Arize-ai/openinference/issues/3611)) ([18de978](https://github.com/Arize-ai/openinference/commit/18de978b6be9cf54c21bdf6431937b4f64b0f564))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.11...python-openinference-instrumentation-claude-agent-sdk-v0.1.12) (2026-08-25)
 
 

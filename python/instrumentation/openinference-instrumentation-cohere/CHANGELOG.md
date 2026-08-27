@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.5...python-openinference-instrumentation-cohere-v0.1.6) (2026-08-27)
+
+
+### Features
+
+* **cohere:** Add Finish Reason Attribute ([#3581](https://github.com/Arize-ai/openinference/issues/3581)) ([0f39d16](https://github.com/Arize-ai/openinference/commit/0f39d16a1167de5125c9d1bd546c789ba7071062))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.4...python-openinference-instrumentation-cohere-v0.1.5) (2026-08-25)
 
 

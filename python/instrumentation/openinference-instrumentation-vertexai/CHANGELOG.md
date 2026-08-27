@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.20...python-openinference-instrumentation-vertexai-v0.1.21) (2026-08-27)
+
+
+### Features
+
+* **vertexai:** Add Finish Reason Attribute ([#3484](https://github.com/Arize-ai/openinference/issues/3484)) ([411f2a7](https://github.com/Arize-ai/openinference/commit/411f2a7214276a791a0d0f02b0603cfa95d8760e))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-vertexai-v0.1.19...python-openinference-instrumentation-vertexai-v0.1.20) (2026-08-25)
 
 

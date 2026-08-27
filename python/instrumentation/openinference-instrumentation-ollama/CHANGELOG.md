@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-ollama-v0.1.4...python-openinference-instrumentation-ollama-v0.1.5) (2026-08-27)
+
+
+### Features
+
+* **ollama:** Add Finish Reason Attribute ([#3586](https://github.com/Arize-ai/openinference/issues/3586)) ([294241f](https://github.com/Arize-ai/openinference/commit/294241f211c7b20939e9e0daf7f7805c65435891))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-ollama-v0.1.3...python-openinference-instrumentation-ollama-v0.1.4) (2026-08-25)
 
 
