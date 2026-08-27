@@ -75,12 +75,7 @@ interface StreamProcessingResult {
 }
 
 /** Mutable state accumulated while consuming a Converse Stream response. */
-interface StreamAccumulator {
-  fullText: string;
-  toolCalls: any[];
-  tokenUsage: any;
-  stopReason?: string;
-}
+type StreamAccumulator = Omit<StreamProcessingResult, "eventCount">;
 
 class ConverseStreamPhoenixValidator {
   private client: any; // Will be loaded dynamically
@@ -202,7 +197,7 @@ class ConverseStreamPhoenixValidator {
   /**
    * Applies a contentBlockStart event, recording any tool use that begins there.
    */
-  private applyContentBlockStart(chunk: any, state: StreamAccumulator) {
+  private applyContentBlockStart({ chunk, state }: { chunk: any; state: StreamAccumulator }) {
     const contentBlock = chunk.contentBlockStart.start;
     if (contentBlock?.toolUse) {
       state.toolCalls.push({
@@ -217,7 +212,7 @@ class ConverseStreamPhoenixValidator {
   /**
    * Applies a contentBlockDelta event, accumulating text and partial tool input.
    */
-  private applyContentBlockDelta(chunk: any, state: StreamAccumulator) {
+  private applyContentBlockDelta({ chunk, state }: { chunk: any; state: StreamAccumulator }) {
     const delta = chunk.contentBlockDelta.delta;
     if (delta?.text) {
       state.fullText += delta.text;
@@ -243,18 +238,18 @@ class ConverseStreamPhoenixValidator {
   /**
    * Applies a single Converse Stream event to the accumulated stream state.
    */
-  private applyStreamChunk(chunk: any, state: StreamAccumulator) {
+  private applyStreamChunk({ chunk, state }: { chunk: any; state: StreamAccumulator }) {
     if (chunk.messageStop) {
       // Message stop event with stop reason
       state.stopReason = chunk.messageStop.stopReason;
       return;
     }
     if (chunk.contentBlockStart) {
-      this.applyContentBlockStart(chunk, state);
+      this.applyContentBlockStart({ chunk, state });
       return;
     }
     if (chunk.contentBlockDelta) {
-      this.applyContentBlockDelta(chunk, state);
+      this.applyContentBlockDelta({ chunk, state });
       return;
     }
     if (chunk.metadata) {
@@ -301,7 +296,7 @@ class ConverseStreamPhoenixValidator {
       // Process the streaming response
       for await (const chunk of stream) {
         eventCount++;
-        this.applyStreamChunk(chunk, state);
+        this.applyStreamChunk({ chunk, state });
       }
 
       // Process any partial tool inputs
@@ -310,13 +305,7 @@ class ConverseStreamPhoenixValidator {
       console.log("   ⚠️ Error processing stream:", error.message);
     }
 
-    return {
-      fullText: state.fullText,
-      toolCalls: state.toolCalls,
-      tokenUsage: state.tokenUsage,
-      eventCount,
-      stopReason: state.stopReason,
-    };
+    return { ...state, eventCount };
   }
 
   async runValidation() {

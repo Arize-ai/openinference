@@ -247,7 +247,13 @@ function getChatModelCreatorAttributes(creator: ChatModel) {
 }
 
 /** Extracts the attributes for an LLM start/success/error/new-token event. */
-function getLLMEventAttributes(dataObject: unknown, creator: ChatModel) {
+function getLLMEventAttributes({
+  dataObject,
+  creator,
+}: {
+  dataObject: unknown;
+  creator: ChatModel;
+}) {
   const event = isObjectWithStringKeys(dataObject) ? dataObject : {};
   const value = isObjectWithStringKeys(event.value) ? event.value : undefined;
   const input = isObjectWithStringKeys(event.input) ? event.input : undefined;
@@ -317,7 +323,7 @@ export function getSerializedObjectSafe(dataObject: unknown, meta: EventMeta<unk
       ]) &&
       meta.creator instanceof ChatModel
     ) {
-      return getLLMEventAttributes(dataObject, meta.creator);
+      return getLLMEventAttributes({ dataObject, creator: meta.creator });
     }
     if (meta.name === finishLLMEventName && meta.creator instanceof ChatModel) {
       return {

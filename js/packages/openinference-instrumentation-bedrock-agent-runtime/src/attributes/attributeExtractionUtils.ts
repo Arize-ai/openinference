@@ -604,15 +604,19 @@ export function getAttributesFromInvocationInput(invocationInput: StringKeyedObj
 /**
  * Copies a truthy invocation input field onto the invocation parameters,
  * stringifying values that are not already valid attribute values.
- * @param invocationParameters The invocation parameters to write onto.
- * @param key The invocation parameter key to write.
- * @param value The raw value from the invocation input.
+ * @param params.invocationParameters The invocation parameters to write onto.
+ * @param params.key The invocation parameter key to write.
+ * @param params.value The raw value from the invocation input.
  */
-function setInvocationParameter(
-  invocationParameters: Attributes,
-  key: string,
-  value: unknown,
-): void {
+function setInvocationParameter({
+  invocationParameters,
+  key,
+  value,
+}: {
+  invocationParameters: Attributes;
+  key: string;
+  value: unknown;
+}): void {
   if (!value) {
     return;
   }
@@ -647,11 +651,31 @@ function getAttributesFromActionGroupInvocationInput(actionInput: StringKeyedObj
   const llmInvocationParameters: Attributes = {
     invocation_type: "action_group_invocation",
   };
-  setInvocationParameter(llmInvocationParameters, "action_group_name", actionInput.actionGroupName);
-  setInvocationParameter(llmInvocationParameters, "execution_type", actionInput.executionType);
-  setInvocationParameter(llmInvocationParameters, "invocation_id", actionInput.invocationId);
-  setInvocationParameter(llmInvocationParameters, "verb", actionInput.verb);
-  setInvocationParameter(llmInvocationParameters, "api_path", actionInput.apiPath);
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "action_group_name",
+    value: actionInput.actionGroupName,
+  });
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "execution_type",
+    value: actionInput.executionType,
+  });
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "invocation_id",
+    value: actionInput.invocationId,
+  });
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "verb",
+    value: actionInput.verb,
+  });
+  setInvocationParameter({
+    invocationParameters: llmInvocationParameters,
+    key: "api_path",
+    value: actionInput.apiPath,
+  });
   return {
     ...getLLMInputMessageAttributes(messages),
     ...toolAttributes,

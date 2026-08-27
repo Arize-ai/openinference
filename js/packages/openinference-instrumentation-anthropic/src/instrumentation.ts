@@ -640,10 +640,13 @@ interface AnthropicStreamState {
  * Applies a `message_delta` event, capturing usage, finish reason and any
  * server-side fallback hop.
  */
-function applyAnthropicMessageDelta(
-  chunk: Extract<RawMessageStreamEvent, { type: "message_delta" }>,
-  state: AnthropicStreamState,
-) {
+function applyAnthropicMessageDelta({
+  chunk,
+  state,
+}: {
+  chunk: Extract<RawMessageStreamEvent, { type: "message_delta" }>;
+  state: AnthropicStreamState;
+}) {
   state.deltaUsageAttributes = getAnthropicUsageAttributes(chunk.usage);
   if (chunk.delta.stop_reason != null) {
     state.finishReason = chunk.delta.stop_reason;
@@ -663,10 +666,13 @@ function applyAnthropicMessageDelta(
  * Applies a `content_block_start` event, recording the content block's type and
  * any tool call it starts.
  */
-function applyAnthropicContentBlockStart(
-  chunk: Extract<RawMessageStreamEvent, { type: "content_block_start" }>,
-  state: AnthropicStreamState,
-) {
+function applyAnthropicContentBlockStart({
+  chunk,
+  state,
+}: {
+  chunk: Extract<RawMessageStreamEvent, { type: "content_block_start" }>;
+  state: AnthropicStreamState;
+}) {
   const contentBlock = chunk.content_block;
   const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${chunk.index}.`;
   const { contentAttributes, toolCallAttributes } = state;
@@ -706,10 +712,13 @@ function applyAnthropicContentBlockStart(
  * Applies a `content_block_delta` event, accumulating streamed text, reasoning
  * and tool call arguments.
  */
-function applyAnthropicContentBlockDelta(
-  chunk: Extract<RawMessageStreamEvent, { type: "content_block_delta" }>,
-  state: AnthropicStreamState,
-) {
+function applyAnthropicContentBlockDelta({
+  chunk,
+  state,
+}: {
+  chunk: Extract<RawMessageStreamEvent, { type: "content_block_delta" }>;
+  state: AnthropicStreamState;
+}) {
   const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${chunk.index}.`;
   const { contentAttributes, toolCallAttributes } = state;
   const textKey = `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`;
@@ -805,11 +814,11 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
       state.responseModel = chunk.message.model;
       state.startUsageAttributes = getAnthropicUsageAttributes(chunk.message.usage);
     } else if (chunk.type === "message_delta") {
-      applyAnthropicMessageDelta(chunk, state);
+      applyAnthropicMessageDelta({ chunk, state });
     } else if (chunk.type === "content_block_start") {
-      applyAnthropicContentBlockStart(chunk, state);
+      applyAnthropicContentBlockStart({ chunk, state });
     } else if (chunk.type === "content_block_delta") {
-      applyAnthropicContentBlockDelta(chunk, state);
+      applyAnthropicContentBlockDelta({ chunk, state });
     }
   }
 

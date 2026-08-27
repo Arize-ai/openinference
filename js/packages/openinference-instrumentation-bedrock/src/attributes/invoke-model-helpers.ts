@@ -199,7 +199,7 @@ function isNovaRequest(requestBody: Record<string, unknown>): boolean {
  * @returns {boolean} True if request matches Titan format structure
  */
 function isTitanRequest(requestBody: Record<string, unknown>): boolean {
-  return "inputText" in requestBody && typeof requestBody.inputText === "string";
+  return hasStringProperty({ requestBody, key: "inputText" });
 }
 
 /**
@@ -285,7 +285,7 @@ function convertNovaToBedrockMessages(requestBody: Record<string, unknown>): Bed
  * @returns {boolean} True if request matches Mistral Text Completion format structure
  */
 function isMistralTextCompletionRequest(requestBody: Record<string, unknown>): boolean {
-  return "prompt" in requestBody && typeof requestBody.prompt === "string";
+  return hasStringProperty({ requestBody, key: "prompt" });
 }
 
 /**
@@ -546,7 +546,13 @@ function fallbackNormalizeRequestContentBlocks(
 /**
  * Returns true when the request body carries a string value at the given key.
  */
-function hasStringProperty(requestBody: InvokeModelRequestBody, key: "prompt" | "inputText") {
+function hasStringProperty({
+  requestBody,
+  key,
+}: {
+  requestBody: Record<string, unknown>;
+  key: "prompt" | "inputText";
+}): boolean {
   return key in requestBody && typeof requestBody[key] === "string";
 }
 
@@ -599,7 +605,7 @@ function normalizeMistralRequestContentBlocks(
  * @returns {BedrockMessage[]} Array of normalized Bedrock messages
  */
 function normalizeAI21RequestContentBlocks(requestBody: InvokeModelRequestBody): BedrockMessage[] {
-  if (hasStringProperty(requestBody, "prompt")) {
+  if (hasStringProperty({ requestBody, key: "prompt" })) {
     // Handle AI21 format: { prompt: string }
     return convertSimpleTextToBedrockMessages(requestBody, "prompt");
   }
@@ -635,7 +641,7 @@ export const normalizeRequestContentBlocks = withSafety({
       case LLMSystem.COHERE:
       case LLMSystem.META:
         // Handle Cohere and Meta formats: { prompt: string }
-        return hasStringProperty(requestBody, "prompt")
+        return hasStringProperty({ requestBody, key: "prompt" })
           ? convertSimpleTextToBedrockMessages(requestBody, "prompt")
           : fallbackNormalizeRequestContentBlocks(requestBody);
       case LLMSystem.MISTRALAI:
@@ -899,17 +905,6 @@ function convertArrayFieldToMessageContent(
 }
 
 /**
- * Returns the value at `key` when it is a non-empty array, otherwise undefined.
- */
-function getNonEmptyArrayProperty(
-  responseBody: Record<string, unknown>,
-  key: string,
-): unknown[] | undefined {
-  const value = responseBody[key];
-  return Array.isArray(value) && value.length > 0 ? value : undefined;
-}
-
-/**
  * Normalizes Amazon response bodies, distinguishing Nova from Titan by response structure.
  *
  * @param responseBody The parsed Amazon response body
@@ -933,37 +928,32 @@ function normalizeAmazonResponseContent(responseBody: Record<string, unknown>): 
  * @param llm_system The LLM system type to determine normalization strategy
  * @returns {MessageContent} The extracted message content, empty for unknown shapes
  */
-function normalizeResponseContent(
-  responseBody: Record<string, unknown>,
-  llm_system: LLMSystem,
-): MessageContent {
+function normalizeResponseContent({
+  responseBody,
+  llm_system,
+}: {
+  responseBody: Record<string, unknown>;
+  llm_system: LLMSystem;
+}): MessageContent {
   switch (llm_system) {
-    case LLMSystem.ANTHROPIC: {
+    case LLMSystem.ANTHROPIC:
       // Anthropic format: { content: [{ type: "text", text: "..." }] }
-      const content = getNonEmptyArrayProperty(responseBody, "content");
-      return content != null ? content.filter(isMessageContentBlock) : [];
-    }
+      return Array.isArray(responseBody.content)
+        ? responseBody.content.filter(isMessageContentBlock)
+        : [];
     case LLMSystem.AMAZON:
       return normalizeAmazonResponseContent(responseBody);
     case LLMSystem.COHERE:
-      // Cohere: { generations: [{ text }] } - handle all generations, not just first
-      return getNonEmptyArrayProperty(responseBody, "generations") != null
-        ? convertArrayFieldToMessageContent(responseBody, "generations", "text")
-        : [];
+    case LLMSystem.MISTRALAI:
+      // Cohere and Mistral: { generations: [{ text }] } - handle all generations, not just first
+      // NOTE: Tool calls are not currently supported for Mistral models
+      return convertArrayFieldToMessageContent(responseBody, "generations", "text");
     case LLMSystem.META:
       return typeof responseBody.generation === "string"
         ? convertMetaToMessageContent(responseBody)
         : [];
-    case LLMSystem.MISTRALAI:
-      // Mistral: { generations: [{ text }] } - handle all generations, not just first
-      // NOTE: Tool calls are not currently supported for Mistral models
-      return getNonEmptyArrayProperty(responseBody, "generations") != null
-        ? convertArrayFieldToMessageContent(responseBody, "generations", "text")
-        : [];
     case LLMSystem.AI21:
-      return getNonEmptyArrayProperty(responseBody, "choices") != null
-        ? convertAI21JambaToMessageContent(responseBody)
-        : [];
+      return convertAI21JambaToMessageContent(responseBody);
     default:
       return [];
   }
@@ -981,7 +971,7 @@ function normalizeResponseContent(
 export const normalizeResponseContentBlocks = withSafety({
   fn: (responseBody: Record<string, unknown>, llm_system: LLMSystem): BedrockMessage => ({
     role: "assistant",
-    content: normalizeResponseContent(responseBody, llm_system),
+    content: normalizeResponseContent({ responseBody, llm_system }),
   }),
   onError: (error) => {
     diag.warn("Error normalizing content blocks:", error);
@@ -995,7 +985,13 @@ export const normalizeResponseContentBlocks = withSafety({
 /**
  * Returns the value at `key` when it is a number, otherwise undefined.
  */
-function getNumberProperty(source: Record<string, unknown>, key: string): number | undefined {
+function getNumberProperty({
+  source,
+  key,
+}: {
+  source: Record<string, unknown>;
+  key: string;
+}): number | undefined {
   const value = source[key];
   return typeof value === "number" ? value : undefined;
 }
@@ -1018,11 +1014,14 @@ function normalizeAnthropicUsage(responseBody: Record<string, unknown>): UsageAt
   if (!usage) return {};
 
   return {
-    input_tokens: getNumberProperty(usage, "input_tokens"),
-    output_tokens: getNumberProperty(usage, "output_tokens"),
-    total_tokens: getNumberProperty(usage, "total_tokens"),
-    cache_read_input_tokens: getNumberProperty(usage, "cache_read_input_tokens"),
-    cache_creation_input_tokens: getNumberProperty(usage, "cache_creation_input_tokens"),
+    input_tokens: getNumberProperty({ source: usage, key: "input_tokens" }),
+    output_tokens: getNumberProperty({ source: usage, key: "output_tokens" }),
+    total_tokens: getNumberProperty({ source: usage, key: "total_tokens" }),
+    cache_read_input_tokens: getNumberProperty({ source: usage, key: "cache_read_input_tokens" }),
+    cache_creation_input_tokens: getNumberProperty({
+      source: usage,
+      key: "cache_creation_input_tokens",
+    }),
   };
 }
 
@@ -1035,11 +1034,14 @@ function normalizeNovaUsage(responseBody: Record<string, unknown>): UsageAttribu
   if (!usage) return {};
 
   return {
-    input_tokens: getNumberProperty(usage, "inputTokens"),
-    output_tokens: getNumberProperty(usage, "outputTokens"),
-    total_tokens: getNumberProperty(usage, "totalTokens"),
-    cache_read_input_tokens: getNumberProperty(usage, "cacheReadInputTokenCount"),
-    cache_creation_input_tokens: getNumberProperty(usage, "cacheWriteInputTokenCount"),
+    input_tokens: getNumberProperty({ source: usage, key: "inputTokens" }),
+    output_tokens: getNumberProperty({ source: usage, key: "outputTokens" }),
+    total_tokens: getNumberProperty({ source: usage, key: "totalTokens" }),
+    cache_read_input_tokens: getNumberProperty({ source: usage, key: "cacheReadInputTokenCount" }),
+    cache_creation_input_tokens: getNumberProperty({
+      source: usage,
+      key: "cacheWriteInputTokenCount",
+    }),
   };
 }
 
@@ -1048,13 +1050,13 @@ function normalizeNovaUsage(responseBody: Record<string, unknown>): UsageAttribu
  * Format: `{ inputTextTokenCount: N, results: [{ tokenCount: N }] }`
  */
 function normalizeTitanUsage(responseBody: Record<string, unknown>): UsageAttributes {
-  const inputTokens = getNumberProperty(responseBody, "inputTextTokenCount");
+  const inputTokens = getNumberProperty({ source: responseBody, key: "inputTextTokenCount" });
   const results = Array.isArray(responseBody.results)
     ? responseBody.results.filter(isObjectWithStringKeys)
     : [];
   const firstResult = results[0];
   const outputTokens =
-    firstResult != null ? getNumberProperty(firstResult, "tokenCount") : undefined;
+    firstResult != null ? getNumberProperty({ source: firstResult, key: "tokenCount" }) : undefined;
 
   const result: UsageAttributes = {};
   if (inputTokens !== undefined) result.input_tokens = inputTokens;
@@ -1084,9 +1086,9 @@ function normalizeAI21Usage(responseBody: Record<string, unknown>): UsageAttribu
   if (!usage) return {};
 
   return {
-    input_tokens: getNumberProperty(usage, "prompt_tokens"),
-    output_tokens: getNumberProperty(usage, "completion_tokens"),
-    total_tokens: getNumberProperty(usage, "total_tokens"),
+    input_tokens: getNumberProperty({ source: usage, key: "prompt_tokens" }),
+    output_tokens: getNumberProperty({ source: usage, key: "completion_tokens" }),
+    total_tokens: getNumberProperty({ source: usage, key: "total_tokens" }),
   };
 }
 
@@ -1111,8 +1113,8 @@ export const normalizeUsageAttributes = withSafety({
       case LLMSystem.META:
         // Meta format: { prompt_token_count: N, generation_token_count: N }
         return {
-          input_tokens: getNumberProperty(responseBody, "prompt_token_count"),
-          output_tokens: getNumberProperty(responseBody, "generation_token_count"),
+          input_tokens: getNumberProperty({ source: responseBody, key: "prompt_token_count" }),
+          output_tokens: getNumberProperty({ source: responseBody, key: "generation_token_count" }),
         };
       // Cohere reports token counts in HTTP headers rather than the response body, and
       // Mistral reports none at all, so both fall through to the empty default below.

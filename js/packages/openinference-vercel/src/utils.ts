@@ -866,25 +866,19 @@ const getGenAIInputMessageAttributes = ({
 };
 
 /**
- * Maps `gen_ai.system_instructions` onto an OpenInference input message.
- * @param params.systemInstructions the raw `gen_ai.system_instructions` value
- * @param params.startIndex the input message index to write the system message at
- * @returns the mapped attributes and the next free input message index
+ * Maps `gen_ai.system_instructions` onto the first OpenInference input message
+ * (system instructions always occupy input message index 0).
+ * @param systemInstructions the raw `gen_ai.system_instructions` value
+ * @returns the mapped attributes, empty when the value is not a JSON array
  */
-const getGenAISystemInstructionAttributes = ({
-  systemInstructions,
-  startIndex,
-}: {
-  systemInstructions: string;
-  startIndex: number;
-}): { attributes: Attributes; nextIndex: number } => {
+const getGenAISystemInstructionAttributes = (systemInstructions: string): Attributes => {
   const parsedSystemInstructions = safelyJSONParse(systemInstructions);
   if (!Array.isArray(parsedSystemInstructions)) {
-    return { attributes: {}, nextIndex: startIndex };
+    return {};
   }
 
   const attributes: Attributes = {};
-  const messagePrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${startIndex}`;
+  const messagePrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0`;
   attributes[`${messagePrefix}.${SemanticConventions.MESSAGE_ROLE}`] = "system";
   let contentIndex = 0;
   parsedSystemInstructions.forEach((part) => {
@@ -897,7 +891,7 @@ const getGenAISystemInstructionAttributes = ({
     }
   });
 
-  return { attributes, nextIndex: startIndex + 1 };
+  return attributes;
 };
 
 /**
@@ -1021,13 +1015,11 @@ const getVercelGenAIAttributes = (
   let inputMessageIndex = 0;
   const systemInstructions = attributes["gen_ai.system_instructions"];
   if (typeof systemInstructions === "string") {
-    const { attributes: systemInstructionAttributes, nextIndex } =
-      getGenAISystemInstructionAttributes({
-        systemInstructions,
-        startIndex: inputMessageIndex,
-      });
+    const systemInstructionAttributes = getGenAISystemInstructionAttributes(systemInstructions);
     Object.assign(result, systemInstructionAttributes);
-    inputMessageIndex = nextIndex;
+    if (Object.keys(systemInstructionAttributes).length > 0) {
+      inputMessageIndex = 1;
+    }
   }
 
   if (typeof inputMessages === "string") {

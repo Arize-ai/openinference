@@ -105,50 +105,31 @@ function buildToolMainSpanData(data: BuiltTraceTreeProps["data"]) {
   };
 }
 
-/**
- * Reads a single attribute out of a framework span's `data` attributes.
- * @param span The framework span, which may be absent
- * @param key The attribute key to read
- * @returns The attribute value, or undefined when the span or attribute is absent
- */
-function getSpanDataAttribute(span: FrameworkSpan | undefined, key: string) {
-  return span?.attributes.data?.[key];
-}
-
 function buildLLMMainSpanData(data: BuiltTraceTreeProps["data"]) {
   const startBeeaiSpan = data.spans.find((span) => span.name === startEventName);
   const successBeeeaiSpan = data.spans.find((span) => span.name === successEventName);
 
   if (!startBeeaiSpan && !successBeeeaiSpan) return {};
 
+  const startData = startBeeaiSpan?.attributes.data;
+  const successData = successBeeeaiSpan?.attributes.data;
+
   const provider =
-    getSpanDataAttribute(startBeeaiSpan, SemanticConventions.LLM_PROVIDER) ||
-    getSpanDataAttribute(successBeeeaiSpan, SemanticConventions.LLM_PROVIDER);
+    startData?.[SemanticConventions.LLM_PROVIDER] ||
+    successData?.[SemanticConventions.LLM_PROVIDER];
 
   const modelName =
-    getSpanDataAttribute(startBeeaiSpan, SemanticConventions.LLM_MODEL_NAME) ||
-    getSpanDataAttribute(successBeeeaiSpan, SemanticConventions.LLM_MODEL_NAME);
+    startData?.[SemanticConventions.LLM_MODEL_NAME] ||
+    successData?.[SemanticConventions.LLM_MODEL_NAME];
 
   return {
     ...(startBeeaiSpan && {
-      [SemanticConventions.INPUT_VALUE]: getSpanDataAttribute(
-        startBeeaiSpan,
-        SemanticConventions.INPUT_VALUE,
-      ),
-      [SemanticConventions.INPUT_MIME_TYPE]: getSpanDataAttribute(
-        startBeeaiSpan,
-        SemanticConventions.INPUT_MIME_TYPE,
-      ),
+      [SemanticConventions.INPUT_VALUE]: startData?.[SemanticConventions.INPUT_VALUE],
+      [SemanticConventions.INPUT_MIME_TYPE]: startData?.[SemanticConventions.INPUT_MIME_TYPE],
     }),
     ...(successBeeeaiSpan && {
-      [SemanticConventions.OUTPUT_MIME_TYPE]: getSpanDataAttribute(
-        successBeeeaiSpan,
-        SemanticConventions.OUTPUT_MIME_TYPE,
-      ),
-      [SemanticConventions.OUTPUT_VALUE]: getSpanDataAttribute(
-        successBeeeaiSpan,
-        SemanticConventions.OUTPUT_VALUE,
-      ),
+      [SemanticConventions.OUTPUT_MIME_TYPE]: successData?.[SemanticConventions.OUTPUT_MIME_TYPE],
+      [SemanticConventions.OUTPUT_VALUE]: successData?.[SemanticConventions.OUTPUT_VALUE],
     }),
     ...(provider && { [SemanticConventions.LLM_PROVIDER]: provider }),
     ...(modelName && { [SemanticConventions.LLM_MODEL_NAME]: modelName }),

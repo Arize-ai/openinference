@@ -289,13 +289,20 @@ export function getLLMProviderAttributes(provider: unknown): Attributes {
 }
 
 /**
- * Extracts the attributes for a single message content block.
- * @param baseKey - The `${messages}.${index}.message.contents.${index}` prefix to write under.
- * @param contentBlock - The content block to extract from.
- * @returns Record of attribute keys and values.
+ * Writes the attributes for a single message content block onto {@link attributes}.
+ * @param params.attributes - The attributes object to write onto.
+ * @param params.baseKey - The `${messages}.${index}.message.contents.${index}` prefix to write under.
+ * @param params.contentBlock - The content block to extract from.
  */
-function messageContentBlockAttributes(baseKey: string, contentBlock: MessageContent): Attributes {
-  const attributes: Attributes = {};
+function assignMessageContentBlockAttributes({
+  attributes,
+  baseKey,
+  contentBlock,
+}: {
+  attributes: Attributes;
+  baseKey: string;
+  contentBlock: MessageContent;
+}): void {
   if (contentBlock.type !== undefined) {
     attributes[`${baseKey}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = contentBlock.type;
     if (typeof contentBlock.text === "string") {
@@ -311,22 +318,28 @@ function messageContentBlockAttributes(baseKey: string, contentBlock: MessageCon
       `${baseKey}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
     ] = contentBlock.image.url;
   }
-  return attributes;
 }
 
 /**
- * Extracts the attributes for a single tool call on a message.
- * @param baseKey - The `${messages}.${index}.message.tool_calls.${index}` prefix to write under.
- * @param toolCall - The tool call to extract from.
- * @returns Record of attribute keys and values.
+ * Writes the attributes for a single tool call on a message onto {@link attributes}.
+ * @param params.attributes - The attributes object to write onto.
+ * @param params.baseKey - The `${messages}.${index}.message.tool_calls.${index}` prefix to write under.
+ * @param params.toolCall - The tool call to extract from.
  */
-function messageToolCallAttributes(baseKey: string, toolCall: ToolCall): Attributes {
-  const attributes: Attributes = {};
+function assignMessageToolCallAttributes({
+  attributes,
+  baseKey,
+  toolCall,
+}: {
+  attributes: Attributes;
+  baseKey: string;
+  toolCall: ToolCall;
+}): void {
   if (toolCall.id !== undefined) {
     attributes[`${baseKey}.${SemanticConventions.TOOL_CALL_ID}`] = toolCall.id;
   }
-  if (toolCall.function === undefined || typeof toolCall.function !== "object") {
-    return attributes;
+  if (!isObjectWithStringKeys(toolCall.function)) {
+    return;
   }
   const func = toolCall.function;
   if (typeof func.name === "string") {
@@ -339,17 +352,23 @@ function messageToolCallAttributes(baseKey: string, toolCall: ToolCall): Attribu
     attributes[`${baseKey}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
       JSON.stringify(func.arguments);
   }
-  return attributes;
 }
 
 /**
- * Extracts the attributes for a single input/output message.
- * @param baseKey - The `${messages}.${index}` prefix to write under.
- * @param message - The message to extract from.
- * @returns Record of attribute keys and values.
+ * Writes the attributes for a single input/output message onto {@link attributes}.
+ * @param params.attributes - The attributes object to write onto.
+ * @param params.baseKey - The `${messages}.${index}` prefix to write under.
+ * @param params.message - The message to extract from.
  */
-function llmMessageAttributes(baseKey: string, message: Message): Attributes {
-  const attributes: Attributes = {};
+function assignLLMMessageAttributes({
+  attributes,
+  baseKey,
+  message,
+}: {
+  attributes: Attributes;
+  baseKey: string;
+  message: Message;
+}): void {
   if (message.role !== undefined) {
     attributes[`${baseKey}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
   }
@@ -359,13 +378,11 @@ function llmMessageAttributes(baseKey: string, message: Message): Attributes {
   if (Array.isArray(message.contents)) {
     message.contents.forEach((contentBlock, contentBlockIndex) => {
       if (typeof contentBlock !== "object" || contentBlock === null) return;
-      Object.assign(
+      assignMessageContentBlockAttributes({
         attributes,
-        messageContentBlockAttributes(
-          `${baseKey}.${SemanticConventions.MESSAGE_CONTENTS}.${contentBlockIndex}`,
-          contentBlock,
-        ),
-      );
+        baseKey: `${baseKey}.${SemanticConventions.MESSAGE_CONTENTS}.${contentBlockIndex}`,
+        contentBlock,
+      });
     });
   }
   if (typeof message.tool_call_id === "string") {
@@ -374,16 +391,13 @@ function llmMessageAttributes(baseKey: string, message: Message): Attributes {
   if (Array.isArray(message.tool_calls)) {
     message.tool_calls.forEach((toolCall, toolCallIndex) => {
       if (typeof toolCall !== "object" || toolCall === null) return;
-      Object.assign(
+      assignMessageToolCallAttributes({
         attributes,
-        messageToolCallAttributes(
-          `${baseKey}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
-          toolCall,
-        ),
-      );
+        baseKey: `${baseKey}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
+        toolCall,
+      });
     });
   }
-  return attributes;
 }
 
 /**
@@ -407,7 +421,7 @@ export function llmMessagesAttributes(
   }
   messages.forEach((message, messageIndex) => {
     if (typeof message !== "object" || message === null) return;
-    Object.assign(attributes, llmMessageAttributes(`${baseKey}.${messageIndex}`, message));
+    assignLLMMessageAttributes({ attributes, baseKey: `${baseKey}.${messageIndex}`, message });
   });
   return attributes;
 }

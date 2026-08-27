@@ -113,10 +113,13 @@ function createFakeTextAdapter(
  * Drives a two-iteration tool-calling run through the middleware hooks so the
  * assertions below can focus on the spans the run produced.
  */
-async function driveToolCallRun(
-  middleware: ReturnType<typeof openInferenceMiddleware>,
-  toolCall: ToolCall,
-) {
+async function driveToolCallRun({
+  middleware,
+  toolCall,
+}: {
+  middleware: ReturnType<typeof openInferenceMiddleware>;
+  toolCall: ToolCall;
+}) {
   const firstCtx = createContext({ phase: "beforeModel", iteration: 0 });
   await middleware.onStart?.(createContext());
   await middleware.onConfig?.(
@@ -229,7 +232,7 @@ describe("openInferenceMiddleware", () => {
       },
     };
 
-    await driveToolCallRun(middleware, toolCall);
+    await driveToolCallRun({ middleware, toolCall });
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(4);

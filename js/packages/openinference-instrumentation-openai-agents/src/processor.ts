@@ -251,11 +251,15 @@ function assignToolCallAttributes(
 /**
  * Writes the attributes for a `function_call` entry onto {@link attributes}.
  */
-function assignFunctionCallMessageAttributes(
-  attributes: Attributes,
-  messagePrefix: string,
-  message: Record<string, unknown>,
-) {
+function assignFunctionCallMessageAttributes({
+  attributes,
+  messagePrefix,
+  message,
+}: {
+  attributes: Attributes;
+  messagePrefix: string;
+  message: Record<string, unknown>;
+}) {
   attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = "assistant";
   const toolCallPrefix = `${messagePrefix}.${MESSAGE_TOOL_CALLS}.0`;
   const callId = isString(message.callId) ? message.callId : message.call_id;
@@ -273,11 +277,15 @@ function assignFunctionCallMessageAttributes(
 /**
  * Writes the attributes for a `function_call_result` entry onto {@link attributes}.
  */
-function assignFunctionCallResultMessageAttributes(
-  attributes: Attributes,
-  messagePrefix: string,
-  message: Record<string, unknown>,
-) {
+function assignFunctionCallResultMessageAttributes({
+  attributes,
+  messagePrefix,
+  message,
+}: {
+  attributes: Attributes;
+  messagePrefix: string;
+  message: Record<string, unknown>;
+}) {
   attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = "tool";
   const callId = isString(message.callId) ? message.callId : message.call_id;
   if (isString(callId)) {
@@ -299,11 +307,15 @@ function assignFunctionCallResultMessageAttributes(
  * Writes a chat message's content onto {@link attributes}, either as a single
  * string or as indexed per-part content attributes.
  */
-function assignMessageContentAttributes(
-  attributes: Attributes,
-  messagePrefix: string,
-  content: unknown,
-) {
+function assignMessageContentAttributes({
+  attributes,
+  messagePrefix,
+  content,
+}: {
+  attributes: Attributes;
+  messagePrefix: string;
+  content: unknown;
+}) {
   if (isString(content)) {
     attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = content;
     return;
@@ -325,16 +337,20 @@ function assignMessageContentAttributes(
 /**
  * Writes the attributes for a chat-style message onto {@link attributes}.
  */
-function assignChatMessageAttributes(
-  attributes: Attributes,
-  messagePrefix: string,
-  message: Record<string, unknown>,
-) {
+function assignChatMessageAttributes({
+  attributes,
+  messagePrefix,
+  message,
+}: {
+  attributes: Attributes;
+  messagePrefix: string;
+  message: Record<string, unknown>;
+}) {
   if (isString(message.role)) {
     attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = message.role;
   }
 
-  assignMessageContentAttributes(attributes, messagePrefix, message.content);
+  assignMessageContentAttributes({ attributes, messagePrefix, content: message.content });
 
   if (isString(message.tool_call_id)) {
     attributes[`${messagePrefix}.${MESSAGE_TOOL_CALL_ID}`] = message.tool_call_id;
@@ -374,16 +390,16 @@ function extractMessageList(
     const messagePrefix = `${prefix}.${startIndex + messageIndex}`;
 
     if (message.type === "function_call") {
-      assignFunctionCallMessageAttributes(attributes, messagePrefix, message);
+      assignFunctionCallMessageAttributes({ attributes, messagePrefix, message });
       continue;
     }
 
     if (message.type === "function_call_result") {
-      assignFunctionCallResultMessageAttributes(attributes, messagePrefix, message);
+      assignFunctionCallResultMessageAttributes({ attributes, messagePrefix, message });
       continue;
     }
 
-    assignChatMessageAttributes(attributes, messagePrefix, message);
+    assignChatMessageAttributes({ attributes, messagePrefix, message });
   }
 
   return attributes;
@@ -453,103 +469,56 @@ function getGenerationAttributes(data: GenerationSpanData): Attributes {
 }
 
 /**
- * Running token totals aggregated across ChatCompletion responses. Each `has*`
- * flag records whether a count was observed at all, so legitimate zeros are
- * reported and absent counts are omitted.
+ * Running token totals aggregated across ChatCompletion responses. A field is
+ * undefined until a count is observed, so legitimate zeros are reported and
+ * absent counts are omitted.
  */
 interface ChatCompletionTokenTotals {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-  cacheReadTokens: number;
-  reasoningTokens: number;
-  hasPromptTokens: boolean;
-  hasCompletionTokens: boolean;
-  hasTotalTokens: boolean;
-  hasCacheReadTokens: boolean;
-  hasReasoningTokens: boolean;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  cacheReadTokens?: number;
+  reasoningTokens?: number;
 }
 
 /**
  * Adds one ChatCompletion `usage` object into the running {@link totals}.
  */
-function accumulateChatCompletionUsage(
-  totals: ChatCompletionTokenTotals,
-  usage: Record<string, unknown>,
-) {
+function accumulateChatCompletionUsage({
+  totals,
+  usage,
+}: {
+  totals: ChatCompletionTokenTotals;
+  usage: Record<string, unknown>;
+}) {
   const promptTokens = isNumber(usage.prompt_tokens) ? usage.prompt_tokens : undefined;
   const completionTokens = isNumber(usage.completion_tokens) ? usage.completion_tokens : undefined;
   if (promptTokens !== undefined) {
-    totals.promptTokens += promptTokens;
-    totals.hasPromptTokens = true;
+    totals.promptTokens = (totals.promptTokens ?? 0) + promptTokens;
   }
   if (completionTokens !== undefined) {
-    totals.completionTokens += completionTokens;
-    totals.hasCompletionTokens = true;
+    totals.completionTokens = (totals.completionTokens ?? 0) + completionTokens;
   }
   if (isNumber(usage.total_tokens)) {
-    totals.totalTokens += usage.total_tokens;
-    totals.hasTotalTokens = true;
+    totals.totalTokens = (totals.totalTokens ?? 0) + usage.total_tokens;
   } else if (promptTokens !== undefined || completionTokens !== undefined) {
-    totals.totalTokens += (promptTokens ?? 0) + (completionTokens ?? 0);
-    totals.hasTotalTokens = true;
+    totals.totalTokens = (totals.totalTokens ?? 0) + (promptTokens ?? 0) + (completionTokens ?? 0);
   }
   // OpenAI / DeepSeek prompt_tokens_details.cached_tokens
   if (
     isRecord(usage.prompt_tokens_details) &&
     isNumber(usage.prompt_tokens_details.cached_tokens)
   ) {
-    totals.cacheReadTokens += usage.prompt_tokens_details.cached_tokens;
-    totals.hasCacheReadTokens = true;
+    totals.cacheReadTokens =
+      (totals.cacheReadTokens ?? 0) + usage.prompt_tokens_details.cached_tokens;
   }
   // o-series completion_tokens_details.reasoning_tokens
   if (
     isRecord(usage.completion_tokens_details) &&
     isNumber(usage.completion_tokens_details.reasoning_tokens)
   ) {
-    totals.reasoningTokens += usage.completion_tokens_details.reasoning_tokens;
-    totals.hasReasoningTokens = true;
-  }
-}
-
-/**
- * Writes the attributes for one ChatCompletion choice message onto {@link attributes}.
- */
-function assignChatCompletionOutputMessageAttributes(
-  attributes: Attributes,
-  messagePrefix: string,
-  message: Record<string, unknown>,
-) {
-  if (isString(message.role)) {
-    attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = message.role;
-  }
-
-  const content = message.content;
-  if (isString(content)) {
-    attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = content;
-  } else if (Array.isArray(content)) {
-    for (let partIndex = 0; partIndex < content.length; partIndex++) {
-      const part = content[partIndex];
-      if (!isRecord(part)) continue;
-      const partPrefix = `${messagePrefix}.${MESSAGE_CONTENTS}.${partIndex}`;
-      if (part.type === "text" && isString(part.text)) {
-        attributes[`${partPrefix}.${MESSAGE_CONTENT_TYPE}`] = "text";
-        attributes[`${partPrefix}.${MESSAGE_CONTENT_TEXT}`] = part.text;
-      }
-    }
-  }
-
-  if (Array.isArray(message.tool_calls)) {
-    let toolCallIndex = 0;
-    for (const toolCall of message.tool_calls) {
-      if (!isRecord(toolCall)) continue;
-      assignToolCallAttributes(
-        attributes,
-        `${messagePrefix}.${MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
-        toolCall,
-      );
-      toolCallIndex++;
-    }
+    totals.reasoningTokens =
+      (totals.reasoningTokens ?? 0) + usage.completion_tokens_details.reasoning_tokens;
   }
 }
 
@@ -562,18 +531,7 @@ function assignChatCompletionOutputMessageAttributes(
  */
 function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): Attributes {
   const attributes: Attributes = {};
-  const totals: ChatCompletionTokenTotals = {
-    promptTokens: 0,
-    completionTokens: 0,
-    totalTokens: 0,
-    cacheReadTokens: 0,
-    reasoningTokens: 0,
-    hasPromptTokens: false,
-    hasCompletionTokens: false,
-    hasTotalTokens: false,
-    hasCacheReadTokens: false,
-    hasReasoningTokens: false,
-  };
+  const totals: ChatCompletionTokenTotals = {};
   let messageIndex = 0;
 
   for (const response of responses) {
@@ -581,29 +539,30 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
 
     // Token usage
     if (isRecord(response.usage)) {
-      accumulateChatCompletionUsage(totals, response.usage);
+      accumulateChatCompletionUsage({ totals, usage: response.usage });
     }
 
     // Output messages
     if (!Array.isArray(response.choices)) continue;
     for (const choice of response.choices) {
       if (!isRecord(choice) || !isRecord(choice.message)) continue;
-      assignChatCompletionOutputMessageAttributes(
+      assignChatMessageAttributes({
         attributes,
-        `${LLM_OUTPUT_MESSAGES}.${messageIndex}`,
-        choice.message,
-      );
+        messagePrefix: `${LLM_OUTPUT_MESSAGES}.${messageIndex}`,
+        message: choice.message,
+      });
       messageIndex++;
     }
   }
 
   // Record any counts that were actually observed, including legitimate zeros.
-  if (totals.hasPromptTokens) attributes[LLM_TOKEN_COUNT_PROMPT] = totals.promptTokens;
-  if (totals.hasCompletionTokens) attributes[LLM_TOKEN_COUNT_COMPLETION] = totals.completionTokens;
-  if (totals.hasTotalTokens) attributes[LLM_TOKEN_COUNT_TOTAL] = totals.totalTokens;
-  if (totals.hasCacheReadTokens)
+  if (totals.promptTokens !== undefined) attributes[LLM_TOKEN_COUNT_PROMPT] = totals.promptTokens;
+  if (totals.completionTokens !== undefined)
+    attributes[LLM_TOKEN_COUNT_COMPLETION] = totals.completionTokens;
+  if (totals.totalTokens !== undefined) attributes[LLM_TOKEN_COUNT_TOTAL] = totals.totalTokens;
+  if (totals.cacheReadTokens !== undefined)
     attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totals.cacheReadTokens;
-  if (totals.hasReasoningTokens)
+  if (totals.reasoningTokens !== undefined)
     attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = totals.reasoningTokens;
 
   return attributes;
@@ -766,7 +725,13 @@ const RESPONSE_NON_INVOCATION_PARAM_KEYS: ReadonlySet<string> = new Set([
  * @param startIndex The input message index to start at, leaving room for a
  * system instruction message when the response carries one
  */
-function getResponseInputAttributes(data: ResponseSpanData, startIndex: number): Attributes {
+function getResponseInputAttributes({
+  data,
+  startIndex,
+}: {
+  data: ResponseSpanData;
+  startIndex: number;
+}): Attributes {
   const attributes: Attributes = {};
   if (data._input == null) {
     return attributes;
@@ -871,7 +836,10 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
     isRecord(data._response) &&
     isString(data._response.instructions) &&
     data._response.instructions.length > 0;
-  Object.assign(attributes, getResponseInputAttributes(data, hasSystemInstruction ? 1 : 0));
+  Object.assign(
+    attributes,
+    getResponseInputAttributes({ data, startIndex: hasSystemInstruction ? 1 : 0 }),
+  );
 
   // Response
   if (!isRecord(data._response)) return attributes;
