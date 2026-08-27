@@ -126,6 +126,8 @@ async def test_instrumentor(
     assert isinstance(response_json_str, str)
     assert json.loads(response_json_str) == FunctionResponse.to_dict(function_response)["response"]
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    if not has_error:
+        assert attributes.pop(LLM_FINISH_REASON, None) == "STOP"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     status = span.status
@@ -230,6 +232,7 @@ async def test_instrumentor_config_hiding_inputs(
     assert json.loads(metadata_json_str) == metadata
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_FINISH_REASON, None) == "STOP"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
@@ -359,6 +362,7 @@ async def test_instrumentor_config_hiding_outputs(
     assert json.loads(metadata_json_str) == metadata
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_FINISH_REASON, None) == "STOP"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
@@ -548,7 +552,13 @@ def usage_metadata() -> Dict[str, int]:
 @pytest.fixture
 def candidates() -> List[Candidate]:
     return [
-        Candidate(dict(index=0, content=dict(role="model", parts=[dict(text="1 2 3")]))),
+        Candidate(
+            dict(
+                index=0,
+                content=dict(role="model", parts=[dict(text="1 2 3")]),
+                finish_reason=Candidate.FinishReason.STOP,
+            )
+        ),
         Candidate(
             dict(
                 index=1,
@@ -653,16 +663,24 @@ def mock_generate_content_response_gen(
     response: GenerateContentResponse,
 ) -> Iterator[GenerateContentResponse]:
     for index, candidate in reversed(list(enumerate(response.candidates))):
-        for part in candidate.content.parts:
+        parts = list(candidate.content.parts)
+        for part_idx, part in enumerate(parts):
+            is_last_part = part_idx == len(parts) - 1
+            finish_reason = candidate.finish_reason if is_last_part else None
             if part.text:
-                for t in part.text:
+                for char_idx, t in enumerate(part.text):
+                    is_last_char = is_last_part and char_idx == len(part.text) - 1
                     content = dict(role="model", parts=[dict(text=t)])
-                    yield GenerateContentResponse(
-                        dict(candidates=[dict(index=index, content=content)])
-                    )
+                    candidate_dict: Dict[str, Any] = dict(index=index, content=content)
+                    if is_last_char and finish_reason:
+                        candidate_dict["finish_reason"] = finish_reason
+                    yield GenerateContentResponse(dict(candidates=[candidate_dict]))
             else:
                 content = dict(role="model", parts=[part])
-                yield GenerateContentResponse(dict(candidates=[dict(index=index, content=content)]))
+                candidate_dict = dict(index=index, content=content)
+                if finish_reason:
+                    candidate_dict["finish_reason"] = finish_reason
+                yield GenerateContentResponse(dict(candidates=[candidate_dict]))
     yield GenerateContentResponse(dict(usage_metadata=response.usage_metadata))
 
 
@@ -671,6 +689,172 @@ async def mock_async_generate_content_response_gen(
 ) -> AsyncIterator[GenerateContentResponse]:
     for _ in response_gen:
         yield _
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    [
+        Candidate.FinishReason.STOP,
+        Candidate.FinishReason.MAX_TOKENS,
+        Candidate.FinishReason.SAFETY,
+        Candidate.FinishReason.RECITATION,
+        Candidate.FinishReason.OTHER,
+        Candidate.FinishReason.BLOCKLIST,
+        Candidate.FinishReason.PROHIBITED_CONTENT,
+        Candidate.FinishReason.SPII,
+        Candidate.FinishReason.MALFORMED_FUNCTION_CALL,
+    ],
+)
+def test_finish_reason_values(
+    finish_reason: "Candidate.FinishReason",
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    tracer: Tracer,
+) -> None:
+    response = GenerateContentResponse(
+        dict(
+            candidates=[
+                Candidate(
+                    dict(
+                        index=0,
+                        content=dict(role="model", parts=[dict(text="hi")]),
+                        finish_reason=finish_reason,
+                    )
+                )
+            ],
+            usage_metadata=dict(
+                prompt_token_count=5,
+                candidates_token_count=2,
+                total_token_count=7,
+            ),
+        )
+    )
+    with ExitStack() as stack:
+        args = (mock_generate_content_request, response, False, stack, tracer)
+        mock_generate_content(*args)
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = next(
+        s
+        for s in spans
+        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value  # type: ignore[union-attr]
+    )
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(LLM_FINISH_REASON) == finish_reason.name
+
+
+def test_finish_reason_unspecified_value(
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    tracer: Tracer,
+) -> None:
+    response = GenerateContentResponse(
+        dict(
+            candidates=[
+                Candidate(
+                    dict(
+                        index=0,
+                        content=dict(role="model", parts=[dict(text="hi")]),
+                        finish_reason=Candidate.FinishReason.FINISH_REASON_UNSPECIFIED,
+                    )
+                )
+            ],
+            usage_metadata=dict(
+                prompt_token_count=5,
+                candidates_token_count=2,
+                total_token_count=7,
+            ),
+        )
+    )
+    with ExitStack() as stack:
+        args = (mock_generate_content_request, response, False, stack, tracer)
+        mock_generate_content(*args)
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = next(
+        s
+        for s in spans
+        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value  # type: ignore[union-attr]
+    )
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert LLM_FINISH_REASON not in attributes
+
+
+def test_finish_reason_unknown_integer_value(
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    tracer: Tracer,
+) -> None:
+    # A value outside the known FinishReason enum range, simulating a newer
+    # API version returning a reason this SDK build doesn't recognize yet.
+    unknown_value = 999
+    response = GenerateContentResponse(
+        dict(
+            candidates=[
+                Candidate(
+                    dict(
+                        index=0,
+                        content=dict(role="model", parts=[dict(text="hi")]),
+                    )
+                )
+            ],
+            usage_metadata=dict(
+                prompt_token_count=5,
+                candidates_token_count=2,
+                total_token_count=7,
+            ),
+        )
+    )
+    # proto-plus enum fields reject unknown ints via the constructor/dict path,
+    # so set it directly on the underlying pb2 message to simulate a
+    # forward-compatible unknown value arriving over the wire.
+    response.candidates[0]._pb.finish_reason = unknown_value
+
+    with ExitStack() as stack:
+        args = (mock_generate_content_request, response, False, stack, tracer)
+        mock_generate_content(*args)
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = next(
+        s
+        for s in spans
+        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value  # type: ignore[union-attr]
+    )
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(LLM_FINISH_REASON) == str(unknown_value)
+
+
+def test_finish_reason_intentionally_omitted(
+    in_memory_span_exporter: InMemorySpanExporter,
+    mock_generate_content_request: GenerateContentRequest,
+    tracer: Tracer,
+) -> None:
+    response = GenerateContentResponse(
+        dict(
+            candidates=[
+                Candidate(
+                    dict(
+                        index=0,
+                        content=dict(role="model", parts=[dict(text="hi")]),
+                        # finish_reason intentionally omitted
+                    )
+                )
+            ],
+            usage_metadata=dict(
+                prompt_token_count=5,
+                candidates_token_count=2,
+                total_token_count=7,
+            ),
+        )
+    )
+    with ExitStack() as stack:
+        args = (mock_generate_content_request, response, False, stack, tracer)
+        mock_generate_content(*args)
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = next(
+        s
+        for s in spans
+        if s.attributes.get(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value  # type: ignore[union-attr]
+    )
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert LLM_FINISH_REASON not in attributes
 
 
 class HasTracer:
@@ -971,6 +1155,7 @@ JSON = OpenInferenceMimeTypeValues.JSON.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
