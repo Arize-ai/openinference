@@ -1,5 +1,14 @@
 # @arizeai/openinference-vercel
 
+## 3.1.8
+
+### Patch Changes
+
+- 0071b37: Split over-complex functions into focused helpers and make implicit returns explicit (enforce `eslint/complexity`). Also hardens bedrock-agent-runtime tool-call extraction against a `function: null` payload that previously threw. No other behavior changes.
+- Updated dependencies [0071b37]
+  - @arizeai/openinference-core@2.5.4
+  - @arizeai/openinference-genai@0.3.6
+
 ## 3.1.7
 
 ### Patch Changes
