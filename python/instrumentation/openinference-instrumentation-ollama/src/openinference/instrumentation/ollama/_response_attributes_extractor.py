@@ -36,6 +36,8 @@ class _ResponseAttributesExtractor:
         if message := getattr(response, "message", None):
             for key, value in self._get_attributes_from_response_message(message):
                 yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{key}", value
+        if (done_reason := getattr(response, "done_reason", None)) is not None:
+            yield SpanAttributes.LLM_FINISH_REASON, done_reason
 
     def _get_attributes_from_response_message(
         self,
