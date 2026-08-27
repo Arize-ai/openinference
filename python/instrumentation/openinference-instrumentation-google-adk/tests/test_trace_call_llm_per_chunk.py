@@ -3,7 +3,7 @@ from typing import Any, Optional, cast
 import pytest
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.adk.tools import FunctionTool
+from google.adk.tools.function_tool import FunctionTool
 from google.genai import types
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
