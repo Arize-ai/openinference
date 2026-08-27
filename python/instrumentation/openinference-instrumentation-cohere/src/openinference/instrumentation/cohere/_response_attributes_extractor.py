@@ -48,6 +48,8 @@ class _ResponseAttributesExtractor:
         if message := getattr(response, "message", None):
             for key, value in self._get_attributes_from_response_message(message):
                 yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{key}", value
+        if (finish_reason := getattr(response, "finish_reason", None)) is not None:
+            yield SpanAttributes.LLM_FINISH_REASON, finish_reason
 
     def get_extra_attributes_from_embed_response(
         self,
