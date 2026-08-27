@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Any, Dict, List, cast
+from typing import Any, AsyncIterator, Dict, Iterator, List, cast
 
 import pytest
 from opentelemetry.context import (
@@ -28,6 +28,12 @@ from openinference.semconv.trace import SpanAttributes
 
 def test_suppress_tracing() -> None:
     with suppress_tracing():
+        assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is True
+    assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is None
+
+
+async def test_suppress_tracing_async() -> None:
+    async with suppress_tracing():
         assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is True
     assert get_value(_SUPPRESS_INSTRUMENTATION_KEY) is None
 
@@ -154,6 +160,81 @@ async def test_using_session_async_decorator_detaches_after_exception(session_id
 
     with pytest.raises(RuntimeError, match="test error"):
         await f()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+def test_using_session_decorator_supports_reentrant_calls(session_id: str) -> None:
+    # A single decorator instance must isolate its detach token per invocation:
+    # if invocations shared `self._token`, the outer exit would detach the inner
+    # call's spent token and leak the session id into the ambient context.
+    @using_session(session_id)
+    def f(depth: int = 0) -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+        if depth == 0:
+            f(depth + 1)
+
+    f()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_session_async_decorator_supports_reentrant_calls(session_id: str) -> None:
+    @using_session(session_id)
+    async def f(depth: int = 0) -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+        if depth == 0:
+            await f(depth + 1)
+
+    await f()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+def test_using_session_generator_decorator(session_id: str) -> None:
+    @using_session(session_id)
+    def f() -> Iterator[int]:
+        for i in range(3):
+            assert get_value(SpanAttributes.SESSION_ID) == session_id
+            yield i
+
+    assert list(f()) == [0, 1, 2]
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_session_async_generator_decorator(session_id: str) -> None:
+    @using_session(session_id)
+    async def f() -> AsyncIterator[int]:
+        for i in range(3):
+            await asyncio.sleep(0)
+            assert get_value(SpanAttributes.SESSION_ID) == session_id
+            yield i
+
+    assert [item async for item in f()] == [0, 1, 2]
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_session_async_decorator_supports_async_callable_objects(
+    session_id: str,
+) -> None:
+    class AsyncCallable:
+        async def __call__(self) -> None:
+            await asyncio.sleep(0)
+            assert get_value(SpanAttributes.SESSION_ID) == session_id
+
+    f = using_session(session_id)(AsyncCallable())
+    await f()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_session_async_decorator_supports_async_generator_callable_objects(
+    session_id: str,
+) -> None:
+    class AsyncGenCallable:
+        async def __call__(self) -> AsyncIterator[int]:
+            for i in range(2):
+                assert get_value(SpanAttributes.SESSION_ID) == session_id
+                yield i
+
+    f = using_session(session_id)(AsyncGenCallable())
+    assert [item async for item in f()] == [0, 1]
     assert get_value(SpanAttributes.SESSION_ID) is None
 
 
