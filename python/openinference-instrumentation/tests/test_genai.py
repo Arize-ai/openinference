@@ -306,7 +306,7 @@ def test_normalize_tool_definition_rejects_invalid_json() -> None:
     assert _normalize_tool_definition("not JSON") is None
 
 
-def test_get_genai_attributes_reads_tool_definition_names_from_tool_name() -> None:
+def test_get_genai_attributes_reads_tool_definition_names_from_tool_name_and_description() -> None:
     openinference_attributes: Dict[str, Any] = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
         f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_NAME}": "get_weather",
@@ -322,10 +322,12 @@ def test_get_genai_attributes_reads_tool_definition_names_from_tool_name() -> No
         ),
         # A bare parameter schema carries no name of its own.
         f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_NAME}": "get_time",
+        f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_DESCRIPTION}": "Get the time",
         f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_JSON_SCHEMA}": json.dumps(
             {"type": "object", "properties": {"timezone": {"type": "string"}}}
         ),
         f"{SpanAttributes.LLM_TOOLS}.2.{ToolAttributes.TOOL_NAME}": "lookup",
+        f"{SpanAttributes.LLM_TOOLS}.2.{ToolAttributes.TOOL_DESCRIPTION}": "Look something up",
     }
 
     genai_attributes = get_genai_attributes(openinference_attributes)
@@ -344,9 +346,11 @@ def test_get_genai_attributes_reads_tool_definition_names_from_tool_name() -> No
         "description": "Get the weather",
         "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
     }
+    assert tool_definitions[1]["description"] == "Get the time"
     assert tool_definitions[2] == {
         "type": GenAIToolTypeValues.FUNCTION.value,
         "name": "lookup",
+        "description": "Look something up",
     }
 
 

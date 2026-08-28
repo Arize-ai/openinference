@@ -563,11 +563,12 @@ class ToolAttributes:
     TOOL_NAME = "tool.name"
     """
     The name of the tool, i.e. the identifier the model uses to call it.
+    """
 
-    The name is also carried inside `tool.json_schema`, but its location there
-    depends on the provider: nested under `function` for OpenAI-style
-    definitions, at the top level for Anthropic-style ones. Recording it here
-    lets a consumer read the name without parsing a provider-specific shape.
+    TOOL_DESCRIPTION = "tool.description"
+    """
+    The description of the tool, i.e. the text the model uses to decide whether
+    to call it.
     """
 
 
