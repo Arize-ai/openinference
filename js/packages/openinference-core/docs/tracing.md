@@ -18,20 +18,34 @@ interface SpanTraceOptions<Fn> {
   tracer?: Tracer;                         // OTel Tracer or OITracer instance
   openTelemetrySpanKind?: SpanKind;        // OTel span kind (default: INTERNAL)
   kind?: OpenInferenceSpanKind | `${OpenInferenceSpanKind}`;   // OI span kind (default: CHAIN)
-  requestModelName?: string;               // Emitted as llm.request.model_name
-  responseModelName?: string;              // Emitted as llm.response.model_name on success
   processInput?: (...args: Parameters<Fn>) => Attributes;
   processOutput?: (result: Awaited<ReturnType<Fn>>) => Attributes;
   attributes?: Attributes;                 // Static attributes added to every span
 }
 ```
 
-`requestModelName` is set when the span starts; `responseModelName` is set only
-when the wrapped function completes successfully. The two can differ when the
-provider routes the request to another model — for example
-[Anthropic's server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#server-side-fallback),
-where a classifier-triggered refusal hands the request off to a fallback model
-that generates the response.
+To record LLM-specific attributes such as `llm.request.model_name` and
+`llm.response.model_name`, compose `getLLMAttributes` into `attributes` or the
+input/output processors — see
+[Request and Response Model Names](attribute-helpers.md#request-and-response-model-names):
+
+```typescript
+import {
+  defaultProcessOutput,
+  getLLMAttributes,
+  withSpan,
+} from "@arizeai/openinference-core";
+
+const tracedCompletion = withSpan(callLLM, {
+  name: "chat-completion",
+  kind: "LLM",
+  attributes: getLLMAttributes({ requestModelName: "claude-sonnet-4-5" }),
+  processOutput: (response) => ({
+    ...defaultProcessOutput(response),
+    ...getLLMAttributes({ responseModelName: response.model }),
+  }),
+});
+```
 
 ### Basic Usage
 

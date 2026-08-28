@@ -42,11 +42,34 @@ function getLLMAttributes(options: {
 }): Attributes;
 ```
 
-`requestModelName` and `responseModelName` can differ when the provider routes
+### Request and Response Model Names
+
+`requestModelName` emits `llm.request.model_name` and `responseModelName`
+emits `llm.response.model_name`. The two can differ when the provider routes
 the request to another model — for example
 [Anthropic's server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#server-side-fallback),
 where a classifier-triggered refusal hands the request off to a fallback model
 that generates the response.
+
+With `withSpan` or the `@observe` decorator, compose them through `attributes`
+(request, known up front) and `processOutput` (response, reported by the
+provider):
+
+```typescript
+import { getLLMAttributes, observe } from "@arizeai/openinference-core";
+
+class ChatService {
+  @observe({
+    kind: "LLM",
+    attributes: getLLMAttributes({ requestModelName: "claude-sonnet-4-5" }),
+    processOutput: (response) =>
+      getLLMAttributes({ responseModelName: response.model }),
+  })
+  async complete(prompt: string) {
+    return await callLLM(prompt);
+  }
+}
+```
 
 ### Message Type
 
