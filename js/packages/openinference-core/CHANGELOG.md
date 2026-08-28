@@ -1,5 +1,11 @@
 # @arizeai/openinference-core
 
+## 2.6.0
+
+### Minor Changes
+
+- 99f6e71: Add optional `requestModelName` and `responseModelName` options to `getLLMAttributes`, emitting the `llm.request.model_name` and `llm.response.model_name` semantic conventions; usable with `withSpan` and the `@observe` decorator via `attributes` and `processOutput`
+
 ## 2.5.4
 
 ### Patch Changes
