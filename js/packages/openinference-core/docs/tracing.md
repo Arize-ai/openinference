@@ -26,6 +26,13 @@ interface SpanTraceOptions<Fn> {
 }
 ```
 
+`requestModelName` is set when the span starts; `responseModelName` is set only
+when the wrapped function completes successfully. The two can differ when the
+provider routes the request to another model — for example
+[Anthropic's server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#server-side-fallback),
+where a classifier-triggered refusal hands the request off to a fallback model
+that generates the response.
+
 ### Basic Usage
 
 ```typescript

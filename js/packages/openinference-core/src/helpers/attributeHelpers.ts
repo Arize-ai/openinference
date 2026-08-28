@@ -603,8 +603,12 @@ export function getToolAttributes(options: {
  * @param options.provider - The LLM provider (e.g., "openai", "anthropic")
  * @param options.system - The LLM system type
  * @param options.modelName - The name of the LLM model
- * @param options.requestModelName - The model requested by the caller, as sent in the request (optional)
- * @param options.responseModelName - The model that actually generated the response, as reported by the provider (optional)
+ * @param options.requestModelName - The model requested by the caller, as sent in the request (optional).
+ * May differ from responseModelName when the provider routes the request to a different model,
+ * such as Anthropic's server-side fallback on classifier-triggered refusals.
+ * @param options.responseModelName - The model that actually generated the response, as reported
+ * by the provider (optional). On an Anthropic server-side fallback this is the fallback model
+ * rather than the requested one.
  * @param options.invocationParameters - Parameters used for the LLM invocation
  * @param options.inputMessages - Input messages sent to the LLM
  * @param options.outputMessages - Output messages received from the LLM
