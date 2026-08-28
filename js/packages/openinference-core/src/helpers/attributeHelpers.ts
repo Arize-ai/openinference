@@ -603,6 +603,8 @@ export function getToolAttributes(options: {
  * @param options.provider - The LLM provider (e.g., "openai", "anthropic")
  * @param options.system - The LLM system type
  * @param options.modelName - The name of the LLM model
+ * @param options.requestModelName - The model requested by the caller, as sent in the request (optional)
+ * @param options.responseModelName - The model that actually generated the response, as reported by the provider (optional)
  * @param options.invocationParameters - Parameters used for the LLM invocation
  * @param options.inputMessages - Input messages sent to the LLM
  * @param options.outputMessages - Output messages received from the LLM
@@ -625,6 +627,8 @@ export function getLLMAttributes(options: {
   provider?: string;
   system?: string;
   modelName?: string;
+  requestModelName?: string;
+  responseModelName?: string;
   invocationParameters?: Record<string, unknown>;
   inputMessages?: Message[];
   outputMessages?: Message[];
@@ -646,6 +650,16 @@ export function getLLMAttributes(options: {
   // Model name attributes
   if (options.modelName != null) {
     attributes[SemanticConventions.LLM_MODEL_NAME] = options.modelName;
+  }
+
+  // Request model name attributes
+  if (options.requestModelName != null) {
+    attributes[SemanticConventions.LLM_REQUEST_MODEL_NAME] = options.requestModelName;
+  }
+
+  // Response model name attributes
+  if (options.responseModelName != null) {
+    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = options.responseModelName;
   }
 
   // Invocation parameters

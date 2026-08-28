@@ -19,6 +19,8 @@ import { withSpan } from "./withSpan";
  * @param options.name - Custom span name (defaults to method name)
  * @param options.openTelemetrySpanKind - OpenTelemetry span kind (defaults to INTERNAL)
  * @param options.kind - OpenInference span kind (defaults to CHAIN)
+ * @param options.requestModelName - Model requested by the caller, emitted as `llm.request.model_name` (optional)
+ * @param options.responseModelName - Model that generated the response, emitted as `llm.response.model_name` on success (optional)
  * @param options.processInput - Custom input processing function (optional)
  * @param options.processOutput - Custom output processing function (optional)
  *

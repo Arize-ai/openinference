@@ -246,6 +246,29 @@ export interface SpanTraceOptions<Fn extends AnyFn = AnyFn> {
   kind?: OpenInferenceSpanKind | `${OpenInferenceSpanKind}`;
 
   /**
+   * The model requested by the caller, as sent in the request.
+   *
+   * Emitted as the `llm.request.model_name` attribute on the span. May differ
+   * from {@link SpanTraceOptions.responseModelName} when the provider routes
+   * the request to a different model (e.g. classifier-triggered fallback).
+   *
+   * @example "gpt-4o", "claude-sonnet-4-5"
+   */
+  requestModelName?: string;
+
+  /**
+   * The model that actually generated the response, as reported by the provider.
+   *
+   * Emitted as the `llm.response.model_name` attribute once the wrapped
+   * function resolves successfully. May differ from
+   * {@link SpanTraceOptions.requestModelName} when the provider routes the
+   * request to a different model (e.g. classifier-triggered fallback).
+   *
+   * @example "gpt-4o-2024-08-06"
+   */
+  responseModelName?: string;
+
+  /**
    * Custom function to process input arguments into span attributes.
    *
    * This allows for custom serialization and attribute extraction from function

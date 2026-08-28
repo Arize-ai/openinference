@@ -32,6 +32,8 @@ function getLLMAttributes(options: {
   provider?: string;              // e.g., "openai", "anthropic"
   system?: string;                // LLM system type
   modelName?: string;             // e.g., "gpt-4o", "claude-sonnet-4-5-20250514"
+  requestModelName?: string;      // Model requested by the caller (llm.request.model_name)
+  responseModelName?: string;     // Model that generated the response (llm.response.model_name)
   invocationParameters?: Record<string, unknown>;  // temperature, max_tokens, etc.
   inputMessages?: Message[];      // Messages sent to the LLM
   outputMessages?: Message[];     // Messages received from the LLM

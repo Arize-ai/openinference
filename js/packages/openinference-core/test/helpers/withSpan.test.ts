@@ -218,6 +218,87 @@ describe("withSpan", () => {
     expect(span.attributes["service.version"]).toBe("1.0.0");
   });
 
+  it("should set request and response model name attributes when provided", async () => {
+    const asyncFn = async () => "response";
+
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(asyncFn, {
+      name: "llm-call",
+      kind: "LLM",
+      requestModelName: "gpt-4",
+      responseModelName: "gpt-4-0613",
+      tracer,
+    });
+
+    await wrappedFn();
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+
+    const span = spans[0];
+    expect(span.attributes["llm.request.model_name"]).toBe("gpt-4");
+    expect(span.attributes["llm.response.model_name"]).toBe("gpt-4-0613");
+  });
+
+  it("should set model name attributes for synchronous functions", () => {
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(() => "response", {
+      name: "sync-llm-call",
+      requestModelName: "gpt-4",
+      responseModelName: "gpt-4-0613",
+      tracer,
+    });
+
+    wrappedFn();
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+
+    const span = spans[0];
+    expect(span.attributes["llm.request.model_name"]).toBe("gpt-4");
+    expect(span.attributes["llm.response.model_name"]).toBe("gpt-4-0613");
+  });
+
+  it("should not set the response model name when the wrapped function throws", async () => {
+    const errorFn = async () => {
+      throw new Error("Test error");
+    };
+
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(errorFn, {
+      name: "failing-llm-call",
+      requestModelName: "gpt-4",
+      responseModelName: "gpt-4-0613",
+      tracer,
+    });
+
+    await expect(wrappedFn()).rejects.toThrow("Test error");
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+
+    const span = spans[0];
+    expect(span.attributes["llm.request.model_name"]).toBe("gpt-4");
+    expect(span.attributes["llm.response.model_name"]).toBeUndefined();
+  });
+
+  it("should not set model name attributes when not provided", () => {
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(() => "response", {
+      name: "no-model-names",
+      tracer,
+    });
+
+    wrappedFn();
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+
+    const span = spans[0];
+    expect(span.attributes["llm.request.model_name"]).toBeUndefined();
+    expect(span.attributes["llm.response.model_name"]).toBeUndefined();
+  });
+
   it("should use custom input and output processors", () => {
     const testFn = (query: string) => {
       return query.length;

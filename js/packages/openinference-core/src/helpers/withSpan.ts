@@ -12,7 +12,8 @@ import { defaultProcessInput, defaultProcessOutput } from "./attributeHelpers";
 import { getTracer, wrapTracer } from "./tracerHelpers";
 import type { AnyFn, InputToAttributesFn, OutputToAttributesFn, SpanTraceOptions } from "./types";
 
-const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
+const { OPENINFERENCE_SPAN_KIND, LLM_REQUEST_MODEL_NAME, LLM_RESPONSE_MODEL_NAME } =
+  SemanticConventions;
 
 /**
  * True when the thrown value is a valid OpenTelemetry {@link Exception} — a string or an
@@ -58,6 +59,8 @@ function isException(error: unknown): error is Exception {
  * @param options.name - Custom span name (defaults to function name)
  * @param options.openTelemetrySpanKind - OpenTelemetry span kind (defaults to INTERNAL)
  * @param options.kind - OpenInference span kind for semantic categorization (defaults to CHAIN)
+ * @param options.requestModelName - Model requested by the caller, emitted as `llm.request.model_name` (optional)
+ * @param options.responseModelName - Model that generated the response, emitted as `llm.response.model_name` on success (optional)
  * @param options.processInput - Custom function to process input arguments into attributes
  * @param options.processOutput - Custom function to process output values into attributes
  * @param options.attributes - Base attributes to be added to every span created
@@ -101,6 +104,8 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
     processOutput: _processOutput,
     openTelemetrySpanKind = SpanKind.INTERNAL,
     kind = OpenInferenceSpanKind.CHAIN,
+    requestModelName,
+    responseModelName,
     attributes: baseAttributes,
   } = options || {};
   const configuredTracer: OITracer | undefined = _tracer ? wrapTracer(_tracer) : undefined;
@@ -123,6 +128,7 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
         attributes: {
           ...baseAttributes,
           [OPENINFERENCE_SPAN_KIND]: kind,
+          ...(requestModelName != null ? { [LLM_REQUEST_MODEL_NAME]: requestModelName } : {}),
           ...processInput(...args),
         },
       },
@@ -142,6 +148,9 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
             return result
               .then((value: Awaited<ReturnType<Fn>>) => {
                 span.setAttributes({
+                  ...(responseModelName != null
+                    ? { [LLM_RESPONSE_MODEL_NAME]: responseModelName }
+                    : {}),
                   ...processOutput(value),
                 });
                 span.setStatus({
@@ -158,6 +167,7 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
 
           // It is a normal function
           span.setAttributes({
+            ...(responseModelName != null ? { [LLM_RESPONSE_MODEL_NAME]: responseModelName } : {}),
             ...processOutput(result),
           });
           span.setStatus({

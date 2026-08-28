@@ -18,6 +18,8 @@ interface SpanTraceOptions<Fn> {
   tracer?: Tracer;                         // OTel Tracer or OITracer instance
   openTelemetrySpanKind?: SpanKind;        // OTel span kind (default: INTERNAL)
   kind?: OpenInferenceSpanKind | `${OpenInferenceSpanKind}`;   // OI span kind (default: CHAIN)
+  requestModelName?: string;               // Emitted as llm.request.model_name
+  responseModelName?: string;              // Emitted as llm.response.model_name on success
   processInput?: (...args: Parameters<Fn>) => Attributes;
   processOutput?: (result: Awaited<ReturnType<Fn>>) => Attributes;
   attributes?: Attributes;                 // Static attributes added to every span
