@@ -472,6 +472,27 @@ describe("attributeHelpers", () => {
       });
     });
 
+    it("should generate request and response model name attributes", () => {
+      const options = {
+        modelName: "gpt-4",
+        requestModelName: "gpt-4",
+        responseModelName: "gpt-4-0613",
+      };
+      const result = getLLMAttributes(options);
+      expect(result).toEqual({
+        [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
+        [SemanticConventions.LLM_REQUEST_MODEL_NAME]: "gpt-4",
+        [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: "gpt-4-0613",
+      });
+    });
+
+    it("should omit request and response model names when not provided", () => {
+      const result = getLLMAttributes({ modelName: "gpt-4" });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
+      });
+    });
+
     it("should generate attributes with invocation parameters", () => {
       const options = {
         provider: "anthropic",

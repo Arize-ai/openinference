@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 import {
+  getLLMAttributes,
   traceAgent,
   traceChain,
   traceEmbedding,
@@ -216,6 +217,28 @@ describe("withSpan", () => {
     expect(span.name).toBe("test-function");
     expect(span.attributes["service.name"]).toBe("test-service");
     expect(span.attributes["service.version"]).toBe("1.0.0");
+  });
+
+  it("should support model name attributes composed via getLLMAttributes", async () => {
+    const asyncFn = async () => "response";
+
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(asyncFn, {
+      name: "llm-call",
+      kind: "LLM",
+      attributes: getLLMAttributes({ requestModelName: "gpt-4" }),
+      processOutput: () => getLLMAttributes({ responseModelName: "gpt-4-0613" }),
+      tracer,
+    });
+
+    await wrappedFn();
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+
+    const span = spans[0];
+    expect(span.attributes["llm.request.model_name"]).toBe("gpt-4");
+    expect(span.attributes["llm.response.model_name"]).toBe("gpt-4-0613");
   });
 
   it("should use custom input and output processors", () => {

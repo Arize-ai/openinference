@@ -24,6 +24,29 @@ interface SpanTraceOptions<Fn> {
 }
 ```
 
+To record LLM-specific attributes such as `llm.request.model_name` and
+`llm.response.model_name`, compose `getLLMAttributes` into `attributes` or the
+input/output processors — see
+[Request and Response Model Names](attribute-helpers.md#request-and-response-model-names):
+
+```typescript
+import {
+  defaultProcessOutput,
+  getLLMAttributes,
+  withSpan,
+} from "@arizeai/openinference-core";
+
+const tracedCompletion = withSpan(callLLM, {
+  name: "chat-completion",
+  kind: "LLM",
+  attributes: getLLMAttributes({ requestModelName: "claude-sonnet-4-5" }),
+  processOutput: (response) => ({
+    ...defaultProcessOutput(response),
+    ...getLLMAttributes({ responseModelName: response.model }),
+  }),
+});
+```
+
 ### Basic Usage
 
 ```typescript
