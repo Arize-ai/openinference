@@ -5,4 +5,4 @@
 # Values must be full RFC 3339 timestamps: unlike the top-level `exclude-newer`,
 # `exclude-newer-package` rejects a bare `YYYY-MM-DD` date on uv < 0.9, which
 # fails the whole config file to parse rather than just ignoring the entry.
-exclude-newer-package = { "openinference-instrumentation" = "2099-12-31T00:00:00Z", "openinference-semantic-conventions" = "2099-12-31T00:00:00Z" }
+# exclude-newer-package = { "openinference-instrumentation" = "2099-12-31T00:00:00Z", "openinference-semantic-conventions" = "2099-12-31T00:00:00Z" }

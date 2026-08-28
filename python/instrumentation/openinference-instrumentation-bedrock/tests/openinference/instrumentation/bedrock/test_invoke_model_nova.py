@@ -54,6 +54,7 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
         assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
         input_value = attributes.pop(INPUT_VALUE)
         assert isinstance(input_value, str) and user_text in input_value
@@ -112,6 +113,7 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
         assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
         input_value = attributes.pop(INPUT_VALUE)
         assert isinstance(input_value, str) and user_text in input_value
@@ -194,6 +196,7 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
         assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
 
         input_value = attributes.pop(INPUT_VALUE)
@@ -261,6 +264,7 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(LLM_FINISH_REASON, None) == "max_tokens"
         input_value = str(attributes.pop(INPUT_VALUE))
         assert user_text in input_value
         assert isinstance(attributes.pop(OUTPUT_VALUE), str)
@@ -317,6 +321,7 @@ class TestNovaInvokeModelWithResponseStream:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
         input_value = attributes.pop(INPUT_VALUE)
         assert isinstance(input_value, str) and user_text in input_value
         assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
@@ -495,6 +500,7 @@ OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL

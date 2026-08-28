@@ -468,6 +468,7 @@ def test_converse(
         model_name=model_name,
         token_counts=mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
+        stop_reason="end_turn",
     )
 
 
@@ -570,6 +571,7 @@ def test_converse_multiple(
         model_name=model_name,
         token_counts=first_mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
+        stop_reason="end_turn",
     )
 
     second_output = {
@@ -649,6 +651,7 @@ def test_converse_multiple(
         model_name=model_name,
         token_counts=second_mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
+        stop_reason="end_turn",
     )
 
 
@@ -756,6 +759,7 @@ def test_converse_multiple_models(
         model_name=model_id,
         token_counts=mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
+        stop_reason="end_turn",
     )
 
 
@@ -877,6 +881,7 @@ def test_converse_multimodal(
         model_name=model_name,
         token_counts=mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
+        stop_reason="end_turn",
     )
 
 
@@ -926,11 +931,13 @@ def _run_converse_checks(
     model_name: str,
     token_counts: Dict[Any, Any],
     invocation_parameters: Dict[str, Any],
+    stop_reason: str,
 ) -> None:
     assert span.status.is_ok
     attributes = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == model_name
+    assert attributes.pop(LLM_FINISH_REASON, None) == stop_reason
     assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
 
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == token_counts.get("inputTokens")
@@ -989,12 +996,56 @@ def _run_converse_checks(
     assert attributes == {}
 
 
+@pytest.mark.parametrize(
+    "stop_reason",
+    ["end_turn", "tool_use", "max_tokens", "stop_sequence", "guardrail_intervened", "content_filtered"],
+)
+def test_converse_finish_reason_values(
+    stop_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+        pytest.xfail(
+            f"Botocore {version} does not support the Converse API. "
+            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
+        )
+    output = {
+        "message": {"role": "assistant", "content": [{"text": "hi"}]},
+    }
+    mock_response = {
+        "ResponseMetadata": {
+            "RequestId": "req-id",
+            "HTTPStatusCode": 200,
+            "HTTPHeaders": {},
+            "RetryAttempts": 0,
+        },
+        "output": output,
+        "usage": {"inputTokens": 5, "outputTokens": 2, "totalTokens": 7},
+        "stopReason": stop_reason,
+    }
+    session = boto3.session.Session()
+    client = session.client("bedrock-runtime", region_name="us-east-1")
+    client._unwrapped_converse = MagicMock(return_value=mock_response)
+
+    client.converse(
+        modelId="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        messages=[{"role": "user", "content": [{"text": "hello"}]}],
+        inferenceConfig={"maxTokens": 100},
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(LLM_FINISH_REASON) == stop_reason
+
+
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
