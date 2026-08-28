@@ -2452,7 +2452,8 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     )
     tools: Sequence[Tool] = [
         Tool(
-            json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}})
+            name="search",
+            json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}}),
         ),
         Tool(
             json_schema={
@@ -2578,12 +2579,14 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}")
         == '{"type": "object", "properties": {"query": {"type": "string"}}}'
     )
+    assert attributes.pop(f"{LLM_TOOLS}.0.{TOOL_NAME}") == "search"
     tool_schema = attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}")
     assert isinstance(tool_schema, str)
     assert json.loads(tool_schema) == {
         "type": "object",
         "properties": {"operation": {"type": "string"}},
     }
+    assert f"{LLM_TOOLS}.1.{TOOL_NAME}" not in attributes
 
 
 def _reasoning_message(role: str) -> Message:

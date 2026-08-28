@@ -306,6 +306,50 @@ def test_normalize_tool_definition_rejects_invalid_json() -> None:
     assert _normalize_tool_definition("not JSON") is None
 
 
+def test_get_genai_attributes_reads_tool_definition_names_from_tool_name() -> None:
+    openinference_attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+        f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}": json.dumps(
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the weather",
+                    "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+                },
+            }
+        ),
+        # A bare parameter schema carries no name of its own.
+        f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_NAME}": "get_time",
+        f"{SpanAttributes.LLM_TOOLS}.1.{ToolAttributes.TOOL_JSON_SCHEMA}": json.dumps(
+            {"type": "object", "properties": {"timezone": {"type": "string"}}}
+        ),
+        f"{SpanAttributes.LLM_TOOLS}.2.{ToolAttributes.TOOL_NAME}": "lookup",
+    }
+
+    genai_attributes = get_genai_attributes(openinference_attributes)
+
+    tool_definitions = _load_json_attribute(
+        genai_attributes, GenAIAttributes.GEN_AI_TOOL_DEFINITIONS
+    )
+    assert [definition.get("name") for definition in tool_definitions] == [
+        "get_weather",
+        "get_time",
+        "lookup",
+    ]
+    assert tool_definitions[0] == {
+        "type": "function",
+        "name": "get_weather",
+        "description": "Get the weather",
+        "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+    }
+    assert tool_definitions[2] == {
+        "type": GenAIToolTypeValues.FUNCTION.value,
+        "name": "lookup",
+    }
+
+
 def test_get_genai_attributes_maps_text_completion_prompts_and_choices() -> None:
     openinference_attributes: Dict[str, Any] = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,

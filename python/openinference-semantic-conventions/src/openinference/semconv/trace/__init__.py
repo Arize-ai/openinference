@@ -560,6 +560,16 @@ class ToolAttributes:
     OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
     """
 
+    TOOL_NAME = "tool.name"
+    """
+    The name of the tool, i.e. the identifier the model uses to call it.
+
+    The name is also carried inside `tool.json_schema`, but its location there
+    depends on the provider: nested under `function` for OpenAI-style
+    definitions, at the top level for Anthropic-style ones. Recording it here
+    lets a consumer read the name without parsing a provider-specific shape.
+    """
+
 
 class OpenInferenceSpanKindValues(Enum):
     TOOL = "TOOL"

@@ -8,7 +8,8 @@ Tools available to the LLM are represented using the `llm.tools` prefix with fla
 
 ### Attribute Pattern
 
-`llm.tools.<index>.tool.json_schema`
+- `llm.tools.<index>.tool.json_schema`
+- `llm.tools.<index>.tool.name`
 
 The `json_schema` contains the complete tool definition as a JSON string, including:
 - Tool type (usually "function")
@@ -16,10 +17,21 @@ The `json_schema` contains the complete tool definition as a JSON string, includ
 - Function description
 - Parameter schema
 
+`tool.name` is the name of the tool, i.e. the identifier the model uses to call
+it. The name is also carried inside `json_schema`, but its location there
+depends on the provider — nested under `function` for OpenAI-style definitions,
+at the top level for Anthropic-style ones — so reading it requires knowing which
+provider produced the span. Instrumentations SHOULD set `tool.name` alongside
+`json_schema` so that consumers can identify a tool without parsing a
+provider-specific shape. Consumers SHOULD fall back to the name inside
+`json_schema` when `tool.name` is absent, since producers that predate this
+attribute do not set it.
+
 ### Example Tool Definition
 
 ```json
 {
+  "llm.tools.0.tool.name": "get_weather",
   "llm.tools.0.tool.json_schema": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"Get current weather for a location\", \"parameters\": {\"type\": \"object\", \"properties\": {\"location\": {\"type\": \"string\", \"description\": \"City and state\"}}, \"required\": [\"location\"]}}}"
 }
 ```

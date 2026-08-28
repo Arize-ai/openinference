@@ -945,12 +945,33 @@ def _normalize_tool_definition(tool_definition: Any) -> Optional[Dict[str, Any]]
     if not isinstance(tool_definition, Mapping):
         return None
     if _is_oi_tool_definition(tool_definition):
-        return _normalize_tool_definition(tool_definition[ToolAttributes.TOOL_JSON_SCHEMA])
+        return _normalize_oi_tool_definition(tool_definition)
     return _normalize_provider_tool_definition(tool_definition)
 
 
 def _is_oi_tool_definition(tool_definition: Mapping[str, Any]) -> bool:
-    return ToolAttributes.TOOL_JSON_SCHEMA in tool_definition
+    return (
+        ToolAttributes.TOOL_JSON_SCHEMA in tool_definition
+        or ToolAttributes.TOOL_NAME in tool_definition
+    )
+
+
+def _normalize_oi_tool_definition(tool_definition: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """Normalize an ``llm.tools.<index>.tool.*`` bucket.
+
+    ``tool.name`` takes precedence over the name inside ``tool.json_schema``.
+    """
+    normalized: Optional[Dict[str, Any]] = None
+    if (json_schema := tool_definition.get(ToolAttributes.TOOL_JSON_SCHEMA)) is not None:
+        normalized = _normalize_tool_definition(json_schema)
+    name = _as_optional_str(tool_definition.get(ToolAttributes.TOOL_NAME))
+    if normalized is None:
+        if name is None:
+            return None
+        return {"type": GenAIToolTypeValues.FUNCTION.value, "name": name}
+    if name is not None:
+        normalized["name"] = name
+    return normalized
 
 
 def _normalize_provider_tool_definition(tool_definition: Mapping[str, Any]) -> Dict[str, Any]:

@@ -383,6 +383,7 @@ class TestToolAttributes:
         assert _nested_dict(attributes) == {
             "tool": {
                 "json_schema": ToolAttributes.TOOL_JSON_SCHEMA,
+                "name": ToolAttributes.TOOL_NAME,
             }
         }
 
