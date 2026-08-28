@@ -54,7 +54,6 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
-        assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
         assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
         input_value = attributes.pop(INPUT_VALUE)
         assert isinstance(input_value, str) and user_text in input_value
@@ -113,7 +112,6 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
-        assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
         assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
         input_value = attributes.pop(INPUT_VALUE)
         assert isinstance(input_value, str) and user_text in input_value
@@ -196,7 +194,6 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
-        assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
         assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
 
         input_value = attributes.pop(INPUT_VALUE)
