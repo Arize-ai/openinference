@@ -63,12 +63,13 @@ With `withSpan` or the `@observe` decorator, compose them through the tracing
 options. Note that `attributes` is evaluated once when the function is wrapped
 (for a decorator, at class-definition time), so use it only for literal values;
 derive anything per-call from the arguments via `processInput`, and take the
-response model from the result via `processOutput`. A custom `processOutput`
-replaces the default output capture, so spread `defaultProcessOutput` to keep
-`output.value`:
+response model from the result via `processOutput`. Custom processors replace
+the default input/output capture, so spread `defaultProcessInput` and
+`defaultProcessOutput` to keep `input.value` and `output.value`:
 
 ```typescript
 import {
+  defaultProcessInput,
   defaultProcessOutput,
   getLLMAttributes,
   observe,
@@ -77,8 +78,10 @@ import {
 class ChatService {
   @observe({
     kind: "LLM",
-    processInput: (request) =>
-      getLLMAttributes({ requestModelName: request.model }),
+    processInput: (request) => ({
+      ...defaultProcessInput(request),
+      ...getLLMAttributes({ requestModelName: request.model }),
+    }),
     processOutput: (response) => ({
       ...defaultProcessOutput(response),
       ...getLLMAttributes({ responseModelName: response.model }),
