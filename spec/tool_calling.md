@@ -12,13 +12,11 @@ Tools available to the LLM are represented using the `llm.tools` prefix with fla
 - `llm.tools.<index>.tool.name`
 - `llm.tools.<index>.tool.description`
 
-The `json_schema` contains the complete tool definition as a JSON string, including:
-- Tool type (usually "function")
-- Function name
-- Function description
-- Parameter schema
+The `json_schema` contains the provider-native tool definition as a JSON string. Depending on the provider, it can contain the complete definition or only the parameter schema, and the name and description can appear at different nesting levels.
 
 `tool.name` is the name of the tool, i.e. the identifier the model uses to call it, and `tool.description` is the text the model uses to decide whether to call it. Instrumentations SHOULD set `tool.name`, and SHOULD set `tool.description` when the definition has one.
+
+Consumers SHOULD prefer the explicit `tool.name` and `tool.description` attributes and fall back to extracting them from `tool.json_schema` for telemetry produced before these attributes were introduced. The `tool.json_schema` attribute remains unchanged for backwards compatibility and lossless capture of the provider-native definition.
 
 ### Example Tool Definition
 
@@ -124,6 +122,8 @@ The `message.tool_call_id` links the result back to the original tool call. The 
 2. **Available Tools**:
 ```json
 {
+  "llm.tools.0.tool.name": "get_weather",
+  "llm.tools.0.tool.description": "Get current weather",
   "llm.tools.0.tool.json_schema": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"Get current weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"location\": {\"type\": \"string\"}}}}}"
 }
 ```

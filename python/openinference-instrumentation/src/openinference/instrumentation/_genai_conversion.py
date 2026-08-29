@@ -953,6 +953,7 @@ def _is_oi_tool_definition(tool_definition: Mapping[str, Any]) -> bool:
     return (
         ToolAttributes.TOOL_JSON_SCHEMA in tool_definition
         or ToolAttributes.TOOL_NAME in tool_definition
+        or ToolAttributes.TOOL_DESCRIPTION in tool_definition
     )
 
 
