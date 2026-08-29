@@ -10,6 +10,9 @@ permissions:
 env:
   CI: true
   PNPM_CACHE_FOLDER: .pnpm-store
+  # `changeset publish` shells out to `pnpm publish` without a --provenance
+  # flag, so provenance is enabled through npm config instead.
+  NPM_CONFIG_PROVENANCE: true
 jobs:
   version:
     timeout-minutes: 15
