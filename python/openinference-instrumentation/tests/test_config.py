@@ -70,6 +70,25 @@ def test_default_settings() -> None:
     assert config.base64_image_max_length == DEFAULT_BASE64_IMAGE_MAX_LENGTH
 
 
+def test_unparsable_bool_env_var_falls_back_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUTS, "yes")
+    assert TraceConfig().hide_inputs == DEFAULT_HIDE_INPUTS
+
+
+def test_unparsable_bool_env_var_falls_back_to_default_while_handling_an_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare ``raise`` would re-raise the exception being handled here, so the
+    fallback in ``_parse_value`` would never run."""
+    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUTS, "yes")
+    try:
+        raise KeyboardInterrupt("unrelated")
+    except KeyboardInterrupt:
+        assert TraceConfig().hide_inputs == DEFAULT_HIDE_INPUTS
+
+
 def test_oi_tracer(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
