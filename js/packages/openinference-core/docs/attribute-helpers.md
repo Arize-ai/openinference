@@ -45,28 +45,47 @@ function getLLMAttributes(options: {
 ### Request and Response Model Names
 
 `requestModelName` emits `llm.request.model_name` and `responseModelName`
-emits `llm.response.model_name`. The two can differ when the provider routes
+emits `llm.response.model_name`. Only set them when the provider actually
+distinguishes the requested model from the one that served the response —
+most providers echo the same model back, in which case `modelName` alone
+suffices. The two can differ when the provider routes
 the request to another model — for example
 [Anthropic's server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#server-side-fallback),
 where a classifier-triggered refusal hands the request off to a fallback model
 that generates the response.
 
-With `withSpan` or the `@observe` decorator, compose them through `attributes`
-(request, known up front) and `processOutput` (response, reported by the
-provider):
+Because the spec requires `llm.model_name` to equal the response model when
+known (falling back to the request model), `getLLMAttributes` mirrors
+`responseModelName ?? requestModelName` into `llm.model_name` whenever
+`modelName` is not passed explicitly.
+
+With `withSpan` or the `@observe` decorator, compose them through the tracing
+options. Note that `attributes` is evaluated once when the function is wrapped
+(for a decorator, at class-definition time), so use it only for literal values;
+derive anything per-call from the arguments via `processInput`, and take the
+response model from the result via `processOutput`. A custom `processOutput`
+replaces the default output capture, so spread `defaultProcessOutput` to keep
+`output.value`:
 
 ```typescript
-import { getLLMAttributes, observe } from "@arizeai/openinference-core";
+import {
+  defaultProcessOutput,
+  getLLMAttributes,
+  observe,
+} from "@arizeai/openinference-core";
 
 class ChatService {
   @observe({
     kind: "LLM",
-    attributes: getLLMAttributes({ requestModelName: "claude-sonnet-4-5" }),
-    processOutput: (response) =>
-      getLLMAttributes({ responseModelName: response.model }),
+    processInput: (request) =>
+      getLLMAttributes({ requestModelName: request.model }),
+    processOutput: (response) => ({
+      ...defaultProcessOutput(response),
+      ...getLLMAttributes({ responseModelName: response.model }),
+    }),
   })
-  async complete(prompt: string) {
-    return await callLLM(prompt);
+  async complete(request: ChatRequest) {
+    return await callLLM(request);
   }
 }
 ```
