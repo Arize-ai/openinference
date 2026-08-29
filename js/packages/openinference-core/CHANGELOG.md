@@ -1,5 +1,11 @@
 # @arizeai/openinference-core
 
+## 2.6.1
+
+### Patch Changes
+
+- 4d72f42: Mirror `llm.model_name` from `responseModelName ?? requestModelName` in `getLLMAttributes` when `modelName` is not passed explicitly, as the spec requires; document composing the options with `withSpan` and the `@observe` decorator via `processInput` and `processOutput`
+
 ## 2.6.0
 
 ### Minor Changes
