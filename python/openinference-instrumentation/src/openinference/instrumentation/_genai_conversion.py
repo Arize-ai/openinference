@@ -936,7 +936,10 @@ def _get_tool_definitions(attributes: Mapping[str, AttributeValue]) -> List[Dict
 
 
 def _normalize_tool_definition(tool_definition: Any) -> Optional[Dict[str, Any]]:
-    """Convert a tool definition to the GenAI shape: ``{type, name, description, parameters}``."""
+    """Normalize recognized provider tool definitions to the OTel GenAI shape.
+
+    Unknown provider shapes are preserved so conversion remains lossless.
+    """
     if isinstance(tool_definition, str):
         tool_definition = _maybe_parse_json(tool_definition)
     if not isinstance(tool_definition, Mapping):
