@@ -593,6 +593,24 @@ export function getToolAttributes(options: {
   return attributes;
 }
 
+function resolveLLMModelName({
+  responseModelName,
+  modelName,
+  requestModelName,
+}: {
+  responseModelName?: string;
+  modelName?: string;
+  requestModelName?: string;
+}): string | undefined {
+  if (responseModelName != null) {
+    return responseModelName;
+  }
+  if (modelName != null) {
+    return modelName;
+  }
+  return requestModelName;
+}
+
 /**
  * Generates attributes for LLM operations.
  *
@@ -602,7 +620,7 @@ export function getToolAttributes(options: {
  * @param options - Configuration object for LLM attributes
  * @param options.provider - The LLM provider (e.g., "openai", "anthropic")
  * @param options.system - The LLM system type
- * @param options.modelName - The name of the LLM model
+ * @param options.modelName - The legacy resolved model name. Used when responseModelName is absent.
  * @param options.requestModelName - The model requested by the caller, as sent in the request (optional).
  * May differ from responseModelName when the provider routes the request to a different model,
  * such as Anthropic's server-side fallback on classifier-triggered refusals.
@@ -651,9 +669,11 @@ export function getLLMAttributes(options: {
     attributes[SemanticConventions.LLM_SYSTEM] = options.system.toLowerCase();
   }
 
-  // Model name attributes
-  if (options.modelName != null) {
-    attributes[SemanticConventions.LLM_MODEL_NAME] = options.modelName;
+  // Keep the legacy model name populated for backwards-compatible consumers. The response model
+  // is authoritative when known; otherwise use the explicitly resolved model or the request model.
+  const modelName = resolveLLMModelName(options);
+  if (modelName != null) {
+    attributes[SemanticConventions.LLM_MODEL_NAME] = modelName;
   }
 
   // Request model name attributes

@@ -98,6 +98,26 @@ function llmAttributesDemo() {
   );
 }
 
+// -- Request/response model names (docs/attribute-helpers.md) -----------------
+
+type ModelResponse = { model: string; text: string };
+
+const tracedCompletion = withSpan(
+  async (prompt: string): Promise<ModelResponse> => ({
+    model: "claude-opus-4-6",
+    text: `Response to: ${prompt}`,
+  }),
+  {
+    name: "chat-completion",
+    kind: "LLM",
+    attributes: getLLMAttributes({ requestModelName: "claude-opus-5" }),
+    processOutput: (response) => ({
+      ...defaultProcessOutput(response),
+      ...getLLMAttributes({ responseModelName: response.model }),
+    }),
+  },
+);
+
 // -- Multimodal messages (docs/attribute-helpers.md) --------------------------
 
 function multimodalDemo() {
@@ -257,6 +277,7 @@ async function withSpanIntegrationDemo() {
 
 async function main() {
   llmAttributesDemo();
+  await tracedCompletion("What is OpenInference?");
   multimodalDemo();
   embeddingDemo();
   retrieverDemo();

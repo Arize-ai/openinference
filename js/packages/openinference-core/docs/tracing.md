@@ -47,6 +47,10 @@ const tracedCompletion = withSpan(callLLM, {
 });
 ```
 
+The final span keeps `llm.model_name` compatible with existing consumers: it is
+initially the requested model and is replaced by the response model when the
+call succeeds.
+
 ### Basic Usage
 
 ```typescript

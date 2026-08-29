@@ -474,15 +474,23 @@ describe("attributeHelpers", () => {
 
     it("should generate request and response model name attributes", () => {
       const options = {
-        modelName: "gpt-4",
+        modelName: "legacy-resolved-model",
         requestModelName: "gpt-4",
         responseModelName: "gpt-4-0613",
       };
       const result = getLLMAttributes(options);
       expect(result).toEqual({
-        [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
+        [SemanticConventions.LLM_MODEL_NAME]: "gpt-4-0613",
         [SemanticConventions.LLM_REQUEST_MODEL_NAME]: "gpt-4",
         [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: "gpt-4-0613",
+      });
+    });
+
+    it("should keep the legacy model name when only the request model is known", () => {
+      const result = getLLMAttributes({ requestModelName: "gpt-4" });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
+        [SemanticConventions.LLM_REQUEST_MODEL_NAME]: "gpt-4",
       });
     });
 

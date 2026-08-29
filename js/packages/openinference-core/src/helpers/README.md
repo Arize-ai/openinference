@@ -139,11 +139,17 @@ import { getLLMAttributes } from "@arizeai/openinference-core";
 const attrs = getLLMAttributes({
   provider: "openai",
   modelName: "gpt-4",
+  requestModelName: "gpt-4",
+  responseModelName: "gpt-4-0613",
   inputMessages: [{ role: "user", content: "Hello" }],
   outputMessages: [{ role: "assistant", content: "Hi there!" }],
   tokenCount: { prompt: 10, completion: 5, total: 15 },
 });
 ```
+
+When request and response model names differ, `llm.model_name` resolves to the
+response model for backwards-compatible consumers. If no response model is
+available, it falls back to `modelName` and then `requestModelName`.
 
 **Embedding Attributes** - Generate attributes for embedding operations:
 

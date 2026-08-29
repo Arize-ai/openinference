@@ -237,6 +237,7 @@ describe("withSpan", () => {
     expect(spans).toHaveLength(1);
 
     const span = spans[0];
+    expect(span.attributes["llm.model_name"]).toBe("gpt-4-0613");
     expect(span.attributes["llm.request.model_name"]).toBe("gpt-4");
     expect(span.attributes["llm.response.model_name"]).toBe("gpt-4-0613");
   });

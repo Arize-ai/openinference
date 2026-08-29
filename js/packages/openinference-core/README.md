@@ -204,7 +204,7 @@ class ChatService {
 
 Use these helpers to generate OpenInference-compatible attributes and attach them to spans:
 
-- `getLLMAttributes({ provider, modelName, inputMessages, outputMessages, tokenCount, tools, ... })`
+- `getLLMAttributes({ provider, modelName, requestModelName, responseModelName, inputMessages, outputMessages, tokenCount, tools, ... })`
 - `getEmbeddingAttributes({ modelName, embeddings })`
 - `getRetrieverAttributes({ documents })`
 - `getAnnotationAttributes({ annotations, scope? })`
