@@ -48,6 +48,7 @@ def _assert_invoke_model_span_attributes(
         '"bedrock-2023-05-31"}'
     )
     assert attributes.pop("llm.model_name") == "claude-3-haiku-20240307"
+    assert attributes.pop("llm.finish_reason") == "end_turn"
     assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
     assert "LLMs are a type of artificial intelligence that" in attributes.pop(
         "llm.output_messages.0.message.content"
@@ -84,6 +85,7 @@ def _assert_invoke_model_with_image_span_attributes(attributes: Dict[str, Any]) 
         '"anthropic_version": "bedrock-2023-05-31"}'
     )
     assert attributes.pop("llm.model_name") == "claude-3-haiku-20240307"
+    assert attributes.pop("llm.finish_reason") == "end_turn"
     assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
     assert "Homer Simpson" in attributes.pop("llm.output_messages.0.message.content")
     assert attributes.pop("llm.provider") == "aws"

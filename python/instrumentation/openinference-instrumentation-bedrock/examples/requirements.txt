@@ -9,7 +9,6 @@ dacite
 aioboto3
 boto3
 opentelemetry-sdk
-opentelemetry-exporter-otlp
 opentelemetry-instrumentation-httpx
 anthropic
 pydantic
