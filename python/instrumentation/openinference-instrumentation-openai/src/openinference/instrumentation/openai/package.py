@@ -1,2 +1,2 @@
-_instruments = ("openai >= 1.69.0",)
+_instruments = ("openai >= 2.8.0",)
 _supports_metrics = False
