@@ -40,70 +40,41 @@ interactions:
     uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: !!binary |
-        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
-        kPuz+v/n1w8=
+      string: "{\n  \"id\": \"resp_050aa87fc2b0b69e006a623b5348648194af9b49a0db871c83\"\
+        ,\n  \"object\": \"response\",\n  \"created_at\": 1784822611,\n  \"status\"\
+        : \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\"\
+        : \"developer\"\n  },\n  \"completed_at\": 1784822616,\n  \"error\": null,\n\
+        \  \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\"\
+        : null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"\
+        model\": \"o4-mini-2025-04-16\",\n  \"moderation\": null,\n  \"output\": [\n\
+        \    {\n      \"id\": \"rs_050aa87fc2b0b69e006a623b551d3c819499291b22c8b7fc79\"\
+        ,\n      \"type\": \"reasoning\",\n      \"content\": [],\n      \"encrypted_content\"\
+        : \"gAAAAABqYjtYCcN2Ut4zGsbMSXK-Nf5boESRUq-dBHir1rD95KAaHpmiGKabEeXgLU_gKOwE8rbXb_VPa8LEoC9bGs_uHVTIu_4mqa9bg6Sv_RcXb2ZcdhbvuxhRtgTVtXXsfBeYp1kDlPPg6oYcn-3Ms8F-XH--nNPbjdaIfd3w0JMhrDkPeSawFhyrB9kETHB6O2SUCrLcKS4gFNGsJNC_es0FAcsAtz7-YV6CDYgI10fQK7QZiw-Sa-FOLR_U25G_8AjJ9l2bC7kZHmAFRwo7YyMPfwibOrFxP8qn9hxyG_moOsHZ7gjLyzNOLUuSM5tK-jD97QTTGZMZH79EZgW0csQ5AAvYC-pGdIrIZM8LA-PihMmW2N-hGw0e4uu5nbPFvMlLJrLcdUIsoUhd7_TRAi9f1_jYbubxkDJP21lNckWQ4R4AY89tO4zkymy2K8oHPIXt_jke3MNxmpyl6bwaDswN-uzny-dvxSoX7ovZtaJF-x-w0B672_2fAkd7OqJykF_OOQEONLWumb1TLWPZpX2WTPRPxeVMBCiUyv-eyNeRRgFkQHw085Kg7_2qQPBxt0HemnNf3UyDF5EYf_k-i_QD3xScxy5xcZ175U3YS5lok2KADlUiW4k6AqqCzQD1BQQ1ypA_GKG2euDHHMYChwulQwzBkiNWPBDrIxBUlAPIRA9wMB_r80fupUoYUaWO75uA3ce9bIyyO4XhTB5UF8kifox5cFxaYScXJbZ-YCILERBtIFCjcYZGd3y2_ZzM3J_3EdtS-Hh6M6ZwQz_gkIEeU0OsKGHGKzqQIEJoTXufEtsY5NJQiW7FUkw-Pjn1bjQVZhzeLFcVm4oNL-P3-bUrtqXsUuaNFQEJZvKM75Z99HIAhl14awck02_hz3cfaxu_oW7UgU42N9LBSNE05kE5iAPBogz4o3wLjPOIEn1XsfiN_vM2U9M9bLTnAVmK1_kIxKkLp8SwgU8mDXBLXW6zmKqbPyBB9LIe-S8er9FKP8aMdAY9RBYDsmi67myeVK_9byXYTEejvrLYfhJwpsGkkBxp0UfYNTd-dVG0MAGKpw7ZfN21rMZhmvbs_MpZdTTp8jL39cz_O8J2cmTH3MozjxjDErkYNxWyI2ZT7-nPo_bMugN4m_WPHpyZw1WZ4vPq3oZl9oDX_lhCww1ZwDxX_MHrfUsOiPyoOKr57r64qjvsSpIYqUkdcmC8jI5-C0UuYl3wX2RMn6ezRiwOpcWGQu8GgMiJorESSLqxLiWxp3UZAwGIysQ6D_b3qTVznrtB2OdtaESvm0Y3zNi_Tu-ZBHuhzBSgIQUuKmnHyKSe2MP94IGBUK1Ut3SSSTA6u4VTFXvjh5AEKb6BlwKqa-dtIKPIPq5Vr4qj2yZuJisuZBUdXvjKC7slOrjzqkxDJ1OJs5sqwljc1JbJX51tFtpkxLYkbWvorM5JpvoWwKBx1aK26hmUlslPIKLet9PhaDXEYFtqDZ7bR9Jqd-bXG5ACZd4rZxuY7UYy8X9CFm430crHBMFXMxgb3km7uUISqJMqnZX7Aivm5MPSiyp4qetTipBYXsGtCGci9ovV2qkVpnujiJZvZ-ZO76xmKoVj1cRXU9cEFmnmwJ4fje60dWUtvGuVKILnazWdmLv6GG4avzW56ncD4D2od_uJupngZQPRKvA2L93iKK_oz6gYL4okCXNM_OXfmdhPdNzHie4eM2xKDUe3NZY-1kTqvUCDxHkOhw6zR_tU6ruHgi6y07XkuJn27DHaX2ufNARUVLsyKJZwlq1CPctmhploOmIO35WGmmYU6UL8DTKMkf5FNr2jmPeJ_Huev1-apyk7nSNIexOlM1SfR1GbECNj-ugX5WoK5ueImu0u-GIWR29aPK5K2RYFDnoEL7A1qNPLo-OikO10IpIDRzvzveDWZHzcCw13hb9_fAZScZBKxfi0HjSGje7vup8C9Cad6pPjA6RLrUCqsXIULX0k1i6aKYovs9mg5wDTCDYa9fQiWOf9wH1qBlQZDBQXedldiYz3zQ-kEumLXZUooF2hUaUM1DVp5q8qwFdlk9vfolwH2eH5KKchelsKaG3MLhJVc7AEZebsl4sjzmrE0sc3tZhT7xvyKwQjQvNOvD9VoyEFwfYiJNYY0vyOBnn9HKVcF2V6pj6SA7o7akFNoSb5ojWOhqM0f6zGQJO4SyBfppjvpeTP2sXtt-lpa1u-PiM9mrSooVVeMOmF_kRAkGSQyoihEdRxh81hcxE8Ddz6L2D65AZNp2QS-4-bQ_p7NEfzu2gIfchMTkE3nSRQkvQONyBbKwtGxLAuhX_U2in48t6bVHnRxodKrabb1HyhzPgi9sd60K8YhBeXH7DvKegGAdRhM6XrIcOG9OzIcQ6tHPAnfPVVjapBFR0ZJIdvfuvOys-RYNB6qNYItfmDC4JgKSE8GtMaSR0nXvtNx9mA9-JhfQnNB_2GeOC-ylJoyvp-w1AMORB7ayaptAibOkfk--FVgk_jqTCF0QhNmY8x-p99eczxXAmW_Lm2KQRFvXfPzRDVABXQ6WVPzj9DsIp0pkdGMqKU3pWW7Ks4WwTmIKzsuzB3E3wzr3IonitI-AqVds7in_zhRE-Dedbdj2DaMCA6Oh--hw0tKDzr7lLPS8MdYd_z-C37lwhLvp1HCFnXH7_cAVFIviYPSAsgE_VlgmJZkp9lx-fgoSmOSTbD8FfsGPCgZEKinJLNP1TIZ80-U9XdT2lSaw-tnMQjhAyQ5Pt2Nnz_oTjCaSGz38aNHLboxwm0GyCMRckDC7pcG3kHGpDFLCpvZKR_yVZ9lZMWFsr6-aOK2AsHgRGZhoS608usyu3ruXtdmkEpv3HlAOuzyPiqaRHRjSl8a8Q27ZlyMRSbcxTwaDpzxHbVIaSPHiffeINHDcJTWPn8PCPKkxIB4E0ChZIZ8TXObGbM04oPRJztnXR08v8p9kwL2S8_qh5aTPVg5AmvFrwMAzLI0gXTaaSGlwbg9fA5mFbb_wSp68MdvOZ-JlSbSulWHLy0TsU4VzFHMzY_Pq9vH60gHJR3sM5VUgMuu1M8RsO7J-G4FzP_dhmTfCyuLK0Fzg4hR6NgTfdeSd52eUubXNrz6UJBi9mFCl4008DX-sd_vwdFPPHFsO8C9wL1NaMddAXfQ2Jqyf2ejGz7F7Io_xTvjjSurrHLwu71WlYxhybFOaed98XBsb6whU2Y5h6-t8iEjpoejRjcXhcwGU6Cz8pvqi4NLH2_lhyyPGSWndpGAer-VOlwQj-FNbY053cdssSY4yQLrgl7L7A7px_VImxUpMejqLKVnSD5fE_KkYezp02YiLjUjh4ed8cWYWZvLuprfDGUojO0uUH-oKZEVOOJqgokYQBzv6ddMRDbJ_5WkW8RY4OtncUWXOBSiRy2\"\
+        ,\n      \"summary\": []\n    },\n    {\n      \"id\": \"msg_050aa87fc2b0b69e006a623b5815ec8194a14711d20adbc953\"\
+        ,\n      \"type\": \"message\",\n      \"status\": \"completed\",\n      \"\
+        content\": [\n        {\n          \"type\": \"output_text\",\n          \"\
+        annotations\": [],\n          \"logprobs\": [],\n          \"text\": \"The\
+        \ letter \\u201cr\\u201d appears 3 times in the word \\u201cstrawberry.\\\
+        u201d\"\n        }\n      ],\n      \"role\": \"assistant\"\n    }\n  ],\n\
+        \  \"parallel_tool_calls\": true,\n  \"presence_penalty\": 0.0,\n  \"previous_response_id\"\
+        : null,\n  \"prompt_cache_key\": null,\n  \"prompt_cache_retention\": \"in_memory\"\
+        ,\n  \"reasoning\": {\n    \"context\": \"current_turn\",\n    \"effort\"\
+        : \"high\",\n    \"mode\": \"standard\",\n    \"summary\": \"detailed\"\n\
+        \  },\n  \"safety_identifier\": null,\n  \"service_tier\": \"default\",\n\
+        \  \"store\": true,\n  \"temperature\": 1.0,\n  \"text\": {\n    \"format\"\
+        : {\n      \"type\": \"text\"\n    },\n    \"verbosity\": \"medium\"\n  },\n\
+        \  \"tool_choice\": \"auto\",\n  \"tool_usage\": {\n    \"image_gen\": {\n\
+        \      \"input_tokens\": 0,\n      \"input_tokens_details\": {\n        \"\
+        image_tokens\": 0,\n        \"text_tokens\": 0\n      },\n      \"output_tokens\"\
+        : 0,\n      \"output_tokens_details\": {\n        \"image_tokens\": 0,\n \
+        \       \"text_tokens\": 0\n      },\n      \"total_tokens\": 0\n    },\n\
+        \    \"web_search\": {\n      \"num_requests\": 0\n    }\n  },\n  \"tools\"\
+        : [],\n  \"top_logprobs\": 0,\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\"\
+        ,\n  \"usage\": {\n    \"input_tokens\": 36,\n    \"input_tokens_details\"\
+        : {\n      \"cache_write_tokens\": 0,\n      \"cached_tokens\": 0\n    },\n\
+        \    \"output_tokens\": 504,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\"\
+        : 448\n    },\n    \"total_tokens\": 540\n  },\n  \"user\": null,\n  \"metadata\"\
+        : {}\n}"
     headers:
       Access-Control-Expose-Headers:
       - CF-Ray
@@ -113,8 +84,6 @@ interactions:
       - a1fbea63efd31a72-ISB
       Connection:
       - keep-alive
-      Content-Encoding:
-      - br
       Content-Type:
       - application/json
       Date:
@@ -123,8 +92,6 @@ interactions:
       - cloudflare
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
-      Transfer-Encoding:
-      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:
