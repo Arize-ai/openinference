@@ -61,6 +61,18 @@ def _pop_tool_span_id(attributes: dict[str, Any]) -> None:
     attributes.pop(SpanAttributes.TOOL_ID, None)
 
 
+def _assert_transcript_content(
+    attributes: dict[str, Any], key: str, prefix: str, payload: str
+) -> None:
+    # google-adk 2.x wraps quoted agent-transcript payloads between
+    # <<<BEGIN_QUOTED_AGENT_CONTENT>>> / <<<END_QUOTED_AGENT_CONTENT>>> markers
+    # (older versions inlined the payload right after the prefix), so assert on
+    # the stable prefix and payload substrings rather than an exact string.
+    text = str(attributes.pop(key, None) or "")
+    assert prefix in text
+    assert payload in text
+
+
 def _get_weather(city: str) -> dict[str, str]:
     """Retrieves the current weather report for a specified city.
 
@@ -1718,23 +1730,23 @@ async def test_google_adk_instrumentor_multi_agent(
         == "text"
     )
     assert call_llm_attributes1.pop("llm.input_messages.1.message.role", None) == "user"
-    assert (
+    assert str(
         call_llm_attributes1.pop(
             "llm.input_messages.2.message.contents.0.message_content.text", None
         )
-        == "For context:"
-    )
+        or ""
+    ).startswith("For context:")
     assert (
         call_llm_attributes1.pop(
             "llm.input_messages.2.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert (
-        call_llm_attributes1.pop(
-            "llm.input_messages.2.message.contents.1.message_content.text", None
-        )
-        == "[root_agent] called tool `transfer_to_agent` with parameters: {'agent_name': 'weather_agent'}"
+    _assert_transcript_content(
+        call_llm_attributes1,
+        "llm.input_messages.2.message.contents.1.message_content.text",
+        "[root_agent] called tool `transfer_to_agent` with parameters:",
+        "{'agent_name': 'weather_agent'}",
     )
     assert (
         call_llm_attributes1.pop(
@@ -1743,23 +1755,23 @@ async def test_google_adk_instrumentor_multi_agent(
         == "text"
     )
     assert call_llm_attributes1.pop("llm.input_messages.2.message.role", None) == "user"
-    assert (
+    assert str(
         call_llm_attributes1.pop(
             "llm.input_messages.3.message.contents.0.message_content.text", None
         )
-        == "For context:"
-    )
+        or ""
+    ).startswith("For context:")
     assert (
         call_llm_attributes1.pop(
             "llm.input_messages.3.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert (
-        call_llm_attributes1.pop(
-            "llm.input_messages.3.message.contents.1.message_content.text", None
-        )
-        == "[root_agent] `transfer_to_agent` tool returned result: {'result': None}"
+    _assert_transcript_content(
+        call_llm_attributes1,
+        "llm.input_messages.3.message.contents.1.message_content.text",
+        "[root_agent] `transfer_to_agent` tool returned result:",
+        "{'result': None}",
     )
     assert (
         call_llm_attributes1.pop(
@@ -1876,23 +1888,23 @@ async def test_google_adk_instrumentor_multi_agent(
         == "text"
     )
     assert call_llm_attributes2.pop("llm.input_messages.1.message.role", None) == "user"
-    assert (
+    assert str(
         call_llm_attributes2.pop(
             "llm.input_messages.2.message.contents.0.message_content.text", None
         )
-        == "For context:"
-    )
+        or ""
+    ).startswith("For context:")
     assert (
         call_llm_attributes2.pop(
             "llm.input_messages.2.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert (
-        call_llm_attributes2.pop(
-            "llm.input_messages.2.message.contents.1.message_content.text", None
-        )
-        == "[root_agent] called tool `transfer_to_agent` with parameters: {'agent_name': 'weather_agent'}"
+    _assert_transcript_content(
+        call_llm_attributes2,
+        "llm.input_messages.2.message.contents.1.message_content.text",
+        "[root_agent] called tool `transfer_to_agent` with parameters:",
+        "{'agent_name': 'weather_agent'}",
     )
     assert (
         call_llm_attributes2.pop(
@@ -1901,23 +1913,23 @@ async def test_google_adk_instrumentor_multi_agent(
         == "text"
     )
     assert call_llm_attributes2.pop("llm.input_messages.2.message.role", None) == "user"
-    assert (
+    assert str(
         call_llm_attributes2.pop(
             "llm.input_messages.3.message.contents.0.message_content.text", None
         )
-        == "For context:"
-    )
+        or ""
+    ).startswith("For context:")
     assert (
         call_llm_attributes2.pop(
             "llm.input_messages.3.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert (
-        call_llm_attributes2.pop(
-            "llm.input_messages.3.message.contents.1.message_content.text", None
-        )
-        == "[root_agent] `transfer_to_agent` tool returned result: {'result': None}"
+    _assert_transcript_content(
+        call_llm_attributes2,
+        "llm.input_messages.3.message.contents.1.message_content.text",
+        "[root_agent] `transfer_to_agent` tool returned result:",
+        "{'result': None}",
     )
     assert (
         call_llm_attributes2.pop(
