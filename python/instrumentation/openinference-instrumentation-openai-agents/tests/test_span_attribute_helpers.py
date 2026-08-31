@@ -528,6 +528,17 @@ def test_get_attributes_from_response_function_tool_call_param(
         ),
         pytest.param(
             {
+                "call_id": None,
+                "output": "result",
+            },
+            {
+                "message.content": "result",
+                "message.role": "tool",
+            },
+            id="none_call_id",
+        ),
+        pytest.param(
+            {
                 "call_id": "123",
                 "output": "",
             },
