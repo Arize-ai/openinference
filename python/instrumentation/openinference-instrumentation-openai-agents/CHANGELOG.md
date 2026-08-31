@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.1.1...python-openinference-instrumentation-openai-agents-v2.1.2) (2026-08-31)
+
+
+### Bug Fixes
+
+* **openai_agents:** guard nullable FunctionCallOutput call_id for latest openai ([#3650](https://github.com/Arize-ai/openinference/issues/3650)) ([dff1102](https://github.com/Arize-ai/openinference/commit/dff11025bcf8428304023ca3983fd5c0a7b63075))
+
 ## [2.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.1.0...python-openinference-instrumentation-openai-agents-v2.1.1) (2026-08-27)
 
 

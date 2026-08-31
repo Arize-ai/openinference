@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.48...python-openinference-instrumentation-bedrock-v0.1.49) (2026-08-31)
+
+
+### Features
+
+* **python:** bedorck reasoning blocks impl ([#3279](https://github.com/Arize-ai/openinference/issues/3279)) ([ac72cb2](https://github.com/Arize-ai/openinference/commit/ac72cb2b6f500019f76dda0a541220a1db25bad9))
+
 ## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.47...python-openinference-instrumentation-bedrock-v0.1.48) (2026-08-27)
 
 
