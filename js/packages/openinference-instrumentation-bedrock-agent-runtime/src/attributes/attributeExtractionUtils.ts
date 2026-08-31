@@ -492,6 +492,109 @@ function extractReasoningContentFromConverseBlock(
  * @param modelInvocationOutput Model invocation output object.
  * @returns Single-element array containing the merged output message, or null.
  */
+/**
+ * Reads the content blocks out of either rawResponse shape: Anthropic-native
+ * ({ content: [...] }) or Converse-normalized ({ output: { message: ... } }).
+ */
+function extractRawContentBlocks(parsedData: StringKeyedObject): {
+  rawContentBlocks: unknown[];
+  role?: string;
+} {
+  if (Array.isArray(parsedData.content)) {
+    return {
+      rawContentBlocks: parsedData.content,
+      role: typeof parsedData.role === "string" ? parsedData.role : undefined,
+    };
+  }
+  const outputObj = getObjectDataFromUnknown({ data: parsedData, key: "output" });
+  const messageObj = outputObj
+    ? getObjectDataFromUnknown({ data: outputObj, key: "message" })
+    : null;
+  if (messageObj && Array.isArray(messageObj.content)) {
+    return {
+      rawContentBlocks: messageObj.content,
+      role: typeof messageObj.role === "string" ? messageObj.role : undefined,
+    };
+  }
+  return { rawContentBlocks: [] };
+}
+
+/**
+ * Merges the collected content blocks and tool calls into one message.
+ */
+function buildMergedMessage({
+  role,
+  contentBlocks,
+  toolCalls,
+}: {
+  role: string;
+  contentBlocks: MessageContent[];
+  toolCalls: ToolCall[];
+}): Message | null {
+  if (contentBlocks.length === 0 && toolCalls.length === 0) {
+    return null;
+  }
+  const message: Message = { role };
+  if (toolCalls.length > 0) {
+    message.tool_calls = toolCalls;
+  }
+  // Single plain text with no tool calls → use flat content for compatibility.
+  if (contentBlocks.length === 1 && toolCalls.length === 0 && contentBlocks[0].type === "text") {
+    message.content = (contentBlocks[0] as { type: "text"; text: string }).text;
+  } else if (contentBlocks.length > 0) {
+    message.contents = contentBlocks;
+  }
+  return message;
+}
+
+/**
+ * Extracts one content block onto the running content and tool call lists.
+ */
+function collectBlockMessage({
+  rawBlock,
+  role,
+  contentBlocks,
+  toolCalls,
+  skipReasoning,
+}: {
+  rawBlock: StringKeyedObject;
+  role: string;
+  contentBlocks: MessageContent[];
+  toolCalls: ToolCall[];
+  skipReasoning: boolean;
+}): void {
+  // Detect reasoning blocks across both rawResponse shapes for dedup.
+  const isReasoningBlock =
+    rawBlock.type === "thinking" ||
+    rawBlock.type === "redacted_thinking" ||
+    (rawBlock.reasoningContent != null && isObjectWithStringKeys(rawBlock.reasoningContent));
+  if (skipReasoning && isReasoningBlock) {
+    return;
+  }
+  const blockMessage = getAttributesFromOutputMessage({ message: rawBlock, role });
+  if (!blockMessage) {
+    return;
+  }
+  if (Array.isArray(blockMessage.contents)) {
+    contentBlocks.push(...(blockMessage.contents as MessageContent[]));
+  } else if (typeof blockMessage.content === "string") {
+    contentBlocks.push({ type: "text", text: blockMessage.content });
+  }
+  if (Array.isArray(blockMessage.tool_calls)) {
+    toolCalls.push(...blockMessage.tool_calls);
+  }
+}
+
+/**
+ * Get output messages from model invocation output.
+ * Handles both Anthropic-native ({content: [...]}) and Converse-normalized
+ * ({output: {message: {content: [...]}}}) rawResponse shapes.
+ * Also captures a structured top-level reasoningContent field (GPT-OSS style),
+ * deduplicating against any duplicate reasoning blocks inside rawResponse.
+ * All content blocks are merged into a single output Message.
+ * @param modelInvocationOutput Model invocation output object.
+ * @returns Single-element array containing the merged output message, or null.
+ */
 function getOutputMessages(modelInvocationOutput: StringKeyedObject): Message[] | null {
   const contentBlocks: MessageContent[] = [];
   const toolCalls: ToolCall[] = [];
@@ -517,10 +620,7 @@ function getOutputMessages(modelInvocationOutput: StringKeyedObject): Message[] 
   const outputContent = rawResponse?.content;
 
   if (outputContent != null) {
-    let parsedData: unknown = null;
-    if (typeof outputContent === "string") {
-      parsedData = parseSanitizedJson(outputContent);
-    }
+    const parsedData = typeof outputContent === "string" ? parseSanitizedJson(outputContent) : null;
 
     if (!isObjectWithStringKeys(parsedData)) {
       // JSON parse failed — treat entire content as plain text.
@@ -532,58 +632,27 @@ function getOutputMessages(modelInvocationOutput: StringKeyedObject): Message[] 
         contentBlocks.push({ type: "text", text: str });
       }
     } else {
-      // Extract the content block list from either rawResponse shape:
-      //   a. Anthropic-native:       { content: [...], role: "assistant" }
-      //   b. Converse-normalized:    { output: { message: { role: "assistant", content: [...] } } }
-      let rawContentBlocks: unknown[] = [];
-      if (Array.isArray(parsedData.content)) {
-        rawContentBlocks = parsedData.content;
-        if (typeof parsedData.role === "string") role = parsedData.role;
-      } else {
-        const outputObj = getObjectDataFromUnknown({ data: parsedData, key: "output" });
-        const messageObj = outputObj
-          ? getObjectDataFromUnknown({ data: outputObj, key: "message" })
-          : null;
-        if (messageObj && Array.isArray(messageObj.content)) {
-          rawContentBlocks = messageObj.content;
-          if (typeof messageObj.role === "string") role = messageObj.role;
-        }
+      const extracted = extractRawContentBlocks(parsedData);
+      if (extracted.role != null) {
+        role = extracted.role;
       }
-
-      for (const rawBlock of rawContentBlocks) {
-        if (!isObjectWithStringKeys(rawBlock)) continue;
-        // Detect reasoning blocks across both rawResponse shapes for dedup.
-        const isReasoningBlock =
-          rawBlock.type === "thinking" ||
-          rawBlock.type === "redacted_thinking" ||
-          (rawBlock.reasoningContent != null && isObjectWithStringKeys(rawBlock.reasoningContent));
-        if (hasStructuredReasoning && isReasoningBlock) continue;
-
-        const blockMessage = getAttributesFromOutputMessage({ message: rawBlock, role });
-        if (!blockMessage) continue;
-        if (Array.isArray(blockMessage.contents)) {
-          contentBlocks.push(...(blockMessage.contents as MessageContent[]));
-        } else if (typeof blockMessage.content === "string") {
-          contentBlocks.push({ type: "text", text: blockMessage.content });
+      for (const rawBlock of extracted.rawContentBlocks) {
+        if (!isObjectWithStringKeys(rawBlock)) {
+          continue;
         }
-        if (Array.isArray(blockMessage.tool_calls)) {
-          toolCalls.push(...blockMessage.tool_calls);
-        }
+        collectBlockMessage({
+          rawBlock,
+          role,
+          contentBlocks,
+          toolCalls,
+          skipReasoning: hasStructuredReasoning,
+        });
       }
     }
   }
 
-  if (contentBlocks.length === 0 && toolCalls.length === 0) return null;
-
-  const message: Message = { role };
-  if (toolCalls.length > 0) message.tool_calls = toolCalls;
-  // Single plain text with no tool calls → use flat content for compatibility.
-  if (contentBlocks.length === 1 && toolCalls.length === 0 && contentBlocks[0].type === "text") {
-    message.content = (contentBlocks[0] as { type: "text"; text: string }).text;
-  } else if (contentBlocks.length > 0) {
-    message.contents = contentBlocks;
-  }
-  return [message];
+  const message = buildMergedMessage({ role, contentBlocks, toolCalls });
+  return message ? [message] : null;
 }
 
 /**
@@ -1062,6 +1131,108 @@ export function extractMetadataAttributesFromObservation(
 }
 
 /**
+ * Builds a tool call message from a tool_use block.
+ */
+function extractToolUseMessage(message: StringKeyedObject): Message {
+  const toolCallFunction: ToolCallFunction = {
+    name: getStringAttributeValueFromUnknown(message?.name) ?? undefined,
+    arguments: getStringAttributeValueFromUnknown(message?.input) ?? "{}",
+  };
+  const toolCallId = getStringAttributeValueFromUnknown(message?.id) ?? undefined;
+  return {
+    tool_call_id: toolCallId,
+    role: "tool",
+    tool_calls: [{ id: toolCallId, function: toolCallFunction }],
+  };
+}
+
+/**
+ * Builds a reasoning message from a thinking block.
+ */
+function extractThinkingMessage({
+  message,
+  role,
+}: {
+  message: StringKeyedObject;
+  role: string;
+}): Message | null {
+  const thinkingText = getStringAttributeValueFromUnknown(message?.thinking) ?? undefined;
+  const signature = getStringAttributeValueFromUnknown(message?.signature) ?? undefined;
+  if (thinkingText == null && signature == null) {
+    return null;
+  }
+  return {
+    role,
+    contents: [
+      {
+        type: "reasoning",
+        ...(thinkingText != null ? { text: thinkingText } : {}),
+        ...(signature != null ? { signature } : {}),
+      },
+    ],
+  };
+}
+
+/**
+ * Builds a reasoning message from a redacted_thinking block.
+ */
+function extractRedactedThinkingMessage({
+  message,
+  role,
+}: {
+  message: StringKeyedObject;
+  role: string;
+}): Message | null {
+  const data = getStringAttributeValueFromUnknown(message?.data) ?? undefined;
+  if (data == null) {
+    return null;
+  }
+  return { role, contents: [{ type: "reasoning", data }] };
+}
+
+/**
+ * Builds a message from a Converse block, which has no type field and may
+ * hold text, reasoningContent, or toolUse.
+ */
+function extractConverseBlockMessage({
+  message,
+  role,
+}: {
+  message: StringKeyedObject;
+  role: string;
+}): Message | null {
+  const textVal = message.text;
+  if (typeof textVal === "string" && textVal.length > 0) {
+    return { content: textVal, role };
+  }
+  const converseReasoning = message.reasoningContent;
+  if (isObjectWithStringKeys(converseReasoning)) {
+    const block = extractReasoningContentFromConverseBlock(converseReasoning);
+    if (block) {
+      return { role, contents: [block] };
+    }
+  }
+  const toolUseVal = message.toolUse;
+  if (!isObjectWithStringKeys(toolUseVal)) {
+    return null;
+  }
+  const toolUseId = getStringAttributeValueFromUnknown(toolUseVal.toolUseId) ?? undefined;
+  const toolName = getStringAttributeValueFromUnknown(toolUseVal.name) ?? undefined;
+  if (!toolUseId || !toolName) {
+    return null;
+  }
+  const toolCallFunction: ToolCallFunction = {
+    name: toolName,
+    arguments: isObjectWithStringKeys(toolUseVal.input) ? toolUseVal.input : "{}",
+  };
+  return {
+    tool_call_id: toolUseId,
+    role: "tool",
+    tool_calls: [{ id: toolUseId, function: toolCallFunction }],
+  };
+}
+
+/**
  * Extract attributes from a message dictionary.
  * @param message The message object to extract attributes from.
  * @param role The role associated with the message.
@@ -1074,92 +1245,21 @@ function getAttributesFromOutputMessage({
   message: StringKeyedObject;
   role: string;
 }): Message | null {
-  const text = getStringAttributeValueFromUnknown(message?.text);
-  if (message.type === "text" && text != null) {
-    return {
-      content: text,
-      role,
-    };
+  if (message.type === "text") {
+    const text = getStringAttributeValueFromUnknown(message?.text);
+    return text != null ? { content: text, role } : null;
   }
-  if (message?.type === "tool_use") {
-    const toolCallFunction: ToolCallFunction = {
-      name: getStringAttributeValueFromUnknown(message?.name) ?? undefined,
-      arguments: getStringAttributeValueFromUnknown(message?.input) ?? "{}",
-    };
-    const toolCallId = getStringAttributeValueFromUnknown(message?.id) ?? undefined;
-    const toolCalls: ToolCall[] = [
-      {
-        id: toolCallId,
-        function: toolCallFunction,
-      },
-    ];
-    return {
-      tool_call_id: toolCallId,
-      role: "tool",
-      tool_calls: toolCalls,
-    };
+  if (message.type === "tool_use") {
+    return extractToolUseMessage(message);
   }
   if (message.type === "thinking") {
-    const thinkingText = getStringAttributeValueFromUnknown(message?.thinking) ?? undefined;
-    const signature = getStringAttributeValueFromUnknown(message?.signature) ?? undefined;
-    if (thinkingText != null || signature != null) {
-      return {
-        role,
-        contents: [
-          {
-            type: "reasoning",
-            ...(thinkingText != null ? { text: thinkingText } : {}),
-            ...(signature != null ? { signature } : {}),
-          },
-        ],
-      };
-    }
+    return extractThinkingMessage({ message, role });
   }
   if (message.type === "redacted_thinking") {
-    const data = getStringAttributeValueFromUnknown(message?.data) ?? undefined;
-    if (data != null) {
-      return {
-        role,
-        contents: [
-          {
-            type: "reasoning",
-            data,
-          },
-        ],
-      };
-    }
+    return extractRedactedThinkingMessage({ message, role });
   }
-  // Converse-normalized block shape: no 'type' discriminator; fields may be null.
-  // Handles { text, reasoningContent, toolUse } where each field may be null/absent.
   if (message.type == null) {
-    const textVal = message.text;
-    if (typeof textVal === "string" && textVal.length > 0) {
-      return { content: textVal, role };
-    }
-    const converseReasoning = message.reasoningContent;
-    if (isObjectWithStringKeys(converseReasoning)) {
-      const block = extractReasoningContentFromConverseBlock(converseReasoning);
-      if (block) return { role, contents: [block] };
-    }
-    const toolUseVal = message.toolUse;
-    if (isObjectWithStringKeys(toolUseVal)) {
-      const toolUseId = getStringAttributeValueFromUnknown(toolUseVal.toolUseId) ?? undefined;
-      const toolName = getStringAttributeValueFromUnknown(toolUseVal.name) ?? undefined;
-      if (toolUseId && toolName) {
-        const toolCallFunction: ToolCallFunction = {
-          name: toolName,
-          arguments:
-            toolUseVal.input != null && typeof toolUseVal.input === "object"
-              ? (toolUseVal.input as Record<string, unknown>)
-              : "{}",
-        };
-        return {
-          tool_call_id: toolUseId,
-          role: "tool",
-          tool_calls: [{ id: toolUseId, function: toolCallFunction }],
-        };
-      }
-    }
+    return extractConverseBlockMessage({ message, role });
   }
   return null;
 }

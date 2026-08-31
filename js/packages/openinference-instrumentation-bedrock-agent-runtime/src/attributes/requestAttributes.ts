@@ -121,7 +121,7 @@ export const safelyExtractBaseInlineAgentRequestAttributes = withSafety({
   fn: extractInlineAgentBaseRequestAttributes,
   onError: (err) => {
     diag.warn(
-      `Openinference warning, unable to extract inline agent request attributes, some spans may be missing or incomplete. Error: ${err instanceof Error ? err.message : err}`,
+      `Openinference warning, unable to extract inline agent request attributes, some spans may be missing or incomplete. Error: ${err instanceof Error ? err.message : String(err)}`,
     );
   },
 });
