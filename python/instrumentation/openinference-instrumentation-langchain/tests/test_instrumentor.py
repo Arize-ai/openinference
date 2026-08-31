@@ -568,31 +568,50 @@ def test_anthropic_token_counts(
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     anthropic_api_key: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     langchain_anthropic = pytest.importorskip(
         "langchain_anthropic", reason="`langchain-anthropic` is not installed"
     )  # langchain-anthropic is not in pyproject.toml because it conflicts with pinned test deps
+    anthropic = pytest.importorskip("anthropic")
 
-    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
-        return_value=Response(
-            status_code=200,
-            json={
-                "id": "msg_015kYHnmPtpzZbXpwMmziqju",
-                "type": "message",
-                "role": "assistant",
-                "model": "claude-3-5-sonnet-20240620",
-                "content": [{"type": "text", "text": "Argentina."}],
-                "stop_reason": "end_turn",
-                "stop_sequence": None,
-                "usage": {
-                    "input_tokens": 22,
-                    "output_tokens": 5,
-                    "cache_read_input_tokens": 9,
-                    "cache_creation_input_tokens": 2,
-                },
-            },
+    response_json = {
+        "id": "msg_015kYHnmPtpzZbXpwMmziqju",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-3-5-sonnet-20240620",
+        "content": [{"type": "text", "text": "Argentina."}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {
+            "input_tokens": 22,
+            "output_tokens": 5,
+            "cache_read_input_tokens": 9,
+            "cache_creation_input_tokens": 2,
+        },
+    }
+
+    if int(anthropic.__version__.split(".")[0]) >= 1:
+        # ``anthropic>=1`` routes requests through ``httpx2`` (an API-identical fork of
+        # ``httpx``), which ``respx`` cannot patch, so the ``respx_mock`` routes are
+        # bypassed and requests hit the real API (surfacing as a 401). Unlike the OpenAI
+        # SDK, ``langchain_anthropic`` always builds its own client via
+        # ``_get_default_httpx_client``, so inject an ``httpx2`` ``MockTransport`` there to
+        # serve the canned response.
+        httpx2 = pytest.importorskip("httpx2")
+        anthropic_chat_models = pytest.importorskip("langchain_anthropic.chat_models")
+
+        def _handler(request: Any) -> Any:
+            return httpx2.Response(status_code=200, json=response_json)
+
+        def _mock_httpx_client(**_: Any) -> Any:
+            return anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(_handler))
+
+        monkeypatch.setattr(anthropic_chat_models, "_get_default_httpx_client", _mock_httpx_client)
+    else:
+        respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+            return_value=Response(status_code=200, json=response_json)
         )
-    )
     model = langchain_anthropic.ChatAnthropic(model="claude-3-5-sonnet-20240620")
     model.invoke("Who won the World Cup in 2022? Answer in one word.")
     spans = in_memory_span_exporter.get_finished_spans()
