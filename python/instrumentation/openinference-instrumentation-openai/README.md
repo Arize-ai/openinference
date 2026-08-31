@@ -19,7 +19,7 @@ In this example we will instrument a small program that uses OpenAI and observe 
 Install packages.
 
 ```shell
-pip install openinference-instrumentation-openai "openai>=1.26" arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install openinference-instrumentation-openai "openai>=2.8.0" arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 Start the phoenix server so that it is ready to collect traces.
@@ -76,7 +76,7 @@ python your_file.py
 ## FAQ
 **Q: How to get token counts when streaming?**
 
-**A:** To get token counts when streaming, install `openai>=1.26` and set `stream_options={"include_usage": True}` when calling `create`. See the example shown above. For more info, see [here](https://community.openai.com/t/usage-stats-now-available-when-using-streaming-with-the-chat-completions-api-or-completions-api/738156).
+**A:** To get token counts when streaming, install `openai>=2.8.0` and set `stream_options={"include_usage": True}` when calling `create`. See the example shown above. For more info, see [here](https://community.openai.com/t/usage-stats-now-available-when-using-streaming-with-the-chat-completions-api-or-completions-api/738156).
 
 ## More Info
 
