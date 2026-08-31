@@ -440,7 +440,8 @@ def _get_attributes_from_function_call_output(
     prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_ROLE}", "tool"
-    yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", obj["call_id"]
+    if (call_id := obj.get("call_id")) is not None:
+        yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", call_id
     output = obj["output"]
     if output is not None:
         if isinstance(output, str):
