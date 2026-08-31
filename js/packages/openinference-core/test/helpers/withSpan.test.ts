@@ -4,9 +4,14 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 
 import {
+  defaultProcessOutput,
+  getLLMAttributes,
   traceAgent,
   traceChain,
   traceEmbedding,
@@ -216,6 +221,54 @@ describe("withSpan", () => {
     expect(span.name).toBe("test-function");
     expect(span.attributes["service.name"]).toBe("test-service");
     expect(span.attributes["service.version"]).toBe("1.0.0");
+  });
+
+  it("should support model name attributes composed via getLLMAttributes", async () => {
+    const asyncFn = async () => "response";
+
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(asyncFn, {
+      name: "llm-call",
+      kind: "LLM",
+      processInput: () => getLLMAttributes({ requestModelName: "gpt-4" }),
+      processOutput: (result) => ({
+        ...defaultProcessOutput(result),
+        ...getLLMAttributes({ responseModelName: "gpt-4-0613" }),
+      }),
+      tracer,
+    });
+
+    await wrappedFn();
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+
+    const span = spans[0];
+    expect(span.attributes[SemanticConventions.LLM_REQUEST_MODEL_NAME]).toBe("gpt-4");
+    expect(span.attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME]).toBe("gpt-4-0613");
+    // The response model overrides the request-derived llm.model_name
+    expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("gpt-4-0613");
+    // Spreading defaultProcessOutput keeps the default output capture
+    expect(span.attributes[SemanticConventions.OUTPUT_VALUE]).toBe("response");
+  });
+
+  it("should not apply processOutput attributes when the wrapped function throws", async () => {
+    const errorFn = async () => {
+      throw new Error("Test error");
+    };
+
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(errorFn, {
+      name: "failing-llm-call",
+      processOutput: () => getLLMAttributes({ responseModelName: "gpt-4-0613" }),
+      tracer,
+    });
+
+    await expect(wrappedFn()).rejects.toThrow("Test error");
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME]).toBeUndefined();
   });
 
   it("should use custom input and output processors", () => {

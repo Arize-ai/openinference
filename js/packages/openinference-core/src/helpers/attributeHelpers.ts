@@ -594,6 +594,35 @@ export function getToolAttributes(options: {
 }
 
 /**
+ * Generates the model name attributes for LLM operations. llm.model_name is
+ * the key consumers display as the primary model, so it mirrors
+ * responseModelName ?? requestModelName when not set explicitly, matching how
+ * instrumentors populate all three keys.
+ */
+function getModelNameAttributes(options: {
+  modelName?: string;
+  requestModelName?: string;
+  responseModelName?: string;
+}): Attributes {
+  const attributes: Attributes = {};
+
+  const modelName = options.modelName ?? options.responseModelName ?? options.requestModelName;
+  if (modelName != null) {
+    attributes[SemanticConventions.LLM_MODEL_NAME] = modelName;
+  }
+
+  if (options.requestModelName != null) {
+    attributes[SemanticConventions.LLM_REQUEST_MODEL_NAME] = options.requestModelName;
+  }
+
+  if (options.responseModelName != null) {
+    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = options.responseModelName;
+  }
+
+  return attributes;
+}
+
+/**
  * Generates attributes for LLM operations.
  *
  * Creates comprehensive OpenTelemetry attributes for LLM interactions
@@ -603,6 +632,9 @@ export function getToolAttributes(options: {
  * @param options.provider - The LLM provider (e.g., "openai", "anthropic")
  * @param options.system - The LLM system type
  * @param options.modelName - The name of the LLM model
+ * @param options.requestModelName - The model requested by the caller, as sent in the request.
+ * When modelName is omitted, llm.model_name is mirrored from responseModelName ?? requestModelName
+ * @param options.responseModelName - The model that actually generated the response, as reported by the provider
  * @param options.invocationParameters - Parameters used for the LLM invocation
  * @param options.inputMessages - Input messages sent to the LLM
  * @param options.outputMessages - Output messages received from the LLM
@@ -625,6 +657,8 @@ export function getLLMAttributes(options: {
   provider?: string;
   system?: string;
   modelName?: string;
+  requestModelName?: string;
+  responseModelName?: string;
   invocationParameters?: Record<string, unknown>;
   inputMessages?: Message[];
   outputMessages?: Message[];
@@ -643,10 +677,7 @@ export function getLLMAttributes(options: {
     attributes[SemanticConventions.LLM_SYSTEM] = options.system.toLowerCase();
   }
 
-  // Model name attributes
-  if (options.modelName != null) {
-    attributes[SemanticConventions.LLM_MODEL_NAME] = options.modelName;
-  }
+  Object.assign(attributes, getModelNameAttributes(options));
 
   // Invocation parameters
   if (options.invocationParameters != null) {

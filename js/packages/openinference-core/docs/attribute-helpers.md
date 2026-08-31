@@ -32,12 +32,62 @@ function getLLMAttributes(options: {
   provider?: string;              // e.g., "openai", "anthropic"
   system?: string;                // LLM system type
   modelName?: string;             // e.g., "gpt-4o", "claude-sonnet-4-5-20250514"
+  requestModelName?: string;      // Model requested by the caller (llm.request.model_name)
+  responseModelName?: string;     // Model that generated the response (llm.response.model_name)
   invocationParameters?: Record<string, unknown>;  // temperature, max_tokens, etc.
   inputMessages?: Message[];      // Messages sent to the LLM
   outputMessages?: Message[];     // Messages received from the LLM
   tokenCount?: TokenCount;        // Token usage
   tools?: Tool[];                 // Tool definitions available to the LLM
 }): Attributes;
+```
+
+### Request and Response Model Names
+
+`requestModelName` emits `llm.request.model_name` and `responseModelName`
+emits `llm.response.model_name`. Only set them when the provider actually
+distinguishes the requested model from the one that served the response —
+most providers echo the same model back, in which case `modelName` alone
+suffices. The two can differ when the provider routes
+the request to another model — for example
+[Anthropic's server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#server-side-fallback),
+where a classifier-triggered refusal hands the request off to a fallback model
+that generates the response.
+
+Because the spec requires `llm.model_name` to equal the response model when
+known (falling back to the request model), `getLLMAttributes` mirrors
+`responseModelName ?? requestModelName` into `llm.model_name` whenever
+`modelName` is not passed explicitly.
+
+With `withSpan` or the `@observe` decorator, compose them through the tracing
+options. Note that `attributes` is evaluated once when the function is wrapped
+(for a decorator, at class-definition time), so use it only for literal values;
+derive anything per-call from the arguments via `processInput`, and take the
+response model from the result via `processOutput`. A custom `processOutput`
+replaces the default output capture, so spread `defaultProcessOutput` to keep
+`output.value`:
+
+```typescript
+import {
+  defaultProcessOutput,
+  getLLMAttributes,
+  observe,
+} from "@arizeai/openinference-core";
+
+class ChatService {
+  @observe({
+    kind: "LLM",
+    processInput: (request) =>
+      getLLMAttributes({ requestModelName: request.model }),
+    processOutput: (response) => ({
+      ...defaultProcessOutput(response),
+      ...getLLMAttributes({ responseModelName: response.model }),
+    }),
+  })
+  async complete(request: ChatRequest) {
+    return await callLLM(request);
+  }
+}
 ```
 
 ### Message Type

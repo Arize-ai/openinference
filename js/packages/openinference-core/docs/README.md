@@ -243,7 +243,7 @@ span.setAttributes(
 - `getAttributesFromContext(context)` -- extract all propagated attributes for a span
 
 **Attribute Helpers**
-- `getLLMAttributes({ provider?, modelName?, inputMessages?, outputMessages?, tokenCount?, tools?, invocationParameters? })`
+- `getLLMAttributes({ provider?, system?, modelName?, requestModelName?, responseModelName?, inputMessages?, outputMessages?, tokenCount?, tools?, invocationParameters? })`
 - `getEmbeddingAttributes({ modelName?, embeddings? })`
 - `getRetrieverAttributes({ documents })`
 - `getDocumentAttributes(document, documentIndex, keyPrefix)` -- single document with custom key prefix

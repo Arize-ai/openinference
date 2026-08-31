@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-core",
-  "version": "2.5.4",
+  "version": "2.6.1",
   "private": false,
   "description": "OpenInference Core provides utilities shared by all OpenInference SDK packages.",
   "keywords": [
