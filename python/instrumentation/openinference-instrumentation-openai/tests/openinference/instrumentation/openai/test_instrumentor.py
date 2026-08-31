@@ -67,17 +67,23 @@ def _spans_from(exporter: InMemorySpanExporter, scope: str) -> Tuple[ReadableSpa
     )
 
 
-def _openinference_span(exporter: InMemorySpanExporter) -> ReadableSpan:
+def _openinference_span(exporter: InMemorySpanExporter, name: str) -> ReadableSpan:
     """Return the one span this instrumentor emitted, ignoring transport spans.
 
     The httpx instrumentor only sees openai's client when the run aliases httpx
     to httpx2, so its span is asserted on its own in
     test_httpx_transport_span_is_emitted rather than through a total span count
     that every other test would trip over.
+
+    The expected name is required rather than optional because most span names
+    come from the SDK response type (cast_to.__name__), so an upstream rename
+    would otherwise slip through every version lane unnoticed.
     """
     spans = _spans_from(exporter, _OPENINFERENCE_SCOPE)
     assert len(spans) == 1
-    return spans[0]
+    span = spans[0]
+    assert span.name == name
+    return span
 
 
 class TestInstrumentor:
@@ -245,7 +251,7 @@ def test_chat_completions(
                     else:
                         for _ in response:
                             pass
-    span: ReadableSpan = _openinference_span(in_memory_span_exporter)
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -425,7 +431,7 @@ def test_completions(
                 if is_stream:
                     for _ in response:
                         pass
-    span: ReadableSpan = _openinference_span(in_memory_span_exporter)
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "Completion")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -561,7 +567,7 @@ def test_embeddings(
         else:
             response = create(**create_kwargs)
             _ = response.parse() if is_raw else response
-    span: ReadableSpan = _openinference_span(in_memory_span_exporter)
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "CreateEmbeddings")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -691,7 +697,7 @@ def test_embeddings_out_of_order(
         response = create(**create_kwargs)
         _ = response.parse() if is_raw else response
 
-    span: ReadableSpan = _openinference_span(in_memory_span_exporter)
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "CreateEmbeddings")
     assert span.status.is_ok
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -995,7 +1001,7 @@ def test_responses(
                     else:
                         for _ in response:
                             pass
-    span: ReadableSpan = _openinference_span(in_memory_span_exporter)
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "Response")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -1172,7 +1178,7 @@ def test_chat_completions_with_multiple_message_contents(
                 if is_stream:
                     for _ in response:
                         pass
-    span: ReadableSpan = _openinference_span(in_memory_span_exporter)
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -1297,7 +1303,7 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
 
     with suppress(openai.BadRequestError):
         _ = create(**create_kwargs)
-    span: ReadableSpan = _openinference_span(in_memory_span_exporter)
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     assert span.status.is_ok
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -1402,7 +1408,7 @@ def test_chat_completions_with_image_url_formats_issue_2188(
     client = openai.OpenAI(api_key="sk-test")
     client.chat.completions.create(messages=input_messages, **invocation_parameters)
 
-    span = _openinference_span(in_memory_span_exporter)
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
 
     assert span.status.is_ok
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -1473,7 +1479,7 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
 
     with suppress(openai.BadRequestError):
         _ = create(**create_kwargs)
-    span: ReadableSpan = _openinference_span(in_memory_span_exporter)
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     assert span.status.is_ok
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -1510,7 +1516,7 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
     output_value = attributes.pop(OUTPUT_VALUE, None)
     assert output_value is not None
     if hide_outputs:
-        output_value == REDACTED_VALUE
+        assert output_value == REDACTED_VALUE
     else:
         assert isinstance(output_value, str)
         assert (
