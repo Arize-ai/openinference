@@ -558,9 +558,9 @@ def get_llm_attributes(
     return {
         **get_llm_provider_attributes(provider),
         **get_llm_system_attributes(system),
-        **get_llm_model_name_attributes(model_name),
-        **get_llm_request_model_name_attributes(request_model_name or model_name),
-        **get_llm_response_model_name_attributes(response_model_name or model_name),
+        **get_llm_model_name_attributes(model_name or response_model_name or request_model_name),
+        **get_llm_request_model_name_attributes(request_model_name),
+        **get_llm_response_model_name_attributes(response_model_name),
         **get_llm_invocation_parameter_attributes(invocation_parameters),
         **get_llm_input_message_attributes(input_messages),
         **get_llm_output_message_attributes(output_messages),

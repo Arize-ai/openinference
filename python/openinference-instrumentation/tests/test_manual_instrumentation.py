@@ -2590,25 +2590,29 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     }
 
 
-def test_get_llm_attributes_request_and_response_model_name_fall_back_to_model_name() -> None:
+def test_get_llm_attributes_model_name_only_omits_request_and_response_model_name() -> None:
+    """Callers tracking a single model_name (no request/response distinction)
+    must not get llm.request.model_name / llm.response.model_name invented."""
     attributes = get_llm_attributes(model_name="gpt-4")
+    assert attributes == {LLM_MODEL_NAME: "gpt-4"}
+
+
+def test_get_llm_attributes_model_name_falls_back_to_response_then_request_model_name() -> None:
+    attributes = get_llm_attributes(response_model_name="gpt-4-0613")
+    assert attributes == {
+        LLM_MODEL_NAME: "gpt-4-0613",
+        LLM_RESPONSE_MODEL_NAME: "gpt-4-0613",
+    }
+
+    attributes = get_llm_attributes(request_model_name="gpt-4")
     assert attributes == {
         LLM_MODEL_NAME: "gpt-4",
         LLM_REQUEST_MODEL_NAME: "gpt-4",
-        LLM_RESPONSE_MODEL_NAME: "gpt-4",
     }
 
-
-def test_get_llm_attributes_request_and_response_model_name_take_precedence_over_model_name() -> (
-    None
-):
-    attributes = get_llm_attributes(
-        model_name="gpt-4",
-        request_model_name="gpt-4",
-        response_model_name="gpt-4-0613",
-    )
+    attributes = get_llm_attributes(request_model_name="gpt-4", response_model_name="gpt-4-0613")
     assert attributes == {
-        LLM_MODEL_NAME: "gpt-4",
+        LLM_MODEL_NAME: "gpt-4-0613",
         LLM_REQUEST_MODEL_NAME: "gpt-4",
         LLM_RESPONSE_MODEL_NAME: "gpt-4-0613",
     }
