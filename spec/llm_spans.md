@@ -45,7 +45,7 @@ Note that while the examples below show attributes in a nested JSON format for r
 
 - `llm.input_messages.0.message.role` instead of `llm.input_messages[0].message.role`
 - `llm.output_messages.0.message.tool_calls.0.tool_call.function.name` for nested tool calls
-- `llm.tools.0.tool.json_schema` for tool definitions
+- `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, and `llm.tools.0.tool.json_schema` for tool definitions
 
 ## Tool Role Messages
 

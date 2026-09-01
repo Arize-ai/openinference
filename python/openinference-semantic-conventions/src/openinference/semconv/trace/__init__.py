@@ -550,15 +550,19 @@ class ChoiceAttributes:
 
 
 class ToolAttributes:
-    """
-    Attributes for a tools
-    """
+    """Attributes for tools."""
 
     TOOL_JSON_SCHEMA = "tool.json_schema"
     """
     The json schema of a tool input, It is RECOMMENDED that this be in the
     OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
     """
+
+    TOOL_NAME = "tool.name"
+    """The name of the tool, i.e. the identifier the model uses to call it."""
+
+    TOOL_DESCRIPTION = "tool.description"
+    """The description of the tool, i.e. the text the model uses to decide whether to call it."""
 
 
 class OpenInferenceSpanKindValues(Enum):

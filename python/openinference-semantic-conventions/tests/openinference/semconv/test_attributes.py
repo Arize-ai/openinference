@@ -382,7 +382,9 @@ class TestToolAttributes:
         attributes = _get_attributes(ToolAttributes)
         assert _nested_dict(attributes) == {
             "tool": {
+                "description": ToolAttributes.TOOL_DESCRIPTION,
                 "json_schema": ToolAttributes.TOOL_JSON_SCHEMA,
+                "name": ToolAttributes.TOOL_NAME,
             }
         }
 

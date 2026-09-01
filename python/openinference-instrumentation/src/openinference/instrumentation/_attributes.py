@@ -740,6 +740,10 @@ def get_llm_tool_attributes(
             attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = _json_serialize(
                 tool_json_schema
             )
+        if isinstance(tool_name := tool.get("name"), str) and tool_name:
+            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_NAME}"] = tool_name
+        if isinstance(tool_description := tool.get("description"), str) and tool_description:
+            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_DESCRIPTION}"] = tool_description
     return attributes
 
 
