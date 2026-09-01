@@ -39,6 +39,7 @@ TEXT = OpenInferenceMimeTypeValues.TEXT
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 SESSION_ID = SpanAttributes.SESSION_ID
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
@@ -228,6 +229,14 @@ def _maybe_set_model(span: trace_api.Span, msg: Any) -> None:
         span.set_attribute(LLM_MODEL_NAME, model)
 
 
+def _extract_stop_reason(message: Any) -> str | None:
+    stop_reason = _get_field(message, "stop_reason")
+    if stop_reason is None:
+        inner = _get_field(message, "message")
+        stop_reason = _get_field(inner, "stop_reason")
+    return str(stop_reason) if stop_reason else None
+
+
 def _extract_init_attributes(msg: Any) -> dict[str, Any]:
     session_id = _get_field(msg, "session_id")
     if session_id is None:
@@ -318,6 +327,9 @@ def _extract_result_error_attributes(msg: Any) -> dict[str, Any]:
 
 def _process_message(msg: Any, span: trace_api.Span) -> bool:
     _maybe_set_model(span, msg)
+    if stop_reason := _extract_stop_reason(msg):
+        if span.is_recording():
+            span.set_attribute(LLM_FINISH_REASON, stop_reason)
     if _is_system_init_message(msg):
         attrs = _extract_init_attributes(msg)
         if _has_existing_session_id(span):

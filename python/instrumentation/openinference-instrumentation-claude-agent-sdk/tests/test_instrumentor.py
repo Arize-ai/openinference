@@ -1651,3 +1651,102 @@ async def test_missing_parent_hook_end_before_message_result_still_closes_span(
     assert bash_span.parent is not None
     assert bash_span.parent.span_id == root.context.span_id
     assert json.loads(str(attrs.get(SpanAttributes.OUTPUT_VALUE))) == "message output"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stop_reason", ["end_turn", "max_tokens", "tool_use", "stop_sequence"])
+async def test_assistant_message_stop_reason_sets_llm_finish_reason(
+    stop_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-finish",
+            "model": "claude-test",
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "stop_reason": stop_reason,
+                "content": [{"type": "text", "text": "hi"}],
+            },
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "hi",
+            "usage": {"input_tokens": 3, "output_tokens": 2},
+            "total_cost_usd": 0.001,
+            "session_id": "sess-finish",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert attrs.get(SpanAttributes.LLM_FINISH_REASON) == stop_reason
+
+
+@pytest.mark.asyncio
+async def test_no_stop_reason_leaves_llm_finish_reason_unset(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: Any,
+) -> None:
+    from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+
+    trace_api.set_tracer_provider(tracer_provider)
+    tracer = tracer_provider.get_tracer(__name__)
+
+    messages = [
+        {
+            "type": "system",
+            "subtype": "init",
+            "session_id": "sess-none",
+            "model": "claude-test",
+        },
+        {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "hi",
+            "usage": {"input_tokens": 3, "output_tokens": 2},
+            "total_cost_usd": 0.001,
+            "session_id": "sess-none",
+        },
+    ]
+
+    async def fake_query(*, prompt: str = "", options: Any = None) -> Any:
+        for msg in messages:
+            yield msg
+
+    wrapper = wrappers._QueryWrapper(tracer)
+    async for _ in wrapper(fake_query, None, (), {"prompt": "hello"}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(spans[0].attributes or {})
+    assert SpanAttributes.LLM_FINISH_REASON not in attrs
