@@ -98,6 +98,8 @@ BedrockInstrumentor().instrument()
 
 
 Now, all calls to `invoke_model` are instrumented and can be viewed in the `phoenix` UI.
+When Bedrock returns a model stop reason, the span records it as `llm.finish_reason` for
+both `invoke_model` and `converse`, including their streaming and async variants.
 
 ## Quickstart (boto3)
 

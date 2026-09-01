@@ -28,6 +28,7 @@ from openinference.instrumentation import (
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 
 if TYPE_CHECKING:
@@ -236,13 +237,16 @@ def get_attributes_from_response_data(
         message attributes.
     """
     llm_attributes: Dict[str, Any] = {}
+    finish_reason_attributes: Dict[str, Any] = {}
     # stopReason is required in ConverseResponseTypeDef but may be absent from
     # stream-constructed responses when no messageStop event was received.
     if "stopReason" in response_data:
+        stop_reason = response_data["stopReason"]
         llm_attributes["invocation_parameters"] = (
             dict(request_data["inferenceConfig"]) if "inferenceConfig" in request_data else {}
         )
-        llm_attributes["invocation_parameters"]["stop_reason"] = response_data["stopReason"]
+        llm_attributes["invocation_parameters"]["stop_reason"] = stop_reason
+        finish_reason_attributes[SpanAttributes.LLM_FINISH_REASON] = stop_reason
 
     # output is required in ConverseResponseTypeDef and always set by _construct_final_message.
     output = response_data["output"]
@@ -254,4 +258,5 @@ def get_attributes_from_response_data(
         **get_llm_attributes(**llm_attributes),
         **get_llm_token_count_attributes(get_token_counts(response_data)),
         **get_output_attributes(message),
+        **finish_reason_attributes,
     }

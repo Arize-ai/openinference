@@ -74,6 +74,7 @@ class _NovaStreamCallback:
         # Track per-content-block state so streamed tool_use input fragments can be
         # reassembled in arrival order and not interleaved with text deltas.
         self._content_blocks: Dict[int, Dict[str, Any]] = {}
+        self._stop_reason: str | None = None
         body = request.get("body", {})
         span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
         span.set_attribute(LLM_PROVIDER, AWS)
@@ -136,6 +137,9 @@ class _NovaStreamCallback:
                         tool_use["input"] += (
                             fragment if isinstance(fragment, str) else str(fragment)
                         )
+        if (stop_event := payload.get("messageStop")) and isinstance(stop_event, dict):
+            if stop_reason := stop_event.get("stopReason"):
+                self._stop_reason = stop_reason
         if metadata := payload.get("metadata"):
             usage = metadata.get("usage", {}) if isinstance(metadata, dict) else {}
             input_tokens = usage.get("inputTokens") if isinstance(usage, dict) else None
@@ -159,6 +163,8 @@ class _NovaStreamCallback:
 
     def _finalize_output(self) -> None:
         span = self._span
+        if self._stop_reason:
+            span.set_attribute(LLM_FINISH_REASON, self._stop_reason)
         content_blocks: list[dict[str, Any]] = []
         for idx in sorted(self._content_blocks):
             block = self._content_blocks[idx]
@@ -758,6 +764,7 @@ LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT

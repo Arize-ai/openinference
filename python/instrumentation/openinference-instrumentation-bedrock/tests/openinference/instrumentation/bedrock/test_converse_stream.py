@@ -257,6 +257,7 @@ def _assert_converse_stream_text_message_attrs(attributes: Dict[str, Any]) -> No
     )
     assert attributes.pop("llm.invocation_parameters").startswith('{"stop_reason": "end_turn"}')
     assert attributes.pop("llm.model_name").startswith("anthropic.claude-3-haiku-20240307-v1:0")
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert attributes.pop(f"{om}.0.message.contents.0.message_content.text").startswith(
         "The sum of the numbers from 1 to 10 is 55."
     )
@@ -286,6 +287,7 @@ def _assert_converse_stream_tool_message_attrs(attributes: Dict[str, Any]) -> No
     ).startswith("What is the most popular song on WZPZ?")
     assert attributes.pop("llm.invocation_parameters").startswith('{"stop_reason": "tool_use"}')
     assert attributes.pop("llm.model_name").startswith("anthropic.claude-3-haiku-20240307-v1:0")
+    assert attributes.pop(LLM_FINISH_REASON, None) == "tool_use"
     assert attributes.pop(f"{om}.0.message.tool_calls.0.tool_call.function.arguments").startswith(
         '{"sign": "WZPZ"}'
     )
@@ -340,6 +342,7 @@ def _assert_converse_stream_tool_response_message_attrs(
     )
     assert '{"stop_reason": "end_turn"}' in attributes.pop("llm.invocation_parameters")
     assert "anthropic.claude-3-haiku-20240307" in attributes.pop("llm.model_name")
+    assert attributes.pop(LLM_FINISH_REASON, None) == "end_turn"
     assert "song played on radio station WZPZ" in attributes.pop(
         "llm.output_messages.0.message.contents.0.message_content.text"
     )
@@ -397,6 +400,7 @@ def test_converse_tool_use_message(
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == "mistral.devstral-2-123b"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "tool_use"
     assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
     assert isinstance(input_value_str := attributes.pop(INPUT_VALUE), str)
     assert "What is the most popular song on Radio XYZ?" in input_value_str
@@ -452,6 +456,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
