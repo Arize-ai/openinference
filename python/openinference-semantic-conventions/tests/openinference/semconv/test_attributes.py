@@ -99,6 +99,7 @@ class TestSpanAttributes:
                 },
             },
             "input": {
+                "images": SpanAttributes.INPUT_IMAGES,
                 "mime_type": SpanAttributes.INPUT_MIME_TYPE,
                 "value": SpanAttributes.INPUT_VALUE,
             },
@@ -165,6 +166,7 @@ class TestSpanAttributes:
                 }
             },
             "output": {
+                "images": SpanAttributes.OUTPUT_IMAGES,
                 "mime_type": SpanAttributes.OUTPUT_MIME_TYPE,
                 "value": SpanAttributes.OUTPUT_VALUE,
             },
@@ -288,6 +290,7 @@ class TestImageAttributes:
         attributes = _get_attributes(ImageAttributes)
         assert _nested_dict(attributes) == {
             "image": {
+                "mime_type": ImageAttributes.IMAGE_MIME_TYPE,
                 "url": ImageAttributes.IMAGE_URL,
             }
         }

@@ -15,6 +15,8 @@ func TestAttributeKeys(t *testing.T) {
 		{InputMimeType, "input.mime_type"},
 		{OutputValue, "output.value"},
 		{OutputMimeType, "output.mime_type"},
+		{InputImages, "input.images"},
+		{OutputImages, "output.images"},
 		{Metadata, "metadata"},
 		{TagTags, "tag.tags"},
 		{SessionID, "session.id"},
@@ -124,6 +126,7 @@ func TestAttributeKeys(t *testing.T) {
 		{MessageContentEncryptedContent, "message_content.encrypted_content"},
 
 		{ImageURL, "image.url"},
+		{ImageMimeType, "image.mime_type"},
 
 		{AudioURL, "audio.url"},
 		{AudioMimeType, "audio.mime_type"},
@@ -224,6 +227,9 @@ func TestIndexers(t *testing.T) {
 		{"RetrievalDocumentKey/content", RetrievalDocumentKey(4, DocumentContent), "retrieval.documents.4.document.content"},
 		{"EmbeddingKey/text", EmbeddingKey(0, EmbeddingText), "embedding.embeddings.0.embedding.text"},
 		{"EmbeddingKey/vector", EmbeddingKey(0, EmbeddingVector), "embedding.embeddings.0.embedding.vector"},
+		{"InputImageKey/url", InputImageKey(0, ImageURL), "input.images.0.image.url"},
+		{"InputImageKey/mime_type", InputImageKey(1, ImageMimeType), "input.images.1.image.mime_type"},
+		{"OutputImageKey/url", OutputImageKey(2, ImageURL), "output.images.2.image.url"},
 		{"AnnotationKey/name", AnnotationKey(0, AnnotationName), "annotations.0.annotation.name"},
 		{"EvaluationKey/score", EvaluationKey(2, EvaluationScore), "evaluations.2.evaluation.score"},
 		{"TraceAnnotationKey/name", TraceAnnotationKey(0, AnnotationName), "trace.annotations.0.annotation.name"},

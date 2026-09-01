@@ -10,11 +10,11 @@ The possible settings are:
 |----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|------|---------|
 | OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS | Hides LLM invocation parameters (independent of input/output hiding)                                                           | bool | False   |
 | OPENINFERENCE_HIDE_LLM_TOOLS                 | Hides the tool definitions advertised to the LLM (`llm.tools.*`); also hidden when HIDE_INPUTS is true                         | bool | False   |
-| OPENINFERENCE_HIDE_INPUTS                    | Hides input.value, all input messages, and the tool definitions advertised to the LLM (input messages are hidden if either HIDE_INPUTS OR HIDE_INPUT_MESSAGES is true) | bool | False   |
-| OPENINFERENCE_HIDE_OUTPUTS                   | Hides output.value and all output messages (output messages are hidden if either HIDE_OUTPUTS OR HIDE_OUTPUT_MESSAGES is true) | bool | False   |
+| OPENINFERENCE_HIDE_INPUTS                    | Hides input.value, input.images, all input messages, and the tool definitions advertised to the LLM (input messages are hidden if either HIDE_INPUTS OR HIDE_INPUT_MESSAGES is true) | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUTS                   | Hides output.value, output.images, and all output messages (output messages are hidden if either HIDE_OUTPUTS OR HIDE_OUTPUT_MESSAGES is true) | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_MESSAGES            | Hides all input messages (independent of HIDE_INPUTS)                                                                          | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_MESSAGES           | Hides all output messages (independent of HIDE_OUTPUTS)                                                                        | bool | False   |
-| OPENINFERENCE_HIDE_INPUT_IMAGES              | Hides images from input messages (only applies when input messages are not already hidden)                                     | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_IMAGES              | Hides images from input messages (only when input messages are not already hidden) and `input.images`                          | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_TEXT                | Hides text from input messages (only applies when input messages are not already hidden)                                       | bool | False   |
 | OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts (completions API)                                                                                            | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_TEXT               | Hides text from output messages (only applies when output messages are not already hidden)                                     | bool | False   |
@@ -33,7 +33,7 @@ When content is hidden due to privacy configuration settings, the value `"__REDA
 
 **This capability is experimental** — the uploader contract and attribute semantics may change while the feature matures.
 
-Large binary content captured as base64 data URIs can exceed span attribute and OTLP payload limits. Instead of redacting oversized media, an instrumentation MAY upload the decoded bytes to external storage at capture time and record only a reference URI in the span attribute. Today this applies to **images** (`message_content.image.image.url` values exceeding `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH`); audio and file offload will follow once their message-content conventions are established. See [Multimodal Attributes](./multimodal_attributes.md#external-storage-for-large-media) for the attribute-level semantics.
+Large binary content captured as base64 data URIs can exceed span attribute and OTLP payload limits. Instead of redacting oversized media, an instrumentation MAY upload the decoded bytes to external storage at capture time and record only a reference URI in the span attribute. Today this applies to **images** (`message_content.image.image.url` and `<input|output>.images.*.image.url` values exceeding `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH`); audio and file offload will follow once their message-content conventions are established. See [Multimodal Attributes](./multimodal_attributes.md#external-storage-for-large-media) for the attribute-level semantics.
 
 OpenInference defines the interface and the offload policy but ships no uploader implementation — implementations come from applications, vendor SDKs (e.g. the Arize SDK), or a future upstream (OTel util-genai) byte uploader. In Python an uploader is supplied either in code, or zero-code via an entry point:
 
