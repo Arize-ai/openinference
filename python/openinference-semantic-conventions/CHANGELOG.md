@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.33...python-openinference-semantic-conventions-v0.1.34) (2026-09-01)
+
+
+### Features
+
+* add explicit name and description for advertised LLM tools ([#3630](https://github.com/Arize-ai/openinference/issues/3630)) ([0101ec1](https://github.com/Arize-ai/openinference/commit/0101ec1661dbdbb80d85b961826e3eae1d45a900))
+
 ## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.32...python-openinference-semantic-conventions-v0.1.33) (2026-08-24)
 
 

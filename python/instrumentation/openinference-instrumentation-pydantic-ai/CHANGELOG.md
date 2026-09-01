@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.23...python-openinference-instrumentation-pydantic-ai-v0.1.24) (2026-09-01)
+
+
+### Bug Fixes
+
+* **pydantic-ai:** require Pydantic AI 2.24.0 or newer ([#3547](https://github.com/Arize-ai/openinference/issues/3547)) ([ab649be](https://github.com/Arize-ai/openinference/commit/ab649be340f02d0e98e8259ec452ae7f240d545e))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.22...python-openinference-instrumentation-pydantic-ai-v0.1.23) (2026-08-27)
 
 
