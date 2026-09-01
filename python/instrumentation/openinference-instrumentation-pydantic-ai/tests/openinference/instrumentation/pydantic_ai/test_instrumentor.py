@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, List, Mapping, Sequence, Union, cast
+from typing import Any, List, Mapping, Optional, Sequence, Union, cast
 
 import pytest
 from opentelemetry import trace
@@ -142,6 +142,13 @@ def _test_openai_agent_and_llm_spans(
     _verify_agent_span(agent_span)
 
 
+def _concatenated_instructions(message_content: Optional[AttributeValue]) -> List[str]:
+    """Recover an agent's instructions from the single system message pydantic-ai joins
+    them into, whose separator has changed across releases."""
+    assert isinstance(message_content, str)
+    return [line for line in message_content.splitlines() if line]
+
+
 def _verify_llm_span(span: ReadableSpan) -> None:
     """Verify the LLM span has correct attributes."""
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -162,11 +169,9 @@ def _verify_llm_span(span: ReadableSpan) -> None:
         assert system == OpenInferenceLLMSystemValues.OPENAI.value
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}") == "system"
-    # System instructions get concatenated into a single message by pydantic
-    assert (
+    assert _concatenated_instructions(
         attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
-        == "Use the weather tool\nUse the calculator tool"
-    )
+    ) == ["Use the weather tool", "Use the calculator tool"]
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
