@@ -10,6 +10,8 @@ Python auto-instrumentation library for PydanticAI. These traces are fully OpenT
 pip install openinference-instrumentation-pydantic-ai
 ```
 
+Requires Pydantic AI 2.24.0 or newer.
+
 ## Quickstart
 
 This quickstart shows you how to instrument your PydanticAI agents.
@@ -17,7 +19,7 @@ This quickstart shows you how to instrument your PydanticAI agents.
 Install required packages.
 
 ```shell
-pip install pydantic-ai arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install "pydantic-ai>=2.24.0" arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 Start Phoenix in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address. (Phoenix does not send data over the internet. It only operates locally on your machine.)
