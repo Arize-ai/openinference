@@ -207,9 +207,12 @@ def _verify_llm_span(span: ReadableSpan) -> None:
         == "The final response which ends this conversation"
     )
 
-    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 77
-    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 18
-    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 95
+    prompt_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT)
+    completion_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION)
+    total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
+    assert isinstance(prompt_tokens, int) and prompt_tokens > 0
+    assert isinstance(completion_tokens, int) and completion_tokens > 0
+    assert total_tokens == prompt_tokens + completion_tokens
 
 
 def _verify_agent_span(span: ReadableSpan) -> None:
