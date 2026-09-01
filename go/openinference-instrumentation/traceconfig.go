@@ -25,6 +25,7 @@ const (
 	EnvHideLLMInvocationParameters = "OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS"
 	EnvHideLLMTools                = "OPENINFERENCE_HIDE_LLM_TOOLS"
 	EnvHidePrompts                 = "OPENINFERENCE_HIDE_PROMPTS"
+	EnvHideInputImages             = "OPENINFERENCE_HIDE_INPUT_IMAGES"
 )
 
 // TraceConfig controls which OpenInference attributes the provider
@@ -83,6 +84,11 @@ type TraceConfig struct {
 
 	// HidePrompts omits the completions-API llm.prompts.* attributes.
 	HidePrompts bool
+
+	// HideInputImages drops images from input messages and the
+	// span-level input.images.* family. HideInputs implies this —
+	// use ShouldHideInputImages rather than reading the field.
+	HideInputImages bool
 }
 
 // TraceConfigFromEnv populates a TraceConfig by reading the
@@ -104,6 +110,7 @@ func TraceConfigFromEnv() TraceConfig {
 		HideLLMInvocationParameters: envBool(EnvHideLLMInvocationParameters),
 		HideLLMTools:                envBool(EnvHideLLMTools),
 		HidePrompts:                 envBool(EnvHidePrompts),
+		HideInputImages:             envBool(EnvHideInputImages),
 	}
 }
 
@@ -142,6 +149,24 @@ func (c TraceConfig) MaskOutputValue(value string) string {
 		return RedactedValue
 	}
 	return value
+}
+
+// ShouldHideInputImages reports whether input images must be omitted,
+// covering both message content images and the span-level
+// input.images.* family. HideInputs subsumes HideInputImages.
+//
+// No Go instrumentor captures images yet. This exists so the first one
+// honors OPENINFERENCE_HIDE_INPUT_IMAGES like the other languages do.
+func (c TraceConfig) ShouldHideInputImages() bool {
+	return c.HideInputs || c.HideInputImages
+}
+
+// ShouldHideOutputImages reports whether output images must be omitted,
+// covering both message content images and the span-level
+// output.images.* family. There is no output-side image flag; the
+// output images follow HideOutputs, as output.value does.
+func (c TraceConfig) ShouldHideOutputImages() bool {
+	return c.HideOutputs
 }
 
 func envBool(key string) bool {

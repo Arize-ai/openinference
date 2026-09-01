@@ -435,6 +435,10 @@ class ImageAttributes:
     """
     An http or base64 image url.
     """
+    IMAGE_MIME_TYPE = "image.mime_type"
+    """
+    The mime type of the image, for urls that do not carry it inline.
+    """
 
 
 class AudioAttributes:
