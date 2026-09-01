@@ -10,8 +10,7 @@ Python auto-instrumentation library for PydanticAI. These traces are fully OpenT
 pip install openinference-instrumentation-pydantic-ai
 ```
 
-Requires Pydantic AI 2.24.0 or newer. Earlier releases can silently omit token
-counts when paired with genai-prices 0.1 or newer.
+Requires Pydantic AI 2.24.0 or newer.
 
 ## Quickstart
 
