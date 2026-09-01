@@ -12,12 +12,12 @@ When tests fail due to outdated VCR cassettes (e.g., API authentication errors o
 
 1. Delete the existing cassette file:
 ```bash
-rm tests/openinference/instrumentation/pydantic_ai/cassettes/test_openai_agent_and_llm_spans_v2.yaml
+rm tests/openinference/instrumentation/pydantic_ai/cassettes/test_openai_agent_and_llm_spans.yaml
 ```
 
 2. Run the test with VCR in record mode using tox:
 ```bash
-OPENAI_API_KEY=$OPENAI_API_KEY uvx --with tox-uv tox -r -e py310-ci-pydantic_ai -- tests/openinference/instrumentation/pydantic_ai/test_instrumentor.py::test_openai_agent_and_llm_spans_v2 -xvs --vcr-record=once
+OPENAI_API_KEY=$OPENAI_API_KEY uvx --with tox-uv tox -r -e py313-ci-pydantic_ai -- tests/openinference/instrumentation/pydantic_ai/test_instrumentor.py::test_openai_agent_and_llm_spans -xvs --vcr-record=once
 ```
 
 ### Important Notes
