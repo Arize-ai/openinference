@@ -936,44 +936,69 @@ def _get_tool_definitions(attributes: Mapping[str, AttributeValue]) -> List[Dict
 
 
 def _normalize_tool_definition(tool_definition: Any) -> Optional[Dict[str, Any]]:
-    if isinstance(tool_definition, str):
-        parsed_definition = _maybe_parse_json(tool_definition)
-        if parsed_definition is None:
-            return None
-        tool_definition = parsed_definition
+    """Normalize recognized provider tool definitions to the OTel GenAI shape.
 
+    Unknown provider shapes are preserved so conversion remains lossless.
+    """
+    if isinstance(tool_definition, str):
+        tool_definition = _maybe_parse_json(tool_definition)
     if not isinstance(tool_definition, Mapping):
         return None
-
-    if ToolAttributes.TOOL_JSON_SCHEMA in tool_definition:
+    if _is_oi_tool_definition(tool_definition):
         return _normalize_tool_definition(tool_definition[ToolAttributes.TOOL_JSON_SCHEMA])
+    return _normalize_provider_tool_definition(tool_definition)
 
-    raw_definition = dict(tool_definition)
 
-    if function_definition := raw_definition.get("function"):
-        if isinstance(function_definition, Mapping):
-            normalized_tool: Dict[str, Any] = {
-                "type": _as_optional_str(raw_definition.get("type"))
-                or GenAIToolTypeValues.FUNCTION.value,
-                "name": _as_optional_str(function_definition.get("name")),
-            }
-            if description := _as_optional_str(function_definition.get("description")):
-                normalized_tool["description"] = description
-            if parameters := function_definition.get("parameters"):
-                normalized_tool["parameters"] = parameters
-            return {key: value for key, value in normalized_tool.items() if value is not None}
+def _is_oi_tool_definition(tool_definition: Mapping[str, Any]) -> bool:
+    return ToolAttributes.TOOL_JSON_SCHEMA in tool_definition
 
-    if raw_definition.get("input_schema") is not None and raw_definition.get("parameters") is None:
-        raw_definition["parameters"] = raw_definition.pop("input_schema")
 
-    if raw_definition.get("type") is None and (
-        raw_definition.get("name") is not None
-        or raw_definition.get("parameters") is not None
-        or raw_definition.get("description") is not None
-    ):
-        raw_definition["type"] = GenAIToolTypeValues.FUNCTION.value
+def _normalize_provider_tool_definition(tool_definition: Mapping[str, Any]) -> Dict[str, Any]:
+    if _is_openai_tool_definition(tool_definition):
+        return _normalize_openai_tool_definition(tool_definition)
+    if _is_anthropic_tool_definition(tool_definition):
+        return _normalize_anthropic_tool_definition(tool_definition)
+    return _with_default_tool_type(dict(tool_definition))
 
-    return raw_definition
+
+def _is_openai_tool_definition(tool_definition: Mapping[str, Any]) -> bool:
+    function_definition = tool_definition.get("function")
+    return bool(function_definition) and isinstance(function_definition, Mapping)
+
+
+def _is_anthropic_tool_definition(tool_definition: Mapping[str, Any]) -> bool:
+    return (
+        tool_definition.get("input_schema") is not None
+        and tool_definition.get("parameters") is None
+    )
+
+
+def _normalize_openai_tool_definition(tool_definition: Mapping[str, Any]) -> Dict[str, Any]:
+    function_definition = tool_definition["function"]
+    normalized: Dict[str, Any] = {
+        "type": _as_optional_str(tool_definition.get("type")) or GenAIToolTypeValues.FUNCTION.value,
+        "name": _as_optional_str(function_definition.get("name")),
+    }
+    if description := _as_optional_str(function_definition.get("description")):
+        normalized["description"] = description
+    if parameters := function_definition.get("parameters"):
+        normalized["parameters"] = parameters
+    return {key: value for key, value in normalized.items() if value is not None}
+
+
+def _normalize_anthropic_tool_definition(tool_definition: Mapping[str, Any]) -> Dict[str, Any]:
+    normalized = dict(tool_definition)
+    normalized["parameters"] = normalized.pop("input_schema")
+    return _with_default_tool_type(normalized)
+
+
+def _with_default_tool_type(tool_definition: Dict[str, Any]) -> Dict[str, Any]:
+    has_tool_fields = any(
+        tool_definition.get(field) is not None for field in ("name", "parameters", "description")
+    )
+    if tool_definition.get("type") is None and has_tool_fields:
+        tool_definition["type"] = GenAIToolTypeValues.FUNCTION.value
+    return tool_definition
 
 
 def _get_tool_call_arguments(attributes: Mapping[str, AttributeValue]) -> Optional[str]:

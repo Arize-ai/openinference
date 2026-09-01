@@ -24,6 +24,7 @@ from openinference.instrumentation._genai_attributes import (
     GenAIToolTypeValues,
 )
 from openinference.instrumentation._genai_conversion import (
+    _normalize_tool_definition,
     get_genai_attributes,
     get_genai_base_attributes,
 )
@@ -31,6 +32,7 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
 )
 
 # OTel GenAI semconv JSON schemas (v1.41.1) vendored at tests/fixtures/genai_schemas/.
@@ -220,6 +222,88 @@ def test_get_genai_attributes_maps_llm_chat_attributes() -> None:
             },
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("tool_definition", "expected"),
+    [
+        pytest.param(
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the weather",
+                    "parameters": {},
+                },
+            },
+            {
+                "type": "function",
+                "name": "get_weather",
+                "description": "Get the weather",
+            },
+            id="openai",
+        ),
+        pytest.param(
+            {
+                "name": "get_weather",
+                "description": "Get the weather",
+                "input_schema": {},
+            },
+            {
+                "type": "function",
+                "name": "get_weather",
+                "description": "Get the weather",
+                "parameters": {},
+            },
+            id="anthropic",
+        ),
+        pytest.param(
+            {
+                "name": "get_weather",
+                "description": "Get the weather",
+                "parameters": {"type": "object"},
+            },
+            {
+                "type": "function",
+                "name": "get_weather",
+                "description": "Get the weather",
+                "parameters": {"type": "object"},
+            },
+            id="normalized",
+        ),
+        pytest.param(
+            {"toolSpec": {"name": "get_weather", "inputSchema": {"json": {}}}},
+            {"toolSpec": {"name": "get_weather", "inputSchema": {"json": {}}}},
+            id="unknown-provider",
+        ),
+    ],
+)
+def test_normalize_tool_definition_by_provider_shape(
+    tool_definition: Dict[str, Any],
+    expected: Dict[str, Any],
+) -> None:
+    assert _normalize_tool_definition(tool_definition) == expected
+
+
+def test_normalize_tool_definition_unwraps_openinference_tool_bucket() -> None:
+    tool_definition = {
+        ToolAttributes.TOOL_JSON_SCHEMA: json.dumps(
+            {
+                "type": "function",
+                "function": {"name": "get_weather", "parameters": {"type": "object"}},
+            }
+        )
+    }
+
+    assert _normalize_tool_definition(tool_definition) == {
+        "type": "function",
+        "name": "get_weather",
+        "parameters": {"type": "object"},
+    }
+
+
+def test_normalize_tool_definition_rejects_invalid_json() -> None:
+    assert _normalize_tool_definition("not JSON") is None
 
 
 def test_get_genai_attributes_maps_text_completion_prompts_and_choices() -> None:
