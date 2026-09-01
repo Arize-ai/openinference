@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.49...python-openinference-instrumentation-bedrock-v0.1.50) (2026-09-01)
+
+
+### Features
+
+* **bedrock:** capture LLM finish reasons ([#3631](https://github.com/Arize-ai/openinference/issues/3631)) ([544f49b](https://github.com/Arize-ai/openinference/commit/544f49b8aff4402c011f149251a20cac18e37e3b))
+
 ## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.48...python-openinference-instrumentation-bedrock-v0.1.49) (2026-08-31)
 
 

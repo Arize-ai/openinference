@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.59...python-openinference-instrumentation-v0.1.60) (2026-09-01)
+
+
+### Features
+
+* add explicit name and description for advertised LLM tools ([#3630](https://github.com/Arize-ai/openinference/issues/3630)) ([0101ec1](https://github.com/Arize-ai/openinference/commit/0101ec1661dbdbb80d85b961826e3eae1d45a900))
+
 ## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.58...python-openinference-instrumentation-v0.1.59) (2026-08-25)
 
 
