@@ -294,6 +294,7 @@ class TestImageAttributes:
         attributes = _get_attributes(ImageAttributes)
         assert _nested_dict(attributes) == {
             "image": {
+                "mime_type": ImageAttributes.IMAGE_MIME_TYPE,
                 "url": ImageAttributes.IMAGE_URL,
             }
         }

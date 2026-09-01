@@ -215,9 +215,10 @@ const (
 	MessageContentEncryptedContent = "message_content.encrypted_content"
 )
 
-// Image attributes — nested under MessageContentImage.
+// Image attributes — nested under MessageContentImage, InputImages or OutputImages.
 const (
-	ImageURL = "image.url"
+	ImageURL      = "image.url"
+	ImageMimeType = "image.mime_type"
 )
 
 // Audio attributes.

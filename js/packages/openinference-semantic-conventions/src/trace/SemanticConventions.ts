@@ -108,6 +108,7 @@ export const MessageContentsAttributePostfixes = {
 
 export const ImageAttributesPostfixes = {
   url: "url",
+  mime_type: "mime_type",
 } as const;
 
 export const VideoAttributesPostfixes = {
@@ -218,10 +219,18 @@ export const EVALUATION_METADATA =
 export const INPUT_VALUE = `${SemanticAttributePrefixes.input}.value` as const;
 export const INPUT_MIME_TYPE = `${SemanticAttributePrefixes.input}.mime_type` as const;
 /**
+ * Images that are inputs to any span, flattened as input.images.0.image.url
+ */
+export const INPUT_IMAGES = `${SemanticAttributePrefixes.input}.images` as const;
+/**
  * The output of any span
  */
 export const OUTPUT_VALUE = `${SemanticAttributePrefixes.output}.value` as const;
 export const OUTPUT_MIME_TYPE = `${SemanticAttributePrefixes.output}.mime_type` as const;
+/**
+ * Images produced by any span, flattened as output.images.0.image.url
+ */
+export const OUTPUT_IMAGES = `${SemanticAttributePrefixes.output}.images` as const;
 /**
  * The messages sent to the LLM for completions
  * Typically seen in OpenAI chat completions
@@ -553,6 +562,12 @@ export const IMAGE_URL =
 export const VIDEO_URL =
   `${SemanticAttributePrefixes.video}.${VideoAttributesPostfixes.url}` as const;
 
+/**
+ * The mime type of the image, for urls that do not carry it inline
+ */
+export const IMAGE_MIME_TYPE =
+  `${SemanticAttributePrefixes.image}.${ImageAttributesPostfixes.mime_type}` as const;
+
 export const DOCUMENT_ID =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.id}` as const;
 
@@ -787,10 +802,13 @@ export const SemanticConventions = {
   EVALUATION_METADATA,
   IMAGE_URL,
   VIDEO_URL,
+  IMAGE_MIME_TYPE,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
+  INPUT_IMAGES,
   OUTPUT_VALUE,
   OUTPUT_MIME_TYPE,
+  OUTPUT_IMAGES,
   LLM_INPUT_MESSAGES,
   LLM_OUTPUT_MESSAGES,
   LLM_MODEL_NAME,
