@@ -144,7 +144,7 @@ def _test_openai_agent_and_llm_spans(
 
 def _concatenated_instructions(message_content: Optional[AttributeValue]) -> List[str]:
     """Recover an agent's instructions from the single system message pydantic-ai joins
-    them into, whose separator has changed across releases."""
+    them into."""
     assert isinstance(message_content, str)
     return [line for line in message_content.splitlines() if line]
 
