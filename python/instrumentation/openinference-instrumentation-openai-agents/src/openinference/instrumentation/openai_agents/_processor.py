@@ -880,11 +880,15 @@ def _get_attributes_from_reasoning_item(
 def _map_finish_reason(status: Optional[str], incomplete_reason: Optional[str]) -> Optional[str]:
     """
     Map a Responses API status and incomplete reason to a single OpenInference finish reason.
+
+    The more specific ``incomplete_details.reason`` (e.g. ``max_output_tokens``) takes
+    precedence over the coarse ``status`` so that truncation is reported as ``length``
+    rather than ``incomplete``.
     """
-    if status:
-        return _STATUS_TO_FINISH_REASON.get(status, status)
     if incomplete_reason:
         return _INCOMPLETE_REASON_TO_FINISH_REASON.get(incomplete_reason, incomplete_reason)
+    if status:
+        return _STATUS_TO_FINISH_REASON.get(status, status)
     return None
 
 
