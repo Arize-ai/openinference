@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -2064,3 +2065,49 @@ def test_no_spans_when_tracing_suppressed(
 
     # No spans should have been exported (the AUDIO/USER spans remain open).
     assert in_memory_span_exporter.get_finished_spans() == ()
+
+
+@pytest.mark.parametrize(
+    "raw_status,expected_finish_reason",
+    [
+        ("completed", "stop"),
+        ("cancelled", "cancelled"),
+        ("failed", "error"),
+        ("incomplete", "incomplete"),
+    ],
+)
+def test_response_done_status_sets_llm_finish_reason(
+    raw_status: str,
+    expected_finish_reason: str,
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    state = _state(tracer_provider)
+    state.on_speech_started("item-1")
+    state.on_user_transcript_completed("item-1", "hi")
+    _dispatch_raw(
+        state,
+        _raw_event(
+            {"type": "response.created", "response": {"id": "response-1", "model": "gpt-realtime"}}
+        ),
+    )
+    state.on_asst_transcript_done("response-1", "hello")
+    _dispatch_raw(
+        state,
+        _raw_event(
+            {
+                "type": "response.done",
+                "response": {
+                    "id": "response-1",
+                    "model": "gpt-realtime",
+                    "status": raw_status,
+                    "output": [],
+                },
+            }
+        ),
+    )
+    state.on_session_close()
+
+    llm_spans = _spans_by_kind(in_memory_span_exporter)[OpenInferenceSpanKindValues.LLM.value]
+    assert len(llm_spans) == 1
+    assert llm_spans[0].attributes.get(SpanAttributes.LLM_FINISH_REASON) == expected_finish_reason

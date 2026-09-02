@@ -68,6 +68,20 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 
+# Responses API status to OpenInference finish reason mapping.
+_STATUS_TO_FINISH_REASON = {
+    "completed": "stop",
+    "failed": "error",
+    "cancelled": "cancelled",
+    "incomplete": "incomplete",
+}
+
+# Responses API incomplete reason to OpenInference finish reason mapping.
+_INCOMPLETE_REASON_TO_FINISH_REASON = {
+    "max_output_tokens": "length",
+    "content_filter": "content_filter",
+}
+
 
 class OpenInferenceTracingProcessor(TracingProcessor):
     _MAX_HANDOFFS_IN_FLIGHT = 1000
@@ -653,6 +667,11 @@ def _get_attributes_from_response(obj: Response) -> Iterator[tuple[str, Attribut
     else:
         pass  # TODO: handle list instructions
     yield LLM_MODEL_NAME, obj.model
+    incomplete_reason = None
+    if (incomplete_details := getattr(obj, "incomplete_details", None)) is not None:
+        incomplete_reason = getattr(incomplete_details, "reason", None)
+    if finish_reason := _map_finish_reason(getattr(obj, "status", None), incomplete_reason):
+        yield LLM_FINISH_REASON, finish_reason
     param = obj.model_dump(
         exclude_none=True,
         exclude={"object", "tools", "usage", "output", "error", "status"},
@@ -858,6 +877,17 @@ def _get_attributes_from_reasoning_item(
         yield f"{content_prefix}{MESSAGE_CONTENT_ID}", obj.id
 
 
+def _map_finish_reason(status: Optional[str], incomplete_reason: Optional[str]) -> Optional[str]:
+    """
+    Map a Responses API status and incomplete reason to a single OpenInference finish reason.
+    """
+    if status:
+        return _STATUS_TO_FINISH_REASON.get(status, status)
+    if incomplete_reason:
+        return _INCOMPLETE_REASON_TO_FINISH_REASON.get(incomplete_reason, incomplete_reason)
+    return None
+
+
 def _get_span_status(obj: Span[Any]) -> Status:
     if error := getattr(obj, "error", None):
         return Status(
@@ -872,6 +902,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM

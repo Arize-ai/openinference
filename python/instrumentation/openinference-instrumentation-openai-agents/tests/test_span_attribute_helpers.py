@@ -1408,6 +1408,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "stop",
                 "llm.output_messages.0.message.content": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
@@ -1454,6 +1455,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "incomplete",
             },
             id="incomplete_response",
         ),
@@ -1480,6 +1482,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "stop",
             },
             id="minimal_response",
         ),
@@ -1510,6 +1513,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "error",
             },
             id="error_response",
         ),
@@ -1605,6 +1609,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "stop",
                 "llm.output_messages.0.message.content": "Hi\nI cannot help with that",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
