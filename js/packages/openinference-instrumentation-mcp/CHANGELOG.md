@@ -1,5 +1,71 @@
 # @arizeai/openinference-instrumentation-mcp
 
+## 0.2.29
+
+### Patch Changes
+
+- Updated dependencies [4d72f42]
+  - @arizeai/openinference-core@2.6.1
+
+## 0.2.28
+
+### Patch Changes
+
+- Updated dependencies [99f6e71]
+  - @arizeai/openinference-core@2.6.0
+
+## 0.2.27
+
+### Patch Changes
+
+- Updated dependencies [0071b37]
+  - @arizeai/openinference-core@2.5.4
+
+## 0.2.26
+
+### Patch Changes
+
+- 3e25f67: Bump @opentelemetry/core to ^2.8.0 to address the W3C Baggage denial-of-service security advisory.
+
+## 0.2.25
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+
+## 0.2.24
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+
+## 0.2.23
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 0.2.22
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 0.2.21
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
 ## 0.2.20
 
 ### Patch Changes

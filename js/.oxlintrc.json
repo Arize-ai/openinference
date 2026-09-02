@@ -13,6 +13,7 @@
     "typescript/prefer-ts-expect-error": "error",
     "typescript/consistent-type-imports": "error",
     "eqeqeq": ["error", "smart"],
+    "eslint/complexity": "error",
     "eslint/prefer-const": "error",
     "eslint/no-implicit-coercion": ["error", { "boolean": false, "number": true, "string": false }],
     "typescript/no-unused-vars": [
@@ -24,14 +25,14 @@
       }
     ],
     "typescript/consistent-return": "warn",
-    "typescript/no-unsafe-type-assertion": "warn",
+    "typescript/no-unsafe-type-assertion": "error",
     "typescript/prefer-reduce-type-parameter": "warn",
-    "typescript/no-floating-promises": "warn",
-    "typescript/unbound-method": "warn",
-    "typescript/restrict-template-expressions": "warn",
-    "typescript/no-base-to-string": "warn",
-    "typescript/no-redundant-type-constituents": "warn",
-    "typescript/no-useless-default-assignment": "warn"
+    "typescript/no-floating-promises": "error",
+    "typescript/unbound-method": "error",
+    "typescript/restrict-template-expressions": "error",
+    "typescript/no-base-to-string": "error",
+    "typescript/no-redundant-type-constituents": "error",
+    "typescript/no-useless-default-assignment": "error"
   },
   "overrides": [
     {
@@ -40,6 +41,12 @@
         "typescript/no-explicit-any": "off",
         "typescript/no-unsafe-type-assertion": "off",
         "no-console": "off"
+      }
+    },
+    {
+      "files": ["packages/openinference-genai/src/__generated__/**/*.ts"],
+      "rules": {
+        "typescript/no-redundant-type-constituents": "off"
       }
     }
   ],

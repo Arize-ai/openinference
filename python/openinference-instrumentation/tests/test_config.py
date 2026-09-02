@@ -272,6 +272,20 @@ def test_settings_from_env_vars_and_code(
         ),
         (
             "hide_llm_tools",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_NAME}",
+            "get_weather",
+            None,
+        ),
+        (
+            "hide_llm_tools",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_DESCRIPTION}",
+            "Get the weather",
+            None,
+        ),
+        (
+            "hide_llm_tools",
             None,
             f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}",
             "{'type': 'function', 'function': {'name': 'get_weather'}}",
@@ -282,6 +296,20 @@ def test_settings_from_env_vars_and_code(
             True,
             f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}",
             "{'type': 'function', 'function': {'name': 'get_weather'}}",
+            None,
+        ),
+        (
+            "hide_inputs",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_NAME}",
+            "get_weather",
+            None,
+        ),
+        (
+            "hide_inputs",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_DESCRIPTION}",
+            "Get the weather",
             None,
         ),
     ],
@@ -295,7 +323,7 @@ def test_trace_config(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    config = TraceConfig(**({} if param_value is None else {param: param_value}))
+    config = TraceConfig(**({} if param_value is None else {param: param_value}))  # type: ignore[arg-type]
     tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
     tracer.start_span("test", attributes={attr_key: attr_value}).end()
     span = in_memory_span_exporter.get_finished_spans()[0]

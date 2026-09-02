@@ -12,7 +12,7 @@
 
 OpenInference is a set of conventions and plugins that is complimentary to [OpenTelemetry](https://opentelemetry.io/) to
 enable tracing of AI applications. OpenInference is natively supported
-by [Arize Phoenix](https://github.com/Arize-ai/phoenix) and [Arize AX](https://arize.com/docs/ax), but can be used with any OpenTelemetry-compatible backend as
+by [Arize Phoenix](https://github.com/Arize-ai/phoenix) and [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), but can be used with any OpenTelemetry-compatible backend as
 well.
 
 ## Specification
@@ -36,6 +36,7 @@ languages.
 | [`openinference-semantic-conventions`](./python/openinference-semantic-conventions)                                           | Semantic conventions for tracing of LLM Apps.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)                           |
 | [`openinference-instrumentation`](./python/openinference-instrumentation)                                                     | Reusable utilities, decorators, configurations, and helpers for instrumentation. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation.svg)](https://pypi.python.org/pypi/openinference-instrumentation)                                     |
 | [`openinference-instrumentation-agno`](./python/instrumentation/openinference-instrumentation-agno)                           | OpenInference Instrumentation for Agno Agents.                                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-agno.svg)](https://pypi.python.org/pypi/openinference-instrumentation-agno)                           |
+| [`openinference-instrumentation-ag2`](./python/instrumentation/openinference-instrumentation-ag2)                             | OpenInference Instrumentation for AG2.                                           | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-ag2.svg)](https://pypi.python.org/pypi/openinference-instrumentation-ag2)                             |
 | [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai)                       | OpenInference Instrumentation for OpenAI SDK.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai)                       |
 | [`openinference-instrumentation-openai-agents`](./python/instrumentation/openinference-instrumentation-openai-agents)         | OpenInference Instrumentation for OpenAI Agents SDK.                             | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai-agents.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai-agents)         |
 | [`openinference-instrumentation-claude-agent-sdk`](./python/instrumentation/openinference-instrumentation-claude-agent-sdk)   | OpenInference Instrumentation for Claude Agent SDK.                             | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-claude-agent-sdk.svg)](https://pypi.python.org/pypi/openinference-instrumentation-claude-agent-sdk)         |
@@ -63,6 +64,9 @@ languages.
 | [`openinference-instrumentation-pipecat`](./python/instrumentation/openinference-instrumentation-pipecat)                     | OpenInference Instrumentation for Pipecat.                                       | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-pipecat.svg)](https://pypi.python.org/pypi/openinference-instrumentation-pipecat)                     |
 | [`openinference-instrumentation-agentspec`](./python/instrumentation/openinference-instrumentation-agentspec)                 | OpenInference Instrumentation for Open Agent Specification.                      | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-agentspec.svg)](https://pypi.python.org/pypi/openinference-instrumentation-agentspec)                 |
 | [`openinference-instrumentation-strands-agents`](./python/instrumentation/openinference-instrumentation-strands-agents)       | OpenInference Instrumentation for Strands Agents.                                | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-strands-agents.svg)](https://pypi.python.org/pypi/openinference-instrumentation-strands-agents)       |
+| [`openinference-instrumentation-together`](./python/instrumentation/openinference-instrumentation-together)                   | OpenInference Instrumentation for Together AI.                                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-together.svg)](https://pypi.python.org/pypi/openinference-instrumentation-together)                   |
+| [`openinference-instrumentation-ollama`](./python/instrumentation/openinference-instrumentation-ollama)                       | OpenInference Instrumentation for Ollama.                                        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-ollama.svg)](https://pypi.python.org/pypi/openinference-instrumentation-ollama)                       |
+| [`openinference-instrumentation-cohere`](./python/instrumentation/openinference-instrumentation-cohere)                       | OpenInference Instrumentation for Cohere.                                        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-cohere.svg)](https://pypi.python.org/pypi/openinference-instrumentation-cohere)                       |
 
 ## Span Processors
 
@@ -89,13 +93,17 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [LiteLLM](python/instrumentation/openinference-instrumentation-litellm/)                              | A lightweight LiteLLM framework                                                              | Beginner         |
 | [LiteLLM Proxy](python/instrumentation/openinference-instrumentation-litellm/examples/litellm-proxy/) | LiteLLM Proxy to log OpenAI, Azure, Vertex, Bedrock                                          | Beginner         |
 | [Groq](python/instrumentation/openinference-instrumentation-groq/examples/)                           | Groq and AsyncGroq chat completions                                                          | Beginner         |
+| [Together AI](python/instrumentation/openinference-instrumentation-together/examples/)                | Together and AsyncTogether chat completions, streaming, and tool calls                       | Beginner         |
 | [Anthropic](python/instrumentation/openinference-instrumentation-anthropic/examples/)                 | Anthropic Messages client                                                                    | Beginner         |
 | [BeeAI](python/instrumentation/openinference-instrumentation-beeai/examples/)                         | Agentic instrumentation in the BeeAI framework                                               | Beginner         |
 | [Haystack](python/instrumentation/openinference-instrumentation-haystack/examples/)                   | A Haystack QA RAG application                                                                | Intermediate     |
 | [OpenAI Agents](python/instrumentation/openinference-instrumentation-openai-agents/examples/)         | OpenAI Agents with handoffs                                                                  | Intermediate     |
 | [Autogen AgentChat](python/instrumentation/openinference-instrumentation-autogen-agentchat/examples/) | Microsoft Autogen Assistant Agent and Team Chat                                              | Intermediate     |
+| [AG2](python/instrumentation/openinference-instrumentation-ag2/examples/)                             | AG2 tool calling, group chats, and sequential chats                                          | Intermediate     |
 | [PydanticAI](python/instrumentation/openinference-instrumentation-pydantic-ai/examples/)              | PydanticAI agent examples                                                                    | Intermediate     |
 | [Pipecat](python/instrumentation/openinference-instrumentation-pipecat/examples/)                     | Pipecat application examples                                                                 | Intermediate     |
+| [Ollama](python/instrumentation/openinference-instrumentation-ollama/examples/)                       | Ollama chat, streaming, and tool calls                                                       | Beginner         |
+| [Cohere](python/instrumentation/openinference-instrumentation-cohere/examples/)                       | Cohere ClientV2 chat completions                                                             | Beginner         |
 
 ## JavaScript
 
@@ -153,14 +161,14 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`openinference-instrumentation-anthropic-sdk-go`](./go/openinference-instrumentation-anthropic-sdk-go) | OpenInference Instrumentation for the Anthropic Go SDK (`anthropics/anthropic-sdk-go`). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-anthropic-sdk-go` |
 | [`openinference-instrumentation-openai-go`](./go/openinference-instrumentation-openai-go) | OpenInference Instrumentation for the official OpenAI Go SDK ([`openai/openai-go`](https://github.com/openai/openai-go)). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-openai-go` |
 
-Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to [Arize AX](https://arize.com/docs/ax), or wire up any OTel exporter (e.g. [Phoenix](https://github.com/Arize-ai/phoenix) at `http://localhost:6006/v1/traces`).
+Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), or wire up any OTel exporter (e.g. [Phoenix](https://github.com/Arize-ai/phoenix) at `http://localhost:6006/v1/traces`).
 
 ## Supported Destinations
 
 OpenInference supports the following destinations as span collectors.
 
 - ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
-- ✅ [Arize AX](https://arize.com/docs/ax)
+- ✅ [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 - ✅ Any OTEL-compatible collector
 
 ## Community

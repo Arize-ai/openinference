@@ -318,7 +318,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
         }
 
         this.onmessage = (...args) => {
-          const message = args[0] as JSONRPCRequest;
+          const message = args[0];
           if (!MCPInstrumentation._isJSONRPCRequest(message)) {
             return onmessage.apply(this, args);
           }

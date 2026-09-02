@@ -5,7 +5,7 @@
  * custom types for structures not exposed by the SDK.
  */
 
-import {
+import type {
   // Core content and message types from SDK
   ContentBlock,
   ContentBlockDelta,
@@ -36,7 +36,7 @@ import { diag } from "@opentelemetry/api";
 import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 
 // Re-export AWS SDK types for convenience
-export {
+export type {
   ContentBlock,
   Message,
   SystemContentBlock,
@@ -191,7 +191,8 @@ export interface ToolUseContent {
   type: "tool_use";
   id: string;
   name: string;
-  input: Record<string, unknown>;
+  /** Parsed tool arguments — usually an object, but providers may emit any JSON value. */
+  input: unknown;
 }
 
 /** Tool result content used by legacy InvokeModel APIs. */
@@ -437,13 +438,12 @@ export type NormalizedConverseStreamEvent =
     };
 
 /**
- * Normalizes raw Converse streaming events into a discriminated union.
- * Handles both structured SDK events and raw-wire events.
+ * Normalizes the structured Converse streaming events emitted by the AWS SDK.
+ * @returns The normalized event, or undefined if the event is not a structured one.
  */
-export function toNormalizedConverseStreamEvent(
+function toStructuredConverseStreamEvent(
   e: ConverseStreamEventData,
 ): NormalizedConverseStreamEvent | undefined {
-  // Structured SDK events
   if (e.messageStart) return { kind: "messageStart" };
   if (e.messageStop) return { kind: "messageStop", stopReason: e.messageStop.stopReason };
   if (e.contentBlockDelta?.delta?.text)
@@ -463,8 +463,16 @@ export function toNormalizedConverseStreamEvent(
       contentBlockIndex: e.contentBlockDelta.contentBlockIndex,
     };
   }
+  return undefined;
+}
 
-  // Raw wire events
+/**
+ * Normalizes the raw-wire Converse streaming events that expose a `type` discriminator.
+ * @returns The normalized event, or undefined if the event is not a raw-wire one.
+ */
+function toRawWireConverseStreamEvent(
+  e: ConverseStreamEventData,
+): NormalizedConverseStreamEvent | undefined {
   if (e.type === "content_block_delta" && e.delta?.type === "text_delta" && e.delta.text) {
     return { kind: "textDelta", text: e.delta.text };
   }
@@ -493,7 +501,22 @@ export function toNormalizedConverseStreamEvent(
       },
     };
   }
+  return undefined;
+}
+
+/**
+ * Normalizes raw Converse streaming events into a discriminated union.
+ * Handles both structured SDK events and raw-wire events.
+ */
+export function toNormalizedConverseStreamEvent(
+  e: ConverseStreamEventData,
+): NormalizedConverseStreamEvent | undefined {
+  const normalized = toStructuredConverseStreamEvent(e) ?? toRawWireConverseStreamEvent(e);
+  if (normalized != null) {
+    return normalized;
+  }
 
   // Exhaustive warning for unexpected/unhandled event shape
   diag.warn("Encountered unexpected Converse stream event shape; dropping.", e);
+  return undefined;
 }

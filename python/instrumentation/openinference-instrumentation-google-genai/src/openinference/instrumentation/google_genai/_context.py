@@ -17,7 +17,10 @@ from typing import Any, Callable, Iterator, Mapping
 from opentelemetry import context as context_api
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import TraceConfig, safe_json_dumps
+from openinference.instrumentation.google_genai._image_utils import (
+    redact_images_from_request_parameters,
+)
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     SpanAttributes,
@@ -73,12 +76,20 @@ def get_captured_request() -> dict[str, Any] | None:
     return request if isinstance(request, dict) else None
 
 
-def get_input_attributes() -> Iterator[tuple[str, AttributeValue]]:
+def get_input_attributes(
+    config: TraceConfig | None = None,
+) -> Iterator[tuple[str, AttributeValue]]:
     """Read captured request and yield input value/mime type attributes."""
     request = _captured_request.get(None)
     if not isinstance(request, dict):
         return
     try:
+        if config is not None:
+            request = redact_images_from_request_parameters(
+                request,
+                hide_input_images=bool(config.hide_input_images),
+                base64_image_max_length=int(config.base64_image_max_length or 0),
+            )
         json_str = safe_json_dumps(request)
         yield SpanAttributes.INPUT_VALUE, json_str
         yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
@@ -109,8 +120,14 @@ def get_tool_attributes() -> Iterator[tuple[str, AttributeValue]]:
                         schema["name"] = func_decl["name"]
                     if "description" in func_decl:
                         schema["description"] = func_decl["description"]
+                    # google-genai >= 2.x populates ``parameters_json_schema`` (standard
+                    # JSON Schema) for auto-generated declarations, while the older Gemini
+                    # ``parameters`` field uses the proprietary Schema format. Prefer the
+                    # explicit ``parameters`` field, falling back to the JSON Schema one.
                     if "parameters" in func_decl:
                         schema["parameters"] = func_decl["parameters"]
+                    elif "parameters_json_schema" in func_decl:
+                        schema["parameters"] = func_decl["parameters_json_schema"]
                     yield (
                         f"{SpanAttributes.LLM_TOOLS}.{tool_index}.{ToolAttributes.TOOL_JSON_SCHEMA}",
                         safe_json_dumps(schema),

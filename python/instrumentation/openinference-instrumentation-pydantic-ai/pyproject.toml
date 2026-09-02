@@ -28,15 +28,15 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions>=0.54b1",
-  "openinference-instrumentation>=0.1.51",
-  "openinference-semantic-conventions>=0.1.17",
+  "openinference-instrumentation>=0.1.59",
+  "openinference-semantic-conventions>=0.1.33",
   "typing-extensions",
   "wrapt",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "pydantic-ai>=0.7.5",
+  "pydantic-ai>=2.24.0",
 ]
 
 [project.urls]

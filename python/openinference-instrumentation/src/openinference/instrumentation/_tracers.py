@@ -60,6 +60,7 @@ from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
+    mask_without_externalization,
 )
 from .context_attributes import get_attributes_from_context
 
@@ -209,10 +210,17 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         This ensures samplers don't see sensitive data that should be masked
         according to the TraceConfig, while maintaining the same masking logic
         as OpenInferenceSpan.
+
+        Masking runs with ``externalize=False`` — a pure view with no side
+        effects — because this happens before the suppression check and
+        before the sampler: blob uploads must not fire for suppressed or
+        sampled-out spans, and must not run twice for sampled-in spans
+        (the real, uploader-enabled masking happens exactly once in
+        ``OpenInferenceSpan.set_attribute`` after the span exists).
         """
         masked_attributes = {}
         for key, value in attributes.items():
-            masked_value = self._self_config.mask(key, value)
+            masked_value = mask_without_externalization(self._self_config, key, value)
             if masked_value is not None:
                 masked_attributes[key] = masked_value
         return masked_attributes

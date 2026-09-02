@@ -2,13 +2,15 @@
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-pydantic-ai.svg)](https://pypi.org/project/openinference-instrumentation-pydantic-ai/)
 
-Python auto-instrumentation library for PydanticAI. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/docs/ax).
+Python auto-instrumentation library for PydanticAI. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
 ## Installation
 
 ```shell
 pip install openinference-instrumentation-pydantic-ai
 ```
+
+Requires Pydantic AI 2.24.0 or newer.
 
 ## Quickstart
 
@@ -17,7 +19,7 @@ This quickstart shows you how to instrument your PydanticAI agents.
 Install required packages.
 
 ```shell
-pip install pydantic-ai arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install "pydantic-ai>=2.24.0" arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 Start Phoenix in the background as a collector. By default, it listens on `http://localhost:6006`. You can visit the app via a browser at the same address. (Phoenix does not send data over the internet. It only operates locally on your machine.)
@@ -83,6 +85,6 @@ The traces will be visible in the Phoenix UI at `http://localhost:6006`.
 ## More Info
 
 -   [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
--   [More info on OpenInference and Arize AX](https://arize.com/docs/ax)
+-   [More info on OpenInference and Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 -   [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 -   [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

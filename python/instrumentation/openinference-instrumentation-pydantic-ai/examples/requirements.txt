@@ -1,3 +1,5 @@
+pydantic-ai>=2.24.0
+openinference-instrumentation-pydantic-ai
 opentelemetry-sdk
 opentelemetry-exporter-otlp
-pydantic-ai
+opentelemetry-instrumentation-httpx

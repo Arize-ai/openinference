@@ -6,7 +6,7 @@ import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-c
 
 import { parseSanitizedJson } from "../utils/jsonUtils";
 import { getStringAttributeValueFromUnknown } from "./attributeExtractionUtils";
-import type { DocumentReference, Message, TokenCount } from "./types";
+import type { DocumentReference, Message, MessageContent, TokenCount, ToolCall } from "./types";
 
 /**
  * Utility functions for extracting input and output attributes from a text.
@@ -289,6 +289,118 @@ export function getLLMProviderAttributes(provider: unknown): Attributes {
 }
 
 /**
+ * Writes the attributes for a single message content block onto {@link attributes}.
+ * @param params.attributes - The attributes object to write onto.
+ * @param params.baseKey - The `${messages}.${index}.message.contents.${index}` prefix to write under.
+ * @param params.contentBlock - The content block to extract from.
+ */
+function assignMessageContentBlockAttributes({
+  attributes,
+  baseKey,
+  contentBlock,
+}: {
+  attributes: Attributes;
+  baseKey: string;
+  contentBlock: MessageContent;
+}): void {
+  if (contentBlock.type !== undefined) {
+    attributes[`${baseKey}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = contentBlock.type;
+    if (typeof contentBlock.text === "string") {
+      attributes[`${baseKey}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = contentBlock.text;
+    }
+  }
+  if (
+    typeof contentBlock.image === "object" &&
+    contentBlock.image !== null &&
+    typeof contentBlock.image.url === "string"
+  ) {
+    attributes[
+      `${baseKey}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
+    ] = contentBlock.image.url;
+  }
+}
+
+/**
+ * Writes the attributes for a single tool call on a message onto {@link attributes}.
+ * @param params.attributes - The attributes object to write onto.
+ * @param params.baseKey - The `${messages}.${index}.message.tool_calls.${index}` prefix to write under.
+ * @param params.toolCall - The tool call to extract from.
+ */
+function assignMessageToolCallAttributes({
+  attributes,
+  baseKey,
+  toolCall,
+}: {
+  attributes: Attributes;
+  baseKey: string;
+  toolCall: ToolCall;
+}): void {
+  if (toolCall.id !== undefined) {
+    attributes[`${baseKey}.${SemanticConventions.TOOL_CALL_ID}`] = toolCall.id;
+  }
+  if (!isObjectWithStringKeys(toolCall.function)) {
+    return;
+  }
+  const func = toolCall.function;
+  if (typeof func.name === "string") {
+    attributes[`${baseKey}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = func.name;
+  }
+  if (typeof func.arguments === "string") {
+    attributes[`${baseKey}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+      func.arguments;
+  } else if (typeof func.arguments === "object" && func.arguments !== null) {
+    attributes[`${baseKey}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+      JSON.stringify(func.arguments);
+  }
+}
+
+/**
+ * Writes the attributes for a single input/output message onto {@link attributes}.
+ * @param params.attributes - The attributes object to write onto.
+ * @param params.baseKey - The `${messages}.${index}` prefix to write under.
+ * @param params.message - The message to extract from.
+ */
+function assignLLMMessageAttributes({
+  attributes,
+  baseKey,
+  message,
+}: {
+  attributes: Attributes;
+  baseKey: string;
+  message: Message;
+}): void {
+  if (message.role !== undefined) {
+    attributes[`${baseKey}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
+  }
+  if (message.content !== undefined) {
+    attributes[`${baseKey}.${SemanticConventions.MESSAGE_CONTENT}`] = message.content;
+  }
+  if (Array.isArray(message.contents)) {
+    message.contents.forEach((contentBlock, contentBlockIndex) => {
+      if (typeof contentBlock !== "object" || contentBlock === null) return;
+      assignMessageContentBlockAttributes({
+        attributes,
+        baseKey: `${baseKey}.${SemanticConventions.MESSAGE_CONTENTS}.${contentBlockIndex}`,
+        contentBlock,
+      });
+    });
+  }
+  if (typeof message.tool_call_id === "string") {
+    attributes[`${baseKey}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = message.tool_call_id;
+  }
+  if (Array.isArray(message.tool_calls)) {
+    message.tool_calls.forEach((toolCall, toolCallIndex) => {
+      if (typeof toolCall !== "object" || toolCall === null) return;
+      assignMessageToolCallAttributes({
+        attributes,
+        baseKey: `${baseKey}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`,
+        toolCall,
+      });
+    });
+  }
+}
+
+/**
  * Extracts message attributes for input/output messages, matching the Python _llm_messages_attributes logic.
  * Iterates over messages and extracts role, content, and content blocks if present.
  * @param messages - Array of message objects.
@@ -307,78 +419,10 @@ export function llmMessagesAttributes(
   if (!Array.isArray(messages)) {
     return attributes;
   }
-  for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
-    const message = messages[messageIndex];
-    if (typeof message !== "object" || message === null) continue;
-    if (message.role !== undefined) {
-      attributes[`${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_ROLE}`] = message.role;
-    }
-    if (message.content !== undefined) {
-      attributes[`${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENT}`] =
-        message.content;
-    }
-    if (Array.isArray(message.contents)) {
-      for (
-        let contentBlockIndex = 0;
-        contentBlockIndex < message.contents.length;
-        contentBlockIndex++
-      ) {
-        const contentBlock = message.contents[contentBlockIndex];
-        if (typeof contentBlock !== "object" || contentBlock === null) continue;
-        if (contentBlock.type !== undefined) {
-          attributes[
-            `${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentBlockIndex}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`
-          ] = contentBlock.type;
-          if (typeof contentBlock.text === "string") {
-            attributes[
-              `${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentBlockIndex}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
-            ] = contentBlock.text;
-          }
-        }
-        if (
-          typeof contentBlock.image === "object" &&
-          contentBlock.image !== null &&
-          typeof contentBlock.image.url === "string"
-        ) {
-          attributes[
-            `${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentBlockIndex}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
-          ] = contentBlock.image.url;
-        }
-      }
-    }
-    if (typeof message.tool_call_id === "string") {
-      attributes[`${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
-        message.tool_call_id;
-    }
-    if (Array.isArray(message.tool_calls)) {
-      for (let toolCallIndex = 0; toolCallIndex < message.tool_calls.length; toolCallIndex++) {
-        const toolCall = message.tool_calls[toolCallIndex];
-        if (typeof toolCall !== "object" || toolCall === null) continue;
-        if (toolCall.id !== undefined) {
-          attributes[
-            `${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_ID}`
-          ] = toolCall.id;
-        }
-        if (toolCall.function !== undefined && typeof toolCall.function === "object") {
-          const func = toolCall.function;
-          if (typeof func.name === "string") {
-            attributes[
-              `${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-            ] = func.name;
-          }
-          if (typeof func.arguments === "string") {
-            attributes[
-              `${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-            ] = func.arguments;
-          } else if (typeof func.arguments === "object" && func.arguments !== null) {
-            attributes[
-              `${baseKey}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-            ] = JSON.stringify(func.arguments);
-          }
-        }
-      }
-    }
-  }
+  messages.forEach((message, messageIndex) => {
+    if (typeof message !== "object" || message === null) return;
+    assignLLMMessageAttributes({ attributes, baseKey: `${baseKey}.${messageIndex}`, message });
+  });
   return attributes;
 }
 

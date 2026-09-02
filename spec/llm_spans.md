@@ -12,6 +12,8 @@ All LLM spans MUST include:
 
 LLM spans typically include:
 - `llm.model_name`: The specific model used (e.g., "gpt-4-0613")
+- `llm.request.model_name`: The model requested by the caller, when it can differ from the model that served the response (e.g., provider-side fallback)
+- `llm.response.model_name`: The model that actually generated the response, when it can differ from the requested model
 - `llm.invocation_parameters`: JSON string of parameters sent to the model
 - `input.value`: The raw input as a JSON string
 - `input.mime_type`: Usually "application/json"
@@ -43,7 +45,7 @@ Note that while the examples below show attributes in a nested JSON format for r
 
 - `llm.input_messages.0.message.role` instead of `llm.input_messages[0].message.role`
 - `llm.output_messages.0.message.tool_calls.0.tool_call.function.name` for nested tool calls
-- `llm.tools.0.tool.json_schema` for tool definitions
+- `llm.tools.0.tool.name`, `llm.tools.0.tool.description`, and `llm.tools.0.tool.json_schema` for tool definitions
 
 ## Tool Role Messages
 

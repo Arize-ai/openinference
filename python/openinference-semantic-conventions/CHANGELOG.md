@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.33...python-openinference-semantic-conventions-v0.1.34) (2026-09-01)
+
+
+### Features
+
+* add explicit name and description for advertised LLM tools ([#3630](https://github.com/Arize-ai/openinference/issues/3630)) ([0101ec1](https://github.com/Arize-ai/openinference/commit/0101ec1661dbdbb80d85b961826e3eae1d45a900))
+
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.32...python-openinference-semantic-conventions-v0.1.33) (2026-08-24)
+
+
+### Features
+
+* **semconv:** add llm.input_model_name and llm.output_model_name ([#3585](https://github.com/Arize-ai/openinference/issues/3585)) ([1fe497f](https://github.com/Arize-ai/openinference/commit/1fe497f1d9f45a07eee55d97fe185e020560f9c7))
+
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.31...python-openinference-semantic-conventions-v0.1.32) (2026-08-07)
+
+
+### Features
+
+* **ollama:** add Ollama instrumentor ([#3348](https://github.com/Arize-ai/openinference/issues/3348)) ([237ce2b](https://github.com/Arize-ai/openinference/commit/237ce2b413e89782ad93431d39581a1ee44cad95))
+
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.30...python-openinference-semantic-conventions-v0.1.31) (2026-08-01)
+
+
+### Features
+
+* **spec:** add annotation and evaluation conventions ([#3466](https://github.com/Arize-ai/openinference/issues/3466)) ([145e3c6](https://github.com/Arize-ai/openinference/commit/145e3c6d0626f37396b32d8e33347d386aa4097c))
+
 ## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.29...python-openinference-semantic-conventions-v0.1.30) (2026-05-22)
 
 

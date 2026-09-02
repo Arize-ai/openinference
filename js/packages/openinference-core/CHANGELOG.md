@@ -1,5 +1,56 @@
 # @arizeai/openinference-core
 
+## 2.6.1
+
+### Patch Changes
+
+- 4d72f42: Mirror `llm.model_name` from `responseModelName ?? requestModelName` in `getLLMAttributes` when `modelName` is not passed explicitly, as the spec requires; document composing the options with `withSpan` and the `@observe` decorator via `processInput` and `processOutput`
+
+## 2.6.0
+
+### Minor Changes
+
+- 99f6e71: Add optional `requestModelName` and `responseModelName` options to `getLLMAttributes`, emitting the `llm.request.model_name` and `llm.response.model_name` semantic conventions; usable with `withSpan` and the `@observe` decorator via `attributes` and `processOutput`
+
+## 2.5.4
+
+### Patch Changes
+
+- 0071b37: Split over-complex functions into focused helpers and make implicit returns explicit (enforce `eslint/complexity`). Also hardens bedrock-agent-runtime tool-call extraction against a `function: null` payload that previously threw. No other behavior changes.
+
+## 2.5.3
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+
+## 2.5.2
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+
+## 2.5.1
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+
+## 2.5.0
+
+### Minor Changes
+
+- 0168198: Add typed helpers for span-, trace-, and session-scoped annotations and evaluations.
+
+## 2.4.1
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+
 ## 2.4.0
 
 ### Minor Changes

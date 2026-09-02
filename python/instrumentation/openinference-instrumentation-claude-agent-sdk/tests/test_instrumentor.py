@@ -21,6 +21,7 @@ from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrum
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -96,6 +97,30 @@ def _payload_field(payload: Any, key: str) -> Any:
     if isinstance(payload, dict):
         return payload.get(key)
     return getattr(payload, key, None)
+
+
+# Usage recorded in both real-agent-span cassettes; update on re-record.
+_CASSETTE_PROMPT_TOKENS = 3 + 17024
+_CASSETTE_COMPLETION_TOKENS = 4
+_CASSETTE_CACHE_READ_TOKENS = 17024
+_CASSETTE_CACHE_WRITE_TOKENS = 0
+
+
+def _pop_and_assert_cassette_token_counts(attrs: dict[str, Any]) -> None:
+    assert attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None) == _CASSETTE_PROMPT_TOKENS
+    assert attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None) == _CASSETTE_COMPLETION_TOKENS
+    assert (
+        attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, None)
+        == _CASSETTE_CACHE_READ_TOKENS
+    )
+    assert (
+        attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, None)
+        == _CASSETTE_CACHE_WRITE_TOKENS
+    )
+    assert (
+        attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, None)
+        == _CASSETTE_PROMPT_TOKENS + _CASSETTE_COMPLETION_TOKENS
+    )
 
 
 _PYPROJECT_PATH = (Path(__file__).resolve().parent.parent / "pyproject.toml").as_posix()
@@ -1056,23 +1081,9 @@ async def test_query_real_agent_span(
     assert isinstance(model_name, str)
     llm_system = attrs.pop(SpanAttributes.LLM_SYSTEM, None)
     assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
-    prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
-    completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
-    assert isinstance(prompt_tokens, int)
-    assert isinstance(completion_tokens, int)
-    cache_read_tokens = attrs.pop(
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-        None,
-    )
-    cache_write_tokens = attrs.pop(
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-        None,
-    )
-    assert isinstance(cache_read_tokens, int)
-    assert isinstance(cache_write_tokens, int)
-    total_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, None)
-    if total_tokens is not None:
-        assert total_tokens == prompt_tokens + completion_tokens
+    llm_provider = attrs.pop(SpanAttributes.LLM_PROVIDER, None)
+    assert llm_provider == OpenInferenceLLMProviderValues.ANTHROPIC.value
+    _pop_and_assert_cassette_token_counts(attrs)
     cost_total = attrs.pop(SpanAttributes.LLM_COST_TOTAL, None)
     assert isinstance(cost_total, (int, float))
     # Output messages — text-only assistant turn
@@ -1124,23 +1135,9 @@ async def test_client_real_agent_span(
     assert isinstance(model_name, str)
     llm_system = attrs.pop(SpanAttributes.LLM_SYSTEM, None)
     assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
-    prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
-    completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
-    assert isinstance(prompt_tokens, int)
-    assert isinstance(completion_tokens, int)
-    cache_read_tokens = attrs.pop(
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-        None,
-    )
-    cache_write_tokens = attrs.pop(
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-        None,
-    )
-    assert isinstance(cache_read_tokens, int)
-    assert isinstance(cache_write_tokens, int)
-    total_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL, None)
-    if total_tokens is not None:
-        assert total_tokens == prompt_tokens + completion_tokens
+    llm_provider = attrs.pop(SpanAttributes.LLM_PROVIDER, None)
+    assert llm_provider == OpenInferenceLLMProviderValues.ANTHROPIC.value
+    _pop_and_assert_cassette_token_counts(attrs)
     cost_total = attrs.pop(SpanAttributes.LLM_COST_TOTAL, None)
     assert isinstance(cost_total, (int, float))
     # Output messages — text-only assistant turn

@@ -1,5 +1,23 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.8.0
+
+### Minor Changes
+
+- 1fe497f: Add `llm.request.model_name` and `llm.response.model_name` semantic conventions, letting instrumentation record the model requested by the caller separately from the model that actually generated the response (e.g. provider-side classifier/fallback routing). `llm.model_name` keeps its existing meaning.
+
+## 2.7.0
+
+### Minor Changes
+
+- 237ce2b: Add OLLAMA to the LLMProvider enum, map the ollama.com host to it, and anchor host-suffix matching at label boundaries
+
+## 2.6.0
+
+### Minor Changes
+
+- 145e3c6: Add span-, trace-, and session-scoped semantic convention fields for annotations and evaluations.
+
 ## 2.5.0
 
 ### Minor Changes

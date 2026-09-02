@@ -1,5 +1,40 @@
 # Changelog
 
+## [2.0.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.7...python-openinference-instrumentation-mcp-v2.0.8) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+
+## [2.0.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.6...python-openinference-instrumentation-mcp-v2.0.7) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [2.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.5...python-openinference-instrumentation-mcp-v2.0.6) (2026-08-18)
+
+
+### Bug Fixes
+
+* **mcp:** uninstrument all seven wrapping targets and guard deferred hooks ([#3567](https://github.com/Arize-ai/openinference/issues/3567)) ([6689a74](https://github.com/Arize-ai/openinference/commit/6689a74ebe2518920be505ac1787da5a3fa6d799))
+
+## [2.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.4...python-openinference-instrumentation-mcp-v2.0.5) (2026-08-01)
+
+
+### Bug Fixes
+
+* **mcp:** support mcp 2.0 SessionMessage.message without RootModel .root ([#3473](https://github.com/Arize-ai/openinference/issues/3473)) ([9256bb3](https://github.com/Arize-ai/openinference/commit/9256bb3e384a57b4a6179c53c3da0cdd707a2007))
+
+## [2.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.3...python-openinference-instrumentation-mcp-v2.0.4) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [2.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v2.0.2...python-openinference-instrumentation-mcp-v2.0.3) (2026-05-18)
 
 

@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.49...python-openinference-instrumentation-bedrock-v0.1.50) (2026-09-01)
+
+
+### Features
+
+* **bedrock:** capture LLM finish reasons ([#3631](https://github.com/Arize-ai/openinference/issues/3631)) ([544f49b](https://github.com/Arize-ai/openinference/commit/544f49b8aff4402c011f149251a20cac18e37e3b))
+
+## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.48...python-openinference-instrumentation-bedrock-v0.1.49) (2026-08-31)
+
+
+### Features
+
+* **python:** bedorck reasoning blocks impl ([#3279](https://github.com/Arize-ai/openinference/issues/3279)) ([ac72cb2](https://github.com/Arize-ai/openinference/commit/ac72cb2b6f500019f76dda0a541220a1db25bad9))
+
+## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.47...python-openinference-instrumentation-bedrock-v0.1.48) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+
+## [0.1.47](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.46...python-openinference-instrumentation-bedrock-v0.1.47) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.45...python-openinference-instrumentation-bedrock-v0.1.46) (2026-08-24)
+
+
+### Bug Fixes
+
+* **bedrock:** handle new anthropic "file" image source type in message extraction ([#3603](https://github.com/Arize-ai/openinference/issues/3603)) ([58053bf](https://github.com/Arize-ai/openinference/commit/58053bfa6c2b1cba05ac1cb3d1b9876e9245ed32))
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.44...python-openinference-instrumentation-bedrock-v0.1.45) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.43...python-openinference-instrumentation-bedrock-v0.1.44) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.42...python-openinference-instrumentation-bedrock-v0.1.43) (2026-06-30)
 
 

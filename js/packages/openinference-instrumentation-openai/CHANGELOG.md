@@ -1,5 +1,74 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.2.3
+
+### Patch Changes
+
+- Updated dependencies [4d72f42]
+  - @arizeai/openinference-core@2.6.1
+
+## 4.2.2
+
+### Patch Changes
+
+- Updated dependencies [99f6e71]
+  - @arizeai/openinference-core@2.6.0
+
+## 4.2.1
+
+### Patch Changes
+
+- 5f38a16: Scope the double-patch guard to the module object so both the CJS and ESM builds of a dual-package SDK can be patched in the same process. Previously the module-global `_isOpenInferencePatched` flag made whichever build was patched first silently block `patch()`/`manuallyInstrument()` for the other build (#3557). The guard is now a `WeakSet` keyed on the patched class, which needs no write to the module and therefore also keeps protecting immutable modules (Deno, webpack) — the case the global flag existed for. `isPatched()` behavior is unchanged.
+- 0071b37: Split over-complex functions into focused helpers and make implicit returns explicit (enforce `eslint/complexity`). Also hardens bedrock-agent-runtime tool-call extraction against a `function: null` payload that previously threw. No other behavior changes.
+- Updated dependencies [0071b37]
+  - @arizeai/openinference-core@2.5.4
+
+## 4.2.0
+
+### Minor Changes
+
+- 3c31b68: Support `openai@^7`. The v7 major's only breaking change is requiring Node.js 22; every patched surface is unchanged, so the supported version range is widened with no other modifications.
+
+## 4.1.10
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+
+## 4.1.9
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+
+## 4.1.8
+
+### Patch Changes
+
+- 237ce2b: Add OLLAMA to the LLMProvider enum, map the ollama.com host to it, and anchor host-suffix matching at label boundaries
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 4.1.6
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
 ## 4.1.5
 
 ### Patch Changes

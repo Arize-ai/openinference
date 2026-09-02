@@ -3,6 +3,10 @@
  */
 
 export const SemanticAttributePrefixes = {
+  annotations: "annotations",
+  annotation: "annotation",
+  evaluations: "evaluations",
+  evaluation: "evaluation",
   input: "input",
   output: "output",
   llm: "llm",
@@ -17,6 +21,7 @@ export const SemanticAttributePrefixes = {
   metadata: "metadata",
   tag: "tag",
   session: "session",
+  trace: "trace",
   user: "user",
   openinference: "openinference",
   message_content: "message_content",
@@ -31,6 +36,8 @@ export const LLMAttributePostfixes = {
   provider: "provider",
   system: "system",
   model_name: "model_name",
+  request: "request",
+  response: "response",
   token_count: "token_count",
   input_messages: "input_messages",
   output_messages: "output_messages",
@@ -147,6 +154,57 @@ export const GraphPostfixes = {
   node_name: "node.name",
   node_parent_id: "node.parent_id",
 } as const;
+
+export const FeedbackAttributePostfixes = {
+  name: "name",
+  score: "score",
+  label: "label",
+  explanation: "explanation",
+  annotator_kind: "annotator_kind",
+  identifier: "identifier",
+  metadata: "metadata",
+} as const;
+
+export const ANNOTATIONS = SemanticAttributePrefixes.annotations;
+export const EVALUATIONS = SemanticAttributePrefixes.evaluations;
+export const TRACE_ANNOTATIONS =
+  `${SemanticAttributePrefixes.trace}.${SemanticAttributePrefixes.annotations}` as const;
+export const TRACE_EVALUATIONS =
+  `${SemanticAttributePrefixes.trace}.${SemanticAttributePrefixes.evaluations}` as const;
+export const SESSION_ANNOTATIONS =
+  `${SemanticAttributePrefixes.session}.${SemanticAttributePrefixes.annotations}` as const;
+export const SESSION_EVALUATIONS =
+  `${SemanticAttributePrefixes.session}.${SemanticAttributePrefixes.evaluations}` as const;
+
+export const ANNOTATION_NAME =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.name}` as const;
+export const ANNOTATION_SCORE =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.score}` as const;
+export const ANNOTATION_LABEL =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.label}` as const;
+export const ANNOTATION_EXPLANATION =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.explanation}` as const;
+export const ANNOTATION_ANNOTATOR_KIND =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.annotator_kind}` as const;
+export const ANNOTATION_IDENTIFIER =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.identifier}` as const;
+export const ANNOTATION_METADATA =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.metadata}` as const;
+
+export const EVALUATION_NAME =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.name}` as const;
+export const EVALUATION_SCORE =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.score}` as const;
+export const EVALUATION_LABEL =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.label}` as const;
+export const EVALUATION_EXPLANATION =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.explanation}` as const;
+export const EVALUATION_ANNOTATOR_KIND =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.annotator_kind}` as const;
+export const EVALUATION_IDENTIFIER =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.identifier}` as const;
+export const EVALUATION_METADATA =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.metadata}` as const;
 /**
  * The input to any span
  */
@@ -192,6 +250,22 @@ export const LLM_OUTPUT_MESSAGES =
  */
 export const LLM_MODEL_NAME =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.model_name}` as const;
+
+/**
+ * The model requested by the caller, as sent in the request. May differ from
+ * llm.response.model_name when the provider routes the request to a
+ * different model (e.g. classifier-triggered fallback).
+ */
+export const LLM_REQUEST_MODEL_NAME =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.request}.${LLMAttributePostfixes.model_name}` as const;
+
+/**
+ * The model that actually generated the response, as reported by the
+ * provider. May differ from llm.request.model_name when the provider routes
+ * the request to a different model (e.g. classifier-triggered fallback).
+ */
+export const LLM_RESPONSE_MODEL_NAME =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.response}.${LLMAttributePostfixes.model_name}` as const;
 
 /**
  * The provider of the inferences. E.g. the cloud provider
@@ -668,6 +742,26 @@ export const GRAPH_NODE_PARENT_ID =
   `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_parent_id}` as const;
 
 export const SemanticConventions = {
+  ANNOTATIONS,
+  TRACE_ANNOTATIONS,
+  SESSION_ANNOTATIONS,
+  ANNOTATION_NAME,
+  ANNOTATION_SCORE,
+  ANNOTATION_LABEL,
+  ANNOTATION_EXPLANATION,
+  ANNOTATION_ANNOTATOR_KIND,
+  ANNOTATION_IDENTIFIER,
+  ANNOTATION_METADATA,
+  EVALUATIONS,
+  TRACE_EVALUATIONS,
+  SESSION_EVALUATIONS,
+  EVALUATION_NAME,
+  EVALUATION_SCORE,
+  EVALUATION_LABEL,
+  EVALUATION_EXPLANATION,
+  EVALUATION_ANNOTATOR_KIND,
+  EVALUATION_IDENTIFIER,
+  EVALUATION_METADATA,
   IMAGE_URL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
@@ -676,6 +770,8 @@ export const SemanticConventions = {
   LLM_INPUT_MESSAGES,
   LLM_OUTPUT_MESSAGES,
   LLM_MODEL_NAME,
+  LLM_REQUEST_MODEL_NAME,
+  LLM_RESPONSE_MODEL_NAME,
   LLM_PROMPTS,
   LLM_INVOCATION_PARAMETERS,
   LLM_TOKEN_COUNT_COMPLETION,
@@ -761,6 +857,12 @@ export const SemanticConventions = {
   GRAPH_NODE_PARENT_ID,
 } as const;
 
+export enum AnnotatorKind {
+  HUMAN = "HUMAN",
+  LLM = "LLM",
+  CODE = "CODE",
+}
+
 export enum OpenInferenceSpanKind {
   LLM = "LLM",
   CHAIN = "CHAIN",
@@ -811,4 +913,5 @@ export enum LLMProvider {
   CEREBRAS = "cerebras",
   PERPLEXITY = "perplexity",
   TOGETHER = "together",
+  OLLAMA = "ollama",
 }

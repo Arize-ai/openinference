@@ -32,6 +32,19 @@ OpenInferenceMimeType = Union[
 ]
 OpenInferenceLLMProvider: TypeAlias = Union[str, OpenInferenceLLMProviderValues]
 OpenInferenceLLMSystem: TypeAlias = Union[str, OpenInferenceLLMSystemValues]
+AnnotationScope: TypeAlias = Literal["span", "trace", "session"]
+
+
+class Annotation(TypedDict, total=False):
+    """A single annotation or evaluation result."""
+
+    name: Required[str]
+    score: Union[int, float]
+    label: str
+    explanation: str
+    annotator_kind: str
+    identifier: str
+    metadata: Union[str, Dict[str, Any]]
 
 
 class Image(TypedDict, total=False):
@@ -94,6 +107,8 @@ class TokenCount(TypedDict, total=False):
 
 class Tool(TypedDict, total=False):
     json_schema: Required[Union[str, Dict[str, Any]]]
+    name: str
+    description: str
 
 
 class Embedding(TypedDict, total=False):

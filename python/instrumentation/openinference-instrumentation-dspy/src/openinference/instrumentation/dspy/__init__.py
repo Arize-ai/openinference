@@ -295,7 +295,7 @@ class _LMCallWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        arguments = _normalize_lm_arguments(_bind_arguments(wrapped, *args, **kwargs))
         span_name = instance.__class__.__name__ + ".__call__"
         with self._tracer.start_as_current_span(
             span_name,
@@ -342,7 +342,7 @@ class _LMAcallWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        arguments = _normalize_lm_arguments(_bind_arguments(wrapped, *args, **kwargs))
         span_name = instance.__class__.__name__ + ".acall"
         with self._tracer.start_as_current_span(
             span_name,
@@ -1103,6 +1103,27 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
     bound_args = method_signature.bind(*args, **kwargs)
     bound_args.apply_defaults()
     return bound_args.arguments
+
+
+def _normalize_lm_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalizes bound `LM.__call__` / `LM.acall` arguments across DSPy versions.
+
+    DSPy 3.3.0 changed the signature from `(prompt=None, messages=None, **kwargs)`
+    to `(*items, prompt=None, messages=None, request=None, **kwargs)`, so a
+    positionally-passed prompt string now arrives in `items` instead of `prompt`.
+    Map that shape back to the legacy `prompt` argument so span attributes are
+    stable across DSPy versions, and drop the new parameters when unused.
+    """
+    arguments = dict(arguments)
+    items: Tuple[Any, ...] = tuple(arguments.pop("items", None) or ())
+    if arguments.get("prompt") is None and len(items) == 1 and isinstance(items[0], str):
+        arguments["prompt"] = items[0]
+    elif items:
+        arguments["items"] = list(items)
+    if arguments.get("request", None) is None:
+        arguments.pop("request", None)
+    return arguments
 
 
 def _module_prediction_output_attributes(prediction: Any, instance: Any) -> Dict[str, Any]:

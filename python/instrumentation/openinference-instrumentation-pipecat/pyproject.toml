@@ -24,11 +24,11 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "openinference-instrumentation>=0.1.51",
+  "openinference-instrumentation>=0.1.59",
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "websockets>=13.1,<16.0",
+  "websockets>=13.1,<18.0",
 ]
 
 [project.optional-dependencies]

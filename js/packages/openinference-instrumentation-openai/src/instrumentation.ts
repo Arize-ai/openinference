@@ -75,6 +75,7 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
   "api.perplexity.ai": LLMProvider.PERPLEXITY,
   "api.together.ai": LLMProvider.TOGETHER,
   "api.together.xyz": LLMProvider.TOGETHER,
+  "ollama.com": LLMProvider.OLLAMA,
 };
 
 /**
@@ -83,7 +84,9 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
 export function getProviderFromHost(host: string): LLMProvider | undefined {
   const normalised = host.toLowerCase().trim();
   for (const [suffix, provider] of Object.entries(HOST_SUFFIX_TO_PROVIDER)) {
-    if (normalised.endsWith(suffix)) {
+    // Anchor at a label boundary so e.g. "smollama.com" does not match the
+    // "ollama.com" suffix.
+    if (normalised === suffix || normalised.endsWith("." + suffix)) {
       return provider;
     }
   }
@@ -95,6 +98,19 @@ export function getProviderFromHost(host: string): LLMProvider | undefined {
  * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
  */
 let _isOpenInferencePatched = false;
+
+/**
+ * The OpenAI classes that have already been patched, tracked by identity.
+ * The SDK ships separate CJS and ESM builds with separate class objects, so a
+ * module-global boolean cannot guard them independently: whichever build was
+ * patched first would block the other one forever (#3557). A Set is
+ * scoped to the object, and needs no write to the module, so it also keeps
+ * the double-patch guard working when the module is immutable (e.g. Deno,
+ * webpack) and the `openInferencePatched` property cannot be set. Entries
+ * are removed when their wrappers are removed, so the Set does not retain
+ * unpatched SDK builds.
+ */
+const _patchedModules = new Set<object>();
 
 /**
  * function to check if instrumentation is enabled / disabled
@@ -129,23 +145,19 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
   try {
     // The clientInstance might be a sub-object (like Completions) that has a _client property
     // pointing to the actual OpenAI/AzureOpenAI client
-    const instance = clientInstance as {
-      baseURL?: string | { host?: string };
-      _client?: {
-        baseURL?: string | { host?: string };
-      };
-    };
-
     let host: string | undefined;
-    let baseURL: string | { host?: string } | undefined;
+    let baseURL: unknown;
 
     // First try to get baseURL from the instance itself
-    if (instance.baseURL) {
-      baseURL = instance.baseURL;
-    }
-    // If not found, try the _client property (this is where Azure OpenAI stores it)
-    else if (instance._client?.baseURL) {
-      baseURL = instance._client.baseURL;
+    if (clientInstance != null && typeof clientInstance === "object") {
+      baseURL = Reflect.get(clientInstance, "baseURL");
+      // If not found (or empty), try the _client property (this is where Azure OpenAI stores it)
+      if (!baseURL) {
+        const nestedClient = Reflect.get(clientInstance, "_client");
+        if (nestedClient != null && typeof nestedClient === "object") {
+          baseURL = Reflect.get(nestedClient, "baseURL");
+        }
+      }
     }
 
     if (typeof baseURL === "string") {
@@ -159,7 +171,7 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
       }
     } else if (baseURL && typeof baseURL === "object" && "host" in baseURL) {
       // Direct host property
-      host = baseURL.host;
+      host = typeof baseURL.host === "string" ? baseURL.host : undefined;
     }
 
     if (host && typeof host === "string") {
@@ -168,6 +180,7 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
   } catch (error) {
     diag.debug("Failed to determine LLM provider from instance", error);
   }
+  return undefined;
 }
 
 /**
@@ -179,6 +192,10 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   private oiTracer: OITracer;
   private tracerProvider?: TracerProvider;
   private traceConfig?: TraceConfigOptions;
+  private readonly patchedModuleExports = new Map<
+    typeof openai.OpenAI,
+    typeof openai & { openInferencePatched?: boolean }
+  >();
   constructor({
     instrumentationConfig,
     traceConfig,
@@ -215,7 +232,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     const module = new InstrumentationNodeModuleDefinition<typeof openai>(
       "openai",
       // 5.x is best effort
-      ["^6.0.0", "^5.0.0"],
+      ["^7.0.0", "^6.0.0", "^5.0.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -229,6 +246,13 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   manuallyInstrument(module: typeof openai) {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
+  }
+
+  disable(): void {
+    super.disable();
+    for (const moduleExports of [...this.patchedModuleExports.values()]) {
+      this.unpatch(moduleExports);
+    }
   }
 
   get tracer(): Tracer {
@@ -255,7 +279,9 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     moduleVersion?: string,
   ) {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
-    if (module?.openInferencePatched || _isOpenInferencePatched) {
+    // WeakSet.has() returns false for non-objects, so an unexpected module
+    // shape falls through here and fails loudly below instead.
+    if (module?.openInferencePatched || _patchedModules.has(module.OpenAI)) {
       return module;
     }
     // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -332,7 +358,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               // handle the chunks and add them to the span
               // First split the stream via tee
               const [leftStream, rightStream] = result.tee();
-              consumeChatCompletionStreamChunks(rightStream, span);
+              void consumeChatCompletionStreamChunks(rightStream, span);
               result = leftStream;
             }
 
@@ -544,7 +570,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 const [leftStream, rightStream] = result.tee();
                 // take the right stream, consuming it and then recording the final chunk
                 // into the span
-                consumeResponseStreamEvents(rightStream).then(recordSpan);
+                void consumeResponseStreamEvents(rightStream).then(recordSpan);
                 // give the left stream back to the caller
                 result = leftStream;
               }
@@ -559,6 +585,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     }
 
     _isOpenInferencePatched = true;
+    _patchedModules.add(module.OpenAI);
+    this.patchedModuleExports.set(module.OpenAI, module);
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       module.openInferencePatched = true;
@@ -580,7 +608,10 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     this._unwrap(moduleExports.OpenAI.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
 
-    _isOpenInferencePatched = false;
+    // Keyed the same way patch() keys it, so a re-patch is possible after.
+    _patchedModules.delete(moduleExports.OpenAI);
+    this.patchedModuleExports.delete(moduleExports.OpenAI);
+    _isOpenInferencePatched = _patchedModules.size > 0;
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       moduleExports.openInferencePatched = false;
@@ -625,7 +656,7 @@ function isPromptStringArray(
  * Converts the body of a chat completions request to LLM input messages
  */
 function getLLMInputMessagesAttributes(body: ChatCompletionCreateParamsBase): Attributes {
-  return body.messages.reduce((acc, message, index) => {
+  return body.messages.reduce<Attributes>((acc, message, index) => {
     const messageAttributes = getChatCompletionInputMessageAttributes(message);
     const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
     // Flatten the attributes on the index prefix
@@ -633,7 +664,7 @@ function getLLMInputMessagesAttributes(body: ChatCompletionCreateParamsBase): At
       acc[`${indexPrefix}${key}`] = value;
     }
     return acc;
-  }, {} as Attributes);
+  }, {});
 }
 
 /**
@@ -781,7 +812,7 @@ function getChatCompletionLLMOutputMessagesAttributes(chatCompletion: ChatComple
   if (!choice) {
     return {};
   }
-  return [choice.message].reduce((acc, message, index) => {
+  return [choice.message].reduce<Attributes>((acc, message, index) => {
     const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${index}.`;
     const messageAttributes = getChatCompletionOutputMessageAttributes(message);
     // Flatten the attributes on the index prefix
@@ -789,7 +820,7 @@ function getChatCompletionLLMOutputMessagesAttributes(chatCompletion: ChatComple
       acc[`${indexPrefix}${key}`] = value;
     }
     return acc;
-  }, {} as Attributes);
+  }, {});
 }
 
 /**
@@ -868,11 +899,11 @@ function getEmbeddingTextAttributes(request: EmbeddingCreateParams): Attributes 
     request.input.length > 0 &&
     typeof request.input[0] === "string"
   ) {
-    return request.input.reduce((acc, input, index) => {
+    return request.input.reduce<Attributes>((acc, input, index) => {
       const indexPrefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}.`;
       acc[`${indexPrefix}${SemanticConventions.EMBEDDING_TEXT}`] = input;
       return acc;
-    }, {} as Attributes);
+    }, {});
   }
   // Ignore other cases where input is a number or an array of numbers
   return {};
@@ -882,11 +913,11 @@ function getEmbeddingTextAttributes(request: EmbeddingCreateParams): Attributes 
  * Converts the embedding result payload to embedding attributes
  */
 function getEmbeddingEmbeddingsAttributes(response: CreateEmbeddingResponse): Attributes {
-  return response.data.reduce((acc, embedding, index) => {
+  return response.data.reduce<Attributes>((acc, embedding, index) => {
     const indexPrefix = `${SemanticConventions.EMBEDDING_EMBEDDINGS}.${index}.`;
     acc[`${indexPrefix}${SemanticConventions.EMBEDDING_VECTOR}`] = embedding.embedding;
     return acc;
-  }, {} as Attributes);
+  }, {});
 }
 
 /**
@@ -1002,15 +1033,14 @@ function isAPIPromise<T>(promise: unknown): promise is APIPromise<T> {
  * @param then - The thennable to invoke
  * @returns The promise with the thennable invoked
  */
-function invokeMaybeAPIPromise<T>(
-  promise: T,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  then: (value: any) => unknown,
-): T {
-  if (isAPIPromise<T>(promise)) {
-    return promise._thenUnwrap(then) as T;
+function invokeMaybeAPIPromise<T>(promise: APIPromise<T>, then: (value: T) => T): APIPromise<T>;
+function invokeMaybeAPIPromise<T>(promise: Promise<T>, then: (value: T) => T): Promise<T>;
+function invokeMaybeAPIPromise<T>(promise: T, then: (value: T) => T): T;
+function invokeMaybeAPIPromise(promise: unknown, then: (value: unknown) => unknown): unknown {
+  if (isAPIPromise<unknown>(promise)) {
+    return promise._thenUnwrap(then);
   } else if (promise instanceof Promise) {
-    return promise.then(then) as T;
+    return promise.then(then);
   } else {
     // eslint-disable-next-line no-console
     console.warn("Promise is not an APIPromise or a regular promise, cannot instrument.");

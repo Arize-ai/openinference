@@ -20,6 +20,10 @@ import {
 import { getInputAttributes, getLLMInvocationParameterAttributes } from "./attributeUtils";
 import { extractRagInvocationParams, getModelNameAttributes } from "./ragAttributeExtractionUtils";
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function extractBaseRequestAttributes(command: InvokeAgentCommand): Attributes {
   const attributes: Attributes = {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
@@ -94,7 +98,7 @@ export const safelyExtractBaseRequestAttributes = withSafety({
   fn: extractBaseRequestAttributes,
   onError: (err) => {
     diag.warn(
-      `Openinference warning, unable to extract base request attributes, some spans may be missing or incomplete. Error: ${err instanceof Error ? err.message : err}`,
+      `Openinference warning, unable to extract base request attributes, some spans may be missing or incomplete. Error: ${getErrorMessage(err)}`,
     );
   },
 });
@@ -111,7 +115,7 @@ export const safelyExtractBaseRagAttributes = withSafety({
   fn: extractRagBaseRequestAttributes,
   onError: (err) => {
     diag.warn(
-      `Openinference warning, unable to extract base request attributes, some spans may be missing or incomplete. Error: ${err instanceof Error ? err.message : err}`,
+      `Openinference warning, unable to extract base request attributes, some spans may be missing or incomplete. Error: ${getErrorMessage(err)}`,
     );
   },
 });
@@ -128,7 +132,7 @@ export const safelyExtractBaseRetrieveAttributes = withSafety({
   fn: extractRetrieveBaseRequestAttributes,
   onError: (err) => {
     diag.warn(
-      `Openinference warning, unable to extract base request attributes, some spans may be missing or incomplete. Error: ${err instanceof Error ? err.message : err}`,
+      `Openinference warning, unable to extract base request attributes, some spans may be missing or incomplete. Error: ${getErrorMessage(err)}`,
     );
   },
 });

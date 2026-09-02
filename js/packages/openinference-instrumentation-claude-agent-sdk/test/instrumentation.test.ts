@@ -88,8 +88,10 @@ describe("ClaudeAgentSDKInstrumentation", () => {
       };
 
     expect(Object.getOwnPropertyDescriptor(nativeModule, "query")?.writable).toBe(true);
+    // Native ESM namespaces reject writes even when the value is unchanged.
+    const sameQuery = nativeModule.query;
     expect(() => {
-      nativeModule.query = nativeModule.query;
+      nativeModule.query = sameQuery;
     }).toThrow(TypeError);
 
     const patchedModule = instrumentation.manuallyInstrument(nativeModule);
@@ -164,7 +166,7 @@ describe("ClaudeAgentSDKInstrumentation", () => {
   it("should not double-patch the module", () => {
     const callCount = { value: 0 };
     const mockModule = {
-      query: function () {
+      query: () => {
         callCount.value++;
         return {
           [Symbol.asyncIterator]() {
@@ -190,7 +192,7 @@ describe("ClaudeAgentSDKInstrumentation", () => {
 
   it("should handle V1-only module (no V2 exports)", () => {
     const mockModule = {
-      query: function () {
+      query: () => {
         return {
           [Symbol.asyncIterator]() {
             return {

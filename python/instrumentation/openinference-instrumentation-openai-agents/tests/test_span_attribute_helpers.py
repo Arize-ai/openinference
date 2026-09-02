@@ -5,16 +5,7 @@ from secrets import token_hex
 from typing import Any, Iterable, Mapping, Sequence, Union
 
 import pytest
-
-try:
-    from agents.tracing.span_data import FunctionSpanData, GenerationSpanData, MCPListToolsSpanData
-except ImportError:
-    # Handle compatibility issue with OpenAI SDK >=1.103.0 where WebSearchToolFilters was removed
-    # Introduced in: https://github.com/openai/openai-python/commit/3d3d16a
-    # See: https://github.com/openai/openai-python/compare/v1.102.0...v1.103.0
-    pytest.skip(
-        "agents package incompatible with current OpenAI SDK version", allow_module_level=True
-    )
+from agents.tracing.span_data import FunctionSpanData, GenerationSpanData, MCPListToolsSpanData
 from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
@@ -534,6 +525,17 @@ def test_get_attributes_from_response_function_tool_call_param(
                 "message.tool_call_id": "123",
             },
             id="simple_output",
+        ),
+        pytest.param(
+            {
+                "call_id": None,
+                "output": "result",
+            },
+            {
+                "message.content": "result",
+                "message.role": "tool",
+            },
+            id="none_call_id",
         ),
         pytest.param(
             {
@@ -1275,6 +1277,48 @@ def test_get_attributes_from_function_span_data(
                 "message.contents.1.message_content.text": "I cannot help with that",
             },
             id="mixed_content_types",
+        ),
+        pytest.param(
+            [{"type": "input_image", "detail": "auto", "image_url": "https://a.com/b.png"}],
+            {
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": "https://a.com/b.png",
+            },
+            id="input_image_http_url",
+        ),
+        pytest.param(
+            [
+                {
+                    "type": "input_image",
+                    "detail": "auto",
+                    "image_url": "data:image/png;base64,iVBORw0KGgo=",
+                }
+            ],
+            {
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": (
+                    "data:image/png;base64,iVBORw0KGgo="
+                ),
+            },
+            id="input_image_base64_data_uri",
+        ),
+        pytest.param(
+            [{"type": "input_image", "detail": "auto", "file_id": "file-123"}],
+            {},
+            id="input_image_without_url",
+        ),
+        pytest.param(
+            [
+                {"type": "input_text", "text": "What is in this screenshot?"},
+                {"type": "input_image", "detail": "auto", "image_url": "https://a.com/b.png"},
+            ],
+            {
+                "message.contents.0.message_content.type": "text",
+                "message.contents.0.message_content.text": "What is in this screenshot?",
+                "message.contents.1.message_content.type": "image",
+                "message.contents.1.message_content.image.image.url": "https://a.com/b.png",
+            },
+            id="text_and_image",
         ),
     ],
 )

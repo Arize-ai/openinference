@@ -21,6 +21,13 @@ const (
 	SpanKindUnknown   = "UNKNOWN"
 )
 
+// Values for AnnotationAnnotatorKind and EvaluationAnnotatorKind.
+const (
+	AnnotatorKindHuman = "HUMAN"
+	AnnotatorKindLLM   = "LLM"
+	AnnotatorKindCode  = "CODE"
+)
+
 // Values for the InputMimeType / OutputMimeType attributes.
 const (
 	MimeTypeText = "text/plain"
@@ -56,4 +63,5 @@ const (
 	LLMProviderCerebras   = "cerebras"
 	LLMProviderPerplexity = "perplexity"
 	LLMProviderTogether   = "together"
+	LLMProviderOllama     = "ollama"
 )

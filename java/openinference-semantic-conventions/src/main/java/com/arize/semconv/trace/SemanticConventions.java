@@ -5,6 +5,10 @@ import lombok.experimental.UtilityClass;
 public class SemanticConventions {
     @UtilityClass
     public static class SemanticAttributePrefixes {
+        public static final String ANNOTATIONS = "annotations";
+        public static final String ANNOTATION = "annotation";
+        public static final String EVALUATIONS = "evaluations";
+        public static final String EVALUATION = "evaluation";
         public static final String INPUT = "input";
         public static final String OUTPUT = "output";
         public static final String LLM = "llm";
@@ -19,6 +23,7 @@ public class SemanticConventions {
         public static final String METADATA = "metadata";
         public static final String TAG = "tag";
         public static final String SESSION = "session";
+        public static final String TRACE = "trace";
         public static final String USER = "user";
         public static final String OPENINFERENCE = "openinference";
         public static final String MESSAGE_CONTENT = "message_content";
@@ -34,6 +39,8 @@ public class SemanticConventions {
         public static final String PROVIDER = "provider";
         public static final String SYSTEM = "system";
         public static final String MODEL_NAME = "model_name";
+        public static final String REQUEST = "request";
+        public static final String RESPONSE = "response";
         public static final String TOKEN_COUNT = "token_count";
         public static final String INPUT_MESSAGES = "input_messages";
         public static final String OUTPUT_MESSAGES = "output_messages";
@@ -170,6 +177,58 @@ public class SemanticConventions {
         public static final String NODE_PARENT_ID = "node.parent_id";
     }
 
+    @UtilityClass
+    public static class FeedbackAttributePostfixes {
+        public static final String NAME = "name";
+        public static final String SCORE = "score";
+        public static final String LABEL = "label";
+        public static final String EXPLANATION = "explanation";
+        public static final String ANNOTATOR_KIND = "annotator_kind";
+        public static final String IDENTIFIER = "identifier";
+        public static final String METADATA = "metadata";
+    }
+
+    public static final String ANNOTATIONS = SemanticAttributePrefixes.ANNOTATIONS;
+    public static final String EVALUATIONS = SemanticAttributePrefixes.EVALUATIONS;
+    public static final String TRACE_ANNOTATIONS =
+            SemanticAttributePrefixes.TRACE + "." + SemanticAttributePrefixes.ANNOTATIONS;
+    public static final String TRACE_EVALUATIONS =
+            SemanticAttributePrefixes.TRACE + "." + SemanticAttributePrefixes.EVALUATIONS;
+    public static final String SESSION_ANNOTATIONS =
+            SemanticAttributePrefixes.SESSION + "." + SemanticAttributePrefixes.ANNOTATIONS;
+    public static final String SESSION_EVALUATIONS =
+            SemanticAttributePrefixes.SESSION + "." + SemanticAttributePrefixes.EVALUATIONS;
+
+    public static final String ANNOTATION_NAME =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.NAME;
+    public static final String ANNOTATION_SCORE =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.SCORE;
+    public static final String ANNOTATION_LABEL =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.LABEL;
+    public static final String ANNOTATION_EXPLANATION =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.EXPLANATION;
+    public static final String ANNOTATION_ANNOTATOR_KIND =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.ANNOTATOR_KIND;
+    public static final String ANNOTATION_IDENTIFIER =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.IDENTIFIER;
+    public static final String ANNOTATION_METADATA =
+            SemanticAttributePrefixes.ANNOTATION + "." + FeedbackAttributePostfixes.METADATA;
+
+    public static final String EVALUATION_NAME =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.NAME;
+    public static final String EVALUATION_SCORE =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.SCORE;
+    public static final String EVALUATION_LABEL =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.LABEL;
+    public static final String EVALUATION_EXPLANATION =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.EXPLANATION;
+    public static final String EVALUATION_ANNOTATOR_KIND =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.ANNOTATOR_KIND;
+    public static final String EVALUATION_IDENTIFIER =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.IDENTIFIER;
+    public static final String EVALUATION_METADATA =
+            SemanticAttributePrefixes.EVALUATION + "." + FeedbackAttributePostfixes.METADATA;
+
     /**
      * The input to any span
      */
@@ -202,6 +261,26 @@ public class SemanticConventions {
      * The model name used for the LLM
      */
     public static final String LLM_MODEL_NAME = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The model requested by the caller, as sent in the request. May differ from LLM_RESPONSE_MODEL_NAME
+     * when the provider routes the request to a different model (e.g. classifier-triggered fallback).
+     */
+    public static final String LLM_REQUEST_MODEL_NAME = SemanticAttributePrefixes.LLM
+            + "."
+            + LLMAttributePostfixes.REQUEST
+            + "."
+            + LLMAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The model that actually generated the response, as reported by the provider. May differ from
+     * LLM_REQUEST_MODEL_NAME when the provider routes the request to a different model.
+     */
+    public static final String LLM_RESPONSE_MODEL_NAME = SemanticAttributePrefixes.LLM
+            + "."
+            + LLMAttributePostfixes.RESPONSE
+            + "."
+            + LLMAttributePostfixes.MODEL_NAME;
 
     /**
      * Document content in retrieval operations
@@ -725,6 +804,27 @@ public class SemanticConventions {
         }
     }
 
+    public enum AnnotatorKind {
+        HUMAN("HUMAN"),
+        LLM("LLM"),
+        CODE("CODE");
+
+        private final String value;
+
+        AnnotatorKind(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        @Override
+        public String toString() {
+            return value;
+        }
+    }
+
     /**
      * An enum of common mime types. Not exhaustive.
      */
@@ -792,7 +892,8 @@ public class SemanticConventions {
         MOONSHOT("moonshot"),
         CEREBRAS("cerebras"),
         PERPLEXITY("perplexity"),
-        TOGETHER("together");
+        TOGETHER("together"),
+        OLLAMA("ollama");
 
         private final String value;
 

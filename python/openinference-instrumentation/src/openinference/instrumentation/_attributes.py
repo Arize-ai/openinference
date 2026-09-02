@@ -20,8 +20,10 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeGuard
 
 from openinference.semconv.trace import (
+    AnnotationAttributes,
     DocumentAttributes,
     EmbeddingAttributes,
+    EvaluationAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -36,6 +38,8 @@ from openinference.semconv.trace import (
 )
 
 from ._types import (
+    Annotation,
+    AnnotationScope,
     Document,
     Embedding,
     Message,
@@ -80,6 +84,11 @@ _HOST_SUFFIX_TO_PROVIDER: Dict[str, OpenInferenceLLMProviderValues] = {
     "api.together.ai": OpenInferenceLLMProviderValues.TOGETHER,
     "api.together.xyz": OpenInferenceLLMProviderValues.TOGETHER,
 }
+# OLLAMA joined OpenInferenceLLMProviderValues after semconv 0.1.31; guard the
+# reference so importing against an older semconv release degrades to "no
+# ollama host mapping" instead of an import-time AttributeError.
+if _ollama_provider := getattr(OpenInferenceLLMProviderValues, "OLLAMA", None):
+    _HOST_SUFFIX_TO_PROVIDER["ollama.com"] = _ollama_provider
 
 # Maps model name prefixes to their corresponding LLM system value.
 _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
@@ -115,7 +124,9 @@ def infer_llm_provider_from_host(host: str) -> Optional[OpenInferenceLLMProvider
 
     normalised = host.lower().strip()
     for suffix, provider in _HOST_SUFFIX_TO_PROVIDER.items():
-        if normalised.endswith(suffix):
+        # Anchor at a label boundary so e.g. "smollama.com" does not match
+        # the "ollama.com" suffix.
+        if normalised == suffix or normalised.endswith("." + suffix):
             return provider
     return None
 
@@ -181,6 +192,124 @@ def get_retriever_attributes(*, documents: List[Document]) -> Dict[str, Attribut
             )
         )
     return attributes
+
+
+def get_annotation_attributes(
+    *,
+    annotations: "Sequence[Annotation]",
+    scope: AnnotationScope = "span",
+) -> Dict[str, AttributeValue]:
+    """Return flattened OpenInference attributes for annotations.
+
+    Collection indices are assigned in input order. Metadata dictionaries are
+    JSON-serialized, while metadata strings are preserved as provided.
+    """
+    return _get_scoped_annotation_attributes(
+        annotations=annotations,
+        terminology="annotation",
+        scope=scope,
+    )
+
+
+def get_evaluation_attributes(
+    *,
+    evaluations: "Sequence[Annotation]",
+    scope: AnnotationScope = "span",
+) -> Dict[str, AttributeValue]:
+    """Return annotations encoded using evaluation terminology.
+
+    Collection indices are assigned in input order. Metadata dictionaries are
+    JSON-serialized, while metadata strings are preserved as provided.
+    """
+    return _get_scoped_annotation_attributes(
+        annotations=evaluations,
+        terminology="evaluation",
+        scope=scope,
+    )
+
+
+def _get_scoped_annotation_attributes(
+    *,
+    annotations: "Sequence[Annotation]",
+    terminology: Literal["annotation", "evaluation"],
+    scope: AnnotationScope,
+) -> Dict[str, AttributeValue]:
+    if isinstance(annotations, (str, bytes)) or not isinstance(annotations, Sequence):
+        raise TypeError("annotations must be a sequence of annotation objects")
+
+    collection_prefix = _get_annotation_collection_prefix(
+        terminology=terminology,
+        scope=scope,
+    )
+    field_names = _get_annotation_field_names(terminology)
+    attributes: Dict[str, AttributeValue] = {}
+
+    for index, result in enumerate(annotations):
+        if not isinstance(result, Mapping):
+            raise TypeError("each annotation must be a mapping")
+        if not isinstance(result.get("name"), str):
+            raise ValueError("each annotation must have a string name")
+        if not any(result.get(field) is not None for field in ("score", "label", "explanation")):
+            raise ValueError(
+                "each annotation must have at least one of score, label, or explanation"
+            )
+
+        for field, semantic_name in field_names.items():
+            value: Any = result.get(field)
+            if value is None:
+                continue
+            if field == "metadata" and not isinstance(value, str):
+                value = safe_json_dumps(value)
+            attributes[f"{collection_prefix}.{index}.{semantic_name}"] = value
+
+    return attributes
+
+
+def _get_annotation_collection_prefix(
+    *,
+    terminology: Literal["annotation", "evaluation"],
+    scope: AnnotationScope,
+) -> str:
+    prefixes = {
+        ("annotation", "span"): SpanAttributes.ANNOTATIONS,
+        ("annotation", "trace"): SpanAttributes.TRACE_ANNOTATIONS,
+        ("annotation", "session"): SpanAttributes.SESSION_ANNOTATIONS,
+        ("evaluation", "span"): SpanAttributes.EVALUATIONS,
+        ("evaluation", "trace"): SpanAttributes.TRACE_EVALUATIONS,
+        ("evaluation", "session"): SpanAttributes.SESSION_EVALUATIONS,
+    }
+    try:
+        return prefixes[(terminology, scope)]
+    except KeyError:
+        raise ValueError(
+            f"Invalid annotation terminology or scope: {terminology!r}, {scope!r}"
+        ) from None
+
+
+def _get_annotation_field_names(
+    terminology: Literal["annotation", "evaluation"],
+) -> Dict[str, str]:
+    if terminology == "annotation":
+        return {
+            "name": AnnotationAttributes.ANNOTATION_NAME,
+            "score": AnnotationAttributes.ANNOTATION_SCORE,
+            "label": AnnotationAttributes.ANNOTATION_LABEL,
+            "explanation": AnnotationAttributes.ANNOTATION_EXPLANATION,
+            "annotator_kind": AnnotationAttributes.ANNOTATION_ANNOTATOR_KIND,
+            "identifier": AnnotationAttributes.ANNOTATION_IDENTIFIER,
+            "metadata": AnnotationAttributes.ANNOTATION_METADATA,
+        }
+    if terminology == "evaluation":
+        return {
+            "name": EvaluationAttributes.EVALUATION_NAME,
+            "score": EvaluationAttributes.EVALUATION_SCORE,
+            "label": EvaluationAttributes.EVALUATION_LABEL,
+            "explanation": EvaluationAttributes.EVALUATION_EXPLANATION,
+            "annotator_kind": EvaluationAttributes.EVALUATION_ANNOTATOR_KIND,
+            "identifier": EvaluationAttributes.EVALUATION_IDENTIFIER,
+            "metadata": EvaluationAttributes.EVALUATION_METADATA,
+        }
+    raise ValueError(f"Invalid annotation terminology: {terminology!r}")
 
 
 def _document_attributes(
@@ -611,6 +740,10 @@ def get_llm_tool_attributes(
             attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = _json_serialize(
                 tool_json_schema
             )
+        if isinstance(tool_name := tool.get("name"), str) and tool_name:
+            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_NAME}"] = tool_name
+        if isinstance(tool_description := tool.get("description"), str) and tool_description:
+            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_DESCRIPTION}"] = tool_description
     return attributes
 
 

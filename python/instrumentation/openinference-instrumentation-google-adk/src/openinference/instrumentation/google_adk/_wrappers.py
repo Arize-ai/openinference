@@ -186,6 +186,8 @@ class _BaseAgentRunAsync(_WithTracer):
         attributes = dict(get_attributes_from_context())
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
         attributes[SpanAttributes.AGENT_NAME] = instance.name
+        if description := getattr(instance, "description", None):
+            attributes["gen_ai.agent.description"] = description
 
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
             __wrapped__: AsyncGenerator[Event, None]
@@ -195,8 +197,11 @@ class _BaseAgentRunAsync(_WithTracer):
                     name=name,
                     attributes=attributes,
                 ) as span:
+                    last_escalation_event: Optional[Event] = None
                     has_output_with_content = False
                     async for event in self.__wrapped__:
+                        if event.actions.escalate:
+                            last_escalation_event = event
                         if event.is_final_response():
                             event_has_content = _event_has_content(event)
                             if has_output_with_content and not event_has_content:
@@ -220,6 +225,20 @@ class _BaseAgentRunAsync(_WithTracer):
                                     has_output_with_content or event_has_content
                                 )
                         yield event
+                    if last_escalation_event is not None and not has_output_with_content:
+                        try:
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_VALUE,
+                                last_escalation_event.model_dump_json(exclude_none=True),
+                            )
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_MIME_TYPE,
+                                OpenInferenceMimeTypeValues.JSON.value,
+                            )
+                        except Exception:
+                            logger.exception(
+                                f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
+                            )
                     span.set_status(StatusCode.OK)
 
         return _AsyncGenerator(generator)
@@ -326,7 +345,9 @@ def _set_llm_span_status(span: trace_api.Span, llm_response: LlmResponse) -> Non
     OpenTelemetry treats a status of OK as final: once set, a later ERROR is
     ignored. ADK calls `trace_call_llm` for *every* response in a stream, so a
     partial chunk must not stamp OK — the stream may still raise, and the
-    span's exit handler must remain able to record ERROR (#3415).
+    span's exit handler must remain able to record ERROR (#3415). Only the
+    final chunk for the turn decides, and a response that ADK flagged with an
+    `error_code` (e.g. a blocked response) is reported as ERROR.
     """
     if llm_response.error_code:
         span.set_status(
@@ -350,21 +371,19 @@ class _TraceToolCall(_WithTracer):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return ans
         span = get_current_span()
+        arguments = bind_args_kwargs(wrapped, *args, **kwargs)
+        error = arguments.get("error")
+        error_type = arguments.get("error_type")
+        if isinstance(error, BaseException):
+            span.set_status(StatusCode.ERROR, description=f"{type(error).__name__}: {error}")
+        elif error_type is not None:
+            span.set_status(StatusCode.ERROR, description=str(error_type))
+        else:
+            span.set_status(StatusCode.OK)
         span.set_attribute(
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.TOOL.value,
         )
-        arguments = bind_args_kwargs(wrapped, *args, **kwargs)
-        # ADK >= 1.32 calls `trace_tool_call` from a `finally` block while the
-        # `execute_tool` span is still open, passing the tool exception (if any)
-        # as `error`. OpenTelemetry treats OK as final, so stamping OK here on a
-        # failed call would block the ERROR recorded when the exception
-        # propagates out of the span (#3415). Older ADK versions only call
-        # `trace_tool_call` after a successful call and have no `error` parameter.
-        if (error := arguments.get("error")) is None:
-            span.set_status(StatusCode.OK)
-        else:
-            span.set_status(StatusCode.ERROR, str(error))
         if base_tool := next(
             (arg for arg in arguments.values() if isinstance(arg, BaseTool)), None
         ):

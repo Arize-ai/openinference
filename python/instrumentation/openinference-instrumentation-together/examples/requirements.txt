@@ -1,0 +1,5 @@
+together
+openinference-instrumentation-together
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation-httpx

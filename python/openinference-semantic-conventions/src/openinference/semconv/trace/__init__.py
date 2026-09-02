@@ -3,6 +3,19 @@ from enum import Enum
 
 
 class SpanAttributes:
+    ANNOTATIONS = "annotations"
+    """Feedback using annotation terminology."""
+    EVALUATIONS = "evaluations"
+    """Feedback using evaluation or eval terminology."""
+    TRACE_ANNOTATIONS = "trace.annotations"
+    """Trace-scoped feedback using annotation terminology."""
+    TRACE_EVALUATIONS = "trace.evaluations"
+    """Trace-scoped feedback using evaluation or eval terminology."""
+    SESSION_ANNOTATIONS = "session.annotations"
+    """Session-scoped feedback using annotation terminology."""
+    SESSION_EVALUATIONS = "session.evaluations"
+    """Session-scoped feedback using evaluation or eval terminology."""
+
     OUTPUT_VALUE = "output.value"
     OUTPUT_MIME_TYPE = "output.mime_type"
     """
@@ -49,6 +62,18 @@ class SpanAttributes:
     LLM_MODEL_NAME = "llm.model_name"
     """
     The name of the model being used.
+    """
+    LLM_REQUEST_MODEL_NAME = "llm.request.model_name"
+    """
+    The model requested by the caller, as sent in the request. May differ from
+    llm.response.model_name when the provider routes the request to a different
+    model (e.g. classifier-triggered fallback).
+    """
+    LLM_RESPONSE_MODEL_NAME = "llm.response.model_name"
+    """
+    The model that actually generated the response, as reported by the provider.
+    May differ from llm.request.model_name when the provider routes the request
+    to a different model (e.g. classifier-triggered fallback).
     """
     LLM_PROVIDER = "llm.provider"
     """
@@ -267,6 +292,30 @@ class SpanAttributes:
     """
     A vendor-specific url used to locate the prompt.
     """
+
+
+class AnnotationAttributes:
+    """Attributes for feedback about a span."""
+
+    ANNOTATION_NAME = "annotation.name"
+    ANNOTATION_SCORE = "annotation.score"
+    ANNOTATION_LABEL = "annotation.label"
+    ANNOTATION_EXPLANATION = "annotation.explanation"
+    ANNOTATION_ANNOTATOR_KIND = "annotation.annotator_kind"
+    ANNOTATION_IDENTIFIER = "annotation.identifier"
+    ANNOTATION_METADATA = "annotation.metadata"
+
+
+class EvaluationAttributes:
+    """Attributes for feedback using evaluation or eval terminology."""
+
+    EVALUATION_NAME = "evaluation.name"
+    EVALUATION_SCORE = "evaluation.score"
+    EVALUATION_LABEL = "evaluation.label"
+    EVALUATION_EXPLANATION = "evaluation.explanation"
+    EVALUATION_ANNOTATOR_KIND = "evaluation.annotator_kind"
+    EVALUATION_IDENTIFIER = "evaluation.identifier"
+    EVALUATION_METADATA = "evaluation.metadata"
 
 
 class MessageAttributes:
@@ -501,15 +550,19 @@ class ChoiceAttributes:
 
 
 class ToolAttributes:
-    """
-    Attributes for a tools
-    """
+    """Attributes for tools."""
 
     TOOL_JSON_SCHEMA = "tool.json_schema"
     """
     The json schema of a tool input, It is RECOMMENDED that this be in the
     OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
     """
+
+    TOOL_NAME = "tool.name"
+    """The name of the tool, i.e. the identifier the model uses to call it."""
+
+    TOOL_DESCRIPTION = "tool.description"
+    """The description of the tool, i.e. the text the model uses to decide whether to call it."""
 
 
 class OpenInferenceSpanKindValues(Enum):
@@ -524,6 +577,12 @@ class OpenInferenceSpanKindValues(Enum):
     GUARDRAIL = "GUARDRAIL"
     EVALUATOR = "EVALUATOR"
     PROMPT = "PROMPT"
+
+
+class OpenInferenceAnnotatorKindValues(Enum):
+    HUMAN = "HUMAN"
+    LLM = "LLM"
+    CODE = "CODE"
 
 
 class OpenInferenceMimeTypeValues(Enum):
@@ -555,3 +614,4 @@ class OpenInferenceLLMProviderValues(Enum):
     CEREBRAS = "cerebras"
     PERPLEXITY = "perplexity"
     TOGETHER = "together"
+    OLLAMA = "ollama"

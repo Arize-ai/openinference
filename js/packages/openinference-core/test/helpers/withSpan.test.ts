@@ -4,9 +4,14 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 
 import {
+  defaultProcessOutput,
+  getLLMAttributes,
   traceAgent,
   traceChain,
   traceEmbedding,
@@ -37,10 +42,10 @@ describe("withSpan", () => {
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // Clean up after each test
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 
@@ -92,7 +97,7 @@ describe("withSpan", () => {
     expect(span.attributes["output.value"]).toBe("processed: test");
   });
 
-  it("should resolve the default tracer when invoked", () => {
+  it("should resolve the default tracer when invoked", async () => {
     const wrappedFn = withSpan(() => "dynamic tracer", {
       name: "dynamic-tracer",
     });
@@ -115,10 +120,10 @@ describe("withSpan", () => {
     expect(spans[0].name).toBe("dynamic-tracer");
 
     updatedSpanExporter.reset();
-    updatedTracerProvider.shutdown();
+    await updatedTracerProvider.shutdown();
   });
 
-  it("should continue using an explicit tracer after the global provider changes", () => {
+  it("should continue using an explicit tracer after the global provider changes", async () => {
     const wrappedFn = withSpan(() => "explicit tracer", {
       name: "explicit-tracer",
       tracer: tracerProvider.getTracer("test"),
@@ -142,7 +147,7 @@ describe("withSpan", () => {
     expect(updatedSpanExporter.getFinishedSpans()).toHaveLength(0);
 
     updatedSpanExporter.reset();
-    updatedTracerProvider.shutdown();
+    await updatedTracerProvider.shutdown();
   });
 
   it("should handle promise rejections and record exceptions", async () => {
@@ -216,6 +221,54 @@ describe("withSpan", () => {
     expect(span.name).toBe("test-function");
     expect(span.attributes["service.name"]).toBe("test-service");
     expect(span.attributes["service.version"]).toBe("1.0.0");
+  });
+
+  it("should support model name attributes composed via getLLMAttributes", async () => {
+    const asyncFn = async () => "response";
+
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(asyncFn, {
+      name: "llm-call",
+      kind: "LLM",
+      processInput: () => getLLMAttributes({ requestModelName: "gpt-4" }),
+      processOutput: (result) => ({
+        ...defaultProcessOutput(result),
+        ...getLLMAttributes({ responseModelName: "gpt-4-0613" }),
+      }),
+      tracer,
+    });
+
+    await wrappedFn();
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+
+    const span = spans[0];
+    expect(span.attributes[SemanticConventions.LLM_REQUEST_MODEL_NAME]).toBe("gpt-4");
+    expect(span.attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME]).toBe("gpt-4-0613");
+    // The response model overrides the request-derived llm.model_name
+    expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("gpt-4-0613");
+    // Spreading defaultProcessOutput keeps the default output capture
+    expect(span.attributes[SemanticConventions.OUTPUT_VALUE]).toBe("response");
+  });
+
+  it("should not apply processOutput attributes when the wrapped function throws", async () => {
+    const errorFn = async () => {
+      throw new Error("Test error");
+    };
+
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(errorFn, {
+      name: "failing-llm-call",
+      processOutput: () => getLLMAttributes({ responseModelName: "gpt-4-0613" }),
+      tracer,
+    });
+
+    await expect(wrappedFn()).rejects.toThrow("Test error");
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME]).toBeUndefined();
   });
 
   it("should use custom input and output processors", () => {
@@ -296,6 +349,7 @@ describe("withSpan", () => {
 
     const service = new Service();
     const tracer = tracerProvider.getTracer("test");
+    // oxlint-disable-next-line typescript/unbound-method -- this behavior is under test.
     service.run = withSpan(service.run, {
       name: "service-run",
       tracer,
@@ -337,9 +391,9 @@ describe("traceChain", () => {
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 
@@ -372,9 +426,9 @@ describe("withAgentSpan", () => {
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 
@@ -407,9 +461,9 @@ describe("traceTool", () => {
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 
@@ -474,9 +528,9 @@ describe.each([
     tracerProvider.register();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     spanExporter.reset();
-    tracerProvider.shutdown();
+    await tracerProvider.shutdown();
     trace.disable();
   });
 

@@ -1,6 +1,7 @@
 import asyncio
+import os
 
-from mistralai import Mistral
+from mistralai.client import Mistral
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -18,7 +19,7 @@ MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 async def chat_completions_async():
     client = Mistral(
-        api_key="redacted",
+        api_key=os.getenv("MISTRAL_API_KEY", ""),
     )
     with using_attributes(
         session_id="my-test-session",

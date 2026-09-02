@@ -2452,7 +2452,9 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     )
     tools: Sequence[Tool] = [
         Tool(
-            json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}})
+            name="search",
+            description="Search the web",
+            json_schema=json.dumps({"type": "object", "properties": {"query": {"type": "string"}}}),
         ),
         Tool(
             json_schema={
@@ -2578,12 +2580,16 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}")
         == '{"type": "object", "properties": {"query": {"type": "string"}}}'
     )
+    assert attributes.pop(f"{LLM_TOOLS}.0.{TOOL_NAME}") == "search"
+    assert attributes.pop(f"{LLM_TOOLS}.0.{TOOL_DESCRIPTION}") == "Search the web"
     tool_schema = attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}")
     assert isinstance(tool_schema, str)
     assert json.loads(tool_schema) == {
         "type": "object",
         "properties": {"operation": {"type": "string"}},
     }
+    assert f"{LLM_TOOLS}.1.{TOOL_NAME}" not in attributes
+    assert f"{LLM_TOOLS}.1.{TOOL_DESCRIPTION}" not in attributes
 
 
 def _reasoning_message(role: str) -> Message:
@@ -2706,12 +2712,12 @@ def test_reasoning_content_masking(
     for key in opaque_keys:
         assert attrs[key] is not None
 
-    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_messages": True}))
+    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_messages": True}))  # type: ignore[arg-type]
     assert text_key not in attrs
     for key in opaque_keys:
         assert key not in attrs
 
-    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_text": True}))
+    attrs = span_attributes_for(TraceConfig(**{f"hide_{direction}_text": True}))  # type: ignore[arg-type]
     assert attrs[text_key] == REDACTED_VALUE
     assert attrs[opaque_keys[0]] == "thought-sig-456"
     assert attrs[opaque_keys[1]] == "redacted-thinking-data"
@@ -3255,7 +3261,10 @@ class TestSamplerAttributeAccess:
         from openinference.instrumentation import TraceConfig, TracerProvider
 
         class CustomTraceConfig(TraceConfig):
-            def mask(
+            # Deliberately overrides with the legacy two-argument signature
+            # (no `externalize` keyword) to exercise the signature-tolerant
+            # fallback in mask_without_externalization.
+            def mask(  # type: ignore[override]
                 self,
                 key: str,
                 value: Union[AttributeValue, Callable[[], AttributeValue]],

@@ -584,6 +584,9 @@ def _finalize_anthropic_messages_span(span: trace_api.Span, result: Any) -> None
     for key, value in _get_attributes_from_anthropic_output_message(response):
         _set_span_attribute(span, key, value)
 
+    if stop_reason := response.get("stop_reason"):
+        _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, stop_reason)
+
     if output_text := _get_output_text_from_anthropic_response(response):
         span.set_attributes(get_output_attributes(output_text))
     else:
@@ -711,6 +714,11 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                 _set_span_attribute(
                     span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
                 )
+
+            # Only capture finish_reason for the first choice.
+            if idx == 0:
+                if (finish_reason := getattr(choice, "finish_reason", None)) is not None:
+                    _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
 
     elif isinstance(result, EmbeddingResponse):
         # Extract model name from response (may differ from request model name)
@@ -1020,6 +1028,8 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                     entry = output_messages.get(idx)
                     if entry is None:
                         entry = output_messages[idx] = {"role": None, "content": ""}
+                    if (finish_reason := getattr(choice, "finish_reason", None)) is not None:
+                        entry["finish_reason"] = finish_reason
                     delta = choice.delta
                     if delta:
                         role = getattr(delta, "role", None)
@@ -1051,6 +1061,8 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             _remove_redundant_reasoning_entries(output_messages, reasoning_items)
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
+        if finish_reason := output_messages.get(0, {}).get("finish_reason"):
+            _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
         for idx, msg in output_messages.items():
             message = _build_message_from_accumulated(msg)
             for key, value in _get_attributes_from_message_param(message):
@@ -1080,6 +1092,8 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
                     entry = output_messages.get(idx)
                     if entry is None:
                         entry = output_messages[idx] = {"role": None, "content": ""}
+                    if (finish_reason := getattr(choice, "finish_reason", None)) is not None:
+                        entry["finish_reason"] = finish_reason
                     delta = choice.delta
                     if delta:
                         role = getattr(delta, "role", None)
@@ -1111,6 +1125,8 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: Any) -> Any:
             _remove_redundant_reasoning_entries(output_messages, reasoning_items)
         aggregated_output = output_messages.get(0, {}).get("content", "")
         _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, aggregated_output)
+        if finish_reason := output_messages.get(0, {}).get("finish_reason"):
+            _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
         for idx, msg in output_messages.items():
             message = _build_message_from_accumulated(msg)
             for key, value in _get_attributes_from_message_param(message):

@@ -7,6 +7,7 @@ import {
   getInputAttributes,
   getOutputAttributes,
   getToolAttributes,
+  isObjectWithStringKeys,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
 import {
@@ -25,10 +26,7 @@ type HooksOption = Partial<Record<HookEvent, HookCallbackMatcher[]>>;
  * Returns an empty object for non-object values (strings, arrays, null, etc.).
  */
 function asRecord(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
+  return isObjectWithStringKeys(value) ? value : {};
 }
 
 /**
@@ -114,6 +112,19 @@ export class ToolSpanTracker {
 }
 
 /**
+ * The hook events this instrumentation registers matchers for. Single source of truth
+ * shared by {@link createToolHookMatchers} (which returns exactly these keys) and
+ * {@link mergeHooks} (which merges exactly these keys).
+ */
+const TOOL_HOOK_EVENTS = [
+  "PreToolUse",
+  "PostToolUse",
+  "PostToolUseFailure",
+] as const satisfies readonly HookEvent[];
+
+type ToolHookEvent = (typeof TOOL_HOOK_EVENTS)[number];
+
+/**
  * Creates hook callback matchers for PreToolUse, PostToolUse, and PostToolUseFailure
  * that track tool spans via the provided ToolSpanTracker.
  *
@@ -122,7 +133,7 @@ export class ToolSpanTracker {
 function createToolHookMatchers(
   toolTracker: ToolSpanTracker,
   parentSpan: Span,
-): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
+): Record<ToolHookEvent, HookCallbackMatcher[]> {
   const parentContext = trace.setSpan(context.active(), parentSpan);
 
   const preToolUseHook: HookCallback = async (input) => {
@@ -171,23 +182,29 @@ function createToolHookMatchers(
  *
  * Returns a new options object (does not mutate the original).
  */
-export function mergeHooks<T extends { hooks?: HooksOption }>({
+export function mergeHooks<T extends { hooks?: HooksOption }>(args: {
+  options: T | undefined;
+  toolTracker: ToolSpanTracker;
+  parentSpan: Span;
+}): T & { hooks: HooksOption };
+export function mergeHooks({
   options,
   toolTracker,
   parentSpan,
 }: {
-  options: T | undefined;
+  options: { hooks?: HooksOption } | undefined;
   toolTracker: ToolSpanTracker;
   parentSpan: Span;
-}): T {
-  const opts = options ?? ({} as T);
+}): { hooks: HooksOption } {
+  const opts = options ?? {};
   const existingHooks = opts.hooks ?? {};
   const ourHooks = createToolHookMatchers(toolTracker, parentSpan);
 
   const mergedHooks: HooksOption = { ...existingHooks };
-  for (const [event, matchers] of Object.entries(ourHooks)) {
-    const existing = mergedHooks[event as HookEvent] ?? [];
-    mergedHooks[event as HookEvent] = [...existing, ...matchers];
+  for (const event of TOOL_HOOK_EVENTS) {
+    const matchers = ourHooks[event];
+    const existing = mergedHooks[event] ?? [];
+    mergedHooks[event] = [...existing, ...matchers];
   }
 
   return { ...opts, hooks: mergedHooks };

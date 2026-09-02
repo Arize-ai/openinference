@@ -33,6 +33,17 @@ import type { GuardrailTraceMetadata, StringKeyedObject } from "./types";
 import { getObjectDataFromUnknown } from "./utils/jsonUtils";
 import { isArrayOfObjectWithStringKeys } from "./utils/typeUtils";
 
+const isInvocationType = (value: unknown): value is InvocationType =>
+  value === "AGENT_COLLABORATOR" ||
+  value === "ACTION_GROUP" ||
+  value === "ACTION_GROUP_CODE_INTERPRETER" ||
+  value === "KNOWLEDGE_BASE";
+
+function getAgentCollaboratorSpanName(data: StringKeyedObject): string {
+  const collaboratorName = getStringAttributeValueFromUnknown(data.agentCollaboratorName);
+  return collaboratorName ? `agent_collaborator[${collaboratorName}]` : "agent_collaborator";
+}
+
 /**
  * SpanCreator creates and manages OpenTelemetry spans from agent trace nodes.
  */
@@ -384,7 +395,7 @@ export class SpanCreator {
         };
       }
       default: {
-        assertUnreachable(traceEventType);
+        return assertUnreachable(traceEventType);
       }
     }
   }
@@ -443,7 +454,7 @@ export class SpanCreator {
       key: "invocationInput",
     });
 
-    let type = input?.invocationType as InvocationType;
+    let type = isInvocationType(input?.invocationType) ? input.invocationType : undefined;
 
     if (!input) {
       const observation = getObjectDataFromUnknown({
@@ -464,7 +475,7 @@ export class SpanCreator {
         return { spanKind: OpenInferenceSpanKind.LLM, name: "LLM" };
       }
 
-      type = observation?.type as InvocationType;
+      type = isInvocationType(observation.type) ? observation.type : undefined;
     }
 
     switch (type) {
@@ -481,7 +492,7 @@ export class SpanCreator {
         if (agentCollaboratorInvocationInput) {
           return {
             spanKind: OpenInferenceSpanKind.AGENT,
-            name: `agent_collaborator[${agentCollaboratorInvocationInput?.agentCollaboratorName}]`,
+            name: getAgentCollaboratorSpanName(agentCollaboratorInvocationInput),
           };
         }
 
@@ -498,12 +509,12 @@ export class SpanCreator {
           if (agentCollaboratorInvocationInput) {
             return {
               spanKind: OpenInferenceSpanKind.AGENT,
-              name: `agent_collaborator[${agentCollaboratorInvocationInput?.agentCollaboratorName}]`,
+              name: getAgentCollaboratorSpanName(agentCollaboratorInvocationInput),
             };
           } else {
             return {
               spanKind: OpenInferenceSpanKind.AGENT,
-              name: `agent_collaborator[${invocationInput?.agentCollaboratorName}]`,
+              name: getAgentCollaboratorSpanName(invocationInput),
             };
           }
         }
@@ -519,7 +530,7 @@ export class SpanCreator {
           if (agentCollaboratorInvocationOutput) {
             return {
               spanKind: OpenInferenceSpanKind.AGENT,
-              name: `agent_collaborator[${agentCollaboratorInvocationOutput?.agentCollaboratorName}]`,
+              name: getAgentCollaboratorSpanName(agentCollaboratorInvocationOutput),
             };
           }
         }

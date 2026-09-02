@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.3...go/openinference-semantic-conventions/v0.1.4) (2026-08-24)
+
+
+### Features
+
+* **semconv:** add llm.input_model_name and llm.output_model_name ([#3585](https://github.com/Arize-ai/openinference/issues/3585)) ([1fe497f](https://github.com/Arize-ai/openinference/commit/1fe497f1d9f45a07eee55d97fe185e020560f9c7))
+
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.2...go/openinference-semantic-conventions/v0.1.3) (2026-08-07)
+
+
+### Features
+
+* **ollama:** add Ollama instrumentor ([#3348](https://github.com/Arize-ai/openinference/issues/3348)) ([237ce2b](https://github.com/Arize-ai/openinference/commit/237ce2b413e89782ad93431d39581a1ee44cad95))
+
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.1...go/openinference-semantic-conventions/v0.1.2) (2026-08-01)
+
+
+### Features
+
+* **spec:** add annotation and evaluation conventions ([#3466](https://github.com/Arize-ai/openinference/issues/3466)) ([145e3c6](https://github.com/Arize-ai/openinference/commit/145e3c6d0626f37396b32d8e33347d386aa4097c))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.0...go/openinference-semantic-conventions/v0.1.1) (2026-05-22)
 
 

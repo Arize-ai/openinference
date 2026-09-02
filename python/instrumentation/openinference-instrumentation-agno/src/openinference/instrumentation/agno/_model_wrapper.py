@@ -1,6 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
+from os import getenv
 from typing import (
     Any,
     Awaitable,
@@ -18,15 +19,62 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
 from agno.models.base import Model
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    infer_llm_system_from_model_name,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
 )
+
+
+def _get_gemini_vertexai_mode(model: Model) -> Optional[bool]:
+    """Return whether an Agno Gemini model uses Vertex AI."""
+    # Agno returns a prebuilt client without consulting its other configuration.
+    client = getattr(model, "client", None)
+    if client is not None:
+        client_vertexai = getattr(client, "vertexai", None)
+        return client_vertexai if isinstance(client_vertexai, bool) else None
+
+    vertexai_env = getenv("GOOGLE_GENAI_USE_VERTEXAI", "false").lower()
+    vertexai_mode: Optional[bool] = (
+        True if bool(getattr(model, "vertexai", False)) or vertexai_env == "true" else None
+    )
+    client_params = getattr(model, "client_params", None)
+    # Agno applies client_params last, so an explicit value overrides the flag.
+    if isinstance(client_params, Mapping) and "vertexai" in client_params:
+        client_param_vertexai = client_params["vertexai"]
+        if client_param_vertexai is None:
+            vertexai_mode = None
+        elif isinstance(client_param_vertexai, bool):
+            vertexai_mode = client_param_vertexai
+        else:
+            return None
+    if vertexai_mode is not None:
+        return vertexai_mode
+    return vertexai_env in {"true", "1"}
+
+
+def _get_llm_system(model: Model) -> Optional[str]:
+    """Derive the OpenInference ``llm.system`` value from an Agno model."""
+    system = infer_llm_system_from_model_name(model.id or "")
+    if system is None:
+        return None
+    if system is OpenInferenceLLMSystemValues.VERTEXAI and (
+        hasattr(model, "vertexai") or getattr(model, "provider", None) == "Google"
+    ):
+        if (vertexai := _get_gemini_vertexai_mode(model)) is None:
+            return None
+        return "vertexai" if vertexai else "google"
+    return system.value
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
@@ -164,6 +212,36 @@ def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[s
     yield INPUT_VALUE, safe_json_dumps({"messages": cleaned_input})
 
 
+def _message_content_attributes(
+    message_index: int, content: Optional[str], reasoning_content: Optional[str]
+) -> Iterator[Tuple[str, Any]]:
+    """Yield attributes for content and reasoning_conent of a single output message."""
+    if reasoning_content:
+        content_index = 0
+        yield (
+            f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}.{MESSAGE_CONTENT_TYPE}",
+            "reasoning",
+        )
+        yield (
+            f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}.{MESSAGE_CONTENT_TEXT}",
+            reasoning_content,
+        )
+        content_index += 1
+        if content:
+            yield (
+                f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}.{MESSAGE_CONTENT_TYPE}",
+                "text",
+            )
+            yield (
+                f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENTS}.{content_index}.{MESSAGE_CONTENT_TEXT}",
+                content,
+            )
+        if content:
+            yield f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}", content
+    elif content:
+        yield f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}", content
+
+
 def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_MIME_TYPE, JSON
 
@@ -181,6 +259,9 @@ def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
             if content := output_data.get("content"):
                 message["content"] = content
 
+            if reasoning_content := output_data.get("reasoning_content"):
+                message["reasoning_content"] = reasoning_content
+
             # Only include tool_calls if they exist and are not empty
             if tool_calls := output_data.get("tool_calls"):
                 if tool_calls:  # Only include if not empty list
@@ -190,8 +271,13 @@ def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
             for i, message in enumerate(messages):
                 if role := _get_attr(message, "role"):
                     yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
-                if content := _get_attr(message, "content"):
-                    yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+
+                yield from _message_content_attributes(
+                    i,
+                    _get_attr(message, "content"),
+                    _get_attr(message, "reasoning_content"),
+                )
+
                 if tool_calls := _get_attr(message, "tool_calls"):
                     for tool_call_index, tool_call in enumerate(tool_calls):
                         yield (
@@ -229,6 +315,8 @@ def _parse_model_output(output: Any) -> str:
                 result_dict["role"] = output.role
             if hasattr(output, "content"):
                 result_dict["content"] = output.content
+            if hasattr(output, "reasoning_content") and output.reasoning_content:
+                result_dict["reasoning_content"] = output.reasoning_content
             if hasattr(output, "tool_calls"):
                 result_dict["tool_calls"] = output.tool_calls
 
@@ -249,12 +337,17 @@ def _parse_model_output(output: Any) -> str:
 
 def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
     accumulated_content = ""
+    accumulated_reasoning = ""
     indexed_tool_calls: Dict[int, Dict[str, Any]] = {}
     non_indexed_tool_calls: list[Dict[str, Any]] = []
 
     for chunk in output:
         if chunk.content is not None and chunk.content != "":
             accumulated_content += str(chunk.content)
+
+        reasoning_chunk = getattr(chunk, "reasoning_content", None)
+        if reasoning_chunk:
+            accumulated_reasoning += str(reasoning_chunk)
 
         if chunk.tool_calls:
             for tool_call in chunk.tool_calls:
@@ -299,11 +392,14 @@ def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
     all_tool_calls.extend(non_indexed_tool_calls)
 
     messages: list[Dict[str, Any]] = []
-    if accumulated_content or all_tool_calls:
+    if accumulated_content or accumulated_reasoning or all_tool_calls:
         result_dict: Dict[str, Any] = {"role": "assistant"}
 
         if accumulated_content:
             result_dict["content"] = accumulated_content
+
+        if accumulated_reasoning:
+            result_dict["reasoning_content"] = accumulated_reasoning
 
         if all_tool_calls:
             result_dict["tool_calls"] = all_tool_calls
@@ -317,8 +413,13 @@ def _stream_output_messages(output: Dict[str, Any]) -> Iterator[Tuple[str, Any]]
     for i, message in enumerate(output.get("messages", [])):
         if role := _get_attr(message, "role"):
             yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
-        if content := _get_attr(message, "content"):
-            yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+
+        yield from _message_content_attributes(
+            i,
+            _get_attr(message, "content"),
+            _get_attr(message, "reasoning_content"),
+        )
+
         if tool_calls := _get_attr(message, "tool_calls"):
             for j, tool_call in enumerate(tool_calls):
                 if tc_id := _get_attr(tool_call, "id"):
@@ -373,6 +474,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model):
+                span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = wrapped(*args, **kwargs)
             output_message = _parse_model_output(response)
@@ -430,6 +533,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model):
+                span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 
             responses = []
@@ -501,6 +606,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model):
+                span.set_attribute(LLM_SYSTEM, llm_system)
 
             response = await wrapped(*args, **kwargs)
             output_message = _parse_model_output(response)
@@ -564,6 +671,8 @@ class _ModelWrapper:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
+            if llm_system := _get_llm_system(model):
+                span.set_attribute(LLM_SYSTEM, llm_system)
             # Token usage will be set after streaming completes based on final response
 
             responses = []
@@ -616,6 +725,7 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
@@ -629,6 +739,9 @@ USER_ID = SpanAttributes.USER_ID
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME

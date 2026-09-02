@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { APIPromise } from "@anthropic-ai/sdk";
 import type { Stream } from "@anthropic-ai/sdk/streaming";
 import type { Attributes, Span, Tracer, TracerProvider } from "@opentelemetry/api";
 import { context, diag, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
@@ -31,11 +32,56 @@ const MODULE_NAME = "@anthropic-ai/sdk";
 
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-anthropic";
 
+type MessageCreateParams =
+  | Parameters<typeof Anthropic.Messages.prototype.create>[0]
+  | Parameters<typeof Anthropic.Beta.Messages.prototype.create>[0];
+type MessageParam = Anthropic.Messages.MessageParam | Anthropic.Beta.Messages.BetaMessageParam;
+type Message = Anthropic.Messages.Message | Anthropic.Beta.Messages.BetaMessage;
+type RawMessageStreamEvent =
+  | Anthropic.Messages.RawMessageStreamEvent
+  | Anthropic.Beta.Messages.BetaRawMessageStreamEvent;
+type MessageUsage =
+  | Anthropic.Messages.Usage
+  | Anthropic.Messages.MessageDeltaUsage
+  | Anthropic.Beta.Messages.BetaUsage
+  | Anthropic.Beta.Messages.BetaMessageDeltaUsage
+  | Anthropic.Beta.Messages.BetaFallbackMessageIterationUsage;
+type AnthropicModuleWithOptionalBeta = Omit<typeof Anthropic, "Beta"> & {
+  Beta?: { Messages?: typeof Anthropic.Beta.Messages };
+};
+
+/**
+ * Resolves the Anthropic namespace and its optional `Beta.Messages` from a
+ * module export, unwrapping the ES-module default. `patch` and `unpatch` must
+ * agree on the object they (un)wrap, so they share this one resolution.
+ */
+function resolveAnthropicModule(moduleExports: typeof Anthropic) {
+  const anthropicModule =
+    (moduleExports as typeof Anthropic & { default?: typeof Anthropic }).default || moduleExports;
+  return {
+    anthropicModule,
+    betaMessages: (anthropicModule as AnthropicModuleWithOptionalBeta).Beta?.Messages,
+  };
+}
+
 /**
  * Flag to check if the anthropic module has been patched
  * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
  */
 let _isOpenInferencePatched = false;
+
+/**
+ * The Anthropic classes that have already been patched, tracked by identity.
+ * The SDK ships separate CJS and ESM builds with separate class objects, so a
+ * module-global boolean cannot guard them independently: whichever build was
+ * patched first would block the other one forever (#3557). A Set is
+ * scoped to the object, and needs no write to the module, so it also keeps
+ * the double-patch guard working when the module is immutable (e.g. Deno,
+ * webpack) and the `openInferencePatched` property cannot be set. Entries
+ * are removed when their wrappers are removed, so the Set does not retain
+ * unpatched SDK builds.
+ */
+const _patchedModules = new Set<object>();
 
 /**
  * function to check if instrumentation is enabled / disabled
@@ -69,6 +115,10 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
   private oiTracer: OITracer;
   private tracerProvider?: TracerProvider;
   private traceConfig?: TraceConfigOptions;
+  private readonly patchedModuleExports = new Map<
+    typeof Anthropic,
+    typeof Anthropic & { openInferencePatched?: boolean }
+  >();
 
   constructor({
     instrumentationConfig,
@@ -121,6 +171,13 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     this.patch(module);
   }
 
+  disable(): void {
+    super.disable();
+    for (const moduleExports of [...this.patchedModuleExports.values()]) {
+      this.unpatch(moduleExports);
+    }
+  }
+
   get tracer(): Tracer {
     if (this.tracerProvider) {
       return this.tracerProvider.getTracer(this.instrumentationName, this.instrumentationVersion);
@@ -146,13 +203,15 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
   ) {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
 
-    if (module?.openInferencePatched || _isOpenInferencePatched) {
+    if (module?.openInferencePatched) {
       return module;
     }
 
-    // Handle ES module default export structure
-    const anthropicModule =
-      (module as typeof Anthropic & { default?: typeof Anthropic }).default || module;
+    const { anthropicModule, betaMessages } = resolveAnthropicModule(module);
+
+    if (anthropicModule && _patchedModules.has(anthropicModule)) {
+      return module;
+    }
 
     if (!anthropicModule?.Messages?.prototype?.create) {
       diag.warn(`Cannot find Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
@@ -162,22 +221,23 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: AnthropicInstrumentation = this;
 
-    // Patch messages.create
+    // Patch stable and beta messages.create using the same span lifecycle.
     type MessagesCreateType = typeof anthropicModule.Messages.prototype.create;
+    type BetaMessagesCreateType = typeof anthropicModule.Beta.Messages.prototype.create;
+    type AnyMessagesCreateType = MessagesCreateType | BetaMessagesCreateType;
 
-    this._wrap(
-      anthropicModule.Messages.prototype,
-      "create",
+    const patchCreate =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (original: MessagesCreateType): any => {
-        return function patchedCreate(this: unknown, ...args: Parameters<MessagesCreateType>) {
-          const body = args[0] as Anthropic.Messages.MessageCreateParams;
+      <CreateType extends AnyMessagesCreateType>(original: CreateType): any => {
+        return function patchedCreate(this: unknown, ...args: Parameters<CreateType>) {
+          const body = args[0];
           const { messages: _messages, ...invocationParameters } = body;
           const span = instrumentation.oiTracer.startSpan(`Anthropic Messages`, {
             kind: SpanKind.INTERNAL,
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
               [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.LLM_REQUEST_MODEL_NAME]: body.model,
               [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
               [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
               [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
@@ -191,7 +251,8 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
           const execPromise = safeExecuteInTheMiddle(
             () => {
               return context.with(trace.setSpan(execContext, span), () => {
-                return original.apply(this, args);
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+                return Reflect.apply(original, this, args) as ReturnType<CreateType>;
               });
             },
             (error: Error | undefined) => {
@@ -205,11 +266,32 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 span.end();
               }
             },
-          );
+          ) as APIPromise<Message | Stream<RawMessageStreamEvent>>;
 
-          const wrappedPromiseThen = (
-            result: Anthropic.Messages.Message | Stream<Anthropic.Messages.RawMessageStreamEvent>,
-          ) => {
+          // The span can be ended by the parse path, the asResponse() override, or
+          // an error, so guard against ending it more than once.
+          let spanEnded = false;
+          const endSpan = () => {
+            if (spanEnded) {
+              return;
+            }
+            spanEnded = true;
+            span.end();
+          };
+
+          const recordError = (error: Error) => {
+            if (spanEnded) {
+              return;
+            }
+            span.recordException(error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
+            });
+            endSpan();
+          };
+
+          const wrappedPromiseThen = (result: Message | Stream<RawMessageStreamEvent>) => {
             if (isAnthropicMessageResponse(result)) {
               // Record the results
               span.setAttributes({
@@ -217,38 +299,84 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
                 [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
+                [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: result.model,
+                ...getAnthropicFinishReasonAttributes(result.stop_reason),
                 ...getAnthropicOutputMessagesAttributes(result),
                 ...getAnthropicUsageAttributes(result.usage),
               });
               span.setStatus({ code: SpanStatusCode.OK });
-              span.end();
+              endSpan();
             } else if (isAnthropicStream(result)) {
               // This is a streaming response
               // handle the chunks and add them to the span
               // First split the stream via tee
               const [leftStream, rightStream] = result.tee();
-              consumeAnthropicStreamChunks(rightStream, span);
+              void consumeAnthropicStreamChunks(rightStream, span);
               result = leftStream;
             }
 
             return result;
           };
 
+          // Use _thenUnwrap so the result stays an APIPromise and keeps
+          // withResponse()/asResponse(). Plain .then() would drop them and break
+          // client.messages.stream().
+          if (hasThenUnwrap(execPromise)) {
+            const wrappedPromise = execPromise._thenUnwrap(wrappedPromiseThen);
+            const rawResponse = wrappedPromise.asResponse.bind(wrappedPromise);
+
+            // Record request failures without triggering parse (which would consume
+            // the body). Covers the await/withResponse and asResponse paths.
+            rawResponse().catch(recordError);
+
+            // Wrap asResponse() itself so the span is finalized only when the caller
+            // actually chooses the raw-response path. Those callers bypass parsing,
+            // so no parsed output attributes are available.
+            wrappedPromise.asResponse = async () => {
+              const response = await rawResponse();
+              span.setStatus({ code: SpanStatusCode.OK });
+              endSpan();
+              return response;
+            };
+
+            // withResponse() calls this.asResponse() internally; reimplement it
+            // against the raw response so the override above doesn't end the span
+            // before wrappedPromiseThen records the output.
+            wrappedPromise.withResponse = async () => {
+              const [data, response] = await Promise.all([
+                wrappedPromise.then((value) => value),
+                rawResponse(),
+              ]);
+              return {
+                data,
+                response,
+                request_id: response.headers.get("request-id"),
+                workspace_id: response.headers.get("anthropic-workspace-id"),
+              };
+            };
+
+            return context.bind(execContext, wrappedPromise);
+          }
+
           const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error: Error) => {
-            span.recordException(error);
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: error.message,
-            });
-            span.end();
+            recordError(error);
             throw error;
           });
           return context.bind(execContext, wrappedPromise);
         };
-      },
-    );
+      };
+
+    this._wrap(anthropicModule.Messages.prototype, "create", patchCreate);
+    if (betaMessages?.prototype?.create) {
+      this._wrap(betaMessages.prototype, "create", patchCreate);
+    } else {
+      // Beta instrumentation is optional: the stable Messages patch still applies.
+      diag.debug(`Cannot find Beta.Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
+    }
 
     _isOpenInferencePatched = true;
+    _patchedModules.add(anthropicModule);
+    this.patchedModuleExports.set(anthropicModule, module);
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       module.openInferencePatched = true;
@@ -267,9 +395,16 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
     moduleVersion?: string,
   ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
-    this._unwrap(moduleExports.Messages.prototype, "create");
+    const { anthropicModule, betaMessages } = resolveAnthropicModule(moduleExports);
+    this._unwrap(anthropicModule.Messages.prototype, "create");
+    if (betaMessages?.prototype?.create) {
+      this._unwrap(betaMessages.prototype, "create");
+    }
 
-    _isOpenInferencePatched = false;
+    // Keyed the same way patch() keys it, so a re-patch is possible after.
+    _patchedModules.delete(anthropicModule);
+    this.patchedModuleExports.delete(anthropicModule);
+    _isOpenInferencePatched = _patchedModules.size > 0;
     try {
       // This can fail if the module is made immutable via the runtime or bundler
       moduleExports.openInferencePatched = false;
@@ -280,9 +415,16 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
 }
 
 /**
+ * True when create() returned an APIPromise we can transform with _thenUnwrap.
+ */
+function hasThenUnwrap<T>(promise: PromiseLike<T>): promise is APIPromise<T> {
+  return "_thenUnwrap" in promise && typeof promise._thenUnwrap === "function";
+}
+
+/**
  * type-guard that checks if the response is an Anthropic message response
  */
-function isAnthropicMessageResponse(response: unknown): response is Anthropic.Messages.Message {
+function isAnthropicMessageResponse(response: unknown): response is Message {
   return (
     response != null && typeof response === "object" && "content" in response && "role" in response
   );
@@ -291,19 +433,55 @@ function isAnthropicMessageResponse(response: unknown): response is Anthropic.Me
 /**
  * type-guard that checks if the response is an Anthropic stream
  */
-function isAnthropicStream(
-  response: unknown,
-): response is Stream<Anthropic.Messages.RawMessageStreamEvent> {
+function isAnthropicStream(response: unknown): response is Stream<RawMessageStreamEvent> {
   return response != null && typeof response === "object" && "tee" in response;
+}
+
+/**
+ * Records the reason the model stopped generating tokens. `"refusal"` is the
+ * signal that a safety classifier declined the request.
+ *
+ * @see https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback
+ */
+function getAnthropicFinishReasonAttributes(stopReason: string | null | undefined): Attributes {
+  if (stopReason == null) {
+    return {};
+  }
+  return { [SemanticConventions.LLM_FINISH_REASON]: stopReason };
+}
+
+/**
+ * Summarizes a server-side fallback handoff so the boundary is visible on the
+ * span. Without this the block would occupy an index in the flattened
+ * `message_contents` list while contributing no attributes, leaving a hole in
+ * the list and dropping which model declined and why.
+ *
+ * @see https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#server-side-fallback
+ */
+function getAnthropicFallbackContentAttributes(
+  prefix: string,
+  block: Anthropic.Beta.Messages.BetaFallbackBlock | Anthropic.Beta.Messages.BetaFallbackBlockParam,
+): Attributes {
+  // The response block types `trigger` as a refusal trigger, but the param
+  // variant echoed back on a later turn declares it `unknown` — the server
+  // accepts and ignores any object there — so it has to be narrowed.
+  const trigger: unknown = block.trigger;
+  const category =
+    typeof trigger === "object" && trigger !== null && "category" in trigger
+      ? trigger.category
+      : undefined;
+  const reason = typeof category === "string" ? ` (refusal: ${category})` : "";
+  return {
+    [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`]: "fallback",
+    [`${prefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`]: `${block.from.model} -> ${block.to.model}${reason}`,
+  };
 }
 
 /**
  * Converts the body of an Anthropic messages request to LLM input messages
  */
-function getAnthropicInputMessagesAttributes(
-  body: Anthropic.Messages.MessageCreateParams,
-): Attributes {
-  return body.messages.reduce((acc, message, index) => {
+function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attributes {
+  return body.messages.reduce<Attributes>((acc, message, index) => {
     const messageAttributes = getAnthropicInputMessageAttributes(message);
     const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
     // Flatten the attributes on the index prefix
@@ -311,13 +489,13 @@ function getAnthropicInputMessagesAttributes(
       acc[`${indexPrefix}${key}`] = value;
     }
     return acc;
-  }, {} as Attributes);
+  }, {});
 }
 
 /**
  * Converts each tool definition into a json schema
  */
-function getAnthropicToolsJSONSchema(body: Anthropic.Messages.MessageCreateParams): Attributes {
+function getAnthropicToolsJSONSchema(body: MessageCreateParams): Attributes {
   if (!body.tools) {
     // If tools is undefined, return an empty object
     return {};
@@ -332,7 +510,7 @@ function getAnthropicToolsJSONSchema(body: Anthropic.Messages.MessageCreateParam
   }, {});
 }
 
-function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageParam): Attributes {
+function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
   const role = message.role;
   const attributes: Attributes = {
     [SemanticConventions.MESSAGE_ROLE]: role,
@@ -396,6 +574,9 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
         attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
           "reasoning";
         attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = part.data;
+      } else if (part.type === "fallback") {
+        // A prior turn's fallback boundary echoed back to the API
+        Object.assign(attributes, getAnthropicFallbackContentAttributes(contentsIndexPrefix, part));
       }
     });
   }
@@ -406,7 +587,7 @@ function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageP
 /**
  * Converts the Anthropic message result to LLM output attributes
  */
-function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Message): Attributes {
+function getAnthropicOutputMessagesAttributes(message: Message): Attributes {
   const attributes: Attributes = {};
   const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
@@ -442,6 +623,8 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
     } else if (content.type === "redacted_thinking") {
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
       attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] = content.data;
+    } else if (content.type === "fallback") {
+      Object.assign(attributes, getAnthropicFallbackContentAttributes(contentPrefix, content));
     }
   });
 
@@ -451,9 +634,7 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
 /**
  * Get usage attributes from Anthropic response
  */
-function getAnthropicUsageAttributes(
-  usage: Anthropic.Messages.Usage | Anthropic.Messages.MessageDeltaUsage,
-): Attributes {
+function getAnthropicUsageAttributes(usage: MessageUsage): Attributes {
   const attributes: Attributes = {};
   if (usage.input_tokens != null) {
     attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
@@ -469,117 +650,174 @@ function getAnthropicUsageAttributes(
 }
 
 /**
- * Consumes the stream chunks and adds them to the span
+ * Mutable state accumulated while consuming an Anthropic message stream.
+ *
+ * Usage is reported per attempt: message_start describes the first attempt,
+ * which on a server-side fallback stream is the one that declined. Each source
+ * is captured on its own so the precedence between them is stated once, where
+ * they are merged in {@link getAnthropicStreamAttributes}.
  */
-async function consumeAnthropicStreamChunks(
-  stream: Stream<Anthropic.Messages.RawMessageStreamEvent>,
-  span: Span,
-) {
-  let streamResponse = "";
-  const toolCallAttributes: Attributes = {};
-  const contentAttributes: Attributes = {};
-  let usageAttributes: Attributes = {};
-  let toolIndex = -1;
-  for await (const chunk of stream) {
-    if (chunk.type === "message_start") {
-      usageAttributes = {
-        ...usageAttributes,
-        ...getAnthropicUsageAttributes(chunk.message.usage),
-      };
-    } else if (chunk.type === "message_delta") {
-      usageAttributes = {
-        ...usageAttributes,
-        ...getAnthropicUsageAttributes(chunk.usage),
-      };
-    } else if (chunk.type === "content_block_start") {
-      const contentBlock = chunk.content_block;
-      const contentIndex = chunk.index;
-      const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+interface AnthropicStreamState {
+  streamResponse: string;
+  toolCallAttributes: Attributes;
+  contentAttributes: Attributes;
+  startUsageAttributes: Attributes;
+  deltaUsageAttributes: Attributes;
+  servingUsageAttributes: Attributes;
+  responseModel?: string;
+  finishReason?: string;
+  toolIndex: number;
+}
 
-      if (contentBlock.type === "tool_use") {
-        toolIndex++;
-        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
-        toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] =
-          contentBlock.id;
-        toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-          contentBlock.name;
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-          "tool_use";
-        contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
-        contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
-          contentBlock.name;
-      } else if (contentBlock.type === "text") {
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-          contentBlock.text;
-      } else if (contentBlock.type === "thinking") {
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-          "reasoning";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-          contentBlock.thinking;
-      } else if (contentBlock.type === "redacted_thinking") {
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
-          "reasoning";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
-          contentBlock.data;
-      }
-    } else if (chunk.type === "content_block_delta") {
-      const contentIndex = chunk.index;
-      const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
-
-      if (chunk.delta.type === "text_delta") {
-        streamResponse += chunk.delta.text;
-        const existingText =
-          contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] || "";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-          existingText + chunk.delta.text;
-      } else if (chunk.delta.type === "thinking_delta") {
-        const existingText =
-          contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] || "";
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
-          existingText + chunk.delta.thinking;
-      } else if (chunk.delta.type === "signature_delta") {
-        contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
-          chunk.delta.signature;
-      } else if (chunk.delta.type === "input_json_delta") {
-        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
-        const existingArgs =
-          toolCallAttributes[
-            `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-          ] || "";
-        const updatedArgs = existingArgs + chunk.delta.partial_json;
-        toolCallAttributes[
-          `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] = updatedArgs;
-        contentAttributes[
-          `${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] = updatedArgs;
-      }
+/**
+ * Applies a `message_delta` event, capturing usage, finish reason and any
+ * server-side fallback hop.
+ */
+function applyAnthropicMessageDelta({
+  chunk,
+  state,
+}: {
+  chunk: Extract<RawMessageStreamEvent, { type: "message_delta" }>;
+  state: AnthropicStreamState;
+}) {
+  state.deltaUsageAttributes = getAnthropicUsageAttributes(chunk.usage);
+  if (chunk.delta.stop_reason != null) {
+    state.finishReason = chunk.delta.stop_reason;
+  }
+  if (!("iterations" in chunk.usage) || chunk.usage.iterations == null) {
+    return;
+  }
+  for (const iteration of chunk.usage.iterations) {
+    if (iteration.type === "fallback_message") {
+      state.responseModel = iteration.model;
+      state.servingUsageAttributes = getAnthropicUsageAttributes(iteration);
     }
   }
+}
 
+/**
+ * Applies a `content_block_start` event, recording the content block's type and
+ * any tool call it starts.
+ */
+function applyAnthropicContentBlockStart({
+  chunk,
+  state,
+}: {
+  chunk: Extract<RawMessageStreamEvent, { type: "content_block_start" }>;
+  state: AnthropicStreamState;
+}) {
+  const contentBlock = chunk.content_block;
+  const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${chunk.index}.`;
+  const { contentAttributes, toolCallAttributes } = state;
+
+  if (contentBlock.type === "tool_use") {
+    state.toolIndex++;
+    const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${state.toolIndex}.`;
+    toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
+    toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+      contentBlock.name;
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "tool_use";
+    contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_ID}`] = contentBlock.id;
+    contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+      contentBlock.name;
+  } else if (contentBlock.type === "text") {
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+      contentBlock.text;
+  } else if (contentBlock.type === "thinking") {
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+      contentBlock.thinking;
+  } else if (contentBlock.type === "redacted_thinking") {
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "reasoning";
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_DATA}`] =
+      contentBlock.data;
+  } else if (contentBlock.type === "fallback") {
+    state.responseModel = contentBlock.to.model;
+    Object.assign(
+      contentAttributes,
+      getAnthropicFallbackContentAttributes(contentPrefix, contentBlock),
+    );
+  }
+}
+
+/**
+ * Applies a `content_block_delta` event, accumulating streamed text, reasoning
+ * and tool call arguments.
+ */
+function applyAnthropicContentBlockDelta({
+  chunk,
+  state,
+}: {
+  chunk: Extract<RawMessageStreamEvent, { type: "content_block_delta" }>;
+  state: AnthropicStreamState;
+}) {
+  const contentPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${chunk.index}.`;
+  const { contentAttributes, toolCallAttributes } = state;
+  const textKey = `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`;
+
+  if (chunk.delta.type === "text_delta") {
+    state.streamResponse += chunk.delta.text;
+    contentAttributes[textKey] = (contentAttributes[textKey] || "") + chunk.delta.text;
+  } else if (chunk.delta.type === "thinking_delta") {
+    contentAttributes[textKey] = (contentAttributes[textKey] || "") + chunk.delta.thinking;
+  } else if (chunk.delta.type === "signature_delta") {
+    contentAttributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`] =
+      chunk.delta.signature;
+  } else if (chunk.delta.type === "input_json_delta") {
+    const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${state.toolIndex}.`;
+    const argumentsKey = `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`;
+    const updatedArgs = (toolCallAttributes[argumentsKey] || "") + chunk.delta.partial_json;
+    toolCallAttributes[argumentsKey] = updatedArgs;
+    contentAttributes[`${contentPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+      updatedArgs;
+  }
+}
+
+/**
+ * Builds the span attributes for a fully consumed Anthropic message stream.
+ */
+function getAnthropicStreamAttributes(state: AnthropicStreamState): Attributes {
   const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
-  // Append the attributes to the span as a message
   const attributes: Attributes = {
-    [SemanticConventions.OUTPUT_VALUE]: streamResponse,
+    [SemanticConventions.OUTPUT_VALUE]: state.streamResponse,
     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
     [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
   };
 
+  if (state.responseModel != null) {
+    // Override the model from the value sent by the server
+    attributes[SemanticConventions.LLM_MODEL_NAME] = state.responseModel;
+    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = state.responseModel;
+  }
+
+  if (state.finishReason != null) {
+    attributes[SemanticConventions.LLM_FINISH_REASON] = state.finishReason;
+  }
+
   // Add the content block attributes
-  for (const [key, value] of Object.entries(contentAttributes)) {
+  for (const [key, value] of Object.entries(state.contentAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
 
   // Add the tool call attributes
-  for (const [key, value] of Object.entries(toolCallAttributes)) {
+  for (const [key, value] of Object.entries(state.toolCallAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
 
-  // Add the token usage attributes, recomputing the total in case prompt and
-  // completion counts were captured from different chunks (message_start vs
-  // message_delta)
+  // Later sources win: on a server-side fallback stream the serving hop's
+  // counts displace the declined attempt's counts from message_start, and the
+  // final message_delta wins over both, so prompt and completion describe the
+  // same model.
+  const usageAttributes: Attributes = {
+    ...state.startUsageAttributes,
+    ...state.servingUsageAttributes,
+    ...state.deltaUsageAttributes,
+  };
+
+  // Recompute the total in case prompt and completion counts came from
+  // different sources.
   const promptTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT];
   const completionTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION];
   if (typeof promptTokens === "number" && typeof completionTokens === "number") {
@@ -587,7 +825,37 @@ async function consumeAnthropicStreamChunks(
   }
   Object.assign(attributes, usageAttributes);
 
-  span.setAttributes(attributes);
+  return attributes;
+}
+
+/**
+ * Consumes the stream chunks and adds them to the span
+ */
+async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent>, span: Span) {
+  const state: AnthropicStreamState = {
+    streamResponse: "",
+    toolCallAttributes: {},
+    contentAttributes: {},
+    startUsageAttributes: {},
+    deltaUsageAttributes: {},
+    servingUsageAttributes: {},
+    toolIndex: -1,
+  };
+
+  for await (const chunk of stream) {
+    if (chunk.type === "message_start") {
+      state.responseModel = chunk.message.model;
+      state.startUsageAttributes = getAnthropicUsageAttributes(chunk.message.usage);
+    } else if (chunk.type === "message_delta") {
+      applyAnthropicMessageDelta({ chunk, state });
+    } else if (chunk.type === "content_block_start") {
+      applyAnthropicContentBlockStart({ chunk, state });
+    } else if (chunk.type === "content_block_delta") {
+      applyAnthropicContentBlockDelta({ chunk, state });
+    }
+  }
+
+  span.setAttributes(getAnthropicStreamAttributes(state));
   span.setStatus({ code: SpanStatusCode.OK });
   span.end();
 }

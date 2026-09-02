@@ -1,5 +1,49 @@
 # @arizeai/openinference-genai
 
+## 0.3.6
+
+### Patch Changes
+
+- 0071b37: Split over-complex functions into focused helpers and make implicit returns explicit (enforce `eslint/complexity`). Also hardens bedrock-agent-runtime tool-call extraction against a `function: null` payload that previously threw. No other behavior changes.
+
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+
+## 0.3.4
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+
+## 0.3.2
+
+### Patch Changes
+
+- b1cdcb5: Handle `reasoning` message parts as first-class content (`message_content.type = "reasoning"` with the reasoning text) and stop duplicating unrecognized parts into the flat `message.content` alongside `message.contents.*`.
+- 3f3b146: fix(openinference-genai): keep input message indexes aligned when `gen_ai.system_instructions` carries no renderable parts
+
+  `mapSystemInstructions` emitted the synthetic system message at `llm.input_messages.0` whenever the `gen_ai.system_instructions` attribute was a non-empty string, while `mapInputMessages` only shifted its own indexes by one when that attribute parsed into at least one text part. For an instructions payload that is present but yields no parts (for example `[]`, or parts that are all non-text), the two disagreed: the system message claimed index 0 while the first real input message was also written at index 0, so the merged span reported the user's content under `message.role = "system"`.
+
+  Both mappings now key off the same parsed-parts predicate. The raw attribute is still preserved at `metadata.gen_ai.system_instructions` in every case, so nothing is lost.
+
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+
 ## 0.3.0
 
 ### Minor Changes

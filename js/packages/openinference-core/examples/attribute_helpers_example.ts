@@ -115,6 +115,19 @@ function multimodalDemo() {
   console.log("multimodal attrs:", attrs);
 }
 
+// -- Request and response model names (docs/attribute-helpers.md) -------------
+
+function modelNamesDemo() {
+  // Only set these when the provider distinguishes the requested model from
+  // the one that served the response (e.g. a server-side fallback).
+  // llm.model_name is mirrored from responseModelName ?? requestModelName.
+  const attrs = getLLMAttributes({
+    requestModelName: "claude-sonnet-4-5",
+    responseModelName: "claude-haiku-4-5",
+  });
+  console.log("model name attrs:", attrs);
+}
+
 // -- getEmbeddingAttributes ---------------------------------------------------
 
 function embeddingDemo() {
@@ -258,6 +271,7 @@ async function withSpanIntegrationDemo() {
 async function main() {
   llmAttributesDemo();
   multimodalDemo();
+  modelNamesDemo();
   embeddingDemo();
   retrieverDemo();
   documentAttributesDemo();
