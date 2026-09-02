@@ -238,7 +238,6 @@ class _TraceCallLlm(_WithTracer):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return ans
         span = get_current_span()
-        span.set_status(StatusCode.OK)  # Pre-emptively set status to OK
         span.set_attribute(
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.LLM.value,
@@ -317,7 +316,25 @@ class _TraceCallLlm(_WithTracer):
         if llm_response:
             for k, v in _get_attributes_from_llm_response(llm_response):
                 span.set_attribute(k, v)
+            _set_llm_span_status(span, llm_response)
         return ans
+
+
+def _set_llm_span_status(span: trace_api.Span, llm_response: LlmResponse) -> None:
+    """Set the `call_llm` span status from the structured fields of an `LlmResponse`.
+
+    OpenTelemetry treats a status of OK as final: once set, a later ERROR is
+    ignored. ADK calls `trace_call_llm` for *every* response in a stream, so a
+    partial chunk must not stamp OK — the stream may still raise, and the
+    span's exit handler must remain able to record ERROR (#3415).
+    """
+    if llm_response.error_code:
+        span.set_status(
+            StatusCode.ERROR,
+            llm_response.error_message or str(llm_response.error_code),
+        )
+    elif not llm_response.partial:
+        span.set_status(StatusCode.OK)
 
 
 class _TraceToolCall(_WithTracer):
@@ -333,12 +350,21 @@ class _TraceToolCall(_WithTracer):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return ans
         span = get_current_span()
-        span.set_status(StatusCode.OK)  # Pre-emptively set status to OK
         span.set_attribute(
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.TOOL.value,
         )
         arguments = bind_args_kwargs(wrapped, *args, **kwargs)
+        # ADK >= 1.32 calls `trace_tool_call` from a `finally` block while the
+        # `execute_tool` span is still open, passing the tool exception (if any)
+        # as `error`. OpenTelemetry treats OK as final, so stamping OK here on a
+        # failed call would block the ERROR recorded when the exception
+        # propagates out of the span (#3415). Older ADK versions only call
+        # `trace_tool_call` after a successful call and have no `error` parameter.
+        if (error := arguments.get("error")) is None:
+            span.set_status(StatusCode.OK)
+        else:
+            span.set_status(StatusCode.ERROR, str(error))
         if base_tool := next(
             (arg for arg in arguments.values() if isinstance(arg, BaseTool)), None
         ):
