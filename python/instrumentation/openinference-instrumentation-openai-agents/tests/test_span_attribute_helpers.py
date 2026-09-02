@@ -31,6 +31,7 @@ from openai.types.responses import (
     ResponseUsage,
     Tool,
 )
+from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_custom_tool_call_output_param import (
     ResponseCustomToolCallOutputParam,
 )
@@ -1408,6 +1409,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "stop",
                 "llm.output_messages.0.message.content": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
@@ -1454,8 +1456,67 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "incomplete",
             },
             id="incomplete_response",
+        ),
+        pytest.param(
+            Response(
+                id="truncated-id",
+                created_at=1234567890.0,
+                model="gpt-4",
+                object="response",
+                output=[],
+                parallel_tool_calls=True,
+                tool_choice="auto",
+                tools=[],
+                status="incomplete",
+                incomplete_details=IncompleteDetails(reason="max_output_tokens"),
+            ),
+            {
+                "llm.invocation_parameters": json.dumps(
+                    {
+                        "id": "truncated-id",
+                        "created_at": 1234567890.0,
+                        "incomplete_details": {"reason": "max_output_tokens"},
+                        "model": "gpt-4",
+                        "parallel_tool_calls": True,
+                        "tool_choice": "auto",
+                    }
+                ),
+                "llm.model_name": "gpt-4",
+                "llm.finish_reason": "length",
+            },
+            id="incomplete_response_max_output_tokens",
+        ),
+        pytest.param(
+            Response(
+                id="filtered-id",
+                created_at=1234567890.0,
+                model="gpt-4",
+                object="response",
+                output=[],
+                parallel_tool_calls=True,
+                tool_choice="auto",
+                tools=[],
+                status="incomplete",
+                incomplete_details=IncompleteDetails(reason="content_filter"),
+            ),
+            {
+                "llm.invocation_parameters": json.dumps(
+                    {
+                        "id": "filtered-id",
+                        "created_at": 1234567890.0,
+                        "incomplete_details": {"reason": "content_filter"},
+                        "model": "gpt-4",
+                        "parallel_tool_calls": True,
+                        "tool_choice": "auto",
+                    }
+                ),
+                "llm.model_name": "gpt-4",
+                "llm.finish_reason": "content_filter",
+            },
+            id="incomplete_response_content_filter",
         ),
         pytest.param(
             Response(
@@ -1480,6 +1541,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "stop",
             },
             id="minimal_response",
         ),
@@ -1510,6 +1572,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "error",
             },
             id="error_response",
         ),
@@ -1605,6 +1668,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "stop",
                 "llm.output_messages.0.message.content": "Hi\nI cannot help with that",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
