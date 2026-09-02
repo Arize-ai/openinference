@@ -1,6 +1,20 @@
+import inspect
 from contextlib import ContextDecorator
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
+from functools import wraps
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    cast,
+)
 
+from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
     attach,
     detach,
@@ -11,9 +25,9 @@ from opentelemetry.context import (
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import Self
 
-from openinference.semconv.trace import SpanAttributes
-
 from .helpers import safe_json_dumps
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 CONTEXT_ATTRIBUTES = (
     SpanAttributes.SESSION_ID,
@@ -45,6 +59,17 @@ class _UsingAttributesContextManager(ContextDecorator):
         self._prompt_template = prompt_template
         self._prompt_template_version = prompt_template_version
         self._prompt_template_variables = prompt_template_variables
+
+    def _recreate_cm(self) -> "_UsingAttributesContextManager":
+        return _UsingAttributesContextManager(
+            session_id=self._session_id,
+            user_id=self._user_id,
+            metadata=self._metadata,
+            tags=self._tags,
+            prompt_template=self._prompt_template,
+            prompt_template_version=self._prompt_template_version,
+            prompt_template_variables=self._prompt_template_variables,
+        )
 
     def attach_context(self) -> None:
         ctx = get_current()
@@ -93,6 +118,17 @@ class _UsingAttributesContextManager(ContextDecorator):
         traceback: Optional[Any],
     ) -> None:
         detach(self._token)
+
+    def __call__(self, func: F) -> F:
+        if inspect.iscoroutinefunction(func):
+
+            @wraps(func)
+            async def async_inner(*args: Any, **kwargs: Any) -> Any:
+                with self._recreate_cm():
+                    return await func(*args, **kwargs)
+
+            return cast(F, async_inner)
+        return cast(F, super().__call__(func))
 
 
 class using_session(_UsingAttributesContextManager):

@@ -1,7 +1,9 @@
+import asyncio
 import json
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Tuple, cast
 
 import pytest
+from openinference.semconv.trace import SpanAttributes
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     get_current,
@@ -22,7 +24,6 @@ from openinference.instrumentation import (
     using_tags,
     using_user,
 )
-from openinference.semconv.trace import SpanAttributes
 
 
 def test_suppress_tracing() -> None:
@@ -203,6 +204,172 @@ def test_using_attributes_decorator(
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
+
+
+async def test_using_session_async_decorator(session_id: str) -> None:
+    @using_session(session_id)
+    async def f() -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+        await asyncio.sleep(0.001)
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+
+    await f()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_user_async_decorator(user_id: str) -> None:
+    @using_user(user_id)
+    async def f() -> None:
+        assert get_value(SpanAttributes.USER_ID) == user_id
+        await asyncio.sleep(0.001)
+        assert get_value(SpanAttributes.USER_ID) == user_id
+
+    await f()
+    assert get_value(SpanAttributes.USER_ID) is None
+
+
+async def test_using_metadata_async_decorator(metadata: Dict[str, Any]) -> None:
+    @using_metadata(metadata)
+    async def f() -> None:
+        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
+        await asyncio.sleep(0.001)
+        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
+
+    await f()
+    assert get_value(SpanAttributes.METADATA) is None
+
+
+async def test_using_tags_async_decorator(tags: List[str]) -> None:
+    @using_tags(tags)
+    async def f() -> None:
+        assert get_value(SpanAttributes.TAG_TAGS) == tags
+        await asyncio.sleep(0.001)
+        assert get_value(SpanAttributes.TAG_TAGS) == tags
+
+    await f()
+    assert get_value(SpanAttributes.TAG_TAGS) is None
+
+
+async def test_using_prompt_template_async_decorator(
+    prompt_template: str, prompt_template_version: str, prompt_template_variables: Dict[str, Any]
+) -> None:
+    @using_prompt_template(
+        template=prompt_template,
+        version=prompt_template_version,
+        variables=prompt_template_variables,
+    )
+    async def f() -> None:
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+            prompt_template_variables
+        )
+        await asyncio.sleep(0.001)
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+            prompt_template_variables
+        )
+
+    await f()
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
+
+
+async def test_using_attributes_async_decorator(
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    @using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    )
+    async def f() -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+        assert get_value(SpanAttributes.USER_ID) == user_id
+        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
+        assert get_value(SpanAttributes.TAG_TAGS) == tags
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+            prompt_template_variables
+        )
+        await asyncio.sleep(0.001)
+        assert get_value(SpanAttributes.SESSION_ID) == session_id
+        assert get_value(SpanAttributes.USER_ID) == user_id
+        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
+        assert get_value(SpanAttributes.TAG_TAGS) == tags
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+            prompt_template_variables
+        )
+
+    await f()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+    assert get_value(SpanAttributes.USER_ID) is None
+    assert get_value(SpanAttributes.METADATA) is None
+    assert get_value(SpanAttributes.TAG_TAGS) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
+
+
+async def test_using_attributes_async_decorator_concurrent_isolation() -> None:
+    @using_session("session-A")
+    async def task_a() -> str:
+        await asyncio.sleep(0.005)
+        val = get_value(SpanAttributes.SESSION_ID)
+        assert val == "session-A"
+        return str(val)
+
+    @using_session("session-B")
+    async def task_b() -> str:
+        await asyncio.sleep(0.002)
+        val = get_value(SpanAttributes.SESSION_ID)
+        assert val == "session-B"
+        return str(val)
+
+    res = await asyncio.gather(task_a(), task_b())
+    assert res == ["session-A", "session-B"]
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_attributes_async_decorator_exception_handling() -> None:
+    @using_session("session-err")
+    async def task_failing() -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == "session-err"
+        raise ValueError("simulated error")
+
+    with pytest.raises(ValueError, match="simulated error"):
+        await task_failing()
+
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_using_attributes_async_decorator_stacked() -> None:
+    @using_session("session-stacked")
+    @using_user("user-stacked")
+    async def task_stacked() -> Tuple[Any, Any]:
+        await asyncio.sleep(0.001)
+        return get_value(SpanAttributes.SESSION_ID), get_value(SpanAttributes.USER_ID)
+
+    sess, usr = await task_stacked()
+    assert sess == "session-stacked"
+    assert usr == "user-stacked"
+    assert get_value(SpanAttributes.SESSION_ID) is None
+    assert get_value(SpanAttributes.USER_ID) is None
 
 
 def test_get_attributes_from_context(
