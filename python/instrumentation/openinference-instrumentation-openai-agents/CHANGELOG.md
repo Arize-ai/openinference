@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.1.2...python-openinference-instrumentation-openai-agents-v2.2.0) (2026-09-03)
+
+
+### Features
+
+* **openai_agents:** Add Finish Reason Attribute ([#3661](https://github.com/Arize-ai/openinference/issues/3661)) ([68ce534](https://github.com/Arize-ai/openinference/commit/68ce534fa27e443343e64719d538671c2f8f0248))
+
 ## [2.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.1.1...python-openinference-instrumentation-openai-agents-v2.1.2) (2026-08-31)
 
 
