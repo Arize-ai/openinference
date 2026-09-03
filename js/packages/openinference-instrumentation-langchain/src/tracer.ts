@@ -119,19 +119,21 @@ export class LangChainTracer extends BaseTracer {
       span.setStatus({ code: SpanStatusCode.OK });
     }
 
+    // OpenTelemetry drops later attributes at the span limit; keep
+    // session/model/token-count/metadata and IO ahead of verbose history.
     const attributes = safelyFlattenAttributes({
       ...safelyFormatIO({ io: run.inputs, ioType: "input" }),
       ...safelyFormatIO({ io: run.outputs, ioType: "output" }),
-      ...safelyFormatInputMessages(run.inputs),
-      ...safelyFormatOutputMessages(run.outputs),
-      ...safelyFormatRetrievalDocuments(run),
       ...safelyFormatLLMParams(run.extra),
       ...safelyFormatPromptTemplate(run),
       ...safelyFormatTokenCounts(run.outputs),
-      ...safelyFormatFunctionCalls(run.outputs),
-      ...safelyFormatToolCalls(run),
       ...safelyFormatMetadata(run),
       ...safelyFormatSessionId(run),
+      ...safelyFormatInputMessages(run.inputs),
+      ...safelyFormatOutputMessages(run.outputs),
+      ...safelyFormatRetrievalDocuments(run),
+      ...safelyFormatFunctionCalls(run.outputs),
+      ...safelyFormatToolCalls(run),
     });
     if (attributes != null) {
       span.setAttributes(attributes);

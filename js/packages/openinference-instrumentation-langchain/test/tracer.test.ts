@@ -24,7 +24,12 @@ import {
 
 import { isPatched, LangChainInstrumentation } from "../src";
 import { LangChainTracer } from "../src/tracer";
-import { completionsResponse, functionCallResponse } from "./fixtures";
+import {
+  completionsResponse,
+  functionCallResponse,
+  getLangchainMessage,
+  getLangchainRun,
+} from "./fixtures";
 
 // Set up MSW server to mock API calls
 const server = setupServer(
@@ -952,5 +957,79 @@ describe("LangChainTracer", () => {
 
     expect(langChainTracer["runs"]).toBeDefined();
     expect(Object.keys(langChainTracer["runs"]).length).toBe(0);
+  });
+
+  it("should keep session, model, token-count, metadata, and IO attributes when message history exceeds the span attribute limit", async () => {
+    const attributeCountLimit = 16;
+    const limitedExporter = new InMemorySpanExporter();
+    const limitedProvider = new NodeTracerProvider({
+      spanLimits: { attributeCountLimit },
+      spanProcessors: [new SimpleSpanProcessor(limitedExporter)],
+    });
+    const oiTracer = new OITracer({ tracer: limitedProvider.getTracer("test") });
+    const langChainTracer = new LangChainTracer(oiTracer);
+
+    const historyLength = 40;
+    const inputMessages = Array.from({ length: historyLength }, (_, i) =>
+      getLangchainMessage({
+        lc_kwargs: { content: `user message ${i}` },
+      }),
+    );
+    const run = getLangchainRun({
+      id: "attribute-priority-run",
+      inputs: { messages: [inputMessages] },
+      outputs: {
+        generations: [
+          [
+            {
+              message: getLangchainMessage({
+                lc_id: ["ai"],
+                lc_kwargs: { content: "This is a test." },
+              }),
+            },
+          ],
+        ],
+        llmOutput: {
+          tokenUsage: {
+            completionTokens: 5,
+            promptTokens: 12,
+            totalTokens: 17,
+          },
+        },
+      },
+      extra: {
+        invocation_params: {
+          model_name: "gpt-3.5-turbo",
+        },
+        metadata: {
+          session_id: "session-under-limit",
+          ls_provider: "openai",
+        },
+      },
+    });
+
+    await langChainTracer.startTracing(run);
+    await langChainTracer["_endTrace"](run);
+
+    const spans = limitedExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    const attrs = spans[0].attributes;
+
+    expect(Object.keys(attrs).length).toBeLessThanOrEqual(attributeCountLimit);
+    expect(spans[0].droppedAttributesCount).toBeGreaterThan(0);
+
+    expect(attrs[OPENINFERENCE_SPAN_KIND]).toBe(OpenInferenceSpanKind.LLM);
+    expect(attrs[INPUT_VALUE]).toBeDefined();
+    expect(attrs[INPUT_MIME_TYPE]).toBeDefined();
+    expect(attrs[OUTPUT_VALUE]).toBeDefined();
+    expect(attrs[OUTPUT_MIME_TYPE]).toBeDefined();
+    expect(attrs[LLM_MODEL_NAME]).toBe("gpt-3.5-turbo");
+    expect(attrs[LLM_TOKEN_COUNT_COMPLETION]).toBe(5);
+    expect(attrs[LLM_TOKEN_COUNT_PROMPT]).toBe(12);
+    expect(attrs[LLM_TOKEN_COUNT_TOTAL]).toBe(17);
+    expect(attrs.metadata).toBe('{"session_id":"session-under-limit","ls_provider":"openai"}');
+    expect(attrs[SemanticConventions.SESSION_ID]).toBe("session-under-limit");
+
+    expect(attrs[`${LLM_INPUT_MESSAGES}.${historyLength - 1}.${MESSAGE_CONTENT}`]).toBeUndefined();
   });
 });
