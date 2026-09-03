@@ -914,4 +914,7 @@ export enum LLMProvider {
   PERPLEXITY = "perplexity",
   TOGETHER = "together",
   OLLAMA = "ollama",
+  META = "meta",
+  ZAI = "zai",
+  MINIMAX = "minimax",
 }

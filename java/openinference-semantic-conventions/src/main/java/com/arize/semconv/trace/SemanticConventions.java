@@ -893,7 +893,10 @@ public class SemanticConventions {
         CEREBRAS("cerebras"),
         PERPLEXITY("perplexity"),
         TOGETHER("together"),
-        OLLAMA("ollama");
+        OLLAMA("ollama"),
+        META("meta"),
+        ZAI("zai"),
+        MINIMAX("minimax");
 
         private final String value;
 

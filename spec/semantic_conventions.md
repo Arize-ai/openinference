@@ -185,6 +185,9 @@ used; otherwise, a custom value MAY be used.
 | `perplexity` | Perplexity      |
 | `together`   | Together AI     |
 | `ollama`     | Ollama          |
+| `meta`       | Meta AI         |
+| `zai`        | Z.ai (GLM)      |
+| `minimax`    | MiniMax         |
 
 ### Token Count Details
 

@@ -76,6 +76,11 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
   "api.together.ai": LLMProvider.TOGETHER,
   "api.together.xyz": LLMProvider.TOGETHER,
   "ollama.com": LLMProvider.OLLAMA,
+  "api.meta.ai": LLMProvider.META,
+  "api.z.ai": LLMProvider.ZAI,
+  "api.minimax.io": LLMProvider.MINIMAX,
+  "api.minimaxi.com": LLMProvider.MINIMAX,
+  "api.minimax.chat": LLMProvider.MINIMAX,
 };
 
 /**
