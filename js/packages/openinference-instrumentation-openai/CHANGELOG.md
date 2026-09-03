@@ -1,5 +1,14 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.2.4
+
+### Patch Changes
+
+- fd01216: Detect Meta AI, Z.ai, and MiniMax from the request host, so an OpenAI client pointed at one of their OpenAI-compatible endpoints records the real `llm.provider` instead of falling back to `openai`. Adds `api.meta.ai` → `meta`, `api.z.ai` → `zai`, and `api.minimax.io` / `api.minimaxi.com` / `api.minimax.chat` → `minimax` to `HOST_SUFFIX_TO_PROVIDER`. Matching stays suffix-based and anchored at a label boundary, so subdomains of these hosts resolve too and unrelated hosts are unaffected.
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+  - @arizeai/openinference-core@2.6.2
+
 ## 4.2.3
 
 ### Patch Changes
