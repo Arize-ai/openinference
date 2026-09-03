@@ -3388,6 +3388,10 @@ class TestGetProviderFromHost:
             ("api.together.ai", OpenInferenceLLMProviderValues.TOGETHER),
             ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER),
             ("api.meta.ai", OpenInferenceLLMProviderValues.META),
+            ("api.z.ai", OpenInferenceLLMProviderValues.ZAI),
+            ("api.minimax.io", OpenInferenceLLMProviderValues.MINIMAX),
+            ("api.minimaxi.com", OpenInferenceLLMProviderValues.MINIMAX),
+            ("api.minimax.chat", OpenInferenceLLMProviderValues.MINIMAX),
         ],
     )
     def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:

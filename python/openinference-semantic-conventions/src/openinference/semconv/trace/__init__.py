@@ -616,3 +616,5 @@ class OpenInferenceLLMProviderValues(Enum):
     TOGETHER = "together"
     OLLAMA = "ollama"
     META = "meta"
+    ZAI = "zai"
+    MINIMAX = "minimax"

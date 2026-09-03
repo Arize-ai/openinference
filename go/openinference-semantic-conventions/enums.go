@@ -65,4 +65,6 @@ const (
 	LLMProviderTogether   = "together"
 	LLMProviderOllama     = "ollama"
 	LLMProviderMeta       = "meta"
+	LLMProviderZAI        = "zai"
+	LLMProviderMiniMax    = "minimax"
 )

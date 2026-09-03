@@ -894,7 +894,9 @@ public class SemanticConventions {
         PERPLEXITY("perplexity"),
         TOGETHER("together"),
         OLLAMA("ollama"),
-        META("meta");
+        META("meta"),
+        ZAI("zai"),
+        MINIMAX("minimax");
 
         private final String value;
 

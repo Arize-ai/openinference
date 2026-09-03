@@ -3,4 +3,4 @@
 "@arizeai/openinference-instrumentation-openai": patch
 ---
 
-add meta (Meta AI) to the LLMProvider enum and detect it from the api.meta.ai host
+add meta (Meta AI), zai (Z.ai) and minimax to the LLMProvider enum, and detect them from the api.meta.ai, api.z.ai and MiniMax API hosts

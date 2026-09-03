@@ -1724,6 +1724,10 @@ describe("getProviderFromHost", () => {
     ["api.together.ai", LLMProvider.TOGETHER],
     ["api.together.xyz", LLMProvider.TOGETHER],
     ["api.meta.ai", LLMProvider.META],
+    ["api.z.ai", LLMProvider.ZAI],
+    ["api.minimax.io", LLMProvider.MINIMAX],
+    ["api.minimaxi.com", LLMProvider.MINIMAX],
+    ["api.minimax.chat", LLMProvider.MINIMAX],
   ])("resolves %s to %s", (host, expected) => {
     expect(getProviderFromHost(host)).toBe(expected);
   });
