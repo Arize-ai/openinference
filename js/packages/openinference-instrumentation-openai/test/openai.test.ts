@@ -1723,6 +1723,7 @@ describe("getProviderFromHost", () => {
     ["api.perplexity.ai", LLMProvider.PERPLEXITY],
     ["api.together.ai", LLMProvider.TOGETHER],
     ["api.together.xyz", LLMProvider.TOGETHER],
+    ["api.meta.ai", LLMProvider.META],
   ])("resolves %s to %s", (host, expected) => {
     expect(getProviderFromHost(host)).toBe(expected);
   });

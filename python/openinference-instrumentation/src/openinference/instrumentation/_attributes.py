@@ -90,6 +90,12 @@ _HOST_SUFFIX_TO_PROVIDER: Dict[str, OpenInferenceLLMProviderValues] = {
 if _ollama_provider := getattr(OpenInferenceLLMProviderValues, "OLLAMA", None):
     _HOST_SUFFIX_TO_PROVIDER["ollama.com"] = _ollama_provider
 
+# META joined OpenInferenceLLMProviderValues after semconv 0.1.34; guard the
+# reference the same way so an older semconv release degrades to "no meta host
+# mapping" instead of an import-time AttributeError.
+if _meta_provider := getattr(OpenInferenceLLMProviderValues, "META", None):
+    _HOST_SUFFIX_TO_PROVIDER["api.meta.ai"] = _meta_provider
+
 # Maps model name prefixes to their corresponding LLM system value.
 _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
     "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC,

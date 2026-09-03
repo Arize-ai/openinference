@@ -893,7 +893,8 @@ public class SemanticConventions {
         CEREBRAS("cerebras"),
         PERPLEXITY("perplexity"),
         TOGETHER("together"),
-        OLLAMA("ollama");
+        OLLAMA("ollama"),
+        META("meta");
 
         private final String value;
 

@@ -615,3 +615,4 @@ class OpenInferenceLLMProviderValues(Enum):
     PERPLEXITY = "perplexity"
     TOGETHER = "together"
     OLLAMA = "ollama"
+    META = "meta"

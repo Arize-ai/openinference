@@ -71,4 +71,5 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.PERPLEXITY: "perplexity",
             OpenInferenceLLMProviderValues.TOGETHER: "together",
             OpenInferenceLLMProviderValues.OLLAMA: "ollama",
+            OpenInferenceLLMProviderValues.META: "meta",
         }

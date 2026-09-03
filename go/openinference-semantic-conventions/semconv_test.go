@@ -197,6 +197,7 @@ func TestEnumValues(t *testing.T) {
 		{LLMProviderCerebras, "cerebras"},
 		{LLMProviderPerplexity, "perplexity"},
 		{LLMProviderTogether, "together"},
+		{LLMProviderMeta, "meta"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

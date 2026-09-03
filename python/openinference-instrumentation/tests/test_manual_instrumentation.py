@@ -3387,6 +3387,7 @@ class TestGetProviderFromHost:
             ("api.perplexity.ai", OpenInferenceLLMProviderValues.PERPLEXITY),
             ("api.together.ai", OpenInferenceLLMProviderValues.TOGETHER),
             ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER),
+            ("api.meta.ai", OpenInferenceLLMProviderValues.META),
         ],
     )
     def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:
