@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.14...python-openinference-instrumentation-claude-agent-sdk-v0.1.15) (2026-09-03)
+
+
+### Features
+
+* **claude_agent_sdk:** Add Finish Reason Attribute ([#3657](https://github.com/Arize-ai/openinference/issues/3657)) ([5a18a20](https://github.com/Arize-ai/openinference/commit/5a18a20e733b76e0d52d7af247b42ecfe7cc23be))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.13...python-openinference-instrumentation-claude-agent-sdk-v0.1.14) (2026-08-27)
 
 
