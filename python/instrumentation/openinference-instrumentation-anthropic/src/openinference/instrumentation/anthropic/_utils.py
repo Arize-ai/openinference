@@ -1,12 +1,12 @@
 import logging
 from typing import TYPE_CHECKING, Any, Iterator, NamedTuple, Optional, Protocol, Tuple
 
-from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import Attributes, AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._with_span import _WithSpan
+from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
 if TYPE_CHECKING:
     from anthropic.types import Usage
@@ -26,7 +26,7 @@ def _get_token_counts(usage: "Usage") -> Iterator[Tuple[str, AttributeValue]]:
     - input_tokens: Number of input tokens which were not read from or used to create a cache.
     """
     prompt_tokens = (
-        (usage.input_tokens or 0)
+        usage.input_tokens
         + (usage.cache_creation_input_tokens or 0)
         + (usage.cache_read_input_tokens or 0)
     )
