@@ -80,8 +80,9 @@ async def answer_order_question(order_id: str) -> str:
 @using_user("customer-billing")
 @using_tags(["billing"])
 @tracer.agent
-async def billing_agent(question: str) -> str:
-    return await answer_order_question("B-42")
+async def billing_agent(order_id: str) -> str:
+    """Handle one billing question; every span below carries the billing session and user."""
+    return await answer_order_question(order_id)
 
 
 @using_attributes(
@@ -91,14 +92,16 @@ async def billing_agent(question: str) -> str:
     tags=["shipping"],
 )
 @tracer.agent
-async def shipping_agent(question: str) -> str:
-    return await answer_order_question("S-7")
+async def shipping_agent(order_id: str) -> str:
+    """Handle one shipping question; ``using_attributes`` sets several attributes at once."""
+    return await answer_order_question(order_id)
 
 
 async def main() -> None:
+    """Run both agents concurrently so each task must keep its own attributes across awaits."""
     billing_answer, shipping_answer = await asyncio.gather(
-        billing_agent("Where is my invoice?"),
-        shipping_agent("Where is my package?"),
+        billing_agent("B-42"),
+        shipping_agent("S-7"),
     )
     print(f"billing agent:  {billing_answer}")
     print(f"shipping agent: {shipping_answer}")

@@ -26,6 +26,7 @@ from openinference.instrumentation import (
     using_tags,
     using_user,
 )
+from openinference.instrumentation.context_attributes import _UsingAttributesContextManager
 from openinference.semconv.trace import SpanAttributes
 
 
@@ -223,75 +224,54 @@ def test_using_session_decorator_is_reentrant() -> None:
     assert get_value(SpanAttributes.SESSION_ID) is None
 
 
-async def test_using_session_async_decorator(session_id: str) -> None:
-    @using_session(session_id)
-    async def read_session_id() -> None:
-        assert get_value(SpanAttributes.SESSION_ID) == session_id
-        await asyncio.sleep(0.001)
-        assert get_value(SpanAttributes.SESSION_ID) == session_id
-
-    await read_session_id()
-    assert get_value(SpanAttributes.SESSION_ID) is None
-
-
-async def test_using_user_async_decorator(user_id: str) -> None:
-    @using_user(user_id)
-    async def read_user_id() -> None:
-        assert get_value(SpanAttributes.USER_ID) == user_id
-        await asyncio.sleep(0.001)
-        assert get_value(SpanAttributes.USER_ID) == user_id
-
-    await read_user_id()
-    assert get_value(SpanAttributes.USER_ID) is None
-
-
-async def test_using_metadata_async_decorator(metadata: Dict[str, Any]) -> None:
-    @using_metadata(metadata)
-    async def read_metadata() -> None:
-        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
-        await asyncio.sleep(0.001)
-        assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
-
-    await read_metadata()
-    assert get_value(SpanAttributes.METADATA) is None
-
-
-async def test_using_tags_async_decorator(tags: List[str]) -> None:
-    @using_tags(tags)
-    async def read_tags() -> None:
-        assert get_value(SpanAttributes.TAG_TAGS) == tags
-        await asyncio.sleep(0.001)
-        assert get_value(SpanAttributes.TAG_TAGS) == tags
-
-    await read_tags()
-    assert get_value(SpanAttributes.TAG_TAGS) is None
-
-
-async def test_using_prompt_template_async_decorator(
-    prompt_template: str, prompt_template_version: str, prompt_template_variables: Dict[str, Any]
+@pytest.mark.parametrize(
+    "decorator,expected_context_values",
+    [
+        pytest.param(
+            using_session("test-session"),
+            {SpanAttributes.SESSION_ID: "test-session"},
+            id="using_session",
+        ),
+        pytest.param(
+            using_user("test-user"),
+            {SpanAttributes.USER_ID: "test-user"},
+            id="using_user",
+        ),
+        pytest.param(
+            using_metadata({"key": "value"}),
+            {SpanAttributes.METADATA: json.dumps({"key": "value"})},
+            id="using_metadata",
+        ),
+        pytest.param(
+            using_tags(["tag-1", "tag-2"]),
+            {SpanAttributes.TAG_TAGS: ["tag-1", "tag-2"]},
+            id="using_tags",
+        ),
+        pytest.param(
+            using_prompt_template(template="Hello {name}", version="v1", variables={"name": "x"}),
+            {
+                SpanAttributes.LLM_PROMPT_TEMPLATE: "Hello {name}",
+                SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION: "v1",
+                SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES: json.dumps({"name": "x"}),
+            },
+            id="using_prompt_template",
+        ),
+    ],
+)
+async def test_async_decorator_attaches_each_attribute_across_awaits(
+    decorator: _UsingAttributesContextManager, expected_context_values: Dict[str, Any]
 ) -> None:
-    @using_prompt_template(
-        template=prompt_template,
-        version=prompt_template_version,
-        variables=prompt_template_variables,
-    )
-    async def read_prompt_template() -> None:
-        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
-        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
-        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
-            prompt_template_variables
-        )
+    @decorator
+    async def read_context_values() -> Dict[str, Any]:
+        values_before_await = {key: get_value(key) for key in expected_context_values}
         await asyncio.sleep(0.001)
-        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
-        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
-        assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
-            prompt_template_variables
-        )
+        values_after_await = {key: get_value(key) for key in expected_context_values}
+        assert values_before_await == values_after_await
+        return values_after_await
 
-    await read_prompt_template()
-    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
-    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
-    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
+    assert await read_context_values() == expected_context_values
+    for attribute_key in expected_context_values:
+        assert get_value(attribute_key) is None
 
 
 async def test_using_attributes_async_decorator(
@@ -333,22 +313,6 @@ async def test_using_attributes_async_decorator(
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
-
-
-async def test_async_decorator_isolates_concurrent_calls() -> None:
-    @using_session("session-A")
-    async def read_session_a() -> str:
-        await asyncio.sleep(0.005)
-        return str(get_value(SpanAttributes.SESSION_ID))
-
-    @using_session("session-B")
-    async def read_session_b() -> str:
-        await asyncio.sleep(0.002)
-        return str(get_value(SpanAttributes.SESSION_ID))
-
-    observed_session_ids = await asyncio.gather(read_session_a(), read_session_b())
-    assert list(observed_session_ids) == ["session-A", "session-B"]
-    assert get_value(SpanAttributes.SESSION_ID) is None
 
 
 async def test_async_decorator_isolates_concurrent_calls_of_the_same_function() -> None:
@@ -409,7 +373,7 @@ async def test_async_generator_decorator_attaches_context_while_body_runs() -> N
 
 
 async def test_async_generator_decorator_survives_early_break() -> None:
-    cleanup_session_id: List[Any] = []
+    session_ids_seen_in_cleanup: List[Any] = []
 
     @using_session("abandoned-stream-session")
     async def stream_forever() -> AsyncGenerator[str, None]:
@@ -418,7 +382,7 @@ async def test_async_generator_decorator_survives_early_break() -> None:
                 yield str(get_value(SpanAttributes.SESSION_ID))
         finally:
             # The generator's own cleanup still runs with the attributes attached.
-            cleanup_session_id.append(get_value(SpanAttributes.SESSION_ID))
+            session_ids_seen_in_cleanup.append(get_value(SpanAttributes.SESSION_ID))
 
     stream = stream_forever()
     async for session_id_inside_generator in stream:
@@ -426,7 +390,7 @@ async def test_async_generator_decorator_survives_early_break() -> None:
         break
     assert get_value(SpanAttributes.SESSION_ID) is None
     await stream.aclose()
-    assert cleanup_session_id == ["abandoned-stream-session"]
+    assert session_ids_seen_in_cleanup == ["abandoned-stream-session"]
     assert get_value(SpanAttributes.SESSION_ID) is None
 
 

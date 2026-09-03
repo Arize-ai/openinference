@@ -1,10 +1,9 @@
 import contextvars
 import inspect
-from functools import wraps
+from functools import partial, wraps
 from typing import (
     Any,
     AsyncGenerator,
-    AsyncIterator,
     Awaitable,
     Callable,
     Dict,
@@ -50,10 +49,24 @@ class _UsingAttributesContextManager:
     """
     Base class for the ``using_*`` helpers.
 
-    Attaches OpenInference context attributes to the current OpenTelemetry context for the
-    duration of a ``with`` / ``async with`` block, or of a decorated function call. It
-    implements the decorator protocol itself (rather than via ``contextlib.ContextDecorator``)
-    so that coroutine functions and generator functions are supported too.
+    Attaches OpenInference context attributes (session id, user id, metadata, tags, prompt
+    template) to the current OpenTelemetry context. ``OITracer`` copies whatever is attached
+    onto every span it starts, so instrumentors and manual spans pick the attributes up
+    without being told about them.
+
+    An instance can be used in three ways:
+
+    * ``with using_session(...)`` / ``async with using_session(...)``: attributes are attached
+      on entry and detached on exit.
+    * As a decorator on a plain function or ``async def`` coroutine function: attributes are
+      attached when the call starts running and detached when it returns or raises.
+    * As a decorator on a generator or async generator function: the generator body runs in
+      its own copy of the ``contextvars`` context carrying the attributes, so they are visible
+      to the body across every ``yield`` but never to the consumer of the generator.
+
+    The decorator protocol is implemented here rather than inherited from
+    ``contextlib.ContextDecorator`` because the stdlib version only wraps the synchronous
+    call, which for ``async def`` and generator functions ends before the body runs.
     """
 
     def __init__(
@@ -67,6 +80,20 @@ class _UsingAttributesContextManager:
         prompt_template_version: str = "",
         prompt_template_variables: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """
+        Args:
+            session_id: Value for ``session.id``.
+            user_id: Value for ``user.id``.
+            metadata: Value for ``metadata``; JSON-serialized with ``safe_json_dumps``.
+            tags: Value for ``tag.tags``.
+            prompt_template: Value for ``llm.prompt_template.template``.
+            prompt_template_version: Value for ``llm.prompt_template.version``.
+            prompt_template_variables: Value for ``llm.prompt_template.variables``;
+                JSON-serialized with ``safe_json_dumps``.
+
+        Empty values are skipped, so a helper that sets only some attributes inherits, rather
+        than clears, the others from an enclosing block.
+        """
         self._session_id = session_id
         self._user_id = user_id
         self._metadata = metadata
@@ -76,7 +103,10 @@ class _UsingAttributesContextManager:
         self._prompt_template_variables = prompt_template_variables
 
     def _context_with_attributes(self) -> Context:
-        """Return the current OpenTelemetry context with this instance's attributes added."""
+        """
+        Return the current OpenTelemetry context with this instance's non-empty attributes
+        added. Nothing is attached; callers decide how to make the returned context current.
+        """
         ctx = get_current()
         if self._session_id:
             ctx = set_value(SpanAttributes.SESSION_ID, self._session_id, ctx)
@@ -101,6 +131,14 @@ class _UsingAttributesContextManager:
         return ctx
 
     def attach_context(self) -> None:
+        """
+        Attach this instance's attributes to the current OpenTelemetry context and keep the
+        token for ``__exit__`` / ``__aexit__``.
+
+        Only the ``with`` / ``async with`` protocol stores the token on ``self``. The decorator
+        wrappers keep theirs in a local variable because one decorator instance serves every
+        call of the function it wraps, including concurrent and re-entrant calls.
+        """
         self._token = attach(self._context_with_attributes())
 
     def __enter__(self) -> Self:
@@ -129,13 +167,12 @@ class _UsingAttributesContextManager:
 
     def _copy_of_current_contextvars_with_attributes(self) -> contextvars.Context:
         """
-        Return a copy of the current ``contextvars`` context in which the OpenTelemetry
-        context carries this instance's attributes.
+        Return a copy of the current ``contextvars`` context whose OpenTelemetry context
+        carries this instance's attributes.
 
-        A generator body is run inside this copy, so the attributes are visible to the body
-        (and stay visible across its ``yield`` suspension points, together with anything the
-        body itself makes current, e.g. a span) while never leaking into the consumer's
-        context. Nothing needs to be detached afterwards: the copy is simply dropped.
+        Generator bodies run inside this copy. Anything the body makes current, including a
+        span it holds open across a ``yield``, stays current for the body only. Nothing needs
+        detaching afterwards; the copy is simply dropped when the generator is done.
         """
         contextvars_context = contextvars.copy_context()
         contextvars_context.run(attach, self._context_with_attributes())
@@ -143,42 +180,38 @@ class _UsingAttributesContextManager:
 
     def __call__(self, decorated_function: DecoratedCallable) -> DecoratedCallable:
         """
-        Use this context manager as a decorator.
+        Use this instance as a decorator; see the class docstring for the three supported
+        kinds of function.
 
-        The context attributes stay attached for the whole execution of the decorated
-        function, whether it is a plain function, a coroutine function (``async def``), a
-        generator function or an async generator function. A plain ``contextlib.ContextDecorator``
-        only wraps the synchronous call, which for a coroutine or generator function finishes as
-        soon as the coroutine or generator object is created, i.e. before its body runs.
-
-        A decorator instance is shared by every invocation of the function it wraps, so the
-        wrappers never store the OpenTelemetry context token on ``self``: concurrent or
-        re-entrant calls each keep their own token (or their own ``contextvars`` copy).
+        ``functools.wraps`` replaces each wrapper's docstring with the decorated function's,
+        so the wrappers below are documented with comments.
         """
         if inspect.isasyncgenfunction(decorated_function):
 
             @wraps(decorated_function)
-            async def async_generator_wrapper(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
-                contextvars_context = self._copy_of_current_contextvars_with_attributes()
+            async def async_generator_wrapper(
+                *args: Any, **kwargs: Any
+            ) -> AsyncGenerator[Any, Any]:
+                # Async generators have no ``yield from``, so the forwarding is spelled out:
+                # items flow out, ``asend`` values and ``athrow`` exceptions flow in, and
+                # ``aclose`` closes the wrapped generator. Every step runs in the copied context.
+                await_in_context = partial(
+                    _AwaitInContextvarsContext,
+                    self._copy_of_current_contextvars_with_attributes(),
+                )
                 generator: AsyncGenerator[Any, Any] = decorated_function(*args, **kwargs)
-
-                async def step(operation: Awaitable[Any]) -> Any:
-                    return await _RunInContextvarsContext(contextvars_context, operation)
-
-                # Equivalent to ``yield from`` for async generators: values sent to and
-                # exceptions thrown into the wrapper are forwarded to the wrapped generator.
                 try:
-                    item = await step(generator.asend(None))
+                    item = await await_in_context(generator.asend(None))
                     while True:
                         try:
                             received = yield item
                         except GeneratorExit:
-                            await step(generator.aclose())
+                            await await_in_context(generator.aclose())
                             raise
                         except BaseException as exception:
-                            item = await step(generator.athrow(exception))
+                            item = await await_in_context(generator.athrow(exception))
                         else:
-                            item = await step(generator.asend(received))
+                            item = await await_in_context(generator.asend(received))
                 except StopAsyncIteration:
                     return
 
@@ -188,23 +221,12 @@ class _UsingAttributesContextManager:
 
             @wraps(decorated_function)
             def generator_wrapper(*args: Any, **kwargs: Any) -> Generator[Any, Any, Any]:
-                contextvars_context = self._copy_of_current_contextvars_with_attributes()
-                generator: Generator[Any, Any, Any] = decorated_function(*args, **kwargs)
-                # Equivalent to ``yield from``, with every step run inside the copied context.
-                try:
-                    item = contextvars_context.run(generator.send, None)
-                    while True:
-                        try:
-                            received = yield item
-                        except GeneratorExit:
-                            contextvars_context.run(generator.close)
-                            raise
-                        except BaseException as exception:
-                            item = contextvars_context.run(generator.throw, exception)
-                        else:
-                            item = contextvars_context.run(generator.send, received)
-                except StopIteration as stop:
-                    return stop.value
+                # ``yield from`` semantics with every step run in the copied context.
+                return_value = yield from _drive_in_contextvars_context(
+                    self._copy_of_current_contextvars_with_attributes(),
+                    decorated_function(*args, **kwargs),
+                )
+                return return_value
 
             return cast(DecoratedCallable, generator_wrapper)
 
@@ -212,6 +234,8 @@ class _UsingAttributesContextManager:
 
             @wraps(decorated_function)
             async def coroutine_wrapper(*args: Any, **kwargs: Any) -> Any:
+                # Attaching inside the coroutine means it happens when the body starts running,
+                # in the awaiting task's context, not when the coroutine object is created.
                 token = attach(self._context_with_attributes())
                 try:
                     return await decorated_function(*args, **kwargs)
@@ -231,36 +255,54 @@ class _UsingAttributesContextManager:
         return cast(DecoratedCallable, sync_wrapper)
 
 
-class _RunInContextvarsContext:
+def _drive_in_contextvars_context(
+    contextvars_context: contextvars.Context,
+    steps: Generator[Any, Any, Any],
+) -> Generator[Any, Any, Any]:
     """
-    Awaitable that drives ``awaitable`` with every step executed inside ``contextvars_context``.
+    Equivalent of ``yield from steps``, except that every step of ``steps`` runs inside
+    ``contextvars_context``.
 
-    This is what ``asyncio.Task`` does for its coroutine, applied to a single awaitable: the
-    futures the awaitable suspends on are passed through to the event loop unchanged, and the
-    values sent (or exceptions thrown) into this awaitable are forwarded into ``awaitable``.
+    ``steps`` is a user generator or the ``__await__`` of a coroutine. Whatever it yields
+    (items, or the futures a coroutine suspends on) passes through untouched; values sent
+    into the returned generator are forwarded with ``send``, exceptions with ``throw``, and
+    closing it closes ``steps``. The return value of ``steps`` becomes the return value here.
     """
+    run = contextvars_context.run
+    try:
+        yielded = run(steps.send, None)
+        while True:
+            try:
+                received = yield yielded
+            except GeneratorExit:
+                run(steps.close)
+                raise
+            except BaseException as exception:
+                yielded = run(steps.throw, exception)
+            else:
+                yielded = run(steps.send, received)
+    except StopIteration as stop:
+        return stop.value
+
+
+class _AwaitInContextvarsContext:
+    """
+    Awaitable that runs every step of ``awaitable`` inside ``contextvars_context``.
+
+    ``asyncio.Task`` does this for a whole task; this does it for a single awaitable so that
+    an async generator's ``asend`` / ``athrow`` / ``aclose`` steps can run in the copied
+    context without spawning a task. (``asyncio.create_task(..., context=...)`` needs
+    Python 3.11 and would change cancellation semantics.)
+    """
+
+    __slots__ = ("_contextvars_context", "_awaitable")
 
     def __init__(self, contextvars_context: contextvars.Context, awaitable: Awaitable[Any]) -> None:
         self._contextvars_context = contextvars_context
         self._awaitable = awaitable
 
     def __await__(self) -> Generator[Any, Any, Any]:
-        run = self._contextvars_context.run
-        steps = self._awaitable.__await__()
-        try:
-            suspended_on = run(steps.send, None)
-            while True:
-                try:
-                    received = yield suspended_on
-                except GeneratorExit:
-                    run(steps.close)
-                    raise
-                except BaseException as exception:
-                    suspended_on = run(steps.throw, exception)
-                else:
-                    suspended_on = run(steps.send, received)
-        except StopIteration as stop:
-            return stop.value
+        return _drive_in_contextvars_context(self._contextvars_context, self._awaitable.__await__())
 
 
 class using_session(_UsingAttributesContextManager):
@@ -268,6 +310,9 @@ class using_session(_UsingAttributesContextManager):
     Context manager to add session id to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the session id as a span attribute,
     following the OpenInference semantic conventions.
+
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
 
     Examples:
         with using_session("my-session-id"):
@@ -286,6 +331,9 @@ class using_user(_UsingAttributesContextManager):
     instrumentations will read this Context and pass the user id as a span attribute,
     following the OpenInference semantic conventions.
 
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
+
     Examples:
         with using_user("my-user-id"):
             # Tracing within this block will include the span attribute:
@@ -302,6 +350,9 @@ class using_metadata(_UsingAttributesContextManager):
     Context manager to add metadata to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the metadata as a span attribute,
     following the OpenInference semantic conventions.
+
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
 
     Examples:
         metadata = {
@@ -324,6 +375,9 @@ class using_tags(_UsingAttributesContextManager):
     Context manager to add tags to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the tags as a span attribute,
     following the OpenInference semantic conventions.
+
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
 
     Examples:
         tags = [
@@ -348,14 +402,17 @@ class using_prompt_template(_UsingAttributesContextManager):
     Context and pass the prompt template as a span attribute, following the
     OpenInference semantic conventions.
 
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
+
     Examples:
         prompt_template = "Please describe the weather forecast for {city} on {date}"
         prompt_template_variables = {"city": "Johannesburg", date:"July 11"}
         with using_prompt_template(
             template=prompt_template,
-            version=prompt_template_variables,
-            variables="v1.0",
-            ):
+            version="v1.0",
+            variables=prompt_template_variables,
+        ):
             # Tracing within this block will include the span attribute:
             # "llm.prompt_template.template" = "Please describe the weather
             forecast for {city} on {date}"
@@ -384,6 +441,9 @@ class using_attributes(_UsingAttributesContextManager):
     Context manager to add attributes to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the attributes to the traced span,
     following the OpenInference semantic conventions.
+
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
 
     It is a convenient context manager to use if you find yourself using many others, provided
     by this package, combined.
@@ -465,6 +525,10 @@ class using_attributes(_UsingAttributesContextManager):
 
 
 def get_attributes_from_context() -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Yield the OpenInference context attributes currently attached to the OpenTelemetry
+    context. ``OITracer`` calls this when a span starts to copy them onto the span.
+    """
     for ctx_attr in CONTEXT_ATTRIBUTES:
         if (val := get_value(ctx_attr)) is not None:
             yield ctx_attr, cast(AttributeValue, val)
