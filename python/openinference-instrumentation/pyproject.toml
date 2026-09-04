@@ -75,7 +75,6 @@ norecursedirs = [
 strict = true
 explicit_package_bases = true
 exclude = [
-  "examples/*",
   "scripts/*",
   "src/openinference/instrumentation/agentspec/*",
   "src/openinference/instrumentation/agno/*",

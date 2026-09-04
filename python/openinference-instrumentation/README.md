@@ -105,27 +105,6 @@ with using_attributes(
     ...
 ```
 
-Each helper also works as a decorator. The attributes stay attached for the whole call,
-including across `await` suspension points of `async def` functions and while the body of a
-generator or `async def` generator runs (without leaking into the code that consumes it):
-
-```python
-from openinference.instrumentation import using_session, using_user
-
-@using_session("my-session-id")
-@using_user("my-user-id")
-async def answer(question: str) -> str:
-    # Spans created here, and by any awaited instrumented call, carry
-    # "session.id" = "my-session-id" and "user.id" = "my-user-id"
-    ...
-```
-
-When combining them with span-creating decorators such as `tracer.agent` or `tracer.tool`, put
-the `using_*` decorators on top: the attributes are copied onto a span when it starts, so they
-have to be attached before the span-creating decorator runs.
-
-See [`examples/async_context_attribute_decorators.py`](examples/async_context_attribute_decorators.py) for a runnable example that exports to a local Phoenix server.
-
 You can read more about this in our [docs](https://docs.arize.com/phoenix/tracing/how-to-tracing/customize-spans).
 
 ## Tracing Configuration
