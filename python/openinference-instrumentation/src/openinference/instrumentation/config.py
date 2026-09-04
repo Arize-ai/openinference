@@ -52,9 +52,8 @@ class suppress_tracing:
         self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
         return self
 
-    def __aenter__(self) -> "suppress_tracing":
-        self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
-        return self
+    async def __aenter__(self) -> "suppress_tracing":
+        return self.__enter__()
 
     def __exit__(
         self,
@@ -64,13 +63,13 @@ class suppress_tracing:
     ) -> None:
         detach(self._token)
 
-    def __aexit__(
+    async def __aexit__(
         self,
         exc_type: Optional[Type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        detach(self._token)
+        self.__exit__(exc_type, exc_value, traceback)
 
 
 OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS = "OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS"

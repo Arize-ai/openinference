@@ -1,5 +1,20 @@
-from contextlib import ContextDecorator
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
+from contextlib import AsyncContextDecorator, ContextDecorator
+from copy import copy
+from functools import wraps
+from inspect import isasyncgenfunction, iscoroutinefunction, isgeneratorfunction
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    cast,
+)
 
 from opentelemetry.context import (
     attach,
@@ -25,8 +40,10 @@ CONTEXT_ATTRIBUTES = (
     SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES,
 )
 
+_CallableT = TypeVar("_CallableT", bound=Callable[..., Any])
 
-class _UsingAttributesContextManager(ContextDecorator):
+
+class _UsingAttributesContextManager(ContextDecorator, AsyncContextDecorator):
     def __init__(
         self,
         *,
@@ -40,11 +57,44 @@ class _UsingAttributesContextManager(ContextDecorator):
     ) -> None:
         self._session_id = session_id
         self._user_id = user_id
-        self._metadata = metadata
         self._tags = tags
         self._prompt_template = prompt_template
         self._prompt_template_version = prompt_template_version
-        self._prompt_template_variables = prompt_template_variables
+        # Serialize once at construction: a decorated function re-enters this context
+        # on every call, and the dicts cannot change between calls.
+        self._metadata_json = safe_json_dumps(metadata) if metadata else None
+        self._prompt_template_variables_json = (
+            safe_json_dumps(prompt_template_variables) if prompt_template_variables else None
+        )
+
+    def _recreate_cm(self) -> Self:
+        return copy(self)
+
+    def __call__(self, func: _CallableT) -> _CallableT:
+        # `inspect`'s function predicates are False for callable objects, so also test
+        # the object's `__call__` to give every callable shape the same dispatch.
+        call = getattr(func, "__call__", func)
+        if isasyncgenfunction(func) or isasyncgenfunction(call):
+            # Hold the context across the entire iteration; the stdlib decorators would
+            # detach it as soon as the generator object is created.
+            @wraps(func)
+            async def async_gen_wrapper(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
+                async with self._recreate_cm():
+                    async for item in func(*args, **kwargs):
+                        yield item
+
+            return cast(_CallableT, async_gen_wrapper)
+        if isgeneratorfunction(func) or isgeneratorfunction(call):
+
+            @wraps(func)
+            def gen_wrapper(*args: Any, **kwargs: Any) -> Iterator[Any]:
+                with self._recreate_cm():
+                    yield from func(*args, **kwargs)
+
+            return cast(_CallableT, gen_wrapper)
+        if iscoroutinefunction(func) or iscoroutinefunction(call):
+            return AsyncContextDecorator.__call__(self, func)
+        return ContextDecorator.__call__(self, func)
 
     def attach_context(self) -> None:
         ctx = get_current()
@@ -52,8 +102,8 @@ class _UsingAttributesContextManager(ContextDecorator):
             ctx = set_value(SpanAttributes.SESSION_ID, self._session_id, ctx)
         if self._user_id:
             ctx = set_value(SpanAttributes.USER_ID, self._user_id, ctx)
-        if self._metadata:
-            ctx = set_value(SpanAttributes.METADATA, safe_json_dumps(self._metadata), ctx)
+        if self._metadata_json is not None:
+            ctx = set_value(SpanAttributes.METADATA, self._metadata_json, ctx)
         if self._tags:
             ctx = set_value(SpanAttributes.TAG_TAGS, self._tags, ctx)
         if self._prompt_template:
@@ -62,10 +112,10 @@ class _UsingAttributesContextManager(ContextDecorator):
             ctx = set_value(
                 SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION, self._prompt_template_version, ctx
             )
-        if self._prompt_template_variables:
+        if self._prompt_template_variables_json is not None:
             ctx = set_value(
                 SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES,
-                safe_json_dumps(self._prompt_template_variables),
+                self._prompt_template_variables_json,
                 ctx,
             )
         self._token = attach(ctx)
@@ -75,8 +125,7 @@ class _UsingAttributesContextManager(ContextDecorator):
         return self
 
     async def __aenter__(self) -> Self:
-        self.attach_context()
-        return self
+        return self.__enter__()
 
     def __exit__(
         self,
@@ -92,7 +141,7 @@ class _UsingAttributesContextManager(ContextDecorator):
         exc_value: Optional[BaseException],
         traceback: Optional[Any],
     ) -> None:
-        detach(self._token)
+        self.__exit__(exc_type, exc_value, traceback)
 
 
 class using_session(_UsingAttributesContextManager):
