@@ -242,6 +242,23 @@ from openinference.instrumentation.openai_agents._processor import (
                     type="reasoning",
                     id="reason-124",
                     summary=[],
+                    content=[{"type": "reasoning_text", "text": "Private reasoning"}],
+                )
+            ],
+            {
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.text": "Private reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.id": "reason-124",
+            },
+            id="reasoning_item_content_fallback",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason-125",
+                    summary=[],
                     encrypted_content="blob",
                 )
             ],
@@ -249,7 +266,7 @@ from openinference.instrumentation.openai_agents._processor import (
                 "llm.input_messages.1.message.role": "assistant",
                 "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
                 "llm.input_messages.1.message.contents.0.message_content.encrypted_content": "blob",
-                "llm.input_messages.1.message.contents.0.message_content.id": "reason-124",
+                "llm.input_messages.1.message.contents.0.message_content.id": "reason-125",
             },
             id="reasoning_item_encrypted_content_only",
         ),
@@ -257,7 +274,7 @@ from openinference.instrumentation.openai_agents._processor import (
             [
                 ResponseReasoningItemParam(
                     type="reasoning",
-                    id="reason-125",
+                    id="reason-126",
                     summary=[],
                 )
             ],
@@ -272,7 +289,7 @@ from openinference.instrumentation.openai_agents._processor import (
                 ),
                 ResponseReasoningItemParam(
                     type="reasoning",
-                    id="reason-126",
+                    id="reason-127",
                     summary=[{"type": "summary_text", "text": "Try 2**3."}],
                 ),
             ],
@@ -282,7 +299,7 @@ from openinference.instrumentation.openai_agents._processor import (
                 "llm.input_messages.2.message.role": "assistant",
                 "llm.input_messages.2.message.contents.0.message_content.type": "reasoning",
                 "llm.input_messages.2.message.contents.0.message_content.text": "Try 2**3.",
-                "llm.input_messages.2.message.contents.0.message_content.id": "reason-126",
+                "llm.input_messages.2.message.contents.0.message_content.id": "reason-127",
             },
             id="message_then_reasoning_item",
         ),
