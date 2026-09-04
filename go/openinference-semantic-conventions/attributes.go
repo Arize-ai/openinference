@@ -217,8 +217,7 @@ const (
 
 // Image attributes — nested under MessageContentImage, InputImages or OutputImages.
 const (
-	ImageURL      = "image.url"
-	ImageMimeType = "image.mime_type"
+	ImageURL = "image.url"
 )
 
 // Audio attributes.
