@@ -237,11 +237,21 @@ public class SemanticConventions {
     public static final String INPUT_MIME_TYPE = SemanticAttributePrefixes.INPUT + ".mime_type";
 
     /**
+     * Images that are inputs to any span, flattened as input.images.0.image.url
+     */
+    public static final String INPUT_IMAGES = SemanticAttributePrefixes.INPUT + ".images";
+
+    /**
      * The output of any span
      */
     public static final String OUTPUT_VALUE = SemanticAttributePrefixes.OUTPUT + ".value";
 
     public static final String OUTPUT_MIME_TYPE = SemanticAttributePrefixes.OUTPUT + ".mime_type";
+
+    /**
+     * Images produced by any span, flattened as output.images.0.image.url
+     */
+    public static final String OUTPUT_IMAGES = SemanticAttributePrefixes.OUTPUT + ".images";
 
     /**
      * The messages sent to the LLM for completions

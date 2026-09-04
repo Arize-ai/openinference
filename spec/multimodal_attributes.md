@@ -74,6 +74,82 @@ Semantics:
 
 This maps directly onto the OTel GenAI semantic conventions message model: an inline data URI corresponds to a `blob` part, while an externalized reference corresponds to a `uri` part. Audio and file content will gain the same treatment once their message-content conventions are established.
 
+## Span-Kind-Independent Images
+
+Images recorded through `llm.input_messages` / `llm.output_messages` require an `LLM` span carrying
+a full message structure. Spans of other kinds record images with the top-level `input.images` /
+`output.images` attributes instead — a `TOOL` span running OCR, a `CHAIN` step holding a browser
+screenshot, an image-generation call that has no chat messages at all. These parallel `input.value`
+/ `output.value`: they are valid on **any** span kind and carry no role or message-structure
+semantics.
+
+### Attribute Pattern
+
+`<input|output>.images.<imageIndex>.image.<attribute>`
+
+Where:
+- `<imageIndex>` is the zero-based index of the image
+- `<attribute>` is `url`
+
+A tool span that receives a page scan and returns an annotated version:
+
+```json
+{
+  "openinference.span.kind": "TOOL",
+  "input.images.0.image.url": "data:image/png;base64,iVBORw0KGgo...",
+  "output.images.0.image.url": "https://example.com/annotated.png"
+}
+```
+
+Multiple images are indexed:
+
+```
+input.images.0.image.url = "https://example.com/page-1.png"
+input.images.1.image.url = "https://example.com/page-2.png"
+```
+
+### Semantics
+
+- `image.url` carries the same value semantics as `message_content.image.image.url` — a link to the
+  image or its base64 encoding. That is an absolute URI (`https://`, `http://`, `s3://`, `gs://`, or
+  a provider-specific scheme), a base64 data URI (`data:<mime>;base64,<payload>`), or a bare base64
+  payload.
+- There is no separate MIME attribute: the media type is read from the value itself — the `data:`
+  URI prefix, or the file extension of a reference URI. Producers SHOULD therefore emit a data URI
+  in preference to a bare base64 payload, and SHOULD keep a recognizable extension on a reference
+  URI, so that a consumer can identify the bytes.
+- These attributes are additive, not a replacement for message content. An `LLM` span that already
+  records an image under `message.contents` SHOULD NOT repeat it here.
+- Order is carried by the index: producers SHOULD emit images in the order they occur, and
+  consumers MAY rely on it. That is the only structure present — there is no role, no interleaving
+  with text, and no correspondence to message indices; use `message.contents` when order relative
+  to text matters.
+- `input.value` / `output.value` remain the textual I/O of the span and are unaffected.
+
+### Redaction and Size Limits
+
+The controls that apply to message-content images apply to these attributes in the same way:
+
+- `OPENINFERENCE_HIDE_INPUT_IMAGES` removes the whole `input.images.*` namespace, not only the
+  `image.url` leaves.
+- `OPENINFERENCE_HIDE_INPUTS` and `OPENINFERENCE_HIDE_OUTPUTS` remove `input.images.*` and
+  `output.images.*` respectively, as they do for `input.value` / `output.value`.
+- `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` and a configured blob uploader apply to
+  `<input|output>.images.<i>.image.url` on the same terms as `message_content.image.image.url`
+  (see [External Storage for Large Media](#external-storage-for-large-media)). Hiding takes
+  precedence: a hidden image is never uploaded.
+
+The size limit and externalization recognize base64 by the `data:` prefix, so a bare base64 payload
+is measured by neither — the same as for message-content images. This is a further reason to prefer
+a data URI when the MIME type is known.
+
+Each control reaches these attributes wherever the SDK already implements it for message-content
+images, and no further. The size limit is implemented in Python and JavaScript; blob
+externalization is implemented in Python only, so on JavaScript an oversized payload is replaced
+with `"__REDACTED__"` rather than uploaded. The Java and Go SDKs implement neither, for message
+images or for these, so a payload budget configured there is not applied.
+
+
 ## Privacy Considerations
 
 ### Hiding Images

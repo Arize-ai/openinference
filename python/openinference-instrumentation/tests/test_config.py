@@ -448,3 +448,51 @@ def test_base64_image_max_length_applies_to_input_and_output_messages(
     assert config.mask(key, over_limit) == REDACTED_VALUE
     # A base64 image under the limit must pass through untouched.
     assert config.mask(key, under_limit) == under_limit
+
+
+@pytest.mark.parametrize(
+    ("images_prefix", "hiding_config"),
+    [
+        (SpanAttributes.INPUT_IMAGES, {"hide_inputs": True}),
+        (SpanAttributes.INPUT_IMAGES, {"hide_input_images": True}),
+        (SpanAttributes.OUTPUT_IMAGES, {"hide_outputs": True}),
+    ],
+)
+def test_hiding_applies_to_span_level_images(
+    images_prefix: str,
+    hiding_config: Dict[str, bool],
+) -> None:
+    """The span-level image namespaces obey the same hiding controls as message
+    images, so a configured hide setting cannot be bypassed by recording an image
+    outside the LLM message structure."""
+    from openinference.semconv.trace import ImageAttributes
+
+    config = TraceConfig(**hiding_config)  # type: ignore[arg-type]
+    url_key = f"{images_prefix}.0.{ImageAttributes.IMAGE_URL}"
+
+    assert config.mask(url_key, "data:image/png;base64,iVBORw0KGgo=") is None
+    # Without the hide setting the same keys pass through.
+    assert TraceConfig().mask(url_key, "https://example.com/a.png") == "https://example.com/a.png"
+
+
+@pytest.mark.parametrize(
+    "images_prefix",
+    [SpanAttributes.INPUT_IMAGES, SpanAttributes.OUTPUT_IMAGES],
+)
+def test_base64_image_max_length_applies_to_span_level_images(
+    images_prefix: str,
+) -> None:
+    """The size limit follows the image.url leaf, so an oversized base64 payload is
+    redacted whether it sits under a message content item or at the span level."""
+    from openinference.semconv.trace import ImageAttributes
+
+    config = TraceConfig(base64_image_max_length=100)
+    key = f"{images_prefix}.0.{ImageAttributes.IMAGE_URL}"
+
+    over_limit = "data:image/png;base64," + "A" * 200
+    under_limit = "data:image/png;base64," + "A" * 20
+
+    assert config.mask(key, over_limit) == REDACTED_VALUE
+    assert config.mask(key, under_limit) == under_limit
+    # A plain URI is never subject to the base64 budget.
+    assert config.mask(key, "https://example.com/a.png") == "https://example.com/a.png"

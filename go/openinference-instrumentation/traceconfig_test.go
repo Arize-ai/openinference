@@ -18,6 +18,7 @@ func TestTraceConfigFromEnv_EmptyDefaultsToZeroValue(t *testing.T) {
 		instrumentation.EnvHideLLMInvocationParameters,
 		instrumentation.EnvHideLLMTools,
 		instrumentation.EnvHidePrompts,
+		instrumentation.EnvHideInputImages,
 	} {
 		t.Setenv(k, "")
 	}
@@ -39,6 +40,7 @@ func TestTraceConfigFromEnv_AllFlagsSet(t *testing.T) {
 		instrumentation.EnvHideLLMInvocationParameters: func(c instrumentation.TraceConfig) bool { return c.HideLLMInvocationParameters },
 		instrumentation.EnvHideLLMTools:                func(c instrumentation.TraceConfig) bool { return c.HideLLMTools },
 		instrumentation.EnvHidePrompts:                 func(c instrumentation.TraceConfig) bool { return c.HidePrompts },
+		instrumentation.EnvHideInputImages:             func(c instrumentation.TraceConfig) bool { return c.HideInputImages },
 	}
 	for envVar, getter := range cases {
 		t.Run(envVar, func(t *testing.T) {
@@ -136,5 +138,29 @@ func TestTraceConfig_MaskInputOutputValue(t *testing.T) {
 	}
 	if got := none.MaskOutputValue("y"); got != "y" {
 		t.Errorf("default MaskOutputValue: got %q want %q", got, "y")
+	}
+}
+
+func TestTraceConfig_ShouldHideImages(t *testing.T) {
+	cases := []struct {
+		name           string
+		config         instrumentation.TraceConfig
+		wantHideInput  bool
+		wantHideOutput bool
+	}{
+		{"zero value hides nothing", instrumentation.TraceConfig{}, false, false},
+		{"HideInputImages", instrumentation.TraceConfig{HideInputImages: true}, true, false},
+		{"HideInputs implies input images", instrumentation.TraceConfig{HideInputs: true}, true, false},
+		{"HideOutputs covers output images", instrumentation.TraceConfig{HideOutputs: true}, false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.config.ShouldHideInputImages(); got != tc.wantHideInput {
+				t.Errorf("ShouldHideInputImages() = %v, want %v", got, tc.wantHideInput)
+			}
+			if got := tc.config.ShouldHideOutputImages(); got != tc.wantHideOutput {
+				t.Errorf("ShouldHideOutputImages() = %v, want %v", got, tc.wantHideOutput)
+			}
+		})
 	}
 }

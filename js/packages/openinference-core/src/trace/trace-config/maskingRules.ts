@@ -96,6 +96,45 @@ const maskInputImagesRule: MaskingRule = {
   action: () => undefined,
 };
 
+/**
+ * True for the span-level image namespaces, which are valid on any span kind:
+ * `input.images.[i].image.*` and `output.images.[i].image.*`.
+ */
+function isWithinImagesNamespace(key: string, namespace: string): boolean {
+  return key === namespace || key.startsWith(`${namespace}.`);
+}
+
+/**
+ * Masks (removes) span-level input images.
+ * @example
+ * ```typescript
+ *  maskSpanInputImagesRule.condition({
+ *      config: {hideInputImages: true},
+ *      key: "input.images.0.image.url"
+ *  }) // returns true so the rule applies and the value will be removed
+ */
+const maskSpanInputImagesRule: MaskingRule = {
+  condition: ({ config, key }) =>
+    (config.hideInputs || config.hideInputImages) &&
+    isWithinImagesNamespace(key, SemanticConventions.INPUT_IMAGES),
+  action: () => undefined,
+};
+
+/**
+ * Masks (removes) span-level output images.
+ * @example
+ * ```typescript
+ *  maskSpanOutputImagesRule.condition({
+ *      config: {hideOutputs: true},
+ *      key: "output.images.0.image.url"
+ *  }) // returns true so the rule applies and the value will be removed
+ */
+const maskSpanOutputImagesRule: MaskingRule = {
+  condition: ({ config, key }) =>
+    config.hideOutputs && isWithinImagesNamespace(key, SemanticConventions.OUTPUT_IMAGES),
+  action: () => undefined,
+};
+
 function isBase64Url(url?: AttributeValue): boolean {
   return typeof url === "string" && url.startsWith("data:image/") && url.includes("base64");
 }
@@ -115,9 +154,11 @@ const maskLongBase64ImageRule: MaskingRule = {
     typeof value === "string" &&
     isBase64Url(value) &&
     value.length > config.base64ImageMaxLength &&
-    key.includes(SemanticConventions.LLM_INPUT_MESSAGES) &&
-    key.includes(SemanticConventions.MESSAGE_CONTENT_IMAGE) &&
-    key.endsWith(SemanticConventions.IMAGE_URL),
+    key.endsWith(SemanticConventions.IMAGE_URL) &&
+    ((key.includes(SemanticConventions.LLM_INPUT_MESSAGES) &&
+      key.includes(SemanticConventions.MESSAGE_CONTENT_IMAGE)) ||
+      isWithinImagesNamespace(key, SemanticConventions.INPUT_IMAGES) ||
+      isWithinImagesNamespace(key, SemanticConventions.OUTPUT_IMAGES)),
   action: () => REDACTED_VALUE,
 };
 
@@ -212,6 +253,8 @@ const maskingRules: MaskingRule[] = [
   maskInputTextContentRule,
   maskOutputTextContentRule,
   maskInputImagesRule,
+  maskSpanInputImagesRule,
+  maskSpanOutputImagesRule,
   maskLongBase64ImageRule,
   maskEmbeddingVectorsRule,
   maskPromptsRule,

@@ -120,6 +120,18 @@ func EmbeddingKey(i int, child string) string {
 	return EmbeddingEmbeddings + "." + strconv.Itoa(i) + "." + child
 }
 
+// InputImageKey returns the attribute key for the child of the i-th input
+// image, e.g. InputImageKey(0, ImageURL) == "input.images.0.image.url".
+func InputImageKey(i int, child string) string {
+	return InputImages + "." + strconv.Itoa(i) + "." + child
+}
+
+// OutputImageKey returns the attribute key for the child of the i-th output
+// image, e.g. OutputImageKey(0, ImageURL) == "output.images.0.image.url".
+func OutputImageKey(i int, child string) string {
+	return OutputImages + "." + strconv.Itoa(i) + "." + child
+}
+
 // llmMessageKey is the internal builder for "{prefix}.{i}.{child}" keys
 // where the child is one of the Message* constants.
 func llmMessageKey(prefix string, i int, child string) string {

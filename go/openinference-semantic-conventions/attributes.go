@@ -25,6 +25,12 @@ const (
 	OutputValue    = "output.value"
 	OutputMimeType = "output.mime_type"
 
+	// InputImages and OutputImages hold images attached to the span
+	// regardless of span kind, flattened as "input.images.0.image.url".
+	// Use InputImageKey and OutputImageKey to build the keys.
+	InputImages  = "input.images"
+	OutputImages = "output.images"
+
 	// Metadata is a JSON-encoded map of user-defined key-value pairs.
 	Metadata = "metadata"
 
@@ -207,7 +213,7 @@ const (
 	MessageContentEncryptedContent = "message_content.encrypted_content"
 )
 
-// Image attributes — nested under MessageContentImage.
+// Image attributes — nested under MessageContentImage, InputImages or OutputImages.
 const (
 	ImageURL = "image.url"
 )
