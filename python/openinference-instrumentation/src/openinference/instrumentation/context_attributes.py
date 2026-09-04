@@ -1,7 +1,20 @@
 import inspect
-from contextlib import ContextDecorator
-from functools import wraps
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, TypeVar, cast
+from functools import partial, wraps
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    cast,
+)
 
 from opentelemetry.context import (
     Context,
@@ -31,7 +44,95 @@ CONTEXT_ATTRIBUTES = (
 )
 
 
-class _UsingAttributesContextManager(ContextDecorator):
+class _RollingOtelContext:
+    __slots__ = ("_body_context",)
+
+    def __init__(self, initial_body_context: Context) -> None:
+        self._body_context = initial_body_context
+
+    def run_sync(self, step: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+        token = attach(self._body_context)
+        try:
+            result = step(*args, **kwargs)
+            self._body_context = get_current()
+            return result
+        finally:
+            detach(token)
+
+    async def run_async(
+        self, step: Callable[..., Awaitable[Any]], /, *args: Any, **kwargs: Any
+    ) -> Any:
+        token = attach(self._body_context)
+        try:
+            result = await step(*args, **kwargs)
+            self._body_context = get_current()
+            return result
+        finally:
+            detach(token)
+
+
+def _drive_sync_generator_in_rolling_otel(
+    rolling: _RollingOtelContext,
+    body: Generator[Any, Any, Any],
+) -> Generator[Any, Any, Any]:
+    try:
+        item = rolling.run_sync(body.send, None)
+        while True:
+            try:
+                received = yield item
+            except GeneratorExit:
+                rolling.run_sync(body.close)
+                raise
+            except BaseException as exc:
+                item = rolling.run_sync(body.throw, exc)
+            else:
+                item = rolling.run_sync(body.send, received)
+    except StopIteration as stop:
+        return stop.value
+
+
+class _AwaitRollingOtelStep:
+    __slots__ = ("_rolling", "_awaitable")
+
+    def __init__(self, rolling: _RollingOtelContext, awaitable: Awaitable[Any]) -> None:
+        self._rolling = rolling
+        self._awaitable = awaitable
+
+    def __await__(self) -> Generator[Any, Any, Any]:
+        return self._run().__await__()
+
+    async def _run(self) -> Any:
+        async def step() -> Any:
+            return await self._awaitable
+
+        return await self._rolling.run_async(step)
+
+
+class _UsingAttributesContextManager:
+    """
+    Base class for the ``using_*`` helpers.
+
+    Attaches OpenInference context attributes (session id, user id, metadata, tags, prompt
+    template) to the current OpenTelemetry context. ``OITracer`` copies whatever is attached
+    onto every span it starts, so instrumentors and manual spans pick the attributes up
+    without being told about them.
+
+    An instance can be used in three ways:
+
+    * ``with using_session(...)`` / ``async with using_session(...)``: attributes are attached
+      on entry and detached on exit.
+    * As a decorator on a plain function or ``async def`` coroutine function: attributes are
+      attached when the call starts running and detached when it returns or raises.
+    * As a decorator on a generator or async generator function: each body step runs with a
+      rolling OpenTelemetry context that carries the attributes and any spans the body opened
+      across ``yield``. The consumer loop never sees those attributes or spans; unrelated
+      ``contextvars.ContextVar`` values stay on the caller's live map.
+
+    The decorator protocol is implemented here rather than inherited from
+    ``contextlib.ContextDecorator`` because the stdlib version only wraps the synchronous
+    call, which for ``async def`` and generator functions ends before the body runs.
+    """
+
     def __init__(
         self,
         *,
@@ -43,6 +144,20 @@ class _UsingAttributesContextManager(ContextDecorator):
         prompt_template_version: str = "",
         prompt_template_variables: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """
+        Args:
+            session_id: Value for ``session.id``.
+            user_id: Value for ``user.id``.
+            metadata: Value for ``metadata``; JSON-serialized with ``safe_json_dumps``.
+            tags: Value for ``tag.tags``.
+            prompt_template: Value for ``llm.prompt_template.template``.
+            prompt_template_version: Value for ``llm.prompt_template.version``.
+            prompt_template_variables: Value for ``llm.prompt_template.variables``;
+                JSON-serialized with ``safe_json_dumps``.
+
+        Empty values are skipped, so a helper that sets only some attributes inherits, rather
+        than clears, the others from an enclosing block.
+        """
         self._session_id = session_id
         self._user_id = user_id
         self._metadata = metadata
@@ -52,6 +167,10 @@ class _UsingAttributesContextManager(ContextDecorator):
         self._prompt_template_variables = prompt_template_variables
 
     def _context_with_attributes(self) -> Context:
+        """
+        Return the current OpenTelemetry context with this instance's non-empty attributes
+        added. Nothing is attached; callers decide how to make the returned context current.
+        """
         ctx = get_current()
         if self._session_id:
             ctx = set_value(SpanAttributes.SESSION_ID, self._session_id, ctx)
@@ -76,6 +195,14 @@ class _UsingAttributesContextManager(ContextDecorator):
         return ctx
 
     def attach_context(self) -> None:
+        """
+        Attach this instance's attributes to the current OpenTelemetry context and keep the
+        token for ``__exit__`` / ``__aexit__``.
+
+        Only the ``with`` / ``async with`` protocol stores the token on ``self``. The decorator
+        wrappers keep theirs in a local variable because one decorator instance serves every
+        call of the function it wraps, including concurrent and re-entrant calls.
+        """
         self._token = attach(self._context_with_attributes())
 
     def __enter__(self) -> Self:
@@ -103,18 +230,72 @@ class _UsingAttributesContextManager(ContextDecorator):
         detach(self._token)
 
     def __call__(self, decorated_function: DecoratedCallable) -> DecoratedCallable:
-        if not inspect.iscoroutinefunction(decorated_function):
-            return super().__call__(decorated_function)
+        """
+        Use this instance as a decorator; see the class docstring for the three supported
+        kinds of function.
+
+        ``functools.wraps`` replaces each wrapper's docstring with the decorated function's,
+        so the wrappers below are documented with comments.
+        """
+        if inspect.isasyncgenfunction(decorated_function):
+
+            @wraps(decorated_function)
+            async def async_generator_wrapper(
+                *args: Any, **kwargs: Any
+            ) -> AsyncGenerator[Any, Any]:
+                rolling = _RollingOtelContext(self._context_with_attributes())
+                body: AsyncGenerator[Any, Any] = decorated_function(*args, **kwargs)
+                step = partial(_AwaitRollingOtelStep, rolling)
+                try:
+                    item = await step(body.asend(None))
+                    while True:
+                        try:
+                            received = yield item
+                        except GeneratorExit:
+                            await step(body.aclose())
+                            raise
+                        except BaseException as exception:
+                            item = await step(body.athrow(exception))
+                        else:
+                            item = await step(body.asend(received))
+                except StopAsyncIteration:
+                    return
+
+            return cast(DecoratedCallable, async_generator_wrapper)
+
+        if inspect.isgeneratorfunction(decorated_function):
+
+            @wraps(decorated_function)
+            def generator_wrapper(*args: Any, **kwargs: Any) -> Generator[Any, Any, Any]:
+                rolling = _RollingOtelContext(self._context_with_attributes())
+                return_value = yield from _drive_sync_generator_in_rolling_otel(
+                    rolling, decorated_function(*args, **kwargs)
+                )
+                return return_value
+
+            return cast(DecoratedCallable, generator_wrapper)
+
+        if inspect.iscoroutinefunction(decorated_function):
+
+            @wraps(decorated_function)
+            async def coroutine_wrapper(*args: Any, **kwargs: Any) -> Any:
+                token = attach(self._context_with_attributes())
+                try:
+                    return await decorated_function(*args, **kwargs)
+                finally:
+                    detach(token)
+
+            return cast(DecoratedCallable, coroutine_wrapper)
 
         @wraps(decorated_function)
-        async def coroutine_wrapper(*args: Any, **kwargs: Any) -> Any:
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             token = attach(self._context_with_attributes())
             try:
-                return await decorated_function(*args, **kwargs)
+                return decorated_function(*args, **kwargs)
             finally:
                 detach(token)
 
-        return cast(DecoratedCallable, coroutine_wrapper)
+        return cast(DecoratedCallable, sync_wrapper)
 
 
 class using_session(_UsingAttributesContextManager):
@@ -122,6 +303,9 @@ class using_session(_UsingAttributesContextManager):
     Context manager to add session id to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the session id as a span attribute,
     following the OpenInference semantic conventions.
+
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
 
     Examples:
         with using_session("my-session-id"):
@@ -140,6 +324,9 @@ class using_user(_UsingAttributesContextManager):
     instrumentations will read this Context and pass the user id as a span attribute,
     following the OpenInference semantic conventions.
 
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
+
     Examples:
         with using_user("my-user-id"):
             # Tracing within this block will include the span attribute:
@@ -156,6 +343,9 @@ class using_metadata(_UsingAttributesContextManager):
     Context manager to add metadata to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the metadata as a span attribute,
     following the OpenInference semantic conventions.
+
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
 
     Examples:
         metadata = {
@@ -178,6 +368,9 @@ class using_tags(_UsingAttributesContextManager):
     Context manager to add tags to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the tags as a span attribute,
     following the OpenInference semantic conventions.
+
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
 
     Examples:
         tags = [
@@ -202,14 +395,17 @@ class using_prompt_template(_UsingAttributesContextManager):
     Context and pass the prompt template as a span attribute, following the
     OpenInference semantic conventions.
 
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
+
     Examples:
         prompt_template = "Please describe the weather forecast for {city} on {date}"
         prompt_template_variables = {"city": "Johannesburg", date:"July 11"}
         with using_prompt_template(
             template=prompt_template,
-            version=prompt_template_variables,
-            variables="v1.0",
-            ):
+            version="v1.0",
+            variables=prompt_template_variables,
+        ):
             # Tracing within this block will include the span attribute:
             # "llm.prompt_template.template" = "Please describe the weather
             forecast for {city} on {date}"
@@ -238,6 +434,9 @@ class using_attributes(_UsingAttributesContextManager):
     Context manager to add attributes to the current OpenTelemetry Context. OpenInference
     instrumentations will read this Context and pass the attributes to the traced span,
     following the OpenInference semantic conventions.
+
+    Also usable as a decorator on plain, ``async def``, generator and async generator
+    functions; the attributes then apply for the whole call.
 
     It is a convenient context manager to use if you find yourself using many others, provided
     by this package, combined.
@@ -319,6 +518,10 @@ class using_attributes(_UsingAttributesContextManager):
 
 
 def get_attributes_from_context() -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Yield the OpenInference context attributes currently attached to the OpenTelemetry
+    context. ``OITracer`` calls this when a span starts to copy them onto the span.
+    """
     for ctx_attr in CONTEXT_ATTRIBUTES:
         if (val := get_value(ctx_attr)) is not None:
             yield ctx_attr, cast(AttributeValue, val)

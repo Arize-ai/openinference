@@ -1,16 +1,21 @@
 import asyncio
+import contextvars
+import gc
 import json
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, AsyncGenerator, AsyncIterator, Dict, Generator, Iterator, List, Tuple, cast
 
 import pytest
+from opentelemetry import trace as trace_api
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     get_current,
     get_value,
 )
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import INVALID_SPAN_CONTEXT, SpanContext
 
 from openinference.instrumentation import (
+    OITracer,
     TracerProvider,
     capture_span_context,
     get_attributes_from_context,
@@ -25,6 +30,9 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.context_attributes import _UsingAttributesContextManager
 from openinference.semconv.trace import SpanAttributes
+
+_live: contextvars.ContextVar[int] = contextvars.ContextVar("live")
+_body_owned: contextvars.ContextVar[str] = contextvars.ContextVar("body_owned", default="unset")
 
 
 def test_suppress_tracing() -> None:
@@ -207,8 +215,22 @@ def test_using_attributes_decorator(
     assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
 
 
+def test_using_session_decorator_is_reentrant() -> None:
+    """A decorated sync function may call itself; every level restores the outer context."""
+
+    @using_session("recursive-session")
+    def descend(depth: int) -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == "recursive-session"
+        if depth > 0:
+            descend(depth - 1)
+        assert get_value(SpanAttributes.SESSION_ID) == "recursive-session"
+
+    descend(2)
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
 @pytest.mark.parametrize(
-    "decorator,expected_attributes",
+    "decorator,expected_context_values",
     [
         pytest.param(
             using_session("test-session"),
@@ -239,83 +261,336 @@ def test_using_attributes_decorator(
             },
             id="using_prompt_template",
         ),
-        pytest.param(
-            using_attributes(
-                session_id="test-session",
-                user_id="test-user",
-                metadata={"key": "value"},
-                tags=["tag-1", "tag-2"],
-            ),
-            {
-                SpanAttributes.SESSION_ID: "test-session",
-                SpanAttributes.USER_ID: "test-user",
-                SpanAttributes.METADATA: json.dumps({"key": "value"}),
-                SpanAttributes.TAG_TAGS: ["tag-1", "tag-2"],
-            },
-            id="using_attributes",
-        ),
     ],
 )
-async def test_async_decorator_attaches_attributes_across_awaits(
-    decorator: _UsingAttributesContextManager, expected_attributes: Dict[str, Any]
+async def test_async_decorator_attaches_each_attribute_across_awaits(
+    decorator: _UsingAttributesContextManager, expected_context_values: Dict[str, Any]
 ) -> None:
     @decorator
-    async def read_attributes() -> Dict[str, Any]:
-        assert {key: get_value(key) for key in expected_attributes} == expected_attributes
-        await asyncio.sleep(0)
-        return {key: get_value(key) for key in expected_attributes}
+    async def read_context_values() -> Dict[str, Any]:
+        values_before_await = {key: get_value(key) for key in expected_context_values}
+        await asyncio.sleep(0.001)
+        values_after_await = {key: get_value(key) for key in expected_context_values}
+        assert values_before_await == values_after_await
+        return values_after_await
 
-    assert await read_attributes() == expected_attributes
-    assert await read_attributes() == expected_attributes
-    for key in expected_attributes:
-        assert get_value(key) is None
+    assert await read_context_values() == expected_context_values
+    for attribute_key in expected_context_values:
+        assert get_value(attribute_key) is None
 
 
-async def test_async_decorator_isolates_concurrent_calls() -> None:
-    first_entered = asyncio.Event()
-    second_entered = asyncio.Event()
+async def test_using_attributes_async_decorator(
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    @using_attributes(
+        session_id=session_id,
+        user_id=user_id,
+        metadata=metadata,
+        tags=tags,
+        prompt_template=prompt_template,
+        prompt_template_version=prompt_template_version,
+        prompt_template_variables=prompt_template_variables,
+    )
+    async def read_all_attributes() -> None:
+        for _ in range(2):
+            assert get_value(SpanAttributes.SESSION_ID) == session_id
+            assert get_value(SpanAttributes.USER_ID) == user_id
+            assert get_value(SpanAttributes.METADATA) == json.dumps(metadata)
+            assert get_value(SpanAttributes.TAG_TAGS) == tags
+            assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) == prompt_template
+            assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) == prompt_template_version
+            assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
+                prompt_template_variables
+            )
+            await asyncio.sleep(0.001)
+
+    await read_all_attributes()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+    assert get_value(SpanAttributes.USER_ID) is None
+    assert get_value(SpanAttributes.METADATA) is None
+    assert get_value(SpanAttributes.TAG_TAGS) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION) is None
+    assert get_value(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) is None
+
+
+async def test_async_decorator_isolates_concurrent_calls_of_the_same_function() -> None:
+    """One decorator instance serves every call, so concurrent calls must not share a token."""
 
     @using_session("shared-session")
-    async def read_session(call: int) -> Any:
-        if call == 1:
-            first_entered.set()
-            await second_entered.wait()
-        else:
-            await first_entered.wait()
-            second_entered.set()
-        return get_value(SpanAttributes.SESSION_ID)
+    async def read_session_after(delay_seconds: float) -> str:
+        await asyncio.sleep(delay_seconds)
+        return str(get_value(SpanAttributes.SESSION_ID))
 
-    assert list(await asyncio.gather(read_session(1), read_session(2))) == [
-        "shared-session",
-        "shared-session",
-    ]
+    observed_session_ids = await asyncio.gather(
+        read_session_after(0.004), read_session_after(0.001), read_session_after(0.002)
+    )
+    assert list(observed_session_ids) == ["shared-session"] * 3
     assert get_value(SpanAttributes.SESSION_ID) is None
 
 
 async def test_async_decorator_detaches_context_on_exception() -> None:
-    @using_session("test-session")
-    async def fail() -> None:
-        raise ValueError("test error")
+    @using_session("session-err")
+    async def fail_inside_session() -> None:
+        assert get_value(SpanAttributes.SESSION_ID) == "session-err"
+        raise ValueError("simulated error")
 
-    with pytest.raises(ValueError, match="test error"):
-        await fail()
+    with pytest.raises(ValueError, match="simulated error"):
+        await fail_inside_session()
 
     assert get_value(SpanAttributes.SESSION_ID) is None
 
 
 async def test_async_decorators_can_be_stacked() -> None:
-    @using_session("test-session")
-    @using_user("test-user")
-    async def read_attributes() -> Tuple[Any, Any]:
-        await asyncio.sleep(0)
-        return (
-            get_value(SpanAttributes.SESSION_ID),
-            get_value(SpanAttributes.USER_ID),
-        )
+    @using_session("session-stacked")
+    @using_user("user-stacked")
+    async def read_session_and_user() -> Tuple[Any, Any]:
+        await asyncio.sleep(0.001)
+        return get_value(SpanAttributes.SESSION_ID), get_value(SpanAttributes.USER_ID)
 
-    assert await read_attributes() == ("test-session", "test-user")
+    observed_session_id, observed_user_id = await read_session_and_user()
+    assert observed_session_id == "session-stacked"
+    assert observed_user_id == "user-stacked"
     assert get_value(SpanAttributes.SESSION_ID) is None
     assert get_value(SpanAttributes.USER_ID) is None
+
+
+async def test_async_generator_decorator_attaches_context_while_body_runs() -> None:
+    @using_session("stream-session")
+    async def stream_session_ids(item_count: int) -> AsyncIterator[Any]:
+        for _ in range(item_count):
+            await asyncio.sleep(0.001)
+            yield get_value(SpanAttributes.SESSION_ID)
+
+    observed_session_ids = []
+    async for session_id_inside_generator in stream_session_ids(3):
+        observed_session_ids.append(session_id_inside_generator)
+        # The consumer's own context must not see the generator's attributes.
+        assert get_value(SpanAttributes.SESSION_ID) is None
+    assert observed_session_ids == ["stream-session"] * 3
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_async_generator_decorator_survives_early_break() -> None:
+    session_ids_seen_in_cleanup: List[Any] = []
+
+    @using_session("abandoned-stream-session")
+    async def stream_forever() -> AsyncGenerator[str, None]:
+        try:
+            while True:
+                yield str(get_value(SpanAttributes.SESSION_ID))
+        finally:
+            # The generator's own cleanup still runs with the attributes attached.
+            session_ids_seen_in_cleanup.append(get_value(SpanAttributes.SESSION_ID))
+
+    stream = stream_forever()
+    async for session_id_inside_generator in stream:
+        assert session_id_inside_generator == "abandoned-stream-session"
+        break
+    assert get_value(SpanAttributes.SESSION_ID) is None
+    await stream.aclose()
+    assert session_ids_seen_in_cleanup == ["abandoned-stream-session"]
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+async def test_async_generator_decorator_keeps_generator_context_across_yields(
+    tracer: OITracer,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """A span the generator body keeps open across ``yield`` stays current when it resumes."""
+
+    @using_session("stream-session")
+    async def stream_with_parent_span(item_count: int) -> AsyncIterator[int]:
+        with tracer.start_as_current_span("parent"):
+            for item in range(item_count):
+                with tracer.start_as_current_span(f"child-{item}"):
+                    pass
+                yield item
+
+    with tracer.start_as_current_span("consumer"):
+        async for _ in stream_with_parent_span(3):
+            # Neither the attributes nor the generator's span leak into the consumer.
+            assert get_value(SpanAttributes.SESSION_ID) is None
+            assert trace_api.get_current_span().name == "consumer"  # type: ignore[attr-defined]
+
+    spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
+    parent_span_id = spans["parent"].context.span_id
+    for item in range(3):
+        child_span = spans[f"child-{item}"]
+        assert child_span.parent is not None
+        assert child_span.parent.span_id == parent_span_id
+        assert child_span.attributes is not None
+        assert child_span.attributes[SpanAttributes.SESSION_ID] == "stream-session"
+    assert spans["consumer"].attributes is not None
+    assert SpanAttributes.SESSION_ID not in spans["consumer"].attributes
+
+
+async def test_async_generator_decorator_forwards_asend_and_athrow() -> None:
+    @using_session("bidirectional-session")
+    async def echo() -> AsyncGenerator[str, Any]:
+        received = yield "ready"
+        while True:
+            try:
+                received = yield f"got {received!r} in {get_value(SpanAttributes.SESSION_ID)}"
+            except KeyError as error:
+                received = yield f"handled {error.args[0]!r}"
+
+    stream = echo()
+    assert await stream.__anext__() == "ready"
+    assert await stream.asend(42) == "got 42 in bidirectional-session"
+    assert await stream.athrow(KeyError("missing")) == "handled 'missing'"
+    assert await stream.asend(None) == "got None in bidirectional-session"
+    await stream.aclose()
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+def test_generator_decorator_attaches_context_while_body_runs() -> None:
+    @using_session("sync-stream-session")
+    def stream_session_ids(item_count: int) -> Iterator[Any]:
+        for _ in range(item_count):
+            yield get_value(SpanAttributes.SESSION_ID)
+
+    observed_session_ids = []
+    for session_id_inside_generator in stream_session_ids(3):
+        observed_session_ids.append(session_id_inside_generator)
+        assert get_value(SpanAttributes.SESSION_ID) is None
+    assert observed_session_ids == ["sync-stream-session"] * 3
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+def test_generator_decorator_forwards_send_throw_and_return_value() -> None:
+    @using_session("sync-bidirectional-session")
+    def echo() -> Generator[str, Any, str]:
+        received = yield "ready"
+        try:
+            yield f"got {received!r} in {get_value(SpanAttributes.SESSION_ID)}"
+        except KeyError as error:
+            yield f"handled {error.args[0]!r}"
+        return "done"
+
+    stream = echo()
+    assert next(stream) == "ready"
+    assert stream.send(42) == "got 42 in sync-bidirectional-session"
+    assert stream.throw(KeyError("missing")) == "handled 'missing'"
+    with pytest.raises(StopIteration) as stop:
+        next(stream)
+    assert stop.value.value == "done"
+    assert get_value(SpanAttributes.SESSION_ID) is None
+
+
+def test_generator_decorator_sees_live_contextvar_between_yields() -> None:
+    _live.set(0)
+
+    @using_session("s")
+    def stream() -> Generator[int, None, None]:
+        assert _live.get() == 0
+        yield 1
+        assert _live.get() == 2
+
+    gen = stream()
+    assert next(gen) == 1
+    _live.set(2)
+    with pytest.raises(StopIteration):
+        next(gen)
+
+
+async def test_async_generator_decorator_sees_live_contextvar_between_yields() -> None:
+    _live.set(0)
+
+    @using_session("s")
+    async def stream() -> AsyncGenerator[int, None]:
+        assert _live.get() == 0
+        yield 1
+        assert _live.get() == 2
+
+    gen = stream()
+    assert await gen.__anext__() == 1
+    _live.set(2)
+    with pytest.raises(StopAsyncIteration):
+        await gen.__anext__()
+    await gen.aclose()
+
+
+def test_generator_decorator_keeps_body_owned_context_var_across_yields() -> None:
+    @using_session("s")
+    def stream() -> Generator[int, None, None]:
+        _body_owned.set("body-value")
+        yield 1
+        assert _body_owned.get() == "body-value"
+        yield 2
+
+    gen = stream()
+    assert next(gen) == 1
+    _live.set(99)
+    assert next(gen) == 2
+
+
+def test_generator_decorator_ignores_consumer_span_between_yields(
+    tracer: OITracer,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    @using_session("stream-session")
+    def stream_with_spans() -> Generator[int, None, None]:
+        with tracer.start_as_current_span("parent"):
+            yield 0
+            with tracer.start_as_current_span("child-after-resume"):
+                pass
+            yield 1
+
+    gen = stream_with_spans()
+    assert next(gen) == 0
+    with tracer.start_as_current_span("consumer-between"):
+        pass
+    assert next(gen) == 1
+    with pytest.raises(StopIteration):
+        next(gen)
+
+    spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
+    parent_span_id = spans["parent"].context.span_id
+    child_span = spans["child-after-resume"]
+    assert child_span.parent is not None
+    assert child_span.parent.span_id == parent_span_id
+    assert child_span.attributes is not None
+    assert child_span.attributes[SpanAttributes.SESSION_ID] == "stream-session"
+
+
+def test_abandoned_generator_cleanup_runs_in_its_own_scope() -> None:
+    session_ids_seen_in_cleanup: List[Any] = []
+
+    @using_session("abandoned-sync-session")
+    def stream_forever() -> Generator[str, None, None]:
+        try:
+            while True:
+                yield str(get_value(SpanAttributes.SESSION_ID))
+        finally:
+            session_ids_seen_in_cleanup.append(get_value(SpanAttributes.SESSION_ID))
+
+    stream = stream_forever()
+    next(stream)
+    del stream
+    gc.collect()
+    assert session_ids_seen_in_cleanup == ["abandoned-sync-session"]
+
+
+async def test_decorator_stacked_on_tracer_decorator_puts_attributes_on_span(
+    tracer: OITracer,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    @using_session("agent-session")
+    @tracer.agent
+    async def run_agent() -> None:
+        await asyncio.sleep(0.001)
+
+    await run_agent()
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.attributes is not None
+    assert span.attributes[SpanAttributes.SESSION_ID] == "agent-session"
 
 
 def test_get_attributes_from_context(
