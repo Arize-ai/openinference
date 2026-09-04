@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.16...java-openinference-semantic-conventions-v0.1.17) (2026-09-04)
+
+
+### Features
+
+* **semconv:** add meta, zai, and minimax as well-known llm.provider values ([#3671](https://github.com/Arize-ai/openinference/issues/3671)) ([fd01216](https://github.com/Arize-ai/openinference/commit/fd012164266f3e2eec58017e3880aea505667a16))
+
 ## [0.1.16](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.15...java-openinference-semantic-conventions-v0.1.16) (2026-08-24)
 
 
