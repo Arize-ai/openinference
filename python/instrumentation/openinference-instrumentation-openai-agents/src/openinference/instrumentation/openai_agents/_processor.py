@@ -36,6 +36,7 @@ from openai.types.responses import (
     ResponseOutputRefusal,
     ResponseOutputText,
     ResponseReasoningItem,
+    ResponseReasoningItemParam,
     ResponseUsage,
     Tool,
 )
@@ -335,7 +336,7 @@ def _get_attributes_from_input(
         elif item["type"] == "custom_tool_call_output":
             yield from _get_attributes_from_response_custom_tool_call_output_param(item, prefix)
         elif item["type"] == "reasoning":
-            continue  # TODO
+            yield from _get_attributes_from_reasoning_item_param(item, prefix)
         elif item["type"] == "item_reference":
             continue  # TODO
         elif item["type"] == "image_generation_call":
@@ -389,6 +390,31 @@ def _get_attributes_from_input(
             continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
+
+
+def _get_attributes_from_reasoning_item_param(
+    obj: ResponseReasoningItemParam,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    # Continuation turns with reasoning models replay reasoning items as input;
+    # mirror _get_attributes_from_reasoning_item so the follow-up LLM span records
+    # the same reasoning context the output side already does.
+    summary_texts = [part["text"] for part in (obj.get("summary") or []) if part.get("text")]
+    content_texts = [part["text"] for part in (obj.get("content") or []) if part.get("text")]
+    texts = summary_texts or content_texts
+    encrypted_content = obj.get("encrypted_content")
+    if not texts and not encrypted_content:
+        return
+
+    yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+    content_prefix = f"{prefix}{MESSAGE_CONTENTS}.0."
+    yield f"{content_prefix}{MESSAGE_CONTENT_TYPE}", "reasoning"
+    if texts:
+        yield f"{content_prefix}{MESSAGE_CONTENT_TEXT}", "\n\n".join(texts)
+    if encrypted_content:
+        yield f"{content_prefix}{MESSAGE_CONTENT_ENCRYPTED_CONTENT}", encrypted_content
+    if item_id := obj.get("id"):
+        yield f"{content_prefix}{MESSAGE_CONTENT_ID}", item_id
 
 
 def _get_attributes_from_message_param(

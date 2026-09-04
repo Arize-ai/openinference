@@ -229,9 +229,79 @@ from openinference.instrumentation.openai_agents._processor import (
                 )
             ],
             {
-                # TODO: Implement reasoning item attributes
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.text": "Test reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.id": "reason-123",
             },
             id="reasoning_item",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason-124",
+                    summary=[],
+                    content=[{"type": "reasoning_text", "text": "Private reasoning"}],
+                )
+            ],
+            {
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.text": "Private reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.id": "reason-124",
+            },
+            id="reasoning_item_content_fallback",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason-125",
+                    summary=[],
+                    encrypted_content="blob",
+                )
+            ],
+            {
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.encrypted_content": "blob",
+                "llm.input_messages.1.message.contents.0.message_content.id": "reason-125",
+            },
+            id="reasoning_item_encrypted_content_only",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason-126",
+                    summary=[],
+                )
+            ],
+            {},
+            id="empty_reasoning_item_yields_nothing",
+        ),
+        pytest.param(
+            [
+                EasyInputMessageParam(
+                    role="user",
+                    content="What is the cube root of 8?",
+                ),
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason-127",
+                    summary=[{"type": "summary_text", "text": "Try 2**3."}],
+                ),
+            ],
+            {
+                "llm.input_messages.1.message.role": "user",
+                "llm.input_messages.1.message.content": "What is the cube root of 8?",
+                "llm.input_messages.2.message.role": "assistant",
+                "llm.input_messages.2.message.contents.0.message_content.type": "reasoning",
+                "llm.input_messages.2.message.contents.0.message_content.text": "Try 2**3.",
+                "llm.input_messages.2.message.contents.0.message_content.id": "reason-127",
+            },
+            id="message_then_reasoning_item",
         ),
         pytest.param(
             [
