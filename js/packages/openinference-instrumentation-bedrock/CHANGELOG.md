@@ -1,5 +1,13 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.4.28
+
+### Patch Changes
+
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+  - @arizeai/openinference-core@2.6.2
+
 ## 0.4.27
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-vercel",
-  "version": "3.1.10",
+  "version": "3.1.11",
   "private": false,
   "description": "OpenInference utilities for ingesting Vercel AI SDK spans",
   "keywords": [
