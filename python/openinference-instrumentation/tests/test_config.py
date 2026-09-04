@@ -469,10 +469,8 @@ def test_hiding_applies_to_span_level_images(
 
     config = TraceConfig(**hiding_config)  # type: ignore[arg-type]
     url_key = f"{images_prefix}.0.{ImageAttributes.IMAGE_URL}"
-    mime_key = f"{images_prefix}.0.{ImageAttributes.IMAGE_MIME_TYPE}"
 
     assert config.mask(url_key, "data:image/png;base64,iVBORw0KGgo=") is None
-    assert config.mask(mime_key, "image/png") is None
     # Without the hide setting the same keys pass through.
     assert TraceConfig().mask(url_key, "https://example.com/a.png") == "https://example.com/a.png"
 

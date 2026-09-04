@@ -857,13 +857,10 @@ class HideFlagHierarchyTest {
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute("input.images.0.image.url", "data:image/png;base64,iVBORw0KGgo=");
-            span.setAttribute("input.images.0.image.mime_type", "image/png");
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertThat(data.getAttributes().get(AttributeKey.stringKey("input.images.0.image.url")))
-                .isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("input.images.0.image.mime_type")))
                 .isNull();
     }
 

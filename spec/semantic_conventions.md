@@ -59,7 +59,6 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `exception.message`                            | String                      | `"Null value encountered"`                                                                                                    | Detailed message describing the exception                                                                                                                                           |
 | `exception.stacktrace`                         | String                      | `"at app.main(app.java:16)"`                                                                                                  | The stack trace of the exception                                                                                                                                                    |
 | `exception.type`                               | String                      | `"NullPointerException"`                                                                                                      | The type of exception that was thrown                                                                                                                                               |
-| `image.mime_type`                              | String                      | `"image/png"`                                                                                                                 | MIME type of the image referenced by `image.url`, for URLs that do not carry it inline                                                                                              |
 | `image.url`                                    | String                      | `"https://sample-link-to-image.jpg"`                                                                                          | The link to the image or its base64 encoding                                                                                                                                        |
 | `input.images`                                 | List of objects<sup>†</sup> | `[{"image.url": "https://example.com/page-1.png"}]`                                                                           | Input images for the span, valid on any span kind. Flattened as `input.images.0.image.url`. See [Multimodal Attributes](./multimodal_attributes.md#span-kind-independent-images)    |
 | `input.mime_type`                              | String                      | `"text/plain"` or `"application/json"`                                                                                        | MIME type representing the format of `input.value`                                                                                                                                  |
@@ -319,7 +318,6 @@ For messages containing multiple content items (text, images, audio, reasoning, 
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.type` - Content type (`"text"`, `"image"`, `"audio"`, `"reasoning"`, or `"tool_use"`)
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.text` - Text content item; OpenAI `summary_text` arrays are concatenated into this value for now
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.image.image.url` - Image URL or base64 data
-- `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.image.image.mime_type` - MIME type of the image, for values that do not carry it inline
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.id` - Provider-assigned content identifier, such as OpenAI `ResponseReasoningItem.id`
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.signature` - Provider signature attached to this content item, such as Anthropic `signature` or Gemini `thoughtSignature` on a text part
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.message_content.data` - Anthropic `redacted_thinking.data`
@@ -334,7 +332,6 @@ For messages containing multiple content items (text, images, audio, reasoning, 
 For images attached to a span of any kind, outside the LLM message structure. See [Multimodal Attributes](./multimodal_attributes.md#span-kind-independent-images):
 
 - `<input|output>.images.<imageIndex>.image.url` - Image URI or base64 data
-- `<input|output>.images.<imageIndex>.image.mime_type` - MIME type of the image, for values that do not carry it inline
 
 #### Tool Calls in Output Messages
 

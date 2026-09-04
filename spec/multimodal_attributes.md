@@ -46,13 +46,6 @@ llm.input_messages.0.message.contents.1.message_content.type = "image"
 llm.input_messages.0.message.contents.1.message_content.image.image.url = "data:image/png;base64,iVBORw0KGgo..."
 ```
 
-The optional `image.mime_type` records the type of an image whose URL does not carry it inline:
-```
-llm.input_messages.0.message.contents.1.message_content.type = "image"
-llm.input_messages.0.message.contents.1.message_content.image.image.url = "gs://my-bucket/photo"
-llm.input_messages.0.message.contents.1.message_content.image.image.mime_type = "image/png"
-```
-
 ### Audio Content
 
 ```
@@ -96,7 +89,7 @@ semantics.
 
 Where:
 - `<imageIndex>` is the zero-based index of the image
-- `<attribute>` is `url` (required) or `mime_type` (optional)
+- `<attribute>` is `url`
 
 A tool span that receives a page scan and returns an annotated version:
 
@@ -104,8 +97,7 @@ A tool span that receives a page scan and returns an annotated version:
 {
   "openinference.span.kind": "TOOL",
   "input.images.0.image.url": "data:image/png;base64,iVBORw0KGgo...",
-  "output.images.0.image.url": "https://example.com/annotated.png",
-  "output.images.0.image.mime_type": "image/png"
+  "output.images.0.image.url": "https://example.com/annotated.png"
 }
 ```
 
@@ -122,12 +114,10 @@ input.images.1.image.url = "https://example.com/page-2.png"
   image or its base64 encoding. That is an absolute URI (`https://`, `http://`, `s3://`, `gs://`, or
   a provider-specific scheme), a base64 data URI (`data:<mime>;base64,<payload>`), or a bare base64
   payload.
-- Producers SHOULD emit a data URI in preference to a bare base64 payload when the MIME type is
-  known, so that a consumer can identify the bytes without depending on `image.mime_type`.
-- `image.mime_type` is OPTIONAL and SHOULD be set whenever `image.url` does not carry the type — a
-  bare base64 payload, or a reference URI with no recoverable type such as `s3://` or `gs://`. It is
-  redundant alongside a data URI and MAY be omitted there; where both are present and disagree, the
-  data URI is authoritative.
+- There is no separate MIME attribute: the media type is read from the value itself — the `data:`
+  URI prefix, or the file extension of a reference URI. Producers SHOULD therefore emit a data URI
+  in preference to a bare base64 payload, and SHOULD keep a recognizable extension on a reference
+  URI, so that a consumer can identify the bytes.
 - These attributes are additive, not a replacement for message content. An `LLM` span that already
   records an image under `message.contents` SHOULD NOT repeat it here.
 - Order is carried by the index: producers SHOULD emit images in the order they occur, and
@@ -140,8 +130,8 @@ input.images.1.image.url = "https://example.com/page-2.png"
 
 The controls that apply to message-content images apply to these attributes in the same way:
 
-- `OPENINFERENCE_HIDE_INPUT_IMAGES` removes `input.images.*`, including the sibling
-  `image.mime_type`.
+- `OPENINFERENCE_HIDE_INPUT_IMAGES` removes the whole `input.images.*` namespace, not only the
+  `image.url` leaves.
 - `OPENINFERENCE_HIDE_INPUTS` and `OPENINFERENCE_HIDE_OUTPUTS` remove `input.images.*` and
   `output.images.*` respectively, as they do for `input.value` / `output.value`.
 - `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` and a configured blob uploader apply to

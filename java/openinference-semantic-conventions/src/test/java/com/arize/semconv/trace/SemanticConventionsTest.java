@@ -19,15 +19,14 @@ class SemanticConventionsTest {
     @Test
     void imageObjectAttributesUseTheDocumentedKeys() {
         assertThat(SemanticConventions.IMAGE_URL).isEqualTo("image.url");
-        assertThat(SemanticConventions.IMAGE_MIME_TYPE).isEqualTo("image.mime_type");
     }
 
     @Test
     void indexedImagePathsMatchTheFlattenedPattern() {
         assertThat(SemanticConventions.INPUT_IMAGES + ".0." + SemanticConventions.IMAGE_URL)
                 .isEqualTo("input.images.0.image.url");
-        assertThat(SemanticConventions.OUTPUT_IMAGES + ".1." + SemanticConventions.IMAGE_MIME_TYPE)
-                .isEqualTo("output.images.1.image.mime_type");
+        assertThat(SemanticConventions.OUTPUT_IMAGES + ".1." + SemanticConventions.IMAGE_URL)
+                .isEqualTo("output.images.1.image.url");
     }
 
     @Test

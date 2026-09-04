@@ -118,7 +118,6 @@ public class SemanticConventions {
     @UtilityClass
     public static class ImageAttributesPostfixes {
         public static final String URL = "url";
-        public static final String MIME_TYPE = "mime_type";
     }
 
     @UtilityClass
@@ -573,12 +572,6 @@ public class SemanticConventions {
      * The http or base64 link to the image
      */
     public static final String IMAGE_URL = SemanticAttributePrefixes.IMAGE + "." + ImageAttributesPostfixes.URL;
-
-    /**
-     * The mime type of the image, for urls that do not carry it inline
-     */
-    public static final String IMAGE_MIME_TYPE =
-            SemanticAttributePrefixes.IMAGE + "." + ImageAttributesPostfixes.MIME_TYPE;
 
     public static final String DOCUMENT_ID = SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.ID;
 

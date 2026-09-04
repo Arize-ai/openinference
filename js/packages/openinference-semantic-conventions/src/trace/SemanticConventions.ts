@@ -105,7 +105,6 @@ export const MessageContentsAttributePostfixes = {
 
 export const ImageAttributesPostfixes = {
   url: "url",
-  mime_type: "mime_type",
 } as const;
 
 export const ToolCallAttributePostfixes = {
@@ -539,12 +538,6 @@ export const MESSAGE_CONTENT_ENCRYPTED_CONTENT =
 export const IMAGE_URL =
   `${SemanticAttributePrefixes.image}.${ImageAttributesPostfixes.url}` as const;
 
-/**
- * The mime type of the image, for urls that do not carry it inline
- */
-export const IMAGE_MIME_TYPE =
-  `${SemanticAttributePrefixes.image}.${ImageAttributesPostfixes.mime_type}` as const;
-
 export const DOCUMENT_ID =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.id}` as const;
 
@@ -778,7 +771,6 @@ export const SemanticConventions = {
   EVALUATION_IDENTIFIER,
   EVALUATION_METADATA,
   IMAGE_URL,
-  IMAGE_MIME_TYPE,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
   INPUT_IMAGES,
