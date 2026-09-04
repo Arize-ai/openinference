@@ -18,6 +18,7 @@ func TestTraceConfigFromEnv_EmptyDefaultsToZeroValue(t *testing.T) {
 		instrumentation.EnvHideLLMInvocationParameters,
 		instrumentation.EnvHideLLMTools,
 		instrumentation.EnvHidePrompts,
+		instrumentation.EnvHideInputImages,
 	} {
 		t.Setenv(k, "")
 	}
