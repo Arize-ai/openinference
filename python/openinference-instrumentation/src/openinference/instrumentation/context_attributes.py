@@ -109,30 +109,6 @@ class _AwaitRollingOtelStep:
 
 
 class _UsingAttributesContextManager:
-    """
-    Base class for the ``using_*`` helpers.
-
-    Attaches OpenInference context attributes (session id, user id, metadata, tags, prompt
-    template) to the current OpenTelemetry context. ``OITracer`` copies whatever is attached
-    onto every span it starts, so instrumentors and manual spans pick the attributes up
-    without being told about them.
-
-    An instance can be used in three ways:
-
-    * ``with using_session(...)`` / ``async with using_session(...)``: attributes are attached
-      on entry and detached on exit.
-    * As a decorator on a plain function or ``async def`` coroutine function: attributes are
-      attached when the call starts running and detached when it returns or raises.
-    * As a decorator on a generator or async generator function: each body step runs with a
-      rolling OpenTelemetry context that carries the attributes and any spans the body opened
-      across ``yield``. The consumer loop never sees those attributes or spans; unrelated
-      ``contextvars.ContextVar`` values stay on the caller's live map.
-
-    The decorator protocol is implemented here rather than inherited from
-    ``contextlib.ContextDecorator`` because the stdlib version only wraps the synchronous
-    call, which for ``async def`` and generator functions ends before the body runs.
-    """
-
     def __init__(
         self,
         *,
@@ -144,20 +120,6 @@ class _UsingAttributesContextManager:
         prompt_template_version: str = "",
         prompt_template_variables: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """
-        Args:
-            session_id: Value for ``session.id``.
-            user_id: Value for ``user.id``.
-            metadata: Value for ``metadata``; JSON-serialized with ``safe_json_dumps``.
-            tags: Value for ``tag.tags``.
-            prompt_template: Value for ``llm.prompt_template.template``.
-            prompt_template_version: Value for ``llm.prompt_template.version``.
-            prompt_template_variables: Value for ``llm.prompt_template.variables``;
-                JSON-serialized with ``safe_json_dumps``.
-
-        Empty values are skipped, so a helper that sets only some attributes inherits, rather
-        than clears, the others from an enclosing block.
-        """
         self._session_id = session_id
         self._user_id = user_id
         self._metadata = metadata
@@ -167,10 +129,6 @@ class _UsingAttributesContextManager:
         self._prompt_template_variables = prompt_template_variables
 
     def _context_with_attributes(self) -> Context:
-        """
-        Return the current OpenTelemetry context with this instance's non-empty attributes
-        added. Nothing is attached; callers decide how to make the returned context current.
-        """
         ctx = get_current()
         if self._session_id:
             ctx = set_value(SpanAttributes.SESSION_ID, self._session_id, ctx)
@@ -195,14 +153,6 @@ class _UsingAttributesContextManager:
         return ctx
 
     def attach_context(self) -> None:
-        """
-        Attach this instance's attributes to the current OpenTelemetry context and keep the
-        token for ``__exit__`` / ``__aexit__``.
-
-        Only the ``with`` / ``async with`` protocol stores the token on ``self``. The decorator
-        wrappers keep theirs in a local variable because one decorator instance serves every
-        call of the function it wraps, including concurrent and re-entrant calls.
-        """
         self._token = attach(self._context_with_attributes())
 
     def __enter__(self) -> Self:
@@ -230,13 +180,6 @@ class _UsingAttributesContextManager:
         detach(self._token)
 
     def __call__(self, decorated_function: DecoratedCallable) -> DecoratedCallable:
-        """
-        Use this instance as a decorator; see the class docstring for the three supported
-        kinds of function.
-
-        ``functools.wraps`` replaces each wrapper's docstring with the decorated function's,
-        so the wrappers below are documented with comments.
-        """
         if inspect.isasyncgenfunction(decorated_function):
 
             @wraps(decorated_function)

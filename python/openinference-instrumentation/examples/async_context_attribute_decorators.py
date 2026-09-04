@@ -1,26 +1,3 @@
-"""
-Context attribute decorators on ``async def`` functions.
-
-``using_session``, ``using_user``, ``using_metadata``, ``using_tags``,
-``using_prompt_template`` and ``using_attributes`` can decorate coroutine functions and
-async generator functions. The attributes they carry stay attached across ``await``
-suspension points and are copied onto every span the ``OITracer`` opens inside the
-decorated call, including spans opened by OpenInference instrumentors.
-
-Two support agents handle a customer question concurrently, each under its own session and
-user. Every span of each agent must carry that agent's attributes and nothing from the other.
-
-Run with a Phoenix server listening on http://localhost:6006 (``phoenix serve``):
-
-    pip install -r requirements.txt  # the OTLP exporter is not a dependency of this package
-    python async_context_attribute_decorators.py
-
-Optional environment variables (same meaning as for Phoenix itself):
-
-    PHOENIX_COLLECTOR_ENDPOINT   Phoenix base URL, default http://localhost:6006
-    PHOENIX_PROJECT_NAME         Phoenix project, default async-context-attribute-decorators
-"""
-
 import asyncio
 import os
 from typing import AsyncIterator, List
@@ -51,13 +28,11 @@ tracer = tracer_provider.get_tracer(__name__)
 
 @tracer.tool
 async def look_up_order(order_id: str) -> str:
-    """Pretend to call an order service."""
     await asyncio.sleep(0.05)
     return f"order {order_id} shipped yesterday"
 
 
 async def stream_answer(order_status: str) -> AsyncIterator[str]:
-    """Pretend to stream an answer back to the customer, one sentence per chunk."""
     for sentence in (f"Good news: {order_status}.", "Anything else I can help with?"):
         await asyncio.sleep(0.02)
         with tracer.start_as_current_span("emit_chunk", openinference_span_kind="chain") as span:
@@ -66,7 +41,6 @@ async def stream_answer(order_status: str) -> AsyncIterator[str]:
 
 
 async def answer_order_question(order_id: str) -> str:
-    """The body shared by both agents; only the decorators differ."""
     order_status = await look_up_order(order_id)
     answer_chunks: List[str] = []
     async for chunk in stream_answer(order_status):
@@ -74,14 +48,11 @@ async def answer_order_question(order_id: str) -> str:
     return " ".join(answer_chunks)
 
 
-# The ``using_*`` decorators must sit above the tracer decorator: the attributes are copied
-# onto a span when it starts, so they have to be attached before ``tracer.agent`` opens one.
 @using_session("session-billing-42")
 @using_user("customer-billing")
 @using_tags(["billing"])
 @tracer.agent
 async def billing_agent(order_id: str) -> str:
-    """Handle one billing question; every span below carries the billing session and user."""
     return await answer_order_question(order_id)
 
 
@@ -93,12 +64,10 @@ async def billing_agent(order_id: str) -> str:
 )
 @tracer.agent
 async def shipping_agent(order_id: str) -> str:
-    """Handle one shipping question; ``using_attributes`` sets several attributes at once."""
     return await answer_order_question(order_id)
 
 
 async def main() -> None:
-    """Run both agents concurrently so each task must keep its own attributes across awaits."""
     billing_answer, shipping_answer = await asyncio.gather(
         billing_agent("B-42"),
         shipping_agent("S-7"),

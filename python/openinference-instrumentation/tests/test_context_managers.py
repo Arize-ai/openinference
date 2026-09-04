@@ -216,8 +216,6 @@ def test_using_attributes_decorator(
 
 
 def test_using_session_decorator_is_reentrant() -> None:
-    """A decorated sync function may call itself; every level restores the outer context."""
-
     @using_session("recursive-session")
     def descend(depth: int) -> None:
         assert get_value(SpanAttributes.SESSION_ID) == "recursive-session"
@@ -321,8 +319,6 @@ async def test_using_attributes_async_decorator(
 
 
 async def test_async_decorator_isolates_concurrent_calls_of_the_same_function() -> None:
-    """One decorator instance serves every call, so concurrent calls must not share a token."""
-
     @using_session("shared-session")
     async def read_session_after(delay_seconds: float) -> str:
         await asyncio.sleep(delay_seconds)
@@ -371,7 +367,6 @@ async def test_async_generator_decorator_attaches_context_while_body_runs() -> N
     observed_session_ids = []
     async for session_id_inside_generator in stream_session_ids(3):
         observed_session_ids.append(session_id_inside_generator)
-        # The consumer's own context must not see the generator's attributes.
         assert get_value(SpanAttributes.SESSION_ID) is None
     assert observed_session_ids == ["stream-session"] * 3
     assert get_value(SpanAttributes.SESSION_ID) is None
@@ -386,7 +381,6 @@ async def test_async_generator_decorator_survives_early_break() -> None:
             while True:
                 yield str(get_value(SpanAttributes.SESSION_ID))
         finally:
-            # The generator's own cleanup still runs with the attributes attached.
             session_ids_seen_in_cleanup.append(get_value(SpanAttributes.SESSION_ID))
 
     stream = stream_forever()
@@ -403,8 +397,6 @@ async def test_async_generator_decorator_keeps_generator_context_across_yields(
     tracer: OITracer,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    """A span the generator body keeps open across ``yield`` stays current when it resumes."""
-
     @using_session("stream-session")
     async def stream_with_parent_span(item_count: int) -> AsyncIterator[int]:
         with tracer.start_as_current_span("parent"):
@@ -415,9 +407,8 @@ async def test_async_generator_decorator_keeps_generator_context_across_yields(
 
     with tracer.start_as_current_span("consumer"):
         async for _ in stream_with_parent_span(3):
-            # Neither the attributes nor the generator's span leak into the consumer.
             assert get_value(SpanAttributes.SESSION_ID) is None
-            assert trace_api.get_current_span().name == "consumer"  # type: ignore[attr-defined]
+            assert getattr(trace_api.get_current_span(), "name", None) == "consumer"
 
     spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
     parent_span_id = spans["parent"].context.span_id
