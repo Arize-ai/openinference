@@ -75,6 +75,10 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_team_run_stream_method",
         "_original_team_arun_method",
         "_original_team_arun_stream_method",
+        "_original_team_continue_run_method",
+        "_original_team_continue_run_stream_method",
+        "_original_team_acontinue_run_method",
+        "_original_team_acontinue_run_stream_method",
         "_original_function_execute_method",
         "_original_function_aexecute_method",
         "_original_model_call_methods",
@@ -217,6 +221,42 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             wrap_function_wrapper(
                 team_run_module,
                 "_arun_stream",
+                run_wrapper.arun_stream,
+            )
+
+        # Wrap Team module-level continue-run functions. Team.continue_run()
+        # dispatches to these after a human-in-the-loop pause, just as the
+        # corresponding Agent API does.
+        self._original_team_continue_run_method = getattr(team_run_module, "_continue_run", None)
+        if self._original_team_continue_run_method:
+            wrap_function_wrapper(
+                team_run_module,
+                "_continue_run",
+                run_wrapper.run,
+            )
+        self._original_team_continue_run_stream_method = getattr(
+            team_run_module, "_continue_run_stream", None
+        )
+        if self._original_team_continue_run_stream_method:
+            wrap_function_wrapper(
+                team_run_module,
+                "_continue_run_stream",
+                run_wrapper.run_stream,
+            )
+        self._original_team_acontinue_run_method = getattr(team_run_module, "_acontinue_run", None)
+        if self._original_team_acontinue_run_method:
+            wrap_function_wrapper(
+                team_run_module,
+                "_acontinue_run",
+                run_wrapper.arun,
+            )
+        self._original_team_acontinue_run_stream_method = getattr(
+            team_run_module, "_acontinue_run_stream", None
+        )
+        if self._original_team_acontinue_run_stream_method:
+            wrap_function_wrapper(
+                team_run_module,
+                "_acontinue_run_stream",
                 run_wrapper.arun_stream,
             )
 
@@ -468,6 +508,18 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_team_arun_stream_method is not None:
             team_run_module._arun_stream = self._original_team_arun_stream_method
             self._original_team_arun_stream_method = None
+        if self._original_team_continue_run_method is not None:
+            team_run_module._continue_run = self._original_team_continue_run_method
+            self._original_team_continue_run_method = None
+        if self._original_team_continue_run_stream_method is not None:
+            team_run_module._continue_run_stream = self._original_team_continue_run_stream_method
+            self._original_team_continue_run_stream_method = None
+        if self._original_team_acontinue_run_method is not None:
+            team_run_module._acontinue_run = self._original_team_acontinue_run_method
+            self._original_team_acontinue_run_method = None
+        if self._original_team_acontinue_run_stream_method is not None:
+            team_run_module._acontinue_run_stream = self._original_team_acontinue_run_stream_method
+            self._original_team_acontinue_run_stream_method = None
 
         if self._original_model_call_methods is not None:
             for (
