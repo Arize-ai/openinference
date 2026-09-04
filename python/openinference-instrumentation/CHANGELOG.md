@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.60...python-openinference-instrumentation-v0.1.61) (2026-09-04)
+
+
+### Features
+
+* **semconv:** add meta, zai, and minimax as well-known llm.provider values ([#3671](https://github.com/Arize-ai/openinference/issues/3671)) ([fd01216](https://github.com/Arize-ai/openinference/commit/fd012164266f3e2eec58017e3880aea505667a16))
+
+
+### Bug Fixes
+
+* **instrumentation:** preserve context attributes in async coroutine decorators ([#3583](https://github.com/Arize-ai/openinference/issues/3583)) ([#3662](https://github.com/Arize-ai/openinference/issues/3662)) ([d818097](https://github.com/Arize-ai/openinference/commit/d818097d43a345474b4b62cf6f207a52671b890d))
+
 ## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.59...python-openinference-instrumentation-v0.1.60) (2026-09-01)
 
 
