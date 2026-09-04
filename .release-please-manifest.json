@@ -1,6 +1,6 @@
 {
     "python/openinference-semantic-conventions": "0.1.35",
-    "python/instrumentation/openinference-instrumentation-agno": "1.0.7",
+    "python/instrumentation/openinference-instrumentation-agno": "1.0.8",
     "python/instrumentation/openinference-instrumentation-openai": "0.1.58",
     "python/instrumentation/openinference-instrumentation-llama-index": "4.5.0",
     "python/instrumentation/openinference-instrumentation-dspy": "0.1.43",
