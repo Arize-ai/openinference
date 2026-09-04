@@ -335,11 +335,27 @@ class _TraceCallLlm(_WithTracer):
         if llm_response:
             for k, v in _get_attributes_from_llm_response(llm_response):
                 span.set_attribute(k, v)
-            if not llm_response.partial:
-                # This is the final chunk for this LLM turn, so no further
-                # trace_call_llm calls will land on this span.
-                span.set_status(StatusCode.OK)
+            _set_llm_span_status(span, llm_response)
         return ans
+
+
+def _set_llm_span_status(span: trace_api.Span, llm_response: LlmResponse) -> None:
+    """Set the `call_llm` span status from the structured fields of an `LlmResponse`.
+
+    OpenTelemetry treats a status of OK as final: once set, a later ERROR is
+    ignored. ADK calls `trace_call_llm` for *every* response in a stream, so a
+    partial chunk must not stamp OK — the stream may still raise, and the
+    span's exit handler must remain able to record ERROR (#3415). Only the
+    final chunk for the turn decides, and a response that ADK flagged with an
+    `error_code` (e.g. a blocked response) is reported as ERROR.
+    """
+    if llm_response.error_code:
+        span.set_status(
+            StatusCode.ERROR,
+            llm_response.error_message or str(llm_response.error_code),
+        )
+    elif not llm_response.partial:
+        span.set_status(StatusCode.OK)
 
 
 class _TraceToolCall(_WithTracer):
