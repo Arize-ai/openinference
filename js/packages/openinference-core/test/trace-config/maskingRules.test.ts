@@ -239,16 +239,6 @@ describe("mask reasoning content fields", () => {
       ).toBeUndefined();
     });
 
-    test("hideInputImages also drops the sibling mime type", () => {
-      expect(
-        mask({
-          config: { ...DefaultTraceConfig, hideInputImages: true },
-          key: "input.images.0.image.mime_type",
-          value: "image/png",
-        }),
-      ).toBeUndefined();
-    });
-
     test.each([inputImageURL, outputImageURL])(
       "an oversized base64 payload at %s is redacted",
       (key) => {
