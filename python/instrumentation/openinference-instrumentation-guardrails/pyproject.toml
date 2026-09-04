@@ -37,7 +37,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "guardrails-ai",
+  "guardrails-ai>=0.4.5,<0.5.1",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
