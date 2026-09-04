@@ -27,11 +27,16 @@ from agents.tracing.span_data import (
     SpanData,
 )
 from openai.types.responses import (
+    EasyInputMessageParam,
     FunctionTool,
     Response,
+    ResponseInputItemParam,
     ResponseOutputMessage,
     ResponseOutputText,
+    ResponseReasoningItem,
+    ResponseReasoningItemParam,
 )
+from openai.types.responses.response_reasoning_item import Summary
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -208,6 +213,77 @@ def test_llm_system_absent_on_trace_root_span() -> None:
     root = next(s for s in exporter.get_finished_spans() if s.name == "Agent workflow")
     assert _attrs(root)["openinference.span.kind"] == "AGENT"
     assert "llm.system" not in _attrs(root)
+
+
+def test_response_spans_round_trip_reasoning_output_to_follow_up_input() -> None:
+    processor, exporter = _make_processor()
+    reasoning_id = "reason-123"
+    reasoning_text = "The trains meet six hours after the first departure."
+    encrypted_content = "encrypted-reasoning"
+
+    first_response = _text_response("The answer is 6 hours.")
+    first_response.output.insert(
+        0,
+        ResponseReasoningItem(
+            id=reasoning_id,
+            type="reasoning",
+            summary=[Summary(type="summary_text", text=reasoning_text)],
+            encrypted_content=encrypted_content,
+        ),
+    )
+    follow_up_input: list[ResponseInputItemParam] = [
+        EasyInputMessageParam(role="user", content="When do the trains meet?"),
+        ResponseReasoningItemParam(
+            id=reasoning_id,
+            type="reasoning",
+            summary=[{"type": "summary_text", "text": reasoning_text}],
+            encrypted_content=encrypted_content,
+        ),
+        EasyInputMessageParam(role="assistant", content="The answer is 6 hours."),
+        EasyInputMessageParam(role="user", content="Restate the answer in minutes."),
+    ]
+    spans = [
+        _FakeSpan(
+            "first-response",
+            None,
+            ResponseSpanData(response=first_response, input=follow_up_input[:1]),
+        ),
+        _FakeSpan(
+            "follow-up-response",
+            None,
+            ResponseSpanData(
+                response=_text_response("The answer is 360 minutes."),
+                input=follow_up_input,
+            ),
+        ),
+    ]
+    _run(processor, _FakeTrace(), spans)
+
+    llm_spans = [
+        _attrs(span)
+        for span in exporter.get_finished_spans()
+        if _attrs(span).get("openinference.span.kind") == "LLM"
+    ]
+    first_attrs = next(
+        attrs
+        for attrs in llm_spans
+        if attrs.get("llm.output_messages.0.message.contents.0.message_content.type") == "reasoning"
+    )
+    follow_up_attrs = next(
+        attrs
+        for attrs in llm_spans
+        if attrs.get("llm.input_messages.2.message.contents.0.message_content.type") == "reasoning"
+    )
+
+    for attribute in ("type", "text", "id", "encrypted_content"):
+        output_key = f"llm.output_messages.0.message.contents.0.message_content.{attribute}"
+        input_key = f"llm.input_messages.2.message.contents.0.message_content.{attribute}"
+        assert follow_up_attrs[input_key] == first_attrs[output_key]
+
+    assert follow_up_attrs["llm.input_messages.4.message.role"] == "user"
+    assert (
+        follow_up_attrs["llm.input_messages.4.message.content"] == "Restate the answer in minutes."
+    )
 
 
 # --- agent.name on agent spans ------------------------------------------------------
