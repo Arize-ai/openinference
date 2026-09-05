@@ -23,6 +23,8 @@ from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
     Response,
+    ResponseComputerToolCall,
+    ResponseComputerToolCallParam,
     ResponseCustomToolCall,
     ResponseCustomToolCallOutputParam,
     ResponseCustomToolCallParam,
@@ -40,8 +42,23 @@ from openai.types.responses import (
     ResponseUsage,
     Tool,
 )
-from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
+from openai.types.responses.response_input_item_param import (
+    ComputerCallOutput,
+    FunctionCallOutput,
+    Message,
+)
 from openai.types.responses.response_output_message_param import Content
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry.context import attach, detach
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import (
@@ -55,17 +72,6 @@ from typing_extensions import assert_never
 
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -314,9 +320,13 @@ def _get_attributes_from_input(
         elif item["type"] == "file_search_call":
             continue  # TODO
         elif item["type"] == "computer_call":
-            continue  # TODO
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_computer_tool_call_param(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
         elif item["type"] == "computer_call_output":
-            continue  # TODO
+            yield from _get_attributes_from_computer_call_output(item, prefix)
         elif item["type"] == "web_search_call":
             continue  # TODO
         elif item["type"] == "function_call":
@@ -387,6 +397,9 @@ def _get_attributes_from_input(
             continue
         elif item["type"] == "program_output":
             # TODO: Handle program output
+            continue
+        elif item["type"] == "configuration_update":
+            # TODO: Handle configuration update
             continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
@@ -488,6 +501,48 @@ def _get_attributes_from_function_call_output(
             output_value = output
         else:
             output_value = safe_json_dumps(output)
+        yield f"{prefix}{MESSAGE_CONTENT}", output_value
+
+
+def _get_attributes_from_response_computer_tool_call_param(
+    obj: ResponseComputerToolCallParam,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    call_id = obj.get("call_id") if isinstance(obj, dict) else getattr(obj, "call_id", None)
+    id_ = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", None)
+    if (tool_call_id := call_id or id_) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", tool_call_id
+    type_ = obj.get("type") if isinstance(obj, dict) else getattr(obj, "type", None)
+    if type_ is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type_
+
+
+def _get_attributes_from_computer_call_output(
+    obj: ComputerCallOutput,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    yield f"{prefix}{MESSAGE_ROLE}", "tool"
+    call_id = obj.get("call_id") if isinstance(obj, dict) else getattr(obj, "call_id", None)
+    if call_id is not None:
+        yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", call_id
+    output_obj: Any = obj.get("output") if isinstance(obj, dict) else getattr(obj, "output", None)
+    if output_obj is not None:
+        if isinstance(output_obj, str):
+            output_value = output_obj
+        elif callable(dump_fn := getattr(output_obj, "model_dump", None)):
+            try:
+                output_dict = dump_fn(mode="json", exclude_unset=True)
+            except Exception:
+                output_dict = dump_fn()
+            output_value = safe_json_dumps(output_dict)
+        elif callable(dict_fn := getattr(output_obj, "dict", None)):
+            try:
+                output_dict = dict_fn(exclude_unset=True)
+            except Exception:
+                output_dict = dict_fn()
+            output_value = safe_json_dumps(output_dict)
+        else:
+            output_value = safe_json_dumps(output_obj)
         yield f"{prefix}{MESSAGE_CONTENT}", output_value
 
 
@@ -740,6 +795,7 @@ def _get_attributes_from_response_output(
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
             yield from _get_attributes_from_message(item, prefix)
             msg_idx += 1
+            tool_call_idx = 0
         elif item.type == "function_call":
             yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
@@ -755,7 +811,10 @@ def _get_attributes_from_response_output(
         elif item.type == "web_search_call":
             ...  # TODO
         elif item.type == "computer_call":
-            ...  # TODO
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_computer_tool_call(item, prefix)
+            tool_call_idx += 1
         elif item.type == "reasoning":
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
             attrs = list(_get_attributes_from_reasoning_item(item, prefix))
@@ -763,6 +822,7 @@ def _get_attributes_from_response_output(
                 for k, v in attrs:
                     yield k, v
                 msg_idx += 1
+                tool_call_idx = 0
         elif item.type == "image_generation_call":
             ...  # TODO
         elif item.type == "code_interpreter_call":
@@ -841,6 +901,21 @@ def _get_attributes_from_response_custom_tool_call(
             f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
             safe_json_dumps({"input": input_data}),
         )
+
+
+def _get_attributes_from_response_computer_tool_call(
+    obj: ResponseComputerToolCall,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    call_id = obj.get("call_id") if isinstance(obj, dict) else getattr(obj, "call_id", None)
+    id_ = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", None)
+    if (tool_call_id := call_id or id_) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", tool_call_id
+    type_ = (
+        obj.get("type") if isinstance(obj, dict) else getattr(obj, "type", None)
+    ) or "computer_call"
+    if type_ is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type_
 
 
 def _get_attributes_from_message(

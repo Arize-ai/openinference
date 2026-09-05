@@ -30,13 +30,19 @@ from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
     Response,
+    ResponseComputerToolCall,
+    ResponseComputerToolCallOutputScreenshot,
+    ResponseComputerToolCallOutputScreenshotParam,
+    ResponseComputerToolCallParam,
     ResponseInputItemParam,
     ResponseOutputMessage,
     ResponseOutputText,
     ResponseReasoningItem,
     ResponseReasoningItemParam,
 )
+from openai.types.responses.response_input_item_param import ComputerCallOutput
 from openai.types.responses.response_reasoning_item import Summary
+from openinference.instrumentation.config import REDACTED_VALUE
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -51,7 +57,6 @@ from openinference.instrumentation import (
     using_tags,
     using_user,
 )
-from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.openai_agents._processor import OpenInferenceTracingProcessor
 
 _TRACE_ID = "trace_abc"
@@ -284,6 +289,207 @@ def test_response_spans_round_trip_reasoning_output_to_follow_up_input() -> None
     assert (
         follow_up_attrs["llm.input_messages.4.message.content"] == "Restate the answer in minutes."
     )
+
+
+def test_response_spans_round_trip_computer_call_output_to_follow_up_input() -> None:
+    processor, exporter = _make_processor()
+    call_id = "call-comp-999"
+    item_id = "comp-item-111"
+
+    first_response = Response(
+        id="resp-1",
+        created_at=0.0,
+        model="gpt-4o-mini",
+        object="response",
+        output=[
+            ResponseComputerToolCall(
+                id=item_id,
+                call_id=call_id,
+                type="computer_call",
+                pending_safety_checks=[],
+                status="completed",
+            )
+        ],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+    screenshot = ResponseComputerToolCallOutputScreenshotParam(
+        type="computer_screenshot",
+        file_id="file-shot-123",
+        image_url="https://example.com/shot.png",
+    )
+    follow_up_input: list[ResponseInputItemParam] = [
+        EasyInputMessageParam(role="user", content="Click the submit button."),
+        ResponseComputerToolCallParam(
+            id=item_id,
+            call_id=call_id,
+            type="computer_call",
+            action={"type": "click", "x": 100, "y": 200, "button": "left"},
+            pending_safety_checks=[],
+            status="completed",
+        ),
+        ComputerCallOutput(
+            type="computer_call_output",
+            call_id=call_id,
+            output=screenshot,
+            id="out-comp-1",
+            status="completed",
+        ),
+    ]
+    spans = [
+        _FakeSpan(
+            "first-response",
+            None,
+            ResponseSpanData(response=first_response, input=follow_up_input[:1]),
+        ),
+        _FakeSpan(
+            "follow-up-response",
+            None,
+            ResponseSpanData(
+                response=_text_response("Clicked successfully."),
+                input=follow_up_input,
+            ),
+        ),
+    ]
+    _run(processor, _FakeTrace(), spans)
+
+    llm_spans = [
+        _attrs(span)
+        for span in exporter.get_finished_spans()
+        if _attrs(span).get("openinference.span.kind") == "LLM"
+    ]
+    first_attrs = next(
+        attrs
+        for attrs in llm_spans
+        if attrs.get("llm.output_messages.0.message.tool_calls.0.tool_call.function.name")
+        == "computer_call"
+    )
+    follow_up_attrs = next(
+        attrs
+        for attrs in llm_spans
+        if attrs.get("llm.input_messages.2.message.tool_calls.0.tool_call.function.name")
+        == "computer_call"
+    )
+
+    # First turn LLM output asserts
+    assert first_attrs["llm.output_messages.0.message.role"] == "assistant"
+    assert first_attrs["llm.output_messages.0.message.tool_calls.0.tool_call.id"] == call_id
+    assert (
+        first_attrs["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"]
+        == "computer_call"
+    )
+
+    # Continuation turn LLM input asserts - replayed computer_call
+    assert follow_up_attrs["llm.input_messages.2.message.role"] == "assistant"
+    assert follow_up_attrs["llm.input_messages.2.message.tool_calls.0.tool_call.id"] == call_id
+    assert (
+        follow_up_attrs["llm.input_messages.2.message.tool_calls.0.tool_call.function.name"]
+        == "computer_call"
+    )
+
+    # Continuation turn LLM input asserts - tool output correlated via call_id
+    assert follow_up_attrs["llm.input_messages.3.message.role"] == "tool"
+    assert follow_up_attrs["llm.input_messages.3.message.tool_call_id"] == call_id
+    assert json.loads(str(follow_up_attrs["llm.input_messages.3.message.content"])) == {
+        "type": "computer_screenshot",
+        "file_id": "file-shot-123",
+        "image_url": "https://example.com/shot.png",
+    }
+
+    # Cross-turn correlation check
+    assert (
+        follow_up_attrs["llm.input_messages.2.message.tool_calls.0.tool_call.id"]
+        == first_attrs["llm.output_messages.0.message.tool_calls.0.tool_call.id"]
+    )
+    assert (
+        follow_up_attrs["llm.input_messages.3.message.tool_call_id"]
+        == first_attrs["llm.output_messages.0.message.tool_calls.0.tool_call.id"]
+    )
+
+
+def test_response_spans_round_trip_computer_call_output_pydantic_model() -> None:
+    processor, exporter = _make_processor()
+    call_id = "call-comp-pydantic-999"
+    item_id = "comp-item-pydantic-111"
+
+    first_response = Response(
+        id="resp-pydantic",
+        created_at=0.0,
+        model="gpt-4o-mini",
+        object="response",
+        output=[
+            ResponseComputerToolCall(
+                id=item_id,
+                call_id=call_id,
+                type="computer_call",
+                pending_safety_checks=[],
+                status="completed",
+            )
+        ],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+    screenshot = ResponseComputerToolCallOutputScreenshot(
+        type="computer_screenshot",
+        file_id="file-shot-pydantic",
+        image_url="https://example.com/pydantic.png",
+    )
+    follow_up_input: list[ResponseInputItemParam] = [
+        EasyInputMessageParam(role="user", content="Click the submit button."),
+        ResponseComputerToolCallParam(
+            id=item_id,
+            call_id=call_id,
+            type="computer_call",
+            action={"type": "click", "x": 100, "y": 200, "button": "left"},
+            pending_safety_checks=[],
+            status="completed",
+        ),
+        ComputerCallOutput(
+            type="computer_call_output",
+            call_id=call_id,
+            output=screenshot,  # type: ignore[typeddict-item]
+            id="out-comp-pydantic",
+            status="completed",
+        ),
+    ]
+    spans = [
+        _FakeSpan(
+            "first-response",
+            None,
+            ResponseSpanData(response=first_response, input=follow_up_input[:1]),
+        ),
+        _FakeSpan(
+            "follow-up-response",
+            None,
+            ResponseSpanData(
+                response=_text_response("Clicked successfully."),
+                input=follow_up_input,
+            ),
+        ),
+    ]
+    _run(processor, _FakeTrace(), spans)
+
+    llm_spans = [
+        _attrs(span)
+        for span in exporter.get_finished_spans()
+        if _attrs(span).get("openinference.span.kind") == "LLM"
+    ]
+    follow_up_attrs = next(
+        attrs
+        for attrs in llm_spans
+        if attrs.get("llm.input_messages.2.message.tool_calls.0.tool_call.function.name")
+        == "computer_call"
+    )
+
+    assert follow_up_attrs["llm.input_messages.3.message.role"] == "tool"
+    assert follow_up_attrs["llm.input_messages.3.message.tool_call_id"] == call_id
+    assert json.loads(str(follow_up_attrs["llm.input_messages.3.message.content"])) == {
+        "type": "computer_screenshot",
+        "file_id": "file-shot-pydantic",
+        "image_url": "https://example.com/pydantic.png",
+    }
 
 
 # --- agent.name on agent spans ------------------------------------------------------
