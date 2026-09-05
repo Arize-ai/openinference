@@ -54,6 +54,11 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
+from openinference.instrumentation.openai_agents._run_io import (
+    current_run_io,
+    input_attributes,
+    output_attributes,
+)
 from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -119,12 +124,15 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
-        otel_span = self._tracer.start_span(
-            name=trace.name,
-            attributes={
-                OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
-            },
-        )
+        attributes: dict[str, AttributeValue] = {
+            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+        }
+        # The run's input, seeded by the runner wrapper before this trace was created.
+        # See _run_io for why it cannot be read from any span data.
+        if (run_io := current_run_io()) is not None and run_io.has_input:
+            if (recorded := input_attributes(run_io.input)) is not None:
+                attributes.update(recorded)
+        otel_span = self._tracer.start_span(name=trace.name, attributes=attributes)
         self._root_spans[trace.trace_id] = otel_span
 
     def on_trace_end(self, trace: Trace) -> None:
@@ -135,6 +143,12 @@ class OpenInferenceTracingProcessor(TracingProcessor):
         """
         root_span = self._root_spans.pop(trace.trace_id, None)
         if root_span:
+            # The run's final output, recorded by the hook the runner wrapper composed
+            # in. A run that raised, or that ran out of turns, never reaches that hook,
+            # and then no output is reported rather than an invented one.
+            if (run_io := current_run_io()) is not None and run_io.has_output:
+                if (recorded := output_attributes(run_io.output)) is not None:
+                    root_span.set_attributes(recorded)
             root_span.set_status(Status(StatusCode.OK))
             root_span.end()
 

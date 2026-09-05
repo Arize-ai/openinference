@@ -8,6 +8,11 @@ Note what is deliberately *not* done here: input/output are not inferred onto ag
 task, or turn spans from their child LLM spans. Those span data types carry no
 input/output fields, so any value would be a guess -- see
 ``test_ancestor_spans_do_not_infer_input_output``.
+
+The trace root does report the run's real input and output, but not from anything the
+processor can see in span data: they are observed at the run boundary and handed over in
+a ``ContextVar``. Only the processor's half is exercised here, by seeding the holder
+directly; the plumbing that fills it is covered end to end in ``test_run_io.py``.
 """
 
 from __future__ import annotations
@@ -53,6 +58,7 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.openai_agents._processor import OpenInferenceTracingProcessor
+from openinference.instrumentation.openai_agents._run_io import RunIO, _run_io
 
 _TRACE_ID = "trace_abc"
 _STARTED_AT = "2020-01-01T00:00:00+00:00"
@@ -429,6 +435,64 @@ def test_ancestor_spans_do_not_infer_input_output() -> None:
     llm = _kinds(spans)["LLM"]
     assert "What's the weather in London?" in str(llm["input.value"])
     assert "It is 21C and sunny in London." in str(llm["output.value"])
+
+
+def test_trace_root_records_observed_run_io_and_agent_spans_still_do_not() -> None:
+    """The trace root's I/O comes from the run boundary, never from its children.
+
+    The pairing with the test above is the point: the holder is seeded with values that
+    appear nowhere in the span data below, so the root can only have got them from the
+    run boundary -- and the agent span is still expected to carry neither. How the values
+    reach the holder is covered end to end in ``test_run_io.py``.
+    """
+    processor, exporter = _make_processor()
+    agent = _FakeSpan("a1", None, AgentSpanData(name="WeatherAgent"))
+    response = _FakeSpan(
+        "r1",
+        "a1",
+        ResponseSpanData(
+            response=_text_response("It is 21C and sunny in London."),
+            input=[{"role": "user", "content": "What's the weather in London?"}],
+        ),
+    )
+
+    token = _run_io.set(RunIO(input="the real question", output="the real answer"))
+    try:
+        _run(processor, _FakeTrace(), [agent, response])
+    finally:
+        _run_io.reset(token)
+
+    spans = list(exporter.get_finished_spans())
+    assert _one_of_kind(spans, "AGENT", "Agent workflow") == {
+        "openinference.span.kind": "AGENT",
+        "input.value": "the real question",
+        "input.mime_type": "text/plain",
+        "output.value": "the real answer",
+        "output.mime_type": "text/plain",
+    }
+    # Unchanged: the agent span borrows nothing, including from the holder.
+    assert _one_of_kind(spans, "AGENT", "WeatherAgent") == {
+        "openinference.span.kind": "AGENT",
+        "agent.name": "WeatherAgent",
+        "graph.node.id": "WeatherAgent",
+    }
+
+
+def test_trace_root_reports_no_output_when_the_run_did_not_finish() -> None:
+    """A run that raised or ran out of turns never reports a final output."""
+    processor, exporter = _make_processor()
+
+    token = _run_io.set(RunIO(input="a question"))
+    try:
+        _run(processor, _FakeTrace(), [])
+    finally:
+        _run_io.reset(token)
+
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "AGENT", "Agent workflow")
+    assert attrs.pop("openinference.span.kind") == "AGENT"
+    assert attrs.pop("input.value") == "a question"
+    assert attrs.pop("input.mime_type") == "text/plain"
+    assert not attrs
 
 
 # --- suppress tracing ---------------------------------------------------------------
