@@ -2706,6 +2706,91 @@ def test_cache_token_details_match_between_streaming_and_non_streaming(
     assert not any(key.endswith("message_content.id") for key in attributes)
 
 
+def test_stable_streaming_message_delta_usage_overrides_message_start(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """message_delta usage must override message_start usage when they differ."""
+    sse_events = [
+        b"event: message_start\ndata: "
+        + json.dumps(
+            {
+                "type": "message_start",
+                "message": {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [],
+                    "model": "claude-sonnet-4-6",
+                    "stop_reason": None,
+                    "stop_sequence": None,
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 1,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                },
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_start\ndata: "
+        + json.dumps(
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_delta\ndata: "
+        + json.dumps(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": "hi"},
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_stop\ndata: "
+        + json.dumps({"type": "content_block_stop", "index": 0}).encode()
+        + b"\n\n",
+        b"event: message_delta\ndata: "
+        + json.dumps(
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "cache_creation_input_tokens": 1733,
+                    "cache_read_input_tokens": 512,
+                },
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: message_stop\ndata: " + json.dumps({"type": "message_stop"}).encode() + b"\n\n",
+    ]
+
+    def sse_handler(request: Any) -> Any:
+        return httpx2.Response(status_code=200, content=b"".join(sse_events))
+
+    for _ in _mock_anthropic_client(sse_handler).messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": "hello"}],
+        stream=True,
+    ):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(LLM_TOKEN_COUNT_COMPLETION) == 5
+    assert attributes.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 1733
+    assert attributes.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 512
+
+
 @pytest.mark.parametrize(
     "thinking_block, redacted_thinking_block",
     (
