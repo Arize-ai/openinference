@@ -163,6 +163,31 @@ Normalize and convert data across other instrumentation libraries by adding span
 
 Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), or wire up any OTel exporter (e.g. [Phoenix](https://github.com/Arize-ai/phoenix) at `http://localhost:6006/v1/traces`).
 
+## Agent Skills
+
+Composable skills for coding agents (Claude Code, Cursor, Codex, and any other tool that reads `.agents/skills`) live in [`.agents/skills`](./.agents/skills):
+
+| Skill | Purpose |
+| --- | --- |
+| [`openinference`](./.agents/skills/openinference) | Shared concepts: span kinds, attributes, context and resource attributes, privacy masking, suppressing tracing |
+| [`openinference-instrument-py`](./.agents/skills/openinference-instrument-py) | Instrumenting Python apps: setup, auto-instrumentors, decorators, helpers, context attributes |
+| [`openinference-instrument-js`](./.agents/skills/openinference-instrument-js) | Instrumenting JavaScript/TypeScript apps: setup, instrumentations, wrappers, helpers, context attributes |
+
+Install into your project with the [`skills`](https://github.com/vercel-labs/skills) CLI:
+
+```bash
+npx skills add Arize-ai/openinference --skill openinference --skill openinference-instrument-py
+```
+
+Or copy the skill directories by hand into your project's `.agents/skills/` (or `.claude/skills/` for Claude Code):
+
+```bash
+git clone --depth 1 https://github.com/Arize-ai/openinference.git /tmp/openinference
+cp -r /tmp/openinference/.agents/skills/openinference* .agents/skills/
+```
+
+Install `openinference` alongside a language skill; the language skills reference it rather than repeating its content.
+
 ## Supported Destinations
 
 OpenInference supports the following destinations as span collectors.
