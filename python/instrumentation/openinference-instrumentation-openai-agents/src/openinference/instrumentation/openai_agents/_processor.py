@@ -26,8 +26,12 @@ from openai.types.responses import (
     ResponseCustomToolCall,
     ResponseCustomToolCallOutputParam,
     ResponseCustomToolCallParam,
+    ResponseFileSearchToolCall,
+    ResponseFileSearchToolCallParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
+    ResponseFunctionWebSearch,
+    ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
     ResponseInputItemParam,
     ResponseOutputItem,
@@ -42,6 +46,17 @@ from openai.types.responses import (
 )
 from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
 from openai.types.responses.response_output_message_param import Content
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry.context import attach, detach
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import (
@@ -55,17 +70,6 @@ from typing_extensions import assert_never
 
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -312,13 +316,21 @@ def _get_attributes_from_input(
         elif item["type"] == "message":
             yield from _get_attributes_from_message_param(item, prefix)
         elif item["type"] == "file_search_call":
-            continue  # TODO
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_file_search_tool_call_param(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
         elif item["type"] == "computer_call":
             continue  # TODO
         elif item["type"] == "computer_call_output":
             continue  # TODO
         elif item["type"] == "web_search_call":
-            continue  # TODO
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_function_web_search_param(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
         elif item["type"] == "function_call":
             yield f"{prefix}{MESSAGE_ROLE}", "assistant"
             yield from _get_attributes_from_response_function_tool_call_param(
@@ -388,6 +400,9 @@ def _get_attributes_from_input(
         elif item["type"] == "program_output":
             # TODO: Handle program output
             continue
+        elif item["type"] == "configuration_update":
+            # TODO: Handle configuration update
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
 
@@ -456,6 +471,26 @@ def _get_attributes_from_response_custom_tool_call_param(
             f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
             safe_json_dumps({"input": input_data}),
         )
+
+
+def _get_attributes_from_response_file_search_tool_call_param(
+    obj: ResponseFileSearchToolCallParam,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    if (id := obj.get("id")) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", id
+    if (type := obj.get("type")) is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type
+
+
+def _get_attributes_from_response_function_web_search_param(
+    obj: ResponseFunctionWebSearchParam,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    if (id := obj.get("id")) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", id
+    if (type := obj.get("type")) is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type
 
 
 def _get_attributes_from_response_custom_tool_call_output_param(
@@ -740,6 +775,7 @@ def _get_attributes_from_response_output(
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
             yield from _get_attributes_from_message(item, prefix)
             msg_idx += 1
+            tool_call_idx = 0
         elif item.type == "function_call":
             yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
@@ -751,9 +787,15 @@ def _get_attributes_from_response_output(
             yield from _get_attributes_from_response_custom_tool_call(item, prefix)
             tool_call_idx += 1
         elif item.type == "file_search_call":
-            ...  # TODO
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_file_search_tool_call(item, prefix)
+            tool_call_idx += 1
         elif item.type == "web_search_call":
-            ...  # TODO
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_function_web_search(item, prefix)
+            tool_call_idx += 1
         elif item.type == "computer_call":
             ...  # TODO
         elif item.type == "reasoning":
@@ -763,6 +805,7 @@ def _get_attributes_from_response_output(
                 for k, v in attrs:
                     yield k, v
                 msg_idx += 1
+                tool_call_idx = 0
         elif item.type == "image_generation_call":
             ...  # TODO
         elif item.type == "code_interpreter_call":
@@ -841,6 +884,26 @@ def _get_attributes_from_response_custom_tool_call(
             f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
             safe_json_dumps({"input": input_data}),
         )
+
+
+def _get_attributes_from_response_file_search_tool_call(
+    obj: ResponseFileSearchToolCall,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    if (id := obj.id) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", id
+    if (type := obj.type) is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type
+
+
+def _get_attributes_from_response_function_web_search(
+    obj: ResponseFunctionWebSearch,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    if (id := obj.id) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", id
+    if (type := obj.type) is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type
 
 
 def _get_attributes_from_message(
