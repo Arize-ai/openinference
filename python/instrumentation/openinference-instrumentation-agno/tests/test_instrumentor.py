@@ -513,6 +513,168 @@ def test_agno_reasoning_content_instrumentation(
     assert attributes.get("llm.output_messages.0.message.content")
 
 
+# ---------------------------------------------------------------------------
+# Unit tests for LLM_COST_TOTAL propagation from MessageMetrics.cost
+# ---------------------------------------------------------------------------
+
+
+def _make_model(model_id: str = "gpt-4o-mini") -> Any:
+    return SimpleNamespace(
+        name="TestModel",
+        id=model_id,
+        provider="OpenAI",
+    )
+
+
+def _make_metrics(cost: Optional[float]) -> Any:
+    return SimpleNamespace(
+        input_tokens=10,
+        output_tokens=5,
+        total_tokens=15,
+        cache_read_tokens=0,
+        cache_write_tokens=0,
+        cost=cost,
+    )
+
+
+def _make_response(cost: Optional[float]) -> Any:
+    return SimpleNamespace(
+        role="assistant",
+        content="Hello",
+        tool_calls=None,
+        reasoning_content=None,
+        response_usage=_make_metrics(cost),
+    )
+
+
+def test_model_wrapper_run_sets_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """_ModelWrapper.run emits llm.cost.total when MessageMetrics.cost is set."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    response = _make_response(cost=0.00123)
+
+    def fake_invoke() -> Any:
+        return response
+
+    wrapper.run(fake_invoke, model, args=(), kwargs={})
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(0.00123)
+
+
+def test_model_wrapper_run_omits_llm_cost_total_when_none(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """_ModelWrapper.run does not emit llm.cost.total when cost is None."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    response = _make_response(cost=None)
+
+    def fake_invoke() -> Any:
+        return response
+
+    wrapper.run(fake_invoke, model, args=(), kwargs={})
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert SpanAttributes.LLM_COST_TOTAL not in attributes
+
+
+def test_model_wrapper_run_stream_sets_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """_ModelWrapper.run_stream emits llm.cost.total when MessageMetrics.cost is set."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    chunk = SimpleNamespace(
+        content="Hi",
+        tool_calls=None,
+        reasoning_content=None,
+        response_usage=_make_metrics(cost=0.00042),
+    )
+
+    def fake_stream() -> Any:
+        yield chunk
+
+    list(wrapper.run_stream(fake_stream, model, args=(), kwargs={}))
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(0.00042)
+
+
+@pytest.mark.asyncio
+async def test_model_wrapper_arun_sets_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """_ModelWrapper.arun emits llm.cost.total when MessageMetrics.cost is set."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    response = _make_response(cost=0.00777)
+
+    async def fake_ainvoke() -> Any:
+        return response
+
+    await wrapper.arun(fake_ainvoke, model, args=(), kwargs={})
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(0.00777)
+
+
+@pytest.mark.asyncio
+async def test_model_wrapper_arun_stream_sets_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """_ModelWrapper.arun_stream emits llm.cost.total when MessageMetrics.cost is set."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    chunk = SimpleNamespace(
+        content="Hi",
+        tool_calls=None,
+        reasoning_content=None,
+        response_usage=_make_metrics(cost=0.00099),
+    )
+
+    async def fake_astream() -> Any:
+        yield chunk
+
+    async for _ in wrapper.arun_stream(fake_astream, model, args=(), kwargs={}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(0.00099)
+
+
 def test_agno_reasoning_content_stream_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
