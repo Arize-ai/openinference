@@ -14,7 +14,10 @@ openai<3 (no ``httpx2`` installed) it is a no-op.
 
 try:
     import httpx2
-
-    httpx2.alias_httpx()
-except Exception:  # pragma: no cover - openai<3 ships no httpx2 to alias
+except ImportError:  # openai<3 ships no httpx2, so there is nothing to alias
     pass
+else:
+    # Deliberately unguarded: if httpx2 drops or renames alias_httpx, this must
+    # fail loudly. Swallowing it would leave respx patching the wrong module and
+    # send every unmocked request to the real API.
+    httpx2.alias_httpx()
