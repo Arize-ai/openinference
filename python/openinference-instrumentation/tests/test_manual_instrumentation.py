@@ -2467,6 +2467,8 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
         provider="openai",
         system="openai",
         model_name="gpt-4",
+        request_model_name="gpt-4",
+        response_model_name="gpt-4-0613",
         invocation_parameters={"temperature": 0.7, "max_tokens": 100},
         input_messages=input_messages,
         output_messages=output_messages,
@@ -2476,6 +2478,8 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     assert attributes.pop(LLM_PROVIDER) == "openai"
     assert attributes.pop(LLM_SYSTEM) == "openai"
     assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
+    assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "gpt-4"
+    assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "gpt-4-0613"
     invocation_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(invocation_params, str)
     params_dict = json.loads(invocation_params)
@@ -2590,6 +2594,34 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     }
     assert f"{LLM_TOOLS}.1.{TOOL_NAME}" not in attributes
     assert f"{LLM_TOOLS}.1.{TOOL_DESCRIPTION}" not in attributes
+
+
+def test_get_llm_attributes_model_name_only_omits_request_and_response_model_name() -> None:
+    """Callers tracking a single model_name (no request/response distinction)
+    must not get llm.request.model_name / llm.response.model_name invented."""
+    attributes = get_llm_attributes(model_name="gpt-4")
+    assert attributes == {LLM_MODEL_NAME: "gpt-4"}
+
+
+def test_get_llm_attributes_model_name_falls_back_to_response_then_request_model_name() -> None:
+    attributes = get_llm_attributes(response_model_name="gpt-4-0613")
+    assert attributes == {
+        LLM_MODEL_NAME: "gpt-4-0613",
+        LLM_RESPONSE_MODEL_NAME: "gpt-4-0613",
+    }
+
+    attributes = get_llm_attributes(request_model_name="gpt-4")
+    assert attributes == {
+        LLM_MODEL_NAME: "gpt-4",
+        LLM_REQUEST_MODEL_NAME: "gpt-4",
+    }
+
+    attributes = get_llm_attributes(request_model_name="gpt-4", response_model_name="gpt-4-0613")
+    assert attributes == {
+        LLM_MODEL_NAME: "gpt-4-0613",
+        LLM_REQUEST_MODEL_NAME: "gpt-4",
+        LLM_RESPONSE_MODEL_NAME: "gpt-4-0613",
+    }
 
 
 def _reasoning_message(role: str) -> Message:
@@ -3097,6 +3129,8 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_REQUEST_MODEL_NAME = SpanAttributes.LLM_REQUEST_MODEL_NAME
+LLM_RESPONSE_MODEL_NAME = SpanAttributes.LLM_RESPONSE_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
