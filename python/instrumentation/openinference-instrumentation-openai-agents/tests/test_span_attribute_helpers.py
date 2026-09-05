@@ -14,9 +14,11 @@ from openai.types.responses import (
     ResponseComputerToolCallParam,
     ResponseCustomToolCall,
     ResponseError,
+    ResponseFileSearchToolCall,
     ResponseFileSearchToolCallParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
+    ResponseFunctionWebSearch,
     ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
     ResponseInputItemParam,
@@ -35,6 +37,7 @@ from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_custom_tool_call_output_param import (
     ResponseCustomToolCallOutputParam,
 )
+from openai.types.responses.response_function_web_search import ActionSearch as WebSearchAction
 from openai.types.responses.response_function_web_search_param import ActionSearch
 from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
@@ -64,7 +67,11 @@ from openinference.instrumentation.openai_agents._processor import (
     _get_attributes_from_message_param,
     _get_attributes_from_reasoning_item,
     _get_attributes_from_response,
+    _get_attributes_from_response_file_search_tool_call,
+    _get_attributes_from_response_file_search_tool_call_param,
     _get_attributes_from_response_function_tool_call_param,
+    _get_attributes_from_response_function_web_search,
+    _get_attributes_from_response_function_web_search_param,
     _get_attributes_from_response_instruction,
     _get_attributes_from_response_output,
     _get_attributes_from_tools,
@@ -199,7 +206,11 @@ from openinference.instrumentation.openai_agents._processor import (
                 )
             ],
             {
-                # TODO: Implement file search tool call attributes
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
             },
             id="file_search_tool_call",
         ),
@@ -216,7 +227,11 @@ from openinference.instrumentation.openai_agents._processor import (
                 )
             ],
             {
-                # TODO: Implement web search tool call attributes
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.id": "web-123",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "web_search_call"
+                ),
             },
             id="web_search_tool_call",
         ),
@@ -2216,6 +2231,237 @@ def test_get_attributes_from_tools(
             },
             id="empty_reasoning_then_message",
         ),
+        pytest.param(
+            [
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="in_progress",
+                )
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+            },
+            id="file_search_tool_call",
+        ),
+        pytest.param(
+            [
+                ResponseFunctionWebSearch(
+                    id="web-123",
+                    type="web_search_call",
+                    status="in_progress",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test query",
+                    ),
+                )
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "web-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "web_search_call"
+                ),
+            },
+            id="web_search_tool_call",
+        ),
+        pytest.param(
+            [
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="completed",
+                ),
+                ResponseFunctionWebSearch(
+                    id="web-456",
+                    type="web_search_call",
+                    status="completed",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test web query",
+                    ),
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.output_messages.0.message.tool_calls.1.tool_call.id": "web-456",
+                "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": (
+                    "web_search_call"
+                ),
+            },
+            id="multiple_search_tool_calls",
+        ),
+        pytest.param(
+            [
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="completed",
+                ),
+                ResponseOutputMessage(
+                    id="msg-300",
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text", text="Search results found", annotations=[]
+                        )
+                    ],
+                    status="completed",
+                    type="message",
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.output_messages.0.message.contents.0.message_content.type": "text",
+                "llm.output_messages.0.message.contents.0.message_content.text": (
+                    "Search results found"
+                ),
+                "llm.output_messages.0.message.content": "Search results found",
+            },
+            id="file_search_then_message",
+        ),
+        pytest.param(
+            [
+                ResponseFunctionWebSearch(
+                    id="web-123",
+                    type="web_search_call",
+                    status="completed",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test query",
+                    ),
+                ),
+                ResponseOutputMessage(
+                    id="msg-301",
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text", text="Web results found", annotations=[]
+                        )
+                    ],
+                    status="completed",
+                    type="message",
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "web-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "web_search_call"
+                ),
+                "llm.output_messages.0.message.contents.0.message_content.type": "text",
+                "llm.output_messages.0.message.contents.0.message_content.text": (
+                    "Web results found"
+                ),
+                "llm.output_messages.0.message.content": "Web results found",
+            },
+            id="web_search_then_message",
+        ),
+        pytest.param(
+            [
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="completed",
+                ),
+                ResponseOutputMessage(
+                    id="msg-302",
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text", text="Search results found", annotations=[]
+                        )
+                    ],
+                    status="completed",
+                    type="message",
+                ),
+                ResponseFunctionWebSearch(
+                    id="web-456",
+                    type="web_search_call",
+                    status="completed",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test web query",
+                    ),
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.output_messages.0.message.contents.0.message_content.type": "text",
+                "llm.output_messages.0.message.contents.0.message_content.text": (
+                    "Search results found"
+                ),
+                "llm.output_messages.0.message.content": "Search results found",
+                "llm.output_messages.1.message.role": "assistant",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.id": "web-456",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "web_search_call"
+                ),
+            },
+            id="file_search_then_message_then_web_search",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItem(
+                    id="reason-123",
+                    type="reasoning",
+                    summary=[Summary(type="summary_text", text="Thinking it through")],
+                ),
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="completed",
+                ),
+                ResponseFunctionWebSearch(
+                    id="web-456",
+                    type="web_search_call",
+                    status="completed",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test web query",
+                    ),
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+                "llm.output_messages.0.message.contents.0.message_content.text": (
+                    "Thinking it through"
+                ),
+                "llm.output_messages.0.message.contents.0.message_content.id": "reason-123",
+                "llm.output_messages.1.message.role": "assistant",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.output_messages.1.message.tool_calls.1.tool_call.id": "web-456",
+                "llm.output_messages.1.message.tool_calls.1.tool_call.function.name": (
+                    "web_search_call"
+                ),
+            },
+            id="reasoning_then_file_search_then_web_search",
+        ),
     ],
 )
 def test_get_attributes_from_response_output(
@@ -2302,6 +2548,224 @@ def test_get_attributes_from_function_tool_call(
     expected_attributes: Mapping[str, Any],
 ) -> None:
     attributes = dict(_get_attributes_from_function_tool_call(function_tool_call, ""))
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "file_search_tool_call,prefix,expected_attributes",
+    [
+        pytest.param(
+            ResponseFileSearchToolCall(
+                id="file-call-1",
+                type="file_search_call",
+                queries=["search query"],
+                status="in_progress",
+            ),
+            "",
+            {
+                "tool_call.id": "file-call-1",
+                "tool_call.function.name": "file_search_call",
+            },
+            id="file_search_tool_call",
+        ),
+        pytest.param(
+            ResponseFileSearchToolCall(
+                id="file-call-2",
+                type="file_search_call",
+                queries=[],
+                status="completed",
+            ),
+            "custom.prefix.",
+            {
+                "custom.prefix.tool_call.id": "file-call-2",
+                "custom.prefix.tool_call.function.name": "file_search_call",
+            },
+            id="file_search_tool_call_with_prefix",
+        ),
+    ],
+)
+def test_get_attributes_from_response_file_search_tool_call(
+    file_search_tool_call: ResponseFileSearchToolCall,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(
+        _get_attributes_from_response_file_search_tool_call(file_search_tool_call, prefix)
+    )
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "web_search_tool_call,prefix,expected_attributes",
+    [
+        pytest.param(
+            ResponseFunctionWebSearch(
+                id="web-call-1",
+                type="web_search_call",
+                status="in_progress",
+                action=WebSearchAction(type="search", query="search query"),
+            ),
+            "",
+            {
+                "tool_call.id": "web-call-1",
+                "tool_call.function.name": "web_search_call",
+            },
+            id="web_search_tool_call",
+        ),
+        pytest.param(
+            ResponseFunctionWebSearch(
+                id="web-call-2",
+                type="web_search_call",
+                status="completed",
+                action=WebSearchAction(type="search", query="test query"),
+            ),
+            "prefix.0.",
+            {
+                "prefix.0.tool_call.id": "web-call-2",
+                "prefix.0.tool_call.function.name": "web_search_call",
+            },
+            id="web_search_tool_call_with_prefix",
+        ),
+    ],
+)
+def test_get_attributes_from_response_function_web_search(
+    web_search_tool_call: ResponseFunctionWebSearch,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(
+        _get_attributes_from_response_function_web_search(web_search_tool_call, prefix)
+    )
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "file_search_tool_call_param,prefix,expected_attributes",
+    [
+        pytest.param(
+            ResponseFileSearchToolCallParam(
+                id="file-call-param-1",
+                type="file_search_call",
+                queries=["search query"],
+                status="searching",
+            ),
+            "",
+            {
+                "tool_call.id": "file-call-param-1",
+                "tool_call.function.name": "file_search_call",
+            },
+            id="file_search_tool_call_param",
+        ),
+        pytest.param(
+            ResponseFileSearchToolCallParam(
+                id="file-call-param-2",
+                type="file_search_call",
+            ),  # type: ignore[typeddict-item]
+            "custom.prefix.",
+            {
+                "custom.prefix.tool_call.id": "file-call-param-2",
+                "custom.prefix.tool_call.function.name": "file_search_call",
+            },
+            id="file_search_tool_call_param_with_prefix",
+        ),
+        pytest.param(
+            {"id": "file-only-id"},  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.id": "file-only-id",
+            },
+            id="file_search_tool_call_param_only_id",
+        ),
+        pytest.param(
+            {"type": "file_search_call"},  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.function.name": "file_search_call",
+            },
+            id="file_search_tool_call_param_only_type",
+        ),
+        pytest.param(
+            {},  # type: ignore[arg-type]
+            "",
+            {},
+            id="file_search_tool_call_param_empty",
+        ),
+    ],
+)
+def test_get_attributes_from_response_file_search_tool_call_param(
+    file_search_tool_call_param: ResponseFileSearchToolCallParam,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(
+        _get_attributes_from_response_file_search_tool_call_param(
+            file_search_tool_call_param, prefix
+        )
+    )
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "web_search_tool_call_param,prefix,expected_attributes",
+    [
+        pytest.param(
+            ResponseFunctionWebSearchParam(
+                id="web-call-param-1",
+                type="web_search_call",
+                status="searching",
+                action=ActionSearch(type="search", query="search query"),
+            ),
+            "",
+            {
+                "tool_call.id": "web-call-param-1",
+                "tool_call.function.name": "web_search_call",
+            },
+            id="web_search_tool_call_param",
+        ),
+        pytest.param(
+            ResponseFunctionWebSearchParam(
+                id="web-call-param-2",
+                type="web_search_call",
+            ),  # type: ignore[typeddict-item]
+            "test.prefix.",
+            {
+                "test.prefix.tool_call.id": "web-call-param-2",
+                "test.prefix.tool_call.function.name": "web_search_call",
+            },
+            id="web_search_tool_call_param_with_prefix",
+        ),
+        pytest.param(
+            {"id": "web-only-id"},  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.id": "web-only-id",
+            },
+            id="web_search_tool_call_param_only_id",
+        ),
+        pytest.param(
+            {"type": "web_search_call"},  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.function.name": "web_search_call",
+            },
+            id="web_search_tool_call_param_only_type",
+        ),
+        pytest.param(
+            {},  # type: ignore[arg-type]
+            "",
+            {},
+            id="web_search_tool_call_param_empty",
+        ),
+    ],
+)
+def test_get_attributes_from_response_function_web_search_param(
+    web_search_tool_call_param: ResponseFunctionWebSearchParam,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(
+        _get_attributes_from_response_function_web_search_param(web_search_tool_call_param, prefix)
+    )
     assert attributes == expected_attributes
 
 

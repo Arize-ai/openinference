@@ -30,13 +30,19 @@ from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
     Response,
+    ResponseFileSearchToolCall,
+    ResponseFileSearchToolCallParam,
+    ResponseFunctionWebSearch,
+    ResponseFunctionWebSearchParam,
     ResponseInputItemParam,
     ResponseOutputMessage,
     ResponseOutputText,
     ResponseReasoningItem,
     ResponseReasoningItemParam,
 )
+from openai.types.responses.response_function_web_search import ActionSearch
 from openai.types.responses.response_reasoning_item import Summary
+from openinference.instrumentation.config import REDACTED_VALUE
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -51,7 +57,6 @@ from openinference.instrumentation import (
     using_tags,
     using_user,
 )
-from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.openai_agents._processor import OpenInferenceTracingProcessor
 
 _TRACE_ID = "trace_abc"
@@ -284,6 +289,214 @@ def test_response_spans_round_trip_reasoning_output_to_follow_up_input() -> None
     assert (
         follow_up_attrs["llm.input_messages.4.message.content"] == "Restate the answer in minutes."
     )
+
+
+def test_response_spans_round_trip_search_output_to_follow_up_input() -> None:
+    processor, exporter = _make_processor()
+    file_search_id = "file-search-123"
+    web_search_id = "web-search-456"
+
+    first_response = Response(
+        id="resp-1",
+        created_at=0.0,
+        model="gpt-4o-mini",
+        object="response",
+        output=[
+            ResponseFileSearchToolCall(
+                id=file_search_id,
+                type="file_search_call",
+                queries=["project roadmap"],
+                status="completed",
+            ),
+            ResponseFunctionWebSearch(
+                id=web_search_id,
+                type="web_search_call",
+                status="completed",
+                action=ActionSearch(type="search", query="market trends 2026"),
+            ),
+        ],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+    follow_up_input: list[ResponseInputItemParam] = [
+        EasyInputMessageParam(role="user", content="Find roadmap and market trends."),
+        ResponseFileSearchToolCallParam(
+            id=file_search_id,
+            type="file_search_call",
+            queries=["project roadmap"],
+            status="completed",
+        ),
+        ResponseFunctionWebSearchParam(
+            id=web_search_id,
+            type="web_search_call",
+            status="completed",
+            action={"type": "search", "query": "market trends 2026"},
+        ),
+        EasyInputMessageParam(role="user", content="Summarize findings."),
+    ]
+    spans = [
+        _FakeSpan(
+            "first-response",
+            None,
+            ResponseSpanData(response=first_response, input=follow_up_input[:1]),
+        ),
+        _FakeSpan(
+            "follow-up-response",
+            None,
+            ResponseSpanData(
+                response=_text_response("Here is the combined summary."),
+                input=follow_up_input,
+            ),
+        ),
+    ]
+    _run(processor, _FakeTrace(), spans)
+
+    llm_spans = [
+        _attrs(span)
+        for span in exporter.get_finished_spans()
+        if _attrs(span).get("openinference.span.kind") == "LLM"
+    ]
+    first_attrs = next(
+        attrs
+        for attrs in llm_spans
+        if attrs.get("llm.output_messages.0.message.tool_calls.0.tool_call.id") == file_search_id
+    )
+    follow_up_attrs = next(
+        attrs
+        for attrs in llm_spans
+        if attrs.get("llm.input_messages.2.message.tool_calls.0.tool_call.id") == file_search_id
+    )
+
+    # First turn output attributes:
+    assert first_attrs["llm.output_messages.0.message.role"] == "assistant"
+    assert first_attrs["llm.output_messages.0.message.tool_calls.0.tool_call.id"] == file_search_id
+    assert (
+        first_attrs["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"]
+        == "file_search_call"
+    )
+    assert first_attrs["llm.output_messages.0.message.tool_calls.1.tool_call.id"] == web_search_id
+    assert (
+        first_attrs["llm.output_messages.0.message.tool_calls.1.tool_call.function.name"]
+        == "web_search_call"
+    )
+
+    # Continuation turn input attributes:
+    # Input 0: user message at index 1
+    assert follow_up_attrs["llm.input_messages.1.message.role"] == "user"
+    assert (
+        follow_up_attrs["llm.input_messages.1.message.content"] == "Find roadmap and market trends."
+    )
+    # Input 1: file_search_call at index 2
+    assert follow_up_attrs["llm.input_messages.2.message.role"] == "assistant"
+    assert (
+        follow_up_attrs["llm.input_messages.2.message.tool_calls.0.tool_call.id"] == file_search_id
+    )
+    assert (
+        follow_up_attrs["llm.input_messages.2.message.tool_calls.0.tool_call.function.name"]
+        == "file_search_call"
+    )
+    # Input 2: web_search_call at index 3
+    assert follow_up_attrs["llm.input_messages.3.message.role"] == "assistant"
+    assert (
+        follow_up_attrs["llm.input_messages.3.message.tool_calls.0.tool_call.id"] == web_search_id
+    )
+    assert (
+        follow_up_attrs["llm.input_messages.3.message.tool_calls.0.tool_call.function.name"]
+        == "web_search_call"
+    )
+    # Input 3: user message at index 4
+    assert follow_up_attrs["llm.input_messages.4.message.role"] == "user"
+    assert follow_up_attrs["llm.input_messages.4.message.content"] == "Summarize findings."
+
+
+def test_response_spans_output_interleaved_tool_calls_and_messages() -> None:
+    processor, exporter = _make_processor()
+    file_search_id = "file-search-123"
+    web_search_id = "web-search-456"
+
+    response = Response(
+        id="resp-interleaved",
+        created_at=0.0,
+        model="gpt-4o-mini",
+        object="response",
+        output=[
+            ResponseFileSearchToolCall(
+                id=file_search_id,
+                type="file_search_call",
+                queries=["search query"],
+                status="completed",
+            ),
+            ResponseOutputMessage(
+                id="msg-1",
+                role="assistant",
+                content=[
+                    ResponseOutputText(
+                        type="output_text", text="Intermediate file findings", annotations=[]
+                    )
+                ],
+                status="completed",
+                type="message",
+            ),
+            ResponseFunctionWebSearch(
+                id=web_search_id,
+                type="web_search_call",
+                status="completed",
+                action=ActionSearch(type="search", query="web query"),
+            ),
+            ResponseOutputMessage(
+                id="msg-2",
+                role="assistant",
+                content=[
+                    ResponseOutputText(
+                        type="output_text", text="Final combined answer", annotations=[]
+                    )
+                ],
+                status="completed",
+                type="message",
+            ),
+        ],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+    spans = [
+        _FakeSpan(
+            "resp-interleaved-span",
+            None,
+            ResponseSpanData(
+                response=response,
+                input=[EasyInputMessageParam(role="user", content="Research topic.")],
+            ),
+        ),
+    ]
+    _run(processor, _FakeTrace(), spans)
+
+    llm_spans = [
+        _attrs(span)
+        for span in exporter.get_finished_spans()
+        if _attrs(span).get("openinference.span.kind") == "LLM"
+    ]
+    assert len(llm_spans) == 1
+    attrs = llm_spans[0]
+
+    # Message 0: file_search_call and its text response
+    assert attrs["llm.output_messages.0.message.role"] == "assistant"
+    assert attrs["llm.output_messages.0.message.tool_calls.0.tool_call.id"] == file_search_id
+    assert (
+        attrs["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"]
+        == "file_search_call"
+    )
+    assert attrs["llm.output_messages.0.message.content"] == "Intermediate file findings"
+
+    # Message 1: web_search_call and its text response; tool_call index MUST start at 0
+    assert attrs["llm.output_messages.1.message.role"] == "assistant"
+    assert attrs["llm.output_messages.1.message.tool_calls.0.tool_call.id"] == web_search_id
+    assert (
+        attrs["llm.output_messages.1.message.tool_calls.0.tool_call.function.name"]
+        == "web_search_call"
+    )
+    assert attrs["llm.output_messages.1.message.content"] == "Final combined answer"
 
 
 # --- agent.name on agent spans ------------------------------------------------------
