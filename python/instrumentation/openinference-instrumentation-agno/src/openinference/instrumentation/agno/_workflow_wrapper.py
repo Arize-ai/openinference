@@ -9,22 +9,23 @@ from typing import (
     Tuple,
 )
 
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation.agno._context import get_activation
 from openinference.instrumentation.agno.utils import (
     _AGNO_ARUN_SPANNED_CONTEXT_KEY,
     _AGNO_PARENT_NODE_CONTEXT_KEY,
     _bind_arguments,
     _flatten,
     _generate_node_id,
-)
-from openinference.semconv.trace import (
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
 )
 
 
@@ -143,7 +144,7 @@ def _workflow_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
 def _step_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
     """Extract attributes from step instance."""
     # Get parent from execution context
-    context_parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+    context_parent_id = get_activation().get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
 
     if hasattr(instance, "name") and instance.name:
         yield GRAPH_NODE_NAME, instance.name
@@ -222,7 +223,7 @@ class _WorkflowWrapper:
         workflow_token = None
         result = None
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            with get_activation().use_span(span):
                 workflow_token = _setup_node_context(node_id)
                 result = wrapped(*args, **kwargs)
 
@@ -232,7 +233,7 @@ class _WorkflowWrapper:
                 if is_streaming:
                     if workflow_token:
                         try:
-                            context_api.detach(workflow_token)
+                            get_activation().detach(workflow_token)
                             workflow_token = None
                         except Exception:
                             pass
@@ -241,7 +242,7 @@ class _WorkflowWrapper:
                 # Non-streaming mode - detach token immediately while still in span context
                 if workflow_token:
                     try:
-                        context_api.detach(workflow_token)
+                        get_activation().detach(workflow_token)
                         workflow_token = None
                     except Exception:
                         pass
@@ -283,7 +284,7 @@ class _WorkflowWrapper:
             if not is_streaming:
                 if workflow_token:
                     try:
-                        context_api.detach(workflow_token)
+                        get_activation().detach(workflow_token)
                     except Exception:
                         pass
                 span.end()
@@ -303,16 +304,16 @@ class _WorkflowWrapper:
                 ctx_token = None
                 workflow_token = None
                 try:
-                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    ctx_token = get_activation().attach_span(span)
                     workflow_token = _setup_node_context(node_id)
                     response = next(iterator)
                 except StopIteration:
                     break
                 finally:
                     if workflow_token is not None:
-                        context_api.detach(workflow_token)
+                        get_activation().detach(workflow_token)
                     if ctx_token is not None:
-                        context_api.detach(ctx_token)
+                        get_activation().detach(ctx_token)
 
                 final_response = response
                 yield response
@@ -393,7 +394,7 @@ class _WorkflowWrapper:
         # Setup context and call wrapped to detect streaming
         workflow_token = None
         is_streaming = False
-        with trace_api.use_span(span, end_on_exit=False):
+        with get_activation().use_span(span):
             workflow_token = _setup_node_context(node_id)
             try:
                 result = wrapped(*args, **kwargs)
@@ -402,7 +403,7 @@ class _WorkflowWrapper:
                 is_streaming = hasattr(result, "__aiter__")
             finally:
                 if workflow_token is not None:
-                    context_api.detach(workflow_token)
+                    get_activation().detach(workflow_token)
                     workflow_token = None
 
         if is_streaming:
@@ -414,7 +415,7 @@ class _WorkflowWrapper:
             ctx_token = None
             spanned_token = None
             try:
-                ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                ctx_token = get_activation().attach_span(span)
                 if workflow_token is None:
                     workflow_token = _setup_node_context(node_id)
                 # Set the context-local marker so _WorkflowExecuteWrapper.aexecute
@@ -426,13 +427,13 @@ class _WorkflowWrapper:
 
                 # Detach tokens immediately after execution completes
                 if workflow_token is not None:
-                    context_api.detach(workflow_token)
+                    get_activation().detach(workflow_token)
                     workflow_token = None
                 if spanned_token is not None:
                     context_api.detach(spanned_token)
                     spanned_token = None
                 if ctx_token is not None:
-                    context_api.detach(ctx_token)
+                    get_activation().detach(ctx_token)
                     ctx_token = None
 
                 span.set_status(trace_api.StatusCode.OK)
@@ -465,9 +466,9 @@ class _WorkflowWrapper:
                 if spanned_token is not None:
                     context_api.detach(spanned_token)
                 if workflow_token is not None:
-                    context_api.detach(workflow_token)
+                    get_activation().detach(workflow_token)
                 if ctx_token is not None:
-                    context_api.detach(ctx_token)
+                    get_activation().detach(ctx_token)
                 span.end()
 
         return non_stream_wrapper()
@@ -488,7 +489,7 @@ class _WorkflowWrapper:
                 workflow_token = None
                 spanned_token = None
                 try:
-                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    ctx_token = get_activation().attach_span(span)
                     workflow_token = _setup_node_context(node_id)
                     spanned_token = _setup_arun_spanned_context()
                     response = await anext(iterator)
@@ -498,9 +499,9 @@ class _WorkflowWrapper:
                     if spanned_token is not None:
                         context_api.detach(spanned_token)
                     if workflow_token is not None:
-                        context_api.detach(workflow_token)
+                        get_activation().detach(workflow_token)
                     if ctx_token is not None:
-                        context_api.detach(ctx_token)
+                        get_activation().detach(ctx_token)
 
                 final_response = response
                 yield response
@@ -618,15 +619,15 @@ class _WorkflowExecuteWrapper:
         workflow_token = None
         ctx_token = None
         try:
-            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+            ctx_token = get_activation().attach_span(span)
             workflow_token = _setup_node_context(node_id)
             response = await wrapped(*args, **kwargs)
 
             if workflow_token is not None:
-                context_api.detach(workflow_token)
+                get_activation().detach(workflow_token)
                 workflow_token = None
             if ctx_token is not None:
-                context_api.detach(ctx_token)
+                get_activation().detach(ctx_token)
                 ctx_token = None
 
             span.set_status(trace_api.StatusCode.OK)
@@ -646,12 +647,12 @@ class _WorkflowExecuteWrapper:
         finally:
             if workflow_token is not None:
                 try:
-                    context_api.detach(workflow_token)
+                    get_activation().detach(workflow_token)
                 except Exception:
                     pass
             if ctx_token is not None:
                 try:
-                    context_api.detach(ctx_token)
+                    get_activation().detach(ctx_token)
                 except Exception:
                     pass
             span.end()
@@ -703,16 +704,16 @@ class _WorkflowExecuteWrapper:
                 ctx_token = None
                 workflow_token = None
                 try:
-                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    ctx_token = get_activation().attach_span(span)
                     workflow_token = _setup_node_context(node_id)
                     event = await anext(async_iter)
                 except StopAsyncIteration:
                     break
                 finally:
                     if workflow_token is not None:
-                        context_api.detach(workflow_token)
+                        get_activation().detach(workflow_token)
                     if ctx_token is not None:
-                        context_api.detach(ctx_token)
+                        get_activation().detach(ctx_token)
 
                 yield event
 
@@ -752,7 +753,7 @@ class _StepWrapper:
         node_id = _generate_node_id()
 
         # Get parent node ID from workflow context
-        parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+        parent_id = get_activation().get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
 
         # Bind arguments to extract input
         arguments = _bind_arguments(wrapped, *args, **kwargs)
@@ -776,7 +777,7 @@ class _StepWrapper:
         step_token = None
         result = None
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            with get_activation().use_span(span):
                 step_token = _setup_node_context(node_id)
                 result = wrapped(*args, **kwargs)
 
@@ -786,7 +787,7 @@ class _StepWrapper:
                 if is_streaming:
                     if step_token:
                         try:
-                            context_api.detach(step_token)
+                            get_activation().detach(step_token)
                             step_token = None
                         except Exception:
                             pass
@@ -795,7 +796,7 @@ class _StepWrapper:
                 # Non-streaming mode - detach token immediately while still in span context
                 if step_token:
                     try:
-                        context_api.detach(step_token)
+                        get_activation().detach(step_token)
                         step_token = None
                     except Exception:
                         pass
@@ -824,7 +825,7 @@ class _StepWrapper:
             if not is_streaming:
                 if step_token:
                     try:
-                        context_api.detach(step_token)
+                        get_activation().detach(step_token)
                     except Exception:
                         pass
                 span.end()
@@ -843,16 +844,16 @@ class _StepWrapper:
                 ctx_token = None
                 step_token = None
                 try:
-                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    ctx_token = get_activation().attach_span(span)
                     step_token = _setup_node_context(node_id)
                     response = next(iterator)
                 except StopIteration:
                     break
                 finally:
                     if step_token is not None:
-                        context_api.detach(step_token)
+                        get_activation().detach(step_token)
                     if ctx_token is not None:
-                        context_api.detach(ctx_token)
+                        get_activation().detach(ctx_token)
 
                 final_response = response
                 yield response
@@ -894,7 +895,7 @@ class _StepWrapper:
         node_id = _generate_node_id()
 
         # Get parent node ID from workflow context
-        parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+        parent_id = get_activation().get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
 
         # Bind arguments to extract input
         arguments = _bind_arguments(wrapped, *args, **kwargs)
@@ -918,7 +919,7 @@ class _StepWrapper:
         # Setup context and call wrapped to detect streaming
         step_token = None
         is_streaming = False
-        with trace_api.use_span(span, end_on_exit=False):
+        with get_activation().use_span(span):
             step_token = _setup_node_context(node_id)
             result = wrapped(*args, **kwargs)
 
@@ -926,7 +927,7 @@ class _StepWrapper:
             is_streaming = hasattr(result, "__aiter__")
             if is_streaming and step_token:
                 try:
-                    context_api.detach(step_token)
+                    get_activation().detach(step_token)
                     step_token = None
                 except Exception:
                     pass
@@ -939,17 +940,17 @@ class _StepWrapper:
             nonlocal step_token
             ctx_token = None
             try:
-                ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                ctx_token = get_activation().attach_span(span)
                 if step_token is None:
                     step_token = _setup_node_context(node_id)
                 response = await result
 
                 # Detach tokens immediately after execution completes
                 if step_token is not None:
-                    context_api.detach(step_token)
+                    get_activation().detach(step_token)
                     step_token = None
                 if ctx_token is not None:
-                    context_api.detach(ctx_token)
+                    get_activation().detach(ctx_token)
                     ctx_token = None
 
                 span.set_status(trace_api.StatusCode.OK)
@@ -967,9 +968,9 @@ class _StepWrapper:
 
             finally:
                 if step_token is not None:
-                    context_api.detach(step_token)
+                    get_activation().detach(step_token)
                 if ctx_token is not None:
-                    context_api.detach(ctx_token)
+                    get_activation().detach(ctx_token)
                 span.end()
 
         return non_stream_wrapper()
@@ -988,16 +989,16 @@ class _StepWrapper:
                 ctx_token = None
                 step_token = None
                 try:
-                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    ctx_token = get_activation().attach_span(span)
                     step_token = _setup_node_context(node_id)
                     response = await anext(iterator)
                 except StopAsyncIteration:
                     break
                 finally:
                     if step_token is not None:
-                        context_api.detach(step_token)
+                        get_activation().detach(step_token)
                     if ctx_token is not None:
-                        context_api.detach(ctx_token)
+                        get_activation().detach(ctx_token)
 
                 final_response = response
                 yield response
@@ -1051,7 +1052,7 @@ class _ParallelWrapper:
         node_id = _generate_node_id()
 
         # Get parent node ID from workflow context
-        parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+        parent_id = get_activation().get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
 
         # Bind arguments
         arguments = _bind_arguments(wrapped, *args, **kwargs)
@@ -1076,7 +1077,7 @@ class _ParallelWrapper:
         parallel_token = None
         result = None
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            with get_activation().use_span(span):
                 parallel_token = _setup_node_context(node_id)
 
                 # Context propagation is now handled by Agno's copy_context().run
@@ -1088,7 +1089,7 @@ class _ParallelWrapper:
                 if is_streaming:
                     if parallel_token:
                         try:
-                            context_api.detach(parallel_token)
+                            get_activation().detach(parallel_token)
                             parallel_token = None
                         except Exception:
                             pass
@@ -1097,7 +1098,7 @@ class _ParallelWrapper:
                 # Non-streaming mode - detach token immediately
                 if parallel_token:
                     try:
-                        context_api.detach(parallel_token)
+                        get_activation().detach(parallel_token)
                         parallel_token = None
                     except Exception:
                         pass
@@ -1127,7 +1128,7 @@ class _ParallelWrapper:
             if not is_streaming:
                 if parallel_token:
                     try:
-                        context_api.detach(parallel_token)
+                        get_activation().detach(parallel_token)
                     except Exception:
                         pass
                 span.end()
@@ -1146,16 +1147,16 @@ class _ParallelWrapper:
                 ctx_token = None
                 parallel_token = None
                 try:
-                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    ctx_token = get_activation().attach_span(span)
                     parallel_token = _setup_node_context(node_id)
                     response = next(iterator)
                 except StopIteration:
                     break
                 finally:
                     if parallel_token is not None:
-                        context_api.detach(parallel_token)
+                        get_activation().detach(parallel_token)
                     if ctx_token is not None:
-                        context_api.detach(ctx_token)
+                        get_activation().detach(ctx_token)
 
                 if hasattr(response, "content") and response.content:
                     accumulated_output.append(str(response.content))
@@ -1194,7 +1195,7 @@ class _ParallelWrapper:
         node_id = _generate_node_id()
 
         # Get parent node ID from workflow context
-        parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+        parent_id = get_activation().get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
 
         # Bind arguments
         arguments = _bind_arguments(wrapped, *args, **kwargs)
@@ -1219,7 +1220,7 @@ class _ParallelWrapper:
         # Setup context and call wrapped to detect streaming
         parallel_token = None
         is_streaming = False
-        with trace_api.use_span(span, end_on_exit=False):
+        with get_activation().use_span(span):
             parallel_token = _setup_node_context(node_id)
 
             result = wrapped(*args, **kwargs)
@@ -1228,7 +1229,7 @@ class _ParallelWrapper:
             is_streaming = hasattr(result, "__aiter__")
             if is_streaming and parallel_token:
                 try:
-                    context_api.detach(parallel_token)
+                    get_activation().detach(parallel_token)
                     parallel_token = None
                 except Exception:
                     pass
@@ -1241,17 +1242,17 @@ class _ParallelWrapper:
             nonlocal parallel_token
             ctx_token = None
             try:
-                ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                ctx_token = get_activation().attach_span(span)
                 if parallel_token is None:
                     parallel_token = _setup_node_context(node_id)
                 response = await result
 
                 # Detach tokens immediately after execution completes
                 if parallel_token is not None:
-                    context_api.detach(parallel_token)
+                    get_activation().detach(parallel_token)
                     parallel_token = None
                 if ctx_token is not None:
-                    context_api.detach(ctx_token)
+                    get_activation().detach(ctx_token)
                     ctx_token = None
 
                 span.set_status(trace_api.StatusCode.OK)
@@ -1269,9 +1270,9 @@ class _ParallelWrapper:
 
             finally:
                 if parallel_token is not None:
-                    context_api.detach(parallel_token)
+                    get_activation().detach(parallel_token)
                 if ctx_token is not None:
-                    context_api.detach(ctx_token)
+                    get_activation().detach(ctx_token)
                 span.end()
 
         return non_stream_wrapper()
@@ -1290,16 +1291,16 @@ class _ParallelWrapper:
                 ctx_token = None
                 parallel_token = None
                 try:
-                    ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+                    ctx_token = get_activation().attach_span(span)
                     parallel_token = _setup_node_context(node_id)
                     response = await anext(iterator)
                 except StopAsyncIteration:
                     break
                 finally:
                     if parallel_token is not None:
-                        context_api.detach(parallel_token)
+                        get_activation().detach(parallel_token)
                     if ctx_token is not None:
-                        context_api.detach(ctx_token)
+                        get_activation().detach(ctx_token)
 
                 if hasattr(response, "content") and response.content:
                     accumulated_output.append(str(response.content))
@@ -1323,7 +1324,7 @@ class _ParallelWrapper:
 
 def _setup_node_context(node_id: str) -> Any:
     """Set up context for different nodes to propagate to child steps."""
-    return context_api.attach(context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id))
+    return get_activation().attach_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
 
 
 def _setup_arun_spanned_context() -> Any:
