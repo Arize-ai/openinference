@@ -59,7 +59,7 @@ Some frameworks expose first-class middleware or telemetry hooks instead of bein
 
 ## Examples
 
-For more examples on how to use OpenInference, see the [examples](./examples) directory.
+For more examples on how to use OpenInference, see the [examples](https://github.com/Arize-ai/openinference/tree/main/js/packages/openinference-instrumentation-openai/examples) directory.
 
 ## Contributing
 
