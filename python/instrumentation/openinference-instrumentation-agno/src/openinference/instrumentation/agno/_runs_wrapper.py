@@ -14,6 +14,12 @@ from typing import (
     cast,
 )
 
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context.context import Context
@@ -31,17 +37,12 @@ from agno.team import Team
 from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation.agno._context import get_activation
 from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
     _bind_arguments,
     _flatten,
     _generate_node_id,
-)
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
 )
 
 
@@ -160,7 +161,7 @@ def _agent_run_attributes(
     agent: Union[Agent, Team], key_suffix: str = ""
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # Get parent from execution context instead of structural parent
-    context_parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+    context_parent_id = get_activation().get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
 
     if isinstance(agent, Team):
         # Set graph attributes for team
@@ -228,13 +229,10 @@ def _agent_run_attributes(
             yield f"agno{key_suffix}.tools", tool_names
 
 
-def _setup_team_context(
-    agent_or_team: Optional[Union[Agent, Team]], node_id: str
-) -> Tuple[Optional[Any], Optional[Context]]:
+def _setup_team_context(agent_or_team: Optional[Union[Agent, Team]], node_id: str) -> Optional[Any]:
     if isinstance(agent_or_team, Team):
-        team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
-        return context_api.attach(team_ctx), team_ctx
-    return None, None
+        return get_activation().attach_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
+    return None
 
 
 def _get_agent_or_team(
@@ -273,16 +271,16 @@ def _get_team_span_context(agent_or_team: Optional[Union[Agent, Team]]) -> Optio
         return None
 
     # If there's already a recording span in context, record team span under it.
-    if trace_api.get_current_span().is_recording():
+    if get_activation().get_current_span().is_recording():
         return None
 
     # Check if we're inside a parent Team context (internal agno context key)
-    parent_team_node_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+    parent_team_node_id = get_activation().get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
 
     # Only force root span if we're NOT inside a parent Team
     if parent_team_node_id is None:
         # No parent team context - create root span for top-level Team
-        return trace_api.set_span_in_context(trace_api.INVALID_SPAN)
+        return trace_api.set_span_in_context(trace_api.INVALID_SPAN, get_activation().get_current())
 
     # Inside parent team - let it nest naturally
     return None
@@ -294,9 +292,9 @@ def detach_context_tokens(
     """Helper function to detach context token with error handling."""
     if initial_thread is current_thread:
         if team_token:
-            context_api.detach(team_token)
+            get_activation().detach(team_token)
         if ctx_token is not None:
-            context_api.detach(ctx_token)
+            get_activation().detach(ctx_token)
 
 
 class _RunWrapper:
@@ -366,15 +364,15 @@ class _RunWrapper:
         )
 
         try:
-            with trace_api.use_span(span, end_on_exit=False):
-                team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
+            with get_activation().use_span(span):
+                team_token = _setup_team_context(agent_or_team, node_id)
                 try:
                     run_response: RunOutput = wrapped(*args, **kwargs)
                 finally:
                     # Detach while still in span context so tokens unwind in LIFO order
                     if team_token:
                         try:
-                            context_api.detach(team_token)
+                            get_activation().detach(team_token)
                         except Exception:
                             pass
             _set_run_status(span, run_response)
@@ -456,8 +454,8 @@ class _RunWrapper:
             run_response = None
             # Manually attach/detach instead of use_span() context manager to context errors
             # when yielding results across threads.
-            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
-            team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
+            ctx_token = get_activation().attach_span(span)
+            team_token = _setup_team_context(agent_or_team, node_id)
             for response in wrapped(*args, **kwargs):
                 if hasattr(response, "run_id"):
                     current_run_id = response.run_id
@@ -538,15 +536,15 @@ class _RunWrapper:
         )
 
         try:
-            with trace_api.use_span(span, end_on_exit=False):
-                team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
+            with get_activation().use_span(span):
+                team_token = _setup_team_context(agent_or_team, node_id)
                 try:
                     run_response = await wrapped(*args, **kwargs)
                 finally:
                     # Detach while still in span context so tokens unwind in LIFO order
                     if team_token:
                         try:
-                            context_api.detach(team_token)
+                            get_activation().detach(team_token)
                         except Exception:
                             pass
             _set_run_status(span, run_response)
@@ -629,8 +627,8 @@ class _RunWrapper:
             run_response = None
             completed_event_output = ""
             iterator = cast(AsyncIterator[Any], wrapped(*args, **kwargs))
-            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
-            team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
+            ctx_token = get_activation().attach_span(span)
+            team_token = _setup_team_context(agent_or_team, node_id)
             async for response in iterator:
                 if hasattr(response, "run_id"):
                     current_run_id = response.run_id

@@ -14,16 +14,6 @@ from typing import (
     Tuple,
 )
 
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
-
-from agno.models.base import Model
-from openinference.instrumentation import (
-    get_attributes_from_context,
-    infer_llm_system_from_model_name,
-    safe_json_dumps,
-)
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -34,6 +24,17 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.util.types import AttributeValue
+
+from agno.models.base import Model
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    infer_llm_system_from_model_name,
+    safe_json_dumps,
+)
+from openinference.instrumentation.agno._context import get_activation
 
 
 def _get_gemini_vertexai_mode(model: Model) -> Optional[bool]:
@@ -461,7 +462,7 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.invoke"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
@@ -470,7 +471,8 @@ class _ModelWrapper:
                 **dict(_llm_invocation_parameters(model, arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with get_activation().use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -523,7 +525,7 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.invoke_stream"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
@@ -532,7 +534,8 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with get_activation().use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -600,7 +603,7 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.ainvoke"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
@@ -609,7 +612,8 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with get_activation().use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -668,7 +672,7 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.ainvoke_stream"
 
-        with self._tracer.start_as_current_span(
+        span = self._tracer.start_span(
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
@@ -677,7 +681,8 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
+        )
+        with get_activation().use_span(span, end_on_exit=True):
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):

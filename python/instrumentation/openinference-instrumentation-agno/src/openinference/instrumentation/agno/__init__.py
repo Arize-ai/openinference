@@ -5,8 +5,12 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import (
-    OITracer,
     TraceConfig,
+)
+from openinference.instrumentation.agno._context import (
+    ActivationTracer,
+    SpanActivation,
+    set_activation,
 )
 from openinference.instrumentation.agno.version import __version__
 
@@ -120,7 +124,10 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             config = TraceConfig()
         else:
             assert isinstance(config, TraceConfig)
-        self._tracer = OITracer(
+
+        set_activation(SpanActivation(kwargs.get("runtime_context")))
+
+        self._tracer = ActivationTracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
@@ -465,6 +472,8 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_parallel_methods = None  # type: ignore[assignment]
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        set_activation(SpanActivation())
+
         from agno.agent import _run as agent_run_module
         from agno.team import _run as team_run_module
         from agno.tools.function import FunctionCall
