@@ -3,6 +3,7 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 import {
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
   mapAgentAttributes,
+  mapFinishReason,
   mapInputMessages,
   mapInputValue,
   mapInvocationParameters,
@@ -698,6 +699,14 @@ describe("attributes helpers", () => {
   });
 
   describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
+    it("includes finish reason when present", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        "gen_ai.operation.name": "chat",
+        "gen_ai.response.finish_reasons": ["tool_calls"],
+      });
+      expect(attrs["llm.finish_reason"]).toBe("tool_calls");
+    });
+
     it("returns minimal defaults for empty attributes (span kind only)", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({});
       expect(attrs).toEqual({ "openinference.span.kind": "LLM" });
@@ -713,5 +722,41 @@ describe("attributes helpers", () => {
         "openinference.span.kind": "AGENT",
       });
     });
+  });
+});
+
+describe("mapFinishReason", () => {
+  it("maps the first finish reason", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": ["tool_calls"],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("tool_calls");
+  });
+
+  it("takes only the first reason when multiple are present", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": ["stop", "length"],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
+  });
+
+  it('defaults to "stop" when the array is empty', () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": [],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
+  });
+
+  it("sets nothing when the attribute is absent", () => {
+    const attrs = mapFinishReason({});
+    expect(attrs).toEqual({});
+  });
+
+  it("ignores non-array/malformed values (malformed)", () => {
+    const attrs = mapFinishReason({
+      // @ts-expect-error purposely malformed type
+      "gen_ai.response.finish_reasons": "stop",
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
   });
 });
