@@ -347,6 +347,12 @@ class TraceConfig:
             value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
             return None
+        elif (self.hide_inputs or self.hide_input_images) and _is_within(
+            key, SpanAttributes.INPUT_IMAGES
+        ):
+            return None
+        elif self.hide_outputs and _is_within(key, SpanAttributes.OUTPUT_IMAGES):
+            return None
         elif self.hide_inputs and key == RerankerAttributes.RERANKER_QUERY:
             value = REDACTED_VALUE
         elif self.hide_inputs and (
@@ -407,11 +413,7 @@ class TraceConfig:
             and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
         ):
             return None
-        elif (
-            (SpanAttributes.LLM_INPUT_MESSAGES in key or SpanAttributes.LLM_OUTPUT_MESSAGES in key)
-            and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
-            and key.endswith(ImageAttributes.IMAGE_URL)
-        ):
+        elif _is_image_url(key):
             # Resolve lazy values before the size check so an oversized image
             # cannot bypass the budget by arriving as a callable.
             value = value() if callable(value) else value
@@ -539,6 +541,25 @@ def mask_without_externalization(
     if _mask_supports_externalize(type(config)):
         return config.mask(key, value, externalize=False)
     return config.mask(key, value)
+
+
+def _is_within(key: str, namespace: str) -> bool:
+    """True for the namespace itself and anything indexed under it."""
+    return key == namespace or key.startswith(f"{namespace}.")
+
+
+def _is_image_url(key: str) -> bool:
+    """True for both image.url spellings: the one nested under a message content
+    item, and the span-level input.images / output.images entries."""
+    if not key.endswith(ImageAttributes.IMAGE_URL):
+        return False
+    if (
+        SpanAttributes.LLM_INPUT_MESSAGES in key or SpanAttributes.LLM_OUTPUT_MESSAGES in key
+    ) and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key:
+        return True
+    return _is_within(key, SpanAttributes.INPUT_IMAGES) or _is_within(
+        key, SpanAttributes.OUTPUT_IMAGES
+    )
 
 
 def is_base64_url(url: str) -> bool:
