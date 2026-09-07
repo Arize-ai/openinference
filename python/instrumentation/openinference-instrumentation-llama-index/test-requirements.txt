@@ -1,4 +1,4 @@
-anthropic<1.1
+anthropic<1.3
 llama-index-core==0.14.19
 # anthropic>=1.0 removed `temperature` from `messages.create`; 0.11.3 is the first
 # llama-index-llms-anthropic release that omits it for models that reject it.
