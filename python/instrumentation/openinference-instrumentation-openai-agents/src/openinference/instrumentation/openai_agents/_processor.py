@@ -388,6 +388,9 @@ def _get_attributes_from_input(
         elif item["type"] == "program_output":
             # TODO: Handle program output
             continue
+        elif item["type"] == "configuration_update":
+            # TODO: Handle configuration update
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
 
