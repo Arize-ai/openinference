@@ -264,3 +264,25 @@ def test_a_failed_first_pass_is_retried_rather_than_suppressed(
 
     span = in_memory_span_exporter.get_finished_spans()[0]
     assert f"{SpanAttributes.LLM_TOOLS}.0.tool.json_schema" in (span.attributes or {})
+
+
+def test_request_attributes_are_not_rederived_after_request_mutation(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Request-side attributes are derived only once, even if the request is later mutated."""
+    tool = _tool()
+    request = _request(tool)
+    tracer = _oi_tracer(tracer_provider)
+    wrapped = _TraceCallLlm(tracer)(_noop_trace_call_llm)
+
+    with tracer.start_as_current_span("call_llm"):
+        wrapped(None, "e1", request, _chunk("a"), None)
+
+        request.model = "gemini-2.5-flash"
+        wrapped(None, "e1", request, _chunk("b"), None)
+
+    assert tool.calls == 1
+
+    span = in_memory_span_exporter.get_finished_spans()[0]
+    assert (span.attributes or {})[SpanAttributes.LLM_MODEL_NAME] == "gemini-2.0-flash"
