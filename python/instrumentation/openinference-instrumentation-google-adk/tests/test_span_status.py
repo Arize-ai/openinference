@@ -16,7 +16,8 @@ from secrets import token_hex
 from typing import Any, AsyncGenerator, Optional
 
 from google.adk import Agent
-from google.adk.agents.run_config import RunConfig, StreamingMode
+from google.adk.agents import run_config
+from google.adk.agents.run_config import RunConfig
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -25,6 +26,11 @@ from google.genai import types
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
+
+# StreamingMode is no longer re-exported from run_config in recent
+# google-adk (it moved to google.adk.agents._streaming_mode); getattr keeps
+# this working against both old and new SDK layouts.
+StreamingMode = getattr(run_config, "StreamingMode")
 
 
 def _tool_call_response(tool_name: str, **args: Any) -> LlmResponse:
