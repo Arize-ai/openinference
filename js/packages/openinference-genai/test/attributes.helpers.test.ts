@@ -754,7 +754,6 @@ describe("mapFinishReason", () => {
 
   it("ignores non-array/malformed values (malformed)", () => {
     const attrs = mapFinishReason({
-      // @ts-expect-error purposely malformed type
       "gen_ai.response.finish_reasons": "stop",
     });
     expect(attrs["llm.finish_reason"]).toBe("stop");
