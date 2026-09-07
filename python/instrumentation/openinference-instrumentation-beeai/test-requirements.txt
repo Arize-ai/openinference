@@ -2,7 +2,7 @@ opentelemetry-sdk
 opentelemetry-exporter-otlp
 pytest-recording
 vcrpy
-beeai-framework[duckduckgo]==0.1.51
+beeai-framework[duckduckgo]==0.1.83
 pytest-asyncio
 pytest
 # Security floors for transitive dependencies pulled in via beeai-framework.
@@ -12,3 +12,4 @@ aiohttp>=3.14.1
 # ...), so install the extra to keep tool-using tests working.
 litellm[proxy]>=1.84.0
 python-dotenv>=1.2.2
+json-repair>=0.60.1
