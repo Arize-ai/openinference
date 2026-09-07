@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from typing import Any, Generator, Optional, cast
 
@@ -7,6 +8,7 @@ from agno.agent import Agent
 from agno.models.base import Model
 from agno.models.openai.chat import OpenAIChat
 from agno.models.openai.responses import OpenAIResponses
+from agno.models.openrouter import OpenRouter
 from agno.run.agent import RunOutput
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
@@ -730,3 +732,145 @@ def test_agno_reasoning_content_stream_instrumentation(
 
     # Flat message.content retained for backward compatibility
     assert attributes.get("llm.output_messages.0.message.content")
+
+
+def test_agno_openrouter_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """llm.cost.total is set from a real OpenRouter response.
+
+    OpenRouter reports the charged cost on the usage object. Agno keeps it on
+    MessageMetrics.cost, and the instrumentor forwards it to the LLM span.
+    """
+    with test_vcr.use_cassette(
+        "agent_run_openrouter_cost.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENROUTER_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="Cost Agent",
+            model=OpenRouter(id="openai/gpt-4o-mini"),
+        )
+        agent.run("Reply with a single word: ping.")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_spans = [
+        span
+        for span in spans
+        if dict(span.attributes or {}).get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    ]
+    assert len(llm_spans) == 1
+    span = llm_spans[0]
+    assert span.name == "OpenRouter.invoke"
+    assert span.status.is_ok
+
+    # Every attribute is popped so the final assertion catches anything the
+    # instrumentor emits beyond what this test accounts for.
+    attributes = dict(span.attributes or {})
+
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "OpenRouter"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "openai/gpt-4o-mini"
+
+    # The recorded OpenRouter response reports usage.cost, which agno keeps on
+    # MessageMetrics.cost and the instrumentor forwards to the span.
+    assert attributes.pop(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(3.45e-06)
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 15
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 2
+
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    # The serialized message carries a generated id and timestamp, so only the
+    # stable fields are checked here.
+    input_messages = json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE)))["messages"]
+    assert [(m["role"], m["content"]) for m in input_messages] == [
+        ("user", "Reply with a single word: ping.")
+    ]
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert (
+        attributes.pop("llm.input_messages.0.message.content") == "Reply with a single word: ping."
+    )
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == '{"max_tokens": 1024}'
+
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert json.loads(cast(str, attributes.pop(SpanAttributes.OUTPUT_VALUE))) == [
+        {"role": "assistant", "content": "pong."}
+    ]
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert attributes.pop("llm.output_messages.0.message.content") == "pong."
+
+    assert not attributes
+
+
+def test_agno_openrouter_llm_cost_total_stream(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """llm.cost.total is set from a real streamed OpenRouter response.
+
+    In a stream the usage, and with it the cost, only arrives on the final
+    chunk, which is where the existing token-count logic already looks.
+    """
+    with test_vcr.use_cassette(
+        "agent_run_openrouter_cost_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENROUTER_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="Cost Stream Agent",
+            model=OpenRouter(id="openai/gpt-4o-mini"),
+        )
+        for _ in agent.run("Reply with a single word: ping.", stream=True):
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_spans = [
+        span
+        for span in spans
+        if dict(span.attributes or {}).get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    ]
+    assert len(llm_spans) == 1
+    span = llm_spans[0]
+    assert span.name == "OpenRouter.invoke_stream"
+    assert span.status.is_ok
+
+    # Every attribute is popped so the final assertion catches anything the
+    # instrumentor emits beyond what this test accounts for.
+    attributes = dict(span.attributes or {})
+
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "OpenRouter"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "openai/gpt-4o-mini"
+
+    assert attributes.pop(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(3.45e-06)
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 15
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 2
+
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    # The serialized message carries a generated id and timestamp, so only the
+    # stable fields are checked here.
+    input_messages = json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE)))["messages"]
+    assert [(m["role"], m["content"]) for m in input_messages] == [
+        ("user", "Reply with a single word: ping.")
+    ]
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert (
+        attributes.pop("llm.input_messages.0.message.content") == "Reply with a single word: ping."
+    )
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == '{"max_tokens": 1024}'
+
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    # The streaming path wraps the accumulated messages in a dict.
+    assert json.loads(cast(str, attributes.pop(SpanAttributes.OUTPUT_VALUE))) == {
+        "messages": [{"role": "assistant", "content": "pong."}]
+    }
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert attributes.pop("llm.output_messages.0.message.content") == "pong."
+
+    assert not attributes
