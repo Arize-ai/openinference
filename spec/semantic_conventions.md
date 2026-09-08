@@ -339,7 +339,7 @@ For messages containing multiple content items (text, images, audio, video, reas
 
 #### Span-root audio (voice sessions)
 
-For realtime or live voice spans that are not chat message lists. Compose `input.` or `output.` with the `audio.*` leaves:
+For realtime or live voice spans that are not chat message lists. Compose `input.` or `output.` with the `audio.*` leaves. Each span carries at most one audio payload (no `input.audio.<index>`):
 
 - `input.audio.url` - User audio URL or WAV data URI
 - `input.audio.mime_type` - User audio MIME type

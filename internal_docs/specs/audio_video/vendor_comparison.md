@@ -98,7 +98,7 @@ Published keys on those spans:
 
 Leaves are the same `AudioAttributes` used under `message.contents`. Prefixes differ because the span is not an LLM message list.
 
-Do not collapse this tree onto `llm.input_messages` in order to reuse Phoenix's chat renderer. That rewrite belongs in a later instrumentor change, if product wants it.
+Keep this tree off `llm.input_messages`. Phoenix's chat renderer is not a reason to rewrite USER spans as fake chat completions. The event-level map and the `_realtime.py` constant swap are in [openai_realtime.md](./openai_realtime.md).
 
 ---
 
@@ -124,6 +124,8 @@ Prefix every row with `llm.<input|output>_messages.<i>.message.contents.<j>.`.
 Double nesting is intentional. It matches `message_content.image.image.url`. Constants compose as `MESSAGE_CONTENT_VIDEO` + `VIDEO_URL`.
 
 ### Span-root voice
+
+These keys are singular on each span. One USER span owns one `user_audio_buf`. One LLM span owns one `asst_audio_buf`. Split speech or typed text is another USER sibling, not `input.audio.0.url`. Multipart arrays stay on `message.contents` for chat APIs.
 
 | Provider field | OpenInference attribute |
 |---|---|
