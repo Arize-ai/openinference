@@ -18,6 +18,7 @@ import {
   ATTR_GEN_AI_REQUEST_TEMPERATURE,
   ATTR_GEN_AI_REQUEST_TOP_K,
   ATTR_GEN_AI_REQUEST_TOP_P,
+  ATTR_GEN_AI_RESPONSE_FINISH_REASONS,
   ATTR_GEN_AI_RESPONSE_MODEL,
   ATTR_GEN_AI_TOOL_CALL_ID,
   ATTR_GEN_AI_TOOL_DESCRIPTION,
@@ -341,6 +342,7 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
     mapProviderAndSystem(spanAttributes),
     mapAgentAttributes(spanAttributes),
     mapModels(spanAttributes),
+    mapFinishReason(spanAttributes),
     mapSpanKind(spanAttributes),
     mapInvocationParameters(spanAttributes),
     mapInputMessages(spanAttributes),
@@ -397,6 +399,21 @@ export const mapModels = (spanAttributes: Attributes): Attributes => {
   const responseModel = getString(spanAttributes[ATTR_GEN_AI_RESPONSE_MODEL]);
   const modelName = responseModel ?? requestModel;
   set(attrs, SemanticConventions.LLM_MODEL_NAME, modelName);
+  return attrs;
+};
+
+/**
+ * Map GenAI response finish reasons to the OpenInference LLM finish reason attribute.
+ * @param spanAttributes - The span attributes containing the finish reasons to map
+ * @returns The mapped finish reason attribute
+ */
+export const mapFinishReason = (spanAttributes: Attributes): Attributes => {
+  const attrs: Attributes = {};
+  if (ATTR_GEN_AI_RESPONSE_FINISH_REASONS in spanAttributes) {
+    const finishReasons = getStringArray(spanAttributes[ATTR_GEN_AI_RESPONSE_FINISH_REASONS]);
+    const finishReason = finishReasons && finishReasons.length > 0 ? finishReasons[0] : "stop";
+    set(attrs, SemanticConventions.LLM_FINISH_REASON, finishReason);
+  }
   return attrs;
 };
 
