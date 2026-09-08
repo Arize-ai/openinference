@@ -192,7 +192,7 @@ const (
 
 // Message-content attributes — for the contents array on a message.
 //
-// MessageContentType values include "text", "image", "audio", "reasoning",
+// MessageContentType values include "text", "image", "audio", "video", "reasoning",
 // and "tool_use". MessageContentID captures provider-assigned content ids such
 // as OpenAI ResponseReasoningItem.id. MessageContentSignature, MessageContentData,
 // and MessageContentEncryptedContent capture opaque provider reasoning-continuity
@@ -201,6 +201,8 @@ const (
 	MessageContentType             = "message_content.type"
 	MessageContentText             = "message_content.text"
 	MessageContentImage            = "message_content.image"
+	MessageContentAudio            = "message_content.audio"
+	MessageContentVideo            = "message_content.video"
 	MessageContentID               = "message_content.id"
 	MessageContentSignature        = "message_content.signature"
 	MessageContentData             = "message_content.data"
@@ -217,6 +219,12 @@ const (
 	AudioURL        = "audio.url"
 	AudioMimeType   = "audio.mime_type"
 	AudioTranscript = "audio.transcript"
+)
+
+// Video attributes. Nested under MessageContentVideo.
+const (
+	VideoURL      = "video.url"
+	VideoMimeType = "video.mime_type"
 )
 
 // Document attributes — nested under RetrievalDocuments.{i}.
