@@ -21,19 +21,6 @@ from typing import (
 )
 
 import wrapt
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -66,6 +53,19 @@ from openinference.instrumentation.litellm._responses_attributes import (
 )
 from openinference.instrumentation.litellm.package import _instruments
 from openinference.instrumentation.litellm.version import __version__
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -331,13 +331,7 @@ def _get_attributes_from_image(
 
 
 def _suppress_extractor_errors(fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Recording span attributes must never fail the instrumented call.
-
-    Extraction serializes caller-provided structures (e.g. via json.dumps),
-    which can raise — for example ``ValueError: Circular reference detected``
-    on self-referencing kwargs seen on litellm router retries. Such an error
-    would otherwise propagate into the traced call and mask the real outcome.
-    """
+    """Prevent attribute extraction errors from affecting the traced call."""
 
     @functools.wraps(fn)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -1048,12 +1042,7 @@ def _remove_redundant_reasoning_entries(
 
 
 class _TracedSyncStream(wrapt.ObjectProxy):  # type: ignore[misc]
-    """Presents as the wrapped stream while iterating the finalizing generator.
-
-    Callers may type-check the stream they get back — litellm's own
-    Responses API bridge does ``isinstance(result, CustomStreamWrapper)`` —
-    so instrumentation must not replace the stream with a bare generator.
-    """
+    """Proxy the original stream while collecting tracing data."""
 
     def __init__(self, wrapped: Any, finalized_iterator: Any) -> None:
         super().__init__(wrapped)

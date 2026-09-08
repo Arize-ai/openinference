@@ -1,18 +1,3 @@
-"""Instrumentation must be transparent to callers of the instrumented functions.
-
-Covers three failure modes observed when litellm's own Responses API bridge
-re-enters the instrumented ``litellm.acompletion``:
-
-1. Streaming results must keep their type (``CustomStreamWrapper``), because
-   callers may ``isinstance``-check them — the bridge raises
-   ``Unexpected response type: <class 'async_generator'>`` otherwise.
-2. ``aresponses`` streaming results of foreign iterator types must pass
-   through untouched instead of being drained into an empty stream.
-3. Recording span attributes must never raise into the traced call
-   (e.g. ``ValueError: Circular reference detected`` on self-referencing
-   kwargs seen on litellm router retries).
-"""
-
 import asyncio
 from typing import Any, Dict, Generator
 from unittest.mock import MagicMock
@@ -92,11 +77,54 @@ def test_async_streaming_preserves_stream_type(
     assert spans[0].name == "acompletion"
 
 
+def test_responses_foreign_stream_type_passes_through(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    class ForeignIterator:
+        def __init__(self) -> None:
+            self._tokens = ["a", "b"]
+
+        def __iter__(self) -> Any:
+            return self
+
+        def __next__(self) -> Any:
+            if not self._tokens:
+                raise StopIteration
+            return self._tokens.pop(0)
+
+    foreign = ForeignIterator()
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["responses"]
+
+    try:
+
+        def fake_responses(*args: Any, **kwargs: Any) -> Any:
+            return foreign
+
+        LiteLLMInstrumentor.original_litellm_funcs["responses"] = fake_responses
+
+        result = litellm.responses(
+            model="gpt-4o-mini",
+            input="Hi",
+            stream=True,
+        )
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["responses"] = original_func
+
+    assert result is foreign
+    assert list(result) == ["a", "b"]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "responses"
+
+
 def test_aresponses_foreign_stream_type_passes_through(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
 ) -> None:
-    """A stream type the finalizer doesn't understand must not be drained empty."""
     in_memory_span_exporter.clear()
 
     class ForeignAsyncIterator:
