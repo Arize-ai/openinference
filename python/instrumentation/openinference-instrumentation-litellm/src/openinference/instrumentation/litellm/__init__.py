@@ -1041,7 +1041,7 @@ def _remove_redundant_reasoning_entries(
                 del output_messages[index]
 
 
-class _TracedSyncStream(wrapt.ObjectProxy):  # type: ignore[misc]
+class _TracedSyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """Proxy the original stream while collecting tracing data."""
 
     def __init__(self, wrapped: Any, finalized_iterator: Any) -> None:
@@ -1058,7 +1058,7 @@ class _TracedSyncStream(wrapt.ObjectProxy):  # type: ignore[misc]
         return self._self_finalized_iterator.close()
 
 
-class _TracedAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]
+class _TracedAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """Async counterpart of ``_TracedSyncStream``."""
 
     def __init__(self, wrapped: Any, finalized_iterator: Any) -> None:
