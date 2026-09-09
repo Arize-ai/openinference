@@ -62,21 +62,15 @@ View traces in [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-st
 
 ## Examples
 
-Run the [examples](examples/) in this repo:
+Run the [example](examples/) in this repo:
 
 ```bash
 pip install -r examples/requirements.txt
 export ANTHROPIC_API_KEY=your-key
-python examples/basic_query.py
+python examples/example.py
 ```
 
-| Example | Description |
-|--------|-------------|
-| [basic_query.py](examples/basic_query.py) | Simple `query()` with OTLP export to Phoenix |
-| [query_with_tools.py](examples/query_with_tools.py) | `query()` with `ClaudeAgentOptions` and tools (Bash, Glob) |
-| [client_basic.py](examples/client_basic.py) | `ClaudeSDKClient`: one turn (query + receive_response) |
-| [client_multi_turn.py](examples/client_multi_turn.py) | `ClaudeSDKClient`: multi-turn conversation |
-| [query_with_phoenix.py](examples/query_with_phoenix.py) | In-process Phoenix via `phoenix.otel.register()` (works with [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing) or local; requires `arize-phoenix`) |
+The example runs one query that triggers Task -> Bash, prints all captured span attributes (AGENT, TOOL, and subagent spans), and exports to Phoenix via OTLP when configured. See [examples/README.md](examples/README.md) for details.
 
 See [examples/README.md](examples/README.md) for details.
 
