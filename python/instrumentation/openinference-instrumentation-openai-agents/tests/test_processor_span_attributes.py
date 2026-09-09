@@ -627,7 +627,7 @@ def test_response_spans_round_trip_search_output_to_follow_up_input() -> None:
     )
     assert follow_up_attrs[
         "llm.input_messages.3.message.tool_calls.0.tool_call.function.arguments"
-    ] == safe_json_dumps({"type": "search", "query": "market trends 2026"})
+    ] == safe_json_dumps({"query": "market trends 2026", "type": "search"})
     # Input 3: user message at index 4
     assert follow_up_attrs["llm.input_messages.4.message.role"] == "user"
     assert follow_up_attrs["llm.input_messages.4.message.content"] == "Summarize findings."

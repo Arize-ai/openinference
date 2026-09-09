@@ -1046,8 +1046,11 @@ def _get_attributes_from_response_function_web_search(
     if (id_ := data.get("id")) is not None:
         yield f"{prefix}{TOOL_CALL_ID}", id_
     yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", "web_search_call"
-    if (action := data.get("action")) is not None:
-        yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps(_dump_model(action))
+    if (action := _dump_model(data.get("action"))) is not None:
+        if isinstance(action, Mapping):
+            # Field order differs across openai SDK versions; keep the attribute deterministic.
+            action = dict(sorted(action.items()))
+        yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps(action)
 
 
 def _get_attributes_from_response_computer_tool_call(

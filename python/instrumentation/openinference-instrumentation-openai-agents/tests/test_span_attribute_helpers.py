@@ -250,7 +250,7 @@ from openinference.instrumentation.openai_agents._processor import (
                     "web_search_call"
                 ),
                 "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": (
-                    '{"type": "search", "query": "test query"}'
+                    '{"query": "test query", "type": "search"}'
                 ),
             },
             id="web_search_tool_call",
@@ -3254,7 +3254,7 @@ def test_get_attributes_from_file_search_results(
             {
                 "tool_call.id": "web-call-param-1",
                 "tool_call.function.name": "web_search_call",
-                "tool_call.function.arguments": '{"type": "search", "query": "search query"}',
+                "tool_call.function.arguments": '{"query": "search query", "type": "search"}',
             },
             id="param_search_action",
         ),
