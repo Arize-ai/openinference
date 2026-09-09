@@ -151,11 +151,7 @@ Do not emit unmerged `gen_ai.prompt.{n}.content.{m}.media_uri`.
 
 ### Hide and offload
 
-Message-content masking matches images. Hide or offload when the key contains `message_content.audio` or `message_content.video` and ends with `audio.url` or `video.url`.
-
-Span-root masking matches openai-agents today. Hide `input.audio.*` and `output.audio.*` via `OPENINFERENCE_HIDE_INPUT_AUDIO` and `OPENINFERENCE_HIDE_OUTPUT_AUDIO`.
-
-Blob upload already classifies `video/` MIME. Wire `TraceConfig.mask()` after constants land. Audio and video size gates follow the image length-gate pattern with their own env vars, but over-limit audio and video MUST be externalized or redacted. Do not slice the base64.
+Audio and video hide flags and size gates are a `TraceConfig` follow-up. Shared `mask()` still only handles images. openai-agents realtime already reads `OPENINFERENCE_HIDE_INPUT_AUDIO`, `OPENINFERENCE_HIDE_OUTPUT_AUDIO`, and `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` as instrumentor-local env vars and still slices over-limit WAV data URIs. When those settings are promoted, over-limit audio and video MUST be externalized or redacted. Do not slice.
 
 ---
 
