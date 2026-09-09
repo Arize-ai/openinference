@@ -1670,9 +1670,9 @@ def test_audio_emitted_by_default(
         0
     ].attributes
     assert user_attrs["input.audio.url"].startswith("data:audio/wav;base64,")
-    assert "input.audio.mime_type" not in user_attrs
+    assert user_attrs["input.audio.mime_type"] == "audio/wav"
     assert llm_attrs["output.audio.url"].startswith("data:audio/wav;base64,")
-    assert "output.audio.mime_type" not in llm_attrs
+    assert llm_attrs["output.audio.mime_type"] == "audio/wav"
 
 
 def test_base64_audio_max_length_env_truncates_payload(
@@ -1884,6 +1884,7 @@ def test_attribute_keys_snapshot_on_full_turn(
         SpanAttributes.OPENINFERENCE_SPAN_KIND,
         SpanAttributes.SESSION_ID,
         "input.audio.url",
+        "input.audio.mime_type",
         "input.audio.transcript",
     }
     assert set(llm_attrs.keys()) == {
@@ -1897,6 +1898,7 @@ def test_attribute_keys_snapshot_on_full_turn(
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
         "output.audio.url",
+        "output.audio.mime_type",
         "output.audio.transcript",
         "time_to_first_token_ms",
     }

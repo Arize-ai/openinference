@@ -142,6 +142,7 @@ export const UserAttributePostfixes = {
 
 export const AudioAttributesPostfixes = {
   url: "url",
+  mime_type: "mime_type",
   transcript: "transcript",
 } as const;
 
@@ -709,6 +710,12 @@ export const TAG_TAGS = `${SemanticAttributePrefixes.tag}.${TagAttributePostfixe
  */
 export const AUDIO_URL =
   `${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.url}` as const;
+
+/**
+ * The audio mime type
+ */
+export const AUDIO_MIME_TYPE =
+  `${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.mime_type}` as const;
 
 /**
  * The audio transcript as text

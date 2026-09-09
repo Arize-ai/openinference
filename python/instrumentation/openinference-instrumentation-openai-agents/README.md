@@ -101,7 +101,7 @@ A runnable mic/speaker example with two function tools lives at [`examples/realt
 
 The realtime instrumentor recognizes three environment variables for redacting captured audio:
 
-- `OPENINFERENCE_HIDE_INPUT_AUDIO` — when truthy (`1` / `true` / `yes` / `on`), drops `input.audio.url` and `input.audio.transcript` from `USER` spans. Default: `false`.
+- `OPENINFERENCE_HIDE_INPUT_AUDIO` — when truthy (`1` / `true` / `yes` / `on`), drops `input.audio.url`, `input.audio.mime_type`, and `input.audio.transcript` from `USER` spans. Default: `false`.
 - `OPENINFERENCE_HIDE_OUTPUT_AUDIO` — same shape, drops the `output.audio.*` attributes from `LLM` spans. Default: `false`.
 - `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` — caps the base64 payload length of audio `data:` URIs. The `data:audio/wav;base64,` prefix is always preserved. Default: `32000`.
 

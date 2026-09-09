@@ -39,8 +39,10 @@ _END_REASON_COMPLETE = "complete"
 _END_REASON_INTERRUPTED = "interrupted"
 _END_REASON_SESSION_CLOSED = "session_closed"
 _INPUT_AUDIO_URL = "input.audio.url"
+_INPUT_AUDIO_MIME_TYPE = "input.audio.mime_type"
 _INPUT_AUDIO_TRANSCRIPT = "input.audio.transcript"
 _OUTPUT_AUDIO_URL = "output.audio.url"
+_OUTPUT_AUDIO_MIME_TYPE = "output.audio.mime_type"
 _OUTPUT_AUDIO_TRANSCRIPT = "output.audio.transcript"
 _AUDIO_KIND = "AUDIO"
 _USER_KIND = "USER"
@@ -851,6 +853,7 @@ def _finalize_response(
             # spec/audio_spans.md: preserve the data:<mediatype>;base64, prefix
             uri = truncate_audio_data_uri(uri, max_len)
         llm_span.set_attribute(_OUTPUT_AUDIO_URL, uri)
+        llm_span.set_attribute(_OUTPUT_AUDIO_MIME_TYPE, "audio/wav")
 
     if not hide_out and response.asst_transcript:
         llm_span.set_attribute(_OUTPUT_AUDIO_TRANSCRIPT, response.asst_transcript)
@@ -883,6 +886,7 @@ def _finalize_user(
         if len(uri) > max_len:
             uri = truncate_audio_data_uri(uri, max_len)
         user_span.set_attribute(_INPUT_AUDIO_URL, uri)
+        user_span.set_attribute(_INPUT_AUDIO_MIME_TYPE, "audio/wav")
     if not hide_audio and user.user_transcript:
         user_span.set_attribute(_INPUT_AUDIO_TRANSCRIPT, user.user_transcript)
     if not hide_text and user.user_text:

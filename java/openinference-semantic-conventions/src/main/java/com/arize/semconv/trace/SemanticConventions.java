@@ -162,6 +162,7 @@ public class SemanticConventions {
     @UtilityClass
     public static class AudioAttributesPostfixes {
         public static final String URL = "url";
+        public static final String MIME_TYPE = "mime_type";
         public static final String TRANSCRIPT = "transcript";
     }
 
@@ -746,6 +747,12 @@ public class SemanticConventions {
      * The url of an audio file
      */
     public static final String AUDIO_URL = SemanticAttributePrefixes.AUDIO + "." + AudioAttributesPostfixes.URL;
+
+    /**
+     * The audio mime type
+     */
+    public static final String AUDIO_MIME_TYPE =
+            SemanticAttributePrefixes.AUDIO + "." + AudioAttributesPostfixes.MIME_TYPE;
 
     /**
      * The audio transcript as text

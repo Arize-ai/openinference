@@ -436,6 +436,10 @@ class AudioAttributes:
     """
     The url to an audio file
     """
+    AUDIO_MIME_TYPE = "audio.mime_type"
+    """
+    The mime type of the audio file
+    """
     AUDIO_TRANSCRIPT = "audio.transcript"
     """
     The transcript of the audio file

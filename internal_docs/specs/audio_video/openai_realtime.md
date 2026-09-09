@@ -57,12 +57,12 @@ Media is not set when events arrive. Buffers accumulate, then `_finalize_user` a
 
 | Writer | Span | Attributes today |
 |---|---|---|
-| `_finalize_user` | USER | `input.audio.url`, `input.audio.transcript` from PCM plus transcription. Typed turns set `input.value` and `input.mime_type` instead. |
-| `_finalize_response` | LLM | `output.audio.url`, `output.audio.transcript`, token counts, `llm.model_name`, `llm.finish_reason`, `time_to_first_token_ms` |
+| `_finalize_user` | USER | `input.audio.url`, `input.audio.mime_type`, `input.audio.transcript` from PCM plus transcription. Typed turns set `input.value` and `input.mime_type` instead. |
+| `_finalize_response` | LLM | `output.audio.url`, `output.audio.mime_type`, `output.audio.transcript`, token counts, `llm.model_name`, `llm.finish_reason`, `time_to_first_token_ms` |
 | `_set_turn_io_attributes` | AUDIO | `input.value` joined from typed text and audio transcripts. `output.value` joined from assistant transcripts. No WAV on the parent. |
 | `_start_turn` | AUDIO | `openinference.span.kind=AUDIO`, `llm.model_name`, `llm.invocation_parameters` from the session.update snapshot |
 
-The four audio keys are instrumentor-local string literals (`_INPUT_AUDIO_URL` and friends). Comments in `_realtime.py` still say they are not yet in semconv. After this spec, compose them from `AudioAttributes` instead of repeating the strings.
+The six audio keys are instrumentor-local string literals (`_INPUT_AUDIO_URL` and friends). Comments in `_realtime.py` still say they are not yet in semconv. After this spec, compose them from `AudioAttributes` instead of repeating the strings.
 
 ### PCM and transcripts
 
@@ -80,7 +80,7 @@ Typed user text is a separate USER span (`text_only=True`). It must not receive 
 
 The published convention has two attachment points and one leaf vocabulary. See [vendor_comparison.md](./vendor_comparison.md). Chat content parts use `message.contents`. Voice sessions that are not a chat `messages[]` list use span-root `input.audio.*` and `output.audio.*`.
 
-Realtime is the second case. Designing it now, with that rule in hand, yields the same span tree and the same four keys. The change is how the keys are spelled in code, not a new tree.
+Realtime is the second case. Designing it now, with that rule in hand, yields the same span tree and the same six keys. The change is how the keys are spelled in code, not a new tree.
 
 **Keep the AUDIO, USER, LLM, TOOL tree.** `speech_started`, `response.created`, and `function_call` are independent lifetimes. USER spans record one utterance, so the WAV belongs on span-root `input.audio.*`. `llm.input_messages` is for LLM spans that wrap a chat `messages[]` list. Merging USER into the LLM span would hide barge-in and split utterances.
 
@@ -90,8 +90,10 @@ Realtime is the second case. Designing it now, with that rule in hand, yields th
 
 ```
 input.audio.url        = "input." + AudioAttributes.AUDIO_URL
+input.audio.mime_type  = "input." + AudioAttributes.AUDIO_MIME_TYPE
 input.audio.transcript = "input." + AudioAttributes.AUDIO_TRANSCRIPT
 output.audio.url        = "output." + AudioAttributes.AUDIO_URL
+output.audio.mime_type  = "output." + AudioAttributes.AUDIO_MIME_TYPE
 output.audio.transcript = "output." + AudioAttributes.AUDIO_TRANSCRIPT
 ```
 
@@ -112,6 +114,7 @@ Each row is one capture the instrumentor already implements. The published key i
 | Source in `_realtime.py` | Buffer or field | Today | Designed today |
 |---|---|---|---|
 | `on_send_audio`, `on_user_audio_append` | `user.user_audio_buf` then `pcm16_to_wav_data_uri` | `_INPUT_AUDIO_URL` | `"input." + AudioAttributes.AUDIO_URL` |
+| same | MIME after WAV wrap | `_INPUT_AUDIO_MIME_TYPE` = `"audio/wav"` | `"input." + AudioAttributes.AUDIO_MIME_TYPE` |
 | `on_user_transcript_completed` (`conversation.item.input_audio_transcription.completed`) | `user.user_transcript` | `_INPUT_AUDIO_TRANSCRIPT` | `"input." + AudioAttributes.AUDIO_TRANSCRIPT` |
 | `on_user_text_created` (`input_text` or `text` parts) | `user.user_text` | `SpanAttributes.INPUT_VALUE` plus `INPUT_MIME_TYPE` `text/plain` | unchanged |
 
@@ -122,6 +125,7 @@ Do not write audio keys on `text_only` USER spans. Tests already assert that (`t
 | Source in `_realtime.py` | Buffer or field | Today | Designed today |
 |---|---|---|---|
 | `on_audio_delta` (`RealtimeAudio`) | `response.asst_audio_buf` then WAV URI | `_OUTPUT_AUDIO_URL` | `"output." + AudioAttributes.AUDIO_URL` |
+| same | MIME | `_OUTPUT_AUDIO_MIME_TYPE` = `"audio/wav"` | `"output." + AudioAttributes.AUDIO_MIME_TYPE` |
 | `on_asst_transcript_done` (`response.output_audio_transcript.done`, including interrupted, incomplete, or cancelled responses). Join `asst_transcript_deltas` only when `.done` is missing. | `response.asst_transcript` (generated transcript, not playback position) | `_OUTPUT_AUDIO_TRANSCRIPT` | `"output." + AudioAttributes.AUDIO_TRANSCRIPT` |
 | `on_response_done` usage | `input_token_details.audio_tokens` | `LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO` | unchanged |
 | `on_response_done` usage | `output_token_details.audio_tokens` | `LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO` | unchanged |
@@ -134,22 +138,24 @@ No `audio.url` on this span. Transcripts already flow into `input.value` and `ou
 
 ## 4. How to update `_realtime.py`
 
-This is the remaining constant-composition follow-up. This PR already dropped `input.audio.mime_type` and `output.audio.mime_type`.
+This is the instrumentor follow-up. This spec PR does not apply it.
 
 1. Import `AudioAttributes` next to `SpanAttributes`.
-2. Replace the four string literals with compositions. Keep the same local names so `_finalize_user` and `_finalize_response` stay unchanged:
+2. Replace the six string literals with compositions. Keep the same local names so `_finalize_user` and `_finalize_response` stay unchanged:
 
 ```python
 _INPUT_AUDIO_URL = f"input.{AudioAttributes.AUDIO_URL}"
+_INPUT_AUDIO_MIME_TYPE = f"input.{AudioAttributes.AUDIO_MIME_TYPE}"
 _INPUT_AUDIO_TRANSCRIPT = f"input.{AudioAttributes.AUDIO_TRANSCRIPT}"
 _OUTPUT_AUDIO_URL = f"output.{AudioAttributes.AUDIO_URL}"
+_OUTPUT_AUDIO_MIME_TYPE = f"output.{AudioAttributes.AUDIO_MIME_TYPE}"
 _OUTPUT_AUDIO_TRANSCRIPT = f"output.{AudioAttributes.AUDIO_TRANSCRIPT}"
 ```
 
 3. Replace the comment that cites `spec/audio_spans.md` (that file does not exist) with a pointer to this document and to [Multimodal Attributes](../../../spec/multimodal_attributes.md#span-root-audio).
 4. Keep `_AUDIO_KIND` and `_USER_KIND` as local strings. Do not add them to `OpenInferenceSpanKindValues` in the same change.
 5. When `TraceConfig` grows `hide_input_audio` and `hide_output_audio`, point `_hide_input_audio` and `_hide_output_audio` at those fields and keep the env vars as the fallback, matching other hide flags. Same for `base64_audio_max_length`.
-6. Leave `llm.input_messages` and `message_content.audio` off this change. Tests in `test_realtime.py` assert the flat url and transcript keys and the USER versus LLM split. Keep asserting that mime keys are absent.
+6. Leave `llm.input_messages` and `message_content.audio` off this change. Tests in `test_realtime.py` assert the flat keys and the USER versus LLM split. They should keep passing because the emitted strings do not change.
 
 ### What not to change in that follow-up
 
@@ -168,8 +174,8 @@ These names are now in [Configuration](../../../spec/configuration.md). openai-a
 
 | Variable | Effect in this instrumentor |
 |---|---|
-| `OPENINFERENCE_HIDE_INPUT_AUDIO` | Skip `input.audio.url` and `input.audio.transcript` on USER. Also skip audio-derived `input.value` on the AUDIO parent. |
-| `OPENINFERENCE_HIDE_OUTPUT_AUDIO` | Skip `output.audio.url` and `output.audio.transcript` on LLM. Also skip `output.value` on the AUDIO parent. |
+| `OPENINFERENCE_HIDE_INPUT_AUDIO` | Skip `input.audio.url`, `input.audio.mime_type`, and `input.audio.transcript` on USER. Also skip audio-derived `input.value` on the AUDIO parent. |
+| `OPENINFERENCE_HIDE_OUTPUT_AUDIO` | Skip `output.audio.url`, `output.audio.mime_type`, and `output.audio.transcript` on LLM. Also skip `output.value` on the AUDIO parent. |
 | `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` | Size gate for audio data URIs. Externalize or redact over-limit payloads. Do not slice. Default `32000`. |
 
 `TraceConfig(hide_inputs=True)` and `TraceConfig(hide_outputs=True)` already cascade.
