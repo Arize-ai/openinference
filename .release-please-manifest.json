@@ -1,5 +1,5 @@
 {
-    "python/openinference-semantic-conventions": "0.1.35",
+    "python/openinference-semantic-conventions": "0.1.36",
     "python/instrumentation/openinference-instrumentation-agno": "1.0.8",
     "python/instrumentation/openinference-instrumentation-openai": "0.1.59",
     "python/instrumentation/openinference-instrumentation-llama-index": "4.5.1",
@@ -7,7 +7,7 @@
     "python/instrumentation/openinference-instrumentation-langchain": "0.1.75",
     "python/instrumentation/openinference-instrumentation-bedrock": "0.1.52",
     "python/instrumentation/openinference-instrumentation-mistralai": "2.1.5",
-    "python/openinference-instrumentation": "0.1.61",
+    "python/openinference-instrumentation": "0.1.62",
     "python/instrumentation/openinference-instrumentation-guardrails": "0.1.21",
     "python/instrumentation/openinference-instrumentation-vertexai": "0.1.24",
     "python/instrumentation/openinference-instrumentation-crewai": "1.1.17",
@@ -22,7 +22,7 @@
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.39",
     "python/instrumentation/openinference-instrumentation-ag2": "0.1.7",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.15",
-    "python/instrumentation/openinference-instrumentation-openai-agents": "2.2.2",
+    "python/instrumentation/openinference-instrumentation-openai-agents": "2.3.0",
     "python/instrumentation/openinference-instrumentation-portkey": "0.1.18",
     "python/instrumentation/openinference-instrumentation-beeai": "0.1.26",
     "python/instrumentation/openinference-instrumentation-mcp": "2.0.10",
@@ -42,7 +42,7 @@
     "python/instrumentation/openinference-instrumentation-strands-agents": "0.1.7",
     "python/instrumentation/openinference-instrumentation-agent-framework": "0.1.9",
     "python/instrumentation/openinference-instrumentation-claude-agent-sdk": "0.1.17",
-    "go/openinference-semantic-conventions": "0.1.5",
+    "go/openinference-semantic-conventions": "0.1.6",
     "go/openinference-instrumentation": "0.1.1",
     "go/openinference-instrumentation-anthropic-sdk-go": "0.1.0",
     "go/openinference-instrumentation-openai-go": "0.1.0"
