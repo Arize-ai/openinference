@@ -98,7 +98,7 @@ Published keys on those spans:
 
 Leaves are the same `AudioAttributes` used under `message.contents`. Prefixes differ because the span is not an LLM message list.
 
-Keep this tree off `llm.input_messages`. Phoenix's chat renderer is not a reason to rewrite USER spans as fake chat completions. The event-level map and the `_realtime.py` constant swap are in [openai_realtime.md](./openai_realtime.md).
+Keep this tree off `llm.input_messages`. Phoenix's chat renderer is not a reason to rewrite USER spans as fake chat completions. The event-level map and the `_realtime.py` constants are in [openai_realtime.md](./openai_realtime.md).
 
 ---
 
