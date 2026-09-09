@@ -13,9 +13,9 @@ description: >
 
 # OpenInference for Python
 
-Concepts live in the `openinference` skill; read it first. Packages:
-`openinference-instrumentation` (core helpers), `openinference-semantic-conventions`
-(attribute constants), `openinference-instrumentation-<lib>` (one auto-instrumentor per library).
+Read the `openinference` skill first for concepts. Packages: `openinference-instrumentation`
+(core helpers), `openinference-semantic-conventions` (attribute constants),
+`openinference-instrumentation-<lib>` (one auto-instrumentor per library).
 
 ## Setup
 
@@ -28,7 +28,7 @@ from openinference.semconv.resource import ResourceAttributes
 
 tracer_provider = TracerProvider(
     resource=Resource({ResourceAttributes.PROJECT_NAME: "my-app"}),
-    config=TraceConfig(hide_input_images=True),  # optional; also read from env
+    config=TraceConfig(hide_input_images=True),  # optional; unset fields read env vars
 )
 tracer_provider.add_span_processor(
     BatchSpanProcessor(OTLPSpanExporter("http://localhost:6006/v1/traces"))
@@ -36,18 +36,18 @@ tracer_provider.add_span_processor(
 tracer = tracer_provider.get_tracer(__name__)  # an OITracer
 ```
 
-`openinference.instrumentation.TracerProvider` is a drop-in for the SDK provider that hands
-out `OITracer` instances and raises span limits. Phoenix users can call
-`phoenix.otel.register(project_name=...)` instead, which does the same.
+This `TracerProvider` is a drop-in for the SDK provider that hands out `OITracer` instances
+and raises span limits. Phoenix users can call `phoenix.otel.register(project_name=...)`,
+which does the same.
 
 ## Auto-instrument a library
 
 ```python
 from openinference.instrumentation.openai import OpenAIInstrumentor
-OpenAIInstrumentor().instrument(tracer_provider=tracer_provider, config=TraceConfig())
+OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)  # also accepts config=
 ```
 
-Call before the library is used. Names available as `openinference-instrumentation-<name>`:
+Call before the library is used. Available as `openinference-instrumentation-<name>`:
 ag2, agent-framework, agentspec, agno, anthropic, autogen, autogen-agentchat, bedrock, beeai,
 claude-agent-sdk, cohere, crewai, dspy, google-adk, google-genai, groq, guardrails, haystack,
 instructor, langchain, litellm, llama-index, mcp, mistralai, ollama, openai, openai-agents,
@@ -89,7 +89,7 @@ Inputs are the TypedDicts `Message`, `ToolCall`, `TokenCount`, `Tool`, `Document
 ## Context attributes
 
 ```python
-from openinference.instrumentation import using_session, using_user, using_metadata, using_tags
+from openinference.instrumentation import using_session, using_user, using_metadata
 
 with using_session("sess-1"), using_user("u-1"), using_metadata({"tenant": "acme"}):
     run(question)  # every span inside carries session.id, user.id, metadata
@@ -97,13 +97,12 @@ with using_session("sess-1"), using_user("u-1"), using_metadata({"tenant": "acme
 
 `using_tags`, `using_prompt_template`, and `using_attributes` (all at once) follow the same
 shape. Each also works as a decorator; stack them above `@tracer.*` so the attributes attach
-before the span starts. They live on the OTel Context, so new threads or tasks need the
-context copied over.
+before the span starts. They live on the OTel Context, so copy the context into new threads
+or tasks.
 
 ## Suppress tracing
 
-`with suppress_tracing(): ...` from `openinference.instrumentation` around evaluations,
-health checks, and internal calls.
+`with suppress_tracing(): ...` from `openinference.instrumentation`.
 
 ## Writing an instrumentor in this repo
 

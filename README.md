@@ -165,7 +165,7 @@ Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize
 
 ## Agent Skills
 
-Composable skills for coding agents (Claude Code, Cursor, Codex, and any other tool that reads `.agents/skills`) live in [`.agents/skills`](./.agents/skills):
+Skills for coding agents (Claude Code, Cursor, Codex, and any tool that reads `.agents/skills`) live in [`.agents/skills`](./.agents/skills):
 
 | Skill | Purpose |
 | --- | --- |
@@ -173,20 +173,18 @@ Composable skills for coding agents (Claude Code, Cursor, Codex, and any other t
 | [`openinference-instrument-py`](./.agents/skills/openinference-instrument-py) | Instrumenting Python apps: setup, auto-instrumentors, decorators, helpers, context attributes |
 | [`openinference-instrument-js`](./.agents/skills/openinference-instrument-js) | Instrumenting JavaScript/TypeScript apps: setup, instrumentations, wrappers, helpers, context attributes |
 
-Install into your project with the [`skills`](https://github.com/vercel-labs/skills) CLI:
+The language skills reference `openinference` rather than repeating it, so install both. With the [`skills`](https://github.com/vercel-labs/skills) CLI:
 
 ```bash
 npx skills add Arize-ai/openinference --skill openinference --skill openinference-instrument-py
 ```
 
-Or copy the skill directories by hand into your project's `.agents/skills/` (or `.claude/skills/` for Claude Code):
+Or copy the directories into your project's `.agents/skills/` (or `.claude/skills/` for Claude Code):
 
 ```bash
 git clone --depth 1 https://github.com/Arize-ai/openinference.git /tmp/openinference
 cp -r /tmp/openinference/.agents/skills/openinference* .agents/skills/
 ```
-
-Install `openinference` alongside a language skill; the language skills reference it rather than repeating its content.
 
 ## Supported Destinations
 

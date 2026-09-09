@@ -4,23 +4,25 @@ description: >
   Instrument JavaScript and TypeScript LLM, agent, and RAG code with OpenInference on
   OpenTelemetry: set up a NodeTracerProvider with a project name, register
   auto-instrumentations (OpenAI, Anthropic, LangChain, Bedrock, Google GenAI, MCP), use the
-  Vercel AI SDK span processor and TanStack AI middleware, trace your own functions with withSpan,
-  traceChain, traceAgent, traceTool, or the observe decorator, build attributes with helpers,
-  attach context attributes (setSession, setUser, setMetadata, setTags), mask data with
-  OITracer trace config, pause tracing with suppressTracing, and follow the checklist for
+  Vercel AI SDK span processor and TanStack AI middleware, trace your own functions with
+  withSpan, traceChain, traceAgent, traceTool, or the observe decorator, build attributes with
+  helpers, attach context attributes (setSession, setUser, setMetadata, setTags), mask data
+  with OITracer trace config, pause tracing with suppressTracing, and follow the checklist for
   writing a new instrumentation in this repo. Use for any Node or TypeScript tracing question
   involving OpenInference, Phoenix, or Arize.
 ---
 
 # OpenInference for JavaScript and TypeScript
 
-Concepts live in the `openinference` skill; read it first. Packages:
-`@arizeai/openinference-core` (helpers), `@arizeai/openinference-semantic-conventions`
-(attribute constants), `@arizeai/openinference-instrumentation-<lib>` for openai, anthropic,
-langchain, bedrock, bedrock-agent-runtime, google-genai, mcp, openai-agents, claude-agent-sdk,
-beeai. The Vercel AI SDK emits its own OTel spans, so `@arizeai/openinference-vercel` ships
-`OpenInferenceSimpleSpanProcessor` and `OpenInferenceBatchSpanProcessor` that rewrite them instead of patching modules;
-`@arizeai/openinference-tanstack-ai` exports an `openInferenceMiddleware` for TanStack AI.
+Read the `openinference` skill first for concepts. Packages:
+
+- `@arizeai/openinference-core`: helpers, `OITracer`, context attributes.
+- `@arizeai/openinference-semantic-conventions`: attribute constants.
+- `@arizeai/openinference-instrumentation-<lib>`: openai, anthropic, langchain, bedrock,
+  bedrock-agent-runtime, google-genai, mcp, openai-agents, claude-agent-sdk, beeai.
+- `@arizeai/openinference-vercel`: `OpenInferenceSimpleSpanProcessor` and
+  `OpenInferenceBatchSpanProcessor` rewrite the Vercel AI SDK's own OTel spans.
+- `@arizeai/openinference-tanstack-ai`: `openInferenceMiddleware` for TanStack AI.
 
 ## Setup
 
