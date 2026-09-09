@@ -1,5 +1,6 @@
-openai-agents>=0.2.6
+openai-agents>=0.11.0
 openinference-instrumentation-openai-agents
 arize-otel
 sounddevice>=0.4.7
 numpy>=2.2.6
+pillow>=10

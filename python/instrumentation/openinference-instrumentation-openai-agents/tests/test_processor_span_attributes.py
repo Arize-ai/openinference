@@ -13,7 +13,7 @@ input/output fields, so any value would be a guess -- see
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import pytest
 from agents.tracing.span_data import (
@@ -42,7 +42,6 @@ from openai.types.responses import (
 )
 from openai.types.responses.response_input_item_param import ComputerCallOutput
 from openai.types.responses.response_reasoning_item import Summary
-from openinference.instrumentation.config import REDACTED_VALUE
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -57,6 +56,7 @@ from openinference.instrumentation import (
     using_tags,
     using_user,
 )
+from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.openai_agents._processor import OpenInferenceTracingProcessor
 
 _TRACE_ID = "trace_abc"
@@ -394,8 +394,11 @@ def test_response_spans_round_trip_computer_call_output_to_follow_up_input() -> 
     assert json.loads(str(follow_up_attrs["llm.input_messages.3.message.content"])) == {
         "type": "computer_screenshot",
         "file_id": "file-shot-123",
-        "image_url": "https://example.com/shot.png",
     }
+    assert (
+        follow_up_attrs["llm.input_messages.3.message.contents.0.message_content.image.image.url"]
+        == "https://example.com/shot.png"
+    )
 
     # Cross-turn correlation check
     assert (
@@ -488,8 +491,11 @@ def test_response_spans_round_trip_computer_call_output_pydantic_model() -> None
     assert json.loads(str(follow_up_attrs["llm.input_messages.3.message.content"])) == {
         "type": "computer_screenshot",
         "file_id": "file-shot-pydantic",
-        "image_url": "https://example.com/pydantic.png",
     }
+    assert (
+        follow_up_attrs["llm.input_messages.3.message.contents.0.message_content.image.image.url"]
+        == "https://example.com/pydantic.png"
+    )
 
 
 # --- agent.name on agent spans ------------------------------------------------------
@@ -706,3 +712,108 @@ def test_context_attributes_propagate_to_new_span_attributes(
     # The added attributes must survive alongside the context attributes.
     for key, value in expected.items():
         assert attrs[key] == value
+
+
+@pytest.mark.parametrize("pydantic_output", [False, True])
+@pytest.mark.parametrize(
+    "config,expected",
+    [
+        (TraceConfig(), "data:image/png;base64,c2NyZWVuc2hvdA=="),
+        (TraceConfig(hide_input_images=True), None),
+        (TraceConfig(base64_image_max_length=10), REDACTED_VALUE),
+        (TraceConfig(hide_inputs=True), None),
+    ],
+)
+def test_computer_screenshot_masking(
+    pydantic_output: bool, config: TraceConfig, expected: Optional[str]
+) -> None:
+    image_url = "data:image/png;base64,c2NyZWVuc2hvdA=="
+    output: Any = {"type": "computer_screenshot", "image_url": image_url}
+    if pydantic_output:
+        output = ResponseComputerToolCallOutputScreenshot(**output)
+    processor, exporter = _make_processor(config)
+    data = ResponseSpanData(
+        input=[{"type": "computer_call_output", "call_id": "call-shot", "output": output}],
+        response=_text_response(),
+    )
+    _run(processor, _FakeTrace(), [_FakeSpan("shot", None, data)])
+    attrs = next(
+        dict(span.attributes or {})
+        for span in exporter.get_finished_spans()
+        if (span.attributes or {}).get("openinference.span.kind") == "LLM"
+    )
+    key = "llm.input_messages.1.message.contents.0.message_content.image.image.url"
+    assert attrs.get(key) == expected
+    if expected != image_url:
+        assert image_url not in json.dumps(dict(attrs))
+
+
+@pytest.mark.parametrize("batched", [False, True])
+def test_computer_actions_survive_output_and_replayed_input(batched: bool) -> None:
+    action = {"type": "click", "x": 100, "y": 200, "button": "left"}
+    payload: dict[str, Any] = (
+        {"actions": [action, {"type": "type", "text": "Hello"}]} if batched else {"action": action}
+    )
+    call = ResponseComputerToolCall.model_construct(
+        id="computer-item",
+        call_id="computer-call",
+        type="computer_call",
+        pending_safety_checks=[],
+        status="completed",
+        **payload,
+    )
+    response = _text_response()
+    response.output = [call]
+    processor, exporter = _make_processor()
+    _run(
+        processor,
+        _FakeTrace(),
+        [
+            _FakeSpan("first", None, ResponseSpanData(response=response)),
+            _FakeSpan(
+                "second",
+                None,
+                ResponseSpanData(
+                    input=[cast(ResponseInputItemParam, call.model_dump(exclude_unset=True))],
+                    response=_text_response(),
+                ),
+            ),
+        ],
+    )
+    attrs = [dict(span.attributes or {}) for span in exporter.get_finished_spans()]
+    out_key = "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+    in_key = "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments"
+    assert json.loads(str(next(a[out_key] for a in attrs if out_key in a))) == payload
+    assert json.loads(str(next(a[in_key] for a in attrs if in_key in a))) == payload
+
+
+@pytest.mark.parametrize("name", ["computer", "computer_use_preview"])
+def test_computer_tool_does_not_duplicate_screenshot_in_raw_output(name: str) -> None:
+    processor, exporter = _make_processor()
+    image = "data:image/png;base64,c2NyZWVuc2hvdA=="
+    _run(
+        processor,
+        _FakeTrace(),
+        [_FakeSpan("tool", None, FunctionSpanData(name=name, input="{}", output=image))],
+    )
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "TOOL", name)
+    assert json.loads(attrs["output.value"]) == {"type": "computer_screenshot"}
+    assert image not in json.dumps(attrs)
+
+
+def test_undumpable_computer_call_output_does_not_break_span() -> None:
+    class _Undumpable:
+        def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+            raise RuntimeError("cannot serialize")
+
+    processor, exporter = _make_processor()
+    item = {"type": "computer_call_output", "call_id": "call-x", "output": _Undumpable()}
+    data = ResponseSpanData(
+        input=[cast(ResponseInputItemParam, item)],
+        response=_text_response(),
+    )
+    _run(processor, _FakeTrace(), [_FakeSpan("shot", None, data)])
+    attrs = _one_of_kind(list(exporter.get_finished_spans()), "LLM", "response")
+    assert attrs["llm.input_messages.1.message.tool_call_id"] == "call-x"
+    assert "_Undumpable" in str(attrs["llm.input_messages.1.message.content"])
+    assert "_Undumpable" in str(attrs["input.value"])

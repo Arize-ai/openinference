@@ -34,6 +34,7 @@ from openai.types.responses import (
     Tool,
 )
 from openai.types.responses.response import IncompleteDetails
+from openai.types.responses.response_computer_tool_call import ActionClick
 from openai.types.responses.response_custom_tool_call_output_param import (
     ResponseCustomToolCallOutputParam,
 )
@@ -192,6 +193,9 @@ from openinference.instrumentation.openai_agents._processor import (
             {
                 "llm.input_messages.1.message.role": "assistant",
                 "llm.input_messages.1.message.tool_calls.0.tool_call.id": "call-123",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"action": {"type": "click", "x": 100, "y": 200, "button": "left"}}'
+                ),
                 "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": (
                     "computer_call"
                 ),
@@ -330,8 +334,11 @@ from openinference.instrumentation.openai_agents._processor import (
                 "llm.input_messages.1.message.role": "tool",
                 "llm.input_messages.1.message.tool_call_id": "comp-123",
                 "llm.input_messages.1.message.content": (
-                    '{"type": "computer_screenshot", "file_id": "file-123", '
-                    '"image_url": "https://example.com/screenshot.png"}'
+                    '{"type": "computer_screenshot", "file_id": "file-123"}'
+                ),
+                "llm.input_messages.1.message.contents.0.message_content.type": "image",
+                "llm.input_messages.1.message.contents.0.message_content.image.image.url": (
+                    "https://example.com/screenshot.png"
                 ),
             },
             id="computer_call_output",
@@ -2506,9 +2513,30 @@ def test_get_attributes_from_response_computer_tool_call(
             "",
             {
                 "tool_call.id": "call-param-1",
+                "tool_call.function.arguments": (
+                    '{"action": {"type": "click", "x": 100, "y": 200, "button": "left"}}'
+                ),
                 "tool_call.function.name": "computer_call",
             },
             id="computer_tool_call_param",
+        ),
+        pytest.param(
+            {
+                "id": "comp-param-nested",
+                "call_id": "call-param-nested",
+                "type": "computer_call",
+                # A replayed dict item may still carry the pydantic action from the prior turn.
+                "action": ActionClick(type="click", x=1, y=2, button="left"),
+            },  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.id": "call-param-nested",
+                "tool_call.function.arguments": (
+                    '{"action": {"button": "left", "type": "click", "x": 1, "y": 2}}'
+                ),
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_param_nested_pydantic_action",
         ),
         pytest.param(
             ResponseComputerToolCallParam(
@@ -2594,10 +2622,9 @@ def test_get_attributes_from_response_computer_tool_call_param(
             {
                 "message.role": "tool",
                 "message.tool_call_id": "call-123",
-                "message.content": (
-                    '{"type": "computer_screenshot", "file_id": "file-123", '
-                    '"image_url": "https://example.com/screenshot.png"}'
-                ),
+                "message.content": '{"type": "computer_screenshot", "file_id": "file-123"}',
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": "https://example.com/screenshot.png",
             },
             id="screenshot_output",
         ),
@@ -2699,10 +2726,9 @@ def test_get_attributes_from_response_computer_tool_call_param(
             {
                 "message.role": "tool",
                 "message.tool_call_id": "call-pydantic-1",
-                "message.content": (
-                    '{"type": "computer_screenshot", "file_id": "file-pydantic-1", '
-                    '"image_url": "https://example.com/pydantic.png"}'
-                ),
+                "message.content": '{"type": "computer_screenshot", "file_id": "file-pydantic-1"}',
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": "https://example.com/pydantic.png",
             },
             id="screenshot_pydantic_output",
         ),
