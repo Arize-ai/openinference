@@ -32,18 +32,18 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-# Instrumentor-local constants (not yet in semconv)
+# Instrumentor-local constants (not in OpenInferenceSpanKindValues)
 _END_REASON = "end_reason"
 _TIME_TO_FIRST_TOKEN_MS = "time_to_first_token_ms"
 _END_REASON_COMPLETE = "complete"
 _END_REASON_INTERRUPTED = "interrupted"
 _END_REASON_SESSION_CLOSED = "session_closed"
-_INPUT_AUDIO_URL = "input.audio.url"
-_INPUT_AUDIO_MIME_TYPE = "input.audio.mime_type"
-_INPUT_AUDIO_TRANSCRIPT = "input.audio.transcript"
-_OUTPUT_AUDIO_URL = "output.audio.url"
-_OUTPUT_AUDIO_MIME_TYPE = "output.audio.mime_type"
-_OUTPUT_AUDIO_TRANSCRIPT = "output.audio.transcript"
+_INPUT_AUDIO_URL = SpanAttributes.INPUT_AUDIO_URL
+_INPUT_AUDIO_MIME_TYPE = SpanAttributes.INPUT_AUDIO_MIME_TYPE
+_INPUT_AUDIO_TRANSCRIPT = SpanAttributes.INPUT_AUDIO_TRANSCRIPT
+_OUTPUT_AUDIO_URL = SpanAttributes.OUTPUT_AUDIO_URL
+_OUTPUT_AUDIO_MIME_TYPE = SpanAttributes.OUTPUT_AUDIO_MIME_TYPE
+_OUTPUT_AUDIO_TRANSCRIPT = SpanAttributes.OUTPUT_AUDIO_TRANSCRIPT
 _AUDIO_KIND = "AUDIO"
 _USER_KIND = "USER"
 

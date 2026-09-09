@@ -7,10 +7,9 @@
 #     "openinference-semantic-conventions==0.1.29",
 # ]
 # ///
-"""openai-agents realtime span-root audio keys as instrumentor-local strings.
+"""openai-agents realtime span-root audio keys as published SpanAttributes.
 
-Current and future use the same attribute names. Publication as SpanAttributes
-is a follow-up. The future span must not grow llm.input_messages.
+Current and future use the same attribute names. The future span must not grow llm.input_messages.
 """
 
 from __future__ import annotations

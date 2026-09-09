@@ -2,7 +2,7 @@
 
 This document is the from-scratch mapping for `agents.realtime.RealtimeSession`, based on the shipping instrumentor in `_realtime.py`. Chat Completions `input_audio` is a different API and stays on `message.contents`. See [openai_chat_audio.md](./openai_chat_audio.md).
 
-The six `input.audio.*` / `output.audio.*` strings are instrumentor-local. They are not `SpanAttributes` in the published Python package. A follow-up PR should add `SpanAttributes.INPUT_AUDIO_URL` (and the mime, transcript, and output siblings) as full key names, then point `_realtime.py` at those constants.
+The six `input.audio.*` / `output.audio.*` strings are `SpanAttributes` (`INPUT_AUDIO_URL` and siblings). `_realtime.py` should use those constants. Span kinds `USER` and `AUDIO` stay unpublished.
 
 Today's capture lives in `python/instrumentation/openinference-instrumentation-openai-agents/src/openinference/instrumentation/openai_agents/_realtime.py`.
 
@@ -80,7 +80,7 @@ Typed user text is a separate USER span (`text_only=True`). It must not receive 
 
 ## 2. Convention if this were designed today
 
-The chat convention is `message.contents`. Voice sessions that are not a chat `messages[]` list still use instrumentor-local `input.audio.*` and `output.audio.*`. See [vendor_comparison.md](./vendor_comparison.md). Those span-root keys are not published `SpanAttributes` yet.
+The chat convention is `message.contents`. Voice sessions that are not a chat `messages[]` list use span-root `input.audio.*` and `output.audio.*`. See [vendor_comparison.md](./vendor_comparison.md). Those keys are `SpanAttributes.INPUT_AUDIO_URL` and siblings.
 
 Realtime is the second case. Designing it now, with that rule in hand, yields the same span tree and the same six keys. The change is how the keys are spelled in code, not a new tree.
 
@@ -88,16 +88,7 @@ Realtime is the second case. Designing it now, with that rule in hand, yields th
 
 **Keep WAV on the child that owns the buffer.** USER owns `user_audio_buf`. LLM owns `asst_audio_buf`. The AUDIO parent stays a turn summary (`input.value` and `output.value` transcripts, session config, `end_reason`). Do not copy the data URI onto the parent.
 
-**Compose leaves from `AudioAttributes`.** `AudioAttributes.AUDIO_URL` is `audio.url`. Prefix `input.` or `output.`. Do not keep parallel string literals.
-
-```
-input.audio.url        = "input." + AudioAttributes.AUDIO_URL
-input.audio.mime_type  = "input." + AudioAttributes.AUDIO_MIME_TYPE
-input.audio.transcript = "input." + AudioAttributes.AUDIO_TRANSCRIPT
-output.audio.url        = "output." + AudioAttributes.AUDIO_URL
-output.audio.mime_type  = "output." + AudioAttributes.AUDIO_MIME_TYPE
-output.audio.transcript = "output." + AudioAttributes.AUDIO_TRANSCRIPT
-```
+**Use `SpanAttributes` for the six keys.** `INPUT_AUDIO_URL` is `input.audio.url`. Do not keep parallel string literals.
 
 **USER spans stay span-root.** Optional later work can add `llm.output_messages` audio contents on the LLM span so Phoenix's message walker can render assistant audio without a second code path. That is additive. It does not replace span-root keys on USER.
 
@@ -138,26 +129,14 @@ No `audio.url` on this span. Transcripts already flow into `input.value` and `ou
 
 ---
 
-## 4. How to update `_realtime.py`
+## 4. `_realtime.py` constants
 
-This is the instrumentor follow-up. This spec PR does not apply it.
+The six audio keys use `SpanAttributes`. `_AUDIO_KIND` and `_USER_KIND` stay local strings.
 
-1. Import `AudioAttributes` next to `SpanAttributes`.
-2. Replace the six string literals with compositions. Keep the same local names so `_finalize_user` and `_finalize_response` stay unchanged:
+Remaining instrumentor work:
 
-```python
-_INPUT_AUDIO_URL = f"input.{AudioAttributes.AUDIO_URL}"
-_INPUT_AUDIO_MIME_TYPE = f"input.{AudioAttributes.AUDIO_MIME_TYPE}"
-_INPUT_AUDIO_TRANSCRIPT = f"input.{AudioAttributes.AUDIO_TRANSCRIPT}"
-_OUTPUT_AUDIO_URL = f"output.{AudioAttributes.AUDIO_URL}"
-_OUTPUT_AUDIO_MIME_TYPE = f"output.{AudioAttributes.AUDIO_MIME_TYPE}"
-_OUTPUT_AUDIO_TRANSCRIPT = f"output.{AudioAttributes.AUDIO_TRANSCRIPT}"
-```
-
-3. Replace the comment that cites `spec/audio_spans.md` (that file does not exist) with a pointer to this document.
-4. Keep `_AUDIO_KIND` and `_USER_KIND` as local strings. Do not add them to `OpenInferenceSpanKindValues` in the same change.
-5. When `TraceConfig` grows `hide_input_audio` and `hide_output_audio`, point `_hide_input_audio` and `_hide_output_audio` at those fields and keep the env vars as the fallback, matching other hide flags. Same for `base64_audio_max_length`.
-6. Leave `llm.input_messages` and `message_content.audio` off this change. Tests in `test_realtime.py` assert the flat keys and the USER versus LLM split. They should keep passing because the emitted strings do not change.
+1. When `TraceConfig` grows `hide_input_audio` and `hide_output_audio`, point `_hide_input_audio` and `_hide_output_audio` at those fields and keep the env vars as the fallback. Same for `base64_audio_max_length`.
+2. Leave `llm.input_messages` and `message_content.audio` off USER spans.
 
 ### What not to change in that follow-up
 

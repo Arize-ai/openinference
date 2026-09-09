@@ -17,13 +17,19 @@ const (
 
 	// InputValue is the input to the operation. Plain string by default;
 	// set InputMimeType to "application/json" if the value is a JSON string.
-	InputValue    = "input.value"
-	InputMimeType = "input.mime_type"
+	InputValue           = "input.value"
+	InputMimeType        = "input.mime_type"
+	InputAudioURL        = "input.audio.url"
+	InputAudioMimeType   = "input.audio.mime_type"
+	InputAudioTranscript = "input.audio.transcript"
 
 	// OutputValue is the output of the operation. Plain string by default;
 	// set OutputMimeType to "application/json" if the value is a JSON string.
-	OutputValue    = "output.value"
-	OutputMimeType = "output.mime_type"
+	OutputValue           = "output.value"
+	OutputMimeType        = "output.mime_type"
+	OutputAudioURL        = "output.audio.url"
+	OutputAudioMimeType   = "output.audio.mime_type"
+	OutputAudioTranscript = "output.audio.transcript"
 
 	// Metadata is a JSON-encoded map of user-defined key-value pairs.
 	Metadata = "metadata"

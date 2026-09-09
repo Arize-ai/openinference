@@ -101,6 +101,11 @@ class TestSpanAttributes:
                 },
             },
             "input": {
+                "audio": {
+                    "mime_type": SpanAttributes.INPUT_AUDIO_MIME_TYPE,
+                    "transcript": SpanAttributes.INPUT_AUDIO_TRANSCRIPT,
+                    "url": SpanAttributes.INPUT_AUDIO_URL,
+                },
                 "mime_type": SpanAttributes.INPUT_MIME_TYPE,
                 "value": SpanAttributes.INPUT_VALUE,
             },
@@ -167,6 +172,11 @@ class TestSpanAttributes:
                 }
             },
             "output": {
+                "audio": {
+                    "mime_type": SpanAttributes.OUTPUT_AUDIO_MIME_TYPE,
+                    "transcript": SpanAttributes.OUTPUT_AUDIO_TRANSCRIPT,
+                    "url": SpanAttributes.OUTPUT_AUDIO_URL,
+                },
                 "mime_type": SpanAttributes.OUTPUT_MIME_TYPE,
                 "value": SpanAttributes.OUTPUT_VALUE,
             },

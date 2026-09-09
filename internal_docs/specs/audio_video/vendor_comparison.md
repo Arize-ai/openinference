@@ -89,7 +89,7 @@ Never store a provider file id in `audio.url` or `video.url`. File ids wait for 
 
 Realtime turns are not chat messages. The shipped tree is AUDIO (parent), USER, LLM, and TOOL. USER and AUDIO kinds stay unpublished.
 
-Instrumentor-local keys on those spans (not published `SpanAttributes` yet):
+Published keys on those spans:
 
 | Span | Keys |
 |---|---|
@@ -160,7 +160,14 @@ Blob upload already classifies `video/` MIME. Wire `TraceConfig.mask()` after co
 
 ---
 
-## 4. Constants to add
+## 4. Constants
+
+- `SpanAttributes.INPUT_AUDIO_URL` = `input.audio.url`
+- `SpanAttributes.INPUT_AUDIO_MIME_TYPE` = `input.audio.mime_type`
+- `SpanAttributes.INPUT_AUDIO_TRANSCRIPT` = `input.audio.transcript`
+- `SpanAttributes.OUTPUT_AUDIO_URL` = `output.audio.url`
+- `SpanAttributes.OUTPUT_AUDIO_MIME_TYPE` = `output.audio.mime_type`
+- `SpanAttributes.OUTPUT_AUDIO_TRANSCRIPT` = `output.audio.transcript`
 
 Already shipped:
 
