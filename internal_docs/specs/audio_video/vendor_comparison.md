@@ -89,7 +89,7 @@ Never store a provider file id in `audio.url` or `video.url`. File ids wait for 
 
 Realtime turns are not chat messages. The shipped tree is AUDIO (parent), USER, LLM, and TOOL. USER and AUDIO kinds stay unpublished.
 
-Published keys on those spans:
+Instrumentor-local keys on those spans (not published `SpanAttributes` yet):
 
 | Span | Keys |
 |---|---|
@@ -112,7 +112,7 @@ Prefix every row with `llm.<input|output>_messages.<i>.message.contents.<j>.`.
 |---|---|---|
 | (discriminator) | `message_content.type` = `"audio"` or `"video"` | `"audio"` is already listed. This spec adds `"video"`. |
 | OpenAI `input_audio.data` + `format` | `message_content.audio.audio.url` and `.mime_type` | Data URI. MIME from `format`. |
-| OpenAI assistant `audio.data` | `message_content.audio.audio.url` on **output** messages | Still a chat message, not span-root `output.audio.*`. |
+| OpenAI assistant `audio.data` | `message_content.audio.audio.url` on **output** messages | Still a chat message, not a voice-session span. |
 | OpenAI assistant `audio.transcript` | `message_content.audio.audio.transcript` | |
 | OpenAI assistant `audio.id` | `message_content.id` | Replay or expiry lookup. |
 | Gemini `file_uri` with `audio/*` | `message_content.audio.audio.url` | Copy URI. |

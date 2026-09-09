@@ -136,7 +136,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `tool_call.id`                                 | string                      | `"call_62136355"`                                                                                                             | The id of the a tool call (useful when there are more than one call at the same time)                                                                                               |
 | `tool_call.reasoning_signature`                | String                      | `"CiQB..."`                                                                                                                   | Opaque vendor-issued reasoning echo token attached to a tool call. Used by Gemini, which puts `thoughtSignature` on `functionCall` parts rather than on the reasoning summary.      |
 | `user.id`                                      | String                      | `"9328ae73-7141-4f45-a044-8e06192aa465"`                                                                                      | Unique identifier for a user                                                                                                                                                        |
-| `audio.url`                                    | String                      | `https://storage.com/buckets/1/file.wav`                                                                                      | The url to an audio file (e.x. cloud storage). Also composed under `message_content.audio` and as span-root `input.audio.url` / `output.audio.url`.                                  |
+| `audio.url`                                    | String                      | `https://storage.com/buckets/1/file.wav`                                                                                      | The url to an audio file (e.x. cloud storage). Also composed under `message_content.audio`.                                  |
 | `audio.mime_type`                              | String                      | `audio/mpeg`                                                                                                                  | The mime type of the audio file (e.x. `audio/mpeg`, `audio/wav` )                                                                                                                   |
 | `audio.transcript`                             | String                      | `"Hello, how are you?"`                                                                                                       | The transcript of the audio file (e.x. whisper transcription)                                                                                                                       |
 | `video.url`                                    | String                      | `"gs://bucket/clip.mp4"`                                                                                                      | The URL, object-store URI, or base64 data URI of a video. Consumers infer MIME type from the path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix. |
@@ -334,17 +334,6 @@ For messages containing multiple content items (text, images, audio, video, reas
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.tool_call.function.name` - Tool function name for an ordered `"tool_use"` content item
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.tool_call.function.arguments` - Tool function arguments JSON for an ordered `"tool_use"` content item
 - `llm.<input|output>_messages.<messageIndex>.message.contents.<contentIndex>.tool_call.reasoning_signature` - Provider reasoning signature attached to an ordered `"tool_use"` content item, such as Gemini `thoughtSignature` on a `functionCall` part
-
-#### Span-root audio (voice sessions)
-
-For realtime or live voice spans that are not chat message lists. Compose `input.` or `output.` with the `audio.*` leaves. Each span carries at most one audio payload (no `input.audio.<index>`):
-
-- `input.audio.url` - User audio URL or WAV data URI
-- `input.audio.mime_type` - User audio MIME type
-- `input.audio.transcript` - User audio transcript
-- `output.audio.url` - Assistant audio URL or WAV data URI
-- `output.audio.mime_type` - Assistant audio MIME type
-- `output.audio.transcript` - Assistant audio transcript
 
 #### Tool Calls in Output Messages
 

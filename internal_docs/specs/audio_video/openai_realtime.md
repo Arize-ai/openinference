@@ -2,6 +2,8 @@
 
 This document is the from-scratch mapping for `agents.realtime.RealtimeSession`, based on the shipping instrumentor in `_realtime.py`. Chat Completions `input_audio` is a different API and stays on `message.contents`. See [openai_chat_audio.md](./openai_chat_audio.md).
 
+The six `input.audio.*` / `output.audio.*` strings are instrumentor-local. They are not `SpanAttributes` in the published Python package. A follow-up PR should add `SpanAttributes.INPUT_AUDIO_URL` (and the mime, transcript, and output siblings) as full key names, then point `_realtime.py` at those constants.
+
 Today's capture lives in `python/instrumentation/openinference-instrumentation-openai-agents/src/openinference/instrumentation/openai_agents/_realtime.py`.
 
 The wrapper is `make_realtime_wrapper`. It patches `RealtimeSession._put_event`. `make_send_audio_wrapper` patches `send_audio`. `make_close_wrapper` patches `close`. Tests live in `tests/test_realtime.py`.
@@ -78,7 +80,7 @@ Typed user text is a separate USER span (`text_only=True`). It must not receive 
 
 ## 2. Convention if this were designed today
 
-The published convention has two attachment points and one leaf vocabulary. See [vendor_comparison.md](./vendor_comparison.md). Chat content parts use `message.contents`. Voice sessions that are not a chat `messages[]` list use span-root `input.audio.*` and `output.audio.*`.
+The chat convention is `message.contents`. Voice sessions that are not a chat `messages[]` list still use instrumentor-local `input.audio.*` and `output.audio.*`. See [vendor_comparison.md](./vendor_comparison.md). Those span-root keys are not published `SpanAttributes` yet.
 
 Realtime is the second case. Designing it now, with that rule in hand, yields the same span tree and the same six keys. The change is how the keys are spelled in code, not a new tree.
 
@@ -152,7 +154,7 @@ _OUTPUT_AUDIO_MIME_TYPE = f"output.{AudioAttributes.AUDIO_MIME_TYPE}"
 _OUTPUT_AUDIO_TRANSCRIPT = f"output.{AudioAttributes.AUDIO_TRANSCRIPT}"
 ```
 
-3. Replace the comment that cites `spec/audio_spans.md` (that file does not exist) with a pointer to this document and to [Multimodal Attributes](../../../spec/multimodal_attributes.md#span-root-audio).
+3. Replace the comment that cites `spec/audio_spans.md` (that file does not exist) with a pointer to this document.
 4. Keep `_AUDIO_KIND` and `_USER_KIND` as local strings. Do not add them to `OpenInferenceSpanKindValues` in the same change.
 5. When `TraceConfig` grows `hide_input_audio` and `hide_output_audio`, point `_hide_input_audio` and `_hide_output_audio` at those fields and keep the env vars as the fallback, matching other hide flags. Same for `base64_audio_max_length`.
 6. Leave `llm.input_messages` and `message_content.audio` off this change. Tests in `test_realtime.py` assert the flat keys and the USER versus LLM split. They should keep passing because the emitted strings do not change.
