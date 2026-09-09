@@ -47,13 +47,10 @@ from openinference.instrumentation.openai import OpenAIInstrumentor
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)  # also accepts config=
 ```
 
-Call before the library is used. Available as `openinference-instrumentation-<name>`:
-ag2, agent-framework, agentspec, agno, anthropic, autogen, autogen-agentchat, bedrock, beeai,
-claude-agent-sdk, cohere, crewai, dspy, google-adk, google-genai, groq, guardrails, haystack,
-instructor, langchain, litellm, llama-index, mcp, mistralai, ollama, openai, openai-agents,
-openlit, openllmetry, pipecat, portkey, promptflow, pydantic-ai, smolagents, strands-agents,
-together, vertexai. Combine a framework instrumentor with the model-provider instrumentor
-for full coverage. `uninstrument()` reverses.
+Call before the library is used. Every instrumentor is published as
+`openinference-instrumentation-<lib>` and lives under `python/instrumentation/` in this repo;
+search there or PyPI for the library you use. Combine a framework instrumentor with the
+model-provider instrumentor for full coverage. `uninstrument()` reverses.
 
 ## Trace your own code
 

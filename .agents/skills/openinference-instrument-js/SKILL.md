@@ -18,8 +18,8 @@ Read the `openinference` skill first for concepts. Packages:
 
 - `@arizeai/openinference-core`: helpers, `OITracer`, context attributes.
 - `@arizeai/openinference-semantic-conventions`: attribute constants.
-- `@arizeai/openinference-instrumentation-<lib>`: openai, anthropic, langchain, bedrock,
-  bedrock-agent-runtime, google-genai, mcp, openai-agents, claude-agent-sdk, beeai.
+- `@arizeai/openinference-instrumentation-<lib>`: one auto-instrumentation per library;
+  search `js/packages/` in this repo or npm for the library you use.
 - `@arizeai/openinference-vercel`: `OpenInferenceSimpleSpanProcessor` and
   `OpenInferenceBatchSpanProcessor` rewrite the Vercel AI SDK's own OTel spans.
 - `@arizeai/openinference-tanstack-ai`: `openInferenceMiddleware` for TanStack AI.
