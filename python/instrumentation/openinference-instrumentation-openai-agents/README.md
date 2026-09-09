@@ -86,14 +86,15 @@ python your_file.py
 The instrumentor records the Agents SDK's hosted `FileSearchTool` and `WebSearchTool`
 calls on the LLM span, so a turn that searched is distinguishable from one that did not:
 
-| What                                   | Where it appears                                                                                      |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| A file search the model requested      | LLM span output message, `tool_call.function.name = "file_search_call"`, correlated by `tool_call.id` |
-| A web search the model requested       | LLM span output message, `tool_call.function.name = "web_search_call"`, correlated by `tool_call.id`  |
-| Either call, replayed on the next turn | Next LLM span input message, same `tool_call.*` attributes                                            |
+| What                                   | Where it appears                                                                                                                              |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| A file search the model requested      | LLM span output message, `tool_call.function.name = "file_search_call"` with the `queries` as `tool_call.function.arguments`, correlated by `tool_call.id` |
+| A web search the model requested       | LLM span output message, `tool_call.function.name = "web_search_call"` with the `action` (search, open_page, find) as `tool_call.function.arguments`     |
+| Retrieved file chunks                  | A following `tool` role message whose `message.content` is the `results` JSON (only when `FileSearchTool(include_search_results=True)`)        |
+| Either call, replayed on the next turn | Next LLM span input message, same `tool_call.*` attributes (and the same `tool` message for results)                                            |
 
-Hosted tools run inside the Responses API, so there is no separate `TOOL` span for them;
-the queries and results remain available in the span's raw `input.value` / `output.value`.
+Hosted tools run inside the Responses API, so there is no separate `TOOL` span for them.
+The call `status` is not recorded as an attribute; it remains in the raw `output.value`.
 
 ### Example
 

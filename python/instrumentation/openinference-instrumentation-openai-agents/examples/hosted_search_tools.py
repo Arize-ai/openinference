@@ -4,7 +4,8 @@ The agent gets a `FileSearchTool` over a throwaway vector store (created on the 
 a small FAQ document) and a `WebSearchTool`. A first turn asks a question that is only
 answerable from the FAQ; a second turn replays the first turn's items (including the
 `file_search_call` and `web_search_call` items) as input and asks a follow-up that needs
-the web. Both hosted tool calls appear on the LLM spans as `tool_call.*` attributes.
+the web. Both hosted tool calls appear on the LLM spans as `tool_call.*` attributes, and the
+retrieved file chunks appear as a `tool` role message because `include_search_results=True`.
 
 Prerequisites:
     pip install -r examples/requirements.txt
@@ -84,7 +85,11 @@ def main():
                 "Use web search for anything about the outside world. Answer in one sentence."
             ),
             tools=[
-                FileSearchTool(vector_store_ids=[vector_store_id], max_num_results=3),
+                FileSearchTool(
+                    vector_store_ids=[vector_store_id],
+                    max_num_results=3,
+                    include_search_results=True,
+                ),
                 WebSearchTool(),
             ],
         )

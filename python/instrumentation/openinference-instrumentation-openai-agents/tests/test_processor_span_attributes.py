@@ -44,6 +44,7 @@ from openai.types.responses import (
     ResponseReasoningItem,
     ResponseReasoningItemParam,
 )
+from openai.types.responses.response_file_search_tool_call import Result as FileSearchResult
 from openai.types.responses.response_function_web_search import ActionSearch
 from openai.types.responses.response_input_item_param import ComputerCallOutput
 from openai.types.responses.response_reasoning_item import Summary
@@ -55,6 +56,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
+    safe_json_dumps,
     suppress_tracing,
     using_metadata,
     using_session,
@@ -592,6 +594,12 @@ def test_response_spans_round_trip_search_output_to_follow_up_input() -> None:
         first_attrs["llm.output_messages.0.message.tool_calls.1.tool_call.function.name"]
         == "web_search_call"
     )
+    assert first_attrs[
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+    ] == safe_json_dumps({"queries": ["project roadmap"]})
+    assert first_attrs[
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments"
+    ] == safe_json_dumps({"query": "market trends 2026", "type": "search"})
 
     # Continuation turn input attributes:
     # Input 0: user message at index 1
@@ -617,9 +625,114 @@ def test_response_spans_round_trip_search_output_to_follow_up_input() -> None:
         follow_up_attrs["llm.input_messages.3.message.tool_calls.0.tool_call.function.name"]
         == "web_search_call"
     )
+    assert follow_up_attrs[
+        "llm.input_messages.3.message.tool_calls.0.tool_call.function.arguments"
+    ] == safe_json_dumps({"type": "search", "query": "market trends 2026"})
     # Input 3: user message at index 4
     assert follow_up_attrs["llm.input_messages.4.message.role"] == "user"
     assert follow_up_attrs["llm.input_messages.4.message.content"] == "Summarize findings."
+
+
+def test_response_spans_file_search_results_become_tool_messages() -> None:
+    """With include_search_results=True the retrieved chunks follow the call as a tool message."""
+    processor, exporter = _make_processor()
+    file_search_id = "file-search-789"
+    result_text = "The Aurora X200 ships with a 27-month limited warranty."
+    first_response = Response(
+        id="resp-results",
+        created_at=0.0,
+        model="gpt-4o-mini",
+        object="response",
+        output=[
+            ResponseFileSearchToolCall(
+                id=file_search_id,
+                type="file_search_call",
+                queries=["warranty period"],
+                status="completed",
+                results=[
+                    FileSearchResult(
+                        file_id="file-1", filename="faq.txt", score=0.9, text=result_text
+                    )
+                ],
+            ),
+            ResponseOutputMessage(
+                id="msg-1",
+                role="assistant",
+                type="message",
+                status="completed",
+                content=[ResponseOutputText(type="output_text", text="27 months.", annotations=[])],
+            ),
+        ],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+    follow_up_input: list[ResponseInputItemParam] = [
+        EasyInputMessageParam(role="user", content="What is the warranty period?"),
+        ResponseFileSearchToolCallParam(
+            id=file_search_id,
+            type="file_search_call",
+            queries=["warranty period"],
+            status="completed",
+            results=[
+                {"file_id": "file-1", "filename": "faq.txt", "score": 0.9, "text": result_text}
+            ],
+        ),
+        EasyInputMessageParam(role="assistant", content="27 months."),
+        EasyInputMessageParam(role="user", content="Thanks!"),
+    ]
+    spans = [
+        _FakeSpan(
+            "first-response",
+            None,
+            ResponseSpanData(response=first_response, input=follow_up_input[:1]),
+        ),
+        _FakeSpan(
+            "follow-up-response",
+            None,
+            ResponseSpanData(response=_text_response("You're welcome."), input=follow_up_input),
+        ),
+    ]
+    _run(processor, _FakeTrace(), spans)
+
+    llm_spans = [
+        _attrs(span)
+        for span in exporter.get_finished_spans()
+        if _attrs(span).get("openinference.span.kind") == "LLM"
+    ]
+    first_attrs = next(
+        attrs
+        for attrs in llm_spans
+        if attrs.get("llm.output_messages.0.message.tool_calls.0.tool_call.id") == file_search_id
+    )
+    follow_up_attrs = next(
+        attrs
+        for attrs in llm_spans
+        if attrs.get("llm.input_messages.2.message.tool_calls.0.tool_call.id") == file_search_id
+    )
+
+    # Output: assistant tool call, then a tool message with the results, then the assistant text.
+    assert first_attrs["llm.output_messages.0.message.role"] == "assistant"
+    assert first_attrs[
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+    ] == safe_json_dumps({"queries": ["warranty period"]})
+    assert first_attrs["llm.output_messages.1.message.role"] == "tool"
+    assert first_attrs["llm.output_messages.1.message.tool_call_id"] == file_search_id
+    assert result_text in first_attrs["llm.output_messages.1.message.content"]
+    assert first_attrs["llm.output_messages.2.message.role"] == "assistant"
+    assert first_attrs["llm.output_messages.2.message.content"] == "27 months."
+    assert "llm.output_messages.3.message.role" not in first_attrs
+
+    # Replayed input: the results message is inserted and later indices stay contiguous.
+    assert follow_up_attrs["llm.input_messages.1.message.role"] == "user"
+    assert follow_up_attrs["llm.input_messages.2.message.role"] == "assistant"
+    assert follow_up_attrs["llm.input_messages.3.message.role"] == "tool"
+    assert follow_up_attrs["llm.input_messages.3.message.tool_call_id"] == file_search_id
+    assert result_text in follow_up_attrs["llm.input_messages.3.message.content"]
+    assert follow_up_attrs["llm.input_messages.4.message.role"] == "assistant"
+    assert follow_up_attrs["llm.input_messages.4.message.content"] == "27 months."
+    assert follow_up_attrs["llm.input_messages.5.message.role"] == "user"
+    assert follow_up_attrs["llm.input_messages.5.message.content"] == "Thanks!"
 
 
 def test_response_spans_output_interleaved_tool_calls_and_messages() -> None:
