@@ -81,6 +81,36 @@ Now simply run the python file and observe the traces in Phoenix.
 python your_file.py
 ```
 
+## Hosted search tools
+
+The instrumentor records the Agents SDK's hosted `FileSearchTool` and `WebSearchTool`
+calls on the LLM span, so a turn that searched is distinguishable from one that did not:
+
+| What                                   | Where it appears                                                                                      |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| A file search the model requested      | LLM span output message, `tool_call.function.name = "file_search_call"`, correlated by `tool_call.id` |
+| A web search the model requested       | LLM span output message, `tool_call.function.name = "web_search_call"`, correlated by `tool_call.id`  |
+| Either call, replayed on the next turn | Next LLM span input message, same `tool_call.*` attributes                                            |
+
+Hosted tools run inside the Responses API, so there is no separate `TOOL` span for them;
+the queries and results remain available in the span's raw `input.value` / `output.value`.
+
+### Example
+
+[`examples/hosted_search_tools.py`](./examples/hosted_search_tools.py) creates a throwaway
+vector store from a small FAQ, answers one question with file search, then replays that
+turn and answers a follow-up with web search. It needs an `OPENAI_API_KEY` and Phoenix at
+`http://localhost:6006`; the vector store is deleted on exit.
+
+```shell
+pip install -r examples/requirements.txt
+python examples/hosted_search_tools.py
+```
+
+Set `SEARCH_MODEL` to use a different model and `PHOENIX_PROJECT` to separate runs. In
+Phoenix, open the first `response` LLM span to see the `file_search_call` in its output
+messages, then the second to see it replayed as input alongside the new `web_search_call`.
+
 ## Computer use
 
 The instrumentor records the OpenAI Agents SDK's built-in computer tool (`ComputerTool`)
