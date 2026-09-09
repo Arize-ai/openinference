@@ -93,8 +93,8 @@ Published keys on those spans:
 
 | Span | Keys |
 |---|---|
-| USER | `input.audio.url`, `input.audio.mime_type`, `input.audio.transcript` |
-| LLM | `output.audio.url`, `output.audio.mime_type`, `output.audio.transcript` |
+| USER | `input.audio.url`, `input.audio.transcript` |
+| LLM | `output.audio.url`, `output.audio.transcript` |
 
 Leaves are the same `AudioAttributes` used under `message.contents`. Prefixes differ because the span is not an LLM message list.
 
@@ -111,13 +111,13 @@ Prefix every row with `llm.<input|output>_messages.<i>.message.contents.<j>.`.
 | Provider field | OpenInference attribute | Notes |
 |---|---|---|
 | (discriminator) | `message_content.type` = `"audio"` or `"video"` | `"audio"` is already listed. This spec adds `"video"`. |
-| OpenAI `input_audio.data` + `format` | `message_content.audio.audio.url` and `.mime_type` | Data URI. MIME from `format`. |
+| OpenAI `input_audio.data` + `format` | `message_content.audio.audio.url` | Data URI. MIME from `format` in the URI prefix. |
 | OpenAI assistant `audio.data` | `message_content.audio.audio.url` on **output** messages | Still a chat message, not span-root `output.audio.*`. |
 | OpenAI assistant `audio.transcript` | `message_content.audio.audio.transcript` | |
 | OpenAI assistant `audio.id` | `message_content.id` | Replay or expiry lookup. |
 | Gemini `file_uri` with `audio/*` | `message_content.audio.audio.url` | Copy URI. |
 | Gemini `file_uri` with `video/*` | `message_content.video.video.url` | Copy URI. |
-| Gemini `mime_type` | `audio.mime_type` for audio parts only | Discriminates `image/*`, `audio/*`, and `video/*`. Do not emit `video.mime_type`. Infer video MIME from `video.url`. |
+| Gemini `mime_type` | (discriminator only) | Discriminates `image/*`, `audio/*`, and `video/*`. Do not emit `audio.mime_type` or `video.mime_type`. Infer MIME from the URL. |
 | Gemini `inline_data` | data URI in the matching `*.url` | |
 | Bedrock `s3Location.uri` or `bytes` | `message_content.video.video.url` | |
 
@@ -130,10 +130,8 @@ These keys are singular on each span. One USER span owns one `user_audio_buf`. O
 | Provider field | OpenInference attribute |
 |---|---|
 | User PCM wrapped as WAV | `input.audio.url` |
-| User MIME | `input.audio.mime_type` |
 | User transcript | `input.audio.transcript` |
 | Assistant PCM wrapped as WAV | `output.audio.url` |
-| Assistant MIME | `output.audio.mime_type` |
 | Assistant transcript | `output.audio.transcript` |
 
 ### GenAI dual-write (`message.contents` only)
@@ -165,7 +163,6 @@ Blob upload already classifies `video/` MIME. Wire `TraceConfig.mask()` after co
 Already shipped:
 
 - `AudioAttributes.AUDIO_URL` = `audio.url`
-- `AudioAttributes.AUDIO_MIME_TYPE` = `audio.mime_type`
 - `AudioAttributes.AUDIO_TRANSCRIPT` = `audio.transcript`
 
 New:

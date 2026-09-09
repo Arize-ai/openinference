@@ -16,7 +16,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from common import (
-    AUDIO_MIME_TYPE,
     AUDIO_URL,
     content_key,
     forbid_keys,
@@ -57,18 +56,14 @@ def main() -> None:
             message_index=0,
             content_index=1,
             url=DATA_URI,
-            mime_type="audio/wav",
         )
         start_demo_span(ctx, "future", future, span_kind="LLM")
 
         current_attrs = span_attrs_by_name(ctx, "current")
         future_attrs = span_attrs_by_name(ctx, "future")
         audio_url_key = content_key("input", 0, 1, f"message_content.audio.{AUDIO_URL}")
-        audio_mime_key = content_key(
-            "input", 0, 1, f"message_content.audio.{AUDIO_MIME_TYPE}"
-        )
         forbid_keys(current_attrs, [audio_url_key])
-        require_keys(future_attrs, [audio_url_key, audio_mime_key])
+        require_keys(future_attrs, [audio_url_key])
         url = read_content_url(
             future_attrs, side="input", message_index=0, content_index=1, media="audio"
         )

@@ -12,7 +12,7 @@ Permalinks use tag `v1.52.2` of [openai/openai-python](https://github.com/openai
 
 **Assistant audio object.** When the request asks for spoken output (`modalities` includes `"audio"`), the assistant message carries a sibling `audio` object with `id`, base64 `data`, `transcript`, and `expires_at`. That object is not a content part.
 
-**Format.** OpenAI's `wav` or `mp3` literal. Map it to MIME `audio/wav` or `audio/mpeg` when writing OpenInference.
+**Format.** OpenAI's `wav` or `mp3` literal. Encode it in the data URI prefix (`audio/wav` or `audio/mpeg`). Do not emit `audio.mime_type`.
 
 ---
 
@@ -59,9 +59,8 @@ OpenInference rewrite of the input audio part:
 1. Build a data URI. `data:audio/wav;base64,<data>` when `format` is `wav`. `data:audio/mpeg;base64,<data>` when `format` is `mp3`.
 2. Emit a `message.contents` item with `message_content.type = "audio"`.
 3. Set `message_content.audio.audio.url` to that data URI.
-4. Set `message_content.audio.audio.mime_type` to `audio/wav` or `audio/mpeg`.
 
-Do not copy `format` as its own attribute. MIME type is the published field.
+Do not emit `audio.mime_type`. Consumers infer MIME type from the data URI prefix.
 
 ---
 
@@ -89,7 +88,6 @@ llm.output_messages.0.message.role = "assistant"
 llm.output_messages.0.message.contents.0.message_content.type = "audio"
 llm.output_messages.0.message.contents.0.message_content.id = "audio_abc"
 llm.output_messages.0.message.contents.0.message_content.audio.audio.url = "data:audio/wav;base64,<data>"
-llm.output_messages.0.message.contents.0.message_content.audio.audio.mime_type = "audio/wav"
 llm.output_messages.0.message.contents.0.message_content.audio.audio.transcript = "The recording is a weather forecast."
 ```
 

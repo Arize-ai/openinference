@@ -217,7 +217,6 @@ const (
 // Audio attributes.
 const (
 	AudioURL        = "audio.url"
-	AudioMimeType   = "audio.mime_type"
 	AudioTranscript = "audio.transcript"
 )
 

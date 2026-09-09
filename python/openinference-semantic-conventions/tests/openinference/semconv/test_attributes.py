@@ -302,7 +302,6 @@ class TestAudioAttributes:
         attributes = _get_attributes(AudioAttributes)
         assert _nested_dict(attributes) == {
             "audio": {
-                "mime_type": AudioAttributes.AUDIO_MIME_TYPE,
                 "transcript": AudioAttributes.AUDIO_TRANSCRIPT,
                 "url": AudioAttributes.AUDIO_URL,
             }

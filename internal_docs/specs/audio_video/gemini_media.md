@@ -67,10 +67,9 @@ OpenInference rewrite (inline audio):
 ```
 llm.input_messages.0.message.contents.0.message_content.type = "audio"
 llm.input_messages.0.message.contents.0.message_content.audio.audio.url = "data:audio/wav;base64,..."
-llm.input_messages.0.message.contents.0.message_content.audio.audio.mime_type = "audio/wav"
 ```
 
-`file_uri` is copied verbatim into `video.url` or `audio.url`. Do not wrap `gs://` in a data URI. Provider `mime_type` discriminates image vs audio vs video and supplies the data URI prefix for inline bytes. Do not copy it onto `video.mime_type`. Consumers infer video MIME type from the URL.
+`file_uri` is copied verbatim into `video.url` or `audio.url`. Do not wrap `gs://` in a data URI. Provider `mime_type` discriminates image vs audio vs video and supplies the data URI prefix for inline bytes. Do not copy it onto `audio.mime_type` or `video.mime_type`. Consumers infer MIME type from the URL.
 
 ---
 

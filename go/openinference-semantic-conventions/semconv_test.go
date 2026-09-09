@@ -128,7 +128,6 @@ func TestAttributeKeys(t *testing.T) {
 		{ImageURL, "image.url"},
 
 		{AudioURL, "audio.url"},
-		{AudioMimeType, "audio.mime_type"},
 		{AudioTranscript, "audio.transcript"},
 
 		{VideoURL, "video.url"},

@@ -21,10 +21,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from common import (
-    INPUT_AUDIO_MIME_TYPE,
     INPUT_AUDIO_TRANSCRIPT,
     INPUT_AUDIO_URL,
-    OUTPUT_AUDIO_MIME_TYPE,
     OUTPUT_AUDIO_TRANSCRIPT,
     OUTPUT_AUDIO_URL,
     forbid_keys,
@@ -52,7 +50,6 @@ def main() -> None:
             user_attrs,
             side="input",
             url=DATA_URI,
-            mime_type="audio/wav",
             transcript="What's the weather in Tokyo?",
         )
         start_demo_span(ctx, "current", user_attrs, span_kind="USER")
@@ -63,7 +60,6 @@ def main() -> None:
             llm_attrs,
             side="output",
             url=DATA_URI,
-            mime_type="audio/wav",
             transcript="It's sunny in Tokyo.",
         )
         start_demo_span(ctx, "current-llm", llm_attrs, span_kind="LLM")
@@ -73,11 +69,11 @@ def main() -> None:
         future_llm = span_attrs_by_name(ctx, "future-llm")
         require_keys(
             future_user,
-            [INPUT_AUDIO_URL, INPUT_AUDIO_MIME_TYPE, INPUT_AUDIO_TRANSCRIPT],
+            [INPUT_AUDIO_URL, INPUT_AUDIO_TRANSCRIPT],
         )
         require_keys(
             future_llm,
-            [OUTPUT_AUDIO_URL, OUTPUT_AUDIO_MIME_TYPE, OUTPUT_AUDIO_TRANSCRIPT],
+            [OUTPUT_AUDIO_URL, OUTPUT_AUDIO_TRANSCRIPT],
         )
         llm_input_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}."
         forbid_keys(
