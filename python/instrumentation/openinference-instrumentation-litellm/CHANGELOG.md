@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.41...python-openinference-instrumentation-litellm-v0.1.42) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
 ## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.40...python-openinference-instrumentation-litellm-v0.1.41) (2026-09-04)
 
 

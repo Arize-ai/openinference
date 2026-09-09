@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.35...python-openinference-semantic-conventions-v0.1.36) (2026-09-09)
+
+
+### Features
+
+* **instrumentation:** apply image masking to input.images and output.images ([#3695](https://github.com/Arize-ai/openinference/issues/3695)) ([b739a63](https://github.com/Arize-ai/openinference/commit/b739a6357839aa2998258381d9c197f35888a136))
+
 ## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.34...python-openinference-semantic-conventions-v0.1.35) (2026-09-04)
 
 

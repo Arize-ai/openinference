@@ -19,11 +19,17 @@ const (
 	// set InputMimeType to "application/json" if the value is a JSON string.
 	InputValue    = "input.value"
 	InputMimeType = "input.mime_type"
+	// InputImages is the span-kind-independent list of input images,
+	// flattened with indexed prefixes (e.g. "input.images.0.image.url").
+	InputImages = "input.images"
 
 	// OutputValue is the output of the operation. Plain string by default;
 	// set OutputMimeType to "application/json" if the value is a JSON string.
 	OutputValue    = "output.value"
 	OutputMimeType = "output.mime_type"
+	// OutputImages is the span-kind-independent list of output images,
+	// flattened with indexed prefixes (e.g. "output.images.0.image.url").
+	OutputImages = "output.images"
 
 	// Metadata is a JSON-encoded map of user-defined key-value pairs.
 	Metadata = "metadata"

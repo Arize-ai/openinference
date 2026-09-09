@@ -81,6 +81,49 @@ Now simply run the python file and observe the traces in Phoenix.
 python your_file.py
 ```
 
+## Computer use
+
+The instrumentor records the OpenAI Agents SDK's built-in computer tool (`ComputerTool`)
+so each turn of a computer-use loop is visible in Phoenix:
+
+| What                                   | Where it appears                                                                                                 |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| The action the model requested         | LLM span output message, `tool_call.function.name = "computer_call"` with the `action` (or batched `actions`) as `tool_call.function.arguments` |
+| The action, replayed on the next turn  | Next LLM span input message, same `tool_call.*` attributes, correlated by `tool_call.id`                        |
+| The screenshot returned to the model   | Next LLM span input message, as structured image content (`message.contents.0.message_content.image.image.url`) |
+| The computer tool span                 | A `TOOL` span named `computer`; its output is a `{"type": "computer_screenshot"}` placeholder                     |
+
+Screenshots live only in the structured image attribute, so the standard image controls
+apply to them. `OPENINFERENCE_HIDE_INPUT_IMAGES=true` removes them, and
+`OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` (default `32000` characters) redacts any
+screenshot whose data URL is longer than the limit. Real screenshots are usually larger
+than the default, so raise the limit (or configure a blob uploader) to keep them.
+The raw `input.value` JSON and the tool span's `output.value` omit the screenshot data
+URL so it cannot leak through an attribute the image settings do not cover. One
+consequence: if a run stops right after a computer action (for example `max_turns` is
+reached), that final screenshot is not sent back to the model and is therefore not in
+the trace.
+
+### Example
+
+[`examples/computer_use.py`](./examples/computer_use.py) runs a live model against an
+in-memory display. The model clicks a red button, receives a new screenshot, and reports
+that the button turned green. It needs OpenAI Agents SDK 0.11.0 or later, Pillow, an
+`OPENAI_API_KEY` with access to `gpt-5.4`, and Phoenix at `http://localhost:6006`.
+
+```shell
+pip install -r examples/requirements.txt
+python examples/computer_use.py
+
+# Verify screenshot masking, then size-based redaction
+OPENINFERENCE_HIDE_INPUT_IMAGES=true python examples/computer_use.py
+OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH=100 python examples/computer_use.py
+```
+
+Set `COMPUTER_MODEL` to use a different model and `PHOENIX_PROJECT` to separate runs.
+In Phoenix, open the `computer` tool span to see the requested action, then the
+following LLM span to see the screenshot the model received.
+
 ## Realtime audio
 
 `OpenAIAgentsInstrumentor().instrument(...)` also traces `agents.realtime.RealtimeSession` (the OpenAI Agents SDK's voice/audio runtime) when the realtime extras are installed. No additional setup is required — `instrument(...)` applies the realtime patches whenever `agents.realtime` is importable.

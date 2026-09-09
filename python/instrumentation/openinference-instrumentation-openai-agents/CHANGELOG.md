@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.2.2...python-openinference-instrumentation-openai-agents-v2.3.0) (2026-09-09)
+
+
+### Features
+
+* **openai_agents:** record computer_call and computer_call_output ([#1726](https://github.com/Arize-ai/openinference/issues/1726)) ([#3685](https://github.com/Arize-ai/openinference/issues/3685)) ([971e3db](https://github.com/Arize-ai/openinference/commit/971e3db8cf5e69bf6691b0e5ea1add5393161ab3))
+
+## [2.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.2.1...python-openinference-instrumentation-openai-agents-v2.2.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+* **openai_agents:** handle new configuration_update response input item type ([#3699](https://github.com/Arize-ai/openinference/issues/3699)) ([e9ab122](https://github.com/Arize-ai/openinference/commit/e9ab1229a523b4e356ef0baab7e917e7aeaee272))
+
 ## [2.2.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.2.0...python-openinference-instrumentation-openai-agents-v2.2.1) (2026-09-04)
 
 

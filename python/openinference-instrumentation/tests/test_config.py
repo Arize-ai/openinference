@@ -47,7 +47,12 @@ from openinference.instrumentation.config import (
     OPENINFERENCE_HIDE_PROMPTS,
     REDACTED_VALUE,
 )
-from openinference.semconv.trace import SpanAttributes, ToolAttributes
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+    ToolAttributes,
+)
 
 
 def test_default_settings() -> None:
@@ -434,8 +439,6 @@ def test_base64_image_max_length_applies_to_input_and_output_messages(
     base64 images in output messages; previously the truncation guard only
     matched LLM_INPUT_MESSAGES, so an oversized base64 image in an output
     message was stored in full, ignoring the configured limit."""
-    from openinference.semconv.trace import ImageAttributes, MessageContentAttributes
-
     config = TraceConfig(base64_image_max_length=100)
     key = (
         f"{messages_prefix}.0.message.contents.0."
@@ -448,3 +451,71 @@ def test_base64_image_max_length_applies_to_input_and_output_messages(
     assert config.mask(key, over_limit) == REDACTED_VALUE
     # A base64 image under the limit must pass through untouched.
     assert config.mask(key, under_limit) == under_limit
+
+
+@pytest.mark.parametrize(
+    ("images_prefix", "other_prefix", "hiding_config"),
+    [
+        (SpanAttributes.INPUT_IMAGES, SpanAttributes.OUTPUT_IMAGES, {"hide_inputs": True}),
+        (SpanAttributes.INPUT_IMAGES, SpanAttributes.OUTPUT_IMAGES, {"hide_input_images": True}),
+        (SpanAttributes.OUTPUT_IMAGES, SpanAttributes.INPUT_IMAGES, {"hide_outputs": True}),
+    ],
+)
+def test_hiding_applies_to_span_level_images(
+    images_prefix: str,
+    other_prefix: str,
+    hiding_config: Dict[str, Any],
+) -> None:
+    """The span-level image namespaces obey the same hiding controls as message
+    images, so a configured hide setting cannot be bypassed by recording an image
+    outside the LLM message structure."""
+    config = TraceConfig(**hiding_config)
+    url = "https://example.com/a.png"
+    url_key = f"{images_prefix}.0.{ImageAttributes.IMAGE_URL}"
+
+    assert config.mask(url_key, "data:image/png;base64,iVBORw0KGgo=") is None
+    # The whole namespace is removed, not only the image.url leaves.
+    assert config.mask(images_prefix, "[]") is None
+    # The setting is scoped to its own side: the other namespace is untouched.
+    other_key = f"{other_prefix}.0.{ImageAttributes.IMAGE_URL}"
+    assert config.mask(other_key, url) == url
+    # A sibling namespace that merely shares the prefix string is not matched.
+    assert config.mask(f"{images_prefix}et.0.{ImageAttributes.IMAGE_URL}", url) == url
+    # Without the hide setting the same keys pass through.
+    assert TraceConfig().mask(url_key, url) == url
+
+
+@pytest.mark.parametrize(
+    "hiding_config",
+    [{"hide_input_messages": True}, {"hide_output_messages": True}],
+)
+def test_hiding_messages_leaves_span_level_images_visible(
+    hiding_config: Dict[str, Any],
+) -> None:
+    """input.images / output.images live outside the message structure, so the
+    message-only hide settings do not reach them."""
+    config = TraceConfig(**hiding_config)
+    url = "https://example.com/a.png"
+    for prefix in (SpanAttributes.INPUT_IMAGES, SpanAttributes.OUTPUT_IMAGES):
+        assert config.mask(f"{prefix}.0.{ImageAttributes.IMAGE_URL}", url) == url
+
+
+@pytest.mark.parametrize(
+    "images_prefix",
+    [SpanAttributes.INPUT_IMAGES, SpanAttributes.OUTPUT_IMAGES],
+)
+def test_base64_image_max_length_applies_to_span_level_images(
+    images_prefix: str,
+) -> None:
+    """The size limit follows the image.url leaf, so an oversized base64 payload is
+    redacted whether it sits under a message content item or at the span level."""
+    config = TraceConfig(base64_image_max_length=100)
+    key = f"{images_prefix}.0.{ImageAttributes.IMAGE_URL}"
+
+    over_limit = "data:image/png;base64," + "A" * 200
+    under_limit = "data:image/png;base64," + "A" * 20
+
+    assert config.mask(key, over_limit) == REDACTED_VALUE
+    assert config.mask(key, under_limit) == under_limit
+    # A plain URI is never subject to the base64 budget.
+    assert config.mask(key, "https://example.com/a.png") == "https://example.com/a.png"

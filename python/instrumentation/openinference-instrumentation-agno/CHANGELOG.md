@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.7...python-openinference-instrumentation-agno-v1.0.8) (2026-09-09)
+
+
+### Bug Fixes
+
+* **agno:** create agent spans for continued (human-in-the-loop) runs ([#3560](https://github.com/Arize-ai/openinference/issues/3560)) ([87b54b8](https://github.com/Arize-ai/openinference/commit/87b54b85a97eb52ed4d506bc88e991acc26065d3))
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
 ## [1.0.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.6...python-openinference-instrumentation-agno-v1.0.7) (2026-09-04)
 
 

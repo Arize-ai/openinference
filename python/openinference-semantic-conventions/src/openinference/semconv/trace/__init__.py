@@ -28,6 +28,16 @@ class SpanAttributes:
     The type of input.value. If unspecified, the type is plain text by default.
     If type is JSON, the value is a string representing a JSON object.
     """
+    INPUT_IMAGES = "input.images"
+    """
+    A list of Image Objects that are inputs to an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `input.images.0.image.url`.
+    """
+    OUTPUT_IMAGES = "output.images"
+    """
+    A list of Image Objects produced by an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `output.images.0.image.url`.
+    """
 
     EMBEDDING_EMBEDDINGS = "embedding.embeddings"
     """
