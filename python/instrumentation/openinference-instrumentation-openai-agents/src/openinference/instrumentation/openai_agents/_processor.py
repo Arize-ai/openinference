@@ -28,8 +28,12 @@ from openai.types.responses import (
     ResponseCustomToolCall,
     ResponseCustomToolCallOutputParam,
     ResponseCustomToolCallParam,
+    ResponseFileSearchToolCall,
+    ResponseFileSearchToolCallParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
+    ResponseFunctionWebSearch,
+    ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
     ResponseInputItemParam,
     ResponseOutputItem,
@@ -305,8 +309,11 @@ def _get_attributes_from_input(
     obj: Iterable[ResponseInputItemParam],
     msg_idx: int = 1,
 ) -> Iterator[tuple[str, AttributeValue]]:
+    # Some items expand to more than one message (a file search that carries its results);
+    # `offset` keeps later message indices contiguous when that happens.
+    offset = 0
     for i, item in enumerate(obj, msg_idx):
-        prefix = f"{LLM_INPUT_MESSAGES}.{i}."
+        prefix = f"{LLM_INPUT_MESSAGES}.{i + offset}."
         if "type" not in item:
             if "role" in item and "content" in item:
                 yield from _get_attributes_from_message_param(
@@ -320,7 +327,17 @@ def _get_attributes_from_input(
         elif item["type"] == "message":
             yield from _get_attributes_from_message_param(item, prefix)
         elif item["type"] == "file_search_call":
-            continue  # TODO
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_file_search_tool_call(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
+            if item.get("results"):
+                offset += 1
+                yield from _get_attributes_from_file_search_results(
+                    item,
+                    f"{LLM_INPUT_MESSAGES}.{i + offset}.",
+                )
         elif item["type"] == "computer_call":
             yield f"{prefix}{MESSAGE_ROLE}", "assistant"
             yield from _get_attributes_from_response_computer_tool_call_param(
@@ -330,7 +347,11 @@ def _get_attributes_from_input(
         elif item["type"] == "computer_call_output":
             yield from _get_attributes_from_computer_call_output(item, prefix)
         elif item["type"] == "web_search_call":
-            continue  # TODO
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_function_web_search(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
         elif item["type"] == "function_call":
             yield f"{prefix}{MESSAGE_ROLE}", "assistant"
             yield from _get_attributes_from_response_function_tool_call_param(
@@ -872,9 +893,23 @@ def _get_attributes_from_response_output(
             yield from _get_attributes_from_response_custom_tool_call(item, prefix)
             tool_call_idx += 1
         elif item.type == "file_search_call":
-            ...  # TODO
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_file_search_tool_call(item, prefix)
+            tool_call_idx += 1
+            if item.results:
+                # Close the assistant message and record the retrieved chunks as a tool message.
+                msg_idx += 1
+                tool_call_idx = 0
+                yield from _get_attributes_from_file_search_results(
+                    item, f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
+                )
+                msg_idx += 1
         elif item.type == "web_search_call":
-            ...  # TODO
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_function_web_search(item, prefix)
+            tool_call_idx += 1
         elif item.type == "computer_call":
             yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
@@ -966,6 +1001,56 @@ def _get_attributes_from_response_custom_tool_call(
             f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
             safe_json_dumps({"input": input_data}),
         )
+
+
+def _get_attributes_from_response_file_search_tool_call(
+    obj: Union[ResponseFileSearchToolCall, ResponseFileSearchToolCallParam],
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    """Tool call attributes for a hosted file search (output item or replayed input item)."""
+    data = _dump_model(obj)
+    if not isinstance(data, Mapping):
+        return
+    if (id_ := data.get("id")) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", id_
+    yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", "file_search_call"
+    if queries := data.get("queries"):
+        yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps({"queries": queries})
+
+
+def _get_attributes_from_file_search_results(
+    obj: Union[ResponseFileSearchToolCall, ResponseFileSearchToolCallParam],
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    """A tool message carrying the retrieved chunks of a file search.
+
+    Results are only present when the tool was configured with `include_search_results=True`.
+    """
+    data = _dump_model(obj)
+    if not isinstance(data, Mapping) or not (results := data.get("results")):
+        return
+    yield f"{prefix}{MESSAGE_ROLE}", "tool"
+    if (id_ := data.get("id")) is not None:
+        yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", id_
+    yield f"{prefix}{MESSAGE_CONTENT}", safe_json_dumps(_dump_model(results))
+
+
+def _get_attributes_from_response_function_web_search(
+    obj: Union[ResponseFunctionWebSearch, ResponseFunctionWebSearchParam],
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    """Tool call attributes for a hosted web search (output item or replayed input item)."""
+    data = _dump_model(obj)
+    if not isinstance(data, Mapping):
+        return
+    if (id_ := data.get("id")) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", id_
+    yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", "web_search_call"
+    if (action := _dump_model(data.get("action"))) is not None:
+        if isinstance(action, Mapping):
+            # Field order differs across openai SDK versions; keep the attribute deterministic.
+            action = dict(sorted(action.items()))
+        yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps(action)
 
 
 def _get_attributes_from_response_computer_tool_call(

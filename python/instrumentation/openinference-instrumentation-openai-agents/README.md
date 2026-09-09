@@ -81,6 +81,37 @@ Now simply run the python file and observe the traces in Phoenix.
 python your_file.py
 ```
 
+## Hosted search tools
+
+The instrumentor records the Agents SDK's hosted `FileSearchTool` and `WebSearchTool`
+calls on the LLM span, so a turn that searched is distinguishable from one that did not:
+
+| What                                   | Where it appears                                                                                                                              |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| A file search the model requested      | LLM span output message, `tool_call.function.name = "file_search_call"` with the `queries` as `tool_call.function.arguments`, correlated by `tool_call.id` |
+| A web search the model requested       | LLM span output message, `tool_call.function.name = "web_search_call"` with the `action` (search, open_page, find) as `tool_call.function.arguments`     |
+| Retrieved file chunks                  | A following `tool` role message whose `message.content` is the `results` JSON (only when `FileSearchTool(include_search_results=True)`)        |
+| Either call, replayed on the next turn | Next LLM span input message, same `tool_call.*` attributes (and the same `tool` message for results)                                            |
+
+Hosted tools run inside the Responses API, so there is no separate `TOOL` span for them.
+The call `status` is not recorded as an attribute; it remains in the raw `output.value`.
+
+### Example
+
+[`examples/hosted_search_tools.py`](./examples/hosted_search_tools.py) creates a throwaway
+vector store from a small FAQ, answers one question with file search, then replays that
+turn and answers a follow-up with web search. It needs an `OPENAI_API_KEY` and Phoenix at
+`http://localhost:6006`; the vector store is deleted on exit.
+
+```shell
+pip install -r examples/requirements.txt
+python examples/hosted_search_tools.py
+```
+
+Set `SEARCH_MODEL` to use a different model and `PHOENIX_PROJECT` to separate runs. In
+Phoenix, open the first `response` LLM span to see the `file_search_call` in its output
+messages, then the second to see it replayed as input alongside the new `web_search_call`.
+
 ## Computer use
 
 The instrumentor records the OpenAI Agents SDK's built-in computer tool (`ComputerTool`)
