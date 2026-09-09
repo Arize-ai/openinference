@@ -114,7 +114,7 @@ Semantics:
 - Hide settings (`OPENINFERENCE_HIDE_INPUT_IMAGES`) take precedence over externalization: hidden content is never uploaded.
 - Consumers are responsible for dereferencing: URIs are not guaranteed to be publicly resolvable, and a consumer without access SHOULD treat the value as it would `"__REDACTED__"`.
 
-This maps directly onto the OTel GenAI semantic conventions message model: an inline data URI corresponds to a `blob` part, while an externalized reference corresponds to a `uri` part. The same split applies to `message_content.audio.audio.url` and `message_content.video.video.url` (`modality` `audio` or `video`). Span-root `input.audio.*` and `output.audio.*` are not dual-written until a separate mapper exists.
+This maps directly onto the OTel GenAI semantic conventions message model: an inline data URI corresponds to a `blob` part, while an externalized reference corresponds to a `uri` part. The same blob/uri split will apply to `message_content.audio.audio.url` and `message_content.video.video.url` (`modality` `audio` or `video`) when GenAI dual-write covers those parts. Span-root `input.audio.*` and `output.audio.*` are not dual-written until a separate mapper exists. Shared `TraceConfig.mask()` does not yet hide or size-gate audio or video.
 
 ## Privacy Considerations
 
@@ -124,14 +124,6 @@ When `OPENINFERENCE_HIDE_INPUT_IMAGES` is set to true:
 - Image URLs in input messages will be replaced with `"__REDACTED__"`
 - This only applies when input messages are not already completely hidden
 
-### Hiding audio and video
-
-When `OPENINFERENCE_HIDE_INPUT_AUDIO` is true, replace `message_content.audio.audio.url` (and optional mime type and transcript) on input messages, and span-root `input.audio.*`, with `"__REDACTED__"` or drop them. `OPENINFERENCE_HIDE_OUTPUT_AUDIO` does the same for output messages and `output.audio.*`.
-
-When `OPENINFERENCE_HIDE_INPUT_VIDEO` is true, replace `message_content.video.video.url` on input messages with `"__REDACTED__"`. `OPENINFERENCE_HIDE_OUTPUT_VIDEO` does the same for output messages.
-
-These flags apply only when the enclosing input or output messages are not already hidden.
-
 ### Base64 Image Truncation
 
 When `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is set (default: 32000):
@@ -139,12 +131,6 @@ When `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is set (default: 32000):
 - The truncation preserves the data URL prefix (e.g., `data:image/png;base64,`)
 - Only the base64 content portion is subject to the length limit
 - If a blob uploader is configured, over-limit images are externalized instead and the attribute records the destination URI (see [External Storage for Large Media](#external-storage-for-large-media))
-
-### Base64 audio and video size gates
-
-`OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` (default: 32000) is a size gate for `audio.url` data URIs. 32000 base64 characters is about 0.5s of 24 kHz mono PCM16. Do not slice the base64. That breaks WAV headers and compressed media. If a blob uploader is configured, over-limit audio is externalized. Otherwise replace the attribute with `"__REDACTED__"` or drop it.
-
-`OPENINFERENCE_BASE64_VIDEO_MAX_LENGTH` is the same gate for `video.url`. Default 32000. Externalize or redact. Do not slice.
 
 ### Hiding Text Content
 

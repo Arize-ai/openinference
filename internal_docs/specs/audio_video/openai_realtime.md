@@ -74,7 +74,7 @@ Typed user text is a separate USER span (`text_only=True`). It must not receive 
 
 ### Hide and truncation (today)
 
-`_hide_input_audio` is `TraceConfig.hide_inputs` or `OPENINFERENCE_HIDE_INPUT_AUDIO`. `_hide_output_audio` is `TraceConfig.hide_outputs` or `OPENINFERENCE_HIDE_OUTPUT_AUDIO`. Today the instrumentor slices audio data URIs with `truncate_audio_data_uri` and `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` (default 32000). The published size gate is externalize or redact, not slice. Audio-specific `TraceConfig` fields are a later promotion. The env vars already match [Configuration](../../../spec/configuration.md).
+`_hide_input_audio` is `TraceConfig.hide_inputs` or `OPENINFERENCE_HIDE_INPUT_AUDIO`. `_hide_output_audio` is `TraceConfig.hide_outputs` or `OPENINFERENCE_HIDE_OUTPUT_AUDIO`. Today the instrumentor slices audio data URIs with `truncate_audio_data_uri` and `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` (default 32000). Those env vars are instrumentor-local. They are not Python/JS `TraceConfig` fields and are not in the published configuration table. When promoted, over-limit audio MUST be externalized or redacted, not sliced.
 
 ---
 
@@ -94,7 +94,7 @@ Realtime is the second case. Designing it now, with that rule in hand, yields th
 
 **Leave AUDIO and USER kinds unpublished.** One producer is not a taxonomy. TOOL and LLM already use `OpenInferenceSpanKindValues`.
 
-**Promote hide flags onto `TraceConfig`.** The env vars stay as the spec names. `_realtime.py` should read the same fields every other instrumentor will use, once those fields exist.
+**Promote hide flags onto `TraceConfig`.** Keep the same env var names. `_realtime.py` should read the same fields every other instrumentor will use, once those fields exist. Until then the flags stay instrumentor-local.
 
 ---
 
@@ -151,12 +151,12 @@ Remaining instrumentor work:
 
 ## 5. Hide and size gates
 
-These names are now in [Configuration](../../../spec/configuration.md). openai-agents already honors them in `_realtime.py`. Other voice instrumentors should match.
+These names are instrumentor-local. They are not in [Configuration](../../../spec/configuration.md) until `TraceConfig` grows matching fields. openai-agents already honors them in `_realtime.py`.
 
 | Variable | Effect in this instrumentor |
 |---|---|
 | `OPENINFERENCE_HIDE_INPUT_AUDIO` | Skip `input.audio.url`, `input.audio.mime_type`, and `input.audio.transcript` on USER. Also skip audio-derived `input.value` on the AUDIO parent. |
 | `OPENINFERENCE_HIDE_OUTPUT_AUDIO` | Skip `output.audio.url`, `output.audio.mime_type`, and `output.audio.transcript` on LLM. Also skip `output.value` on the AUDIO parent. |
-| `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` | Size gate for audio data URIs. Externalize or redact over-limit payloads. Do not slice. Default `32000`. |
+| `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` | Size gate for audio data URIs. Today this instrumentor slices. When promoted, externalize or redact. Do not slice. Default `32000`. |
 
 `TraceConfig(hide_inputs=True)` and `TraceConfig(hide_outputs=True)` already cascade.
