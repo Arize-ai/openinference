@@ -244,12 +244,54 @@ public class SemanticConventions {
 
     public static final String INPUT_MIME_TYPE = SemanticAttributePrefixes.INPUT + ".mime_type";
 
+    public static final String INPUT_AUDIO_URL =
+            SemanticAttributePrefixes.INPUT
+                    + "."
+                    + SemanticAttributePrefixes.AUDIO
+                    + "."
+                    + AudioAttributesPostfixes.URL;
+
+    public static final String INPUT_AUDIO_MIME_TYPE =
+            SemanticAttributePrefixes.INPUT
+                    + "."
+                    + SemanticAttributePrefixes.AUDIO
+                    + "."
+                    + AudioAttributesPostfixes.MIME_TYPE;
+
+    public static final String INPUT_AUDIO_TRANSCRIPT =
+            SemanticAttributePrefixes.INPUT
+                    + "."
+                    + SemanticAttributePrefixes.AUDIO
+                    + "."
+                    + AudioAttributesPostfixes.TRANSCRIPT;
+
     /**
      * The output of any span
      */
     public static final String OUTPUT_VALUE = SemanticAttributePrefixes.OUTPUT + ".value";
 
     public static final String OUTPUT_MIME_TYPE = SemanticAttributePrefixes.OUTPUT + ".mime_type";
+
+    public static final String OUTPUT_AUDIO_URL =
+            SemanticAttributePrefixes.OUTPUT
+                    + "."
+                    + SemanticAttributePrefixes.AUDIO
+                    + "."
+                    + AudioAttributesPostfixes.URL;
+
+    public static final String OUTPUT_AUDIO_MIME_TYPE =
+            SemanticAttributePrefixes.OUTPUT
+                    + "."
+                    + SemanticAttributePrefixes.AUDIO
+                    + "."
+                    + AudioAttributesPostfixes.MIME_TYPE;
+
+    public static final String OUTPUT_AUDIO_TRANSCRIPT =
+            SemanticAttributePrefixes.OUTPUT
+                    + "."
+                    + SemanticAttributePrefixes.AUDIO
+                    + "."
+                    + AudioAttributesPostfixes.TRANSCRIPT;
 
     /**
      * The messages sent to the LLM for completions

@@ -217,11 +217,23 @@ export const EVALUATION_METADATA =
  */
 export const INPUT_VALUE = `${SemanticAttributePrefixes.input}.value` as const;
 export const INPUT_MIME_TYPE = `${SemanticAttributePrefixes.input}.mime_type` as const;
+export const INPUT_AUDIO_URL =
+  `${SemanticAttributePrefixes.input}.${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.url}` as const;
+export const INPUT_AUDIO_MIME_TYPE =
+  `${SemanticAttributePrefixes.input}.${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.mime_type}` as const;
+export const INPUT_AUDIO_TRANSCRIPT =
+  `${SemanticAttributePrefixes.input}.${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.transcript}` as const;
 /**
  * The output of any span
  */
 export const OUTPUT_VALUE = `${SemanticAttributePrefixes.output}.value` as const;
 export const OUTPUT_MIME_TYPE = `${SemanticAttributePrefixes.output}.mime_type` as const;
+export const OUTPUT_AUDIO_URL =
+  `${SemanticAttributePrefixes.output}.${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.url}` as const;
+export const OUTPUT_AUDIO_MIME_TYPE =
+  `${SemanticAttributePrefixes.output}.${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.mime_type}` as const;
+export const OUTPUT_AUDIO_TRANSCRIPT =
+  `${SemanticAttributePrefixes.output}.${SemanticAttributePrefixes.audio}.${AudioAttributesPostfixes.transcript}` as const;
 /**
  * The messages sent to the LLM for completions
  * Typically seen in OpenAI chat completions
@@ -789,8 +801,14 @@ export const SemanticConventions = {
   VIDEO_URL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
+  INPUT_AUDIO_URL,
+  INPUT_AUDIO_MIME_TYPE,
+  INPUT_AUDIO_TRANSCRIPT,
   OUTPUT_VALUE,
   OUTPUT_MIME_TYPE,
+  OUTPUT_AUDIO_URL,
+  OUTPUT_AUDIO_MIME_TYPE,
+  OUTPUT_AUDIO_TRANSCRIPT,
   LLM_INPUT_MESSAGES,
   LLM_OUTPUT_MESSAGES,
   LLM_MODEL_NAME,

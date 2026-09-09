@@ -8,6 +8,7 @@ Side-by-side comparison of how OpenAI, Google Gemini, and Amazon Bedrock attach 
 Sibling docs:
 
 - [openai_chat_audio.md](./openai_chat_audio.md)
+- [openai_realtime.md](./openai_realtime.md)
 - [gemini_media.md](./gemini_media.md)
 - [bedrock_video.md](./bedrock_video.md)
 
@@ -88,7 +89,7 @@ Never store a provider file id in `audio.url` or `video.url`. File ids wait for 
 
 Realtime turns are not chat messages. The shipped tree is AUDIO (parent), USER, LLM, and TOOL. USER and AUDIO kinds stay unpublished.
 
-Instrumentor-local keys on those spans (not published `SpanAttributes` yet):
+Published keys on those spans:
 
 | Span | Keys |
 |---|---|
@@ -97,7 +98,7 @@ Instrumentor-local keys on those spans (not published `SpanAttributes` yet):
 
 Leaves are the same `AudioAttributes` used under `message.contents`. Prefixes differ because the span is not an LLM message list.
 
-Keep this tree off `llm.input_messages`. Phoenix's chat renderer is not a reason to rewrite USER spans as fake chat completions. The event-level map for `_realtime.py` is a follow-up.
+Keep this tree off `llm.input_messages`. Phoenix's chat renderer is not a reason to rewrite USER spans as fake chat completions. The event-level map and the `_realtime.py` constants are in [openai_realtime.md](./openai_realtime.md).
 
 ---
 
@@ -155,7 +156,14 @@ Audio and video hide flags and size gates are a `TraceConfig` follow-up. Shared 
 
 ---
 
-## 4. Constants to add
+## 4. Constants
+
+- `SpanAttributes.INPUT_AUDIO_URL` = `input.audio.url`
+- `SpanAttributes.INPUT_AUDIO_MIME_TYPE` = `input.audio.mime_type`
+- `SpanAttributes.INPUT_AUDIO_TRANSCRIPT` = `input.audio.transcript`
+- `SpanAttributes.OUTPUT_AUDIO_URL` = `output.audio.url`
+- `SpanAttributes.OUTPUT_AUDIO_MIME_TYPE` = `output.audio.mime_type`
+- `SpanAttributes.OUTPUT_AUDIO_TRANSCRIPT` = `output.audio.transcript`
 
 Already shipped:
 

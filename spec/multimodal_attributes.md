@@ -2,7 +2,7 @@
 
 This document describes how message content arrays represent multimodal content (text, images, audio, video) in OpenInference spans. The same `message.contents` structure is also used for reasoning and provider-native tool-use parts when item ordering must be preserved.
 
-Vendor mappings live in [`internal_docs/specs/audio_video/`](../internal_docs/specs/audio_video/vendor_comparison.md). openai-agents realtime still emits instrumentor-local `input.audio.*` and `output.audio.*` strings. Those keys are not published `SpanAttributes` yet.
+Vendor mappings live in [`internal_docs/specs/audio_video/`](../internal_docs/specs/audio_video/vendor_comparison.md). Voice sessions that are not chat message lists use span-root `SpanAttributes` (`input.audio.url`, `output.audio.url`, and the mime and transcript siblings). See [Span-root audio](#span-root-audio).
 
 ## Message Content Arrays
 
@@ -60,7 +60,7 @@ llm.input_messages.0.message.contents.2.message_content.audio.audio.transcript =
 
 `audio.mime_type` and `audio.transcript` are optional. Emit `mime_type` when the provider sends it. Emit `transcript` when a transcription is available on the same part.
 
-For OpenAI Chat Completions `input_audio`, build a data URI from base64 `data` and `format` (`wav` maps to `audio/wav`, `mp3` maps to `audio/mpeg`) and store that URI in `audio.audio.url`. Assistant `message.audio` on the same API is still a chat message. Put it on `llm.output_messages` audio content items.
+For OpenAI Chat Completions `input_audio`, build a data URI from base64 `data` and `format` (`wav` maps to `audio/wav`, `mp3` maps to `audio/mpeg`) and store that URI in `audio.audio.url`. Assistant `message.audio` on the same API is still a chat message. Put it on `llm.output_messages` audio content items, not on span-root `output.audio.*`.
 
 ### Video Content
 
@@ -79,6 +79,21 @@ llm.input_messages.0.message.contents.3.message_content.video.video.url = "data:
 Do not emit `video.mime_type`. Consumers infer MIME type from the URL path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix. Copy `gs://`, `s3://`, and `https://` URIs verbatim. Do not put video in `image.url`. Do not store provider file ids in `video.url`.
 
 The doubled prefix (`message_content.video.video.url`) matches `message_content.image.image.url`. It is the concatenation of `message_content.video` and `video.url`.
+
+### Span-root audio
+
+Realtime and other voice sessions that are not chat `messages[]` lists record audio on the span itself. The keys are named `SpanAttributes` (`INPUT_AUDIO_URL` is `input.audio.url`). Each span carries at most one audio payload. Do not emit `input.audio.0.url`.
+
+```
+input.audio.url = "data:audio/wav;base64,..."
+input.audio.mime_type = "audio/wav"
+input.audio.transcript = "What's the weather in Tokyo?"
+output.audio.url = "data:audio/wav;base64,..."
+output.audio.mime_type = "audio/wav"
+output.audio.transcript = "It's sunny in Tokyo."
+```
+
+The openai-agents realtime instrumentor emits these on USER and LLM spans. Span kinds `USER` and `AUDIO` stay instrumentor-local and are not in `OpenInferenceSpanKindValues`. Unrelated to `user.id`.
 
 ## External Storage for Large Media
 
@@ -99,7 +114,7 @@ Semantics:
 - Hide settings (`OPENINFERENCE_HIDE_INPUT_IMAGES`) take precedence over externalization: hidden content is never uploaded.
 - Consumers are responsible for dereferencing: URIs are not guaranteed to be publicly resolvable, and a consumer without access SHOULD treat the value as it would `"__REDACTED__"`.
 
-This maps directly onto the OTel GenAI semantic conventions message model: an inline data URI corresponds to a `blob` part, while an externalized reference corresponds to a `uri` part. The same blob/uri split will apply to `message_content.audio.audio.url` and `message_content.video.video.url` (`modality` `audio` or `video`) when GenAI dual-write covers those parts. Shared `TraceConfig.mask()` does not yet hide or size-gate audio or video.
+This maps directly onto the OTel GenAI semantic conventions message model: an inline data URI corresponds to a `blob` part, while an externalized reference corresponds to a `uri` part. The same blob/uri split will apply to `message_content.audio.audio.url` and `message_content.video.video.url` (`modality` `audio` or `video`) when GenAI dual-write covers those parts. Span-root `input.audio.*` and `output.audio.*` are not dual-written until a separate mapper exists. Shared `TraceConfig.mask()` does not yet hide or size-gate audio or video.
 
 ## Privacy Considerations
 

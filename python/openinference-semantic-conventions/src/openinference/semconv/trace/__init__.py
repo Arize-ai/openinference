@@ -22,11 +22,35 @@ class SpanAttributes:
     The type of output.value. If unspecified, the type is plain text by default.
     If type is JSON, the value is a string representing a JSON object.
     """
+    OUTPUT_AUDIO_URL = "output.audio.url"
+    """
+    Assistant audio URL or data URI on a voice-session span that is not a chat message list.
+    """
+    OUTPUT_AUDIO_MIME_TYPE = "output.audio.mime_type"
+    """
+    MIME type of output.audio.url.
+    """
+    OUTPUT_AUDIO_TRANSCRIPT = "output.audio.transcript"
+    """
+    Generated assistant transcript on a voice-session span. Not playback position.
+    """
     INPUT_VALUE = "input.value"
     INPUT_MIME_TYPE = "input.mime_type"
     """
     The type of input.value. If unspecified, the type is plain text by default.
     If type is JSON, the value is a string representing a JSON object.
+    """
+    INPUT_AUDIO_URL = "input.audio.url"
+    """
+    User audio URL or data URI on a voice-session span that is not a chat message list.
+    """
+    INPUT_AUDIO_MIME_TYPE = "input.audio.mime_type"
+    """
+    MIME type of input.audio.url.
+    """
+    INPUT_AUDIO_TRANSCRIPT = "input.audio.transcript"
+    """
+    Transcript of the user audio on a voice-session span.
     """
 
     EMBEDDING_EMBEDDINGS = "embedding.embeddings"

@@ -190,7 +190,7 @@ When a provider attaches the reasoning echo token to a tool call instead of a me
 
 When OpenAI returns an array of `summary_text` items, concatenate them in source order into a single `message_content.text` value for now. Emit `message_content.id` when the `ResponseReasoningItem.id` is present, because stateless replay needs the reasoning item id as well as its `encrypted_content`.
 
-Audio and video content items are defined in [Multimodal Attributes](./multimodal_attributes.md). Use `message_content.type` `"audio"` or `"video"` on chat APIs.
+Audio and video content items are defined in [Multimodal Attributes](./multimodal_attributes.md). Use `message_content.type` `"audio"` or `"video"` on chat APIs. Voice sessions that are not chat message lists use span-root `input.audio.*` and `output.audio.*`.
 
 #### OpenAI Responses
 
