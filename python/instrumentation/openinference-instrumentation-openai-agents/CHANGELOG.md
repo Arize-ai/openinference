@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.2.2...python-openinference-instrumentation-openai-agents-v2.3.0) (2026-09-09)
+
+
+### Features
+
+* **openai_agents:** record computer_call and computer_call_output ([#1726](https://github.com/Arize-ai/openinference/issues/1726)) ([#3685](https://github.com/Arize-ai/openinference/issues/3685)) ([971e3db](https://github.com/Arize-ai/openinference/commit/971e3db8cf5e69bf6691b0e5ea1add5393161ab3))
+
 ## [2.2.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.2.1...python-openinference-instrumentation-openai-agents-v2.2.2) (2026-09-09)
 
 
