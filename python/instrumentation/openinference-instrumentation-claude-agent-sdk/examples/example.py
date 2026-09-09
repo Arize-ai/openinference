@@ -2,9 +2,9 @@
 
 Requirements:
   - Set ANTHROPIC_API_KEY
-  - (Optional) PHOENIX_COLLECTOR_ENDPOINT for Phoenix Cloud
+  - (Optional) PHOENIX_COLLECTOR_ENDPOINT to point at a remote Phoenix
     Default: http://127.0.0.1:6006/v1/traces (local Phoenix; start it first)
-  - (Optional) PHOENIX_API_KEY, sent as a bearer token (required for Phoenix Cloud)
+  - (Optional) PHOENIX_API_KEY, sent as a bearer token; required when Phoenix has auth enabled
 """
 
 import asyncio
@@ -65,7 +65,7 @@ async def main() -> None:
         print(f"- {span.name}")
         print(json.dumps(dict(span.attributes or {}), indent=2, sort_keys=True, default=str))
 
-    print("\nDone. View traces in Phoenix Cloud or at http://127.0.0.1:6006 (local).")
+    print(f"\nDone. View traces in Phoenix at {PHOENIX_ENDPOINT.removesuffix('/v1/traces')}")
 
 
 if __name__ == "__main__":

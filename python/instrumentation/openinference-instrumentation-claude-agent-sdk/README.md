@@ -23,7 +23,7 @@ pip install openinference-instrumentation-claude-agent-sdk
 pip install openinference-instrumentation-claude-agent-sdk claude-agent-sdk arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
-**Option A – Phoenix Cloud:** Create a free [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing) account, create a space, and set `PHOENIX_COLLECTOR_ENDPOINT` (e.g. `https://<host>/v1/traces`) and `PHOENIX_API_KEY`. The snippet below reads both.
+**Option A – Remote Phoenix:** Set `PHOENIX_COLLECTOR_ENDPOINT` to your collector endpoint (e.g. `https://<host>/v1/traces`). If auth is enabled on that Phoenix (including [Phoenix Cloud](https://arize.com/docs/phoenix/get-started/get-started-tracing)), also set `PHOENIX_API_KEY`; the snippet below sends it as a bearer token.
 
 **Option B – Local Phoenix:** Start Phoenix, then run your script:
 
@@ -42,7 +42,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-# Phoenix Cloud: set PHOENIX_COLLECTOR_ENDPOINT and PHOENIX_API_KEY. Otherwise defaults to local Phoenix.
+# Remote Phoenix: set PHOENIX_COLLECTOR_ENDPOINT, plus PHOENIX_API_KEY if auth is enabled. Defaults to local Phoenix.
 endpoint = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", "http://127.0.0.1:6006/v1/traces")
 api_key = os.environ.get("PHOENIX_API_KEY")
 headers = {"authorization": f"Bearer {api_key}"} if api_key else None
@@ -73,7 +73,7 @@ export ANTHROPIC_API_KEY=your-key
 python examples/example.py
 ```
 
-The example always exports spans over OTLP, defaulting to a local Phoenix at `http://127.0.0.1:6006` (start it first, or set `PHOENIX_COLLECTOR_ENDPOINT` and, for Phoenix Cloud, `PHOENIX_API_KEY`). See [examples/README.md](examples/README.md) for what the example does.
+The example always exports spans over OTLP, defaulting to a local Phoenix at `http://127.0.0.1:6006` (start it first, or set `PHOENIX_COLLECTOR_ENDPOINT` to another Phoenix and, if it has auth enabled, `PHOENIX_API_KEY`). See [examples/README.md](examples/README.md) for what the example does.
 
 ## What is instrumented
 
