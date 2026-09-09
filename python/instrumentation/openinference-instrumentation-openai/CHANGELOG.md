@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.58...python-openinference-instrumentation-openai-v0.1.59) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+* **openai:** handle new configuration_update response input item type from openai 3.x ([#3698](https://github.com/Arize-ai/openinference/issues/3698)) ([d56a72b](https://github.com/Arize-ai/openinference/commit/d56a72b1cbcf013a442cc9bb36016c0ca5376570))
+
 ## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.57...python-openinference-instrumentation-openai-v0.1.58) (2026-09-04)
 
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.16...python-openinference-instrumentation-claude-agent-sdk-v0.1.17) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+
+### Documentation
+
+* **claude-agent-sdk:** fix stale README claims and Phoenix Cloud auth in examples ([#3702](https://github.com/Arize-ai/openinference/issues/3702)) ([5125ba3](https://github.com/Arize-ai/openinference/commit/5125ba366db2bac79db67fa7065ebc9bf8529f77))
+* **claude-agent-sdk:** rewrite stale examples section in README ([#3689](https://github.com/Arize-ai/openinference/issues/3689)) ([69ef922](https://github.com/Arize-ai/openinference/commit/69ef922901e585a5c5f5b604f3fb9edbc9f639a0))
+
 ## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.15...python-openinference-instrumentation-claude-agent-sdk-v0.1.16) (2026-09-04)
 
 
