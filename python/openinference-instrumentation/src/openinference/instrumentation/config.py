@@ -77,15 +77,15 @@ OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS = "OPENINFERENCE_HIDE_LLM_INVOCATIO
 OPENINFERENCE_HIDE_LLM_TOOLS = "OPENINFERENCE_HIDE_LLM_TOOLS"
 # Hides the tool definitions advertised to the LLM
 OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS"
-# Hides input value & messages
+# Hides input value, input images & messages
 OPENINFERENCE_HIDE_OUTPUTS = "OPENINFERENCE_HIDE_OUTPUTS"
-# Hides output value & messages
+# Hides output value, output images & messages
 OPENINFERENCE_HIDE_INPUT_MESSAGES = "OPENINFERENCE_HIDE_INPUT_MESSAGES"
 # Hides all input messages
 OPENINFERENCE_HIDE_OUTPUT_MESSAGES = "OPENINFERENCE_HIDE_OUTPUT_MESSAGES"
 # Hides all output messages
 OPENINFERENCE_HIDE_INPUT_IMAGES = "OPENINFERENCE_HIDE_INPUT_IMAGES"
-# Hides images from input messages
+# Hides images from input messages and the span-level input.images
 OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT"
 # Hides text from input messages
 OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT"
@@ -168,7 +168,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_INPUTS,
         },
     )
-    """Hides input value & messages"""
+    """Hides input value, input images & messages"""
     hide_outputs: Optional[bool] = field(
         default=None,
         metadata={
@@ -176,7 +176,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_OUTPUTS,
         },
     )
-    """Hides output value & messages"""
+    """Hides output value, output images & messages"""
     hide_input_messages: Optional[bool] = field(
         default=None,
         metadata={
@@ -200,7 +200,7 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_INPUT_IMAGES,
         },
     )
-    """Hides images from input messages"""
+    """Hides images from input messages and the span-level input.images"""
     hide_input_text: Optional[bool] = field(
         default=None,
         metadata={
@@ -347,27 +347,15 @@ class TraceConfig:
             value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
             return None
-        elif (self.hide_inputs or self.hide_input_images) and _is_within(
-            key, SpanAttributes.INPUT_IMAGES
-        ):
-            return None
-        elif self.hide_outputs and _is_within(key, SpanAttributes.OUTPUT_IMAGES):
-            return None
         elif self.hide_inputs and key == RerankerAttributes.RERANKER_QUERY:
             value = REDACTED_VALUE
-        elif self.hide_inputs and (
-            key == RerankerAttributes.RERANKER_INPUT_DOCUMENTS
-            or key.startswith(f"{RerankerAttributes.RERANKER_INPUT_DOCUMENTS}.")
-        ):
+        elif self.hide_inputs and _is_within(key, RerankerAttributes.RERANKER_INPUT_DOCUMENTS):
             return None
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_outputs and key == SpanAttributes.OUTPUT_MIME_TYPE:
             return None
-        elif self.hide_outputs and (
-            key == RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
-            or key.startswith(f"{RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS}.")
-        ):
+        elif self.hide_outputs and _is_within(key, RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS):
             return None
         elif (
             self.hide_inputs or self.hide_input_messages
@@ -407,11 +395,11 @@ class TraceConfig:
             and MessageContentAttributes.MESSAGE_CONTENT_TEXT in key
         ):
             value = REDACTED_VALUE
-        elif (
-            self.hide_input_images
-            and SpanAttributes.LLM_INPUT_MESSAGES in key
-            and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
-        ):
+        # The hide checks must precede the size/externalize branch below so a
+        # hidden image never reaches the blob uploader.
+        elif (self.hide_inputs or self.hide_input_images) and _is_input_image(key):
+            return None
+        elif self.hide_outputs and _is_output_image(key):
             return None
         elif _is_image_url(key):
             # Resolve lazy values before the size check so an oversized image
@@ -548,17 +536,29 @@ def _is_within(key: str, namespace: str) -> bool:
     return key == namespace or key.startswith(f"{namespace}.")
 
 
+def _is_input_image(key: str) -> bool:
+    """True for an image nested under an input message content item and for the
+    span-level input.images namespace."""
+    return (
+        SpanAttributes.LLM_INPUT_MESSAGES in key
+        and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
+    ) or _is_within(key, SpanAttributes.INPUT_IMAGES)
+
+
+def _is_output_image(key: str) -> bool:
+    """True for an image nested under an output message content item and for the
+    span-level output.images namespace."""
+    return (
+        SpanAttributes.LLM_OUTPUT_MESSAGES in key
+        and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key
+    ) or _is_within(key, SpanAttributes.OUTPUT_IMAGES)
+
+
 def _is_image_url(key: str) -> bool:
-    """True for both image.url spellings: the one nested under a message content
-    item, and the span-level input.images / output.images entries."""
-    if not key.endswith(ImageAttributes.IMAGE_URL):
-        return False
-    if (
-        SpanAttributes.LLM_INPUT_MESSAGES in key or SpanAttributes.LLM_OUTPUT_MESSAGES in key
-    ) and MessageContentAttributes.MESSAGE_CONTENT_IMAGE in key:
-        return True
-    return _is_within(key, SpanAttributes.INPUT_IMAGES) or _is_within(
-        key, SpanAttributes.OUTPUT_IMAGES
+    """True for the image.url leaf of any image, whether nested under a message
+    content item or recorded at the span level."""
+    return key.endswith(ImageAttributes.IMAGE_URL) and (
+        _is_input_image(key) or _is_output_image(key)
     )
 
 
