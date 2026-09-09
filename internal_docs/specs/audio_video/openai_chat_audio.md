@@ -93,7 +93,7 @@ llm.output_messages.0.message.contents.0.message_content.audio.audio.mime_type =
 llm.output_messages.0.message.contents.0.message_content.audio.audio.transcript = "The recording is a weather forecast."
 ```
 
-Use `output_messages` because this is still a chat completion message. Do not put it on a voice-session span. openai-agents realtime uses instrumentor-local `output.audio.*` for that case. See [openai_realtime.md](./openai_realtime.md).
+Use `output_messages` because this is still a chat completion message. Do not put it on a voice-session span. openai-agents realtime uses instrumentor-local `output.audio.*` for that case.
 
 ---
 

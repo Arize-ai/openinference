@@ -8,7 +8,6 @@ Side-by-side comparison of how OpenAI, Google Gemini, and Amazon Bedrock attach 
 Sibling docs:
 
 - [openai_chat_audio.md](./openai_chat_audio.md)
-- [openai_realtime.md](./openai_realtime.md)
 - [gemini_media.md](./gemini_media.md)
 - [bedrock_video.md](./bedrock_video.md)
 
@@ -98,7 +97,7 @@ Instrumentor-local keys on those spans (not published `SpanAttributes` yet):
 
 Leaves are the same `AudioAttributes` used under `message.contents`. Prefixes differ because the span is not an LLM message list.
 
-Keep this tree off `llm.input_messages`. Phoenix's chat renderer is not a reason to rewrite USER spans as fake chat completions. The event-level map and the `_realtime.py` constant swap are in [openai_realtime.md](./openai_realtime.md).
+Keep this tree off `llm.input_messages`. Phoenix's chat renderer is not a reason to rewrite USER spans as fake chat completions. The event-level map for `_realtime.py` is a follow-up.
 
 ---
 

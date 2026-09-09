@@ -19,7 +19,6 @@ If you skip export, set `AUDIO_VIDEO_DEMO_SKIP_PHOENIX=1`. The scripts still ass
 ```bash
 uv run --script internal_docs/specs/audio_video/scripts/gemini_video_demo.py
 uv run --script internal_docs/specs/audio_video/scripts/openai_chat_audio_demo.py
-uv run --script internal_docs/specs/audio_video/scripts/openai_realtime_audio_demo.py
 ```
 
 Each script prints PASS or FAIL and exits non-zero on failure.
@@ -32,7 +31,6 @@ Open the Phoenix UI for that collector and compare the `current` and `future` sp
 |---|---|---|
 | `gemini_video_demo.py` | LLM span with text contents only. Video URI may sit in `input.value`. | `message_content.type=video` plus `video.video.url` / `mime_type`. GenAI `uri` part with `modality: video`. |
 | `openai_chat_audio_demo.py` | LLM span with text, no `input_audio` contents. | Input audio data URI on `message.contents`. GenAI `blob` part with `modality: audio`. |
-| `openai_realtime_audio_demo.py` | USER span with local `input.audio.*` keys. | Same instrumentor-local keys. Not published `SpanAttributes` yet. No `llm.input_messages`. |
 
 ## Layout
 
@@ -41,6 +39,5 @@ scripts/
 ├── README.md
 ├── common.py
 ├── gemini_video_demo.py
-├── openai_chat_audio_demo.py
-└── openai_realtime_audio_demo.py
+└── openai_chat_audio_demo.py
 ```
