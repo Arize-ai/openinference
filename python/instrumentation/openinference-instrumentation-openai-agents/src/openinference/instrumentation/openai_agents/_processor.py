@@ -23,6 +23,8 @@ from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
     Response,
+    ResponseComputerToolCall,
+    ResponseComputerToolCallParam,
     ResponseCustomToolCall,
     ResponseCustomToolCallOutputParam,
     ResponseCustomToolCallParam,
@@ -40,7 +42,11 @@ from openai.types.responses import (
     ResponseUsage,
     Tool,
 )
-from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
+from openai.types.responses.response_input_item_param import (
+    ComputerCallOutput,
+    FunctionCallOutput,
+    Message,
+)
 from openai.types.responses.response_output_message_param import Content
 from opentelemetry.context import attach, detach
 from opentelemetry.trace import Span as OtelSpan
@@ -194,7 +200,9 @@ class OpenInferenceTracingProcessor(TracingProcessor):
                     otel_span.set_attribute(INPUT_VALUE, input)
                 elif isinstance(input, list):
                     otel_span.set_attribute(INPUT_MIME_TYPE, JSON)
-                    otel_span.set_attribute(INPUT_VALUE, safe_json_dumps(input))
+                    otel_span.set_attribute(
+                        INPUT_VALUE, safe_json_dumps(_without_computer_screenshot_urls(input))
+                    )
                     for k, v in _get_attributes_from_input(input):
                         otel_span.set_attribute(k, v)
                 elif TYPE_CHECKING:
@@ -314,9 +322,13 @@ def _get_attributes_from_input(
         elif item["type"] == "file_search_call":
             continue  # TODO
         elif item["type"] == "computer_call":
-            continue  # TODO
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_computer_tool_call_param(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
         elif item["type"] == "computer_call_output":
-            continue  # TODO
+            yield from _get_attributes_from_computer_call_output(item, prefix)
         elif item["type"] == "web_search_call":
             continue  # TODO
         elif item["type"] == "function_call":
@@ -494,6 +506,100 @@ def _get_attributes_from_function_call_output(
         yield f"{prefix}{MESSAGE_CONTENT}", output_value
 
 
+def _dump_model(value: Any) -> Any:
+    """Convert pydantic models (including those inside lists) to JSON-compatible data.
+
+    Other values are returned unchanged. Never raises: a model that cannot be dumped is
+    returned as-is so `safe_json_dumps` can still fall back to `str()`.
+    """
+    if isinstance(value, list):
+        return [_dump_model(item) for item in value]
+    if callable(dump_fn := getattr(value, "model_dump", None)):
+        try:
+            return dump_fn(mode="json", exclude_unset=True)
+        except Exception:
+            logger.exception("Failed to dump %s", type(value).__name__)
+    return value
+
+
+def _without_computer_screenshot_urls(items: list[Any]) -> list[Any]:
+    """Keep screenshot data exclusively in maskable structured image attributes.
+
+    Only `computer_call_output` items are rewritten; every other item is passed through by
+    reference so the common (no computer tool) case costs a single pass over the list.
+    """
+    result: list[Any] = []
+    for item in items:
+        if isinstance(item, dict) and item.get("type") == "computer_call_output":
+            output = _dump_model(item.get("output"))
+            if isinstance(output, dict) and output.get("type") == "computer_screenshot":
+                item = {**item, "output": {k: v for k, v in output.items() if k != "image_url"}}
+        result.append(item)
+    return result
+
+
+def _get_computer_action_arguments(
+    obj: Any,
+    prefix: str,
+) -> Iterator[tuple[str, AttributeValue]]:
+    obj = _dump_model(obj)
+    if not isinstance(obj, dict):
+        return
+    arguments = {
+        key: _dump_model(value)
+        for key in ("action", "actions")
+        if (value := obj.get(key)) is not None
+    }
+    if arguments:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps(arguments)
+
+
+def _get_attributes_from_response_computer_tool_call_param(
+    obj: ResponseComputerToolCallParam,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    call_id = obj.get("call_id") if isinstance(obj, dict) else getattr(obj, "call_id", None)
+    id_ = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", None)
+    if (tool_call_id := call_id or id_) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", tool_call_id
+    type_ = obj.get("type") if isinstance(obj, dict) else getattr(obj, "type", None)
+    if type_ is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type_
+
+    yield from _get_computer_action_arguments(obj, prefix)
+
+
+def _get_attributes_from_computer_call_output(
+    obj: ComputerCallOutput,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    yield f"{prefix}{MESSAGE_ROLE}", "tool"
+    call_id = obj.get("call_id") if isinstance(obj, dict) else getattr(obj, "call_id", None)
+    if call_id is not None:
+        yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", call_id
+    output: Any = obj.get("output") if isinstance(obj, dict) else getattr(obj, "output", None)
+    if output is None:
+        return
+    output = _dump_model(output)
+    if (
+        isinstance(output, dict)
+        and output.get("type") == "computer_screenshot"
+        and "image_url" in output
+    ):
+        # Preserve file references without duplicating image data in text attributes.
+        output = dict(output)
+        if image_url := output.pop("image_url"):
+            yield f"{prefix}{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}", "image"
+            yield (
+                f"{prefix}{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+                image_url,
+            )
+    yield (
+        f"{prefix}{MESSAGE_CONTENT}",
+        output if isinstance(output, str) else safe_json_dumps(output),
+    )
+
+
 def _get_attributes_from_generation_span_data(
     obj: GenerationSpanData,
 ) -> Iterator[tuple[str, AttributeValue]]:
@@ -648,7 +754,18 @@ def _get_attributes_from_function_span_data(
     if obj.input:
         yield INPUT_VALUE, obj.input
         yield INPUT_MIME_TYPE, JSON
-    if obj.output is not None:
+    if (
+        # ComputerTool spans are named "computer" (SDK >= 0.14, `trace_name`) or
+        # "computer_use_preview" (older releases, `name`).
+        obj.name in ("computer", "computer_use_preview")
+        and isinstance(obj.output, str)
+        and obj.output.startswith("data:image/")
+    ):
+        # The following response span records this screenshot as maskable image content.
+        # Do not duplicate it in the tool span's unstructured output.
+        yield OUTPUT_VALUE, safe_json_dumps({"type": "computer_screenshot"})
+        yield OUTPUT_MIME_TYPE, JSON
+    elif obj.output is not None:
         yield OUTPUT_VALUE, _convert_to_primitive(obj.output)
         if (
             isinstance(obj.output, str)
@@ -743,6 +860,7 @@ def _get_attributes_from_response_output(
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
             yield from _get_attributes_from_message(item, prefix)
             msg_idx += 1
+            tool_call_idx = 0
         elif item.type == "function_call":
             yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
@@ -758,7 +876,10 @@ def _get_attributes_from_response_output(
         elif item.type == "web_search_call":
             ...  # TODO
         elif item.type == "computer_call":
-            ...  # TODO
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_computer_tool_call(item, prefix)
+            tool_call_idx += 1
         elif item.type == "reasoning":
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
             attrs = list(_get_attributes_from_reasoning_item(item, prefix))
@@ -766,6 +887,7 @@ def _get_attributes_from_response_output(
                 for k, v in attrs:
                     yield k, v
                 msg_idx += 1
+                tool_call_idx = 0
         elif item.type == "image_generation_call":
             ...  # TODO
         elif item.type == "code_interpreter_call":
@@ -844,6 +966,23 @@ def _get_attributes_from_response_custom_tool_call(
             f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
             safe_json_dumps({"input": input_data}),
         )
+
+
+def _get_attributes_from_response_computer_tool_call(
+    obj: Union[ResponseComputerToolCall, dict[str, Any]],
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    call_id = obj.get("call_id") if isinstance(obj, dict) else getattr(obj, "call_id", None)
+    id_ = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", None)
+    if (tool_call_id := call_id or id_) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", tool_call_id
+    type_ = (
+        obj.get("type") if isinstance(obj, dict) else getattr(obj, "type", None)
+    ) or "computer_call"
+    if type_ is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type_
+
+    yield from _get_computer_action_arguments(obj, prefix)
 
 
 def _get_attributes_from_message(
