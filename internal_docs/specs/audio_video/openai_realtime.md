@@ -66,13 +66,13 @@ The six audio keys are instrumentor-local string literals (`_INPUT_AUDIO_URL` an
 
 ### PCM and transcripts
 
-OpenAI Realtime streams 24 kHz mono PCM16. `pcm16_to_wav_data_uri` wraps the buffer as `data:audio/wav;base64,...`. User PCM comes from `send_audio` (pre-speech rolling buffer, then the active USER) and from `input_audio_buffer.append`. Assistant PCM comes from `RealtimeAudio` deltas (`on_audio_delta`). Transcripts come from `conversation.item.input_audio_transcription.completed` (user) and `response.output_audio_transcript.done` (assistant). On interruption, assistant transcript falls back to joined `.delta` chunks because `.done` never fires.
+OpenAI Realtime streams 24 kHz mono PCM16. `pcm16_to_wav_data_uri` wraps the buffer as `data:audio/wav;base64,...`. User PCM comes from `send_audio` (pre-speech rolling buffer, then the active USER) and from `input_audio_buffer.append`. Assistant PCM comes from `RealtimeAudio` deltas (`on_audio_delta`). User transcripts come from `conversation.item.input_audio_transcription.completed`. Assistant transcripts come from `response.output_audio_transcript.done`. OpenAI also emits that `.done` event when a response is interrupted, incomplete, or cancelled. Prefer the terminal `.done` transcript. Join `.delta` chunks only when `.done` is missing. `output.audio.transcript` is the generated transcript. It is not what the user heard. Cancellation does not say where playback stopped. Playback position is a client concern (`conversation.item.truncate` with `audio_end_ms`).
 
 Typed user text is a separate USER span (`text_only=True`). It must not receive mic PCM or audio transcripts. That split is `on_user_text_created` versus `on_speech_started`.
 
 ### Hide and truncation (today)
 
-`_hide_input_audio` is `TraceConfig.hide_inputs` or `OPENINFERENCE_HIDE_INPUT_AUDIO`. `_hide_output_audio` is `TraceConfig.hide_outputs` or `OPENINFERENCE_HIDE_OUTPUT_AUDIO`. Truncation uses `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` (default 32000) via `truncate_audio_data_uri`. Audio-specific `TraceConfig` fields are a later promotion. The env vars already match [Configuration](../../../spec/configuration.md).
+`_hide_input_audio` is `TraceConfig.hide_inputs` or `OPENINFERENCE_HIDE_INPUT_AUDIO`. `_hide_output_audio` is `TraceConfig.hide_outputs` or `OPENINFERENCE_HIDE_OUTPUT_AUDIO`. Today the instrumentor slices audio data URIs with `truncate_audio_data_uri` and `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` (default 32000). The published size gate is externalize or redact, not slice. Audio-specific `TraceConfig` fields are a later promotion. The env vars already match [Configuration](../../../spec/configuration.md).
 
 ---
 
@@ -126,7 +126,7 @@ Do not write audio keys on `text_only` USER spans. Tests already assert that (`t
 |---|---|---|---|
 | `on_audio_delta` (`RealtimeAudio`) | `response.asst_audio_buf` then WAV URI | `_OUTPUT_AUDIO_URL` | `"output." + AudioAttributes.AUDIO_URL` |
 | same | MIME | `_OUTPUT_AUDIO_MIME_TYPE` = `"audio/wav"` | `"output." + AudioAttributes.AUDIO_MIME_TYPE` |
-| `on_asst_transcript_done`, or joined `asst_transcript_deltas` on interrupt | `response.asst_transcript` | `_OUTPUT_AUDIO_TRANSCRIPT` | `"output." + AudioAttributes.AUDIO_TRANSCRIPT` |
+| `on_asst_transcript_done` (`response.output_audio_transcript.done`, including interrupted, incomplete, or cancelled responses). Join `asst_transcript_deltas` only when `.done` is missing. | `response.asst_transcript` (generated transcript, not playback position) | `_OUTPUT_AUDIO_TRANSCRIPT` | `"output." + AudioAttributes.AUDIO_TRANSCRIPT` |
 | `on_response_done` usage | `input_token_details.audio_tokens` | `LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO` | unchanged |
 | `on_response_done` usage | `output_token_details.audio_tokens` | `LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO` | unchanged |
 
@@ -161,7 +161,7 @@ _OUTPUT_AUDIO_TRANSCRIPT = f"output.{AudioAttributes.AUDIO_TRANSCRIPT}"
 
 - Event dispatch (`_dispatch_event`, `_dispatch_raw`)
 - Turn and barge-in lifecycle
-- WAV encoding and truncation helpers
+- WAV encoding (`pcm16_to_wav_data_uri`)
 - TOOL spans keyed by `call_id`
 - Session context (`session.id` from `session.created`)
 - Dual-write of assistant audio onto `llm.output_messages` (separate, optional)
@@ -176,6 +176,6 @@ These names are now in [Configuration](../../../spec/configuration.md). openai-a
 |---|---|
 | `OPENINFERENCE_HIDE_INPUT_AUDIO` | Skip `input.audio.url`, `input.audio.mime_type`, and `input.audio.transcript` on USER. Also skip audio-derived `input.value` on the AUDIO parent. |
 | `OPENINFERENCE_HIDE_OUTPUT_AUDIO` | Skip `output.audio.url`, `output.audio.mime_type`, and `output.audio.transcript` on LLM. Also skip `output.value` on the AUDIO parent. |
-| `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` | Truncate the base64 body of audio data URIs. Keep the `data:audio/wav;base64,` prefix. Default `32000`. |
+| `OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` | Size gate for audio data URIs. Externalize or redact over-limit payloads. Do not slice. Default `32000`. |
 
 `TraceConfig(hide_inputs=True)` and `TraceConfig(hide_outputs=True)` already cascade.

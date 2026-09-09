@@ -112,7 +112,6 @@ export const ImageAttributesPostfixes = {
 
 export const VideoAttributesPostfixes = {
   url: "url",
-  mime_type: "mime_type",
 } as const;
 
 export const ToolCallAttributePostfixes = {
@@ -549,16 +548,10 @@ export const IMAGE_URL =
   `${SemanticAttributePrefixes.image}.${ImageAttributesPostfixes.url}` as const;
 
 /**
- * The URL, object-store URI, or base64 data URI of a video
+ * The URL, object-store URI, or base64 data URI of a video.
  */
 export const VIDEO_URL =
   `${SemanticAttributePrefixes.video}.${VideoAttributesPostfixes.url}` as const;
-
-/**
- * The MIME type of a video
- */
-export const VIDEO_MIME_TYPE =
-  `${SemanticAttributePrefixes.video}.${VideoAttributesPostfixes.mime_type}` as const;
 
 export const DOCUMENT_ID =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.id}` as const;
@@ -794,7 +787,6 @@ export const SemanticConventions = {
   EVALUATION_METADATA,
   IMAGE_URL,
   VIDEO_URL,
-  VIDEO_MIME_TYPE,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
   OUTPUT_VALUE,

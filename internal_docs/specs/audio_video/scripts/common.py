@@ -40,7 +40,6 @@ AUDIO_URL = "audio.url"
 AUDIO_MIME_TYPE = "audio.mime_type"
 AUDIO_TRANSCRIPT = "audio.transcript"
 VIDEO_URL = "video.url"
-VIDEO_MIME_TYPE = "video.mime_type"
 
 INPUT_AUDIO_URL = f"input.{AUDIO_URL}"
 INPUT_AUDIO_MIME_TYPE = f"input.{AUDIO_MIME_TYPE}"
@@ -161,7 +160,6 @@ def set_video_content_block(
     message_index: int,
     content_index: int,
     url: str,
-    mime_type: str | None = None,
 ) -> None:
     attrs[
         content_key(
@@ -176,15 +174,6 @@ def set_video_content_block(
             side, message_index, content_index, f"{MESSAGE_CONTENT_VIDEO}.{VIDEO_URL}"
         )
     ] = url
-    if mime_type is not None:
-        attrs[
-            content_key(
-                side,
-                message_index,
-                content_index,
-                f"{MESSAGE_CONTENT_VIDEO}.{VIDEO_MIME_TYPE}",
-            )
-        ] = mime_type
 
 
 def set_span_root_audio(

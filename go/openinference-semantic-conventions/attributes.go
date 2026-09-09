@@ -223,8 +223,7 @@ const (
 
 // Video attributes. Nested under MessageContentVideo.
 const (
-	VideoURL      = "video.url"
-	VideoMimeType = "video.mime_type"
+	VideoURL = "video.url"
 )
 
 // Document attributes — nested under RetrievalDocuments.{i}.

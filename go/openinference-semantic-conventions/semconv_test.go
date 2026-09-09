@@ -132,7 +132,6 @@ func TestAttributeKeys(t *testing.T) {
 		{AudioTranscript, "audio.transcript"},
 
 		{VideoURL, "video.url"},
-		{VideoMimeType, "video.mime_type"},
 
 		{DocumentID, "document.id"},
 		{DocumentScore, "document.score"},

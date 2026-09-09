@@ -60,7 +60,6 @@ OpenInference rewrite (URI video):
 ```
 llm.input_messages.0.message.contents.0.message_content.type = "video"
 llm.input_messages.0.message.contents.0.message_content.video.video.url = "gs://cloud-samples-data/generative-ai/video/animals.mp4"
-llm.input_messages.0.message.contents.0.message_content.video.video.mime_type = "video/mp4"
 ```
 
 OpenInference rewrite (inline audio):
@@ -71,7 +70,7 @@ llm.input_messages.0.message.contents.0.message_content.audio.audio.url = "data:
 llm.input_messages.0.message.contents.0.message_content.audio.audio.mime_type = "audio/wav"
 ```
 
-`file_uri` is copied verbatim into `video.url` or `audio.url`. Do not wrap `gs://` in a data URI.
+`file_uri` is copied verbatim into `video.url` or `audio.url`. Do not wrap `gs://` in a data URI. Provider `mime_type` discriminates image vs audio vs video and supplies the data URI prefix for inline bytes. Do not copy it onto `video.mime_type`. Consumers infer video MIME type from the URL.
 
 ---
 

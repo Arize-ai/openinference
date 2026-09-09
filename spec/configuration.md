@@ -27,8 +27,8 @@ The possible settings are:
 | OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS        | Replaces embedding.embeddings.*.embedding.vector values with `"__REDACTED__"`                                                  | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDINGS_TEXT           | Replaces embedding.embeddings.*.embedding.text values with `"__REDACTED__"`                                                    | bool | False   |
 | OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
-| OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH        | Limits characters of a base64 encoding of audio (`audio.url` data URIs)                                                        | int  | 32,000  |
-| OPENINFERENCE_BASE64_VIDEO_MAX_LENGTH        | Limits characters of a base64 encoding of video (`video.url` data URIs)                                                        | int  | 32,000  |
+| OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH        | Size gate for `audio.url` data URIs. Over this length, externalize if a blob uploader is configured, otherwise replace with `"__REDACTED__"`. Do not slice the base64. | int  | 32,000  |
+| OPENINFERENCE_BASE64_VIDEO_MAX_LENGTH        | Size gate for `video.url` data URIs. Over this length, externalize if a blob uploader is configured, otherwise replace with `"__REDACTED__"`. Do not slice the base64. | int  | 32,000  |
 | OPENINFERENCE_BLOB_UPLOADER                  | Names a `BlobUploader` registered under the `openinference_blob_uploader` entry-point group; base64 images larger than `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` are handed to it and the span attribute records the returned URI instead of being redacted | str  | unset   |
 
 ## Redacted Content
@@ -39,7 +39,7 @@ When content is hidden due to privacy configuration settings, the value `"__REDA
 
 **This capability is experimental** — the uploader contract and attribute semantics may change while the feature matures.
 
-Large binary content captured as base64 data URIs can exceed span attribute and OTLP payload limits. Instead of redacting oversized media, an instrumentation MAY upload the decoded bytes to external storage at capture time and record only a reference URI in the span attribute. This applies to images (`message_content.image.image.url`), audio (`message_content.audio.audio.url` and span-root `input.audio.url` / `output.audio.url`), and video (`message_content.video.video.url`) when the data URI exceeds the matching `OPENINFERENCE_BASE64_*_MAX_LENGTH` setting. See [Multimodal Attributes](./multimodal_attributes.md#external-storage-for-large-media) for the attribute-level semantics.
+Large binary content captured as base64 data URIs can exceed span attribute and OTLP payload limits. An instrumentation MAY upload the decoded bytes to external storage at capture time and record only a reference URI in the span attribute. This applies to images (`message_content.image.image.url`), audio (`message_content.audio.audio.url` and span-root `input.audio.url` / `output.audio.url`), and video (`message_content.video.video.url`) when the data URI exceeds the matching `OPENINFERENCE_BASE64_*_MAX_LENGTH` setting. Images with no uploader still truncate. Audio and video with no uploader MUST be replaced with `"__REDACTED__"`. Do not slice audio or video base64. See [Multimodal Attributes](./multimodal_attributes.md#external-storage-for-large-media) for the attribute-level semantics.
 
 OpenInference defines the interface and the offload policy but ships no uploader implementation — implementations come from applications, vendor SDKs (e.g. the Arize SDK), or a future upstream (OTel util-genai) byte uploader. In Python an uploader is supplied either in code, or zero-code via an entry point:
 

@@ -314,7 +314,6 @@ class TestVideoAttributes:
         attributes = _get_attributes(VideoAttributes)
         assert _nested_dict(attributes) == {
             "video": {
-                "mime_type": VideoAttributes.VIDEO_MIME_TYPE,
                 "url": VideoAttributes.VIDEO_URL,
             }
         }

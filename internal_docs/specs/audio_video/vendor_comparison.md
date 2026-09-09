@@ -117,7 +117,7 @@ Prefix every row with `llm.<input|output>_messages.<i>.message.contents.<j>.`.
 | OpenAI assistant `audio.id` | `message_content.id` | Replay or expiry lookup. |
 | Gemini `file_uri` with `audio/*` | `message_content.audio.audio.url` | Copy URI. |
 | Gemini `file_uri` with `video/*` | `message_content.video.video.url` | Copy URI. |
-| Gemini `mime_type` | `audio.mime_type` or `video.mime_type` | SHOULD when the provider sends it. |
+| Gemini `mime_type` | `audio.mime_type` for audio parts only | Discriminates `image/*`, `audio/*`, and `video/*`. Do not emit `video.mime_type`. Infer video MIME from `video.url`. |
 | Gemini `inline_data` | data URI in the matching `*.url` | |
 | Bedrock `s3Location.uri` or `bytes` | `message_content.video.video.url` | |
 
@@ -156,7 +156,7 @@ Message-content masking matches images. Hide or offload when the key contains `m
 
 Span-root masking matches openai-agents today. Hide `input.audio.*` and `output.audio.*` via `OPENINFERENCE_HIDE_INPUT_AUDIO` and `OPENINFERENCE_HIDE_OUTPUT_AUDIO`.
 
-Blob upload already classifies `video/` MIME. Wire `TraceConfig.mask()` after constants land. Audio and video offload follow the image length-gate pattern with their own env vars.
+Blob upload already classifies `video/` MIME. Wire `TraceConfig.mask()` after constants land. Audio and video size gates follow the image length-gate pattern with their own env vars, but over-limit audio and video MUST be externalized or redacted. Do not slice the base64.
 
 ---
 
@@ -173,8 +173,7 @@ New:
 - `MessageContentAttributes.MESSAGE_CONTENT_AUDIO` = `message_content.audio`
 - `MessageContentAttributes.MESSAGE_CONTENT_VIDEO` = `message_content.video`
 - `VideoAttributes.VIDEO_URL` = `video.url`
-- `VideoAttributes.VIDEO_MIME_TYPE` = `video.mime_type`
 
-`message_content.type` allowed values add `"video"`.
+`message_content.type` allowed values add `"video"`. Do not add `video.mime_type`.
 
 Demo scripts keep these as string literals until every language package is bumped. See [scripts/README.md](./scripts/README.md).

@@ -126,7 +126,6 @@ public class SemanticConventions {
     @UtilityClass
     public static class VideoAttributesPostfixes {
         public static final String URL = "url";
-        public static final String MIME_TYPE = "mime_type";
     }
 
     @UtilityClass
@@ -585,15 +584,9 @@ public class SemanticConventions {
     public static final String IMAGE_URL = SemanticAttributePrefixes.IMAGE + "." + ImageAttributesPostfixes.URL;
 
     /**
-     * The URL, object-store URI, or base64 data URI of a video
+     * The URL, object-store URI, or base64 data URI of a video.
      */
     public static final String VIDEO_URL = SemanticAttributePrefixes.VIDEO + "." + VideoAttributesPostfixes.URL;
-
-    /**
-     * The MIME type of a video
-     */
-    public static final String VIDEO_MIME_TYPE =
-            SemanticAttributePrefixes.VIDEO + "." + VideoAttributesPostfixes.MIME_TYPE;
 
     public static final String DOCUMENT_ID = SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.ID;
 

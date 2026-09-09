@@ -453,11 +453,7 @@ class VideoAttributes:
 
     VIDEO_URL = "video.url"
     """
-    The URL, object-store URI, or base64 data URI of a video
-    """
-    VIDEO_MIME_TYPE = "video.mime_type"
-    """
-    The MIME type of the video
+    The URL, object-store URI, or base64 data URI of a video.
     """
 
 

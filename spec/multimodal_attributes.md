@@ -67,7 +67,6 @@ For OpenAI Chat Completions `input_audio`, build a data URI from base64 `data` a
 ```
 llm.input_messages.0.message.contents.3.message_content.type = "video"
 llm.input_messages.0.message.contents.3.message_content.video.video.url = "gs://bucket/clip.mp4"
-llm.input_messages.0.message.contents.3.message_content.video.video.mime_type = "video/mp4"
 ```
 
 For base64-encoded video:
@@ -75,10 +74,9 @@ For base64-encoded video:
 ```
 llm.input_messages.0.message.contents.3.message_content.type = "video"
 llm.input_messages.0.message.contents.3.message_content.video.video.url = "data:video/mp4;base64,AAAA..."
-llm.input_messages.0.message.contents.3.message_content.video.video.mime_type = "video/mp4"
 ```
 
-`video.mime_type` is optional. Emit it when the provider sends a MIME type (Gemini `mime_type`) or when it can be derived from a format literal (Bedrock `format: "mp4"` to `video/mp4`). Copy `gs://`, `s3://`, and `https://` URIs verbatim. Do not put video in `image.url`. Do not store provider file ids in `video.url`.
+Do not emit `video.mime_type`. Consumers infer MIME type from the URL path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix. Copy `gs://`, `s3://`, and `https://` URIs verbatim. Do not put video in `image.url`. Do not store provider file ids in `video.url`.
 
 The doubled prefix (`message_content.video.video.url`) matches `message_content.image.image.url`. It is the concatenation of `message_content.video` and `video.url`.
 
@@ -130,7 +128,7 @@ When `OPENINFERENCE_HIDE_INPUT_IMAGES` is set to true:
 
 When `OPENINFERENCE_HIDE_INPUT_AUDIO` is true, replace `message_content.audio.audio.url` (and optional mime type and transcript) on input messages, and span-root `input.audio.*`, with `"__REDACTED__"` or drop them. `OPENINFERENCE_HIDE_OUTPUT_AUDIO` does the same for output messages and `output.audio.*`.
 
-When `OPENINFERENCE_HIDE_INPUT_VIDEO` is true, replace `message_content.video.video.url` (and optional mime type) on input messages with `"__REDACTED__"`. `OPENINFERENCE_HIDE_OUTPUT_VIDEO` does the same for output messages.
+When `OPENINFERENCE_HIDE_INPUT_VIDEO` is true, replace `message_content.video.video.url` on input messages with `"__REDACTED__"`. `OPENINFERENCE_HIDE_OUTPUT_VIDEO` does the same for output messages.
 
 These flags apply only when the enclosing input or output messages are not already hidden.
 
@@ -142,11 +140,11 @@ When `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` is set (default: 32000):
 - Only the base64 content portion is subject to the length limit
 - If a blob uploader is configured, over-limit images are externalized instead and the attribute records the destination URI (see [External Storage for Large Media](#external-storage-for-large-media))
 
-### Base64 audio and video truncation
+### Base64 audio and video size gates
 
-`OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` (default: 32000) truncates or offloads `audio.url` data URIs the same way images are truncated. Keep the `data:audio/…;base64,` prefix.
+`OPENINFERENCE_BASE64_AUDIO_MAX_LENGTH` (default: 32000) is a size gate for `audio.url` data URIs. 32000 base64 characters is about 0.5s of 24 kHz mono PCM16. Do not slice the base64. That breaks WAV headers and compressed media. If a blob uploader is configured, over-limit audio is externalized. Otherwise replace the attribute with `"__REDACTED__"` or drop it.
 
-`OPENINFERENCE_BASE64_VIDEO_MAX_LENGTH` does the same for `video.url` once an instrumentor emits video data URIs. Default 32000.
+`OPENINFERENCE_BASE64_VIDEO_MAX_LENGTH` is the same gate for `video.url`. Default 32000. Externalize or redact. Do not slice.
 
 ### Hiding Text Content
 
