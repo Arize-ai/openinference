@@ -2,7 +2,7 @@
 
 This document is the from-scratch mapping for `agents.realtime.RealtimeSession`, based on the shipping instrumentor in `_realtime.py`. Chat Completions `input_audio` is a different API and stays on `message.contents`. See [openai_chat_audio.md](./openai_chat_audio.md).
 
-The six `input.audio.*` / `output.audio.*` strings are `SpanAttributes` (`INPUT_AUDIO_URL` and siblings). `_realtime.py` should use those constants. Span kinds `USER` and `AUDIO` stay unpublished.
+The six `input.audio.*` / `output.audio.*` strings are `SpanAttributes` (`INPUT_AUDIO_URL` and siblings). `_realtime.py` aliases those constants. Span kinds `USER` and `AUDIO` stay unpublished.
 
 Today's capture lives in `python/instrumentation/openinference-instrumentation-openai-agents/src/openinference/instrumentation/openai_agents/_realtime.py`.
 
@@ -64,7 +64,7 @@ Media is not set when events arrive. Buffers accumulate, then `_finalize_user` a
 | `_set_turn_io_attributes` | AUDIO | `input.value` joined from typed text and audio transcripts. `output.value` joined from assistant transcripts. No WAV on the parent. |
 | `_start_turn` | AUDIO | `openinference.span.kind=AUDIO`, `llm.model_name`, `llm.invocation_parameters` from the session.update snapshot |
 
-The six audio keys are instrumentor-local string literals (`_INPUT_AUDIO_URL` and friends). Comments in `_realtime.py` still say they are not yet in semconv. After this spec, compose them from `AudioAttributes` instead of repeating the strings.
+The six audio keys alias `SpanAttributes.INPUT_AUDIO_URL` and siblings. `_AUDIO_KIND` and `_USER_KIND` stay local strings.
 
 ### PCM and transcripts
 
@@ -100,28 +100,28 @@ Realtime is the second case. Designing it now, with that rule in hand, yields th
 
 ## 3. Event to attribute mapping
 
-Each row is one capture the instrumentor already implements. The published key is the same string. The "today" column is the local constant. The "designed today" column is the composition that should replace it.
+Each row is one capture the instrumentor already implements. The published key is the `SpanAttributes` constant.
 
 ### User audio (USER span, `_finalize_user`)
 
-| Source in `_realtime.py` | Buffer or field | Today | Designed today |
-|---|---|---|---|
-| `on_send_audio`, `on_user_audio_append` | `user.user_audio_buf` then `pcm16_to_wav_data_uri` | `_INPUT_AUDIO_URL` | `"input." + AudioAttributes.AUDIO_URL` |
-| same | MIME after WAV wrap | `_INPUT_AUDIO_MIME_TYPE` = `"audio/wav"` | `"input." + AudioAttributes.AUDIO_MIME_TYPE` |
-| `on_user_transcript_completed` (`conversation.item.input_audio_transcription.completed`) | `user.user_transcript` | `_INPUT_AUDIO_TRANSCRIPT` | `"input." + AudioAttributes.AUDIO_TRANSCRIPT` |
-| `on_user_text_created` (`input_text` or `text` parts) | `user.user_text` | `SpanAttributes.INPUT_VALUE` plus `INPUT_MIME_TYPE` `text/plain` | unchanged |
+| Source in `_realtime.py` | Buffer or field | Attribute |
+|---|---|---|
+| `on_send_audio`, `on_user_audio_append` | `user.user_audio_buf` then `pcm16_to_wav_data_uri` | `SpanAttributes.INPUT_AUDIO_URL` |
+| same | MIME after WAV wrap | `SpanAttributes.INPUT_AUDIO_MIME_TYPE` = `"audio/wav"` |
+| `on_user_transcript_completed` (`conversation.item.input_audio_transcription.completed`) | `user.user_transcript` | `SpanAttributes.INPUT_AUDIO_TRANSCRIPT` |
+| `on_user_text_created` (`input_text` or `text` parts) | `user.user_text` | `SpanAttributes.INPUT_VALUE` plus `INPUT_MIME_TYPE` `text/plain` |
 
 Do not write audio keys on `text_only` USER spans. Tests already assert that (`test_realtime.py`).
 
 ### Assistant audio (LLM span, `_finalize_response`)
 
-| Source in `_realtime.py` | Buffer or field | Today | Designed today |
-|---|---|---|---|
-| `on_audio_delta` (`RealtimeAudio`) | `response.asst_audio_buf` then WAV URI | `_OUTPUT_AUDIO_URL` | `"output." + AudioAttributes.AUDIO_URL` |
-| same | MIME | `_OUTPUT_AUDIO_MIME_TYPE` = `"audio/wav"` | `"output." + AudioAttributes.AUDIO_MIME_TYPE` |
-| `on_asst_transcript_done` (`response.output_audio_transcript.done`, including interrupted, incomplete, or cancelled responses). Join `asst_transcript_deltas` only when `.done` is missing. | `response.asst_transcript` (generated transcript, not playback position) | `_OUTPUT_AUDIO_TRANSCRIPT` | `"output." + AudioAttributes.AUDIO_TRANSCRIPT` |
-| `on_response_done` usage | `input_token_details.audio_tokens` | `LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO` | unchanged |
-| `on_response_done` usage | `output_token_details.audio_tokens` | `LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO` | unchanged |
+| Source in `_realtime.py` | Buffer or field | Attribute |
+|---|---|---|
+| `on_audio_delta` (`RealtimeAudio`) | `response.asst_audio_buf` then WAV URI | `SpanAttributes.OUTPUT_AUDIO_URL` |
+| same | MIME | `SpanAttributes.OUTPUT_AUDIO_MIME_TYPE` = `"audio/wav"` |
+| `on_asst_transcript_done` (`response.output_audio_transcript.done`, including interrupted, incomplete, or cancelled responses). Join `asst_transcript_deltas` only when `.done` is missing. | `response.asst_transcript` (generated transcript, not playback position) | `SpanAttributes.OUTPUT_AUDIO_TRANSCRIPT` |
+| `on_response_done` usage | `input_token_details.audio_tokens` | `LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO` |
+| `on_response_done` usage | `output_token_details.audio_tokens` | `LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO` |
 
 ### Turn parent (AUDIO span)
 
@@ -138,7 +138,7 @@ Remaining instrumentor work:
 1. When `TraceConfig` grows `hide_input_audio` and `hide_output_audio`, point `_hide_input_audio` and `_hide_output_audio` at those fields and keep the env vars as the fallback. Same for `base64_audio_max_length`.
 2. Leave `llm.input_messages` and `message_content.audio` off USER spans.
 
-### What not to change in that follow-up
+### What not to change while promoting hide flags
 
 - Event dispatch (`_dispatch_event`, `_dispatch_raw`)
 - Turn and barge-in lifecycle
