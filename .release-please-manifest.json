@@ -22,7 +22,7 @@
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.39",
     "python/instrumentation/openinference-instrumentation-ag2": "0.1.7",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.15",
-    "python/instrumentation/openinference-instrumentation-openai-agents": "2.3.0",
+    "python/instrumentation/openinference-instrumentation-openai-agents": "2.4.0",
     "python/instrumentation/openinference-instrumentation-portkey": "0.1.18",
     "python/instrumentation/openinference-instrumentation-beeai": "0.1.26",
     "python/instrumentation/openinference-instrumentation-mcp": "2.0.10",
