@@ -83,9 +83,17 @@ export function extractInitAttributes(msg: SDKSystemMessage): {
 }
 
 /**
+ * Extracts the model's stop reason from a result message.
+ */
+function extractStopReason(msg: SDKResultMessage): string | undefined {
+  return msg.stop_reason ? String(msg.stop_reason) : undefined;
+}
+
+/**
  * Extracts span attributes from a result success message.
  */
 export function extractResultSuccessAttributes(msg: SDKResultSuccess): Attributes {
+  const stopReason = extractStopReason(msg);
   return {
     ...getOutputAttributes(msg.result),
     [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: msg.usage.input_tokens,
@@ -93,6 +101,7 @@ export function extractResultSuccessAttributes(msg: SDKResultSuccess): Attribute
     [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: msg.usage.input_tokens + msg.usage.output_tokens,
     [SemanticConventions.LLM_COST_TOTAL]: msg.total_cost_usd,
     [SemanticConventions.SESSION_ID]: msg.session_id,
+    ...(stopReason != null ? { [SemanticConventions.LLM_FINISH_REASON]: stopReason } : {}),
   };
 }
 
@@ -108,6 +117,7 @@ export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
           mimeType: MimeType.JSON,
         })
       : {};
+  const stopReason = extractStopReason(msg);
   return {
     ...outputAttrs,
     [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: msg.usage.input_tokens,
@@ -115,6 +125,7 @@ export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
     [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: msg.usage.input_tokens + msg.usage.output_tokens,
     [SemanticConventions.LLM_COST_TOTAL]: msg.total_cost_usd,
     [SemanticConventions.SESSION_ID]: msg.session_id,
+    ...(stopReason != null ? { [SemanticConventions.LLM_FINISH_REASON]: stopReason } : {}),
   };
 }
 

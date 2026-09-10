@@ -70,6 +70,7 @@ describe("V1 query() wrapper", () => {
         type: "result",
         subtype: "success",
         result: "Hello, world!",
+        stop_reason: "end_turn",
         usage: { input_tokens: 100, output_tokens: 50 },
         total_cost_usd: 0.005,
         num_turns: 1,
@@ -101,6 +102,7 @@ describe("V1 query() wrapper", () => {
     expect(attrs[SemanticConventions.OUTPUT_VALUE]).toBe("Hello, world!");
     expect(attrs[SemanticConventions.SESSION_ID]).toBe("sess-123");
     expect(attrs[SemanticConventions.LLM_MODEL_NAME]).toBe("claude-sonnet-4-20250514");
+    expect(attrs[SemanticConventions.LLM_FINISH_REASON]).toBe("end_turn");
     expect(attrs[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]).toBe(100);
     expect(attrs[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]).toBe(50);
     expect(attrs[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBe(150);
@@ -120,6 +122,7 @@ describe("V1 query() wrapper", () => {
         type: "result",
         subtype: "error_max_turns",
         errors: ["Max turns reached"],
+        stop_reason: "max_turns",
         usage: { input_tokens: 200, output_tokens: 100 },
         total_cost_usd: 0.01,
         num_turns: 5,
@@ -143,6 +146,8 @@ describe("V1 query() wrapper", () => {
     // The span ends with OK from the generator completing normally,
     // but the error result message sets ERROR status which takes precedence
     expect(span.attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBe(300);
+    expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("claude-sonnet-4-20250514");
+    expect(span.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("max_turns");
   });
 
   it("should handle generator errors", async () => {
@@ -247,5 +252,31 @@ describe("V1 query() wrapper", () => {
     expect(spans).toHaveLength(1);
     // Non-string prompts are JSON-stringified
     expect(spans[0].attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe("application/json");
+  });
+
+  it("should omit finish reason when stop_reason is null", async () => {
+    const mockModule = createMockModule([
+      {
+        type: "result",
+        subtype: "success",
+        result: "Done, no stop reason reported",
+        stop_reason: null,
+        usage: { input_tokens: 10, output_tokens: 5 },
+        total_cost_usd: 0.001,
+        num_turns: 1,
+        duration_ms: 100,
+        session_id: "sess-null-stop",
+      },
+    ]);
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    const iterable = mockModule.query({ prompt: "test" });
+    for await (const _msg of iterable) {
+      // consume
+    }
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans[0].attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
   });
 });
