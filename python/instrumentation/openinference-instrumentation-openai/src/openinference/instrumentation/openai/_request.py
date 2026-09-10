@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from itertools import chain
 from types import ModuleType
 from typing import (
-    TYPE_CHECKING,
     Any,
     Awaitable,
     Callable,
@@ -12,6 +11,7 @@ from typing import (
     Iterator,
     Mapping,
     Tuple,
+    cast,
 )
 
 from opentelemetry import context as context_api
@@ -22,10 +22,12 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
 from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
     get_attributes_from_context,
     infer_llm_provider_from_host,
 )
-from openinference.instrumentation.openai._image_utils import redact_images_from_request_parameters
+from openinference.instrumentation.openai._image_utils import serialize_request_input
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -39,7 +41,6 @@ from openinference.instrumentation.openai._response_attributes_extractor import 
 )
 from openinference.instrumentation.openai._stream import _ResponseAccumulator, _Stream
 from openinference.instrumentation.openai._utils import (
-    _as_input_attributes,
     _as_output_attributes,
     _finish_tracing,
     _io_value_and_type,
@@ -47,6 +48,7 @@ from openinference.instrumentation.openai._utils import (
 from openinference.instrumentation.openai._with_span import _WithSpan
 from openinference.semconv.trace import (
     OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -62,9 +64,16 @@ logger.addHandler(logging.NullHandler())
 
 
 class _WithTracer(ABC):
-    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
+        self._config = config
 
     @contextmanager
     def _start_as_current_span(
@@ -73,12 +82,20 @@ class _WithTracer(ABC):
         attributes: Iterable[Tuple[str, AttributeValue]],
         context_attributes: Iterable[Tuple[str, AttributeValue]],
         extra_attributes: Iterable[Tuple[str, AttributeValue]],
+        input_value: Callable[[], str],
     ) -> Iterator[_WithSpan]:
         # Because OTEL has a default limit of 128 attributes, we split our attributes into
         # two tiers, where the addition of "extra_attributes" is deferred until the end
         # and only after the "attributes" are added.
         try:
-            span = self._tracer.start_span(name=span_name, attributes=dict(attributes))
+            span = cast(
+                trace_api.Span,
+                self._tracer.start_span(
+                    name=span_name,
+                    attributes=dict(attributes),
+                    input_value=input_value,
+                ),
+            )
         except Exception:
             logger.exception("Failed to start span")
             span = INVALID_SPAN
@@ -154,39 +171,10 @@ class _WithOpenAI(ABC):
         if provider := infer_llm_provider_from_host(host):
             yield SpanAttributes.LLM_PROVIDER, provider.value
 
-    def _get_attributes_from_request(
-        self,
-        cast_to: type,
-        request_parameters: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    def _get_attributes_from_request(self, cast_to: type) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
         yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
-        try:
-            # Get the configuration from the tracer to check image hiding settings
-            if TYPE_CHECKING:
-                assert hasattr(self, "_tracer")
-            config = getattr(getattr(self, "_tracer", None), "_self_config", None)
-
-            # Apply image redaction if configured
-            hide_images = bool(config and getattr(config, "hide_input_images", False))
-            max_length = int(getattr(config, "base64_image_max_length", 0) if config else 0)
-
-            if hide_images or (config and max_length > 0):
-                # Redact images if hide_input_images=True OR if base64_image_max_length is set
-                processed_params = redact_images_from_request_parameters(
-                    dict(request_parameters),
-                    hide_input_images=hide_images,
-                    base64_image_max_length=max_length,
-                )
-            else:
-                processed_params = dict(request_parameters)
-
-            yield from _as_input_attributes(_io_value_and_type(processed_params))
-        except Exception:
-            logger.exception(
-                f"Failed to get input attributes from request parameters of "
-                f"type {type(request_parameters)}"
-            )
+        yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
 
     def _get_extra_attributes_from_request(
         self,
@@ -322,16 +310,14 @@ class _Request(_WithTracer, _WithOpenAI):
             span_name=span_name,
             attributes=chain(
                 self._get_attributes_from_instance(instance),
-                self._get_attributes_from_request(
-                    cast_to=cast_to,
-                    request_parameters=request_parameters,
-                ),
+                self._get_attributes_from_request(cast_to=cast_to),
             ),
             context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(
                 cast_to=cast_to,
                 request_parameters=request_parameters,
             ),
+            input_value=lambda: serialize_request_input(request_parameters, self._config),
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -383,16 +369,14 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
             span_name=span_name,
             attributes=chain(
                 self._get_attributes_from_instance(instance),
-                self._get_attributes_from_request(
-                    cast_to=cast_to,
-                    request_parameters=request_parameters,
-                ),
+                self._get_attributes_from_request(cast_to=cast_to),
             ),
             context_attributes=get_attributes_from_context(),
             extra_attributes=self._get_extra_attributes_from_request(
                 cast_to=cast_to,
                 request_parameters=request_parameters,
             ),
+            input_value=lambda: serialize_request_input(request_parameters, self._config),
         ) as with_span:
             try:
                 response = await wrapped(*args, **kwargs)
