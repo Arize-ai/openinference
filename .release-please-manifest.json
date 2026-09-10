@@ -1,5 +1,5 @@
 {
-    "python/openinference-semantic-conventions": "0.1.36",
+    "python/openinference-semantic-conventions": "0.1.37",
     "python/instrumentation/openinference-instrumentation-agno": "1.0.8",
     "python/instrumentation/openinference-instrumentation-openai": "0.1.59",
     "python/instrumentation/openinference-instrumentation-llama-index": "4.5.1",
@@ -32,7 +32,7 @@
     "python/instrumentation/openinference-instrumentation-google-adk": "0.1.26",
     "python/instrumentation/openinference-instrumentation-openlit": "0.1.15",
     "python/instrumentation/openinference-instrumentation-openllmetry": "0.1.19",
-    "java/openinference-semantic-conventions": "0.1.17",
+    "java/openinference-semantic-conventions": "0.1.18",
     "java/openinference-instrumentation": "0.1.9",
     "java/instrumentation/openinference-instrumentation-langchain4j": "0.1.8",
     "java/instrumentation/openinference-instrumentation-springAI": "0.1.9",
@@ -42,7 +42,7 @@
     "python/instrumentation/openinference-instrumentation-strands-agents": "0.1.7",
     "python/instrumentation/openinference-instrumentation-agent-framework": "0.1.9",
     "python/instrumentation/openinference-instrumentation-claude-agent-sdk": "0.1.17",
-    "go/openinference-semantic-conventions": "0.1.6",
+    "go/openinference-semantic-conventions": "0.1.7",
     "go/openinference-instrumentation": "0.1.1",
     "go/openinference-instrumentation-anthropic-sdk-go": "0.1.0",
     "go/openinference-instrumentation-openai-go": "0.1.0"

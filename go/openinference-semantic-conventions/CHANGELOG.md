@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.6...go/openinference-semantic-conventions/v0.1.7) (2026-09-10)
+
+
+### Features
+
+* **semconv:** add audio and video semantic conventions ([#3700](https://github.com/Arize-ai/openinference/issues/3700)) ([6d9f813](https://github.com/Arize-ai/openinference/commit/6d9f81360eaf2ec90e03c43d2f0c617909ee2f4d))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.5...go/openinference-semantic-conventions/v0.1.6) (2026-09-09)
 
 
