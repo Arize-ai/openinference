@@ -107,4 +107,54 @@ describe("getAttributesFromModelInvocationOutput - reasoning content blocks", ()
     expect(attrs[`${MSG}.0.${CONTENTS}.1.${TEXT}`]).toBe("The 10th Fibonacci number is 55.");
     expect(attrs["output.value"]).toBe("The 10th Fibonacci number is 55.");
   });
+
+  it("uses top-level reasoningContent and skips its rawResponse duplicate", () => {
+    const output = {
+      reasoningContent: {
+        reasoningText: { text: "Authoritative reasoning.", signature: "top-level-signature" },
+      },
+      rawResponse: {
+        content: JSON.stringify({
+          output: {
+            message: {
+              role: "assistant",
+              content: [
+                {
+                  text: null,
+                  reasoningContent: {
+                    reasoningText: { text: "Duplicate reasoning.", signature: null },
+                    redactedContent: null,
+                  },
+                  toolUse: null,
+                },
+                { text: "Final answer.", reasoningContent: null, toolUse: null },
+              ],
+            },
+          },
+        }),
+      },
+    };
+
+    const attrs = getAttributesFromModelInvocationOutput(output);
+
+    expect(attrs[`${MSG}.0.${CONTENTS}.0.${TYPE}`]).toBe("reasoning");
+    expect(attrs[`${MSG}.0.${CONTENTS}.0.${TEXT}`]).toBe("Authoritative reasoning.");
+    expect(attrs[`${MSG}.0.${CONTENTS}.0.${SIG}`]).toBe("top-level-signature");
+    expect(attrs[`${MSG}.0.${CONTENTS}.1.${TYPE}`]).toBe("text");
+    expect(attrs[`${MSG}.0.${CONTENTS}.1.${TEXT}`]).toBe("Final answer.");
+    expect(attrs[`${MSG}.0.${CONTENTS}.2.${TYPE}`]).toBeUndefined();
+  });
+
+  it("maps top-level redacted reasoningContent without a rawResponse", () => {
+    const attrs = getAttributesFromModelInvocationOutput({
+      reasoningContent: {
+        redactedContent: new Uint8Array(Buffer.from("encrypted-reasoning")),
+      },
+    });
+
+    expect(attrs[`${MSG}.0.${CONTENTS}.0.${TYPE}`]).toBe("reasoning");
+    expect(attrs[`${MSG}.0.${CONTENTS}.0.${DATA}`]).toBe(
+      Buffer.from("encrypted-reasoning").toString("base64"),
+    );
+  });
 });

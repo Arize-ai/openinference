@@ -505,6 +505,14 @@ function extractRawContentBlocks(parsedData: StringKeyedObject): {
   return { rawContentBlocks: [] };
 }
 
+function isReasoningContentBlock(rawBlock: StringKeyedObject): boolean {
+  return (
+    rawBlock.type === "thinking" ||
+    rawBlock.type === "redacted_thinking" ||
+    isObjectWithStringKeys(rawBlock.reasoningContent)
+  );
+}
+
 function buildMergedMessage({
   role,
   contentBlocks,
@@ -567,6 +575,16 @@ function getOutputMessages(modelInvocationOutput: StringKeyedObject): Message[] 
   const contentBlocks: MessageContent[] = [];
   const toolCalls: ToolCall[] = [];
   let role = "assistant";
+  let hasTopLevelReasoning = false;
+  const topLevelReasoning = modelInvocationOutput.reasoningContent;
+  if (isObjectWithStringKeys(topLevelReasoning)) {
+    const reasoningBlock = extractReasoningContentFromConverseBlock(topLevelReasoning);
+    if (reasoningBlock) {
+      contentBlocks.push(reasoningBlock);
+      hasTopLevelReasoning = true;
+    }
+  }
+
   const rawResponse = getObjectDataFromUnknown({
     data: modelInvocationOutput,
     key: "rawResponse",
@@ -591,6 +609,9 @@ function getOutputMessages(modelInvocationOutput: StringKeyedObject): Message[] 
       }
       for (const rawBlock of extracted.rawContentBlocks) {
         if (!isObjectWithStringKeys(rawBlock)) {
+          continue;
+        }
+        if (hasTopLevelReasoning && isReasoningContentBlock(rawBlock)) {
           continue;
         }
         collectBlockMessage({

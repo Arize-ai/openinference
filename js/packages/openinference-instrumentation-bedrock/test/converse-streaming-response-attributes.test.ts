@@ -62,4 +62,43 @@ describe("Converse streaming response attributes", () => {
       contentBlockIndex: 7,
     });
   });
+
+  it("concatenates signature deltas on the same reasoning block", async () => {
+    const exporter = new InMemorySpanExporter();
+    const provider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
+    const span = provider.getTracer("test").startSpan("converse");
+
+    async function* stream() {
+      yield {
+        contentBlockDelta: {
+          contentBlockIndex: 0,
+          delta: { reasoningContent: { text: "Reasoning." } },
+        },
+      };
+      yield {
+        contentBlockDelta: {
+          contentBlockIndex: 0,
+          delta: { reasoningContent: { signature: "signature-" } },
+        },
+      };
+      yield {
+        contentBlockDelta: {
+          contentBlockIndex: 0,
+          delta: { reasoningContent: { signature: "part" } },
+        },
+      };
+    }
+
+    await consumeConverseStreamChunks({ stream: stream(), span });
+    span.end();
+
+    const [finishedSpan] = exporter.getFinishedSpans();
+    expect(
+      finishedSpan.attributes["llm.output_messages.0.message.contents.0.message_content.signature"],
+    ).toBe("signature-part");
+
+    await provider.shutdown();
+  });
 });

@@ -136,7 +136,9 @@ function appendReasoningDelta(
   state.contentBlocksByIndex[event.contentBlockIndex] = {
     ...reasoning,
     ...(event.text !== undefined && { text: (reasoning.text ?? "") + event.text }),
-    ...(event.signature !== undefined && { signature: event.signature }),
+    ...(event.signature !== undefined && {
+      signature: (reasoning.signature ?? "") + event.signature,
+    }),
     ...(event.redactedContent !== undefined && {
       redactedContentBytes: Buffer.concat([
         reasoning.redactedContentBytes ?? Buffer.alloc(0),
