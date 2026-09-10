@@ -27,6 +27,7 @@ export const SemanticAttributePrefixes = {
   message_content: "message_content",
   image: "image",
   audio: "audio",
+  video: "video",
   prompt: "prompt",
   agent: "agent",
   graph: "graph",
@@ -97,6 +98,8 @@ export const MessageContentsAttributePostfixes = {
   type: "type",
   text: "text",
   image: "image",
+  audio: "audio",
+  video: "video",
   id: "id",
   signature: "signature",
   data: "data",
@@ -104,6 +107,10 @@ export const MessageContentsAttributePostfixes = {
 } as const;
 
 export const ImageAttributesPostfixes = {
+  url: "url",
+} as const;
+
+export const VideoAttributesPostfixes = {
   url: "url",
 } as const;
 
@@ -500,6 +507,16 @@ export const MESSAGE_CONTENT_TEXT =
 export const MESSAGE_CONTENT_IMAGE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.image}` as const;
 /**
+ * The audio content of the message sent to the LLM
+ */
+export const MESSAGE_CONTENT_AUDIO =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.audio}` as const;
+/**
+ * The video content of the message sent to the LLM
+ */
+export const MESSAGE_CONTENT_VIDEO =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.video}` as const;
+/**
  * Provider-assigned identifier for this message content item. For OpenAI
  * Responses reasoning items, this maps to ResponseReasoningItem.id and should
  * be preserved for stateless replay
@@ -529,6 +546,12 @@ export const MESSAGE_CONTENT_ENCRYPTED_CONTENT =
  */
 export const IMAGE_URL =
   `${SemanticAttributePrefixes.image}.${ImageAttributesPostfixes.url}` as const;
+
+/**
+ * The URL, object-store URI, or base64 data URI of a video.
+ */
+export const VIDEO_URL =
+  `${SemanticAttributePrefixes.video}.${VideoAttributesPostfixes.url}` as const;
 
 export const DOCUMENT_ID =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.id}` as const;
@@ -763,6 +786,7 @@ export const SemanticConventions = {
   EVALUATION_IDENTIFIER,
   EVALUATION_METADATA,
   IMAGE_URL,
+  VIDEO_URL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
   OUTPUT_VALUE,
@@ -814,6 +838,8 @@ export const SemanticConventions = {
   MESSAGE_CONTENT,
   MESSAGE_CONTENTS,
   MESSAGE_CONTENT_IMAGE,
+  MESSAGE_CONTENT_AUDIO,
+  MESSAGE_CONTENT_VIDEO,
   MESSAGE_CONTENT_ID,
   MESSAGE_CONTENT_SIGNATURE,
   MESSAGE_CONTENT_DATA,

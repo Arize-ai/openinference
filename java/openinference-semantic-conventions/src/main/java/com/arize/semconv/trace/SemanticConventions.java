@@ -29,6 +29,7 @@ public class SemanticConventions {
         public static final String MESSAGE_CONTENT = "message_content";
         public static final String IMAGE = "image";
         public static final String AUDIO = "audio";
+        public static final String VIDEO = "video";
         public static final String PROMPT = "prompt";
         public static final String AGENT = "agent";
         public static final String GRAPH = "graph";
@@ -109,6 +110,8 @@ public class SemanticConventions {
         public static final String TYPE = "type";
         public static final String TEXT = "text";
         public static final String IMAGE = "image";
+        public static final String AUDIO = "audio";
+        public static final String VIDEO = "video";
         public static final String ID = "id";
         public static final String SIGNATURE = "signature";
         public static final String DATA = "data";
@@ -117,6 +120,11 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class ImageAttributesPostfixes {
+        public static final String URL = "url";
+    }
+
+    @UtilityClass
+    public static class VideoAttributesPostfixes {
         public static final String URL = "url";
     }
 
@@ -512,7 +520,7 @@ public class SemanticConventions {
 
     /**
      * The type of content sent to the LLM, such as "text", "image", "audio",
-     * "reasoning", or "tool_use"
+     * "video", "reasoning", or "tool_use"
      */
     public static final String MESSAGE_CONTENT_TYPE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.TYPE;
@@ -528,6 +536,18 @@ public class SemanticConventions {
      */
     public static final String MESSAGE_CONTENT_IMAGE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.IMAGE;
+
+    /**
+     * The audio content of the message sent to the LLM
+     */
+    public static final String MESSAGE_CONTENT_AUDIO =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.AUDIO;
+
+    /**
+     * The video content of the message sent to the LLM
+     */
+    public static final String MESSAGE_CONTENT_VIDEO =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.VIDEO;
 
     /**
      * Provider-assigned identifier for this message content item. For OpenAI
@@ -562,6 +582,11 @@ public class SemanticConventions {
      * The http or base64 link to the image
      */
     public static final String IMAGE_URL = SemanticAttributePrefixes.IMAGE + "." + ImageAttributesPostfixes.URL;
+
+    /**
+     * The URL, object-store URI, or base64 data URI of a video.
+     */
+    public static final String VIDEO_URL = SemanticAttributePrefixes.VIDEO + "." + VideoAttributesPostfixes.URL;
 
     public static final String DOCUMENT_ID = SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.ID;
 

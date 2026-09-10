@@ -120,6 +120,8 @@ func TestAttributeKeys(t *testing.T) {
 		{MessageContentType, "message_content.type"},
 		{MessageContentText, "message_content.text"},
 		{MessageContentImage, "message_content.image"},
+		{MessageContentAudio, "message_content.audio"},
+		{MessageContentVideo, "message_content.video"},
 		{MessageContentID, "message_content.id"},
 		{MessageContentSignature, "message_content.signature"},
 		{MessageContentData, "message_content.data"},
@@ -130,6 +132,8 @@ func TestAttributeKeys(t *testing.T) {
 		{AudioURL, "audio.url"},
 		{AudioMimeType, "audio.mime_type"},
 		{AudioTranscript, "audio.transcript"},
+
+		{VideoURL, "video.url"},
 
 		{DocumentID, "document.id"},
 		{DocumentScore, "document.score"},
