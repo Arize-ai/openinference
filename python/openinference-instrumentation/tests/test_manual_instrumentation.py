@@ -2466,7 +2466,6 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     attributes = get_llm_attributes(
         provider="openai",
         system="openai",
-        model_name="gpt-4",
         request_model_name="gpt-4",
         response_model_name="gpt-4-0613",
         invocation_parameters={"temperature": 0.7, "max_tokens": 100},
@@ -2477,7 +2476,7 @@ def test_get_llm_attributes_returns_expected_attributes() -> None:
     )
     assert attributes.pop(LLM_PROVIDER) == "openai"
     assert attributes.pop(LLM_SYSTEM) == "openai"
-    assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
+    assert attributes.pop(LLM_MODEL_NAME) == "gpt-4-0613"
     assert attributes.pop(LLM_REQUEST_MODEL_NAME) == "gpt-4"
     assert attributes.pop(LLM_RESPONSE_MODEL_NAME) == "gpt-4-0613"
     invocation_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
@@ -2620,6 +2619,17 @@ def test_get_llm_attributes_model_name_falls_back_to_response_then_request_model
     assert attributes == {
         LLM_MODEL_NAME: "gpt-4-0613",
         LLM_REQUEST_MODEL_NAME: "gpt-4",
+        LLM_RESPONSE_MODEL_NAME: "gpt-4-0613",
+    }
+
+
+def test_get_llm_attributes_explicit_model_name_overrides_mirrored_model_name() -> None:
+    attributes = get_llm_attributes(
+        model_name="my-alias",
+        response_model_name="gpt-4-0613",
+    )
+    assert attributes == {
+        LLM_MODEL_NAME: "my-alias",
         LLM_RESPONSE_MODEL_NAME: "gpt-4-0613",
     }
 

@@ -569,6 +569,12 @@ def get_llm_attributes(
     token_count: Optional[TokenCount] = None,
     tools: Optional["Sequence[Tool]"] = None,
 ) -> Dict[str, AttributeValue]:
+    """Build OpenInference LLM span attributes.
+
+    ``llm.model_name`` is ``model_name``, else ``response_model_name``, else
+    ``request_model_name``. ``llm.request.model_name`` and
+    ``llm.response.model_name`` are set only when those arguments are passed.
+    """
     return {
         **get_llm_provider_attributes(provider),
         **get_llm_system_attributes(system),
