@@ -139,8 +139,6 @@ export type ConverseStreamContentBlock =
       type: "reasoning";
       text?: string;
       signature?: string;
-      data?: string;
-      /** Raw redactedContent bytes accumulated across deltas, base64-encoded into `data` once consumption ends. */
       redactedContentBytes?: Buffer;
     };
 
@@ -162,7 +160,7 @@ export interface ConverseStreamProcessingState {
   /** Map of contentBlockIndex -> toolUseId for correlating input chunks */
   toolUseIdByIndex?: Record<number, string>;
   /** Map of contentBlockIndex -> accumulated content block, preserving block order */
-  contentBlocksByIndex?: Record<number, ConverseStreamContentBlock>;
+  contentBlocksByIndex: Record<number, ConverseStreamContentBlock>;
 }
 
 /**
@@ -456,7 +454,7 @@ export type NormalizedConverseStreamEvent =
       text?: string;
       signature?: string;
       redactedContent?: Uint8Array;
-      contentBlockIndex?: number;
+      contentBlockIndex: number;
     }
   | {
       kind: "toolUseStart";
@@ -530,7 +528,7 @@ function toRawWireConverseStreamEvent(
   e: ConverseStreamEventData,
 ): NormalizedConverseStreamEvent | undefined {
   if (e.type === "content_block_delta" && e.delta?.type === "text_delta" && e.delta.text) {
-    return { kind: "textDelta", text: e.delta.text };
+    return { kind: "textDelta", text: e.delta.text, contentBlockIndex: e.index };
   }
   if (
     e.type === "content_block_start" &&
@@ -542,10 +540,15 @@ function toRawWireConverseStreamEvent(
       kind: "toolUseStart",
       id: e.content_block.id,
       name: e.content_block.name,
+      contentBlockIndex: e.index,
     };
   }
   if (e.type === "input_json_delta" && e.partial_json) {
-    return { kind: "toolUseInputChunk", chunk: e.partial_json };
+    return {
+      kind: "toolUseInputChunk",
+      chunk: e.partial_json,
+      contentBlockIndex: e.index,
+    };
   }
   if (e.metadata?.usage) {
     return {

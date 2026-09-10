@@ -1537,6 +1537,13 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
 
+        expect(span.attributes["llm.output_messages.0.message.content"]).toBe(
+          "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
+        );
+        expect(
+          span.attributes["llm.output_messages.0.message.contents.0.message_content.text"],
+        ).toBeUndefined();
+
         // Comprehensive span attributes snapshot for streaming converse response
         // This test validates that converse streaming has proper instrumentation
         // NOTE: This snapshot will need to be updated after VCR recording is created
@@ -1547,8 +1554,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             "llm.input_messages.0.message.content": "Hello, how are you?",
             "llm.input_messages.0.message.role": "user",
             "llm.model_name": "claude-3-5-sonnet-20240620",
-            "llm.output_messages.0.message.contents.0.message_content.text": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
-            "llm.output_messages.0.message.contents.0.message_content.type": "text",
+            "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
             "llm.output_messages.0.message.role": "assistant",
             "llm.provider": "aws",
             "llm.stop_reason": "end_turn",
@@ -1684,8 +1690,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
               "llm.input_messages.0.message.content": "What's the weather in San Francisco and what time is it there?",
               "llm.input_messages.0.message.role": "user",
               "llm.model_name": "claude-3-5-sonnet-20240620",
-              "llm.output_messages.0.message.contents.0.message_content.text": "I can certainly help you with the weather in San Francisco, but I'm afraid I don't have a specific tool to check the current time there. Let me get the weather information for you.",
-              "llm.output_messages.0.message.contents.0.message_content.type": "text",
+              "llm.output_messages.0.message.content": "I can certainly help you with the weather in San Francisco, but I'm afraid I don't have a specific tool to check the current time there. Let me get the weather information for you.",
               "llm.output_messages.0.message.role": "assistant",
               "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
               "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
@@ -1756,14 +1761,13 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
               "llm.input_messages.0.message.contents.1.message_content.type": "image",
               "llm.input_messages.0.message.role": "user",
               "llm.model_name": "claude-3-5-sonnet-20240620",
-              "llm.output_messages.0.message.contents.0.message_content.text": "This image shows a simple, hand-drawn sketch of a house on lined notebook paper. The house has a triangular roof, rectangular body, a door in the center, and two windows on either side of the door. It's the kind of drawing a child might make when asked to draw a basic house.
+              "llm.output_messages.0.message.content": "This image shows a simple, hand-drawn sketch of a house on lined notebook paper. The house has a triangular roof, rectangular body, a door in the center, and two windows on either side of the door. It's the kind of drawing a child might make when asked to draw a basic house.
 
             Here's a short story inspired by this image:
 
             Little Timmy sat at his desk, daydreaming during math class. As the teacher droned on about fractions, Timmy's pencil moved almost on its own across his notebook paper. With a few quick strokes, a cozy little house appeared – just like the one he wished he lived in. 
 
             In his imagination, this wasn't just any house. It was a magical place where homework didn't exist, where cookies were always fresh from the oven, and where his dog could talk. As the bell rang, signaling the end of class, Timmy smiled at his creation. Even if it was just a simple drawing, for a moment, it had been the most perfect home in the world.",
-              "llm.output_messages.0.message.contents.0.message_content.type": "text",
               "llm.output_messages.0.message.role": "assistant",
               "llm.provider": "aws",
               "llm.stop_reason": "end_turn",
@@ -1829,6 +1833,11 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           expect(attributes["llm.output_messages.0.message.contents.2.message_content.data"]).toBe(
             "b3BhcXVlLWVuY3J5cHRlZC1yZWFzb25pbmctYnl0ZXM=",
           );
+
+          const idKeys = Object.keys(attributes).filter((key) =>
+            key.endsWith(".message_content.id"),
+          );
+          expect(idKeys).toEqual([]);
         });
       });
 
@@ -1923,9 +1932,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 
           // Verify the streaming response contains the expected content from the recording
           // The response should end with "Message 6 in a complex conversation." as seen in the recording
-          const outputContent = span.attributes[
-            "llm.output_messages.0.message.contents.0.message_content.text"
-          ] as string;
+          const outputContent = span.attributes["llm.output_messages.0.message.content"] as string;
           expect(outputContent).toContain("This is a large test message");
           expect(outputContent).toContain("Message 6 in a complex conversation");
 
@@ -1992,8 +1999,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             "llm.input_messages.4.message.content": expectedMessage5,
             "llm.input_messages.4.message.role": "user",
             "llm.model_name": "claude-3-5-sonnet-20240620",
-            "llm.output_messages.0.message.contents.0.message_content.text": expectedMessage6,
-            "llm.output_messages.0.message.contents.0.message_content.type": "text",
+            "llm.output_messages.0.message.content": expectedMessage6,
             "llm.output_messages.0.message.role": "assistant",
             "llm.provider": "aws",
             "llm.stop_reason": "end_turn",
@@ -2061,9 +2067,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           expect(span.attributes["llm.input_messages.1.message.role"]).toBe("user");
 
           // Verify the streaming response follows the system prompt instructions
-          const outputContent = span.attributes[
-            "llm.output_messages.0.message.contents.0.message_content.text"
-          ] as string;
+          const outputContent = span.attributes["llm.output_messages.0.message.content"] as string;
           expect(outputContent).toContain("The capital of France is Paris");
           expect(outputContent).toContain("Hope this helps!"); // Should follow system instruction
           expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
@@ -2165,8 +2169,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
                   "llm.input_messages.0.message.content": "Hello, how are you?",
                   "llm.input_messages.0.message.role": "user",
                   "llm.model_name": "claude-3-5-sonnet-20240620",
-                  "llm.output_messages.0.message.contents.0.message_content.text": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
-                  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+                  "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
                   "llm.output_messages.0.message.role": "assistant",
                   "llm.prompt_template.template": "Answer the question: {question}",
                   "llm.prompt_template.variables": "{"question":"Hello, how are you?"}",
@@ -2230,7 +2233,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
               "llm.model_name": "llama3-8b-instruct-v1:0",
-              "llm.output_messages.0.message.contents.0.message_content.text": "
+              "llm.output_messages.0.message.content": "
 
             Quantum computing is a new way of processing information that's different from the way regular computers work. Here's a simple explanation:
 
@@ -2241,7 +2244,6 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             **Quantum Computing**
 
             Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
-              "llm.output_messages.0.message.contents.0.message_content.type": "text",
               "llm.output_messages.0.message.role": "assistant",
               "llm.provider": "aws",
               "llm.stop_reason": "max_tokens",
@@ -2294,12 +2296,11 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
               "llm.model_name": "mistral-7b-instruct-v0:2",
-              "llm.output_messages.0.message.contents.0.message_content.text": " Silent screens glow,
+              "llm.output_messages.0.message.content": " Silent screens glow,
 
             Connecting hearts, worlds apart,
 
             Life in digital.",
-              "llm.output_messages.0.message.contents.0.message_content.type": "text",
               "llm.output_messages.0.message.role": "assistant",
               "llm.provider": "aws",
               "llm.stop_reason": "end_turn",
@@ -2352,14 +2353,13 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
               "llm.model_name": "titan-text-express-v1",
-              "llm.output_messages.0.message.contents.0.message_content.text": "
+              "llm.output_messages.0.message.content": "
 
             Cloud computing offers several benefits, including:
             1. Cost savings: Cloud computing allows businesses to reduce their IT costs by eliminating the need for expensive hardware and software investments.
             2. Scalability: Cloud computing allows businesses to scale their operations up or down quickly and easily, depending on their needs.
             3. Flexibility: Cloud computing allows businesses to access their data and applications from anywhere, at any time, and on any device.
             4. Security: Cloud computing providers offer",
-              "llm.output_messages.0.message.contents.0.message_content.type": "text",
               "llm.output_messages.0.message.role": "assistant",
               "llm.provider": "aws",
               "llm.stop_reason": "max_tokens",
@@ -2412,7 +2412,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
               "llm.model_name": "nova-lite-v1:0",
-              "llm.output_messages.0.message.contents.0.message_content.text": "Photosynthesis is the process by which green plants, algae, and some bacteria convert light energy, usually from the sun, into chemical energy stored in glucose, a type of sugar. This process is crucial for life on Earth as it provides the primary source of organic matter for nearly all organisms.
+              "llm.output_messages.0.message.content": "Photosynthesis is the process by which green plants, algae, and some bacteria convert light energy, usually from the sun, into chemical energy stored in glucose, a type of sugar. This process is crucial for life on Earth as it provides the primary source of organic matter for nearly all organisms.
 
             Here's a detailed breakdown of the photosynthesis process:
 
@@ -2421,7 +2421,6 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 
             ### Main Stages:
             Photosynthesis can",
-              "llm.output_messages.0.message.contents.0.message_content.type": "text",
               "llm.output_messages.0.message.role": "assistant",
               "llm.provider": "aws",
               "llm.stop_reason": "max_tokens",
@@ -2474,10 +2473,9 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
               "llm.model_name": "command-r-v1:0",
-              "llm.output_messages.0.message.contents.0.message_content.text": "Machine learning is a fascinating field of artificial intelligence that enables computers to learn and improve from experience, without being explicitly programmed. It's a process of data-driven knowledge extraction, where systems can analyze vast amounts of data, identify patterns, make predictions, and improve their performance over time.
+              "llm.output_messages.0.message.content": "Machine learning is a fascinating field of artificial intelligence that enables computers to learn and improve from experience, without being explicitly programmed. It's a process of data-driven knowledge extraction, where systems can analyze vast amounts of data, identify patterns, make predictions, and improve their performance over time.
 
             At its core, machine learning involves creating algorithms and models that can automatically discover important features or patterns in data. These algorithms are often based on mathematical models, such as decision trees, neural networks, or support",
-              "llm.output_messages.0.message.contents.0.message_content.type": "text",
               "llm.output_messages.0.message.role": "assistant",
               "llm.provider": "aws",
               "llm.stop_reason": "max_tokens",
@@ -2530,10 +2528,9 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
               "llm.input_messages.0.message.role": "user",
               "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
               "llm.model_name": "jamba-1-5-mini-v1:0",
-              "llm.output_messages.0.message.contents.0.message_content.text": " Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These machines can perform tasks that typically require human intelligence, such as understanding natural language, recognizing patterns, solving problems, and making decisions. AI encompasses a wide range of technologies and approaches, including:
+              "llm.output_messages.0.message.content": " Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These machines can perform tasks that typically require human intelligence, such as understanding natural language, recognizing patterns, solving problems, and making decisions. AI encompasses a wide range of technologies and approaches, including:
 
             1. **Machine Learning (ML):** A subset of AI that involves training algorithms on data to enable machines to learn from experience and improve their performance over time without being explicitly",
-              "llm.output_messages.0.message.contents.0.message_content.type": "text",
               "llm.output_messages.0.message.role": "assistant",
               "llm.provider": "aws",
               "llm.stop_reason": "max_tokens",
