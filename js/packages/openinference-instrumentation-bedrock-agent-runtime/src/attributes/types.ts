@@ -39,9 +39,9 @@ export interface ToolCall {
 }
 
 /**
- * Union type for message content, which can be text or image.
+ * Union type for message content, which can be text, image, or reasoning.
  */
-export type MessageContent = TextMessageContent | ImageMessageContent;
+export type MessageContent = TextMessageContent | ImageMessageContent | ReasoningMessageContent;
 
 /**
  * Represents an image with a URL and optional additional properties.
@@ -67,6 +67,17 @@ export interface ImageMessageContent {
   type: "image";
   image: Image;
   [key: string]: Image | string;
+}
+
+/**
+ * Represents a reasoning message content block.
+ */
+export interface ReasoningMessageContent {
+  type: "reasoning";
+  text?: string;
+  signature?: string;
+  data?: string;
+  [key: string]: string | undefined;
 }
 
 export interface ParsedMessage {

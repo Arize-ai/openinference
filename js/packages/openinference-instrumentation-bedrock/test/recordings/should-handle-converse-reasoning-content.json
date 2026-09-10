@@ -1,0 +1,79 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What is 6 * 7?"
+            }
+          ],
+          "role": "user"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 900
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "reasoningContent": {
+                "reasoningText": {
+                  "text": "Let me think about this. 6 * 7 = 42.",
+                  "signature": "test-signature-token"
+                }
+              }
+            },
+            {
+              "text": "The answer is 42."
+            },
+            {
+              "reasoningContent": {
+                "redactedContent": "b3BhcXVlLWVuY3J5cHRlZC1yZWRhY3RlZC1jb250ZW50"
+              }
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 10,
+        "outputTokens": 20,
+        "totalTokens": 30
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 17 Jul 2025 03:34:40 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "312",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "a0d610ed-fef1-41e8-b6c0-99c0cd96af0f"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "73",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "9d622a6b-0093-46a2-b4e2-e76d3438645c",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "6b236fa82c21185507053b9a648af7d5bf8a70d7052deb5739168d20590c6f6d",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

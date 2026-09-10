@@ -24,12 +24,13 @@ import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-c
 import type {
   ConverseStreamEventData,
   ConverseStreamProcessingState,
+  NormalizedConverseStreamEvent,
 } from "../types/bedrock-types";
 import {
   isValidConverseStreamEventData,
   toNormalizedConverseStreamEvent,
 } from "../types/bedrock-types";
-import { setSpanAttribute } from "./attribute-helpers";
+import { setSpanAttribute, toBase64Bytes } from "./attribute-helpers";
 
 /**
  * Resolves the target tool use id from either an explicit id or a content block index.
@@ -112,6 +113,41 @@ function appendToolInputChunk(
   }
 }
 
+function appendTextDelta(
+  state: ConverseStreamProcessingState,
+  event: Extract<NormalizedConverseStreamEvent, { kind: "textDelta" }>,
+): void {
+  state.outputText += event.text;
+  if (event.contentBlockIndex === undefined) return;
+
+  const existing = state.contentBlocksByIndex[event.contentBlockIndex];
+  state.contentBlocksByIndex[event.contentBlockIndex] = {
+    type: "text",
+    text: (existing?.type === "text" ? existing.text : "") + event.text,
+  };
+}
+
+function appendReasoningDelta(
+  state: ConverseStreamProcessingState,
+  event: Extract<NormalizedConverseStreamEvent, { kind: "reasoningDelta" }>,
+): void {
+  const existing = state.contentBlocksByIndex[event.contentBlockIndex];
+  const reasoning = existing?.type === "reasoning" ? existing : { type: "reasoning" as const };
+  state.contentBlocksByIndex[event.contentBlockIndex] = {
+    ...reasoning,
+    ...(event.text !== undefined && { text: (reasoning.text ?? "") + event.text }),
+    ...(event.signature !== undefined && {
+      signature: (reasoning.signature ?? "") + event.signature,
+    }),
+    ...(event.redactedContent !== undefined && {
+      redactedContentBytes: Buffer.concat([
+        reasoning.redactedContentBytes ?? Buffer.alloc(0),
+        event.redactedContent,
+      ]),
+    }),
+  };
+}
+
 /**
  * Processes Converse stream chunks and updates processing state
  * Handles messageStart, contentBlockDelta, toolUse events, and metadata with proper accumulation
@@ -134,7 +170,10 @@ function processConverseStreamChunk(
       state.stopReason = ev.stopReason;
       return;
     case "textDelta":
-      state.outputText += ev.text;
+      appendTextDelta(state, ev);
+      return;
+    case "reasoningDelta":
+      appendReasoningDelta(state, ev);
       return;
     case "toolUseStart":
       startToolCall(state, ev);
@@ -166,12 +205,14 @@ function setConverseStreamingOutputAttributes({
   toolCalls,
   usage,
   stopReason,
+  contentBlocksByIndex,
 }: {
   span: Span;
   outputText: string;
   toolCalls: ConverseStreamProcessingState["toolCalls"];
   usage: ConverseStreamProcessingState["usage"];
   stopReason?: string;
+  contentBlocksByIndex: ConverseStreamProcessingState["contentBlocksByIndex"];
 }): void {
   // Create the output value structure similar to converse response format
   // Convert usage from camelCase to snake_case for consistency
@@ -209,13 +250,50 @@ function setConverseStreamingOutputAttributes({
     "assistant",
   );
 
-  // Set the main accumulated text content
-  if (outputText) {
+  // Set ordered content blocks (text/reasoning), preserving stream block order
+  const orderedContentBlocks = Object.entries(contentBlocksByIndex)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, block]) => block);
+
+  const hasReasoning = orderedContentBlocks.some((block) => block.type === "reasoning");
+  if (!hasReasoning && outputText) {
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`,
       outputText,
     );
+  }
+
+  if (hasReasoning) {
+    orderedContentBlocks.forEach((block, contentBlockIndex) => {
+      const contentPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.${contentBlockIndex}`;
+      setSpanAttribute(
+        span,
+        `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+        block.type,
+      );
+      if (block.text) {
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+          block.text,
+        );
+      }
+      if (block.type === "reasoning" && block.signature) {
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`,
+          block.signature,
+        );
+      }
+      if (block.type === "reasoning" && block.redactedContentBytes) {
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_DATA}`,
+          toBase64Bytes(block.redactedContentBytes),
+        );
+      }
+    });
   }
 
   // Set tool call attributes with sequential indexing
@@ -279,6 +357,7 @@ export const consumeConverseStreamChunks = withSafety({
       outputText: "",
       toolCalls: [],
       usage: {},
+      contentBlocksByIndex: {},
     };
 
     for await (const chunk of stream) {
@@ -294,6 +373,7 @@ export const consumeConverseStreamChunks = withSafety({
       toolCalls: state.toolCalls,
       usage: state.usage,
       stopReason: state.stopReason,
+      contentBlocksByIndex: state.contentBlocksByIndex,
     });
   },
   onError: (error) => {
