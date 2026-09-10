@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import functools
 import inspect
+import logging
 from enum import Enum
 from types import SimpleNamespace
 from typing import (
@@ -18,6 +20,7 @@ from typing import (
     Union,
 )
 
+import wrapt
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -63,6 +66,8 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+logger = logging.getLogger(__name__)
 
 # Skip capture
 KEYS_TO_REDACT = ["api_key", "messages"]
@@ -325,6 +330,21 @@ def _get_attributes_from_image(
         yield f"{ImageAttributes.IMAGE_URL}", url
 
 
+def _suppress_extractor_errors(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Prevent attribute extraction errors from affecting the traced call."""
+
+    @functools.wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return fn(*args, **kwargs)
+        except Exception:
+            logger.exception("Failed to record span attributes in %s", fn.__name__)
+            return None
+
+    return wrapper
+
+
+@_suppress_extractor_errors
 def _instrument_func_type_responses(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
     """
     Currently instruments the functions:
@@ -349,6 +369,7 @@ def _instrument_func_type_responses(span: trace_api.Span, kwargs: Dict[str, Any]
     )
 
 
+@_suppress_extractor_errors
 def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
     """
     Currently instruments the functions:
@@ -404,6 +425,7 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
                 )
 
 
+@_suppress_extractor_errors
 def _instrument_func_type_embedding(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
     """
     Currently instruments the functions:
@@ -452,6 +474,7 @@ def _instrument_func_type_embedding(span: trace_api.Span, kwargs: Dict[str, Any]
     _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("input")))
 
 
+@_suppress_extractor_errors
 def _instrument_func_type_image_generation(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
     """
     Currently instruments the functions:
@@ -510,6 +533,7 @@ def _bind_anthropic_messages_arguments(
     return arguments
 
 
+@_suppress_extractor_errors
 def _instrument_func_type_anthropic_messages(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
     """
     Instruments:
@@ -698,6 +722,7 @@ async def _finalize_anthropic_messages_awaitable(span: trace_api.Span, result: A
     return _finalize_anthropic_messages_result(span, result)
 
 
+@_suppress_extractor_errors
 def _finalize_span(span: trace_api.Span, result: Any) -> None:
     from openai.types.image import Image
 
@@ -1014,6 +1039,47 @@ def _remove_redundant_reasoning_entries(
         }:
             if message.get("reasoning_content") in authoritative_texts:
                 del output_messages[index]
+
+
+class _TracedSyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """Proxy the original stream while collecting tracing data."""
+
+    def __init__(self, wrapped: Any, finalized_iterator: Any) -> None:
+        super().__init__(wrapped)
+        self._self_finalized_iterator = finalized_iterator
+
+    def __iter__(self) -> Any:
+        return self
+
+    def __next__(self) -> Any:
+        return next(self._self_finalized_iterator)
+
+    def close(self) -> Any:
+        return self._self_finalized_iterator.close()
+
+
+class _TracedAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """Async counterpart of ``_TracedSyncStream``."""
+
+    def __init__(self, wrapped: Any, finalized_iterator: Any) -> None:
+        super().__init__(wrapped)
+        self._self_finalized_iterator = finalized_iterator
+
+    def __aiter__(self) -> Any:
+        return self
+
+    async def __anext__(self) -> Any:
+        return await self._self_finalized_iterator.__anext__()
+
+    async def aclose(self) -> None:
+        # The wrapped stream's own aclose releases the provider connection,
+        # so closing only the tracing generator changes early-close behavior.
+        try:
+            await self._self_finalized_iterator.aclose()
+        finally:
+            wrapped_aclose = getattr(self.__wrapped__, "aclose", None)
+            if wrapped_aclose is not None:
+                await wrapped_aclose()
 
 
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:
@@ -1339,7 +1405,8 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
 
             result = self.original_litellm_funcs["responses"](*args, **kwargs)
             if isinstance(result, SyncResponsesAPIStreamingIterator):
-                return _finalize_responses_streaming_span(span, result)
+                return _TracedSyncStream(result, _finalize_responses_streaming_span(span, result))
+            span.end()
             return result
         else:
             with self._tracer.start_as_current_span(
@@ -1360,8 +1427,11 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             )
             _instrument_func_type_responses(span, kwargs)
             result = await self.original_litellm_funcs["aresponses"](*args, **kwargs)
-            if hasattr(result, "__aiter__"):
-                return _finalize_aresponses_streaming_span(span, result)
+            from litellm.responses.streaming_iterator import ResponsesAPIStreamingIterator
+
+            if isinstance(result, ResponsesAPIStreamingIterator):
+                return _TracedAsyncStream(result, _finalize_aresponses_streaming_span(span, result))
+            span.end()
             return result
         else:
             with self._tracer.start_as_current_span(
@@ -1387,7 +1457,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             result = self.original_litellm_funcs["completion"](*args, **kwargs)
 
             if isinstance(result, CustomStreamWrapper):
-                return _finalize_sync_streaming_span(span, result)
+                return _TracedSyncStream(result, _finalize_sync_streaming_span(span, result))
 
             _finalize_span(span, result)
             span.end()
@@ -1414,7 +1484,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             result = await self.original_litellm_funcs["acompletion"](*args, **kwargs)
 
             if hasattr(result, "__aiter__"):
-                return _finalize_streaming_span(span, result)
+                return _TracedAsyncStream(result, _finalize_streaming_span(span, result))
 
             _finalize_span(span, result)
             span.end()
