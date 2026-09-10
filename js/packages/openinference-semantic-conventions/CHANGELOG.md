@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.10.0
+
+### Minor Changes
+
+- 6d9f813: Add `message_content.audio`, `message_content.video`, and `video.url` constants.
+
 ## 2.9.0
 
 ### Minor Changes
