@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.63](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.62...python-openinference-instrumentation-v0.1.63) (2026-09-10)
+
+
+### Features
+
+* **instrumentation:** add request and response model name attributes ([#3613](https://github.com/Arize-ai/openinference/issues/3613)) ([7010ce3](https://github.com/Arize-ai/openinference/commit/7010ce3d08db32ebfced1f50ed586976274b489c))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
 ## [0.1.62](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.61...python-openinference-instrumentation-v0.1.62) (2026-09-09)
 
 
