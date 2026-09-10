@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.3.0...python-openinference-instrumentation-openai-agents-v2.4.0) (2026-09-09)
+
+
+### Features
+
+* **openai_agents:** record file_search and web_search tool calls ([#1726](https://github.com/Arize-ai/openinference/issues/1726)) ([#3684](https://github.com/Arize-ai/openinference/issues/3684)) ([adaf9e7](https://github.com/Arize-ai/openinference/commit/adaf9e7e653748ce97ed093182e4ff6dc07a0443))
+
 ## [2.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.2.2...python-openinference-instrumentation-openai-agents-v2.3.0) (2026-09-09)
 
 
