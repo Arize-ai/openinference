@@ -95,7 +95,7 @@ Instrumentor-local keys on those spans (not published `SpanAttributes` yet):
 | USER | `input.audio.url`, `input.audio.mime_type`, `input.audio.transcript` |
 | LLM | `output.audio.url`, `output.audio.mime_type`, `output.audio.transcript` |
 
-Leaves are the same `AudioAttributes` used under `message.contents`. Prefixes differ because the span is not an LLM message list.
+Leaves are the same `AudioAttributes` used under `message.contents`. Prefixes differ because the span is not an LLM message list. The `*.audio.mime_type` keys are what `_realtime.py` writes today. When these keys are promoted, drop them and infer MIME from the WAV data URI prefix, same as message-content audio.
 
 Keep this tree off `llm.input_messages`. Phoenix's chat renderer is not a reason to rewrite USER spans as fake chat completions. The event-level map for `_realtime.py` is a follow-up.
 
@@ -110,13 +110,13 @@ Prefix every row with `llm.<input|output>_messages.<i>.message.contents.<j>.`.
 | Provider field | OpenInference attribute | Notes |
 |---|---|---|
 | (discriminator) | `message_content.type` = `"audio"` or `"video"` | `"audio"` is already listed. This spec adds `"video"`. |
-| OpenAI `input_audio.data` + `format` | `message_content.audio.audio.url` and `.mime_type` | Data URI. MIME from `format`. |
+| OpenAI `input_audio.data` + `format` | `message_content.audio.audio.url` | Data URI. `format` picks the data URI prefix. No MIME type attribute. |
 | OpenAI assistant `audio.data` | `message_content.audio.audio.url` on **output** messages | Still a chat message, not a voice-session span. |
 | OpenAI assistant `audio.transcript` | `message_content.audio.audio.transcript` | |
 | OpenAI assistant `audio.id` | `message_content.id` | Replay or expiry lookup. |
 | Gemini `file_uri` with `audio/*` | `message_content.audio.audio.url` | Copy URI. |
 | Gemini `file_uri` with `video/*` | `message_content.video.video.url` | Copy URI. |
-| Gemini `mime_type` | `audio.mime_type` for audio parts only | Discriminates `image/*`, `audio/*`, and `video/*`. Do not emit `video.mime_type`. Infer video MIME from `video.url`. |
+| Gemini `mime_type` | (not emitted) | Discriminates `image/*`, `audio/*`, and `video/*` and picks the data URI prefix for inline bytes. Consumers infer MIME from `audio.url` or `video.url`. |
 | Gemini `inline_data` | data URI in the matching `*.url` | |
 | Bedrock `s3Location.uri` or `bytes` | `message_content.video.video.url` | |
 
@@ -129,10 +129,8 @@ These keys are singular on each span. One USER span owns one `user_audio_buf`. O
 | Provider field | OpenInference attribute |
 |---|---|
 | User PCM wrapped as WAV | `input.audio.url` |
-| User MIME | `input.audio.mime_type` |
 | User transcript | `input.audio.transcript` |
 | Assistant PCM wrapped as WAV | `output.audio.url` |
-| Assistant MIME | `output.audio.mime_type` |
 | Assistant transcript | `output.audio.transcript` |
 
 ### GenAI dual-write (`message.contents` only)
@@ -160,7 +158,7 @@ Audio and video hide flags and size gates are a `TraceConfig` follow-up. Shared 
 Already shipped:
 
 - `AudioAttributes.AUDIO_URL` = `audio.url`
-- `AudioAttributes.AUDIO_MIME_TYPE` = `audio.mime_type`
+- `AudioAttributes.AUDIO_MIME_TYPE` = `audio.mime_type` (legacy; message-content audio does not emit it)
 - `AudioAttributes.AUDIO_TRANSCRIPT` = `audio.transcript`
 
 New:
@@ -169,6 +167,6 @@ New:
 - `MessageContentAttributes.MESSAGE_CONTENT_VIDEO` = `message_content.video`
 - `VideoAttributes.VIDEO_URL` = `video.url`
 
-`message_content.type` allowed values add `"video"`. Do not add `video.mime_type`.
+`message_content.type` allowed values add `"video"`. Do not add `video.mime_type`. Do not emit `audio.mime_type` on message-content audio; MIME type is inferred from the URL.
 
 Demo scripts keep these as string literals until every language package is bumped. See [scripts/README.md](./scripts/README.md).

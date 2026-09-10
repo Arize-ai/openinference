@@ -29,8 +29,8 @@ Open the Phoenix UI for that collector and compare the `current` and `future` sp
 
 | Script | Current span | Future span |
 |---|---|---|
-| `gemini_video_demo.py` | LLM span with text contents only. Video URI may sit in `input.value`. | `message_content.type=video` plus `video.video.url`. No `video.mime_type`. GenAI `uri` part with `modality: video`. |
-| `openai_chat_audio_demo.py` | LLM span with text, no `input_audio` contents. | Input audio data URI on `message.contents`. GenAI `blob` part with `modality: audio`. |
+| `gemini_video_demo.py` | LLM span with text contents only. Video URI may sit in `input.value`. | `message_content.type=video` plus `video.video.url`. No MIME type attribute. GenAI `uri` part with `modality: video`. |
+| `openai_chat_audio_demo.py` | LLM span with text, no `input_audio` contents. | Input audio data URI on `message.contents`. No MIME type attribute. GenAI `blob` part with `modality: audio`, MIME read from the data URI prefix. |
 
 ## Layout
 

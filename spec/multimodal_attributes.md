@@ -54,11 +54,10 @@ llm.input_messages.0.message.contents.1.message_content.image.image.url = "data:
 ```
 llm.input_messages.0.message.contents.2.message_content.type = "audio"
 llm.input_messages.0.message.contents.2.message_content.audio.audio.url = "https://example.com/audio.mp3"
-llm.input_messages.0.message.contents.2.message_content.audio.audio.mime_type = "audio/mpeg"
 llm.input_messages.0.message.contents.2.message_content.audio.audio.transcript = "Hello, how are you?"
 ```
 
-`audio.mime_type` and `audio.transcript` are optional. Emit `mime_type` when the provider sends it. Emit `transcript` when a transcription is available on the same part.
+`audio.transcript` is optional. Emit it when a transcription is available on the same part. Do not emit `audio.mime_type`. Consumers infer MIME type from the URL path extension (`.wav` to `audio/wav`, `.mp3` to `audio/mpeg`) or from a data URI prefix.
 
 For OpenAI Chat Completions `input_audio`, build a data URI from base64 `data` and `format` (`wav` maps to `audio/wav`, `mp3` maps to `audio/mpeg`) and store that URI in `audio.audio.url`. Assistant `message.audio` on the same API is still a chat message. Put it on `llm.output_messages` audio content items.
 
@@ -76,7 +75,7 @@ llm.input_messages.0.message.contents.3.message_content.type = "video"
 llm.input_messages.0.message.contents.3.message_content.video.video.url = "data:video/mp4;base64,AAAA..."
 ```
 
-Do not emit `video.mime_type`. Consumers infer MIME type from the URL path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix. Copy `gs://`, `s3://`, and `https://` URIs verbatim. Do not put video in `image.url`. Do not store provider file ids in `video.url`.
+Do not emit a MIME type attribute for video. Consumers infer MIME type from the URL path extension (`.mp4` to `video/mp4`, `.webm` to `video/webm`, `.ogv` to `video/ogg`, `.avi` to `video/x-msvideo`) or from a data URI prefix. Copy `gs://`, `s3://`, and `https://` URIs verbatim. Do not put video in `image.url`. Do not store provider file ids in `video.url`.
 
 The doubled prefix (`message_content.video.video.url`) matches `message_content.image.image.url`. It is the concatenation of `message_content.video` and `video.url`.
 

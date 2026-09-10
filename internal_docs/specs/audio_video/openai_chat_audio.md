@@ -59,9 +59,7 @@ OpenInference rewrite of the input audio part:
 1. Build a data URI. `data:audio/wav;base64,<data>` when `format` is `wav`. `data:audio/mpeg;base64,<data>` when `format` is `mp3`.
 2. Emit a `message.contents` item with `message_content.type = "audio"`.
 3. Set `message_content.audio.audio.url` to that data URI.
-4. Set `message_content.audio.audio.mime_type` to `audio/wav` or `audio/mpeg`.
-
-Do not copy `format` as its own attribute. MIME type is the published field.
+Do not copy `format` as its own attribute and do not emit `audio.mime_type`. The data URI prefix already carries the MIME type.
 
 ---
 
@@ -89,7 +87,6 @@ llm.output_messages.0.message.role = "assistant"
 llm.output_messages.0.message.contents.0.message_content.type = "audio"
 llm.output_messages.0.message.contents.0.message_content.id = "audio_abc"
 llm.output_messages.0.message.contents.0.message_content.audio.audio.url = "data:audio/wav;base64,<data>"
-llm.output_messages.0.message.contents.0.message_content.audio.audio.mime_type = "audio/wav"
 llm.output_messages.0.message.contents.0.message_content.audio.audio.transcript = "The recording is a weather forecast."
 ```
 

@@ -37,15 +37,12 @@ CONTENT_TYPE_VIDEO = "video"
 MESSAGE_CONTENT_AUDIO = "message_content.audio"
 MESSAGE_CONTENT_VIDEO = "message_content.video"
 AUDIO_URL = "audio.url"
-AUDIO_MIME_TYPE = "audio.mime_type"
 AUDIO_TRANSCRIPT = "audio.transcript"
 VIDEO_URL = "video.url"
 
 INPUT_AUDIO_URL = f"input.{AUDIO_URL}"
-INPUT_AUDIO_MIME_TYPE = f"input.{AUDIO_MIME_TYPE}"
 INPUT_AUDIO_TRANSCRIPT = f"input.{AUDIO_TRANSCRIPT}"
 OUTPUT_AUDIO_URL = f"output.{AUDIO_URL}"
-OUTPUT_AUDIO_MIME_TYPE = f"output.{AUDIO_MIME_TYPE}"
 OUTPUT_AUDIO_TRANSCRIPT = f"output.{AUDIO_TRANSCRIPT}"
 
 _DATA_URL_PATTERN = re.compile(
@@ -117,7 +114,6 @@ def set_audio_content_block(
     message_index: int,
     content_index: int,
     url: str,
-    mime_type: str | None = None,
     transcript: str | None = None,
 ) -> None:
     attrs[
@@ -133,15 +129,6 @@ def set_audio_content_block(
             side, message_index, content_index, f"{MESSAGE_CONTENT_AUDIO}.{AUDIO_URL}"
         )
     ] = url
-    if mime_type is not None:
-        attrs[
-            content_key(
-                side,
-                message_index,
-                content_index,
-                f"{MESSAGE_CONTENT_AUDIO}.{AUDIO_MIME_TYPE}",
-            )
-        ] = mime_type
     if transcript is not None:
         attrs[
             content_key(
@@ -181,13 +168,10 @@ def set_span_root_audio(
     *,
     side: Side,
     url: str,
-    mime_type: str | None = None,
     transcript: str | None = None,
 ) -> None:
     prefix = "input" if side == "input" else "output"
     attrs[f"{prefix}.{AUDIO_URL}"] = url
-    if mime_type is not None:
-        attrs[f"{prefix}.{AUDIO_MIME_TYPE}"] = mime_type
     if transcript is not None:
         attrs[f"{prefix}.{AUDIO_TRANSCRIPT}"] = transcript
 
