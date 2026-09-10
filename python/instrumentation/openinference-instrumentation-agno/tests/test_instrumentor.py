@@ -549,9 +549,11 @@ def _make_response(cost: Optional[float]) -> Any:
     )
 
 
+@pytest.mark.parametrize("cost", [0.00123, 0.0], ids=["positive", "zero"])
 def test_model_wrapper_run_sets_llm_cost_total(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
+    cost: float,
 ) -> None:
     """_ModelWrapper.run emits llm.cost.total when MessageMetrics.cost is set."""
     from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
@@ -559,7 +561,7 @@ def test_model_wrapper_run_sets_llm_cost_total(
     tracer = tracer_provider.get_tracer("test")
     wrapper = _ModelWrapper(tracer)
     model = _make_model()
-    response = _make_response(cost=0.00123)
+    response = _make_response(cost=cost)
 
     def fake_invoke() -> Any:
         return response
@@ -569,7 +571,7 @@ def test_model_wrapper_run_sets_llm_cost_total(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})
-    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(0.00123)
+    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(cost)
 
 
 def test_model_wrapper_run_omits_llm_cost_total_when_none(
