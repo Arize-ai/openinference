@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock-agent-runtime
 
+## 1.1.27
+
+### Patch Changes
+
+- 34b19a6: Add reasoning and redacted-content block support for Bedrock Converse and Agent Runtime traces.
+
 ## 1.1.26
 
 ### Patch Changes
