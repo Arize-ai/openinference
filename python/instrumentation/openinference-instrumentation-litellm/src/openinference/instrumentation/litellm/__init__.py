@@ -1071,8 +1071,15 @@ class _TracedAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,t
     async def __anext__(self) -> Any:
         return await self._self_finalized_iterator.__anext__()
 
-    async def aclose(self) -> Any:
-        return await self._self_finalized_iterator.aclose()
+    async def aclose(self) -> None:
+        # The wrapped stream's own aclose releases the provider connection,
+        # so closing only the tracing generator changes early-close behavior.
+        try:
+            await self._self_finalized_iterator.aclose()
+        finally:
+            wrapped_aclose = getattr(self.__wrapped__, "aclose", None)
+            if wrapped_aclose is not None:
+                await wrapped_aclose()
 
 
 def _finalize_sync_streaming_span(span: trace_api.Span, stream: Any) -> Any:

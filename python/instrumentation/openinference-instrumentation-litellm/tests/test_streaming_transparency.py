@@ -179,3 +179,30 @@ def test_attribute_extraction_errors_do_not_raise() -> None:
     span = MagicMock()
     assert _instrument_func_type_completion(span, cyclic) is None
     assert _instrument_func_type_responses(span, cyclic) is None
+
+
+async def test_async_early_close_closes_underlying_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    # Any: the proxy's __wrapped__ is not on litellm's declared return type.
+    response: Any = await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=[{"content": "What's the capital of China?", "role": "user"}],
+        mock_response="The capital of China is Beijing",
+        stream=True,
+    )
+    await response.__anext__()
+    assert response.__wrapped__.completion_stream is not None
+
+    await response.aclose()
+
+    # litellm clears completion_stream in its own aclose to release the
+    # provider connection; the instrumented stream must not skip it.
+    assert response.__wrapped__.completion_stream is None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "acompletion"
