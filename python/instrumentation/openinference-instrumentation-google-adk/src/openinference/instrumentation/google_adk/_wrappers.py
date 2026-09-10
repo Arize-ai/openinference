@@ -2,14 +2,19 @@ import base64
 import inspect
 import json
 import logging
+import threading
+import weakref
 from abc import ABC
 from contextlib import ExitStack
+from contextvars import ContextVar
 from typing import (
     Any,
     AsyncGenerator,
     Callable,
+    Dict,
     Iterable,
     Iterator,
+    List,
     Mapping,
     Optional,
     OrderedDict,
@@ -245,6 +250,69 @@ class _BaseAgentRunAsync(_WithTracer):
 
 
 class _TraceCallLlm(_WithTracer):
+    """Traces ADK's ``trace_call_llm``, which runs once per streamed chunk.
+
+    Response attributes are updated for every chunk. Request attributes are recorded once
+    per request/span; ``_request_written_for_span`` remembers, per span, which request
+    has already been written. Notes on that bookkeeping:
+
+    * The span's own attributes cannot serve as the marker. They are bounded
+      (``SpanLimits.max_attributes``, 128 by default) and evict oldest-first, so a long
+      enough message history drops ``INPUT_VALUE`` within the first chunk, which would
+      silently disable this guard for exactly the requests that cost the most to re-derive.
+    * The remembered value is a *weak reference* to the request, compared by object
+      identity. A span that ever serves a second, different request still gets that
+      request's attributes written, and a dead reference never matches -- so a new request
+      reusing a freed request's memory address cannot be mistaken for the old one.
+    * The record is bounded and least-recently-used first. Losing an entry only costs one
+      redundant re-derivation for that span; it can never leave an attribute unwritten.
+    * One wrapper is installed per process, so the record is shared by every thread running
+      an ADK stream, and both a lookup with its promotion and an insertion with its
+      eviction are multi-step. ``_lock`` covers those steps. It deliberately does *not*
+      cover attribute derivation, which would serialize every concurrent stream and cost
+      far more than the per-chunk work this wrapper exists to avoid.
+    * A request is remembered only once its attributes have been derived *successfully*.
+      The extractors are ``@stop_on_exception``, so a failure is logged and swallowed
+      rather than raised; ``_extraction_errors`` collects those swallowed failures for the
+      duration of one request-side pass so that a partial pass is retried on the next
+      chunk instead of leaving an attribute permanently unwritten.
+    """
+
+    _MAX_REMEMBERED_SPANS = 1024
+
+    def __init__(self, tracer: trace_api.Tracer, *args: Any, **kwargs: Any) -> None:
+        super().__init__(tracer, *args, **kwargs)
+        self._request_written_for_span: Dict[int, "weakref.ref[LlmRequest]"] = {}
+        self._lock = threading.Lock()
+
+    def _request_attributes_written(self, span: Any, llm_request: LlmRequest) -> bool:
+        span_id = span.get_span_context().span_id
+
+        with self._lock:
+            remembered = self._request_written_for_span
+            ref = remembered.get(span_id)
+            if ref is None or ref() is not llm_request:
+                return False
+
+            remembered[span_id] = remembered.pop(span_id)  # refresh recency
+            return True
+
+    def _remember_request_attributes(self, span: Any, llm_request: LlmRequest) -> None:
+        try:
+            request_ref = weakref.ref(llm_request)
+        except TypeError:  # a non-weakref-able subclass: fall back to re-deriving per chunk
+            return
+
+        span_id = span.get_span_context().span_id
+
+        with self._lock:
+            remembered = self._request_written_for_span
+            remembered.pop(span_id, None)
+            remembered[span_id] = request_ref
+
+            while len(remembered) > self._MAX_REMEMBERED_SPANS:
+                del remembered[next(iter(remembered))]
+
     @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
@@ -261,77 +329,23 @@ class _TraceCallLlm(_WithTracer):
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.LLM.value,
         )
+        if not span.is_recording():
+            return ans
         arguments = bind_args_kwargs(wrapped, *args, **kwargs)
         llm_request = next((arg for arg in arguments.values() if isinstance(arg, LlmRequest)), None)
         llm_response = next(
             (arg for arg in arguments.values() if isinstance(arg, LlmResponse)), None
         )
-        input_messages_index = 0
-        if llm_request:
-            span.set_attribute(
-                SpanAttributes.LLM_PROVIDER,
-                OpenInferenceLLMProviderValues.GOOGLE.value,
-            )  # TODO: other providers may also be possible
-
+        if llm_request and not self._request_attributes_written(span, llm_request):
             try:
-                span.set_attribute(
-                    SpanAttributes.INPUT_VALUE,
-                    llm_request.model_dump_json(exclude_none=True, fallback=_default),
-                )
-                span.set_attribute(
-                    SpanAttributes.INPUT_MIME_TYPE,
-                    OpenInferenceMimeTypeValues.JSON.value,
-                )
+                # Marked only once every request attribute has actually been derived, so a
+                # partial pass -- whether it raised or was swallowed by an extractor -- is
+                # retried on the next chunk rather than suppressed for the rest of the span.
+                if self._set_request_attributes(span, llm_request):
+                    self._remember_request_attributes(span, llm_request)
             except Exception:
-                logger.exception(f"Failed to get attribute: {SpanAttributes.INPUT_VALUE}.")
-
-            if llm_request.tools_dict:
-                for i, tool in enumerate(llm_request.tools_dict.values()):
-                    for k, v in _get_attributes_from_base_tool(
-                        tool,
-                        prefix=f"{SpanAttributes.LLM_TOOLS}.{i}.",
-                    ):
-                        span.set_attribute(k, v)
-
-            if llm_request.model:
-                span.set_attribute(SpanAttributes.LLM_MODEL_NAME, llm_request.model)
-
-            if config := llm_request.config:
-                for k, v in _get_attributes_from_generate_content_config(config):
-                    span.set_attribute(k, v)
-
-                if system_instruction := config.system_instruction:
-                    span.set_attribute(
-                        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_ROLE}",
-                        "system",
-                    )
-                    if isinstance(system_instruction, str):
-                        span.set_attribute(
-                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
-                            system_instruction,
-                        )
-                    elif isinstance(system_instruction, types.Content):
-                        if system_instruction.parts:
-                            for k, v in _get_attributes_from_parts(
-                                system_instruction.parts,
-                                span_attribute=SpanAttributes.LLM_INPUT_MESSAGES,
-                                message_index=input_messages_index,
-                                text_only=True,
-                            ):
-                                span.set_attribute(k, v)
-                    elif isinstance(system_instruction, list):
-                        # TODO
-                        pass
-                    input_messages_index += 1
-
-            if contents := llm_request.contents:
-                for i, content in enumerate(contents, input_messages_index):
-                    for k, v in _get_attributes_from_content(
-                        content,
-                        span_attribute=SpanAttributes.LLM_INPUT_MESSAGES,
-                        message_index=i,
-                    ):
-                        span.set_attribute(k, v)
+                # Never raise into user code (a retry happens on the next chunk, if any).
+                logger.exception("Failed to extract request attributes from LlmRequest.")
         if llm_response:
             for k, v in _get_attributes_from_llm_response(llm_response):
                 span.set_attribute(k, v)
@@ -340,6 +354,86 @@ class _TraceCallLlm(_WithTracer):
                 # trace_call_llm calls will land on this span.
                 span.set_status(StatusCode.OK)
         return ans
+
+    @classmethod
+    def _set_request_attributes(cls, span: Any, llm_request: LlmRequest) -> bool:
+        """Derives the request-side attributes, reporting whether all of them landed."""
+        errors: List[BaseException] = []
+        token = _extraction_errors.set(errors)
+        try:
+            cls._derive_request_attributes(span, llm_request)
+        finally:
+            _extraction_errors.reset(token)
+        return not errors
+
+    @staticmethod
+    def _derive_request_attributes(span: Any, llm_request: LlmRequest) -> None:
+        input_messages_index = 0
+        span.set_attribute(
+            SpanAttributes.LLM_PROVIDER,
+            OpenInferenceLLMProviderValues.GOOGLE.value,
+        )  # TODO: other providers may also be possible
+
+        try:
+            span.set_attribute(
+                SpanAttributes.INPUT_VALUE,
+                llm_request.model_dump_json(exclude_none=True, fallback=_default),
+            )
+            span.set_attribute(
+                SpanAttributes.INPUT_MIME_TYPE,
+                OpenInferenceMimeTypeValues.JSON.value,
+            )
+        except Exception as exc:
+            logger.exception(f"Failed to get attribute: {SpanAttributes.INPUT_VALUE}.")
+            _record_extraction_error(exc)
+
+        if llm_request.tools_dict:
+            for i, tool in enumerate(llm_request.tools_dict.values()):
+                for k, v in _get_attributes_from_base_tool(
+                    tool,
+                    prefix=f"{SpanAttributes.LLM_TOOLS}.{i}.",
+                ):
+                    span.set_attribute(k, v)
+
+        if llm_request.model:
+            span.set_attribute(SpanAttributes.LLM_MODEL_NAME, llm_request.model)
+
+        if config := llm_request.config:
+            for k, v in _get_attributes_from_generate_content_config(config):
+                span.set_attribute(k, v)
+
+            if system_instruction := config.system_instruction:
+                span.set_attribute(
+                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_ROLE}",
+                    "system",
+                )
+                if isinstance(system_instruction, str):
+                    span.set_attribute(
+                        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
+                        system_instruction,
+                    )
+                elif isinstance(system_instruction, types.Content):
+                    if system_instruction.parts:
+                        for k, v in _get_attributes_from_parts(
+                            system_instruction.parts,
+                            span_attribute=SpanAttributes.LLM_INPUT_MESSAGES,
+                            message_index=input_messages_index,
+                            text_only=True,
+                        ):
+                            span.set_attribute(k, v)
+                elif isinstance(system_instruction, list):
+                    # TODO
+                    pass
+                input_messages_index += 1
+
+        if contents := llm_request.contents:
+            for i, content in enumerate(contents, input_messages_index):
+                for k, v in _get_attributes_from_content(
+                    content,
+                    span_attribute=SpanAttributes.LLM_INPUT_MESSAGES,
+                    message_index=i,
+                ):
+                    span.set_attribute(k, v)
 
 
 class _TraceToolCall(_WithTracer):
@@ -409,14 +503,28 @@ class _TraceToolCall(_WithTracer):
         return ans
 
 
+#: Collects the failures that ``stop_on_exception`` swallows, for the duration of one
+#: request-side pass. ``None`` -- the default, and what every other caller sees -- keeps the
+#: original behavior of logging and moving on without recording anything.
+_extraction_errors: ContextVar[Optional[List[BaseException]]] = ContextVar(
+    "_extraction_errors", default=None
+)
+
+
+def _record_extraction_error(exc: BaseException) -> None:
+    if (errors := _extraction_errors.get()) is not None:
+        errors.append(exc)
+
+
 def stop_on_exception(
     wrapped: Callable[P, Iterator[tuple[str, AttributeValue]]],
 ) -> Callable[P, Iterator[tuple[str, AttributeValue]]]:
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> Iterator[tuple[str, AttributeValue]]:
         try:
             yield from wrapped(*args, **kwargs)
-        except Exception:
+        except Exception as exc:
             logger.exception(f"Failed to get attribute in {wrapped.__name__}.")
+            _record_extraction_error(exc)
 
     return wrapper
 
