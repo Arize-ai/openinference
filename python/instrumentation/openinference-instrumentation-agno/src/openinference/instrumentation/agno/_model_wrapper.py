@@ -503,6 +503,9 @@ class _ModelWrapper:
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
+                if (cost := getattr(metrics, "cost", None)) is not None:
+                    span.set_attribute(LLM_COST_TOTAL, cost)
+
             return response
 
     def run_stream(
@@ -577,6 +580,9 @@ class _ModelWrapper:
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
+                if (cost := getattr(metrics, "cost", None)) is not None:
+                    span.set_attribute(LLM_COST_TOTAL, cost)
+
     async def arun(
         self,
         wrapped: Callable[..., Awaitable[Any]],
@@ -636,6 +642,9 @@ class _ModelWrapper:
                     span.set_attribute(
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
+
+                if (cost := getattr(metrics, "cost", None)) is not None:
+                    span.set_attribute(LLM_COST_TOTAL, cost)
 
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
             return response
@@ -715,6 +724,9 @@ class _ModelWrapper:
                         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
+                if (cost := getattr(metrics, "cost", None)) is not None:
+                    span.set_attribute(LLM_COST_TOTAL, cost)
+
 
 # span attributes
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
@@ -728,6 +740,7 @@ LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_COST_TOTAL = SpanAttributes.LLM_COST_TOTAL
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
