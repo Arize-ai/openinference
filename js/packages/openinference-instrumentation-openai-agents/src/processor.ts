@@ -23,6 +23,7 @@ import {
   GRAPH_NODE_PARENT_ID,
   INPUT_MIME_TYPE,
   INPUT_VALUE,
+  LLM_FINISH_REASON,
   LLM_INPUT_MESSAGES,
   LLM_INVOCATION_PARAMETERS,
   LLM_MODEL_NAME,
@@ -552,6 +553,11 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
         message: choice.message,
       });
       messageIndex++;
+      // chat_completions finish_reason values already match the OpenInference
+      // vocabulary, so this is a direct passthrough rather than a mapped lookup.
+      if (isString(choice.finish_reason) && choice.finish_reason.length > 0) {
+        attributes[LLM_FINISH_REASON] = choice.finish_reason;
+      }
     }
   }
 
@@ -719,6 +725,38 @@ const RESPONSE_NON_INVOCATION_PARAM_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Responses API `status` to OpenInference `llm.finish_reason` mapping.
+ */
+const RESPONSE_STATUS_TO_FINISH_REASON: ReadonlyMap<string, string> = new Map([
+  ["completed", "stop"],
+  ["failed", "error"],
+  ["cancelled", "cancelled"],
+  ["incomplete", "incomplete"],
+]);
+
+/**
+ * Responses API `incomplete_details.reason` to OpenInference `llm.finish_reason` mapping.
+ */
+const RESPONSE_INCOMPLETE_REASON_TO_FINISH_REASON: ReadonlyMap<string, string> = new Map([
+  ["max_output_tokens", "length"],
+  ["content_filter", "content_filter"],
+]);
+
+/**
+ * Maps a Responses API `status` and `incomplete_details.reason` to a single OpenInference
+ * `llm.finish_reason` value.
+ */
+function mapResponseFinishReason(status: unknown, incompleteReason: unknown): string | undefined {
+  if (isString(incompleteReason) && incompleteReason.length > 0) {
+    return RESPONSE_INCOMPLETE_REASON_TO_FINISH_REASON.get(incompleteReason) ?? incompleteReason;
+  }
+  if (isString(status) && status.length > 0) {
+    return RESPONSE_STATUS_TO_FINISH_REASON.get(status) ?? status;
+  }
+  return undefined;
+}
+
+/**
  * Extracts the input attributes from {@link ResponseSpanData}.
  *
  * @param data The response span data
@@ -853,6 +891,14 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
 
   if (isString(response.model)) {
     attributes[LLM_MODEL_NAME] = response.model;
+  }
+
+  const incompleteReason = isRecord(response.incomplete_details)
+    ? response.incomplete_details.reason
+    : undefined;
+  const finishReason = mapResponseFinishReason(response.status, incompleteReason);
+  if (finishReason) {
+    attributes[LLM_FINISH_REASON] = finishReason;
   }
 
   Object.assign(attributes, getResponseInvocationParameterAttributes(response));
