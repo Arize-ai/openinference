@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.18...java-openinference-semantic-conventions-v0.1.19) (2026-09-11)
+
+
+### Features
+
+* **semconv:** add span-kind-independent image attributes ([0ff0af2](https://github.com/Arize-ai/openinference/commit/0ff0af2ee2ad300daddec58099248fb4e397a7aa))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.17...java-openinference-semantic-conventions-v0.1.18) (2026-09-10)
 
 

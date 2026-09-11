@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.7...go/openinference-semantic-conventions/v0.1.8) (2026-09-11)
+
+
+### Features
+
+* **semconv:** add span-kind-independent image attributes ([0ff0af2](https://github.com/Arize-ai/openinference/commit/0ff0af2ee2ad300daddec58099248fb4e397a7aa))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.6...go/openinference-semantic-conventions/v0.1.7) (2026-09-10)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.43...python-openinference-instrumentation-litellm-v0.1.44) (2026-09-11)
+
+
+### Bug Fixes
+
+* **litellm:** Preserve Stream Types & Isolate Extraction Errors ([#3578](https://github.com/Arize-ai/openinference/issues/3578)) ([95bb490](https://github.com/Arize-ai/openinference/commit/95bb490b73b2835442af56542a7a8a4e5d4137b5))
+
 ## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.42...python-openinference-instrumentation-litellm-v0.1.43) (2026-09-10)
 
 

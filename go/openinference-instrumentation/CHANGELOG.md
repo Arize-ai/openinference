@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/go/openinference-instrumentation/v0.1.1...go/openinference-instrumentation/v0.1.2) (2026-09-11)
+
+
+### Features
+
+* **semconv:** add span-kind-independent image attributes ([0ff0af2](https://github.com/Arize-ai/openinference/commit/0ff0af2ee2ad300daddec58099248fb4e397a7aa))
+
+
+### Bug Fixes
+
+* address image masking review feedback ([2bb454d](https://github.com/Arize-ai/openinference/commit/2bb454def1396b0dd9a6794ec74bf3c8732836f7))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/go/openinference-instrumentation/v0.1.0...go/openinference-instrumentation/v0.1.1) (2026-05-22)
 
 
