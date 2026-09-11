@@ -14,7 +14,7 @@ The possible settings are:
 | OPENINFERENCE_HIDE_OUTPUTS                   | Hides output.value, output.images, and all output messages (output messages are hidden if either HIDE_OUTPUTS OR HIDE_OUTPUT_MESSAGES is true) | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_MESSAGES            | Hides all input messages (independent of HIDE_INPUTS)                                                                          | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_MESSAGES           | Hides all output messages (independent of HIDE_OUTPUTS)                                                                        | bool | False   |
-| OPENINFERENCE_HIDE_INPUT_IMAGES              | Hides images from input messages (only when input messages are not already hidden) and `input.images`                          | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_IMAGES              | Hides images from input messages (only applies when input messages are not already hidden) and all `input.images` attributes  | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_TEXT                | Hides text from input messages (only applies when input messages are not already hidden)                                       | bool | False   |
 | OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts (completions API)                                                                                            | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_TEXT               | Hides text from output messages (only applies when output messages are not already hidden)                                     | bool | False   |

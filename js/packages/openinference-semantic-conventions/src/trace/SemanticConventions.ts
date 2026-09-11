@@ -218,7 +218,8 @@ export const EVALUATION_METADATA =
 export const INPUT_VALUE = `${SemanticAttributePrefixes.input}.value` as const;
 export const INPUT_MIME_TYPE = `${SemanticAttributePrefixes.input}.mime_type` as const;
 /**
- * Images that are inputs to any span, flattened as input.images.0.image.url
+ * Images passed as input to a span of any kind. Flattened with an index,
+ * for example `input.images.0.image.url`.
  */
 export const INPUT_IMAGES = `${SemanticAttributePrefixes.input}.images` as const;
 /**
@@ -227,7 +228,8 @@ export const INPUT_IMAGES = `${SemanticAttributePrefixes.input}.images` as const
 export const OUTPUT_VALUE = `${SemanticAttributePrefixes.output}.value` as const;
 export const OUTPUT_MIME_TYPE = `${SemanticAttributePrefixes.output}.mime_type` as const;
 /**
- * Images produced by any span, flattened as output.images.0.image.url
+ * Images produced as output by a span of any kind. Flattened with an index,
+ * for example `output.images.0.image.url`.
  */
 export const OUTPUT_IMAGES = `${SemanticAttributePrefixes.output}.images` as const;
 /**

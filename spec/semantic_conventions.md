@@ -338,7 +338,7 @@ For messages containing multiple content items (text, images, audio, video, reas
 
 #### Span-Kind-Independent Images
 
-For images attached to a span of any kind, outside the LLM message structure. See [Multimodal Attributes](./multimodal_attributes.md#span-kind-independent-images):
+Images attached to a span of any kind, outside the LLM message structure. See [Multimodal Attributes](./multimodal_attributes.md#span-kind-independent-images).
 
 - `<input|output>.images.<imageIndex>.image.url` - Image URI or base64 data
 

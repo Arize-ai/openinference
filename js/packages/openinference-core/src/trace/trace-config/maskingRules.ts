@@ -97,8 +97,9 @@ const maskInputImagesRule: MaskingRule = {
 };
 
 /**
- * True for the span-level image namespaces, which are valid on any span kind:
- * `input.images.[i].image.*` and `output.images.[i].image.*`.
+ * Returns true when `key` is `namespace` itself or an attribute nested under it.
+ * For example, `input.images.0.image.url` is within the `input.images` namespace,
+ * but `input.imageset.foo` is not.
  */
 function isWithinImagesNamespace(key: string, namespace: string): boolean {
   return key === namespace || key.startsWith(`${namespace}.`);
