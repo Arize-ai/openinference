@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.9...python-openinference-instrumentation-agno-v1.0.10) (2026-09-11)
+
+
+### Bug Fixes
+
+* **agno:** propagate MessageMetrics.cost to llm.cost.total span attribute ([#3666](https://github.com/Arize-ai/openinference/issues/3666)) ([66ef597](https://github.com/Arize-ai/openinference/commit/66ef5975b75a549346f2203a3c085305b47d3872))
+
 ## [1.0.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.8...python-openinference-instrumentation-agno-v1.0.9) (2026-09-10)
 
 

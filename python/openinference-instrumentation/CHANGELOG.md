@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.64](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.63...python-openinference-instrumentation-v0.1.64) (2026-09-11)
+
+
+### Bug Fixes
+
+* **instrumentation:** raise a real error for unparsable bool env vars ([215d0de](https://github.com/Arize-ai/openinference/commit/215d0de54177a87e5a7b980d04c6746538ca32f9))
+
 ## [0.1.63](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.62...python-openinference-instrumentation-v0.1.63) (2026-09-10)
 
 

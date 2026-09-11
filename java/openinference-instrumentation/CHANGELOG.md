@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-v0.1.9...java-openinference-instrumentation-v0.1.10) (2026-09-11)
+
+
+### Features
+
+* **semconv:** add span-kind-independent image attributes ([0ff0af2](https://github.com/Arize-ai/openinference/commit/0ff0af2ee2ad300daddec58099248fb4e397a7aa))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-v0.1.8...java-openinference-instrumentation-v0.1.9) (2026-04-04)
 
 
