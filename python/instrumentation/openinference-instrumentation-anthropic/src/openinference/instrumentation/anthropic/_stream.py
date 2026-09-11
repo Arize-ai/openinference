@@ -26,6 +26,8 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
+    from httpx2 import Headers
+
     from anthropic import Stream
     from anthropic.types import RawMessageStreamEvent
 
@@ -105,9 +107,14 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         self,
         stream: "Stream[RawMessageStreamEvent]",
         with_span: _WithSpan,
+        *,
+        is_beta: bool = False,
     ) -> None:
         super().__init__(stream)
-        self._response_accumulator = _MessageResponseAccumulator()
+        self._response_accumulator = _MessageResponseAccumulator(
+            is_beta=is_beta,
+            request_headers=stream.response.request.headers,
+        )
         self._with_span = with_span
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
@@ -162,18 +169,41 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
 class _MessageResponseAccumulator:
     """Accumulates raw SSE events into a ParsedMessage using the SDK's own accumulate_event."""
 
-    __slots__ = ("_snapshot",)
+    __slots__ = ("_is_beta", "_request_headers", "_snapshot")
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        is_beta: bool,
+        request_headers: "Headers",
+    ) -> None:
+        self._is_beta = is_beta
+        self._request_headers = request_headers
         self._snapshot: Any = None
 
     def process_chunk(self, chunk: "RawMessageStreamEvent") -> None:
-        from anthropic.lib.streaming._messages import accumulate_event
+        # Beta and stable chunks need their matching accumulate_event; beta's
+        # raises on stable chunks and vice versa silently drops updates.
+        if self._is_beta:
+            from anthropic.lib.streaming._beta_messages import (
+                accumulate_event as accumulate_beta_event,
+            )
 
-        try:
-            self._snapshot = accumulate_event(event=chunk, current_snapshot=self._snapshot)
-        except Exception:
-            pass
+            try:
+                self._snapshot = accumulate_beta_event(
+                    event=chunk,  # type: ignore[arg-type]
+                    current_snapshot=self._snapshot,
+                    request_headers=self._request_headers,
+                )
+            except Exception:
+                pass
+        else:
+            from anthropic.lib.streaming._messages import accumulate_event
+
+            try:
+                self._snapshot = accumulate_event(event=chunk, current_snapshot=self._snapshot)
+            except Exception:
+                pass
 
     def _result(self) -> Any:
         return self._snapshot
