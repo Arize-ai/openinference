@@ -50,11 +50,28 @@ async function main() {
 main();
 ```
 
-### Scratchpad copy for before/after runs
+### Scratchpad copy (fresh project, shared bootstrap, or before/after)
 
-Copy the example (and its shared bootstrap, if any) to `$SCRATCH` and take the project name from
-`process.argv[2]` with the committed name as default, so both runs use identical code. Fix the
-`../src` import to an absolute path into the worktree you are testing.
+Whenever the committed example must run into a project other than the one it (or its shared
+bootstrap) hard-codes, copy it to `$SCRATCH` and take the project name from `process.argv[2]`
+with the committed name as default, so every run uses identical code:
+
+```bash
+P=js/packages/openinference-instrumentation-<pkg>
+cp "$P/examples/<scenario>.ts" "$P/examples/instrumentation.ts" "$SCRATCH/"   # bootstrap only if the example imports it
+ln -s "$(pwd)/$P/node_modules" "$SCRATCH/node_modules"   # bare imports resolve from the entry file's directory
+sed -i '' "s#\"\.\./src\(/index\)\{0,1\}\"#\"$(pwd)/$P/src\"#" "$SCRATCH/"*.ts   # both spellings, one absolute path
+sed -i '' 's#\[SEMRESATTRS_PROJECT_NAME\]: "<committed-name>"#[SEMRESATTRS_PROJECT_NAME]: process.argv[2] ?? "<committed-name>"#' "$SCRATCH/instrumentation.ts"   # project from argv
+cd "$P" && pnpm exec tsx "$SCRATCH/<scenario>.ts" <project> 2>&1 | tee "$SCRATCH/<project>.run.log"
+```
+
+Without the `node_modules` link, tsx does not fail: it silently resolves `@opentelemetry/*` from
+pnpm's hoisted store, which can be a different major (`Resource is not a constructor` means
+this happened, not a wrong pin). Rewrite every `../src` and `../src/index` import to the same
+absolute path so the example and the bootstrap share one module instance.
+
+Proof that the working tree ran: the bootstrap's `ConsoleSpanExporter` prints
+`instrumentationLibrary.version`, which must equal the package's `package.json` version.
 
 ### Context attributes and suppression
 

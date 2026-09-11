@@ -41,7 +41,7 @@ Plain OpenTelemetry SDK only, the shape of
 """
 <One paragraph: what this traces and what the span tree should look like.>
 
-1. Run a local OTLP collector such as Phoenix: `pip install arize-phoenix && phoenix serve`
+1. Run a local OTLP collector such as Phoenix: `uvx arize-phoenix serve`
 2. Install dependencies: `pip install -r requirements.txt`
 3. Run this example: `python <scenario>.py`
 4. View the traces at http://localhost:6006 under the `<pkg>-<scenario>` project.
@@ -71,13 +71,18 @@ if __name__ == "__main__":
     main()
 ```
 
-### Scratchpad copy for before/after runs
+### Scratchpad copy (fresh project, other host, or before/after)
 
-Copy the example to `$SCRATCH` and take the project name from the command line, so both runs
-use identical code and the committed example is untouched:
+Whenever the committed example must run into a project or host other than the one it
+hard-codes, copy it to `$SCRATCH` and take the project name from the command line, so every run
+uses identical code and the committed example is untouched. Examples that set no resource at
+all (for instance the Anthropic ones) also need the two resource imports:
 
 ```python
 import sys
+
+from opentelemetry.sdk.resources import Resource
+from openinference.semconv.resource import ResourceAttributes
 
 project_name = sys.argv[1] if len(sys.argv) > 1 else "<pkg>-<scenario>"
 tracer_provider = trace_sdk.TracerProvider(
@@ -122,7 +127,7 @@ venvs follow the one-command install rule above.
 | --- | --- |
 | Fix not yet applied | Run, apply the change, run again in the same editable venv |
 | Fix already in the working tree or branch | `git worktree add "$SCRATCH/wt-main" origin/main`, `uv pip install -e "$SCRATCH/wt-main/python/instrumentation/openinference-instrumentation-<pkg>"` into `venv-before` |
-| Parity with the last release | `uv pip install openinference-instrumentation-<pkg>` (PyPI) into `venv-before`; read the installed version with `uv pip show --python <venv>/bin/python openinference-instrumentation-<pkg>`. The tag is `python-openinference-instrumentation-<pkg>-vX.Y.Z`; `git diff --stat <tag> -- python/instrumentation/openinference-instrumentation-<pkg>/src` shows whether any difference is even possible |
+| Parity with the last release | `uv pip install openinference-instrumentation-<pkg> -r .../examples/requirements.txt` (PyPI; the requirements file usually lists the package too, which is harmless) into `venv-before`; read the installed version with `uv pip show --python <venv>/bin/python openinference-instrumentation-<pkg>`. The tag is `python-openinference-instrumentation-<pkg>-vX.Y.Z`; `git diff --stat <tag> -- python/instrumentation/openinference-instrumentation-<pkg>/src` shows whether any difference is even possible |
 
 ```bash
 "$SCRATCH/venv-before/bin/python" "$SCRATCH/<scenario>.py" <pkg>-<scenario>-before
