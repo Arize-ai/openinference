@@ -133,6 +133,90 @@ jq length "$F"   # expect 1
 jq '.[] | .attributes | with_entries(select(.key | startswith("session.") or startswith("user.") or startswith("metadata.") or startswith("tag.")))' "$F"
 ```
 
+## MCP path
+
+When the Phoenix MCP server is connected (tool `mcp__plugin_arize-phoenix_phoenix__execute`,
+code mode with `call_tool`), you do not need `px` or `jq`. `getSpans` returns the same span
+objects as `px span list --format raw` (`name`, `span_kind`, `status_code`, `status_message`,
+`parent_id`, `context.span_id`, `start_time`, flattened `attributes`). A project that never
+received a span raises `HTTP error 404`. `getSpans` also takes `span_kind`, `name`,
+`status_code`, `trace_id`, and `attribute: ["key:value"]` filters.
+
+Connectivity: `await call_tool("getProjects", {})`. Project exists: `await call_tool("getProject", {"project_identifier": "<project>"})`.
+
+Read back one project, or diff two, with this block (edit the three constants):
+
+```python
+PROJECT = "<pkg>-<scenario>"
+BEFORE = None   # e.g. "<pkg>-<scenario>-before"; leave None for a single project
+AFTER = None    # e.g. "<pkg>-<scenario>-after"
+import re
+VOLATILE = re.compile(r"^(output\.value|llm\.output_messages\..*|llm\.token_count\..*|llm\.finish_reason)$")
+
+async def fetch(project):
+    spans, cursor = [], None
+    while True:
+        r = await call_tool("getSpans", {"project_identifier": project, "limit": 100, **({"cursor": cursor} if cursor else {})})
+        spans += r["data"]; cursor = r.get("next_cursor")
+        if not cursor: break
+    return sorted(spans, key=lambda s: s["start_time"])
+
+def tree(spans):
+    ids = {s["context"]["span_id"] for s in spans}; kids = {}
+    for s in spans: kids.setdefault(s["parent_id"], []).append(s)
+    out = []
+    def walk(s, d):
+        msg = f"  -- {s['status_message']}" if s.get("status_message") else ""
+        out.append(f"{'  '*d}{s['name']} [{s['span_kind']}] {s['status_code']}{msg}")
+        for k in kids.get(s["context"]["span_id"], []): walk(k, d + 1)
+    for s in spans:
+        if s["parent_id"] is None or s["parent_id"] not in ids: walk(s, 0)
+    return out
+
+def keys(spans):
+    return [l for s in spans for l in ([f"{s['name']} [{s['span_kind']}]"] + [f"    {k}" for k in sorted(s["attributes"])])]
+
+def values(spans):
+    return [l for s in spans for l in ([f"{s['name']} [{s['span_kind']}] {s['status_code']}"]
+            + [f"    {k}={str(v)[:200]}" for k, v in sorted(s["attributes"].items()) if not VOLATILE.match(k)])]
+
+def errors(spans):
+    e = [s for s in spans if s["status_code"] == "ERROR"]
+    return [f"no ERROR spans ({len(spans)} checked)"] if not e else [
+        f"{s['name']} [{s['span_kind']}]  status_message: {s.get('status_message', '')}  exception.message: {s['attributes'].get('exception.message', '')}" for s in e]
+
+result = {}
+spans = await fetch(PROJECT)
+result[PROJECT] = {"count": len(spans), "tree": tree(spans), "keys": keys(spans), "errors": errors(spans)}
+if BEFORE and AFTER:
+    b, a = await fetch(BEFORE), await fetch(AFTER)
+    diff = {}
+    for mode, fn in (("tree", tree), ("keys", keys), ("values", values)):
+        lb, la = fn(b), fn(a)
+        diff[mode] = "identical" if lb == la else {"before_only": [x for x in lb if x not in la], "after_only": [x for x in la if x not in lb]}
+    result["diff"] = {"before_count": len(b), "after_count": len(a), **diff}
+return result
+```
+
+For a targeted check, filter server-side and return only what the claim needs:
+
+```python
+r = await call_tool("getSpans", {"project_identifier": "<project>", "span_kind": ["LLM"], "limit": 100})
+return [{k: v for k, v in s["attributes"].items() if k.startswith("llm.token_count")} for s in r["data"]]
+```
+
+`executeSql` (read-only SQLite over `spans`, `traces`, `projects`) is a one-line alternative for
+name, kind, and status:
+
+```sql
+SELECT s.name, s.span_kind, s.status_code FROM spans s
+JOIN traces t ON s.trace_rowid = t.id JOIN projects p ON t.project_rowid = p.id
+WHERE p.name = '<project>' ORDER BY s.start_time
+```
+
+To reuse `span_tree.sh` on MCP output, return `spans` from the block and write it to
+`$SCRATCH/<project>.spans.json`; the script accepts that file in place of a project name.
+
 ## Getting a "before" build
 
 Use two venvs so the runs cannot contaminate each other, and print `<module>.__file__` in each:
