@@ -62,6 +62,11 @@ export function wrapPrompt({
       {
         attributes: {
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+          // Unlike query(), unstable_v2_prompt() never yields a system-init message,
+          // so the model has to come from the caller-supplied options up front.
+          ...(options?.model != null
+            ? { [SemanticConventions.LLM_MODEL_NAME]: options.model }
+            : {}),
           ...inputAttrs,
         },
       },
