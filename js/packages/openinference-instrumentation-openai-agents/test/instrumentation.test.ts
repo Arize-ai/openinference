@@ -11,6 +11,7 @@ import {
   GRAPH_NODE_ID,
   GRAPH_NODE_PARENT_ID,
   INPUT_VALUE,
+  LLM_FINISH_REASON,
   LLM_INPUT_MESSAGES,
   LLM_INVOCATION_PARAMETERS,
   LLM_MODEL_NAME,
@@ -589,6 +590,7 @@ describe("OpenInferenceTracingProcessor", () => {
     const llmSpan = exporter.getFinishedSpans().find((s) => s.name === "generation");
     expect(llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.0.message.role`]).toBe("assistant");
     expect(llmSpan!.attributes[`${LLM_OUTPUT_MESSAGES}.0.message.content`]).toBe("Hello there!");
+    expect(llmSpan!.attributes[LLM_FINISH_REASON]).toBe("stop");
   });
 
   it("indexes tool calls from each message starting at zero", async () => {
@@ -684,6 +686,7 @@ describe("OpenInferenceTracingProcessor", () => {
         `${LLM_OUTPUT_MESSAGES}.0.message.tool_calls.0.tool_call.function.arguments`
       ],
     ).toBe('{"city":"Tokyo"}');
+    expect(llmSpan!.attributes[LLM_FINISH_REASON]).toBe("tool_calls");
   });
 
   it("accumulates token counts across multiple chat completion responses", async () => {
@@ -729,6 +732,7 @@ describe("OpenInferenceTracingProcessor", () => {
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_PROMPT]).toBe(18); // 10 + 8
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(11); // 5 + 6
     expect(llmSpan!.attributes[LLM_TOKEN_COUNT_TOTAL]).toBe(50); // 20 + 30
+    expect(llmSpan!.attributes[LLM_FINISH_REASON]).toBe("stop");
   });
 
   it("extracts reasoning token count from completion_tokens_details", async () => {
@@ -1390,6 +1394,98 @@ describe("OpenInferenceTracingProcessor", () => {
         `${LLM_OUTPUT_MESSAGES}.0.message.tool_calls.0.tool_call.function.arguments`
       ],
     ).toBe("{}");
+  });
+
+  // ─── Finish reason (Responses API) ───────────────────────────────────────────
+
+  it("maps a completed Responses API status to finish_reason 'stop'", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: { model: "gpt-4o", status: "completed", output: [] },
+    };
+    const span = makeSpan("span-fr-completed", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[LLM_FINISH_REASON]).toBe("stop");
+  });
+
+  it("maps a failed Responses API status to finish_reason 'error'", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: { model: "gpt-4o", status: "failed", output: [] },
+    };
+    const span = makeSpan("span-fr-failed", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[LLM_FINISH_REASON]).toBe("error");
+  });
+
+  it("prefers incomplete_details.reason over status, mapping max_output_tokens to 'length'", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: {
+        model: "gpt-4o",
+        status: "incomplete",
+        incomplete_details: { reason: "max_output_tokens" },
+        output: [],
+      },
+    };
+    const span = makeSpan("span-fr-incomplete", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[LLM_FINISH_REASON]).toBe("length");
+  });
+
+  it("falls back to status when incomplete_details.reason is absent", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: { model: "gpt-4o", status: "incomplete", output: [] },
+    };
+    const span = makeSpan("span-fr-incomplete-no-reason", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes[LLM_FINISH_REASON]).toBe("incomplete");
+  });
+
+  it("omits finish_reason when the Responses API status is absent", async () => {
+    const trace = makeTrace();
+    await processor.onTraceStart(trace);
+
+    const responseData = {
+      type: "response" as const,
+      _response: { model: "gpt-4o", output: [] },
+    };
+    const span = makeSpan("span-fr-none", "trace-1", responseData as never);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const respSpan = exporter.getFinishedSpans().find((s) => s.name === "response");
+    expect(respSpan!.attributes).not.toHaveProperty(LLM_FINISH_REASON);
   });
 });
 
