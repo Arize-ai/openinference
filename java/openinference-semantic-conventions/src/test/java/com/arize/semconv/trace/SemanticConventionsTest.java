@@ -5,8 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * Asserts the literal attribute keys, which are the wire format shared with the Go, JavaScript and
- * Python packages. Drift here breaks consumers, so the values are pinned rather than derived.
+ * Checks the literal attribute keys. These keys are the wire format shared with the Go, JavaScript,
+ * and Python packages, so any change to them breaks consumers. The expected values are spelled out
+ * in full rather than built from the constants under test.
  */
 class SemanticConventionsTest {
 
