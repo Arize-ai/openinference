@@ -1024,7 +1024,7 @@ def _parse_prompt_template(
         messages = kwargs.get("messages")
         assert isinstance(messages, Sequence), f"expected list, found {type(messages)}"
         # FIXME: Multiple templates are possible (and the templated messages can also be
-        # interleaved with user massages), but we only have room for one template.
+        # interleaved with user messages), but we only have room for one template.
         message = messages[0]
         assert isinstance(message, Mapping), f"expected dict, found {type(message)}"
         if partial_variables := kwargs.get("partial_variables"):
