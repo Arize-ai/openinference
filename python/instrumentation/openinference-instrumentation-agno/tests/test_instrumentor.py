@@ -13,6 +13,7 @@ from agno.run.agent import RunOutput
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
+from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -21,7 +22,6 @@ from opentelemetry.util._importlib_metadata import entry_points
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.agno import AgnoInstrumentor
-from openinference.semconv.trace import SpanAttributes
 
 test_vcr = vcr.VCR(
     serializer="yaml",
@@ -876,3 +876,75 @@ def test_agno_openrouter_llm_cost_total_stream(
     assert attributes.pop("llm.output_messages.0.message.content") == "pong."
 
     assert not attributes
+
+
+def test_run_arguments_user_and_session_id_coercion(caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
+    from openinference.instrumentation.agno._runs_wrapper import _run_arguments
+
+    caplog.set_level(logging.WARNING)
+
+    # 1. Non-string integer IDs are coerced to string and log a diagnostic warning
+    args = {"user_id": 123, "session_id": 456}
+    attributes = dict(_run_arguments(args))
+    assert attributes.get("user.id") == "123"
+    assert attributes.get("session.id") == "456"
+    assert any("Expected user_id to be a string" in record.message for record in caplog.records)
+    assert any("Expected session_id to be a string" in record.message for record in caplog.records)
+
+    # 2. Integer zero is preserved and coerced rather than dropped
+    caplog.clear()
+    zero_args = {"user_id": 0, "session_id": 0}
+    zero_attrs = dict(_run_arguments(zero_args))
+    assert zero_attrs.get("user.id") == "0"
+    assert zero_attrs.get("session.id") == "0"
+
+    # 3. Clean string values do not log any warnings
+    caplog.clear()
+    clean_args = {"user_id": "u_valid", "session_id": "s_valid"}
+    clean_attrs = dict(_run_arguments(clean_args))
+    assert clean_attrs.get("user.id") == "u_valid"
+    assert clean_attrs.get("session.id") == "s_valid"
+    assert len(caplog.records) == 0
+
+
+def test_agent_run_attributes_session_and_user_id_coercion() -> None:
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    # Agent with integer user_id and session_id
+    agent = Agent(name="Test Agent", user_id=999, session_id=888)  # type: ignore[call-arg]
+    attrs = dict(_agent_run_attributes(agent))
+    assert attrs.get("user.id") == "999"
+    assert attrs.get("session.id") == "888"
+
+    # Agent with zero user_id and session_id
+    agent_zero = Agent(name="Zero Agent", user_id=0, session_id=0)  # type: ignore[call-arg]
+    attrs_zero = dict(_agent_run_attributes(agent_zero))
+    assert attrs_zero.get("user.id") == "0"
+    assert attrs_zero.get("session.id") == "0"
+
+
+def test_workflow_run_arguments_coercion(caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
+    from openinference.instrumentation.agno._workflow_wrapper import _workflow_run_arguments
+
+    caplog.set_level(logging.WARNING)
+    args = {"user_id": 42, "session_id": 84}
+    attrs = dict(_workflow_run_arguments(args))
+    assert attrs.get("user.id") == "42"
+    assert attrs.get("session.id") == "84"
+    assert any("Expected user_id to be a string" in record.message for record in caplog.records)
+    assert any("Expected session_id to be a string" in record.message for record in caplog.records)
+
+
+def test_normalize_id_unit() -> None:
+    from openinference.instrumentation.agno.utils import _normalize_id
+
+    assert _normalize_id(None, "user_id") is None
+    assert _normalize_id("", "user_id") is None
+    assert _normalize_id("   ", "user_id") is None
+    assert _normalize_id("valid_id", "user_id") == "valid_id"
+    assert _normalize_id(123, "user_id") == "123"
+    assert _normalize_id(0, "user_id") == "0"
