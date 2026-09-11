@@ -71,7 +71,7 @@ def multiset_minus(x, y):  # lines of x not in y, counting repeats; the sandbox 
 result = {}
 if PROJECT:
     spans = await fetch(PROJECT)
-    result[PROJECT] = {"count": len(spans), "tree": tree(spans), "keys": keys(spans), "errors": errors(spans)}
+    result[PROJECT] = {"count": len(spans), "tree": tree(spans), "keys": keys(spans), "values": values(spans), "errors": errors(spans)}
 if BEFORE and AFTER:
     b, a = await fetch(BEFORE), await fetch(AFTER)
     diff = {}

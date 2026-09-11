@@ -8,11 +8,11 @@ not JSON: check the project name and that Phoenix is up.
 S="$(git rev-parse --show-toplevel)/.agents/skills/phoenix-verify/scripts/span_tree.sh"
 F="$SCRATCH/<project>.spans.json"
 px span list --project <project> --format raw --no-progress --limit 500 > "$F" && jq length "$F"
-$S "$F"            # name [KIND] status, nested
-$S "$F" keys       # attribute keys per span
-$S "$F" values     # attribute values minus output.value, llm.output_messages.*, llm.token_count.*, llm.finish_reason
-$S "$F" errors     # ERROR spans + status_message + exception.message
-$S <project> errors -- --last-n-minutes 10 --limit 500    # live fetch instead; any px span list flags after --
+"$S" "$F"            # name [KIND] status, nested
+"$S" "$F" keys       # attribute keys per span
+"$S" "$F" values     # attribute values minus output.value, llm.output_messages.*, llm.token_count.*, llm.finish_reason
+"$S" "$F" errors     # ERROR spans + status_message + exception.message
+"$S" <project> errors -- --last-n-minutes 10 --limit 500    # live fetch instead; any px span list flags after --
 ```
 
 Keep the `.json` suffix on saved files; that is how the script tells a file from a project
@@ -45,7 +45,7 @@ px span list --project <project>-before --format raw --no-progress --limit 500 >
 px span list --project <project>-after  --format raw --no-progress --limit 500 > "$A"
 jq -e 'length > 0' "$B" >/dev/null && jq -e 'length > 0' "$A" >/dev/null || { echo "a side is empty or not JSON"; exit 1; }
 for m in tree keys values; do
-  diff <($S "$B" $m) <($S "$A" $m) && echo "$m: identical"
+  diff <("$S" "$B" $m) <("$S" "$A" $m) && echo "$m: identical"
 done
 ```
 
