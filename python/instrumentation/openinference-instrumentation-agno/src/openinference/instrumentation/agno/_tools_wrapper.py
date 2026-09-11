@@ -12,6 +12,11 @@ from typing import (
     Union,
 )
 
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -21,11 +26,7 @@ from agno.run.team import RunContentEvent as TeamRunContentEvent
 from agno.run.team import TeamRunOutputEvent
 from agno.tools.function import FunctionCall, ToolResult
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
-from openinference.semconv.trace import (
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
+from openinference.instrumentation.agno._context import get_activation
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -103,7 +104,7 @@ class _FunctionCallWrapper:
         )
 
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            with get_activation().use_span(span):
                 response = wrapped(*args, **kwargs)
 
             if response.status == "success":
@@ -163,7 +164,7 @@ class _FunctionCallWrapper:
         )
 
         try:
-            with trace_api.use_span(span, end_on_exit=False):
+            with get_activation().use_span(span):
                 response = await wrapped(*args, **kwargs)
 
             if response.status == "success":
