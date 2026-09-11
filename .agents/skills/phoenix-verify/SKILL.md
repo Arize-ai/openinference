@@ -35,11 +35,11 @@ Copy this checklist and work through it in order. `$SCRATCH` is your session scr
    S="$(git rev-parse --show-toplevel)/.agents/skills/phoenix-verify/scripts/span_tree.sh"   # absolute: steps 3 and 8 run from package dirs
    F="$SCRATCH/<project>.spans.json"
    px span list --project <project> --format raw --no-progress --limit 500 > "$F" && jq length "$F"   # count first
-   $S "$F"            # name [KIND] status, nested
-   $S "$F" keys       # attribute keys per span
-   $S "$F" values     # attribute values minus output.value, llm.output_messages.*, llm.token_count.*, llm.finish_reason (good for diffs)
-   $S "$F" errors     # ERROR spans + exception.message
-   $S <project> errors -- --last-n-minutes 10 --limit 500    # live fetch instead; any px span list flags after --
+   "$S" "$F"            # name [KIND] status, nested
+   "$S" "$F" keys       # attribute keys per span
+   "$S" "$F" values     # attribute values minus output.value, llm.output_messages.*, llm.token_count.*, llm.finish_reason (good for diffs)
+   "$S" "$F" errors     # ERROR spans + exception.message
+   "$S" <project> errors -- --last-n-minutes 10 --limit 500    # live fetch instead; any px span list flags after --
    ```
 
    Name saved files after the project and keep the `.json` suffix (that is how the script tells a file from a project name). A shared name like `spans.json` gets overwritten by a parallel run. If jq reports `Invalid numeric literal`, px printed an error, not JSON; the script exits 1 with the same diagnosis. Targeted jq recipes and the before/after diff are in [readback-cli.md](readback-cli.md). Without px, use [readback-mcp.md](readback-mcp.md) instead; it renders the same tree, keys, values, errors, and diff from `getSpans`.
