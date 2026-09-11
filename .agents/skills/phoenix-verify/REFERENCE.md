@@ -3,6 +3,69 @@
 Templates and recipes for the workflow in [SKILL.md](SKILL.md). Copy, rename the project,
 and trim to the path under test. `$SCRATCH` is your session scratchpad directory.
 
+## Language setup
+
+One setup command and one proof command per language. The proof shows the working tree, not a
+release, is what the example runs.
+
+### Python
+
+Examples: `python/instrumentation/openinference-instrumentation-<pkg>/examples/<scenario>.py`,
+with `requirements.txt` and usually a `README.md` beside them. The package needs a venv on its
+`requires-python` (usually >= 3.10); tox venvs install non-editably and do not see working-tree
+edits, so make a fresh one:
+
+```bash
+uv venv --python 3.12 "$SCRATCH/venv-<pkg>"
+uv pip install --python "$SCRATCH/venv-<pkg>/bin/python" \
+  -e python/instrumentation/openinference-instrumentation-<pkg> \
+  -r python/instrumentation/openinference-instrumentation-<pkg>/examples/requirements.txt
+"$SCRATCH/venv-<pkg>/bin/python" -c 'import openinference.instrumentation.<mod> as m; print(m.__file__)'
+# proof: a path under the repo's src/ (a PyPI "before" venv prints site-packages instead)
+cd python/instrumentation/openinference-instrumentation-<pkg>/examples && "$SCRATCH/venv-<pkg>/bin/python" <scenario>.py
+```
+
+Install `-e` and the requirements in one command: `requirements.txt` lists the package from
+PyPI and would shadow the editable install if installed afterwards. Lint as CI does, from the
+package directory with the pinned ruff: `tox run -e ruff-<pkg>` or
+`uvx ruff@0.9.2 format --diff . && uvx ruff@0.9.2 check --no-fix .` (an unpinned ruff reports
+false import-order errors). New direct imports go in `examples/requirements.txt`.
+
+### JS / TypeScript
+
+Examples: `js/packages/openinference-instrumentation-<pkg>/examples/<scenario>.ts`. They import
+`../src` directly, so tsx compiles the working tree; the build is only for workspace
+dependencies whose `main` points at `dist/`.
+
+```bash
+cd js && pnpm install --frozen-lockfile -r
+pnpm --filter "@arizeai/openinference-instrumentation-<pkg>..." run build   # package + workspace deps
+cd packages/openinference-instrumentation-<pkg> && pnpm exec tsx examples/<scenario>.ts
+# proof: the example's import of "../src"; some READMEs say `npx tsx`, the repo rule is pnpm only
+```
+
+Examples are excluded from oxlint and oxfmt, so nothing runs on them. New dependencies go in
+the package's `devDependencies`.
+
+### Java
+
+Examples: `java/examples/<name>-example/` (`annotation`, `programmatic`, `langchain4j`,
+`spring-ai`), each a Gradle `application` module in the same composite build as the
+instrumentors, so they always compile against the working tree. The build declares a Java 17
+toolchain, so `JAVA_HOME` must point at a JDK 17 or newer; on a JDK 8 shell every Gradle task
+fails while configuring the Spring AI example. The existing examples read `PROJECT_NAME` from
+the environment, export over OTLP gRPC to `http://localhost:4317`, and call `forceFlush()` then
+`shutdown()` before exit.
+
+```bash
+cd java && ./gradlew :examples:<name>-example:dependencies --configuration runtimeClasspath | grep 'project :'
+# proof: the instrumentor appears as `project :instrumentation:openinference-instrumentation-<pkg>`
+PROJECT_NAME=<pkg>-<scenario> ./gradlew :examples:<name>-example:run
+```
+
+Lint as CI does with `./gradlew spotlessCheck` (`spotlessApply` to fix). New dependencies go in
+the example module's `build.gradle`.
+
 ## Example templates
 
 Plain OpenTelemetry SDK only: a `TracerProvider` with the project pinned on the resource, an
@@ -85,13 +148,7 @@ main();
 Packages whose examples share an `instrumentation.ts` bootstrap: copy the bootstrap and the
 example to `$SCRATCH` together and change the project name in the copy.
 
-Setup and run, from `js/`:
-
-```bash
-pnpm install --frozen-lockfile -r
-pnpm --filter "@arizeai/openinference-instrumentation-<pkg>..." run build   # package + workspace deps
-cd packages/openinference-instrumentation-<pkg> && pnpm exec tsx examples/<scenario>.ts
-```
+Setup and run commands are in [Language setup](#language-setup).
 
 ### Scratchpad copy for before/after runs
 
@@ -108,8 +165,16 @@ tracer_provider = trace_sdk.TracerProvider(
 
 ### Context attributes and suppression
 
-Both helpers come from the same module. Make one traced call and one suppressed call in the
-same run so "zero spans" is provable as "exactly one span".
+Make one traced call and one suppressed call in the same run so "zero spans" is provable as
+"exactly one span". Helpers per language:
+
+| | Context attributes | Suppress tracing |
+| --- | --- | --- |
+| Python | `using_attributes(...)` from `openinference.instrumentation` | `suppress_tracing()` from the same module |
+| JS | `setSession`, `setUser`, `setMetadata`, `setTags` from `@arizeai/openinference-core`, applied with `context.with(...)` | `suppressTracing(context.active())` from `@opentelemetry/core` |
+| Java | `ContextAttributes` in `com.arize.instrumentation` | `try (Scope s = SuppressTracing.begin()) { ... }` |
+
+Python shape:
 
 ```python
 from openinference.instrumentation import suppress_tracing, using_attributes
