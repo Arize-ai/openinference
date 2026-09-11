@@ -8,13 +8,27 @@ received a span raises `HTTP error 404`. `getSpans` also takes `span_kind`, `nam
 `status_code`, `trace_id`, and `attribute: ["key:value"]` filters. The sandbox has a restricted
 standard library: `json` and `re` import, `collections` does not.
 
-Connectivity: `await call_tool("getProjects", {})`. Project exists: `await call_tool("getProject", {"project_identifier": "<project>"})`.
+Connectivity: `await call_tool("getProjects", {})`. Confirm a project is empty before the run
+(the 404 is raised, so catch it):
+
+```python
+try:
+    r = await call_tool("getSpans", {"project_identifier": "<project>", "limit": 1})
+    return {"existing_spans": len(r["data"])}   # must be 0
+except Exception as e:
+    return {"never_created": "404" in str(e), "error": str(e)[:200]}
+```
+
+After the run, always read the count first (the snippet below returns it as `count`) before
+trusting any view. In the evidence block, cite this file's snippet name and the variables you
+set in place of shell commands.
 
 ## Tree, keys, values, errors, and before/after diff
 
 Set `PROJECT` for a single run, or `BEFORE` and `AFTER` for a diff (then `PROJECT` is not
-fetched). The renderers print the same lines as `span_tree.sh` (JSON-encoded values,
-`?`/`UNSET` fallbacks) so a diff made here is comparable to one made with px:
+fetched, and the after side's tree, values, and errors are returned so the report has output to
+show). The renderers print the same lines as `span_tree.sh` (JSON-encoded values, `?`/`UNSET`
+fallbacks) so a diff made here is comparable to one made with px:
 
 ```python
 PROJECT = None  # e.g. "<pkg>-<scenario>"
@@ -79,6 +93,7 @@ if BEFORE and AFTER:
         lb, la = fn(b), fn(a)
         diff[mode] = "identical" if lb == la else {"before_only": multiset_minus(lb, la), "after_only": multiset_minus(la, lb)}
     result["diff"] = {"before_count": len(b), "after_count": len(a), **diff}
+    result["after"] = {"tree": tree(a), "values": values(a), "errors": errors(a)}
 return result
 ```
 
