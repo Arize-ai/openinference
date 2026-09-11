@@ -30,6 +30,7 @@ from openinference.semconv.trace import (
 )
 
 from ._blob_upload import (
+    Blob,
     BlobUploader,
     decode_base64_data_uri_to_blob,
     is_valid_reference_uri,
@@ -435,26 +436,44 @@ class TraceConfig:
         configured, the upload cannot be accepted, or the returned reference
         is not a valid absolute URI.
         """
-        if self.blob_uploader is not None:
-            try:
-                # The base64 decode and sha256 digest run synchronously on the
-                # instrumented call path before the uploader can refuse the
-                # blob. Payload size is effectively bounded by provider
-                # request limits today; if that stops holding, a pre-decode
-                # ceiling on the base64 string length belongs here, as a
-                # separate knob from the inline-vs-offload budget.
-                if blob := decode_base64_data_uri_to_blob(value, attribute_key=key):
-                    if uri := self.blob_uploader.upload(blob):
-                        if is_valid_reference_uri(uri):
-                            return uri
-                        logger.warning(
-                            f"Blob uploader {type(self.blob_uploader).__name__} returned "
-                            f"{uri!r} for attribute '{key}', which is not a valid absolute "
-                            "URI (a scheme such as https:// or s3:// is required). "
-                            "Falling back to redaction."
-                        )
-            except Exception:
-                logger.exception(f"Failed to externalize media for attribute '{key}'.")
+        if self.blob_uploader is None:
+            return REDACTED_VALUE
+        if blob := decode_base64_data_uri_to_blob(value, attribute_key=key):
+            return self.externalize_blob(
+                blob.data,
+                mime_type=blob.mime_type,
+                attribute_key=key,
+            )
+        return REDACTED_VALUE
+
+    def externalize_blob(
+        self,
+        data: bytes,
+        *,
+        mime_type: str,
+        attribute_key: str,
+    ) -> str:
+        """Upload decoded data and return its URI or ``REDACTED_VALUE``."""
+        uploader = self.blob_uploader
+        if uploader is None:
+            return REDACTED_VALUE
+        try:
+            blob = Blob(
+                data=data,
+                mime_type=mime_type,
+                attribute_key=attribute_key,
+            )
+            uri = uploader.upload(blob)
+            if uri and is_valid_reference_uri(uri):
+                return uri
+            if uri is not None:
+                logger.warning(
+                    f"Blob uploader {type(uploader).__name__} returned {uri!r} for attribute "
+                    f"'{attribute_key}', which is not a valid absolute URI. "
+                    "Falling back to redaction."
+                )
+        except Exception:
+            logger.exception(f"Failed to externalize media for attribute '{attribute_key}'.")
         return REDACTED_VALUE
 
     def _parse_value(
