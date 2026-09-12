@@ -37,7 +37,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    "groq >= 0.6.0",
+    "groq >= 0.9.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
