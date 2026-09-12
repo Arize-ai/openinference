@@ -1,3 +1,4 @@
+import inspect
 import logging
 from typing import Any, Collection, Optional, cast
 
@@ -57,6 +58,50 @@ def _patch_tool_execution() -> Optional[list[tuple[Any, str, Any]]]:
     return patched
 
 
+def _patch_agent_runner() -> Optional[list[tuple[Any, str, Any]]]:
+    """Wrap the SDK's runner entry points, so the trace root can report the run's real
+    input and output.
+
+    Neither value is visible to a tracing processor: the span data types describing an
+    agent operation carry no input or output at all. The wrapper reads the input from the
+    call and composes the caller's hooks with one that records the output. See ``_run_io``.
+
+    Returns what ``_uninstrument`` needs to undo the patches, or ``None`` when nothing
+    could be patched -- in which case the trace root simply carries no input or output,
+    which is the behaviour before this was added rather than a failure.
+    """
+    from openinference.instrumentation.openai_agents._run_io import (
+        find_agent_runner_bindings,
+        make_run_wrapper,
+        make_sync_run_wrapper,
+    )
+
+    patched: list[tuple[Any, str, Any]] = []
+    for owner, attribute in find_agent_runner_bindings():
+        try:
+            # Read from __dict__ so the original is captured as its descriptor and can be
+            # restored exactly, rather than as the bound method getattr would return.
+            original = owner.__dict__[attribute]
+            wrapper = (
+                make_run_wrapper()
+                if inspect.iscoroutinefunction(inspect.unwrap(original))
+                else make_sync_run_wrapper()
+            )
+            setattr(owner, attribute, FunctionWrapper(original, wrapper))
+        except Exception:
+            logger.debug("could not patch %s.%s", owner, attribute, exc_info=True)
+            continue
+        logger.debug("Run I/O capture enabled: patched %s.%s", owner, attribute)
+        patched.append((owner, attribute, original))
+    if not patched:
+        logger.debug(
+            "No known agent runner entry point could be patched -- the trace root will "
+            "not report the run's input or output"
+        )
+        return None
+    return patched
+
+
 class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
     """
     An instrumentor for openai-agents
@@ -67,6 +112,7 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_send_audio",
         "_original_close",
         "_original_execute_function_tools",
+        "_original_agent_runner",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -100,6 +146,7 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
             add_trace_processor(OpenInferenceTracingProcessor(cast(Tracer, tracer)))
 
         self._original_execute_function_tools = _patch_tool_execution()
+        self._original_agent_runner = _patch_agent_runner()
 
         from openinference.instrumentation.openai_agents._realtime import (
             _load_realtime_events,
@@ -151,6 +198,13 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
             except Exception:
                 logger.debug("tool execution uninstrument failed", exc_info=True)
         self._original_execute_function_tools = None
+
+        for container, attribute, original in getattr(self, "_original_agent_runner", None) or ():
+            try:
+                setattr(container, attribute, original)
+            except Exception:
+                logger.debug("agent runner uninstrument failed", exc_info=True)
+        self._original_agent_runner = None
 
         try:
             from agents.realtime.session import RealtimeSession
