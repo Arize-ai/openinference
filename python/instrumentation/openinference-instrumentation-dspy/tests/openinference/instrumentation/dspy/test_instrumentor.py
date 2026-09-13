@@ -1326,3 +1326,38 @@ TAG_TAGS = SpanAttributes.TAG_TAGS
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
+
+
+def test_lm_call_with_mixed_type_content_list_does_not_raise(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    lm = dspy.utils.DummyLM(answers=[{"answer": "dummy answer"}])
+
+    result = lm(
+        messages=[
+            {"role": "user", "content": [{"type": "text", "text": "hi"}, "plain-string-part"]}
+        ]
+    )
+
+    assert "dummy answer" in result[0]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    content_prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+    assert attributes.get(f"{content_prefix}.0.type") == "text"
+    assert attributes.get(f"{content_prefix}.0.text") == "hi"
+    assert attributes.get(f"{content_prefix}.1") == "plain-string-part"
+
+
+def test_lm_call_with_circular_reference_in_inputs_does_not_raise(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    lm = dspy.utils.DummyLM(answers=[{"answer": "dummy answer"}])
+    circular: List[Any] = []
+    circular.append(circular)
+
+    result = lm(messages=[{"role": "user", "content": [{"type": "text", "text": "hi"}, circular]}])
+
+    assert "dummy answer" in result[0]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
