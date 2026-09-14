@@ -150,6 +150,37 @@ describe("V1 query() wrapper", () => {
     expect(span.attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("max_turns");
   });
 
+  it("should read finish reason from older assistant message shapes", async () => {
+    const mockModule = createMockModule([
+      {
+        type: "assistant",
+        message: { stop_reason: "end_turn" },
+        parent_tool_use_id: null,
+        uuid: "assistant-uuid",
+        session_id: "sess-older-v1",
+      },
+      {
+        type: "result",
+        subtype: "success",
+        result: "Done",
+        usage: { input_tokens: 10, output_tokens: 5 },
+        total_cost_usd: 0.001,
+        num_turns: 1,
+        duration_ms: 100,
+        session_id: "sess-older-v1",
+      },
+    ]);
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    for await (const _msg of mockModule.query({ prompt: "test" })) {
+      // consume
+    }
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans[0].attributes[SemanticConventions.LLM_FINISH_REASON]).toBe("end_turn");
+  });
+
   it("should handle generator errors", async () => {
     const mockModule = {
       query: function () {
