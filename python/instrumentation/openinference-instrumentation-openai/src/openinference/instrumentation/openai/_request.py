@@ -25,13 +25,17 @@ from openinference.instrumentation import (
     get_attributes_from_context,
     infer_llm_provider_from_host,
 )
-from openinference.instrumentation.openai._image_utils import redact_images_from_request_parameters
+from openinference.instrumentation.openai._image_utils import (
+    get_attributes_from_image_files,
+    redact_images_from_request_parameters,
+)
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
 from openinference.instrumentation.openai._response_accumulator import (
     _ChatCompletionAccumulator,
     _CompletionAccumulator,
+    _ImagesAccumulator,
     _ResponsesAccumulator,
 )
 from openinference.instrumentation.openai._response_attributes_extractor import (
@@ -135,6 +139,7 @@ class _WithOpenAI(ABC):
                 response_attributes_extractor=self._response_attributes_extractor,
             ),
             openai.types.responses.response.Response: responses_accumulator,
+            openai.types.ImagesResponse: lambda request_parameters: _ImagesAccumulator(),
         }
 
     def _get_span_kind(self, cast_to: type) -> str:
@@ -158,6 +163,7 @@ class _WithOpenAI(ABC):
         self,
         cast_to: type,
         request_parameters: Mapping[str, Any],
+        request_files: Any = None,
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
         yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
@@ -168,6 +174,7 @@ class _WithOpenAI(ABC):
             config = getattr(getattr(self, "_tracer", None), "_self_config", None)
 
             # Apply image redaction if configured
+            hide_inputs = bool(config and getattr(config, "hide_inputs", False))
             hide_images = bool(config and getattr(config, "hide_input_images", False))
             max_length = int(getattr(config, "base64_image_max_length", 0) if config else 0)
 
@@ -182,6 +189,8 @@ class _WithOpenAI(ABC):
                 processed_params = dict(request_parameters)
 
             yield from _as_input_attributes(_io_value_and_type(processed_params))
+            if cast_to is self._openai.types.ImagesResponse and not hide_inputs and not hide_images:
+                yield from get_attributes_from_image_files(request_files)
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request parameters of "
@@ -308,7 +317,7 @@ class _Request(_WithTracer, _WithOpenAI):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         try:
-            cast_to, request_parameters = _parse_request_args(args)
+            cast_to, request_parameters, request_files = _parse_request_args(args)
             # Use consistent span names: "CreateEmbeddings" for embeddings, class name for others
             if cast_to is self._openai.types.CreateEmbeddingResponse:
                 span_name = "CreateEmbeddings"
@@ -325,6 +334,7 @@ class _Request(_WithTracer, _WithOpenAI):
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
+                    request_files=request_files,
                 ),
             ),
             context_attributes=get_attributes_from_context(),
@@ -369,7 +379,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
         try:
-            cast_to, request_parameters = _parse_request_args(args)
+            cast_to, request_parameters, request_files = _parse_request_args(args)
             # Use consistent span names: "CreateEmbeddings" for embeddings, class name for others
             if cast_to is self._openai.types.CreateEmbeddingResponse:
                 span_name = "CreateEmbeddings"
@@ -386,6 +396,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
+                    request_files=request_files,
                 ),
             ),
             context_attributes=get_attributes_from_context(),
@@ -419,7 +430,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         return response
 
 
-def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]]:
+def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any], Any]:
     # We don't use `signature(request).bind()` because `request` could have been monkey-patched
     # (incorrectly) by others and the signature at runtime may not match the original.
     # The targeted signature of `request` is here:
@@ -442,7 +453,8 @@ def _parse_request_args(args: Tuple[type, Any]) -> Tuple[type, Mapping[str, Any]
     #     request_parameters = json.loads(json.dumps(request_parameters))
     # except Exception:
     #     pass
-    return cast_to, request_parameters
+    request_files = getattr(args[1], "files", None)
+    return cast_to, request_parameters, request_files
 
 
 class _ResponseAttributes:
