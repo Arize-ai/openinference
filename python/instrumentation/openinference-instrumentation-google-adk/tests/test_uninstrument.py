@@ -19,16 +19,19 @@ from typing import Iterator, Optional, cast
 import pytest
 from google.adk import __version__ as _ADK_VERSION_STR
 from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Tracer, get_current_span
 
-from openinference.instrumentation import OITracer
+from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.google_adk import (
     _COMPACTION_MODULE,
     GoogleADKInstrumentor,
     _compaction_input_var,
+    _merged_tool_span_modules,
     _PassthroughTracer,
     _SelectiveExecuteToolTracer,
 )
+from openinference.semconv.trace import SpanAttributes
 
 _ADK_VERSION = cast(tuple[int, int, int], tuple(int(x) for x in _ADK_VERSION_STR.split(".")[:3]))
 
@@ -51,11 +54,17 @@ def test_instrumentation_patching() -> None:
     # and removed the re-export of `tracer` from agents.base_agent.
     trace_tool_module: ModuleType
     compaction: Optional[ModuleType] = None
+    original_merged_tracers: list[tuple[ModuleType, Tracer]] = []
     if _ADK_VERSION >= (1, 32, 0):
         from google.adk.telemetry import tracing
 
         compaction = sys.modules.get(_COMPACTION_MODULE)
         trace_tool_module = tracing
+        original_merged_tracers = [
+            (module, module.tracer)
+            for module in _merged_tool_span_modules()
+            if hasattr(module, "tracer")
+        ]
     else:
         from google.adk.flows.llm_flows import functions
 
@@ -127,10 +136,13 @@ def test_instrumentation_patching() -> None:
         # selective tracer that emits OI spans for `execute_tool *` and
         # `compact_events *`, and passes through everything else.
         assert isinstance(trace_tool_module.tracer, _SelectiveExecuteToolTracer)
-        # functions.tracer is also wrapped to catch `execute_tool (merged)` spans.
-        from google.adk.flows.llm_flows import functions as _functions
-
-        assert isinstance(_functions.tracer, _SelectiveExecuteToolTracer)
+        # The merged-span module's `tracer` is also wrapped to catch
+        # `execute_tool (merged)` spans. On ADK 1.32 that module is
+        # flows.llm_flows.functions; ADK 2.x moved it to
+        # flows.llm_flows._batch_tool_executor.
+        assert original_merged_tracers
+        for _merged_module, _ in original_merged_tracers:
+            assert isinstance(_merged_module.tracer, _SelectiveExecuteToolTracer)
         if compaction is not None:
             assert isinstance(compaction.tracer, _SelectiveExecuteToolTracer)
     else:
@@ -152,6 +164,8 @@ def test_instrumentation_patching() -> None:
     assert base_llm_flow.trace_call_llm is original_trace_call_llm
     assert trace_tool_module.tracer is original_trace_tool_module_tracer
     assert trace_tool_module.trace_tool_call is original_trace_tool_call
+    for merged_module, original_tracer in original_merged_tracers:
+        assert merged_module.tracer is original_tracer
     if _ADK_VERSION >= (1, 32, 0):
         assert trace_tool_module._build_compaction_attributes is original_build_attrs
         assert trace_tool_module._build_compaction_result_attributes is original_build_result_attrs
@@ -164,6 +178,49 @@ def test_instrumentation_patching() -> None:
 
     if _ADK_VERSION < (1, 32, 0):
         assert base_agent.tracer is original_agents_tracer  # noqa: F821
+
+
+@pytest.mark.skipif(
+    _ADK_VERSION < (1, 32, 0),
+    reason="merged-span tracer rebinding only runs on google-adk >= 1.32.0",
+)
+def test_uninstrument_preserves_later_merged_tracer(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    original_tracers = [
+        (module, module.tracer)
+        for module in _merged_tool_span_modules()
+        if hasattr(module, "tracer")
+    ]
+    assert original_tracers
+    replacement = OITracer(
+        tracer_provider.get_tracer("application"), config=TraceConfig(hide_inputs=True)
+    )
+    instrumentor = GoogleADKInstrumentor()
+    try:
+        instrumentor.instrument(tracer_provider=tracer_provider)
+        try:
+            for module, _ in original_tracers:
+                module.tracer = replacement
+        finally:
+            instrumentor.uninstrument()
+
+        for module, _ in original_tracers:
+            with module.tracer.start_as_current_span(
+                "application-span", attributes={SpanAttributes.INPUT_VALUE: "synthetic-input"}
+            ):
+                pass
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == len(original_tracers)
+        for span in spans:
+            assert span.attributes is not None
+            assert span.attributes[SpanAttributes.INPUT_VALUE] == "__REDACTED__"
+        for module, _ in original_tracers:
+            assert module.tracer is replacement
+    finally:
+        for module, original_tracer in original_tracers:
+            module.tracer = original_tracer
 
 
 class _DummySpan:

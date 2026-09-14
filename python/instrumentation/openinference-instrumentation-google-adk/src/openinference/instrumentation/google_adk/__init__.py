@@ -187,7 +187,6 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
             # `generate_content {model}` path. We want OI spans for the tool family
             # but suppression for the others — so wrap with a name-dispatching
             # proxy. See `_SelectiveExecuteToolTracer` for the full rationale.
-            from google.adk.flows.llm_flows import functions
             from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
                 tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
             )
@@ -200,18 +199,19 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                 )
                 self._tracer_patches.append((adk_tracing, "tracer", original_adk_tracer, adk_proxy))
                 setattr(adk_tracing, "tracer", adk_proxy)
-            # `functions.tracer` is a *separate* binding: `functions.py` does
-            # `from ...telemetry.tracing import tracer` at import time, capturing
-            # the original tracer locally. Reassigning `tracing.tracer` above
-            # won't reach it, and it's still used for parallel-call
-            # `execute_tool (merged)` spans, so wrap it independently.
-            functions_tracer = getattr(functions, "tracer", None)
-            if isinstance(functions_tracer, Tracer):
-                setattr(
-                    functions,
-                    "tracer",
-                    _SelectiveExecuteToolTracer(functions_tracer, self._tracer),
-                )
+            # The parallel-call `execute_tool (merged)` span is created through a
+            # *separate*, module-local `tracer` binding captured at import time via
+            # `from ...telemetry.tracing import tracer` (see
+            # `_merged_tool_span_modules`). Reassigning `tracing.tracer` above won't
+            # reach it, so wrap each such binding independently.
+            for merged_module in _merged_tool_span_modules():
+                merged_tracer = getattr(merged_module, "tracer", None)
+                if isinstance(merged_tracer, Tracer):
+                    merged_proxy = _SelectiveExecuteToolTracer(merged_tracer, self._tracer)
+                    self._tracer_patches.append(
+                        (merged_module, "tracer", merged_tracer, merged_proxy)
+                    )
+                    setattr(merged_module, "tracer", merged_proxy)
             self._patch_compaction_helpers(adk_tracing, adk_proxy)
         elif _adk_version() >= (1, 15, 0):
             from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
@@ -341,12 +341,6 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                 setattr(adk_tracing, "tracer", original)
 
         if _adk_version() >= (1, 32, 0):
-            from google.adk.flows.llm_flows import functions
-
-            functions_tracer = getattr(functions, "tracer", None)
-            if isinstance(original := getattr(functions_tracer, "__wrapped__", None), Tracer):
-                setattr(functions, "tracer", original)
-
             self._restore_compaction_helpers()
 
 
@@ -449,14 +443,17 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     ``execute_tool *`` and ``compact_events *`` (so ``_TraceToolCall`` and ADK
     compaction each get a real span), passthrough for everything else.
 
-    Why ``functions.tracer`` is patched separately
-    ----------------------------------------------
-    ``flows/llm_flows/functions.py`` does ``from ...telemetry.tracing import tracer``
-    at import time, capturing the original tracer in a *local* name. Later
-    reassignments of ``tracing.tracer`` don't reach it, so the parallel-call
-    ``execute_tool (merged)`` span (still created in ``functions.py`` on 1.32)
-    would emit through the original ADK tracer unless we patch ``functions.tracer``
-    too. ``_disable_existing_tracers`` wraps both attributes with this proxy.
+    Why the merged-span module's ``tracer`` is patched separately
+    -------------------------------------------------------------
+    The parallel-call ``execute_tool (merged)`` span is created in a module that
+    did ``from ...telemetry.tracing import tracer`` at import time, capturing the
+    original tracer in a *local* name. Later reassignments of ``tracing.tracer``
+    don't reach it, so the merged span would emit through the original ADK tracer
+    unless we patch that binding too. On ADK 1.32 the span lived in
+    ``flows/llm_flows/functions.py``; ADK 2.x moved it to
+    ``flows/llm_flows/_batch_tool_executor.py``. ``_disable_existing_tracers``
+    wraps whichever binding is present (see ``_merged_tool_span_modules``) with
+    this proxy.
 
     Implementation note
     -------------------
@@ -508,6 +505,34 @@ def _adk_version() -> Tuple[int, int, int]:
     from google.adk import __version__
 
     return cast(Tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
+
+
+def _merged_tool_span_modules() -> List[Any]:
+    """Return modules whose module-local ``tracer`` binding creates the
+    parallel-call ``execute_tool (merged)`` span.
+
+    ``flows/llm_flows/functions.py`` historically did
+    ``from ...telemetry.tracing import tracer`` at import time, capturing the
+    original tracer in a *local* name that a later reassignment of
+    ``tracing.tracer`` won't reach. ADK 2.x moved the merged-span creation into
+    ``flows/llm_flows/_batch_tool_executor.py``, which keeps its own such binding
+    (and ``functions.py`` no longer imports ``tracer`` at all). Patch whichever of
+    these modules is present so the merged span is emitted through our OI tracer
+    regardless of ADK version.
+    """
+    modules: List[Any] = []
+    from google.adk.flows.llm_flows import functions
+
+    modules.append(functions)
+    try:
+        from google.adk.flows.llm_flows import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
+            _batch_tool_executor,  # type: ignore[attr-defined,unused-ignore]
+        )
+
+        modules.append(_batch_tool_executor)
+    except ImportError:
+        pass
+    return modules
 
 
 def _resolve_trace_tool_call_module() -> Any:
