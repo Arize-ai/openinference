@@ -127,10 +127,16 @@ def test_instrumentation_patching() -> None:
         # selective tracer that emits OI spans for `execute_tool *` and
         # `compact_events *`, and passes through everything else.
         assert isinstance(trace_tool_module.tracer, _SelectiveExecuteToolTracer)
-        # functions.tracer is also wrapped to catch `execute_tool (merged)` spans.
-        from google.adk.flows.llm_flows import functions as _functions
+        # The merged-span module's `tracer` is also wrapped to catch
+        # `execute_tool (merged)` spans. On ADK 1.32 that module is
+        # flows.llm_flows.functions; ADK 2.x moved it to
+        # flows.llm_flows._batch_tool_executor.
+        from openinference.instrumentation.google_adk import _merged_tool_span_modules
 
-        assert isinstance(_functions.tracer, _SelectiveExecuteToolTracer)
+        merged_modules = [m for m in _merged_tool_span_modules() if hasattr(m, "tracer")]
+        assert merged_modules
+        for _merged_module in merged_modules:
+            assert isinstance(_merged_module.tracer, _SelectiveExecuteToolTracer)
         if compaction is not None:
             assert isinstance(compaction.tracer, _SelectiveExecuteToolTracer)
     else:
