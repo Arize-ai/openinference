@@ -207,11 +207,11 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
             for merged_module in _merged_tool_span_modules():
                 merged_tracer = getattr(merged_module, "tracer", None)
                 if isinstance(merged_tracer, Tracer):
-                    setattr(
-                        merged_module,
-                        "tracer",
-                        _SelectiveExecuteToolTracer(merged_tracer, self._tracer),
+                    merged_proxy = _SelectiveExecuteToolTracer(merged_tracer, self._tracer)
+                    self._tracer_patches.append(
+                        (merged_module, "tracer", merged_tracer, merged_proxy)
                     )
+                    setattr(merged_module, "tracer", merged_proxy)
             self._patch_compaction_helpers(adk_tracing, adk_proxy)
         elif _adk_version() >= (1, 15, 0):
             from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
@@ -341,11 +341,6 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                 setattr(adk_tracing, "tracer", original)
 
         if _adk_version() >= (1, 32, 0):
-            for merged_module in _merged_tool_span_modules():
-                merged_tracer = getattr(merged_module, "tracer", None)
-                if isinstance(original := getattr(merged_tracer, "__wrapped__", None), Tracer):
-                    setattr(merged_module, "tracer", original)
-
             self._restore_compaction_helpers()
 
 
