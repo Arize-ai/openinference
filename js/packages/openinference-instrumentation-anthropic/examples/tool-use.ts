@@ -27,7 +27,7 @@ async function toolUseExample() {
   ];
 
   const message = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-latest",
+    model: "claude-opus-5",
     max_tokens: 1000,
     tools,
     messages: [
@@ -60,7 +60,7 @@ async function toolUseExample() {
       };
       // Continue the conversation with the tool result
       const followUp = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-latest",
+        model: "claude-opus-5",
         max_tokens: 1000,
         tools,
         messages: [

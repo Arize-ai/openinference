@@ -16,6 +16,8 @@ const {
   LLM_RESPONSE_MODEL_NAME,
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_PROMPT,
+  LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+  LLM_TOKEN_COUNT_TOTAL,
   MESSAGE_CONTENT_TEXT,
   MESSAGE_CONTENT_TYPE,
   MESSAGE_CONTENTS,
@@ -57,9 +59,19 @@ function createJSONFetch(): typeof fetch {
     );
 }
 
+type UsageOverrides = Record<string, number | null>;
+
 function createStreamingFetch({
   deltaInputTokens = 12,
-}: { deltaInputTokens?: number | null } = {}): typeof fetch {
+  startUsage = {},
+  servingUsage = {},
+  deltaUsage = {},
+}: {
+  deltaInputTokens?: number | null;
+  startUsage?: UsageOverrides;
+  servingUsage?: UsageOverrides;
+  deltaUsage?: UsageOverrides;
+} = {}): typeof fetch {
   const events: Array<Record<string, unknown> & { type: string }> = [
     {
       type: "message_start",
@@ -69,7 +81,7 @@ function createStreamingFetch({
         role: "assistant",
         model: requestedModel,
         // The declined model's counts, which must never leak into the span.
-        usage: { input_tokens: 99, output_tokens: 1 },
+        usage: { input_tokens: 99, output_tokens: 1, ...startUsage },
         content: [],
         stop_reason: null,
         stop_sequence: null,
@@ -115,6 +127,7 @@ function createStreamingFetch({
       usage: {
         input_tokens: deltaInputTokens,
         output_tokens: 6,
+        ...deltaUsage,
         iterations: [
           { type: "message", model: requestedModel, input_tokens: 99, output_tokens: 2 },
           {
@@ -122,6 +135,7 @@ function createStreamingFetch({
             model: fallbackModel,
             input_tokens: 12,
             output_tokens: 6,
+            ...servingUsage,
           },
         ],
       },
@@ -246,4 +260,81 @@ describe("AnthropicInstrumentation - server-side fallback", () => {
     expect(spans[0].attributes[LLM_TOKEN_COUNT_PROMPT]).toBe(12);
     expect(spans[0].attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(6);
   });
+
+  it.each([
+    {
+      name: "the serving hop reports no cache counts",
+      servingUsage: {},
+      deltaUsage: {},
+      expected: {
+        [LLM_TOKEN_COUNT_PROMPT]: 12,
+        [LLM_TOKEN_COUNT_TOTAL]: 18,
+        [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: undefined,
+      },
+    },
+    {
+      name: "the serving hop reports zero cache counts",
+      servingUsage: { cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      deltaUsage: {},
+      expected: {
+        [LLM_TOKEN_COUNT_PROMPT]: 12,
+        [LLM_TOKEN_COUNT_TOTAL]: 18,
+        [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: undefined,
+      },
+    },
+    {
+      name: "the serving hop reports its own cache read",
+      servingUsage: { cache_read_input_tokens: 300 },
+      deltaUsage: {},
+      expected: {
+        [LLM_TOKEN_COUNT_PROMPT]: 312,
+        [LLM_TOKEN_COUNT_TOTAL]: 318,
+        [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: 300,
+      },
+    },
+    {
+      name: "message_delta reports a cache read of 0",
+      servingUsage: { cache_read_input_tokens: 300 },
+      deltaUsage: { cache_read_input_tokens: 0 },
+      expected: {
+        [LLM_TOKEN_COUNT_PROMPT]: 12,
+        [LLM_TOKEN_COUNT_TOTAL]: 18,
+        [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: undefined,
+      },
+    },
+  ])(
+    "never takes cache counts from the declined attempt when $name",
+    async ({ servingUsage, deltaUsage, expected }) => {
+      const client = new Anthropic({
+        apiKey: "fake-api-key",
+        fetch: createStreamingFetch({
+          deltaInputTokens: null,
+          // The declined attempt read from the cache; none of it may leak.
+          startUsage: { cache_read_input_tokens: 400, cache_creation_input_tokens: 0 },
+          servingUsage,
+          deltaUsage,
+        }),
+      });
+
+      const stream = await client.beta.messages.create({
+        model: requestedModel,
+        max_tokens: 100,
+        messages: [{ role: "user", content: "Hello" }],
+        stream: true,
+        fallbacks: "default",
+        betas: ["server-side-fallback-2026-07-01"],
+      });
+      for await (const _event of stream) {
+        // Drain the caller's side of the tee'd stream.
+      }
+
+      await waitForSpans(1);
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].attributes[LLM_TOKEN_COUNT_COMPLETION]).toBe(6);
+      for (const [key, value] of Object.entries(expected)) {
+        expect(spans[0].attributes[key], key).toBe(value);
+      }
+    },
+  );
 });

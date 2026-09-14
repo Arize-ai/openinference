@@ -46,6 +46,12 @@ type MessageUsage =
   | Anthropic.Beta.Messages.BetaUsage
   | Anthropic.Beta.Messages.BetaMessageDeltaUsage
   | Anthropic.Beta.Messages.BetaFallbackMessageIterationUsage;
+type MessageUsageCounts = Partial<
+  Pick<
+    MessageUsage,
+    "input_tokens" | "output_tokens" | "cache_creation_input_tokens" | "cache_read_input_tokens"
+  >
+>;
 type AnthropicModuleWithOptionalBeta = Omit<typeof Anthropic, "Beta"> & {
   Beta?: { Messages?: typeof Anthropic.Beta.Messages };
 };
@@ -640,13 +646,13 @@ function getAnthropicOutputMessagesAttributes(message: Message): Attributes {
  * the prompt count has to include them.
  * https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#tracking-cache-performance
  */
-function getAnthropicUsageAttributes(usage: MessageUsage): Attributes {
+function getAnthropicUsageAttributes(usage: MessageUsageCounts): Attributes {
   const attributes: Attributes = {};
-  const cacheWriteTokens = usage.cache_creation_input_tokens;
-  const cacheReadTokens = usage.cache_read_input_tokens;
+  const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0;
+  const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
   const promptTokens =
     usage.input_tokens != null
-      ? usage.input_tokens + (cacheWriteTokens ?? 0) + (cacheReadTokens ?? 0)
+      ? usage.input_tokens + cacheWriteTokens + cacheReadTokens
       : undefined;
 
   if (promptTokens != null) {
@@ -658,13 +664,33 @@ function getAnthropicUsageAttributes(usage: MessageUsage): Attributes {
   if (promptTokens != null && usage.output_tokens != null) {
     attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = promptTokens + usage.output_tokens;
   }
-  if (cacheWriteTokens != null) {
+  // Anthropic reports these as 0 when caching did not run, so zeros are left
+  // out rather than tagging every span with them.
+  if (cacheWriteTokens > 0) {
     attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cacheWriteTokens;
   }
-  if (cacheReadTokens != null) {
+  if (cacheReadTokens > 0) {
     attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cacheReadTokens;
   }
   return attributes;
+}
+
+/**
+ * Merges two usage reports field by field, keeping the later value whenever it
+ * is present. Stream usage counts are cumulative, so a later event that omits a
+ * field keeps the earlier value, and a later 0 replaces an earlier count.
+ */
+function mergeAnthropicUsage(
+  earlier: MessageUsageCounts,
+  later: MessageUsageCounts,
+): MessageUsageCounts {
+  return {
+    input_tokens: later.input_tokens ?? earlier.input_tokens,
+    output_tokens: later.output_tokens ?? earlier.output_tokens,
+    cache_creation_input_tokens:
+      later.cache_creation_input_tokens ?? earlier.cache_creation_input_tokens,
+    cache_read_input_tokens: later.cache_read_input_tokens ?? earlier.cache_read_input_tokens,
+  };
 }
 
 /**
@@ -679,9 +705,9 @@ interface AnthropicStreamState {
   streamResponse: string;
   toolCallAttributes: Attributes;
   contentAttributes: Attributes;
-  startUsageAttributes: Attributes;
-  deltaUsageAttributes: Attributes;
-  servingUsageAttributes: Attributes;
+  startUsage: MessageUsageCounts;
+  deltaUsage: MessageUsageCounts;
+  servingUsage?: MessageUsageCounts;
   responseModel?: string;
   finishReason?: string;
   toolIndex: number;
@@ -698,7 +724,7 @@ function applyAnthropicMessageDelta({
   chunk: Extract<RawMessageStreamEvent, { type: "message_delta" }>;
   state: AnthropicStreamState;
 }) {
-  state.deltaUsageAttributes = getAnthropicUsageAttributes(chunk.usage);
+  state.deltaUsage = mergeAnthropicUsage(state.deltaUsage, chunk.usage);
   if (chunk.delta.stop_reason != null) {
     state.finishReason = chunk.delta.stop_reason;
   }
@@ -708,7 +734,7 @@ function applyAnthropicMessageDelta({
   for (const iteration of chunk.usage.iterations) {
     if (iteration.type === "fallback_message") {
       state.responseModel = iteration.model;
-      state.servingUsageAttributes = getAnthropicUsageAttributes(iteration);
+      state.servingUsage = iteration;
     }
   }
 }
@@ -824,24 +850,13 @@ function getAnthropicStreamAttributes(state: AnthropicStreamState): Attributes {
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
 
-  // Later sources win: on a server-side fallback stream the serving hop's
-  // counts displace the declined attempt's counts from message_start, and the
-  // final message_delta wins over both, so prompt and completion describe the
-  // same model.
-  const usageAttributes: Attributes = {
-    ...state.startUsageAttributes,
-    ...state.servingUsageAttributes,
-    ...state.deltaUsageAttributes,
-  };
-
-  // Recompute the total in case prompt and completion counts came from
-  // different sources.
-  const promptTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT];
-  const completionTokens = usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION];
-  if (typeof promptTokens === "number" && typeof completionTokens === "number") {
-    usageAttributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = promptTokens + completionTokens;
-  }
-  Object.assign(attributes, usageAttributes);
+  // On a server-side fallback stream the serving hop's usage replaces
+  // message_start's, which belongs to the attempt that declined. The final
+  // message_delta then wins field by field, so prompt, completion and cache
+  // counts all describe the same model. Prompt and total are derived only
+  // after merging so they stay consistent with the cache counts.
+  const usage = mergeAnthropicUsage(state.servingUsage ?? state.startUsage, state.deltaUsage);
+  Object.assign(attributes, getAnthropicUsageAttributes(usage));
 
   return attributes;
 }
@@ -854,16 +869,15 @@ async function consumeAnthropicStreamChunks(stream: Stream<RawMessageStreamEvent
     streamResponse: "",
     toolCallAttributes: {},
     contentAttributes: {},
-    startUsageAttributes: {},
-    deltaUsageAttributes: {},
-    servingUsageAttributes: {},
+    startUsage: {},
+    deltaUsage: {},
     toolIndex: -1,
   };
 
   for await (const chunk of stream) {
     if (chunk.type === "message_start") {
       state.responseModel = chunk.message.model;
-      state.startUsageAttributes = getAnthropicUsageAttributes(chunk.message.usage);
+      state.startUsage = chunk.message.usage;
     } else if (chunk.type === "message_delta") {
       applyAnthropicMessageDelta({ chunk, state });
     } else if (chunk.type === "content_block_start") {
