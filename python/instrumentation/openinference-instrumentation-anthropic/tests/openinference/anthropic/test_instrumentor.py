@@ -163,7 +163,6 @@ def test_anthropic_instrumentation_stream_message(
                     "citations": None,
                     "text": "The capital of France is **Paris**.",
                     "type": "text",
-                    "parsed_output": None,
                 }
             ],
             "model": "claude-sonnet-4-6",
@@ -261,7 +260,6 @@ async def test_anthropic_instrumentation_async_stream_message(
                     "citations": None,
                     "text": "The capital of France is **Paris**.",
                     "type": "text",
-                    "parsed_output": None,
                 }
             ],
             "model": "claude-sonnet-4-6",
@@ -456,7 +454,6 @@ def test_anthropic_instrumentation_messages_streaming(
                     "citations": None,
                     "text": "Sunlight scatters off air molecules.",
                     "type": "text",
-                    "parsed_output": None,
                 }
             ],
             "model": "claude-sonnet-4-6",
@@ -696,7 +693,6 @@ async def test_anthropic_instrumentation_async_messages_streaming(
                     "citations": None,
                     "text": "Sunlight scatters off air molecules.",
                     "type": "text",
-                    "parsed_output": None,
                 }
             ],
             "model": "claude-sonnet-4-6",
@@ -1164,7 +1160,6 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
                     "citations": None,
                     "text": "I'll check both the current weather and time in New York simultaneously right away!",
                     "type": "text",
-                    "parsed_output": None,
                 },
                 {
                     "id": "toolu_01Mo5Ee5Yb7vrzaxSNS5DVuP",
@@ -1306,7 +1301,6 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
                     "citations": None,
                     "text": "This image shows the iconic Taj Mahal, one of the most famous monuments in the world, located in Agra, India. The majestic white marble mausoleum is perfectly centered in the frame, its distinctive dome and minarets standing out against a clear blue sky.\n\nIn the foreground, there's a long rectangular reflecting pool that leads up to the main building. The water in the pool creates a mirror image of the Taj Mahal, enhancing its beauty and symmetry. On either side of the pool, there are well-manicured green lawns and a row of tall, slender cypress trees, which add to the symmetrical design of the complex.\n\nThe Taj Mahal itself is a stunning example of Mughal architecture. Its central dome is large and bulbous, flanked by four smaller domes. At each corner of the platform on which the mausoleum sits, there are tall, tapering minarets. The entire structure appears to be made of white marble, which gives it a pristine, almost ethereal appearance in the sunlight.\n\nThe scene conveys a sense of serenity, grandeur, and perfect balance. It's a classic view of this UNESCO World Heritage site, capturing the timeless beauty that has made the Taj Mahal one of the most recognizable and admired buildings in the world.",
                     "type": "text",
-                    "parsed_output": None,
                 }
             ],
             "model": "claude-3-5-sonnet-20240620",
@@ -1743,7 +1737,6 @@ def test_anthropic_instrumentation_messages_parse(
                     "citations": None,
                     "text": '{"city":"Paris","country":"France"}',
                     "type": "text",
-                    "parsed_output": {"city": "Paris", "country": "France"},
                 }
             ],
             "model": "claude-sonnet-4-6",
@@ -1856,7 +1849,6 @@ async def test_anthropic_instrumentation_async_messages_parse(
                     "citations": None,
                     "text": '{"city":"Paris","country":"France"}',
                     "type": "text",
-                    "parsed_output": {"city": "Paris", "country": "France"},
                 }
             ],
             "model": "claude-sonnet-4-6",
@@ -1968,7 +1960,6 @@ def test_anthropic_instrumentation_beta_messages_parse(
                     "citations": None,
                     "text": '{"city":"Paris","country":"France"}',
                     "type": "text",
-                    "parsed_output": {"city": "Paris", "country": "France"},
                 }
             ],
             "context_management": None,
@@ -2084,7 +2075,6 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
                     "citations": None,
                     "text": '{"city":"Paris","country":"France"}',
                     "type": "text",
-                    "parsed_output": {"city": "Paris", "country": "France"},
                 }
             ],
             "context_management": None,
