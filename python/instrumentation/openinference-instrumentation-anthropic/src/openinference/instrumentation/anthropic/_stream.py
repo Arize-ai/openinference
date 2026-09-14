@@ -1,7 +1,9 @@
+from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
     Any,
     AsyncIterator,
+    Dict,
     Iterator,
     Optional,
     Tuple,
@@ -159,19 +161,35 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         )
 
 
+@lru_cache(maxsize=1)
+def _accumulate_event_supports_json_bufs() -> bool:
+    """anthropic >= 1.5.0 added a required ``json_bufs`` parameter to accumulate_event."""
+    import inspect
+
+    from anthropic.lib.streaming._messages import accumulate_event
+
+    return "json_bufs" in inspect.signature(accumulate_event).parameters
+
+
 class _MessageResponseAccumulator:
     """Accumulates raw SSE events into a ParsedMessage using the SDK's own accumulate_event."""
 
-    __slots__ = ("_snapshot",)
+    __slots__ = ("_snapshot", "_json_bufs")
 
     def __init__(self) -> None:
         self._snapshot: Any = None
+        # Buffers partial tool-use input JSON across events, keyed by content block
+        # index. Required by anthropic >= 1.5.0; unused on older versions.
+        self._json_bufs: Dict[int, bytes] = {}
 
     def process_chunk(self, chunk: "RawMessageStreamEvent") -> None:
         from anthropic.lib.streaming._messages import accumulate_event
 
+        kwargs: Dict[str, Any] = dict(event=chunk, current_snapshot=self._snapshot)
+        if _accumulate_event_supports_json_bufs():
+            kwargs["json_bufs"] = self._json_bufs
         try:
-            self._snapshot = accumulate_event(event=chunk, current_snapshot=self._snapshot)
+            self._snapshot = accumulate_event(**kwargs)
         except Exception:
             pass
 
