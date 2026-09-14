@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.11.0
+
+### Minor Changes
+
+- 0ff0af2: Add `input.images` and `output.images` semantic conventions, letting any span kind record images without the LLM message structure.
+
 ## 2.10.0
 
 ### Minor Changes
