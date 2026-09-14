@@ -134,6 +134,17 @@ pnpm exec tsx examples/server-side-fallback.ts
 pnpm exec tsx examples/server-side-fallback-streaming.ts
 ```
 
+To exercise prompt caching token counts (a cache write, a cache read, then a request without caching):
+
+```shell
+export ANTHROPIC_API_KEY=your-api-key
+
+pnpm exec tsx examples/prompt-caching.ts
+pnpm exec tsx examples/prompt-caching-streaming.ts
+```
+
+Each request prints its raw `usage` and the token count attributes the span should carry. Compare them with the span printed by the console exporter.
+
 ## License
 
 Apache-2.0
