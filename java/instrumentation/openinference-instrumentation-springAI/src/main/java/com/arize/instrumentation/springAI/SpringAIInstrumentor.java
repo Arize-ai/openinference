@@ -1,6 +1,7 @@
 package com.arize.instrumentation.springAI;
 
 import com.arize.instrumentation.OITracer;
+import com.arize.instrumentation.TraceConfig;
 import com.arize.semconv.trace.SemanticConventions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.observation.Observation;
@@ -21,6 +22,7 @@ import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.observation.ChatModelObservationContext;
 import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.content.Media;
 
 public class SpringAIInstrumentor implements ObservationHandler<Observation.Context> {
     private static final Logger log = LoggerFactory.getLogger(SpringAIInstrumentor.class);
@@ -199,8 +201,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
 
                 span.setAttribute(
                         AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), mapMessageRole(message));
-                span.setAttribute(
-                        AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), message.getText());
+                setMessageContentAttributes(span, prefix, message, true);
 
                 // Handle tool calls for assistant messages
                 if (message instanceof AssistantMessage) {
@@ -214,9 +215,12 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
                 // Handle tool responses
                 if (message instanceof ToolResponseMessage) {
                     ToolResponseMessage toolResponseMessage = (ToolResponseMessage) message;
-                    span.setAttribute(
-                            AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT),
-                            toolResponseMessage.getResponses().get(0).responseData());
+                    String responseData = MediaContentSupport.applyTextPolicy(
+                            toolResponseMessage.getResponses().get(0).responseData(), config(), true);
+                    if (responseData != null) {
+                        span.setAttribute(
+                                AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), responseData);
+                    }
                     span.setAttribute(
                             AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_TOOL_CALL_ID),
                             toolResponseMessage.getResponses().get(0).id());
@@ -232,7 +236,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
         try {
             List<Message> messages = context.getRequest().getInstructions();
             if (messages == null || messages.isEmpty()) return;
-            List<Map<String, Object>> messagesList = convertMessages(messages);
+            List<Map<String, Object>> messagesList = convertMessages(messages, true);
             String messagesJson = objectMapper.writeValueAsString(messagesList);
             span.setAttribute(SemanticConventions.INPUT_VALUE, messagesJson);
             span.setAttribute(SemanticConventions.INPUT_MIME_TYPE, "application/json");
@@ -258,9 +262,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
                     String prefix = String.format("%s.%d.", SemanticConventions.LLM_OUTPUT_MESSAGES, i);
 
                     span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), "assistant");
-                    span.setAttribute(
-                            AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT),
-                            assistantMessage.getText());
+                    setMessageContentAttributes(span, prefix, assistantMessage, false);
 
                     // Handle tool calls in output
                     if (assistantMessage.getToolCalls() != null
@@ -286,7 +288,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
                 }
             }
             if (!outs.isEmpty()) {
-                List<Map<String, Object>> messagesList = convertMessages(outs);
+                List<Map<String, Object>> messagesList = convertMessages(outs, false);
                 String messagesJson = objectMapper.writeValueAsString(messagesList);
                 span.setAttribute(SemanticConventions.OUTPUT_VALUE, messagesJson);
                 span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
@@ -343,13 +345,13 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
         }
     }
 
-    private List<Map<String, Object>> convertMessages(List<Message> messages) {
+    private List<Map<String, Object>> convertMessages(List<Message> messages, boolean input) {
         List<Map<String, Object>> result = new ArrayList<>();
 
         for (Message message : messages) {
             Map<String, Object> messageMap = new HashMap<>();
             messageMap.put("role", mapMessageRole(message));
-            messageMap.put("content", message.getText());
+            messageMap.put("content", buildContent(message, input));
 
             // Handle tool calls in assistant messages
             if (message instanceof AssistantMessage) {
@@ -385,6 +387,95 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
         }
 
         return result;
+    }
+
+    /**
+     * Writes the message content. Messages carrying image media produce the OpenInference
+     * multi-part {@code message.contents.*} layout; all other messages keep the flat
+     * {@code message.content} attribute.
+     */
+    private void setMessageContentAttributes(Span span, String prefix, Message message, boolean input) {
+        List<Media> images = MediaContentSupport.imageMediaOf(message);
+        String text = MediaContentSupport.applyTextPolicy(message.getText(), config(), input);
+
+        if (images.isEmpty()) {
+            span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), text);
+            return;
+        }
+
+        int index = 0;
+        if (text != null && !text.isEmpty()) {
+            String contentPrefix = prefix + SemanticConventions.MESSAGE_CONTENTS + "." + index + ".";
+            span.setAttribute(AttributeKey.stringKey(contentPrefix + SemanticConventions.MESSAGE_CONTENT_TYPE), "text");
+            span.setAttribute(AttributeKey.stringKey(contentPrefix + SemanticConventions.MESSAGE_CONTENT_TEXT), text);
+            index++;
+        }
+
+        boolean hidden = MediaContentSupport.isImageHidden(config(), input);
+        for (Media image : images) {
+            String url = imageUrl(image, hidden, input);
+            if (url == null) {
+                continue;
+            }
+            String contentPrefix = prefix + SemanticConventions.MESSAGE_CONTENTS + "." + index + ".";
+            span.setAttribute(
+                    AttributeKey.stringKey(contentPrefix + SemanticConventions.MESSAGE_CONTENT_TYPE), "image");
+            span.setAttribute(
+                    AttributeKey.stringKey(contentPrefix + SemanticConventions.MESSAGE_CONTENT_IMAGE + "."
+                            + SemanticConventions.IMAGE_URL),
+                    url);
+            index++;
+        }
+    }
+
+    /**
+     * Resolves the url to record for an image. Hidden images redact without the payload ever being
+     * read, so no base64 encoding happens for data that is about to be thrown away.
+     */
+    private String imageUrl(Media image, boolean hidden, boolean input) {
+        if (hidden) {
+            return MediaContentSupport.REDACTED_VALUE;
+        }
+        return MediaContentSupport.applyImagePolicy(MediaContentSupport.toUrl(image), config(), input);
+    }
+
+    /**
+     * Builds the {@code content} field for the input.value / output.value JSON: a plain string
+     * for text-only messages, or an OpenAI-style multi-part array when image media is present.
+     */
+    private Object buildContent(Message message, boolean input) {
+        List<Media> images = MediaContentSupport.imageMediaOf(message);
+        String text = MediaContentSupport.applyTextPolicy(message.getText(), config(), input);
+
+        if (images.isEmpty()) {
+            return text;
+        }
+
+        List<Map<String, Object>> parts = new ArrayList<>();
+        if (text != null && !text.isEmpty()) {
+            Map<String, Object> textPart = new LinkedHashMap<>();
+            textPart.put("type", "text");
+            textPart.put("text", text);
+            parts.add(textPart);
+        }
+        boolean hidden = MediaContentSupport.isImageHidden(config(), input);
+        for (Media image : images) {
+            String url = imageUrl(image, hidden, input);
+            if (url == null) {
+                // The serialized form has no way to express an image part without a url — emitting
+                // one would be malformed, so an unreadable payload is skipped entirely.
+                continue;
+            }
+            Map<String, Object> imagePart = new LinkedHashMap<>();
+            imagePart.put("type", "image_url");
+            imagePart.put("image_url", Map.of("url", url));
+            parts.add(imagePart);
+        }
+        return parts;
+    }
+
+    private TraceConfig config() {
+        return tracer.getConfig();
     }
 
     private void setToolCallAttributes(Span span, String prefix, List<AssistantMessage.ToolCall> toolCalls) {
