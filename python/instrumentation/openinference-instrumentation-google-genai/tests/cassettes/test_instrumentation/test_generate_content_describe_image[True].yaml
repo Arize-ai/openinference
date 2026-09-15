@@ -1,0 +1,43 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Describe Image."}, {"inlineData": {"data":
+      "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD-wSzIAAAABlBMVEX___-_v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII=",
+      "mimeType": "image/png"}}], "role": "user"}], "systemInstruction": {"parts":
+      [{"text": "You are a helpful assistant that can answer questions and help with
+      tasks."}], "role": "user"}, "generationConfig": {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse
+  response:
+    body:
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"The
+        image shows a simple, blurry checkerboard pattern made of two colors: white
+        and a medium gray.\\n\\nSpecifically, it's a 2x2 grid where:\\n*   \"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 277,\"candidatesTokenCount\":
+        37,\"totalTokenCount\": 884,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        19},{\"modality\": \"IMAGE\",\"tokenCount\": 258}],\"thoughtsTokenCount\":
+        570,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
+        \"StkEarfIJY6_qtsP9tjeuQs\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"The top-left square is gray.\\n*   The top-right
+        square is white.\\n*   The bottom-left square is white.\\n*   The bottom-right
+        square is gray.\\n\\nThe entire image is significantly out\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 277,\"candidatesTokenCount\":
+        85,\"totalTokenCount\": 932,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        19},{\"modality\": \"IMAGE\",\"tokenCount\": 258}],\"thoughtsTokenCount\":
+        570,\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
+        \"StkEarfIJY6_qtsP9tjeuQs\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" of focus, causing the edges of the squares to be
+        soft and indistinct, rather than sharp lines. It's an abstract pattern, devoid
+        of specific objects or discernible details beyond the color blocks.\"}],\"role\":
+        \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        277,\"candidatesTokenCount\": 124,\"totalTokenCount\": 971,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 19},{\"modality\": \"IMAGE\",\"tokenCount\":
+        258}],\"thoughtsTokenCount\": 570,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-2.5-flash\",\"responseId\": \"StkEarfIJY6_qtsP9tjeuQs\"}\r\n\r\n"
+    headers:
+      Content-Type:
+      - text/event-stream
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -45,6 +45,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -109,7 +111,7 @@ class _Wrapper:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
 
-    @wrapt.decorator  # type: ignore[misc]
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -317,6 +319,8 @@ def _update_span(obj: Any, span: Span) -> None: ...
 @_update_span.register(v1beta1.GenerateContentRequest)
 def _(req: GenerateContentRequest, span: Span) -> None:
     span.set_attribute(LLM_MODEL_NAME, req.model)
+    span.set_attribute(LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value)
+    span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.VERTEXAI.value)
     span.set_attribute(
         LLM_INVOCATION_PARAMETERS,
         safe_json_dumps(
@@ -349,6 +353,23 @@ def _(resp: GenerateContentResponse, span: Span) -> None:
         prefix = f"{LLM_OUTPUT_MESSAGES}.{candidate.index}."
         for k, v in _parse_content(cast(Content, candidate.content), prefix):
             span.set_attribute(k, v)
+        # Only capture finish_reason for the first candidate.
+        if candidate.index == 0:
+            finish_reason = candidate.finish_reason
+            # Skip both "unset" and the explicit UNSPECIFIED value, as proto3 enums default
+            # to 0 (FINISH_REASON_UNSPECIFIED) when the field is unset.
+            if finish_reason:
+                try:
+                    value = finish_reason.name
+                except AttributeError:
+                    # Use the concrete type of the actual candidate instance.
+                    try:
+                        value = type(candidate).FinishReason(finish_reason).name
+                    except ValueError:
+                        # For truly unrecognized value, fallback to the raw integer as a string
+                        # rather than dropping the attribute entirely.
+                        value = str(finish_reason)
+                span.set_attribute(LLM_FINISH_REASON, value)
 
 
 def stop_on_exception(it: Callable[..., Iterator[_AnyT]]) -> Callable[..., Iterator[_AnyT]]:
@@ -506,6 +527,9 @@ LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT

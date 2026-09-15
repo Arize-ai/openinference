@@ -1,3 +1,7 @@
+import type { Attributes, Context } from "@opentelemetry/api";
+import { createContextKey } from "@opentelemetry/api";
+import { isAttributeValue } from "@opentelemetry/core";
+
 import {
   METADATA,
   PROMPT_TEMPLATE_TEMPLATE,
@@ -8,9 +12,6 @@ import {
   USER_ID,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes, Context, createContextKey } from "@opentelemetry/api";
-import { isAttributeValue } from "@opentelemetry/core";
-
 import {
   isAttributes,
   isObjectWithStringKeys,
@@ -18,8 +19,7 @@ import {
   safelyJSONParse,
   safelyJSONStringify,
 } from "../utils";
-
-import { Metadata, PromptTemplate, Session, Tags, User } from "./types";
+import type { Metadata, PromptTemplate, Session, Tags, User } from "./types";
 
 const CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY = "attributes" as const;
 
@@ -37,9 +37,7 @@ export const ContextAttributes = {
   [METADATA]: createContextKey(`OpenInference SDK Context Key ${METADATA}`),
   [USER_ID]: createContextKey(`OpenInference SDK Context Key ${USER_ID}`),
   [TAG_TAGS]: createContextKey(`OpenInference SDK Context Key ${TAG_TAGS}`),
-  [CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY]: createContextKey(
-    `OpenInference SDK Context Key attributes`,
-  ),
+  [CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY]: createContextKey(`OpenInference SDK Context Key attributes`),
 } as const;
 
 const {
@@ -73,17 +71,11 @@ const {
  * );
  * ```
  */
-export function setPromptTemplate(
-  context: Context,
-  promptTemplate: PromptTemplate,
-): Context {
+export function setPromptTemplate(context: Context, promptTemplate: PromptTemplate): Context {
   const { template, variables, version } = promptTemplate;
   context = context.setValue(PROMPT_TEMPLATE_TEMPLATE_KEY, template);
   if (variables) {
-    context = context.setValue(
-      PROMPT_TEMPLATE_VARIABLES_KEY,
-      safelyJSONStringify(variables),
-    );
+    context = context.setValue(PROMPT_TEMPLATE_VARIABLES_KEY, safelyJSONStringify(variables));
   }
   if (version) {
     context = context.setValue(PROMPT_TEMPLATE_VERSION_KEY, version);
@@ -109,9 +101,7 @@ export function clearPromptTemplate(context: Context): Context {
  * @returns The prompt template
  * @example const promptTemplate = getPromptTemplate(context.active());
  */
-export function getPromptTemplate(
-  context: Context,
-): Partial<PromptTemplate> | undefined {
+export function getPromptTemplate(context: Context): Partial<PromptTemplate> | undefined {
   const maybeTemplate = context.getValue(PROMPT_TEMPLATE_TEMPLATE_KEY);
   const maybeVariables = context.getValue(PROMPT_TEMPLATE_VARIABLES_KEY);
   const maybeVersion = context.getValue(PROMPT_TEMPLATE_VERSION_KEY);
@@ -122,16 +112,14 @@ export function getPromptTemplate(
   }
   if (typeof maybeVariables === "string") {
     const parsedVariables = safelyJSONParse(maybeVariables);
-    attributes.variables = isObjectWithStringKeys(parsedVariables)
-      ? parsedVariables
-      : undefined;
+    attributes.variables = isObjectWithStringKeys(parsedVariables) ? parsedVariables : undefined;
   }
   if (typeof maybeVersion === "string") {
     attributes.version = maybeVersion;
   }
 
   if (Object.keys(attributes).length === 0) {
-    return;
+    return undefined;
   }
 
   return attributes;
@@ -172,6 +160,7 @@ export function getSession(context: Context): Session | undefined {
   if (typeof maybeSessionId === "string") {
     return { sessionId: maybeSessionId };
   }
+  return undefined;
 }
 
 /**
@@ -216,6 +205,7 @@ export function getMetadata(context: Context): Metadata | undefined {
     const parsedMetadata = safelyJSONParse(maybeMetadata);
     return isObjectWithStringKeys(parsedMetadata) ? parsedMetadata : undefined;
   }
+  return undefined;
 }
 
 /**
@@ -258,6 +248,7 @@ export function getUser(context: Context): User | undefined {
   if (typeof maybeUserId === "string") {
     return { userId: maybeUserId };
   }
+  return undefined;
 }
 
 /**
@@ -301,6 +292,7 @@ export function getTags(context: Context): Tags | undefined {
     const parsedTags = safelyJSONParse(maybeTags);
     return isStringArray(parsedTags) ? parsedTags : undefined;
   }
+  return undefined;
 }
 
 /**
@@ -319,10 +311,7 @@ export function getTags(context: Context): Tags | undefined {
  * );
  * ```
  */
-export function setAttributes(
-  context: Context,
-  attributes: Attributes,
-): Context {
+export function setAttributes(context: Context, attributes: Attributes): Context {
   return context.setValue(ATTRIBUTES_KEY, safelyJSONStringify(attributes));
 }
 
@@ -347,6 +336,7 @@ export function getAttributes(context: Context): Attributes | undefined {
     const parsedAttributes = safelyJSONParse(maybeAttributes);
     return isAttributes(parsedAttributes) ? parsedAttributes : undefined;
   }
+  return undefined;
 }
 
 /**

@@ -1,3 +1,4 @@
+import os
 from typing import Iterator
 
 import openai
@@ -11,16 +12,12 @@ from openinference.semconv.trace import SpanAttributes
 
 class TestTokenCounts:
     # @pytest.mark.
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_openai(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
-        client = openai.OpenAI(api_key="sk-")
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-"))
         resp = client.chat.completions.create(
             extra_headers={"Accept-Encoding": "gzip"},
             model="gpt-4o-mini",

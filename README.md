@@ -10,9 +10,9 @@
     </a>
 </p>
 
-OpenInference is a set of conventions and plugins that is complimentary to [OpenTelemetry](https://opentelemetry.io/) to
+OpenInference is a set of conventions and plugins that is complementary to [OpenTelemetry](https://opentelemetry.io/) to
 enable tracing of AI applications. OpenInference is natively supported
-by [arize-phoenix](https://github.com/Arize-ai/phoenix), but can be used with any OpenTelemetry-compatible backend as
+by [Arize Phoenix](https://github.com/Arize-ai/phoenix) and [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), but can be used with any OpenTelemetry-compatible backend as
 well.
 
 ## Specification
@@ -32,12 +32,14 @@ languages.
 ### Libraries
 
 | Package                                                                                                                       | Description                                                                      | Version                                                                                                                                                                            |
-| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|-------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [`openinference-semantic-conventions`](./python/openinference-semantic-conventions)                                           | Semantic conventions for tracing of LLM Apps.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-semantic-conventions.svg)](https://pypi.python.org/pypi/openinference-semantic-conventions)                           |
 | [`openinference-instrumentation`](./python/openinference-instrumentation)                                                     | Reusable utilities, decorators, configurations, and helpers for instrumentation. | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation.svg)](https://pypi.python.org/pypi/openinference-instrumentation)                                     |
 | [`openinference-instrumentation-agno`](./python/instrumentation/openinference-instrumentation-agno)                           | OpenInference Instrumentation for Agno Agents.                                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-agno.svg)](https://pypi.python.org/pypi/openinference-instrumentation-agno)                           |
+| [`openinference-instrumentation-ag2`](./python/instrumentation/openinference-instrumentation-ag2)                             | OpenInference Instrumentation for AG2.                                           | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-ag2.svg)](https://pypi.python.org/pypi/openinference-instrumentation-ag2)                             |
 | [`openinference-instrumentation-openai`](./python/instrumentation/openinference-instrumentation-openai)                       | OpenInference Instrumentation for OpenAI SDK.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai)                       |
 | [`openinference-instrumentation-openai-agents`](./python/instrumentation/openinference-instrumentation-openai-agents)         | OpenInference Instrumentation for OpenAI Agents SDK.                             | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-openai-agents.svg)](https://pypi.python.org/pypi/openinference-instrumentation-openai-agents)         |
+| [`openinference-instrumentation-claude-agent-sdk`](./python/instrumentation/openinference-instrumentation-claude-agent-sdk)   | OpenInference Instrumentation for Claude Agent SDK.                             | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-claude-agent-sdk.svg)](https://pypi.python.org/pypi/openinference-instrumentation-claude-agent-sdk)         |
 | [`openinference-instrumentation-llama-index`](./python/instrumentation/openinference-instrumentation-llama-index)             | OpenInference Instrumentation for LlamaIndex.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-llama-index.svg)](https://pypi.python.org/pypi/openinference-instrumentation-llama-index)             |
 | [`openinference-instrumentation-dspy`](./python/instrumentation/openinference-instrumentation-dspy)                           | OpenInference Instrumentation for DSPy.                                          | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-dspy.svg)](https://pypi.python.org/pypi/openinference-instrumentation-dspy)                           |
 | [`openinference-instrumentation-bedrock`](./python/instrumentation/openinference-instrumentation-bedrock)                     | OpenInference Instrumentation for AWS Bedrock.                                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-bedrock.svg)](https://pypi.python.org/pypi/openinference-instrumentation-bedrock)                     |
@@ -59,6 +61,12 @@ languages.
 | [`openinference-instrumentation-autogen-agentchat`](./python/instrumentation/openinference-instrumentation-autogen-agentchat) | OpenInference Instrumentation for Microsoft Autogen AgentChat.                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-autogen-agentchat.svg)](https://pypi.python.org/pypi/openinference-instrumentation-autogen-agentchat) |
 | [`openinference-instrumentation-pydantic-ai`](./python/instrumentation/openinference-instrumentation-pydantic-ai)             | OpenInference Instrumentation for PydanticAI.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-pydantic-ai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-pydantic-ai)             |
 | [`openinference-instrumentation-smolagents`](./python/instrumentation/openinference-instrumentation-smolagents)               | OpenInference Instrumentation for smolagents.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-smolagents.svg)](https://pypi.python.org/pypi/openinference-instrumentation-smolagents)               |
+| [`openinference-instrumentation-pipecat`](./python/instrumentation/openinference-instrumentation-pipecat)                     | OpenInference Instrumentation for Pipecat.                                       | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-pipecat.svg)](https://pypi.python.org/pypi/openinference-instrumentation-pipecat)                     |
+| [`openinference-instrumentation-agentspec`](./python/instrumentation/openinference-instrumentation-agentspec)                 | OpenInference Instrumentation for Open Agent Specification.                      | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-agentspec.svg)](https://pypi.python.org/pypi/openinference-instrumentation-agentspec)                 |
+| [`openinference-instrumentation-strands-agents`](./python/instrumentation/openinference-instrumentation-strands-agents)       | OpenInference Instrumentation for Strands Agents.                                | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-strands-agents.svg)](https://pypi.python.org/pypi/openinference-instrumentation-strands-agents)       |
+| [`openinference-instrumentation-together`](./python/instrumentation/openinference-instrumentation-together)                   | OpenInference Instrumentation for Together AI.                                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-together.svg)](https://pypi.python.org/pypi/openinference-instrumentation-together)                   |
+| [`openinference-instrumentation-ollama`](./python/instrumentation/openinference-instrumentation-ollama)                       | OpenInference Instrumentation for Ollama.                                        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-ollama.svg)](https://pypi.python.org/pypi/openinference-instrumentation-ollama)                       |
+| [`openinference-instrumentation-cohere`](./python/instrumentation/openinference-instrumentation-cohere)                       | OpenInference Instrumentation for Cohere.                                        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-cohere.svg)](https://pypi.python.org/pypi/openinference-instrumentation-cohere)                       |
 
 ## Span Processors
 
@@ -75,6 +83,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------- |
 | [Agno](python/instrumentation/openinference-instrumentation-agno/examples/)                           | Agno agent examples                                                                          | Beginner         |
 | [OpenAI SDK](python/instrumentation/openinference-instrumentation-openai/examples/)                   | OpenAI Python SDK, including chat completions and embeddings                                 | Beginner         |
+| [Claude Agent SDK](python/instrumentation/openinference-instrumentation-claude-agent-sdk/examples/)   | Claude Agent SDK                                                                             | Beginner         |
 | [MistralAI SDK](python/instrumentation/openinference-instrumentation-mistralai/examples/)             | MistralAI Python SDK                                                                         | Beginner         |
 | [VertexAI SDK](python/instrumentation/openinference-instrumentation-vertexai/examples/)               | VertexAI Python SDK                                                                          | Beginner         |
 | [LlamaIndex](python/instrumentation/openinference-instrumentation-llama-index/examples/)              | LlamaIndex query engines                                                                     | Beginner         |
@@ -84,15 +93,17 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [LiteLLM](python/instrumentation/openinference-instrumentation-litellm/)                              | A lightweight LiteLLM framework                                                              | Beginner         |
 | [LiteLLM Proxy](python/instrumentation/openinference-instrumentation-litellm/examples/litellm-proxy/) | LiteLLM Proxy to log OpenAI, Azure, Vertex, Bedrock                                          | Beginner         |
 | [Groq](python/instrumentation/openinference-instrumentation-groq/examples/)                           | Groq and AsyncGroq chat completions                                                          | Beginner         |
+| [Together AI](python/instrumentation/openinference-instrumentation-together/examples/)                | Together and AsyncTogether chat completions, streaming, and tool calls                       | Beginner         |
 | [Anthropic](python/instrumentation/openinference-instrumentation-anthropic/examples/)                 | Anthropic Messages client                                                                    | Beginner         |
 | [BeeAI](python/instrumentation/openinference-instrumentation-beeai/examples/)                         | Agentic instrumentation in the BeeAI framework                                               | Beginner         |
-| [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                          | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
-| [LangServe](python/examples/langserve/)                                                               | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
-| [DSPy](python/examples/dspy-rag-fastapi/)                                                             | A DSPy RAG application using FastAPI, Weaviate, and Cohere                                   | Intermediate     |
 | [Haystack](python/instrumentation/openinference-instrumentation-haystack/examples/)                   | A Haystack QA RAG application                                                                | Intermediate     |
 | [OpenAI Agents](python/instrumentation/openinference-instrumentation-openai-agents/examples/)         | OpenAI Agents with handoffs                                                                  | Intermediate     |
 | [Autogen AgentChat](python/instrumentation/openinference-instrumentation-autogen-agentchat/examples/) | Microsoft Autogen Assistant Agent and Team Chat                                              | Intermediate     |
+| [AG2](python/instrumentation/openinference-instrumentation-ag2/examples/)                             | AG2 tool calling, group chats, and sequential chats                                          | Intermediate     |
 | [PydanticAI](python/instrumentation/openinference-instrumentation-pydantic-ai/examples/)              | PydanticAI agent examples                                                                    | Intermediate     |
+| [Pipecat](python/instrumentation/openinference-instrumentation-pipecat/examples/)                     | Pipecat application examples                                                                 | Intermediate     |
+| [Ollama](python/instrumentation/openinference-instrumentation-ollama/examples/)                       | Ollama chat, streaming, and tool calls                                                       | Beginner         |
+| [Cohere](python/instrumentation/openinference-instrumentation-cohere/examples/)                       | Cohere ClientV2 chat completions                                                             | Beginner         |
 
 ## JavaScript
 
@@ -113,22 +124,10 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`@arizeai/openinference-instrumentation-mcp`](./js/packages/openinference-instrumentation-mcp)                                     | OpenInference Instrumentation for MCP.                              | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-mcp)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-mcp)                                     |
 | [`@arizeai/openinference-instrumentation-openai`](./js/packages/openinference-instrumentation-openai)                               | OpenInference Instrumentation for OpenAI SDK.                       | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-openai)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-openai)                               |
 | [`@arizeai/openinference-instrumentation-anthropic`](./js/packages/openinference-instrumentation-anthropic)                         | OpenInference Instrumentation for the Anthropic SDK.                | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-anthropic)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-anthropic)                         |
+| [`@arizeai/openinference-instrumentation-claude-agent-sdk`](./js/packages/openinference-instrumentation-claude-agent-sdk)           | OpenInference Instrumentation for Claude Agent SDK.                 | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-claude-agent-sdk)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-claude-agent-sdk)           |
 | [`@arizeai/openinference-vercel`](./js/packages/openinference-vercel)                                                               | OpenInference Support for Vercel AI SDK.                            | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-vercel)](https://www.npmjs.com/package/@arizeai/openinference-vercel)                                                               |
+| [`@arizeai/openinference-tanstack-ai`](./js/packages/openinference-tanstack-ai)                                                     | OpenInference middleware for TanStack AI.                           | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-tanstack-ai)](https://www.npmjs.com/package/@arizeai/openinference-tanstack-ai)                                                     |
 | [`@arizeai/openinference-genai`](./js/packages/openinference-genai)                                                                 | OpenInference Support for GenAI conventions                         | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-genai)](https://www.npmjs.com/package/@arizeai/openinference-genai)                                                                 |
-| [`@arizeai/openinference-mastra`](./js/packages/openinference-mastra)                                                               | OpenInference Support for Mastra.                                   | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-mastra.svg)](https://www.npmjs.com/package/@arizeai/openinference-mastra)                                                           |
-
-### Examples
-
-| Name                                                                                                                     | Description                                                                                                                                                                                          | Complexity Level |
-| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| [OpenAI SDK](js/examples/openai)                                                                                         | OpenAI Node.js client                                                                                                                                                                                | Beginner         |
-| [BeeAI framework - ReAct agent](js/packages/openinference-instrumentation-beeai/examples/run-react-agent.ts)             | Agentic `ReActAgent` instrumentation in the BeeAI framework                                                                                                                                          | Beginner         |
-| [BeeAI framework - ToolCalling agent](js/packages/openinference-instrumentation-beeai/examples/run-toolcalling-agent.ts) | Agentic `ToolCallingAgent` instrumentation in the BeeAI framework                                                                                                                                    | Beginner         |
-| [BeeAI framework - LLM](js/packages/openinference-instrumentation-beeai/examples/run-llm.ts)                             | See how to run instrumentation only for the specific LLM module part in the BeeAI framework                                                                                                          | Beginner         |
-| [LlamaIndex Express App](js/examples/llama-index-express)                                                                | A fully functional LlamaIndex chatbot with a Next.js frontend and a LlamaIndex Express backend, instrumented using `openinference-instrumentation-openai`                                            | Intermediate     |
-| [LangChain OpenAI](js/packages/openinference-instrumentation-langchain/examples)                                         | A simple script to call OpenAI via LangChain, instrumented using `openinference-instrumentation-langchain`                                                                                           | Beginner         |
-| [LangChain RAG Express App](js/examples/langchain-express)                                                               | A fully functional LangChain chatbot that uses RAG to answer user questions. It has a Next.js frontend and a LangChain Express backend, instrumented using `openinference-instrumentation-langchain` | Intermediate     |
-| [Next.js + OpenAI](js/examples/nextjs-openai-simple/)                                                                    | A Next.js 13 project bootstrapped with `create-next-app` that uses OpenAI to generate text                                                                                                           | Beginner         |
 
 ## Java
 
@@ -140,6 +139,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`openinference-instrumentation`](./java/openinference-instrumentation)                                         | Base instrumentation utilities.                | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation)                         |
 | [`openinference-instrumentation-langchain4j`](./java/instrumentation/openinference-instrumentation-langchain4j) | OpenInference Instrumentation for LangChain4j. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-langchain4j)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-langchain4j) |
 | [`openinference-instrumentation-springAI`](./java/instrumentation/openinference-instrumentation-springAI)       | OpenInference Instrumentation for Spring AI.   | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-springAI)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-springAI)       |
+| [`openinference-instrumentation-annotation`](./java/instrumentation/openinference-instrumentation-annotation) | Annotation-based manual tracing with ByteBuddy. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-annotation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-annotation) |
 
 ### Examples
 
@@ -147,23 +147,37 @@ Normalize and convert data across other instrumentation libraries by adding span
 | -------------------------------------------------------- | ---------------------------------------------- | ---------------- |
 | [LangChain4j Example](java/examples/langchain4j-example) | Simple example using LangChain4j with OpenAI   | Beginner         |
 | [Spring AI Example](java/examples/spring-ai-example)     | Spring AI example with OpenAI and tool calling | Beginner         |
+| [Annotation Example](java/examples/annotation-example) | Annotation-based tracing with `@Chain`, `@LLM`, `@Tool`, `@Agent` | Beginner         |
+| [Programmatic Example](java/examples/programmatic-example) | Manual tracing with typed span classes (`LLMSpan`, `AgentSpan`, etc.) | Beginner         |
+
+## Go
+
+### Libraries
+
+| Package | Description | Version |
+| --- | --- | --- |
+| [`openinference-semantic-conventions`](./go/openinference-semantic-conventions) | Semantic conventions for tracing of LLM Apps. | `go get github.com/Arize-ai/openinference/go/openinference-semantic-conventions` |
+| [`openinference-instrumentation`](./go/openinference-instrumentation) | Suppression, context attribute propagation, and `TraceConfig` masking. Honors `OPENINFERENCE_HIDE_*` env vars. | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation` |
+| [`openinference-instrumentation-anthropic-sdk-go`](./go/openinference-instrumentation-anthropic-sdk-go) | OpenInference Instrumentation for the Anthropic Go SDK (`anthropics/anthropic-sdk-go`). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-anthropic-sdk-go` |
+| [`openinference-instrumentation-openai-go`](./go/openinference-instrumentation-openai-go) | OpenInference Instrumentation for the official OpenAI Go SDK ([`openai/openai-go`](https://github.com/openai/openai-go)). | `go get github.com/Arize-ai/openinference/go/openinference-instrumentation-openai-go` |
+
+Requires Go 1.25+. Pair with [`arize-otel-go`](https://github.com/Arize-ai/arize-otel-go) for the one-line OTLP/HTTP setup to [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), or wire up any OTel exporter (e.g. [Phoenix](https://github.com/Arize-ai/phoenix) at `http://localhost:6006/v1/traces`).
 
 ## Supported Destinations
 
 OpenInference supports the following destinations as span collectors.
 
--   ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
--   ✅ [Arize AX](https://arize.com/)
--   ✅ Any OTEL-compatible collector
+- ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
+- ✅ [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
+- ✅ Any OTEL-compatible collector
 
 ## Community
 
 Join our community to connect with thousands of machine learning practitioners and LLM observability enthusiasts!
 
--   🌍 Join
-    our [Slack community](https://arize-ai.slack.com/join/shared_invite/zt-11t1vbu4x-xkBIHmOREQnYnYDH1GDfCg?__hstc=259489365.a667dfafcfa0169c8aee4178d115dc81.1733501603539.1733501603539.1733501603539.1&__hssc=259489365.1.1733501603539&__hsfp=3822854628&submissionGuid=381a0676-8f38-437b-96f2-fc10875658df#/shared-invite/email).
--   💡 Ask questions and provide feedback in the _#phoenix-support_ channel.
--   🌟 Leave a star on our [GitHub](https://github.com/Arize-ai/openinference).
--   🐞 Report bugs with [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
--   𝕏 Follow us on [X](https://twitter.com/ArizePhoenix).
--   🗺️ Check out our [roadmap](https://github.com/orgs/Arize-ai/projects/45) to see where we're heading next.
+- 🌍 Join our [Slack community](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A).
+- 💡 Ask questions and provide feedback in the _#phoenix-support_ channel.
+- 🌟 Leave a star on our [GitHub](https://github.com/Arize-ai/openinference).
+- 🐞 Report bugs with [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
+- 𝕏 Follow us on [X](https://twitter.com/ArizePhoenix).
+- 🗺️ Check out our [roadmap](https://github.com/orgs/Arize-ai/projects/45) to see where we're heading next.

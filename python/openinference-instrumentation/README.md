@@ -10,6 +10,57 @@ Utility functions for OpenInference instrumentation.
 pip install openinference-instrumentation
 ```
 
+## Annotation and Evaluation Attributes
+
+Use `get_annotation_attributes` and `get_evaluation_attributes` to turn typed
+`Annotation` objects into flattened OpenInference span attributes. Both helpers
+support `"span"` (the default), `"trace"`, and `"session"` scopes and assign
+contiguous collection indices in input order.
+
+```python
+from openinference.instrumentation import (
+    Annotation,
+    get_annotation_attributes,
+    get_evaluation_attributes,
+)
+
+span_annotations = get_annotation_attributes(
+    annotations=[
+        Annotation(
+            name="hallucination",
+            label="factual",
+            explanation="Every claim is supported by the retrieved documents.",
+            annotator_kind="LLM",
+            identifier="judge-v2",
+            metadata={"rubric_version": 2},
+        )
+    ]
+)
+
+trace_evaluations = get_evaluation_attributes(
+    evaluations=[Annotation(name="correctness", score=0.95)],
+    scope="trace",
+)
+
+span.set_attributes({**span_annotations, **trace_evaluations})
+```
+
+`Annotation` has these fields:
+
+- `name` (required): criterion or metric name.
+- At least one of `score`, `label`, or `explanation` (required by the helpers).
+- `annotator_kind`: conventionally `"HUMAN"`, `"LLM"`, or `"CODE"`; custom values are allowed.
+- `identifier`: stable producer-assigned result identifier.
+- `metadata`: a dictionary to JSON-serialize, or an already serialized JSON object string.
+
+The evaluation helper uses the same `Annotation` model because evaluation is an
+alternative attribute terminology for annotations. It emits `evaluations.*`
+instead of `annotations.*`. Trace and session scopes add the corresponding
+`trace.` or `session.` prefix. Session-scoped annotations also require the
+carrying span to have `session.id`; post-hoc span and trace annotations require
+the target Span Link described in the
+[annotation specification](../../spec/annotations.md).
+
 ## Customizing Spans
 
 The `openinference-instrumentation` package offers utilities to track important application metadata such as sessions and metadata using Python context managers:
@@ -54,7 +105,45 @@ with using_attributes(
     ...
 ```
 
+Each helper also works as a decorator. The attributes stay attached for the whole call,
+including across `await` suspension points of `async def` functions and while the body of a
+generator or `async def` generator runs (without leaking into the code that consumes it):
+
+```python
+from openinference.instrumentation import using_session, using_user
+
+@using_session("my-session-id")
+@using_user("my-user-id")
+async def answer(question: str) -> str:
+    # Spans created here, and by any awaited instrumented call, carry
+    # "session.id" = "my-session-id" and "user.id" = "my-user-id"
+    ...
+```
+
+When combining them with span-creating decorators such as `tracer.agent` or `tracer.tool`, put
+the `using_*` decorators on top: the attributes are copied onto a span when it starts, so they
+have to be attached before the span-creating decorator runs.
+
+See [`examples/async_context_attribute_decorators.py`](examples/async_context_attribute_decorators.py) for a runnable example that exports to a local Phoenix server.
+
 You can read more about this in our [docs](https://docs.arize.com/phoenix/tracing/how-to-tracing/customize-spans).
+
+## Suppressing Tracing
+
+`suppress_tracing` turns off span creation for everything inside its block. It works as a
+regular context manager and as an async one:
+
+```python
+from openinference.instrumentation import suppress_tracing
+
+with suppress_tracing():
+    ...  # no spans are created here
+
+async with suppress_tracing():
+    ...  # nor here, including across awaits
+```
+
+See [`examples/suppress_tracing_sync_async.py`](examples/suppress_tracing_sync_async.py) for a runnable example that exports to a local Phoenix server and shows both forms.
 
 ## Tracing Configuration
 
@@ -64,6 +153,7 @@ In addition, you an also use environment variables, read more [here](../../spec/
 
 ```python
 from openinference.instrumentation import TraceConfig
+
 config = TraceConfig(
     hide_inputs=hide_inputs,
     hide_outputs=hide_outputs,
@@ -74,7 +164,7 @@ config = TraceConfig(
     hide_output_text=hide_output_text,
     base64_image_max_length=base64_image_max_length,
 )
-tracer_provider=...
+tracer_provider = ...
 # This example uses the OpenAIInstrumentor, but it works with any of our auto instrumentors
 OpenAIInstrumentor().instrument(tracer_provider=tracer_provider, config=config)
 ```

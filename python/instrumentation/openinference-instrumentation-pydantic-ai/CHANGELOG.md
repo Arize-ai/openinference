@@ -1,5 +1,137 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.26...python-openinference-instrumentation-pydantic-ai-v0.1.27) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.25...python-openinference-instrumentation-pydantic-ai-v0.1.26) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.24...python-openinference-instrumentation-pydantic-ai-v0.1.25) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.23...python-openinference-instrumentation-pydantic-ai-v0.1.24) (2026-09-01)
+
+
+### Bug Fixes
+
+* **pydantic-ai:** require Pydantic AI 2.24.0 or newer ([#3547](https://github.com/Arize-ai/openinference/issues/3547)) ([ab649be](https://github.com/Arize-ai/openinference/commit/ab649be340f02d0e98e8259ec452ae7f240d545e))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.22...python-openinference-instrumentation-pydantic-ai-v0.1.23) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.21...python-openinference-instrumentation-pydantic-ai-v0.1.22) (2026-08-25)
+
+
+### Features
+
+* **pydantic_ai:** Add Finish Reason Attribute ([#3601](https://github.com/Arize-ai/openinference/issues/3601)) ([6d4c5ce](https://github.com/Arize-ai/openinference/commit/6d4c5cecb2274c4b249c7437ed9ecde87d62194f))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.20...python-openinference-instrumentation-pydantic-ai-v0.1.21) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.19...python-openinference-instrumentation-pydantic-ai-v0.1.20) (2026-08-12)
+
+
+### Bug Fixes
+
+* pydantic io should include tool calls in input.value/output.value ([#3529](https://github.com/Arize-ai/openinference/issues/3529)) ([4249a33](https://github.com/Arize-ai/openinference/commit/4249a33d6e35772058f4b68af47c22d28267b338))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.18...python-openinference-instrumentation-pydantic-ai-v0.1.19) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.17...python-openinference-instrumentation-pydantic-ai-v0.1.18) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.16...python-openinference-instrumentation-pydantic-ai-v0.1.17) (2026-06-30)
+
+
+### Bug Fixes
+
+* **pydantic-ai:** tools bug fix ([#3299](https://github.com/Arize-ai/openinference/issues/3299)) ([565a430](https://github.com/Arize-ai/openinference/commit/565a430c1538331154cc72c4202a2549fb7068fe))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.15...python-openinference-instrumentation-pydantic-ai-v0.1.16) (2026-05-29)
+
+
+### Bug Fixes
+
+* **pydantic_ai:** Set OUTPUT_VALUE For Plain Text Agent Responses ([#3153](https://github.com/Arize-ai/openinference/issues/3153)) ([4b7f270](https://github.com/Arize-ai/openinference/commit/4b7f27038b13268a14858694be8124d689ee4e9d))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.14...python-openinference-instrumentation-pydantic-ai-v0.1.15) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.13...python-openinference-instrumentation-pydantic-ai-v0.1.14) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.12...python-openinference-instrumentation-pydantic-ai-v0.1.13) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.11...python-openinference-instrumentation-pydantic-ai-v0.1.12) (2026-02-12)
+
+
+### Bug Fixes
+
+* **pydantic_ai:** Update Invalid Span Attribute For Tool Results ([#2729](https://github.com/Arize-ai/openinference/issues/2729)) ([c4c5056](https://github.com/Arize-ai/openinference/commit/c4c50566ad1e438293d8dae95d390aad3951beb8))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.10...python-openinference-instrumentation-pydantic-ai-v0.1.11) (2026-01-22)
+
+
+### Features
+
+* **pydantic_ai:** Populate LLM Provider & System Attributes ([#2635](https://github.com/Arize-ai/openinference/issues/2635)) ([3c7774f](https://github.com/Arize-ai/openinference/commit/3c7774fc8af8bec17ca1b9700ee3f0c5baad2da0))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.9...python-openinference-instrumentation-pydantic-ai-v0.1.10) (2025-12-18)
+
+
+### Features
+
+* **pydentic_ai:** tools & multiple input/output messages support ([#2508](https://github.com/Arize-ai/openinference/issues/2508)) ([16c6ef2](https://github.com/Arize-ai/openinference/commit/16c6ef20d714f37e109df2873718f4777eaebfc6))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.8...python-openinference-instrumentation-pydantic-ai-v0.1.9) (2025-10-15)
 
 

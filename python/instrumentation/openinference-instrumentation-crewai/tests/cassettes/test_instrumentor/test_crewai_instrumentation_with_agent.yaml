@@ -1,0 +1,27 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Helpful Assistant. You
+      are a helpful assistant.\nYour personal goal is: Answer questions clearly and
+      concisely"},{"role":"user","content":"\nCurrent Task: What is 2+2?\n\nProvide
+      your complete response:"}],"model":"gpt-4.1-nano","temperature":0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DFqnawCI6sxrV5JpTQf8hYUeKY9fG\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772670250,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"2 + 2 equals 4.\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        50,\n    \"completion_tokens\": 8,\n    \"total_tokens\": 58,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_bd6a3c7cbd\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -5,6 +5,8 @@ export {
   DEFAULT_BASE64_IMAGE_MAX_LENGTH,
   DEFAULT_HIDE_EMBEDDING_VECTORS,
   OPENINFERENCE_HIDE_PROMPTS,
+  OPENINFERENCE_HIDE_LLM_TOOLS,
+  DEFAULT_HIDE_LLM_TOOLS,
   DEFAULT_HIDE_INPUTS,
   DEFAULT_HIDE_INPUT_IMAGES,
   DEFAULT_HIDE_INPUT_MESSAGES,
@@ -23,3 +25,5 @@ export {
 } from "./constants";
 export { OITracer } from "./OITracer";
 export { type OISpan } from "./OISpan";
+export type { TraceConfig } from "./types";
+export { generateTraceConfig } from "./traceConfig";

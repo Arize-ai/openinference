@@ -2,6 +2,8 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 
 import {
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
+  mapAgentAttributes,
+  mapFinishReason,
   mapInputMessages,
   mapInputValue,
   mapInvocationParameters,
@@ -10,6 +12,7 @@ import {
   mapOutputValue,
   mapProviderAndSystem,
   mapSpanKind,
+  mapSystemInstructions,
   mapTokenCounts,
   mapToolExecution,
 } from "../src/attributes.js";
@@ -85,6 +88,73 @@ describe("attributes helpers", () => {
       const attrs = mapSpanKind({ any: "thing" });
       expect(attrs["openinference.span.kind"]).toBe("LLM");
     });
+
+    it.each(["create_agent", "invoke_agent", "plan"])(
+      "maps %s operations to AGENT without requiring agent markers",
+      (operationName) => {
+        const attrs = mapSpanKind({
+          "gen_ai.operation.name": operationName,
+        });
+        expect(attrs["openinference.span.kind"]).toBe("AGENT");
+      },
+    );
+
+    it("maps invoke_workflow operations to CHAIN without agent markers", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "invoke_workflow",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("CHAIN");
+    });
+
+    it("prefers AGENT over CHAIN when invoke_workflow carries agent markers", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "invoke_workflow",
+        "gen_ai.agent.name": "research_agent",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("AGENT");
+    });
+
+    it.each([
+      ["chat", "LLM"],
+      ["text_completion", "LLM"],
+      ["generate_content", "LLM"],
+      ["embeddings", "EMBEDDING"],
+      ["retrieval", "RETRIEVER"],
+      ["execute_tool", "TOOL"],
+    ])(
+      "classifies terminal operation %s by operation name even with agent markers (%s)",
+      (operationName, expected) => {
+        const attrs = mapSpanKind({
+          "gen_ai.operation.name": operationName,
+          "gen_ai.agent.name": "research_agent",
+        });
+        expect(attrs["openinference.span.kind"]).toBe(expected);
+      },
+    );
+
+    it("prefers TOOL over an agent-class operation when tool markers are present", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.operation.name": "plan",
+        "gen_ai.tool.name": "web_search",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("TOOL");
+    });
+  });
+
+  describe("mapAgentAttributes", () => {
+    it("maps agent name", () => {
+      const attrs = mapAgentAttributes({
+        "gen_ai.agent.name": "research_planner",
+      });
+      expect(attrs["agent.name"]).toBe("research_planner");
+    });
+
+    it("ignores non-string agent name", () => {
+      const attrs = mapAgentAttributes({
+        "gen_ai.agent.name": 42,
+      });
+      expect(attrs).toEqual({});
+    });
   });
 
   describe("mapInvocationParameters", () => {
@@ -122,9 +192,7 @@ describe("attributes helpers", () => {
         "gen_ai.request.temperature": "hot",
         "gen_ai.request.max_tokens": 150,
       });
-      const json = attrs[
-        SemanticConventions.LLM_INVOCATION_PARAMETERS
-      ] as string;
+      const json = attrs[SemanticConventions.LLM_INVOCATION_PARAMETERS] as string;
       expect(typeof json).toBe("string");
       const parsed = JSON.parse(json);
       expect(parsed).toEqual({ max_completion_tokens: 150 });
@@ -134,14 +202,10 @@ describe("attributes helpers", () => {
   describe("mapInputValue", () => {
     it("maps input value and mime type", () => {
       const attrs = mapInputValue({
-        input: JSON.stringify([
-          { role: "user", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        input: JSON.stringify([{ role: "user", parts: [{ type: "text", content: "Hi" }] }]),
       });
       expect(attrs["input.value"]).toBe(
-        JSON.stringify([
-          { role: "user", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        JSON.stringify([{ role: "user", parts: [{ type: "text", content: "Hi" }] }]),
       );
       expect(attrs["input.mime_type"]).toBe("application/json");
     });
@@ -152,9 +216,7 @@ describe("attributes helpers", () => {
         ]),
       });
       expect(attrs["input.value"]).toBe(
-        JSON.stringify([
-          { role: "user", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        JSON.stringify([{ role: "user", parts: [{ type: "text", content: "Hi" }] }]),
       );
       expect(attrs["input.mime_type"]).toBe("application/json");
     });
@@ -163,14 +225,10 @@ describe("attributes helpers", () => {
   describe("mapOutputValue", () => {
     it("maps output value and mime type", () => {
       const attrs = mapOutputValue({
-        output: JSON.stringify([
-          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        output: JSON.stringify([{ role: "assistant", parts: [{ type: "text", content: "Hi" }] }]),
       });
       expect(attrs["output.value"]).toBe(
-        JSON.stringify([
-          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        JSON.stringify([{ role: "assistant", parts: [{ type: "text", content: "Hi" }] }]),
       );
       expect(attrs["output.mime_type"]).toBe("application/json");
     });
@@ -181,15 +239,96 @@ describe("attributes helpers", () => {
         ]),
       });
       expect(attrs["output.value"]).toBe(
-        JSON.stringify([
-          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        JSON.stringify([{ role: "assistant", parts: [{ type: "text", content: "Hi" }] }]),
       );
       expect(attrs["output.mime_type"]).toBe("application/json");
     });
   });
 
+  describe("mapSystemInstructions", () => {
+    it("maps system instructions to metadata and a system input message", () => {
+      const systemInstructions = JSON.stringify([
+        { type: "text", content: "You are a helpful assistant." },
+      ]);
+      const attrs = mapSystemInstructions({
+        "gen_ai.system_instructions": systemInstructions,
+      });
+
+      expect(attrs[`${SemanticConventions.METADATA}.gen_ai.system_instructions`]).toBe(
+        systemInstructions,
+      );
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.type"]).toBe("text");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "You are a helpful assistant.",
+      );
+    });
+
+    it.each([
+      ["an empty parts array", "[]"],
+      ["parts with no text content", JSON.stringify([{ type: "image", content: "x" }])],
+    ])(
+      "keeps the metadata but emits no system message for %s",
+      (_label, systemInstructions: string) => {
+        const attrs = mapSystemInstructions({
+          "gen_ai.system_instructions": systemInstructions,
+        });
+
+        expect(attrs[`${SemanticConventions.METADATA}.gen_ai.system_instructions`]).toBe(
+          systemInstructions,
+        );
+        expect(attrs["llm.input_messages.0.message.role"]).toBeUndefined();
+      },
+    );
+
+    it.each([
+      ["an empty parts array", "[]"],
+      ["parts with no text content", JSON.stringify([{ type: "image", content: "x" }])],
+    ])(
+      "does not overwrite the first input message's role for %s",
+      (_label, systemInstructions: string) => {
+        const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+          "gen_ai.system_instructions": systemInstructions,
+          "gen_ai.input.messages": JSON.stringify([
+            { role: "user", parts: [{ type: "text", content: "only root spans" }] },
+          ]),
+        });
+
+        expect(attrs["llm.input_messages.0.message.role"]).toBe("user");
+        expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+          "only root spans",
+        );
+        expect(attrs["llm.input_messages.1.message.role"]).toBeUndefined();
+      },
+    );
+  });
+
   describe("mapInputMessagesAndInputValue", () => {
+    it("starts input messages after system instructions when both are present", () => {
+      const attrs = {
+        ...mapSystemInstructions({
+          "gen_ai.system_instructions": JSON.stringify([
+            { type: "text", content: "You are concise." },
+          ]),
+        }),
+        ...mapInputMessages({
+          "gen_ai.system_instructions": JSON.stringify([
+            { type: "text", content: "You are concise." },
+          ]),
+          "gen_ai.input.messages": JSON.stringify([
+            { role: "user", parts: [{ type: "text", content: "Hello" }] },
+          ]),
+        }),
+      };
+
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "You are concise.",
+      );
+      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe("Hello");
+    });
+
     it("maps structured input messages and forwards input.value", () => {
       const input = [
         {
@@ -244,29 +383,23 @@ describe("attributes helpers", () => {
 
       // llm.input_messages.* extracted
       expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
-      expect(
-        attrs["llm.input_messages.0.message.contents.0.message_content.text"],
-      ).toBe("You are a helpful assistant.");
-      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
-      expect(
-        attrs["llm.input_messages.1.message.contents.0.message_content.text"],
-      ).toBe("Weather in Paris?");
-      expect(attrs["llm.input_messages.2.message.role"]).toBe("assistant");
-      expect(
-        attrs["llm.input_messages.2.message.contents.0.message_content.type"],
-      ).toBe("text");
-      expect(
-        attrs["llm.input_messages.2.message.contents.0.message_content.text"],
-      ).toBe("Absolutely! Let me check the weather for you.");
-      expect(
-        attrs[
-          "llm.input_messages.2.message.tool_calls.0.tool_call.function.name"
-        ],
-      ).toBe("get_weather");
-      expect(attrs["llm.input_messages.3.message.role"]).toBe("tool");
-      expect(attrs["llm.input_messages.3.message.tool_call_id"]).toBe(
-        "call_VSPygqK",
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "You are a helpful assistant.",
       );
+      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe(
+        "Weather in Paris?",
+      );
+      expect(attrs["llm.input_messages.2.message.role"]).toBe("assistant");
+      expect(attrs["llm.input_messages.2.message.contents.0.message_content.type"]).toBe("text");
+      expect(attrs["llm.input_messages.2.message.contents.0.message_content.text"]).toBe(
+        "Absolutely! Let me check the weather for you.",
+      );
+      expect(attrs["llm.input_messages.2.message.tool_calls.0.tool_call.function.name"]).toBe(
+        "get_weather",
+      );
+      expect(attrs["llm.input_messages.3.message.role"]).toBe("tool");
+      expect(attrs["llm.input_messages.3.message.tool_call_id"]).toBe("call_VSPygqK");
 
       const inOutAttrs = {
         ...mapInputValue(spanAttrs),
@@ -275,6 +408,86 @@ describe("attributes helpers", () => {
 
       expect(inOutAttrs["input.value"]).toBe(spanAttrs["input"]);
       expect(inOutAttrs["input.mime_type"]).toBe("application/json");
+    });
+
+    it("expands multiple tool call responses into separate input messages", () => {
+      const attrs = mapInputMessages({
+        "gen_ai.input.messages": JSON.stringify([
+          {
+            role: "user",
+            parts: [{ type: "text", content: "Use both tools." }],
+          },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "tool_call",
+                id: "call_weather",
+                name: "weather",
+                arguments: { location: "Boston" },
+              },
+              {
+                type: "tool_call",
+                id: "call_calculator",
+                name: "calculator",
+                arguments: { expression: "100 * 25 + 3" },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            parts: [
+              {
+                type: "tool_call_response",
+                id: "call_weather",
+                response: { location: "Boston", forecast: "sunny" },
+              },
+              {
+                type: "tool_call_response",
+                id: "call_calculator",
+                response: { expression: "100 * 25 + 3", value: 2503 },
+              },
+            ],
+          },
+        ]),
+      });
+
+      expect(attrs["llm.input_messages.2.message.role"]).toBe("tool");
+      expect(attrs["llm.input_messages.2.message.tool_call_id"]).toBe("call_weather");
+      expect(attrs["llm.input_messages.2.message.content"]).toBe(
+        JSON.stringify({ location: "Boston", forecast: "sunny" }),
+      );
+      expect(attrs["llm.input_messages.3.message.role"]).toBe("tool");
+      expect(attrs["llm.input_messages.3.message.tool_call_id"]).toBe("call_calculator");
+      expect(attrs["llm.input_messages.3.message.content"]).toBe(
+        JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }),
+      );
+    });
+
+    it("maps reasoning parts on input messages", () => {
+      const attrs = mapInputMessages({
+        "gen_ai.input.messages": JSON.stringify([
+          { role: "user", parts: [{ type: "text", content: "Think it through." }] },
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", content: "The user wants a plan." },
+              { type: "text", content: "Here is the plan." },
+            ],
+          },
+        ]),
+      });
+
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.type"]).toBe(
+        "reasoning",
+      );
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe(
+        "The user wants a plan.",
+      );
+      expect(attrs["llm.input_messages.1.message.contents.1.message_content.text"]).toBe(
+        "Here is the plan.",
+      );
+      expect(attrs["llm.input_messages.1.message.content"]).toBeUndefined();
     });
 
     it("falls back to deprecated prompt when input messages missing", () => {
@@ -303,9 +516,7 @@ describe("attributes helpers", () => {
       expect(attrs["input.value"]).toBe(undefined);
       expect(attrs["input.mime_type"]).toBe(undefined);
       // no llm.input_messages.* keys created
-      expect(
-        Object.keys(attrs).some((k) => k.startsWith("llm.input_messages.")),
-      ).toBe(false);
+      expect(Object.keys(attrs).some((k) => k.startsWith("llm.input_messages."))).toBe(false);
     });
   });
 
@@ -333,9 +544,9 @@ describe("attributes helpers", () => {
       };
       const attrs = mapOutputMessages(spanAttrs);
       expect(attrs["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(
-        attrs["llm.output_messages.0.message.contents.0.message_content.text"],
-      ).toBe("The weather is rainy.");
+      expect(attrs["llm.output_messages.0.message.contents.0.message_content.text"]).toBe(
+        "The weather is rainy.",
+      );
       const inOutAttrs = {
         ...mapInputValue(spanAttrs),
         ...mapOutputValue(spanAttrs),
@@ -358,6 +569,71 @@ describe("attributes helpers", () => {
       };
       expect(inOutAttrs["output.value"]).toBe(spanAttrs["gen_ai.completion"]);
       expect(inOutAttrs["output.mime_type"]).toBe("application/json");
+    });
+
+    it("maps reasoning parts to reasoning contents without duplicating into message.content", () => {
+      const attrs = mapOutputMessages({
+        "gen_ai.output.messages": JSON.stringify([
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", content: "*   Task: Translate a request ..." },
+              { type: "text", content: "parent_id is None" },
+            ],
+            finish_reason: "stop",
+          },
+        ]),
+      });
+
+      expect(attrs).toEqual({
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+        "llm.output_messages.0.message.contents.0.message_content.text":
+          "*   Task: Translate a request ...",
+        "llm.output_messages.0.message.contents.1.message_content.type": "text",
+        "llm.output_messages.0.message.contents.1.message_content.text": "parent_id is None",
+      });
+    });
+
+    it("keeps the reasoning content type when a reasoning part has no content", () => {
+      const attrs = mapOutputMessages({
+        "gen_ai.output.messages": JSON.stringify([
+          {
+            role: "assistant",
+            parts: [{ type: "reasoning" }, { type: "text", content: "Answer" }],
+            finish_reason: "stop",
+          },
+        ]),
+      });
+
+      expect(attrs["llm.output_messages.0.message.contents.0.message_content.type"]).toBe(
+        "reasoning",
+      );
+      expect(
+        attrs["llm.output_messages.0.message.contents.0.message_content.text"],
+      ).toBeUndefined();
+      // the reasoning part still occupies its content index
+      expect(attrs["llm.output_messages.0.message.contents.1.message_content.text"]).toBe("Answer");
+    });
+
+    it("serializes unknown part types into contents only", () => {
+      const attrs = mapOutputMessages({
+        "gen_ai.output.messages": JSON.stringify([
+          {
+            role: "assistant",
+            parts: [{ type: "custom_thing", foo: "bar" }],
+            finish_reason: "stop",
+          },
+        ]),
+      });
+
+      expect(attrs["llm.output_messages.0.message.contents.0.message_content.type"]).toBe(
+        "custom_thing",
+      );
+      expect(attrs["llm.output_messages.0.message.contents.0.message_content.text"]).toBe(
+        JSON.stringify({ type: "custom_thing", foo: "bar" }),
+      );
+      expect(attrs["llm.output_messages.0.message.content"]).toBeUndefined();
     });
 
     it("stringifies unparseable output messages (malformed)", () => {
@@ -395,8 +671,7 @@ describe("attributes helpers", () => {
     it("maps tool execution details", () => {
       const spanAttrs = {
         "gen_ai.tool.name": "get_weather",
-        "gen_ai.tool.description":
-          "Retrieves the current weather report for a specified city.",
+        "gen_ai.tool.description": "Retrieves the current weather report for a specified city.",
         "gen_ai.tool.call.id": "1234",
         "gen_ai.tool.type": "function",
         input: '{"city": "New York"}',
@@ -424,9 +699,63 @@ describe("attributes helpers", () => {
   });
 
   describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
+    it("includes finish reason when present", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        "gen_ai.operation.name": "chat",
+        "gen_ai.response.finish_reasons": ["tool_calls"],
+      });
+      expect(attrs["llm.finish_reason"]).toBe("tool_calls");
+    });
+
     it("returns minimal defaults for empty attributes (span kind only)", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({});
       expect(attrs).toEqual({ "openinference.span.kind": "LLM" });
     });
+
+    it("converts plan operation attributes to an agent span", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        "gen_ai.operation.name": "plan",
+        "gen_ai.agent.name": "research_planner",
+      });
+      expect(attrs).toEqual({
+        "agent.name": "research_planner",
+        "openinference.span.kind": "AGENT",
+      });
+    });
+  });
+});
+
+describe("mapFinishReason", () => {
+  it("maps the first finish reason", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": ["tool_calls"],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("tool_calls");
+  });
+
+  it("takes only the first reason when multiple are present", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": ["stop", "length"],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
+  });
+
+  it('defaults to "stop" when the array is empty', () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": [],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
+  });
+
+  it("sets nothing when the attribute is absent", () => {
+    const attrs = mapFinishReason({});
+    expect(attrs).toEqual({});
+  });
+
+  it("ignores non-array/malformed values (malformed)", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": "stop",
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
   });
 });

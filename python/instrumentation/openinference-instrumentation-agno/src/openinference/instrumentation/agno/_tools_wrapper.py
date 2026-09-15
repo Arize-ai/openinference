@@ -122,8 +122,10 @@ class _FunctionCallWrapper:
                 span.set_status(trace_api.StatusCode.ERROR, function_error_message)
                 span.set_attribute(OUTPUT_VALUE, function_error_message)
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.end()
             else:
                 span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+                span.end()
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -185,8 +187,10 @@ class _FunctionCallWrapper:
                 span.set_status(trace_api.StatusCode.ERROR, function_error_message)
                 span.set_attribute(OUTPUT_VALUE, function_error_message)
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.end()
             else:
                 span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+                span.end()
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))

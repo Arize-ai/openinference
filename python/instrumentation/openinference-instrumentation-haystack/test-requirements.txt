@@ -1,0 +1,6 @@
+haystack-ai==2.18.0
+cohere-haystack
+opentelemetry-sdk
+vcrpy
+pytest-recording
+pytest-asyncio

@@ -1,9 +1,19 @@
 from openinference.semconv.trace import (
+    OpenInferenceAnnotatorKindValues,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
 )
+
+
+class TestOpenInferenceAnnotatorKindValues:
+    def test_values(self) -> None:
+        assert {e: e.value for e in OpenInferenceAnnotatorKindValues} == {
+            OpenInferenceAnnotatorKindValues.HUMAN: "HUMAN",
+            OpenInferenceAnnotatorKindValues.LLM: "LLM",
+            OpenInferenceAnnotatorKindValues.CODE: "CODE",
+        }
 
 
 class TestOpenInferenceSpanKindValues:
@@ -15,6 +25,7 @@ class TestOpenInferenceSpanKindValues:
             OpenInferenceSpanKindValues.EVALUATOR: "EVALUATOR",
             OpenInferenceSpanKindValues.GUARDRAIL: "GUARDRAIL",
             OpenInferenceSpanKindValues.LLM: "LLM",
+            OpenInferenceSpanKindValues.PROMPT: "PROMPT",
             OpenInferenceSpanKindValues.RERANKER: "RERANKER",
             OpenInferenceSpanKindValues.RETRIEVER: "RETRIEVER",
             OpenInferenceSpanKindValues.TOOL: "TOOL",
@@ -53,4 +64,14 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.OPENAI: "openai",
             OpenInferenceLLMProviderValues.XAI: "xai",
             OpenInferenceLLMProviderValues.DEEPSEEK: "deepseek",
+            OpenInferenceLLMProviderValues.GROQ: "groq",
+            OpenInferenceLLMProviderValues.FIREWORKS: "fireworks",
+            OpenInferenceLLMProviderValues.MOONSHOT: "moonshot",
+            OpenInferenceLLMProviderValues.CEREBRAS: "cerebras",
+            OpenInferenceLLMProviderValues.PERPLEXITY: "perplexity",
+            OpenInferenceLLMProviderValues.TOGETHER: "together",
+            OpenInferenceLLMProviderValues.OLLAMA: "ollama",
+            OpenInferenceLLMProviderValues.META: "meta",
+            OpenInferenceLLMProviderValues.ZAI: "zai",
+            OpenInferenceLLMProviderValues.MINIMAX: "minimax",
         }

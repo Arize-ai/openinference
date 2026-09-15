@@ -1,0 +1,76 @@
+{
+  "captureDate": "2026-02-03T15:20:07.289Z",
+  "results": [
+    {
+      "name": "generateText",
+      "success": true
+    },
+    {
+      "name": "generateTextWithMessages",
+      "success": true
+    },
+    {
+      "name": "generateObject",
+      "success": true
+    },
+    {
+      "name": "streamText",
+      "success": true
+    },
+    {
+      "name": "embed",
+      "success": true
+    }
+  ],
+  "attributeSummary": {
+    "genAi": [
+      "gen_ai.request.model",
+      "gen_ai.response.finish_reasons",
+      "gen_ai.response.id",
+      "gen_ai.response.model",
+      "gen_ai.system",
+      "gen_ai.usage.input_tokens",
+      "gen_ai.usage.output_tokens"
+    ],
+    "ai": [
+      "ai.embedding",
+      "ai.embeddings",
+      "ai.model.id",
+      "ai.model.provider",
+      "ai.operationId",
+      "ai.prompt",
+      "ai.prompt.messages",
+      "ai.request.headers.user-agent",
+      "ai.response.avgOutputTokensPerSecond",
+      "ai.response.finishReason",
+      "ai.response.id",
+      "ai.response.model",
+      "ai.response.msToFinish",
+      "ai.response.msToFirstChunk",
+      "ai.response.object",
+      "ai.response.providerMetadata",
+      "ai.response.text",
+      "ai.response.timestamp",
+      "ai.schema",
+      "ai.settings.maxRetries",
+      "ai.settings.output",
+      "ai.telemetry.functionId",
+      "ai.telemetry.metadata.customField",
+      "ai.telemetry.metadata.testCategory",
+      "ai.usage.cachedInputTokens",
+      "ai.usage.completionTokens",
+      "ai.usage.inputTokens",
+      "ai.usage.outputTokens",
+      "ai.usage.promptTokens",
+      "ai.usage.reasoningTokens",
+      "ai.usage.tokens",
+      "ai.usage.totalTokens",
+      "ai.value",
+      "ai.values"
+    ],
+    "other": [
+      "operation.name",
+      "resource.name"
+    ]
+  }
+}

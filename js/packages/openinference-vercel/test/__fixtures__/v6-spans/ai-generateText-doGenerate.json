@@ -1,0 +1,99 @@
+[
+  {
+    "name": "ai.generateText.doGenerate",
+    "spanContext": {
+      "traceId": "b3e700af9eab81e19f72f964d62a35af",
+      "spanId": "39d6e9b3ddec9996"
+    },
+    "attributes": {
+      "operation.name": "ai.generateText.doGenerate test-generate-text",
+      "resource.name": "test-generate-text",
+      "ai.operationId": "ai.generateText.doGenerate",
+      "ai.telemetry.functionId": "test-generate-text",
+      "ai.model.provider": "openai.responses",
+      "ai.model.id": "gpt-4o-mini",
+      "ai.settings.maxRetries": 2,
+      "ai.telemetry.metadata.testCategory": "text-generation",
+      "ai.telemetry.metadata.customField": "custom-value",
+      "ai.request.headers.user-agent": "ai/6.0.68",
+      "ai.prompt.messages": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Write a haiku about programming.\"}]}]",
+      "gen_ai.system": "openai.responses",
+      "gen_ai.request.model": "gpt-4o-mini",
+      "ai.response.finishReason": "stop",
+      "ai.response.text": "Lines of code align,  \nLogic dances through the night—  \nDreams in data flow.",
+      "ai.response.id": "resp_0269f3aed1fd415900698212189ed88190b8bb13919d420b02",
+      "ai.response.model": "gpt-4o-mini-2024-07-18",
+      "ai.response.timestamp": "2026-02-03T15:19:52.000Z",
+      "ai.response.providerMetadata": "{\"openai\":{\"responseId\":\"resp_0269f3aed1fd415900698212189ed88190b8bb13919d420b02\",\"serviceTier\":\"default\"}}",
+      "ai.usage.promptTokens": 14,
+      "ai.usage.completionTokens": 20,
+      "gen_ai.response.finish_reasons": [
+        "stop"
+      ],
+      "gen_ai.response.id": "resp_0269f3aed1fd415900698212189ed88190b8bb13919d420b02",
+      "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+      "gen_ai.usage.input_tokens": 14,
+      "gen_ai.usage.output_tokens": 20
+    },
+    "status": {
+      "code": 0
+    },
+    "startTime": [
+      1770131992,
+      242000000
+    ],
+    "endTime": [
+      1770131994,
+      21415667
+    ],
+    "events": []
+  },
+  {
+    "name": "ai.generateText.doGenerate",
+    "spanContext": {
+      "traceId": "edff2fc5854be6170e8cccccec0c82cf",
+      "spanId": "6c0201026326855d"
+    },
+    "attributes": {
+      "operation.name": "ai.generateText.doGenerate test-generate-text-messages",
+      "resource.name": "test-generate-text-messages",
+      "ai.operationId": "ai.generateText.doGenerate",
+      "ai.telemetry.functionId": "test-generate-text-messages",
+      "ai.model.provider": "openai.responses",
+      "ai.model.id": "gpt-4o-mini",
+      "ai.settings.maxRetries": 2,
+      "ai.telemetry.metadata.testCategory": "multi-turn-conversation",
+      "ai.request.headers.user-agent": "ai/6.0.68",
+      "ai.prompt.messages": "[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What is 2 + 2?\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"2 + 2 equals 4.\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"And what is 3 + 3?\"}]}]",
+      "gen_ai.system": "openai.responses",
+      "gen_ai.request.model": "gpt-4o-mini",
+      "ai.response.finishReason": "stop",
+      "ai.response.text": "3 + 3 equals 6.",
+      "ai.response.id": "resp_0056c25ba5cb2bd9006982121a510c81a1a31c11ddcf1abc73",
+      "ai.response.model": "gpt-4o-mini-2024-07-18",
+      "ai.response.timestamp": "2026-02-03T15:19:54.000Z",
+      "ai.response.providerMetadata": "{\"openai\":{\"responseId\":\"resp_0056c25ba5cb2bd9006982121a510c81a1a31c11ddcf1abc73\",\"serviceTier\":\"default\"}}",
+      "ai.usage.promptTokens": 50,
+      "ai.usage.completionTokens": 9,
+      "gen_ai.response.finish_reasons": [
+        "stop"
+      ],
+      "gen_ai.response.id": "resp_0056c25ba5cb2bd9006982121a510c81a1a31c11ddcf1abc73",
+      "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+      "gen_ai.usage.input_tokens": 50,
+      "gen_ai.usage.output_tokens": 9
+    },
+    "status": {
+      "code": 0
+    },
+    "startTime": [
+      1770131994,
+      23000000
+    ],
+    "endTime": [
+      1770131997,
+      57285833
+    ],
+    "events": []
+  }
+]

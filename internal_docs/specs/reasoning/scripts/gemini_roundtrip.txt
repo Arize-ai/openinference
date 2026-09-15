@@ -1,0 +1,147 @@
+# Reasoning round-trip debug log: gemini-reasoning-roundtrip
+
+
+[gemini response.content.parts slots]
+  parts[0].type=thought
+  parts[1].type=text
+
+[current baseline] attribute_keys (7)
+  llm.input_messages.0.message.content = Factorize 22426 completel...
+  llm.input_messages.0.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = Okay, here's how I'm appr...
+  llm.output_messages.0.message.contents.0.message_content.type = text
+  llm.output_messages.0.message.contents.1.message_content.text = To factorize 22426 comple...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.role = model
+
+[current augmented] attribute_keys (7)
+  llm.input_messages.0.message.content = Factorize 22426 completel...
+  llm.input_messages.0.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = Okay, here's how I'm appr...
+  llm.output_messages.0.message.contents.0.message_content.type = reasoning
+  llm.output_messages.0.message.contents.1.message_content.text = To factorize 22426 comple...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.role = model
+
+[gemini response.content.parts slots]
+  parts[0].type=thought
+  parts[1].type=text
+
+[current baseline] attribute_keys (14)
+  llm.input_messages.0.message.content = Factorize 22426 completel...
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.0.message_content.text = Okay, here's how I'm appr...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.contents.1.message_content.text = To factorize 22426 comple...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.role = model
+  llm.input_messages.2.message.content = Using only the prime fact...
+  llm.input_messages.2.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = Okay, I understand. The u...
+  llm.output_messages.0.message.contents.0.message_content.type = text
+  llm.output_messages.0.message.contents.1.message_content.text = The prime factorization o...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.role = model
+
+[current augmented] attribute_keys (14)
+  llm.input_messages.0.message.content = Factorize 22426 completel...
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.0.message_content.text = Okay, here's how I'm appr...
+  llm.input_messages.1.message.contents.0.message_content.type = reasoning
+  llm.input_messages.1.message.contents.1.message_content.text = To factorize 22426 comple...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.role = model
+  llm.input_messages.2.message.content = Using only the prime fact...
+  llm.input_messages.2.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = Okay, I understand. The u...
+  llm.output_messages.0.message.contents.0.message_content.type = reasoning
+  llm.output_messages.0.message.contents.1.message_content.text = The prime factorization o...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.role = model
+
+[gemini response.content.parts slots]
+  parts[0].type=thought
+  parts[1].type=text
+  parts[2].type=function_call
+
+[current baseline] attribute_keys (9)
+  llm.input_messages.0.message.content = You must reason step-by-s...
+  llm.input_messages.0.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = Okay, so I've got this re...
+  llm.output_messages.0.message.contents.0.message_content.type = text
+  llm.output_messages.0.message.contents.1.message_content.text = The conversion formula fr...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.role = model
+  llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.output_messages.0.message.tool_calls.0.tool_call.function.name = get_weather
+
+[current augmented] attribute_keys (15)
+  llm.input_messages.0.message.content = You must reason step-by-s...
+  llm.input_messages.0.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = Okay, so I've got this re...
+  llm.output_messages.0.message.contents.0.message_content.type = reasoning
+  llm.output_messages.0.message.contents.1.message_content.text = The conversion formula fr...
+  llm.output_messages.0.message.contents.1.message_content.signature = Cq0GAY89a19bDeqwo/w6QJ46Q...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.contents.2.message_content.type = tool_use
+  llm.output_messages.0.message.contents.2.tool_call.function.arguments = {"city": "Paris"}
+  llm.output_messages.0.message.contents.2.tool_call.function.name = get_weather
+  llm.output_messages.0.message.contents.2.tool_call.id = call_2
+  llm.output_messages.0.message.role = model
+  llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.output_messages.0.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.output_messages.0.message.tool_calls.0.tool_call.id = call_2
+
+[gemini response.content.parts slots]
+  parts[0].type=thought
+  parts[1].type=text
+
+[current baseline] attribute_keys (20)
+  llm.input_messages.0.message.content = You must reason step-by-s...
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.0.message_content.text = Okay, so I've got this re...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.contents.1.message_content.text = The conversion formula fr...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.role = model
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.input_messages.1.message.tool_calls.0.tool_call.id = call_2
+  llm.input_messages.2.message.content = {"temperature_c": 14.5}
+  llm.input_messages.2.message.role = user
+  llm.input_messages.2.message.tool_call_id = call_2
+  llm.input_messages.3.message.content = Using only the weather re...
+  llm.input_messages.3.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = Ah, I see the next step i...
+  llm.output_messages.0.message.contents.0.message_content.type = text
+  llm.output_messages.0.message.contents.1.message_content.text = The temperature in Paris ...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.role = model
+
+[current augmented] attribute_keys (26)
+  llm.input_messages.0.message.content = You must reason step-by-s...
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.0.message_content.text = Okay, so I've got this re...
+  llm.input_messages.1.message.contents.0.message_content.type = reasoning
+  llm.input_messages.1.message.contents.1.message_content.text = The conversion formula fr...
+  llm.input_messages.1.message.contents.1.message_content.signature = Cq0GAY89a19bDeqwo/w6QJ46Q...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.contents.2.message_content.type = tool_use
+  llm.input_messages.1.message.contents.2.tool_call.function.arguments = {"city": "Paris"}
+  llm.input_messages.1.message.contents.2.tool_call.function.name = get_weather
+  llm.input_messages.1.message.contents.2.tool_call.id = call_2
+  llm.input_messages.1.message.role = model
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.input_messages.1.message.tool_calls.0.tool_call.id = call_2
+  llm.input_messages.2.message.content = {"temperature_c": 14.5}
+  llm.input_messages.2.message.role = user
+  llm.input_messages.2.message.tool_call_id = call_2
+  llm.input_messages.3.message.content = Using only the weather re...
+  llm.input_messages.3.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = Ah, I see the next step i...
+  llm.output_messages.0.message.contents.0.message_content.type = reasoning
+  llm.output_messages.0.message.contents.1.message_content.text = The temperature in Paris ...
+  llm.output_messages.0.message.contents.1.message_content.signature = CvkCAY89a18+r5+MyukEB9Aya...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.role = model

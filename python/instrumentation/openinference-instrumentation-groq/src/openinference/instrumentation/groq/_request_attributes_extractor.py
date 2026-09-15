@@ -8,6 +8,7 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.groq._utils import _as_input_attributes, _io_value_and_type
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -27,6 +28,7 @@ class _RequestAttributesExtractor:
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
+        yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.GROQ.value
         try:
             yield from _as_input_attributes(
                 _io_value_and_type(request_parameters),

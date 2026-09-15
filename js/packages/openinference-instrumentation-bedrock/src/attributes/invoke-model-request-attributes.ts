@@ -8,26 +8,22 @@
  * - Invocation parameters
  */
 
-import {
-  isObjectWithStringKeys,
-  withSafety,
-} from "@arizeai/openinference-core";
+import type {
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+import type { Span } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+
+import { isObjectWithStringKeys, withSafety } from "@arizeai/openinference-core";
 import {
   LLMSystem,
   MimeType,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { diag, Span } from "@opentelemetry/api";
-
-import {
-  BedrockMessage,
-  InvokeModelRequestBody,
-  isImageContent,
-  isTextContent,
-  isToolUseContent,
-} from "../types/bedrock-types";
-
+import type { BedrockMessage, InvokeModelRequestBody } from "../types/bedrock-types";
+import { isImageContent, isTextContent, isToolUseContent } from "../types/bedrock-types";
 import { extractModelName, setSpanAttribute } from "./attribute-helpers";
 import {
   extractInvocationParameters,
@@ -36,8 +32,6 @@ import {
   normalizeRequestContentBlocks,
   parseRequestBody,
 } from "./invoke-model-helpers";
-
-import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
 // Helper functions
 /**
@@ -107,11 +101,7 @@ function handleToolCallsInMessage({
   message.content.forEach((content) => {
     if (isToolUseContent(content)) {
       const toolCallPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
-      setSpanAttribute(
-        span,
-        `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
-        content.id,
-      );
+      setSpanAttribute(span, `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`, content.id);
       setSpanAttribute(
         span,
         `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
@@ -225,16 +215,12 @@ function extractBaseRequestAttributes({
   system,
 }: {
   span: Span;
-  command: InvokeModelCommand;
+  command: InvokeModelCommand | InvokeModelWithResponseStreamCommand;
   requestBody: InvokeModelRequestBody;
   system: LLMSystem;
 }): void {
   const modelId = command.input?.modelId || "unknown";
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_MODEL_NAME,
-    extractModelName(modelId),
-  );
+  setSpanAttribute(span, SemanticConventions.LLM_MODEL_NAME, extractModelName(modelId));
 
   const inputValue = JSON.stringify(requestBody);
   setSpanAttribute(span, SemanticConventions.INPUT_VALUE, inputValue);
@@ -303,11 +289,14 @@ function extractInputToolAttributes({
     Array.isArray(requestBody.toolConfig.tools)
   ) {
     requestBody.toolConfig.tools.forEach((tool, index) => {
-      if (tool.toolSpec && isObjectWithStringKeys(tool.toolSpec)) {
+      // Record each tool element verbatim (keeping the Converse tagged-union
+      // envelope) to match the OpenAI/Anthropic instrumentors and the Converse
+      // extractor, and to preserve non-toolSpec members such as systemTool.
+      if (isObjectWithStringKeys(tool)) {
         setSpanAttribute(
           span,
           `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
-          JSON.stringify(tool.toolSpec),
+          JSON.stringify(tool),
         );
       }
     });
@@ -344,7 +333,7 @@ export const extractInvokeModelRequestAttributes = withSafety({
     system,
   }: {
     span: Span;
-    command: InvokeModelCommand;
+    command: InvokeModelCommand | InvokeModelWithResponseStreamCommand;
     system: LLMSystem;
   }): void => {
     const requestBody = parseRequestBody(command);

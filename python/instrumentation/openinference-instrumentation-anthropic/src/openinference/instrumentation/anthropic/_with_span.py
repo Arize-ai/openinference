@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import logging
-from typing import Dict, Optional, Union
+from itertools import chain
+from typing import Dict, Iterable, Optional, Tuple, Union
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import (
@@ -15,13 +18,16 @@ class _WithSpan:
     __slots__ = (
         "_span",
         "_is_finished",
+        "_params",
     )
 
     def __init__(
         self,
         span: trace_api.Span,
+        params: Iterable[Tuple[str, AttributeValue]] = (),
     ) -> None:
         self._span = span
+        self._params = params
         try:
             self._is_finished = not self._span.is_recording()
         except Exception:
@@ -67,19 +73,17 @@ class _WithSpan:
     ) -> None:
         if self._is_finished:
             return
-        for mapping in (
-            attributes,
-            extra_attributes,
+        for key, value in chain(
+            self._params,
+            (attributes or {}).items(),
+            (extra_attributes or {}).items(),
         ):
-            if not mapping:
+            if value is None:
                 continue
-            for key, value in mapping.items():
-                if value is None:
-                    continue
-                try:
-                    self._span.set_attribute(key, value)
-                except Exception:
-                    logger.exception("Failed to set attribute on span")
+            try:
+                self._span.set_attribute(key, value)
+            except Exception:
+                logger.exception("Failed to set attribute on span")
         if status is not None:
             try:
                 self._span.set_status(status=status)

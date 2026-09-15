@@ -13,8 +13,8 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 
 BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
 
-FOUNDATION_MODEL_NAME = "anthropic.claude-3-sonnet-20240229-v1:0"
-HAIKU_FOUNDATION_MODEL = "anthropic.claude-3-haiku-20240307-v1:0"
+FOUNDATION_MODEL_NAME = "us.anthropic.claude-sonnet-4-6"
+HAIKU_FOUNDATION_MODEL = "us.anthropic.claude-sonnet-4-6"
 
 KNOWLEDGE_BASE_ID = "<KnowledgeBaseID>"
 ACTION_GROUP_ARN = "ActionGroupLambdaARN"

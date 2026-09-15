@@ -1,0 +1,54 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true
+  },
+  "plugins": ["typescript"],
+  "rules": {
+    "no-console": "error",
+    "import/no-duplicates": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-require-imports": "error",
+    "typescript/no-import-type-side-effects": "error",
+    "typescript/prefer-ts-expect-error": "error",
+    "typescript/consistent-type-imports": "error",
+    "eqeqeq": ["error", "smart"],
+    "eslint/complexity": "error",
+    "eslint/prefer-const": "error",
+    "eslint/no-implicit-coercion": ["error", { "boolean": false, "number": true, "string": false }],
+    "typescript/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "typescript/consistent-return": "warn",
+    "typescript/no-unsafe-type-assertion": "error",
+    "typescript/prefer-reduce-type-parameter": "warn",
+    "typescript/no-floating-promises": "error",
+    "typescript/unbound-method": "error",
+    "typescript/restrict-template-expressions": "error",
+    "typescript/no-base-to-string": "error",
+    "typescript/no-redundant-type-constituents": "error",
+    "typescript/no-useless-default-assignment": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/test/**/*.ts", "**/*.test.ts", "**/scripts/**/*.ts"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["packages/openinference-genai/src/__generated__/**/*.ts"],
+      "rules": {
+        "typescript/no-redundant-type-constituents": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["**/dist/**", "**/build/**", "**/node_modules/**", "**/examples/**"]
+}

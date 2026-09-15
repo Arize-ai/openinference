@@ -1,9 +1,9 @@
+import type { AttributeValue } from "@opentelemetry/api";
+
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import { AttributeValue } from "@opentelemetry/api";
-
 import { REDACTED_VALUE } from "./constants";
-import { MaskingRule, MaskingRuleArgs } from "./types";
+import type { MaskingRule, MaskingRuleArgs } from "./types";
 
 /**
  * Masks (redacts) input text in LLM input messages.
@@ -96,12 +96,48 @@ const maskInputImagesRule: MaskingRule = {
   action: () => undefined,
 };
 
+/**
+ * Returns true when `key` is `namespace` itself or an attribute nested under it.
+ * For example, `input.images.0.image.url` is within the `input.images` namespace,
+ * but `input.imageset.foo` is not.
+ */
+function isWithinImagesNamespace(key: string, namespace: string): boolean {
+  return key === namespace || key.startsWith(`${namespace}.`);
+}
+
+/**
+ * Masks (removes) span-level input images.
+ * @example
+ * ```typescript
+ *  maskSpanInputImagesRule.condition({
+ *      config: {hideInputImages: true},
+ *      key: "input.images.0.image.url"
+ *  }) // returns true so the rule applies and the value will be removed
+ */
+const maskSpanInputImagesRule: MaskingRule = {
+  condition: ({ config, key }) =>
+    (config.hideInputs || config.hideInputImages) &&
+    isWithinImagesNamespace(key, SemanticConventions.INPUT_IMAGES),
+  action: () => undefined,
+};
+
+/**
+ * Masks (removes) span-level output images.
+ * @example
+ * ```typescript
+ *  maskSpanOutputImagesRule.condition({
+ *      config: {hideOutputs: true},
+ *      key: "output.images.0.image.url"
+ *  }) // returns true so the rule applies and the value will be removed
+ */
+const maskSpanOutputImagesRule: MaskingRule = {
+  condition: ({ config, key }) =>
+    config.hideOutputs && isWithinImagesNamespace(key, SemanticConventions.OUTPUT_IMAGES),
+  action: () => undefined,
+};
+
 function isBase64Url(url?: AttributeValue): boolean {
-  return (
-    typeof url === "string" &&
-    url.startsWith("data:image/") &&
-    url.includes("base64")
-  );
+  return typeof url === "string" && url.startsWith("data:image/") && url.includes("base64");
 }
 
 /**
@@ -119,9 +155,11 @@ const maskLongBase64ImageRule: MaskingRule = {
     typeof value === "string" &&
     isBase64Url(value) &&
     value.length > config.base64ImageMaxLength &&
-    key.includes(SemanticConventions.LLM_INPUT_MESSAGES) &&
-    key.includes(SemanticConventions.MESSAGE_CONTENT_IMAGE) &&
-    key.endsWith(SemanticConventions.IMAGE_URL),
+    key.endsWith(SemanticConventions.IMAGE_URL) &&
+    ((key.includes(SemanticConventions.LLM_INPUT_MESSAGES) &&
+      key.includes(SemanticConventions.MESSAGE_CONTENT_IMAGE)) ||
+      isWithinImagesNamespace(key, SemanticConventions.INPUT_IMAGES) ||
+      isWithinImagesNamespace(key, SemanticConventions.OUTPUT_IMAGES)),
   action: () => REDACTED_VALUE,
 };
 
@@ -152,9 +190,27 @@ const maskEmbeddingVectorsRule: MaskingRule = {
  *  }) // returns true so the rule applies and the value will be redacted
  */
 const maskPromptsRule: MaskingRule = {
-  condition: ({ config, key }) =>
-    config.hidePrompts && key === SemanticConventions.LLM_PROMPTS,
+  condition: ({ config, key }) => config.hidePrompts && key === SemanticConventions.LLM_PROMPTS,
   action: () => REDACTED_VALUE,
+};
+
+/**
+ * Masks (removes) the tool definitions advertised to the LLM.
+ * Will mask information stored under keys that include `llm.tools` such as
+ * `llm.tools.[i].tool.json_schema`. Tool definitions are part of the request sent
+ * to the LLM, so they are also hidden when `hideInputs` is true.
+ * @example
+ * ```typescript
+ *  maskLLMToolsRule.condition({
+ *      config: {hideLLMTools: true},
+ *      key: "llm.tools.0.tool.json_schema"
+ *  }) // returns true so the rule applies and the value will be removed
+ * ```
+ */
+const maskLLMToolsRule: MaskingRule = {
+  condition: ({ config, key }) =>
+    (config.hideInputs || config.hideLLMTools) && key.includes(SemanticConventions.LLM_TOOLS),
+  action: () => undefined,
 };
 
 /**
@@ -164,8 +220,7 @@ const maskPromptsRule: MaskingRule = {
  */
 const maskingRules: MaskingRule[] = [
   {
-    condition: ({ config, key }) =>
-      config.hideInputs && key === SemanticConventions.INPUT_VALUE,
+    condition: ({ config, key }) => config.hideInputs && key === SemanticConventions.INPUT_VALUE,
     action: () => REDACTED_VALUE,
   },
   {
@@ -174,8 +229,7 @@ const maskingRules: MaskingRule[] = [
     action: () => undefined,
   },
   {
-    condition: ({ config, key }) =>
-      config.hideOutputs && key === SemanticConventions.OUTPUT_VALUE,
+    condition: ({ config, key }) => config.hideOutputs && key === SemanticConventions.OUTPUT_VALUE,
     action: () => REDACTED_VALUE,
   },
   {
@@ -200,9 +254,12 @@ const maskingRules: MaskingRule[] = [
   maskInputTextContentRule,
   maskOutputTextContentRule,
   maskInputImagesRule,
+  maskSpanInputImagesRule,
+  maskSpanOutputImagesRule,
   maskLongBase64ImageRule,
   maskEmbeddingVectorsRule,
   maskPromptsRule,
+  maskLLMToolsRule,
 ];
 
 /**
@@ -213,11 +270,7 @@ const maskingRules: MaskingRule[] = [
  * @param params.value - The value of the attribute to mask
  * @returns The redacted value or undefined if the value should be masked, otherwise the original value
  */
-export function mask({
-  config,
-  key,
-  value,
-}: MaskingRuleArgs): AttributeValue | undefined {
+export function mask({ config, key, value }: MaskingRuleArgs): AttributeValue | undefined {
   for (const rule of maskingRules) {
     if (rule.condition({ config, key, value })) {
       return rule.action();

@@ -1,7 +1,6 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "es5",
-    "downlevelIteration": true
+    "target": "es2015"
   }
 }

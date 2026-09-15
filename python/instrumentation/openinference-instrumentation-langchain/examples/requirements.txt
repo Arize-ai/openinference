@@ -1,4 +1,5 @@
-langchain >=0.2.11
+langchain >=1.0.0
+langchain-classic >=1.0.0
 langchain-experimental >=0.0.63
 langchain_community >=0.2.10
 langchain-openai >=0.1.19
@@ -10,4 +11,4 @@ opentelemetry-api >=1.25.0
 opentelemetry-exporter-otlp >=1.25.0
 opentelemetry-proto >=1.25.0
 opentelemetry-sdk >=1.25.0
-opentelemetry-semantic-conventions >=0.46b0
+opentelemetry-semantic-conventions >=0.65b0

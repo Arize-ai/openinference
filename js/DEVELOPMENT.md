@@ -9,6 +9,7 @@
     - [Trace Configuration](#trace-configuration)
     - [Testing](#testing-1)
 - [Changesets](#changesets)
+- [First-Time Package Publishing](#first-time-package-publishing)
 - [Publishing](#publishing)
 
 The development guide for the JavaScript packages in this repo.
@@ -18,8 +19,16 @@ This project and its packages are built using the following tools:
 - [pnpm](https://pnpm.io/) for managing packages across the repo. Note, this project uses pnpm workspaces, so you must use pnpm to install packages at the root of the repo.
 - [TypeScript](https://www.typescriptlang.org/) for type checking and transpiling.
 - [Vitest](https://vitest.dev/) for unit testing and test running.
-- [Eslint](https://eslint.org/) for linting and best practices.
-- [Prettier](https://prettier.io/) for code formatting.
+- [Oxlint](https://oxc.rs/docs/guide/usage/linter) for linting and best practices (including [type-aware](https://oxc.rs/docs/guide/usage/linter/type-aware) rules via `oxlint-tsgolint`).
+- [oxfmt](https://oxc.rs/docs/guide/usage/formatter) for code formatting.
+
+> [!NOTE]
+> The repo compiles with TypeScript 7 (the native compiler), which no longer ships
+> `tsserver`, so do not set `typescript.tsdk`. For IntelliSense that matches the
+> compiler, install the [TypeScript (Native Preview)](https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.native-preview)
+> extension; otherwise VS Code's built-in TypeScript language service works fine for
+> editing. Tools that still need the JS compiler API (e.g. TypeDoc) resolve the
+> `@typescript/typescript6` bridge via `.pnpmfile.cjs`.
 
 ### Setup
 
@@ -143,6 +152,32 @@ A changeset is an intent to release a set of packages at particular [semver bump
 Once your pr is merged, Github Actions will create a release PR like [this](https://github.com/Arize-ai/openinference/pull/994). Once the release pr is merged, new versions of any changed packages will be published to npm.
 
 For a detailed explanation of changesets, consult [this documentation](https://github.com/changesets/changesets/blob/main/docs/detailed-explanation.md)
+
+## First-Time Package Publishing
+
+When a **new** `@arizeai`-scoped package is added to the workspace, the automated changesets/GitHub Actions pipeline **cannot publish it** on the first release. There are two reasons for this:
+
+1. **Scoped packages default to private on npm.** The first `npm publish` of an `@arizeai/*` package must include `--access public`; the changesets CLI does not pass this flag.
+2. **Trusted publishers must be configured per-package.** npm's [trusted publishers](https://docs.npmjs.com/trusted-publishers) feature requires an admin to link the GitHub Actions workflow to the package _after_ it already exists on the npm registry.
+
+### Step 1 — Manual first publish
+
+A maintainer with publish access to the `@arizeai` npm organization must run:
+
+```shell
+cd js
+pnpm run -r prebuild && pnpm run -r build
+cd packages/<new-package>
+npm publish --access public
+```
+
+### Step 2 — Configure trusted publisher on npm
+
+An npm org admin must then go to the package's settings page on [npmjs.com](https://www.npmjs.com) and add the GitHub Actions workflow as a trusted publisher. See [npm trusted publishers docs](https://docs.npmjs.com/trusted-publishers) for detailed instructions.
+
+### After setup
+
+Once the package exists on npm and trusted publishers are configured, all subsequent releases will be handled automatically by the changesets + GitHub Actions pipeline — no further manual steps are needed.
 
 ## Publishing
 

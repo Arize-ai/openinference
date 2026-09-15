@@ -1,0 +1,7 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"model\":\"claude-sonnet-4-6\",\"id\":\"msg_01TkLuo1PHJsfpFkU6MtanjT\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"27 * 453\\n\\nLet me break this down:\\n27 * 453 = 27 * 400 + 27 * 50 + 27 * 3\\n= 10800 + 1350 + 81\\n= 12231\",\"signature\":\"EqsCCmUIDhgCKkBaKA8jkefKXncxkXpZKNIzWPw780JVWIs59HtgT+dmWiyAuwymYiLqSg7ND7HuHQiZJxGpyrJ52XrpndqqJc9aMhFjbGF1ZGUtc29ubmV0LTQtNjgAQgh0aGlua2luZxIMwss0aEhxO7nnSNciGgzhaL1GU1kqSZmnLTYiMCijyM/Ga2h554j4lH94gbl0BO+HTgAjqlr5zJiv69zcFPPpheXTqJns51cKntSzQyp0iCWRlg8oSDn1K41X6SOMlWIj54EjD1rnyrforKCBLpUibvMAgvSBKdmOEuMxYq6BHNfEuqLvCq6Dn2QhZC90UYiEwwADFHceo4voydHF28cb0jHvwEzqGt6yvfKD2fl0ceLWvIYKBCkxfcG/KTSmrGG6+RgYAQ==\"},{\"type\":\"text\",\"text\":\"## Solving 27 × 453\\n\\nI'll break 453 into easier parts:\\n\\n**27 × 400**\\n27 × 4 = 108, so 27 × 400 = **10,800**\\n\\n**27 × 50**\\n27 × 5 = 135, so 27 × 50 = **1,350**\\n\\n**27 × 3**\\n= **81**\\n\\n---\\n\\n**Adding the parts together:**\\n10,800 + 1,350 + 81\\n\\n= 12,150 + 81\\n\\n= **12,231**\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":52,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":211,\"output_tokens_details\":{\"thinking_tokens\":67},\"service_tier\":\"standard\",\"inference_geo\":\"global\"}}"
+}

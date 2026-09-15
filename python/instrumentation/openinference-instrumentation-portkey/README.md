@@ -42,7 +42,7 @@ PortkeyInstrumentor().uninstrument()
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.10+
 - Portkey AI 0.1.0+
 
 ## License

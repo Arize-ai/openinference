@@ -1,10 +1,201 @@
 # @arizeai/openinference-core
 
+## 2.7.0
+
+### Minor Changes
+
+- 0ff0af2: Apply the existing image privacy controls to the span-level `input.images` / `output.images` attributes: `hideInputs` and `hideInputImages` remove input images, `hideOutputs` removes output images, and `base64ImageMaxLength` redacts oversized base64 payloads recorded under `<input|output>.images.[i].image.url`.
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+
+## 2.6.3
+
+### Patch Changes
+
+- Updated dependencies [6d9f813]
+  - @arizeai/openinference-semantic-conventions@2.10.0
+
+## 2.6.2
+
+### Patch Changes
+
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+
+## 2.6.1
+
+### Patch Changes
+
+- 4d72f42: Mirror `llm.model_name` from `responseModelName ?? requestModelName` in `getLLMAttributes` when `modelName` is not passed explicitly, as the spec requires; document composing the options with `withSpan` and the `@observe` decorator via `processInput` and `processOutput`
+
+## 2.6.0
+
+### Minor Changes
+
+- 99f6e71: Add optional `requestModelName` and `responseModelName` options to `getLLMAttributes`, emitting the `llm.request.model_name` and `llm.response.model_name` semantic conventions; usable with `withSpan` and the `@observe` decorator via `attributes` and `processOutput`
+
+## 2.5.4
+
+### Patch Changes
+
+- 0071b37: Split over-complex functions into focused helpers and make implicit returns explicit (enforce `eslint/complexity`). Also hardens bedrock-agent-runtime tool-call extraction against a `function: null` payload that previously threw. No other behavior changes.
+
+## 2.5.3
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+
+## 2.5.2
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+
+## 2.5.1
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+
+## 2.5.0
+
+### Minor Changes
+
+- 0168198: Add typed helpers for span-, trace-, and session-scoped annotations and evaluations.
+
+## 2.4.1
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+
+## 2.4.0
+
+### Minor Changes
+
+- d0f5a88: feat(openinference-genai): Improve compatability with gen_ai conventions
+
+## 2.3.0
+
+### Minor Changes
+
+- 1fe7927: Add convenience span wrappers for every OpenInference span kind. In addition to the existing `traceChain`, `traceAgent`, and `traceTool`, the core package now exports `traceLLM`, `traceRetriever`, `traceReranker`, `traceEmbedding`, `traceGuardrail`, `traceEvaluator`, and `tracePrompt`.
+
+## 2.2.0
+
+### Minor Changes
+
+- 26733d8: Add reasoning content support to `getLLMAttributes`. The `Message.contents` array now accepts a `{ type: "reasoning", text?, signature?, data?, encryptedContent? }` entry, and `ToolCall` accepts an optional `reasoningSignature`. These emit:
+
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.type = "reasoning"`
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.text`
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.signature`
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.data`
+  - `llm.{input,output}_messages.*.message.contents.*.message_content.encrypted_content`
+  - `llm.{input,output}_messages.*.message.tool_calls.*.tool_call.reasoning_signature`
+
+  No `message_content.id` is emitted for reasoning entries. Reasoning `text` is human-readable and is redacted by `hideInputText` / `hideOutputText` like other `message_content.text`. The opaque echo-token fields (`signature`, `data`, `encrypted_content`, `tool_call.reasoning_signature`) are removed by `hideInputMessages` / `hideOutputMessages` but are intentionally preserved through `hideInputText` / `hideOutputText`.
+
+### Patch Changes
+
+- Updated dependencies [0f0242c]
+  - @arizeai/openinference-semantic-conventions@2.5.0
+
+## 2.1.1
+
+### Patch Changes
+
+- Updated dependencies [81b8bdb]
+  - @arizeai/openinference-semantic-conventions@2.4.0
+
+## 2.1.0
+
+### Minor Changes
+
+- cfb128c: Add `hideLLMTools` trace config option (and `OPENINFERENCE_HIDE_LLM_TOOLS` env var) to mask the tool definitions advertised to the LLM (`llm.tools.*`). These attributes are also hidden when `hideInputs` is enabled.
+
+## 2.0.8
+
+### Patch Changes
+
+- Updated dependencies [e09ce3f]
+  - @arizeai/openinference-semantic-conventions@2.3.0
+
+## 2.0.7
+
+### Patch Changes
+
+- 4eebba3: Fix `withSpan` to properly handle synchronous errors, preserve `this` binding on the wrapped function, defer default tracer resolution until invocation time, and clarify the agent-facing docs/examples
+
+## 2.0.6
+
+### Patch Changes
+
+- 3944459: Bundle hand-written docs in the npm package and export TraceConfig type and generateTraceConfig
+- Updated dependencies [7eb1c88]
+  - @arizeai/openinference-semantic-conventions@2.2.0
+
+## 2.0.5
+
+### Patch Changes
+
+- c79c564: force publish
+- c79c564: signed publishing
+- Updated dependencies [c79c564]
+- Updated dependencies [c79c564]
+  - @arizeai/openinference-semantic-conventions@2.1.7
+
+## 2.0.4
+
+### Patch Changes
+
+- a4eead1: force publish
+- a4eead1: signed publishing
+- Updated dependencies [a4eead1]
+- Updated dependencies [a4eead1]
+  - @arizeai/openinference-semantic-conventions@2.1.6
+
+## 2.0.3
+
+### Patch Changes
+
+- 74f278c: force publish
+- 74f278c: signed publishing
+- Updated dependencies [74f278c]
+- Updated dependencies [74f278c]
+  - @arizeai/openinference-semantic-conventions@2.1.5
+
+## 2.0.2
+
+### Patch Changes
+
+- fe61379: force publish
+- fe61379: signed publishing
+- Updated dependencies [fe61379]
+- Updated dependencies [fe61379]
+  - @arizeai/openinference-semantic-conventions@2.1.4
+
+## 2.0.1
+
+### Patch Changes
+
+- 006a685: signed publishing
+- Updated dependencies [006a685]
+  - @arizeai/openinference-semantic-conventions@2.1.3
+
 ## 2.0.0
 
 ### Major Changes
 
 - d3d7017: # feat: Add tracing capabilities with decorators and function wrappers
+
   - **Function Wrapping**: `withSpan()`, `traceAgent()`, `traceTool()` ....
   - **Decorators**: `@observe()` for class methods
 

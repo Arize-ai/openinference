@@ -1,0 +1,177 @@
+# Reasoning round-trip debug log: openai-reasoning-roundtrip
+
+
+[openai response.output slots]
+  output[0].type=reasoning
+  output[1].type=message
+
+[current baseline] attribute_keys (13)
+  llm.input_messages.1.message.contents.0.message_content.text = Factorize 34691 completel...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = **Factoring a number**\n\...
+  llm.output_messages.0.message.contents.0.message_content.type = text
+  llm.output_messages.0.message.contents.1.message_content.text = **Calculating remainders ...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.contents.2.message_content.text = **Evaluating prime factor...
+  llm.output_messages.0.message.contents.2.message_content.type = text
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.1.message.contents.0.message_content.text = Using trial division by p...
+  llm.output_messages.1.message.contents.0.message_content.type = text
+  llm.output_messages.1.message.role = assistant
+
+[current augmented] attribute_keys (15)
+  llm.input_messages.1.message.contents.0.message_content.text = Factorize 34691 completel...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.encrypted_content = gAAAAABqD2-vZIB3OKfgyUBWH...
+  llm.output_messages.0.message.contents.0.message_content.id = rs_00166c9dc5566a8a016a0f...
+  llm.output_messages.0.message.contents.0.message_content.text = **Factoring a number**\n\...
+  llm.output_messages.0.message.contents.0.message_content.type = reasoning
+  llm.output_messages.0.message.contents.1.message_content.text = **Calculating remainders ...
+  llm.output_messages.0.message.contents.1.message_content.type = reasoning
+  llm.output_messages.0.message.contents.2.message_content.text = **Evaluating prime factor...
+  llm.output_messages.0.message.contents.2.message_content.type = reasoning
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.1.message.contents.0.message_content.text = Using trial division by p...
+  llm.output_messages.1.message.contents.0.message_content.type = text
+  llm.output_messages.1.message.role = assistant
+
+[openai response.output slots]
+  output[0].type=reasoning
+  output[1].type=message
+
+[current baseline] attribute_keys (20)
+  llm.input_messages.1.message.contents.0.message_content.text = Factorize 34691 completel...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.role = user
+  llm.input_messages.2.message.contents.0.message_content.text = **Factoring a number**\n\...
+  llm.input_messages.2.message.contents.0.message_content.type = text
+  llm.input_messages.2.message.contents.1.message_content.text = **Calculating remainders ...
+  llm.input_messages.2.message.contents.1.message_content.type = text
+  llm.input_messages.2.message.contents.2.message_content.text = **Evaluating prime factor...
+  llm.input_messages.2.message.contents.2.message_content.type = text
+  llm.input_messages.2.message.role = assistant
+  llm.input_messages.3.message.contents.0.message_content.text = Using trial division by p...
+  llm.input_messages.3.message.contents.0.message_content.type = text
+  llm.input_messages.3.message.role = assistant
+  llm.input_messages.4.message.contents.0.message_content.text = Using only the prime fact...
+  llm.input_messages.4.message.contents.0.message_content.type = text
+  llm.input_messages.4.message.role = user
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.1.message.contents.0.message_content.text = Using the previous prime ...
+  llm.output_messages.1.message.contents.0.message_content.type = text
+  llm.output_messages.1.message.role = assistant
+
+[current augmented] attribute_keys (22)
+  llm.input_messages.1.message.contents.0.message_content.text = Factorize 34691 completel...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.role = user
+  llm.input_messages.2.message.contents.0.message_content.text = **Factoring a number**\n\...
+  llm.input_messages.2.message.contents.0.message_content.type = text
+  llm.input_messages.2.message.contents.1.message_content.text = **Calculating remainders ...
+  llm.input_messages.2.message.contents.1.message_content.type = text
+  llm.input_messages.2.message.contents.2.message_content.text = **Evaluating prime factor...
+  llm.input_messages.2.message.contents.2.message_content.type = text
+  llm.input_messages.2.message.role = assistant
+  llm.input_messages.3.message.contents.0.message_content.text = Using trial division by p...
+  llm.input_messages.3.message.contents.0.message_content.type = text
+  llm.input_messages.3.message.role = assistant
+  llm.input_messages.4.message.contents.0.message_content.text = Using only the prime fact...
+  llm.input_messages.4.message.contents.0.message_content.type = text
+  llm.input_messages.4.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.encrypted_content = gAAAAABqD2-zIuH8G7dqzBvbv...
+  llm.output_messages.0.message.contents.0.message_content.id = rs_00166c9dc5566a8a016a0f...
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.1.message.contents.0.message_content.text = Using the previous prime ...
+  llm.output_messages.1.message.contents.0.message_content.type = text
+  llm.output_messages.1.message.role = assistant
+
+[openai response.output slots]
+  output[0].type=reasoning
+  output[1].type=message
+  output[2].type=function_call
+
+[current baseline] attribute_keys (11)
+  llm.input_messages.1.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.role = user
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.1.message.contents.0.message_content.text = I’ll use the conversion f...
+  llm.output_messages.1.message.contents.0.message_content.type = text
+  llm.output_messages.1.message.role = assistant
+  llm.output_messages.2.message.role = assistant
+  llm.output_messages.2.message.tool_calls.0.tool_call.function.arguments = {"city":"Paris"}
+  llm.output_messages.2.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.output_messages.2.message.tool_calls.0.tool_call.id = call_WrleuWub8Ehy6BLXsA3U...
+
+[current augmented] attribute_keys (13)
+  llm.input_messages.1.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.encrypted_content = gAAAAABqD2-5-zl9p3tUP_HJK...
+  llm.output_messages.0.message.contents.0.message_content.id = rs_028795e99d7ac460016a0f...
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.1.message.contents.0.message_content.text = I’ll use the conversion f...
+  llm.output_messages.1.message.contents.0.message_content.type = text
+  llm.output_messages.1.message.role = assistant
+  llm.output_messages.2.message.role = assistant
+  llm.output_messages.2.message.tool_calls.0.tool_call.function.arguments = {"city":"Paris"}
+  llm.output_messages.2.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.output_messages.2.message.tool_calls.0.tool_call.id = call_WrleuWub8Ehy6BLXsA3U...
+
+[openai response.output slots]
+  output[0].type=reasoning
+  output[1].type=message
+
+[current baseline] attribute_keys (23)
+  llm.input_messages.1.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.role = user
+  llm.input_messages.2.message.role = assistant
+  llm.input_messages.3.message.contents.0.message_content.text = I’ll use the conversion f...
+  llm.input_messages.3.message.contents.0.message_content.type = text
+  llm.input_messages.3.message.role = assistant
+  llm.input_messages.4.message.role = assistant
+  llm.input_messages.4.message.tool_calls.0.tool_call.function.arguments = {"city":"Paris"}
+  llm.input_messages.4.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.input_messages.4.message.tool_calls.0.tool_call.id = call_WrleuWub8Ehy6BLXsA3U...
+  llm.input_messages.5.message.content = {"temperature_c": 14.5}
+  llm.input_messages.5.message.role = tool
+  llm.input_messages.5.message.tool_call_id = call_WrleuWub8Ehy6BLXsA3U...
+  llm.input_messages.6.message.contents.0.message_content.text = Using only the weather re...
+  llm.input_messages.6.message.contents.0.message_content.type = text
+  llm.input_messages.6.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = **Determining thresholds*...
+  llm.output_messages.0.message.contents.0.message_content.type = text
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.1.message.contents.0.message_content.text = Tool temperature for Pari...
+  llm.output_messages.1.message.contents.0.message_content.type = text
+  llm.output_messages.1.message.role = assistant
+
+[current augmented] attribute_keys (25)
+  llm.input_messages.1.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.1.message.contents.0.message_content.type = text
+  llm.input_messages.1.message.role = user
+  llm.input_messages.2.message.role = assistant
+  llm.input_messages.3.message.contents.0.message_content.text = I’ll use the conversion f...
+  llm.input_messages.3.message.contents.0.message_content.type = text
+  llm.input_messages.3.message.role = assistant
+  llm.input_messages.4.message.role = assistant
+  llm.input_messages.4.message.tool_calls.0.tool_call.function.arguments = {"city":"Paris"}
+  llm.input_messages.4.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.input_messages.4.message.tool_calls.0.tool_call.id = call_WrleuWub8Ehy6BLXsA3U...
+  llm.input_messages.5.message.content = {"temperature_c": 14.5}
+  llm.input_messages.5.message.role = tool
+  llm.input_messages.5.message.tool_call_id = call_WrleuWub8Ehy6BLXsA3U...
+  llm.input_messages.6.message.contents.0.message_content.text = Using only the weather re...
+  llm.input_messages.6.message.contents.0.message_content.type = text
+  llm.input_messages.6.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.encrypted_content = gAAAAABqD2--4F32L_qhEqNuI...
+  llm.output_messages.0.message.contents.0.message_content.id = rs_09ee3f7a1554f973016a0f...
+  llm.output_messages.0.message.contents.0.message_content.text = **Determining thresholds*...
+  llm.output_messages.0.message.contents.0.message_content.type = reasoning
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.1.message.contents.0.message_content.text = Tool temperature for Pari...
+  llm.output_messages.1.message.contents.0.message_content.type = text
+  llm.output_messages.1.message.role = assistant

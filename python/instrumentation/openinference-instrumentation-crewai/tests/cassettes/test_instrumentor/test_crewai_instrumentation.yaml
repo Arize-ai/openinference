@@ -1,0 +1,98 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Website Scraper. You extract
+      text from websites\nYour personal goal is: Scrape content from URL"},{"role":"user","content":"\nCurrent
+      Task: Call the scrape_website tool to fetch text from http://quotes.toscrape.com/
+      and return the result.\n\nThis is the expected criteria for your final answer:
+      Text content from the website.\nyou MUST return the actual complete content
+      as the final answer, not a summary."}],"model":"gpt-4.1-nano","temperature":0,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"scrape_website","description":"Scrape
+      text content from a website URL","strict":true,"parameters":{"properties":{"url":{"description":"The
+      website URL to scrape","title":"Url","type":"string"}},"required":["url"],"type":"object","additionalProperties":false}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DFqnTL8HiqhvV8cdz1JFay399KSNb\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772670243,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_AvYgD7l9kkwlBu6iZfbQjE3c\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"scrape_website\",\n
+        \             \"arguments\": \"{\\\"url\\\":\\\"http://quotes.toscrape.com/\\\"}\"\n
+        \           }\n          }\n        ],\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 140,\n    \"completion_tokens\":
+        24,\n    \"total_tokens\": 164,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_a9208292f0\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Website Scraper. You extract
+      text from websites\nYour personal goal is: Scrape content from URL"},{"role":"user","content":"\nCurrent
+      Task: Call the scrape_website tool to fetch text from http://quotes.toscrape.com/
+      and return the result.\n\nThis is the expected criteria for your final answer:
+      Text content from the website.\nyou MUST return the actual complete content
+      as the final answer, not a summary."},{"role":"assistant","content":null,"tool_calls":[{"id":"call_AvYgD7l9kkwlBu6iZfbQjE3c","type":"function","function":{"name":"scrape_website","arguments":"{\"url\":\"http://quotes.toscrape.com/\"}"}}]},{"role":"tool","tool_call_id":"call_AvYgD7l9kkwlBu6iZfbQjE3c","name":"scrape_website","content":"\"The
+      world as we have created it is a process of our thinking. It cannot be changed
+      without changing our thinking.\" by Albert Einstein"},{"role":"user","content":"Analyze
+      the tool result. If requirements are met, provide the Final Answer. Otherwise,
+      call the next tool. Deliver only the answer without meta-commentary."}],"model":"gpt-4.1-nano","temperature":0,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"scrape_website","description":"Scrape
+      text content from a website URL","strict":true,"parameters":{"properties":{"url":{"description":"The
+      website URL to scrape","title":"Url","type":"string"}},"required":["url"],"type":"object","additionalProperties":false}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DFqnT1bzDktxh5l6ympqSlhnjMVxN\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772670243,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"The world as we have created it is
+        a process of our thinking. It cannot be changed without changing our thinking.\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        235,\n    \"completion_tokens\": 24,\n    \"total_tokens\": 259,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_b0b94f3709\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Content Analyzer. You
+      extract quotes from text\nYour personal goal is: Extract quotes from text"},{"role":"user","content":"\nCurrent
+      Task: Extract the first quote from the content.\n\nThis is the expected criteria
+      for your final answer: Quote with author.\nyou MUST return the actual complete
+      content as the final answer, not a summary.\n\nThis is the context you''re working
+      with:\nThe world as we have created it is a process of our thinking. It cannot
+      be changed without changing our thinking.\n\nProvide your complete response:"}],"model":"gpt-4.1-nano","temperature":0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DFqnUMfumrcG4FHW8MXzPqwKql1WZ\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772670244,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"\\\"The world as we have created it
+        is a process of our thinking. It cannot be changed without changing our thinking.\\\"\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        109,\n    \"completion_tokens\": 23,\n    \"total_tokens\": 132,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_bd6a3c7cbd\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

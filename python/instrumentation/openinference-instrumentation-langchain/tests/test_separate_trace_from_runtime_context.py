@@ -1,9 +1,16 @@
+from typing import Any
+
 import pytest
 from langchain_core.runnables import RunnableLambda
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
 from openinference.instrumentation.langchain import LangChainInstrumentor
+
+
+def dummy_runnable(x: Any) -> None:
+    """Dummy function for verifying instrumentation behavior."""
+    return None
 
 
 @pytest.mark.parametrize("separate_trace_from_runtime_context", [True, False])
@@ -18,10 +25,10 @@ def test_separate_trace_from_runtime_context(
         separate_trace_from_runtime_context=separate_trace_from_runtime_context,
     )
     with tracer_provider.get_tracer(__name__).start_as_current_span("parent"):
-        RunnableLambda(lambda _: None).invoke(...)
+        RunnableLambda(dummy_runnable, name="DummyRunnable").invoke(0)
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
-    assert spans[0].name == "RunnableLambda"
+    assert spans[0].name == "DummyRunnable"
     if separate_trace_from_runtime_context:
         assert spans[0].parent is None
     else:

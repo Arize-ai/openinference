@@ -4,10 +4,6 @@ from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from portkey_ai.api_resources.apis.chat_complete import (
-    AsyncCompletions,
-    Completions,
-)
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -26,12 +22,26 @@ _instruments = ("portkey_ai >= 0.1.0",)
 class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     """An instrumentor for the Portkey AI framework."""
 
-    __slots__ = ("_original_completions_create", "_original_async_completions_create", "_tracer")
+    __slots__ = (
+        "_original_completions_create",
+        "_original_async_completions_create",
+        "_original_prompt_completions_create",
+        "_original_async_prompt_completions_create",
+        "_tracer",
+    )
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        from portkey_ai.api_resources.apis.chat_complete import AsyncCompletions, Completions
+        from portkey_ai.api_resources.apis.generation import (
+            AsyncCompletions as AsyncPromptCompletions,
+        )
+        from portkey_ai.api_resources.apis.generation import (
+            Completions as PromptCompletions,
+        )
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
@@ -45,32 +55,43 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_completions_create = Completions.create
         wrap_function_wrapper(
-            module="portkey_ai.api_resources.apis.chat_complete",
-            name="Completions.create",
-            wrapper=_CompletionsWrapper(tracer=self._tracer),
+            "portkey_ai.api_resources.apis.chat_complete",
+            "Completions.create",
+            _CompletionsWrapper(tracer=self._tracer),
         )
+        self._original_prompt_completions_create = PromptCompletions.create
         wrap_function_wrapper(
-            module="portkey_ai.api_resources.apis.generation",
-            name="Completions.create",
-            wrapper=_CompletionsWrapper(tracer=self._tracer),
+            "portkey_ai.api_resources.apis.generation",
+            "Completions.create",
+            _CompletionsWrapper(tracer=self._tracer),
         )
 
         self._original_async_completions_create = AsyncCompletions.create
         wrap_function_wrapper(
-            module="portkey_ai.api_resources.apis.chat_complete",
-            name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
+            "portkey_ai.api_resources.apis.chat_complete",
+            "AsyncCompletions.create",
+            _AsyncCompletionsWrapper(tracer=self._tracer),
         )
+        self._original_async_prompt_completions_create = AsyncPromptCompletions.create
         wrap_function_wrapper(
-            module="portkey_ai.api_resources.apis.generation",
-            name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
+            "portkey_ai.api_resources.apis.generation",
+            "AsyncCompletions.create",
+            _AsyncCompletionsWrapper(tracer=self._tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        portkey_module = import_module("portkey_ai.api_resources.apis.chat_complete")
+        chat_complete_module = import_module("portkey_ai.api_resources.apis.chat_complete")
+        generation_module = import_module("portkey_ai.api_resources.apis.generation")
         if self._original_completions_create is not None:
-            portkey_module.Completions.create = self._original_completions_create
+            chat_complete_module.Completions.create = self._original_completions_create
 
         if self._original_async_completions_create is not None:
-            portkey_module.AsyncCompletions.create = self._original_async_completions_create
+            chat_complete_module.AsyncCompletions.create = self._original_async_completions_create
+
+        if self._original_prompt_completions_create is not None:
+            generation_module.Completions.create = self._original_prompt_completions_create
+
+        if self._original_async_prompt_completions_create is not None:
+            generation_module.AsyncCompletions.create = (
+                self._original_async_prompt_completions_create
+            )

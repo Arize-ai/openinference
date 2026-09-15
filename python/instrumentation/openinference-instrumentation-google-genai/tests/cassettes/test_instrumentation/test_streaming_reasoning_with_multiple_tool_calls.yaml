@@ -1,0 +1,37 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the weather like in Boston &
+      new Delhi?"}], "role": "user"}], "tools": [{"functionDeclarations": [{"description":
+      "Get current weather information for a given location", "name": "get_weather",
+      "parameters": {"properties": {"location": {"description": "The city and state/country
+      for weather information", "type": "STRING"}}, "required": ["location"], "type":
+      "OBJECT"}}]}], "generationConfig": {"thinkingConfig": {"include_thoughts": true,
+      "thinking_level": "LOW"}}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse
+  response:
+    body:
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\":
+        {\"name\": \"get_weather\",\"args\": {\"location\": \"Boston\"},\"id\": \"dv8szvqe\"},\"thoughtSignature\":
+        \"EvsDCvgDAQw51sfOm202VhDM/fOzDucl3NeMekkiE7gOacjnPJ069JpRTXprcfTE6Ax6MyY7VejmY9ddNZBua89/SdYPZ/TqAemzbhsA48yRrmbWlm5R/B4xDO6mjmDtMUrDfN6ZT8MLZbem3it8aALrWE4bSHqEGxzU4G3TQh4+EEwke2iq9uo12ax3ud2MIteByts1WSAnRxv4b0M8Usn8R3oi05q/lTFVYbUetSquNGoaE6pQKRuB1BI/wpsrU0GIlFGPEhlNmSAH9StVFZdZ1SacmiEAEr8TdNJ2R5Peg8xX9TqEbo1VzxeiPe+gLXk2qTZnwJ5U0gdA657I6M/iQR2UgBvV3eWSDbamBvXWilVRS4IOpdnBh38z/tCZTwiJjB03qvPTotN4SbjqALxUTKKlHC7CDORu0KJHk1I9ieLBwVCHNBP1jgAZAruSYojAy19i5NjKgXIMSiBEZUt1d4QKCOjFcqC6dPm0DgCJY9j9N8M8VmVrxayq3a8HUHl6mYQCE4skGjmFdPU0NHEs/vDl4nXdoDGDjB0DnWRg32CErUr8FrcAED5Qhw2jrJXA3/6g9RP4ZcPogQUzhS1cDMUhS54RCc2lurBZN0ToeUj9COah0l4aL4SqosCg+S/BANAcmHmtFKXwdsw9N+MXcPQOyd34GvNOMYsk\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 71,\"candidatesTokenCount\":
+        16,\"totalTokenCount\": 180,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        71}],\"thoughtsTokenCount\": 93,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"FyIhav7bJNyw4-EP6eCsqA0\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\": {\"name\":
+        \"get_weather\",\"args\": {\"location\": \"New Delhi\"},\"id\": \"j80tal12\"}}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 71,\"candidatesTokenCount\":
+        33,\"totalTokenCount\": 197,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        71}],\"thoughtsTokenCount\": 93,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"FyIhav7bJNyw4-EP6eCsqA0\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\"}],\"role\": \"model\"},\"finishReason\":
+        \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 71,\"candidatesTokenCount\":
+        33,\"totalTokenCount\": 197,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        71}],\"thoughtsTokenCount\": 93,\"serviceTier\": \"standard\"},\"modelVersion\":
+        \"gemini-3.5-flash\",\"responseId\": \"FyIhav7bJNyw4-EP6eCsqA0\"}\r\n\r\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

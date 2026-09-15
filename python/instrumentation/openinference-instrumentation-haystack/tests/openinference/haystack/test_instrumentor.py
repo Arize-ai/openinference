@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
-from typing import Any, Dict, Generator, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Union
+from unittest.mock import MagicMock
 
 import pytest
 from haystack import Document
@@ -9,21 +10,16 @@ from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.embedders.openai_document_embedder import OpenAIDocumentEmbedder
 from haystack.components.generators.chat.openai import OpenAIChatGenerator
-from haystack.components.generators.openai import OpenAIGenerator
 from haystack.components.retrievers.in_memory.bm25_retriever import InMemoryBM25Retriever
-from haystack.components.websearch.serper_dev import SerperDevWebSearch
 from haystack.core.errors import PipelineRuntimeError
-from haystack.core.pipeline.async_pipeline import AsyncPipeline
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack.document_stores.in_memory.document_store import InMemoryDocumentStore
-from haystack.tools import Tool
+from haystack.tools.tool import Tool
 from haystack_integrations.components.rankers.cohere import (
     CohereRanker,
 )
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
@@ -31,10 +27,13 @@ from typing_extensions import TypeGuard
 
 from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
+from openinference.instrumentation.haystack._wrappers import infer_llm_provider_from_class_name
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -42,64 +41,55 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
+# haystack-ai < 3.0.0 keeps async pipeline execution in a dedicated `AsyncPipeline` class;
+# 3.0.0 removed it and merged the async methods into `Pipeline`. Resolve whichever exists so the
+# async tests run on both, and derive the expected pipeline span-name prefix from it (spans are
+# named after the runtime class, e.g. `AsyncPipeline.run_async` vs `Pipeline.run_async`).
+AsyncPipeline: type[Any] = Pipeline
+_HAS_DEDICATED_ASYNC_PIPELINE = False
+try:
+    from haystack.core.pipeline.async_pipeline import AsyncPipeline as _AsyncPipeline
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
+    AsyncPipeline = _AsyncPipeline
+    _HAS_DEDICATED_ASYNC_PIPELINE = True
+except ImportError:
+    pass
 
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
+_ASYNC_PIPELINE_NAME = AsyncPipeline.__name__
 
+# The non-chat `OpenAIGenerator` was removed from haystack-ai in 3.0.0 (only chat generators
+# remain). Guard the import so the pinned env (haystack-ai < 3.0) still exercises these tests
+# while the latest env skips the OpenAIGenerator-specific ones.
+try:
+    from haystack.components.generators.openai import OpenAIGenerator
 
-def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes all response headers.
+    _HAS_OPENAI_GENERATOR = True
+except ImportError:
+    _HAS_OPENAI_GENERATOR = False
 
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
+skip_if_no_openai_generator = pytest.mark.skipif(
+    not _HAS_OPENAI_GENERATOR,
+    reason="haystack.components.generators.openai.OpenAIGenerator removed in haystack-ai>=3.0.0",
+)
 
+# `SerperDevWebSearch` (and the whole `haystack.components.websearch` package) was removed from
+# haystack-ai in 3.0.0. Guard it the same way so the pinned env keeps covering it.
+try:
+    from haystack.components.websearch.serper_dev import SerperDevWebSearch
 
-@pytest.fixture()
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
+    _HAS_SERPERDEV_WEBSEARCH = True
+except ImportError:
+    _HAS_SERPERDEV_WEBSEARCH = False
 
-
-@pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
-@pytest.fixture()
-def setup_haystack_instrumentation(
-    tracer_provider: TracerProvider,
-) -> Generator[None, None, None]:
-    HaystackInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    HaystackInstrumentor().uninstrument()
+skip_if_no_serperdev_websearch = pytest.mark.skipif(
+    not _HAS_SERPERDEV_WEBSEARCH,
+    reason="haystack.components.websearch.SerperDevWebSearch removed in haystack-ai>=3.0.0",
+)
 
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor", name="haystack"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -110,11 +100,7 @@ class TestInstrumentor:
         assert isinstance(HaystackInstrumentor()._tracer, OITracer)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_spans(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -166,6 +152,10 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
@@ -189,7 +179,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     span = spans[2]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "AsyncPipeline.run_async_generator"
+    assert span.name == f"{_ASYNC_PIPELINE_NAME}.run_async_generator"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -200,7 +190,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     span = spans[3]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "AsyncPipeline.run_async"
+    assert span.name == f"{_ASYNC_PIPELINE_NAME}.run_async"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -210,11 +200,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_spans(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -266,6 +252,10 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
@@ -394,8 +384,8 @@ async def test_haystack_instrumentation_async_pipeline_filtering(
 
     assert [span.name for span in spans] == [
         "InMemoryBM25Retriever.run_async",
-        "AsyncPipeline.run_async_generator",
-        "AsyncPipeline.run_async",
+        f"{_ASYNC_PIPELINE_NAME}.run_async_generator",
+        f"{_ASYNC_PIPELINE_NAME}.run_async",
     ]
 
     assert [
@@ -403,11 +393,7 @@ async def test_haystack_instrumentation_async_pipeline_filtering(
     ] == [RETRIEVER, CHAIN, CHAIN]
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_tool_calling_llm_span_has_expected_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -460,6 +446,10 @@ def test_tool_calling_llm_span_has_expected_attributes(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert "What is the weather in Berlin" in input_value
@@ -489,11 +479,7 @@ def test_tool_calling_llm_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -537,21 +523,37 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     assert tool_call.tool_name == "get_current_weather"
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 4
-    assert [span.name for span in spans] == [
-        "OpenAIChatGenerator.run_async",
-        "AsyncPipeline.run_async_generator",
-        "AsyncPipeline.run_async",
-        "AsyncPipeline.run",
-    ]
+    if _HAS_DEDICATED_ASYNC_PIPELINE:
+        # haystack-ai < 3.0.0: AsyncPipeline.run drives the async execution internally, so the
+        # sync entrypoint also emits the async pipeline spans and the component's run_async span.
+        generator_span_name = "OpenAIChatGenerator.run_async"
+        expected_span_names = [
+            "OpenAIChatGenerator.run_async",
+            f"{_ASYNC_PIPELINE_NAME}.run_async_generator",
+            f"{_ASYNC_PIPELINE_NAME}.run_async",
+            f"{_ASYNC_PIPELINE_NAME}.run",
+        ]
+    else:
+        # haystack-ai >= 3.0.0: Pipeline.run is a purely synchronous entrypoint.
+        generator_span_name = "OpenAIChatGenerator.run"
+        expected_span_names = [
+            "OpenAIChatGenerator.run",
+            f"{_ASYNC_PIPELINE_NAME}.run",
+        ]
+    assert len(spans) == len(expected_span_names)
+    assert [span.name for span in spans] == expected_span_names
     span = spans[0]
-    assert span.name == "OpenAIChatGenerator.run_async"
+    assert span.name == generator_span_name
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert "What is the weather in Berlin" in input_value
@@ -603,11 +605,7 @@ def test_instrument_and_uninstrument_methods_wrap_and_unwrap_expected_methods(
     assert not hasattr(AsyncPipeline._run_component_async, "__wrapped__")
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_openai_chat_generator_llm_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -665,16 +663,16 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -702,7 +700,7 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert len(spans) == 2
     assert [span.name for span in spans] == [
         "OpenAIChatGenerator.run_async",
-        "AsyncPipeline.run_async_generator",
+        f"{_ASYNC_PIPELINE_NAME}.run_async_generator",
     ]
     span = spans[0]
     assert span.status.is_ok
@@ -739,16 +737,17 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@skip_if_no_openai_generator
+@pytest.mark.vcr
 def test_openai_generator_llm_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -777,8 +776,12 @@ def test_openai_generator_llm_span_has_expected_attributes(
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     input_value_data = json.loads(input_value)
     assert input_value_data.get("prompt") == "Who won the World Cup in 2022? Answer in one word."
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Who won the World Cup in 2022? Answer in one word."
@@ -841,7 +844,11 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
 ) -> None:
-    prompt_builder = PromptBuilder(template=default_template or "")
+    # haystack-ai 3.0.0 changed PromptBuilder's `required_variables` default from `None`
+    # (all optional) to `"*"` (all required), which would reject inputs supplied only via
+    # `template_variables`. Pass an empty list to keep the template variables optional on all
+    # supported versions.
+    prompt_builder = PromptBuilder(template=default_template or "", required_variables=[])
     pipe = Pipeline()
     pipe.add_component("prompt_builder", prompt_builder)
     output = pipe.run({"prompt_builder": prompt_builder_inputs})
@@ -866,11 +873,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_cohere_reranker_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -951,11 +954,8 @@ def test_cohere_reranker_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@skip_if_no_serperdev_websearch
+@pytest.mark.vcr
 def test_serperdev_websearch_retriever_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -1011,11 +1011,7 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_openai_document_embedder_embedding_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1083,11 +1079,8 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@skip_if_no_openai_generator
+@pytest.mark.vcr
 def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1109,11 +1102,8 @@ def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     assert len(spans) == 0
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@skip_if_no_openai_generator
+@pytest.mark.vcr
 def test_error_status_code_and_exception_events_with_invalid_api_key(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1143,11 +1133,8 @@ def test_error_status_code_and_exception_events_with_invalid_api_key(
         assert "api key" in exception_message.lower()
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@skip_if_no_openai_generator
+@pytest.mark.vcr
 def test_pipeline_and_component_spans_contain_context_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1187,12 +1174,7 @@ def test_pipeline_and_component_spans_contain_context_attributes(
 
 
 @pytest.mark.parametrize("use_async", [False, True])
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-    record_mode="once",
-)
+@pytest.mark.vcr
 async def test_agent_run_component_spans(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1236,7 +1218,15 @@ async def test_agent_run_component_spans(
         " more specific information about them?"
     )
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 4
+    # haystack-ai < 3.0.0 invokes tools through a `ToolInvoker` component (emitting its own span);
+    # 3.0.0 refactored the Agent to call tools via internal helper functions (`_run_tool`), so no
+    # `ToolInvoker` span is produced and the remaining spans shift down by one.
+    if _HAS_DEDICATED_ASYNC_PIPELINE:
+        assert len(spans) == 4
+        second_llm_index, agent_index = 2, 3
+    else:
+        assert len(spans) == 3
+        second_llm_index, agent_index = 1, 2
     openai_span = spans[0]
     assert openai_span.name == f"OpenAIChatGenerator.{run_method}"
     assert openai_span.status.is_ok
@@ -1250,8 +1240,12 @@ async def test_agent_run_component_spans(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == (
         "Search for Python tutorials"
     )
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     tool_prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0"
     assert attributes.pop(f"{tool_prefix}.{TOOL_CALL_FUNCTION_NAME}") == "search"
     assert isinstance(
@@ -1265,17 +1259,18 @@ async def test_agent_run_component_spans(
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
     assert not attributes
-    tool_invoker_span = spans[1]
-    assert tool_invoker_span.name == f"ToolInvoker.{run_method}"
-    assert tool_invoker_span.status.is_ok
-    attributes = dict(tool_invoker_span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "CHAIN"
-    assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    assert isinstance(attributes.pop(INPUT_VALUE), str)
-    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert not attributes
-    openai_span = spans[2]
+    if _HAS_DEDICATED_ASYNC_PIPELINE:
+        tool_invoker_span = spans[1]
+        assert tool_invoker_span.name == f"ToolInvoker.{run_method}"
+        assert tool_invoker_span.status.is_ok
+        attributes = dict(tool_invoker_span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "CHAIN"
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(INPUT_VALUE), str)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert not attributes
+    openai_span = spans[second_llm_index]
     assert openai_span.name == f"OpenAIChatGenerator.{run_method}"
     assert openai_span.status.is_ok
     attributes = dict(openai_span.attributes or {})
@@ -1290,8 +1285,12 @@ async def test_agent_run_component_spans(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == (
         "Search for Python tutorials"
     )
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
@@ -1299,7 +1298,7 @@ async def test_agent_run_component_spans(
     assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
     assert prompt_tokens + completion_tokens == total_tokens
     assert not attributes
-    agent_run_span = spans[3]  # root span
+    agent_run_span = spans[agent_index]  # root span
     assert agent_run_span.name == f"Agent.{run_method}"
     assert agent_run_span.status.is_ok
     attributes = dict(agent_run_span.attributes or {})
@@ -1311,11 +1310,7 @@ async def test_agent_run_component_spans(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_individual_component_without_child_components(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -1368,11 +1363,7 @@ def test_individual_component_without_child_components(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_individual_component_run_async_without_child_components(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -1427,21 +1418,6 @@ async def test_individual_component_run_async_without_child_components(
     assert not attributes
 
 
-@pytest.fixture
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-")
-
-
-@pytest.fixture
-def serperdev_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SERPERDEV_API_KEY", "sk-")
-
-
-@pytest.fixture
-def cohere_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("COHERE_API_KEY", "sk-")
-
-
 def _is_vector(
     value: Any,
 ) -> TypeGuard[Sequence[Union[int, float]]]:
@@ -1453,6 +1429,113 @@ def _is_vector(
         map(lambda x: isinstance(x, (int, float)), value)
     )
     return is_sequence_of_numbers
+
+
+class TestInferLLMProviderFromClassName:
+    def test_returns_none_when_instance_is_none(self) -> None:
+        result = infer_llm_provider_from_class_name(None)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "class_name, model_id, expected",
+        [
+            (
+                "HuggingFaceAPIGenerator",
+                "anthropic/claude-3-opus",
+                OpenInferenceLLMProviderValues.ANTHROPIC,
+            ),
+            ("HuggingFaceAPIGenerator", "openai/gpt-4", OpenInferenceLLMProviderValues.OPENAI),
+            ("HuggingFaceAPIGenerator", "azure/gpt-4", OpenInferenceLLMProviderValues.AZURE),
+            ("HuggingFaceAPIGenerator", "cohere/command-r", OpenInferenceLLMProviderValues.COHERE),
+            (
+                "HuggingFaceAPIChatGenerator",
+                "anthropic/claude-3",
+                OpenInferenceLLMProviderValues.ANTHROPIC,
+            ),
+            (
+                "HuggingFaceAPIChatGenerator",
+                "openai/gpt-3.5",
+                OpenInferenceLLMProviderValues.OPENAI,
+            ),
+        ],
+    )
+    def test_litellm_models_with_valid_provider_prefix(
+        self, class_name: str, model_id: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+        mock_instance.api_params = {"model": model_id}
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "class_name, model_id",
+        [
+            ("HuggingFaceAPIGenerator", "invalid_provider/some-model"),
+            ("HuggingFaceAPIGenerator", "gpt-4"),
+            ("HuggingFaceAPIChatGenerator", "unknown/model"),
+        ],
+    )
+    def test_litellm_models_with_invalid_model_id_returns_none(
+        self, class_name: str, model_id: str
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+        mock_instance.api_params = {"model": model_id}
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "model_id",
+        [None, 12345, [], {}],
+    )
+    def test_litellm_model_with_invalid_model_id_type(self, model_id: Any) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = "HuggingFaceAPIGenerator"
+        mock_instance.api_params = {"model": model_id}
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    def test_litellm_model_with_missing_model_id_attribute(self) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = "HuggingFaceAPIGenerator"
+        del mock_instance.api_params
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "class_name, expected",
+        [
+            ("OpenAIGenerator", OpenInferenceLLMProviderValues.OPENAI),
+            ("DALLEImageGenerator", OpenInferenceLLMProviderValues.OPENAI),
+            ("OpenAIChatGenerator", OpenInferenceLLMProviderValues.OPENAI),
+            ("AzureOpenAIGenerator", OpenInferenceLLMProviderValues.AZURE),
+            ("AzureOpenAIChatGenerator", OpenInferenceLLMProviderValues.AZURE),
+        ],
+    )
+    def test_known_server_models_return_expected_provider(
+        self, class_name: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "class_name",
+        ["InferenceClientModel", "UnknownModelClass", "CustomModel"],
+    )
+    def test_unknown_or_special_class_names_return_none(self, class_name: str) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
@@ -1478,6 +1561,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

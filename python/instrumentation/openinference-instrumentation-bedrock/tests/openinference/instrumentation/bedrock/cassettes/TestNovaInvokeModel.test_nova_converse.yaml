@@ -1,0 +1,30 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": [{"text": "What is the capital
+      of France?"}]}], "inferenceConfig": {"maxTokens": 64, "temperature": 0.1}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.nova-micro-v1%3A0/converse
+  response:
+    body:
+      string: '{"metrics":{"latencyMs":377},"output":{"message":{"content":[{"text":"The
+        capital of France is Paris. Paris is not only the capital city but also the
+        most populous city in France, and it serves as a major cultural, economic,
+        and political center both within the country and internationally. Known for
+        its historical and architectural landmarks such as the Eiffel Tower, the Louvre
+        Museum, Notre-Dame Cathedral"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":7,"outputTokens":64,"serverToolUsage":{},"totalTokens":71}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '542'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 28 Apr 2026 16:42:31 GMT
+      x-amzn-RequestId:
+      - f1c35942-5088-4c54-8ed4-6b55e7ef2c42
+    status:
+      code: 200
+      message: OK
+version: 1

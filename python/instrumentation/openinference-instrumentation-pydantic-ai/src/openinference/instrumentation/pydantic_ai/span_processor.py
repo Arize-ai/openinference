@@ -3,7 +3,7 @@ from typing import Optional
 
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
-from opentelemetry.trace import Span
+from opentelemetry.trace import Span, Status, StatusCode
 
 from openinference.instrumentation.pydantic_ai.semantic_conventions import get_attributes
 from openinference.instrumentation.pydantic_ai.utils import SpanFilter, should_export_span
@@ -62,12 +62,15 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
             # Combine the attributes with the openinference attributes
             span._attributes = {**span.attributes, **openinference_attributes}
-
+            if not span.status.status_code == StatusCode.ERROR:
+                span._status = Status(status_code=StatusCode.OK)
             # Determine if the span should be exported
             if should_export_span(span, self._span_filter):
                 super().on_end(span)
 
         except Exception as e:
+            span._status = Status(status_code=StatusCode.ERROR, description=str(e))
+            logger.exception(e)
             logger.warning(f"Error processing span in OpenInferenceSpanProcessor: {e}")
 
     def shutdown(self) -> None:

@@ -1,0 +1,104 @@
+interactions:
+- request:
+    body: '{"input":"Explain why the sky is blue in two sentences.","model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":1024,"thinking_level":"low","thinking_summaries":"auto"},"stream":true}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: 'event: interaction.created
+
+        data: {"interaction":{"id":"v1_Chc0UWdqYXJtSkt2T21qdU1QNF8zRzJBcxIXNFFnamFybUpLdk9tanVNUDRfM0cyQXM","status":"in_progress","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.created","metadata":{"usage":{"total_tokens":79,"total_input_tokens":11,"input_tokens_by_modality":[{"modality":"text","tokens":11}],"total_cached_tokens":0,"total_output_tokens":0,"total_tool_use_tokens":0,"total_thought_tokens":68}}}
+
+
+        event: interaction.status_update
+
+        data: {"interaction_id":"v1_Chc0UWdqYXJtSkt2T21qdU1QNF8zRzJBcxIXNFFnamFybUpLdk9tanVNUDRfM0cyQXM","status":"in_progress","event_type":"interaction.status_update"}
+
+
+        event: step.start
+
+        data: {"index":0,"step":{"type":"thought"},"event_type":"step.start"}
+
+
+        event: step.delta
+
+        data: {"index":0,"delta":{"content":{"text":"**Clarifying the Explanation**\n\nI''m
+        focusing on crafting a succinct, two-sentence explanation for the sky''s blueness.
+        I''m prioritizing clarity. The first sentence highlights that sunlight contains
+        different colors and blue light is scattered by air molecules. I''m now working
+        on the second sentence, building on this foundation to complete the explanation
+        of the phenomenon.\n\n\n","type":"text"},"type":"thought_summary"},"event_type":"step.delta"}
+
+
+        event: step.delta
+
+        data: {"index":0,"delta":{"signature":"","type":"thought_signature"},"event_type":"step.delta"}
+
+
+        event: step.delta
+
+        data: {"index":0,"delta":{"content":{"text":"**Finalizing the Explanation**\n\nI''ve
+        crafted the two sentences. The first details the composition of sunlight and
+        the scattering of blue light by air molecules. The second explains that this
+        scattering makes the sky blue. It hits all the required points, and fits the
+        user''s constraints. Now I believe the explanation is complete and ready to
+        be delivered.\n\n\n","type":"text"},"type":"thought_summary"},"event_type":"step.delta","metadata":{"usage":{"total_tokens":137,"total_input_tokens":11,"input_tokens_by_modality":[{"modality":"text","tokens":11}],"total_cached_tokens":0,"total_output_tokens":0,"total_tool_use_tokens":0,"total_thought_tokens":126}}}
+
+
+        event: step.delta
+
+        data: {"index":0,"delta":{"signature":"","type":"thought_signature"},"event_type":"step.delta"}
+
+
+        event: step.delta
+
+        data: {"index":0,"delta":{"signature":"CiQBDDnWx9j7ws/auV47Ry/qE0P4CKpOgbeBL9nmswz8ekZmhwMKZwEMOdbHgh5sCt+ddl6y4yC3nQUuaOrjNYwNrkmwF7u60aYvHfbRGvpqL1KLjspIOnTOusQR7RJnjvjurMCbWYbhjD8HUoi6IQ2OQHMxDrzzzTSFlaXIclRc29Nb9J0lVoF5LWcZxoAKlwIBDDnWx48A7I/BPLPfk69JZBrgZSCA8Rv7x2POOXNKD6OdB8mEMiDbVR0DpNotXMN7TW5tXXxk9sCL9Vz1BzcpKjjsUe/3w0W8FC+U5Y6pWilN3VnANS1NRFwh3IQjeZvxEAyrDTeUZg8OE+R0xyI3TPKcbE33/lsIiZnPxXTDlP3XS2Iu7dhAicOZJlfHnbxWKjwdWY+rCYA1nOZdLT3SDnPZUjH0uf3b+KsH6Ve39M1pJm1ERtFnrAtikXr81LYmTKj6jSOOkAcrreKtzQam+NkjZ9vQVZ0h9BFuxGycgNr7fbyXyvVHj4FGlQHpmk/o5Yv/8tmHdCFdcsaaOrZDSSRLWO18PDuLET0rIH3yyZhdR5E7eDMK8AEBDDnWxwGthZq8rBrAfeTUmL5JU/8r3LsfGuoVxhqNs7n8VyC/eupMmOpGUrKTbogZHt8F1TXgaxOiRhJqJXm0qlre+91QbY0SvW/uvn/z0t031CdcaZIUYvN94AkZc/JVbySh9jJej7VYBeBwe8IsK5ZfVxx/nPTqu1bQ4aKMU6DfZYxiGnx7d7xufI9liG1zlw1adUR72gDMqnAzQHqFMZKYbiaOmbVnR7PixQP6jWkidtjyHJaSSITl0fhmJLS7TEkTZojKi3cb7LVEwICiEdITNNaaCZEevgmtqChhjwKuq4tIjmNXAid+o0biC+UKQgEMOdbHw2R0DPnaq7mOcOdOe91CpwlxzZdBS8HcYqKly7eTwVAy3VMNHv3lGlnKOEr4GjX7DFVvTDHteXqxEU5qng==","type":"thought_signature"},"event_type":"step.delta","metadata":{"usage":{"total_tokens":174,"total_input_tokens":11,"input_tokens_by_modality":[{"modality":"text","tokens":11}],"total_cached_tokens":0,"total_output_tokens":37,"total_tool_use_tokens":0,"total_thought_tokens":126}}}
+
+
+        event: step.stop
+
+        data: {"index":0,"event_type":"step.stop"}
+
+
+        event: step.start
+
+        data: {"index":1,"step":{"type":"model_output"},"event_type":"step.start"}
+
+
+        event: step.delta
+
+        data: {"index":1,"delta":{"text":"The sky is blue because tiny air molecules
+        scatter blue light from the sun more effectively than other colors, a phenomenon
+        called Rayleigh scattering. This scattered blue light then reaches our eyes
+        from all directions, making","type":"text"},"event_type":"step.delta"}
+
+
+        event: step.delta
+
+        data: {"index":1,"delta":{"text":" the sky appear blue.","type":"text"},"event_type":"step.delta","metadata":{"usage":{"total_tokens":179,"total_input_tokens":11,"input_tokens_by_modality":[{"modality":"text","tokens":11}],"total_cached_tokens":0,"total_output_tokens":42,"total_tool_use_tokens":0,"total_thought_tokens":126}}}
+
+
+        event: step.stop
+
+        data: {"index":1,"event_type":"step.stop"}
+
+
+        event: interaction.completed
+
+        data: {"interaction":{"id":"v1_Chc0UWdqYXJtSkt2T21qdU1QNF8zRzJBcxIXNFFnamFybUpLdk9tanVNUDRfM0cyQXM","status":"completed","usage":{"total_tokens":179,"total_input_tokens":11,"input_tokens_by_modality":[{"modality":"text","tokens":11}],"total_cached_tokens":0,"total_output_tokens":42,"total_tool_use_tokens":0,"total_thought_tokens":126},"created":"2026-06-05T17:35:35Z","updated":"2026-06-05T17:35:35Z","service_tier":"standard","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.completed"}
+
+
+        event: done
+
+        data: [DONE]
+
+
+        '
+    headers:
+      content-type:
+      - text/event-stream
+    status:
+      code: 200
+      message: OK
+version: 1

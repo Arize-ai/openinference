@@ -1,0 +1,5 @@
+arize-phoenix
+arize-otel
+openinference-instrumentation-pipecat
+pipecat-ai[local-smart-turn,openai,runner,silero,webrtc]>=1.0
+python-dotenv>=1.0.0,<2.0.0

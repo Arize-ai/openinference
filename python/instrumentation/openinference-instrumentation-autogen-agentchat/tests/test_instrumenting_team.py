@@ -11,11 +11,7 @@ from openinference.semconv.trace import SpanAttributes
 
 class TestTeam:
     @pytest.mark.asyncio
-    @pytest.mark.vcr(
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-        decode_compressed_response=True,
-    )
+    @pytest.mark.vcr
     async def test_team_run(
         self,
         tracer_provider: trace_api.TracerProvider,

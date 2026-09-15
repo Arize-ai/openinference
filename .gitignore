@@ -8,6 +8,7 @@ dist
 sdist
 *__pycache__*
 **/.pytest_cache
+**/.mypy_cache
 **/.ipynb_checkpoints/
 **/.DS_Store
 .pnpm-store
@@ -15,10 +16,11 @@ sdist
 # Generated files
 .python-version
 .safety-project.ini
-.mastra
+uv.lock
 
 # Generated docs
 js/**/docs
+!js/packages/openinference-core/docs
 
 # Data files
 *.csv
@@ -32,6 +34,7 @@ version.ts
 # Local caching and environment files
 .env
 .vercel
+.claude/settings.local.json
 
 # DSPy produced files
 assertion.log
@@ -109,3 +112,8 @@ Thumbs.db
 
 # Scratch files
 .scratch/
+
+# Workspace Definitions
+*.code-workspace
+.workbench/
+use-workbench/.claude/worktrees/

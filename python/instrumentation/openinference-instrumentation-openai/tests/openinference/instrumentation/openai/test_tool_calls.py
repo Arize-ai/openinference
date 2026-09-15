@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import string
 from importlib import import_module
@@ -7,14 +8,13 @@ from typing import Tuple, cast
 
 import pytest
 from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+
+@pytest.mark.vcr
 def test_tool_calls(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
@@ -26,7 +26,7 @@ def test_tool_calls(
         ChatCompletionToolParam,
     )
 
-    client = openai.OpenAI(api_key="sk-")
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-"))
     input_tools = [
         ChatCompletionToolParam(
             type="function",
@@ -103,7 +103,7 @@ def test_tool_calls(
             },
         ],
     )
-    spans = in_memory_span_exporter.get_finished_spans()
+    spans = get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
     assert len(spans) == 1
     span = spans[0]
     attributes = dict(span.attributes or {})
@@ -165,11 +165,7 @@ def test_tool_calls(
     )
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_cached_tokens(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
@@ -178,7 +174,7 @@ def test_cached_tokens(
         pytest.skip("Not supported")
     openai = import_module("openai")
 
-    client = openai.OpenAI(api_key="sk-")
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-"))
     random_1024_token_prefix = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
     client.chat.completions.create(
         extra_headers={"Accept-Encoding": "gzip"},
@@ -200,12 +196,34 @@ def test_cached_tokens(
             },
         ],
     )
-    spans = in_memory_span_exporter.get_finished_spans()
+    spans = tuple(
+        span
+        for span in get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
+        if random_1024_token_prefix
+        in str((span.attributes or {}).get(SpanAttributes.INPUT_VALUE, ""))
+    )
     assert len(spans) == 2
-    span = spans[1]
-    attributes = dict(span.attributes or {})
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 1280
+    cache_reads = []
+    for span in spans:
+        cache_read = dict(span.attributes or {}).get("llm.token_count.prompt_details.cache_read")
+        assert isinstance(cache_read, int)
+        cache_reads.append(cache_read)
+    assert sorted(cache_reads) == [0, 1280]
 
 
 def _openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
+
+
+def get_openai_llm_spans(spans: Tuple[ReadableSpan, ...]) -> Tuple[ReadableSpan, ...]:
+    """Filter spans to only the primary OpenAI LLM response spans to avoid extra internal spans."""
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.LLM_PROVIDER)
+        == OpenInferenceLLMProviderValues.OPENAI.value
+    ]
+    if not llm_spans:
+        raise ValueError("No OpenAI LLM spans found in spans.")
+    return tuple(llm_spans)

@@ -1,9 +1,10 @@
 // test/utils/polly.config.ts
 
+import path from "path";
+
 import NodeHttpAdapter from "@pollyjs/adapter-node-http";
 import { Polly } from "@pollyjs/core";
 import FsPersister from "@pollyjs/persister-fs";
-import path from "path";
 
 // Register globally once
 Polly.register(NodeHttpAdapter);
@@ -16,10 +17,40 @@ function sanitizeTestName(name: string): string {
     .replace(/[^a-z0-9-_]/g, ""); // Remove all except alphanumeric, dash, underscore
 }
 
+// Normalize a JSON body to a canonical key-sorted string so cassette matching
+// is invariant to key-order drift across AWS SDK versions.
+function normalizeBody(body: unknown): string {
+  if (body == null) return "";
+  if (typeof body !== "string") {
+    try {
+      return JSON.stringify(sortKeys(body)) ?? "";
+    } catch {
+      return "";
+    }
+  }
+  if (body.length === 0) return "";
+  try {
+    return JSON.stringify(sortKeys(JSON.parse(body)));
+  } catch {
+    return body;
+  }
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value !== null && typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, k) => {
+        acc[k] = sortKeys((value as Record<string, unknown>)[k]);
+        return acc;
+      }, {});
+  }
+  return value;
+}
+
 export function createPolly(name: string, recordIfMissing = true): Polly {
-  const testName =
-    expect.getState().currentTestName?.replace(/[^\w\- ]+/g, "") ??
-    "unnamed-test";
+  const testName = expect.getState().currentTestName?.replace(/[^\w\- ]+/g, "") ?? "unnamed-test";
   const fullName = `${name} - ${sanitizeTestName(testName)}`;
 
   const polly = new Polly(fullName, {
@@ -29,7 +60,7 @@ export function createPolly(name: string, recordIfMissing = true): Polly {
     matchRequestsBy: {
       headers: false,
       method: true,
-      body: true,
+      body: normalizeBody,
       url: {
         protocol: true,
         hostname: true,

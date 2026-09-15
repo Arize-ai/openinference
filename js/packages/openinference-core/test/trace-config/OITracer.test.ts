@@ -1,32 +1,19 @@
-import { SESSION_ID } from "@arizeai/openinference-semantic-conventions";
-
-import {
-  context,
-  ContextManager,
-  Span,
-  SpanKind,
-  SpanOptions,
-  Tracer,
-} from "@opentelemetry/api";
+import type { ContextManager, Span, SpanOptions, Tracer } from "@opentelemetry/api";
+import { context, SpanKind } from "@opentelemetry/api";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import {
   InMemorySpanExporter,
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
+import { afterEach, beforeEach, describe, expect, it, type Mocked, vi } from "vitest";
+
+import { SESSION_ID } from "@arizeai/openinference-semantic-conventions";
 
 import { OITracer, REDACTED_VALUE, setSession } from "../../src";
 import { OISpan } from "../../src/trace/trace-config/OISpan";
 
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  type Mocked,
-  vi,
-} from "vitest";
+const getMockMethod = <T, K extends keyof T>(mock: T, method: K) => mock[method];
 
 describe("OITracer", () => {
   let mockTracer: Mocked<Tracer>;
@@ -56,11 +43,9 @@ describe("OITracer", () => {
     };
     mockTracer = {
       startSpan: vi.fn().mockReturnValue(mockSpan),
-      startActiveSpan: vi
-        .fn()
-        .mockImplementation((name, options, context, fn) => {
-          return fn(mockSpan);
-        }),
+      startActiveSpan: vi.fn().mockImplementation((name, options, context, fn) => {
+        return fn(mockSpan);
+      }),
     };
   });
   beforeEach(() => {
@@ -85,12 +70,12 @@ describe("OITracer", () => {
 
       const span = oiTracer.startSpan(name, options);
 
-      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startSpan")).toHaveBeenCalledWith(
         name,
         { attributes: undefined },
         context.active(),
       );
-      expect(mockSpan.setAttributes).toHaveBeenCalledWith({
+      expect(getMockMethod(mockSpan, "setAttributes")).toHaveBeenCalledWith({
         key1: "value1",
         "input.value": REDACTED_VALUE,
       });
@@ -109,25 +94,22 @@ describe("OITracer", () => {
       const options = {
         attributes: { key1: "value1", "input.value": "sensitiveValue" },
       };
-      context.with(
-        setSession(context.active(), { sessionId: "my-session-id" }),
-        () => {
-          const span = oiTracer.startSpan(name, options, context.active());
+      context.with(setSession(context.active(), { sessionId: "my-session-id" }), () => {
+        const span = oiTracer.startSpan(name, options, context.active());
 
-          expect(mockTracer.startSpan).toHaveBeenCalledWith(
-            name,
-            { attributes: undefined },
-            context.active(),
-          );
-          expect(mockSpan.setAttributes).toHaveBeenCalledWith({
-            key1: "value1",
-            [SESSION_ID]: "my-session-id",
-            "input.value": REDACTED_VALUE,
-          });
+        expect(getMockMethod(mockTracer, "startSpan")).toHaveBeenCalledWith(
+          name,
+          { attributes: undefined },
+          context.active(),
+        );
+        expect(getMockMethod(mockSpan, "setAttributes")).toHaveBeenCalledWith({
+          key1: "value1",
+          [SESSION_ID]: "my-session-id",
+          "input.value": REDACTED_VALUE,
+        });
 
-          expect(span).toBeInstanceOf(OISpan);
-        },
-      );
+        expect(span).toBeInstanceOf(OISpan);
+      });
     });
   });
 
@@ -148,7 +130,7 @@ describe("OITracer", () => {
         return span;
       });
 
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
         name,
         {
           attributes: undefined,
@@ -156,7 +138,7 @@ describe("OITracer", () => {
         expect.any(Object),
         expect.any(Function),
       );
-      expect(mockSpan.setAttributes).toHaveBeenCalledWith({
+      expect(getMockMethod(mockSpan, "setAttributes")).toHaveBeenCalledWith({
         key1: "value1",
         "input.value": REDACTED_VALUE,
       });
@@ -175,7 +157,7 @@ describe("OITracer", () => {
       const mockFn = vi.fn();
 
       oiTracer.startActiveSpan(name, mockFn);
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
         name,
         { attributes: undefined },
         context.active(),
@@ -187,7 +169,7 @@ describe("OITracer", () => {
         attributes: { key: "value" },
       };
       oiTracer.startActiveSpan(name, options, mockFn);
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
         name,
         { kind: SpanKind.INTERNAL, attributes: undefined },
         context.active(),
@@ -197,7 +179,7 @@ describe("OITracer", () => {
       const newContext = context.active().setValue(Symbol("test"), "test");
 
       oiTracer.startActiveSpan(name, options, newContext, mockFn);
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
         name,
         { kind: SpanKind.INTERNAL, attributes: undefined },
         newContext,
@@ -216,28 +198,25 @@ describe("OITracer", () => {
       const options = {
         attributes: { key1: "value1", "input.value": "sensitiveValue" },
       };
-      context.with(
-        setSession(context.active(), { sessionId: "my-session-id" }),
-        () => {
-          const span = oiTracer.startActiveSpan(name, options, (span) => span);
+      context.with(setSession(context.active(), { sessionId: "my-session-id" }), () => {
+        const span = oiTracer.startActiveSpan(name, options, (span) => span);
 
-          expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
-            name,
-            {
-              attributes: undefined,
-            },
-            context.active(),
-            expect.any(Function),
-          );
-          expect(mockSpan.setAttributes).toHaveBeenCalledWith({
-            key1: "value1",
-            [SESSION_ID]: "my-session-id",
-            "input.value": REDACTED_VALUE,
-          });
+        expect(getMockMethod(mockTracer, "startActiveSpan")).toHaveBeenCalledWith(
+          name,
+          {
+            attributes: undefined,
+          },
+          context.active(),
+          expect.any(Function),
+        );
+        expect(getMockMethod(mockSpan, "setAttributes")).toHaveBeenCalledWith({
+          key1: "value1",
+          [SESSION_ID]: "my-session-id",
+          "input.value": REDACTED_VALUE,
+        });
 
-          expect(span).toBeInstanceOf(OISpan);
-        },
-      );
+        expect(span).toBeInstanceOf(OISpan);
+      });
     });
     it("should properly nest spans", () => {
       const tracer = tracerProvider.getTracer("test");
@@ -269,12 +248,8 @@ describe("OITracer", () => {
       const childSpanParentId = childSpan?.parentSpanContext?.spanId;
       expect(childSpanParentId).toBeDefined();
       expect(childSpanParentId).toBe(parentSpanId);
-      expect(childSpan?.spanContext().traceId).toBe(
-        parentSpan?.spanContext().traceId,
-      );
-      expect(parent2?.spanContext().traceId).not.toBe(
-        childSpan?.spanContext().traceId,
-      );
+      expect(childSpan?.spanContext().traceId).toBe(parentSpan?.spanContext().traceId);
+      expect(parent2?.spanContext().traceId).not.toBe(childSpan?.spanContext().traceId);
     });
   });
 });

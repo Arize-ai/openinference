@@ -1,5 +1,156 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.27...python-openinference-instrumentation-google-adk-v0.1.28) (2026-09-15)
+
+
+### Bug Fixes
+
+* **google_adk:** Avoid Redundant Request Attribute Derivation ([#3591](https://github.com/Arize-ai/openinference/issues/3591)) ([033027e](https://github.com/Arize-ai/openinference/commit/033027e3b1c5bb75ff7785d31ec5193b30225de2))
+* **google_adk:** patch merged-tool-call tracer for google-adk 2.x (_batch_tool_executor) ([#3740](https://github.com/Arize-ai/openinference/issues/3740)) ([1f09554](https://github.com/Arize-ai/openinference/commit/1f09554367dd443e4e5f7856be4c76ef5cdf6302))
+
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.26...python-openinference-instrumentation-google-adk-v0.1.27) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.25...python-openinference-instrumentation-google-adk-v0.1.26) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.24...python-openinference-instrumentation-google-adk-v0.1.25) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.23...python-openinference-instrumentation-google-adk-v0.1.24) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.22...python-openinference-instrumentation-google-adk-v0.1.23) (2026-08-25)
+
+
+### Bug Fixes
+
+* Fix: google-adk tool/LLM spans locked at OK on ADK 2.x failures ([#3542](https://github.com/Arize-ai/openinference/issues/3542)) ([24271a9](https://github.com/Arize-ai/openinference/commit/24271a9a708e843ac3a353d0b8340ebe5f7e438f))
+* **google-adk:** trace compaction spans on ADK 1.32+ ([#3478](https://github.com/Arize-ai/openinference/issues/3478)) ([aa72912](https://github.com/Arize-ai/openinference/commit/aa729129304c407eb83605172738342daf25d190))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.21...python-openinference-instrumentation-google-adk-v0.1.22) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.20...python-openinference-instrumentation-google-adk-v0.1.21) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.19...python-openinference-instrumentation-google-adk-v0.1.20) (2026-08-12)
+
+
+### Features
+
+* **google-adk:** Add fallback output capture and agent description to agent spans ([#2759](https://github.com/Arize-ai/openinference/issues/2759)) ([91f1848](https://github.com/Arize-ai/openinference/commit/91f18488d6f03c9ecf442c7f917853cc191959bc))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.18...python-openinference-instrumentation-google-adk-v0.1.19) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.17...python-openinference-instrumentation-google-adk-v0.1.18) (2026-07-30)
+
+
+### Bug Fixes
+
+* **google_adk:** Capture Reasoning Content ([#3398](https://github.com/Arize-ai/openinference/issues/3398)) ([6b1abf2](https://github.com/Arize-ai/openinference/commit/6b1abf22128618a9c0c988575d7c15aa5373ff91))
+* **google_adk:** Handle Thinking Token Inclusion Correctly ([#3178](https://github.com/Arize-ai/openinference/issues/3178)) ([cb07495](https://github.com/Arize-ai/openinference/commit/cb074959c3742477ed1dbb3f96da70ee50ab04c0))
+* **google_adk:** Map Tool Call IDs to OI Attributes ([#3281](https://github.com/Arize-ai/openinference/issues/3281)) ([a5c0ef8](https://github.com/Arize-ai/openinference/commit/a5c0ef8f7db3dbc886713781ad503de82589942e))
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.16...python-openinference-instrumentation-google-adk-v0.1.17) (2026-07-01)
+
+
+### Bug Fixes
+
+* **google_adk:** Preserve Final Response Content Output ([#3298](https://github.com/Arize-ai/openinference/issues/3298)) ([af24f54](https://github.com/Arize-ai/openinference/commit/af24f54e14060d40a78a3c67f30a17d9a919b671))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.15...python-openinference-instrumentation-google-adk-v0.1.16) (2026-06-30)
+
+
+### Bug Fixes
+
+* **google_adk docs:** updating default model in example code ([#3290](https://github.com/Arize-ai/openinference/issues/3290)) ([084eb73](https://github.com/Arize-ai/openinference/commit/084eb733b724430adb311c08e9a33539b9d5237d))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.14...python-openinference-instrumentation-google-adk-v0.1.15) (2026-05-22)
+
+
+### Bug Fixes
+
+* **google_adk:** Handle Session ID For Sub-Agent Spans ([#3124](https://github.com/Arize-ai/openinference/issues/3124)) ([463cb75](https://github.com/Arize-ai/openinference/commit/463cb751daece76d3bfb549e3e88a0d8d55702e6))
+* **google-adk:** support google-adk 2.0 in canary tests ([#3156](https://github.com/Arize-ai/openinference/issues/3156)) ([b66f319](https://github.com/Arize-ai/openinference/commit/b66f319ed1f697a2d4b5e56c194b745041c1919e))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.13...python-openinference-instrumentation-google-adk-v0.1.14) (2026-05-18)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.51 ([#3110](https://github.com/Arize-ai/openinference/issues/3110)) ([bae43ff](https://github.com/Arize-ai/openinference/commit/bae43ff5676fbc4d3a666a15fb3bc50fb73316da))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.12...python-openinference-instrumentation-google-adk-v0.1.13) (2026-05-14)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.50 ([#3084](https://github.com/Arize-ai/openinference/issues/3084)) ([8a96ad7](https://github.com/Arize-ai/openinference/commit/8a96ad776e723dc1de497b28b25fbdc5e0b12355))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.11...python-openinference-instrumentation-google-adk-v0.1.12) (2026-05-10)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.48 ([#3042](https://github.com/Arize-ai/openinference/issues/3042)) ([298e3bf](https://github.com/Arize-ai/openinference/commit/298e3bf2b75717bd5c7238a83ac86ba3fe419297))
+* bump openinference-instrumentation minimum to &gt;=0.1.49 ([#3063](https://github.com/Arize-ai/openinference/issues/3063)) ([6fbe906](https://github.com/Arize-ai/openinference/commit/6fbe9061d919251420d4c96333c12027f6348fcf))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.10...python-openinference-instrumentation-google-adk-v0.1.11) (2026-05-05)
+
+
+### Bug Fixes
+
+* **google-adk:** support ADK 1.32 symbol moves ([#3048](https://github.com/Arize-ai/openinference/issues/3048)) ([57be443](https://github.com/Arize-ai/openinference/commit/57be4431a5e90b74fca3c51613a629ef6551a231))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.9...python-openinference-instrumentation-google-adk-v0.1.10) (2026-03-03)
+
+
+### Bug Fixes
+
+* **google-adk:** Suppress duplicate generate_content spans from native ADK tracing ([#2758](https://github.com/Arize-ai/openinference/issues/2758)) ([fb97839](https://github.com/Arize-ai/openinference/commit/fb978395b309e42fa58c80491ce0039506fd7149))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.8...python-openinference-instrumentation-google-adk-v0.1.9) (2026-02-05)
+
+
+### Features
+
+* google adk artifacts ([#2570](https://github.com/Arize-ai/openinference/issues/2570)) ([45f7027](https://github.com/Arize-ai/openinference/commit/45f70276a829bd2e41217e67daf9ae84b30b545e))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.7...python-openinference-instrumentation-google-adk-v0.1.8) (2025-12-11)
 
 

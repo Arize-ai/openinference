@@ -1,3 +1,8 @@
+import type { Attributes, ContextManager } from "@opentelemetry/api";
+import { context } from "@opentelemetry/api";
+import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
 import {
   METADATA,
   PROMPT_TEMPLATE_TEMPLATE,
@@ -6,9 +11,7 @@ import {
   SESSION_ID,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes, context, ContextManager } from "@opentelemetry/api";
-import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
-
+import type { Tags, User } from "../../src";
 import {
   clearAttributes,
   clearMetadata,
@@ -30,11 +33,7 @@ import {
   setSession,
   setTags,
   setUser,
-  Tags,
-  User,
 } from "../../src";
-
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("promptTemplate context", () => {
   let contextManager: ContextManager;
@@ -99,27 +98,21 @@ describe("session context", () => {
   });
 
   it("should set the session in the context", () => {
-    context.with(
-      setSession(context.active(), { sessionId: "session-id" }),
-      () => {
-        expect(getSession(context.active())).toStrictEqual({
-          sessionId: "session-id",
-        });
-      },
-    );
+    context.with(setSession(context.active(), { sessionId: "session-id" }), () => {
+      expect(getSession(context.active())).toStrictEqual({
+        sessionId: "session-id",
+      });
+    });
   });
 
   it("should delete the session from the context", () => {
-    context.with(
-      setSession(context.active(), { sessionId: "session-id" }),
-      () => {
-        expect(getSession(context.active())).toStrictEqual({
-          sessionId: "session-id",
-        });
-        const ctx = clearSession(context.active());
-        expect(getSession(ctx)).toBeUndefined();
-      },
-    );
+    context.with(setSession(context.active(), { sessionId: "session-id" }), () => {
+      expect(getSession(context.active())).toStrictEqual({
+        sessionId: "session-id",
+      });
+      const ctx = clearSession(context.active());
+      expect(getSession(ctx)).toBeUndefined();
+    });
   });
 });
 
@@ -327,13 +320,11 @@ describe("getContextAttributes", () => {
 
   it("should ignore context attributes that cannot be set as span attributes (non primitive)", () => {
     context.with(
-      context
-        .active()
-        .setValue(ContextAttributes["session.id"], { test: "test" }),
+      context.active().setValue(ContextAttributes["session.id"], { test: "test" }),
       () => {
-        expect(
-          context.active().getValue(ContextAttributes["session.id"]),
-        ).toStrictEqual({ test: "test" });
+        expect(context.active().getValue(ContextAttributes["session.id"])).toStrictEqual({
+          test: "test",
+        });
         const attributes = getAttributesFromContext(context.active());
         expect(attributes).toStrictEqual({});
       },

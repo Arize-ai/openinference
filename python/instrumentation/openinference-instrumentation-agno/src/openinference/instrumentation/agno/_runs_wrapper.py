@@ -1,5 +1,9 @@
+import asyncio
+import json
+import threading
 from typing import (
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Iterator,
@@ -17,8 +21,10 @@ from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent
 from agno.models.message import Message
+from agno.run.agent import RunCompletedEvent as AgentRunCompletedEvent
 from agno.run.agent import RunOutput
 from agno.run.messages import RunMessages
+from agno.run.team import RunCompletedEvent as TeamRunCompletedEvent
 from agno.run.team import TeamRunOutput
 from agno.team import Team
 from agno.tools.function import Function
@@ -87,13 +93,42 @@ def _extract_run_response_output(run_response: Union[RunOutput, TeamRunOutput]) 
     if run_response and run_response.content:
         if isinstance(run_response.content, str):
             return run_response.content
-        else:
+        if hasattr(run_response.content, "model_dump_json"):
             return str(run_response.content.model_dump_json())
+        if isinstance(run_response.content, dict):
+            return json.dumps(run_response.content)
+        return str(run_response.content)
     return ""
+
+
+def _extract_completed_event_output(
+    completed_event: Union[AgentRunCompletedEvent, TeamRunCompletedEvent],
+) -> str:
+    if completed_event.content is None:
+        return ""
+    if isinstance(completed_event.content, str):
+        return completed_event.content
+    if hasattr(completed_event.content, "model_dump_json"):
+        return str(completed_event.content.model_dump_json())
+    return str(completed_event.content)
 
 
 def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
+
+
+def _span_method_name(wrapped: Callable[..., Any], default: str) -> str:
+    """Span-name suffix for the wrapped run function.
+
+    The continue-run entrypoints (_continue_run, _acontinue_run, and their
+    _stream variants) share the run/arun wrappers; reflect the continuation in
+    the span name, collapsing stream variants to the base name exactly like
+    the run spans do.
+    """
+    name = getattr(wrapped, "__name__", "")
+    if "continue" in name:
+        return name.lstrip("_").removesuffix("_stream")
+    return default
 
 
 def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -121,6 +156,7 @@ def _agent_run_attributes(
         # Set graph attributes for team
         if agent.name:
             yield GRAPH_NODE_NAME, agent.name
+            yield SpanAttributes.AGENT_NAME, agent.name
 
         if hasattr(agent, "id") and agent.id:
             yield "agno.team.id", agent.id
@@ -134,13 +170,16 @@ def _agent_run_attributes(
 
         # Set legacy team attributes
         yield f"agno{key_suffix}.team", agent.name or ""
-        for member in agent.members:
-            yield from _agent_run_attributes(member, f".{member.name}")
+
+        # Capture metadata from team
+        if hasattr(agent, "metadata") and agent.metadata:
+            yield METADATA, json.dumps(agent.metadata, default=str)
 
     elif isinstance(agent, Agent):
         # Set graph attributes for agent
         if agent.name:
             yield GRAPH_NODE_NAME, agent.name
+            yield SpanAttributes.AGENT_NAME, agent.name
 
         if hasattr(agent, "id") and agent.id:
             yield "agno.agent.id", agent.id
@@ -156,12 +195,18 @@ def _agent_run_attributes(
         if agent.name:
             yield f"agno{key_suffix}.agent", agent.name or ""
 
+        # Capture metadata from agent
+        if hasattr(agent, "metadata") and agent.metadata:
+            yield METADATA, json.dumps(agent.metadata, default=str)
+
         if agent.knowledge:
             yield f"agno{key_suffix}.knowledge", agent.knowledge.__class__.__name__
 
         if agent.tools:
             tool_names = []
-            for tool in agent.tools:
+            # Handle both list of tools and callable that returns tools
+            tools = agent.tools() if callable(agent.tools) else agent.tools
+            for tool in tools:
                 if isinstance(tool, Function):
                     tool_names.append(tool.name)
                 elif isinstance(tool, Toolkit):
@@ -174,12 +219,74 @@ def _agent_run_attributes(
 
 
 def _setup_team_context(
-    agent: Union[Agent, Team], node_id: str
+    agent_or_team: Optional[Union[Agent, Team]], node_id: str
 ) -> Tuple[Optional[Any], Optional[Context]]:
-    if isinstance(agent, Team):
+    if isinstance(agent_or_team, Team):
         team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
         return context_api.attach(team_ctx), team_ctx
     return None, None
+
+
+def _get_agent_or_team(
+    instance: Any, args: Tuple[Any, ...], kwargs: Mapping[str, Any]
+) -> Optional[Union[Agent, Team]]:
+    """
+    Extract the Agent or Team from the arguments.
+    For module-level functions: first arg is the Agent/Team
+    """
+    # For module-level functions, the Agent/Team is the first positional arg
+    if args and isinstance(args[0], (Agent, Team)):
+        return args[0]
+
+    # Fallback: check kwargs for 'agent' or 'team'
+    if "agent" in kwargs and isinstance(kwargs["agent"], Agent):
+        return kwargs["agent"]
+    if "team" in kwargs and isinstance(kwargs["team"], Team):
+        return kwargs["team"]
+
+    return None
+
+
+def _get_team_span_context(agent_or_team: Optional[Union[Agent, Team]]) -> Optional[Context]:
+    """
+    Determine the appropriate span context for Team instances.
+
+    Returns:
+        - INVALID_SPAN context if this is a top-level Team (no parent team)
+        - None if this is a nested Team or not a Team at all
+
+    This ensures:
+    - Sequential team.run() calls create separate top-level traces
+    - Nested teams (teams as members) properly nest under parent teams
+    """
+    if not isinstance(agent_or_team, Team):
+        return None
+
+    # If there's already a recording span in context, record team span under it.
+    if trace_api.get_current_span().is_recording():
+        return None
+
+    # Check if we're inside a parent Team context (internal agno context key)
+    parent_team_node_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+    # Only force root span if we're NOT inside a parent Team
+    if parent_team_node_id is None:
+        # No parent team context - create root span for top-level Team
+        return trace_api.set_span_in_context(trace_api.INVALID_SPAN)
+
+    # Inside parent team - let it nest naturally
+    return None
+
+
+def detach_context_tokens(
+    initial_thread: Any, current_thread: Any, team_token: Any, ctx_token: Any
+) -> None:
+    """Helper function to detach context token with error handling."""
+    if initial_thread is current_thread:
+        if team_token:
+            context_api.detach(team_token)
+        if ctx_token is not None:
+            context_api.detach(ctx_token)
 
 
 class _RunWrapper:
@@ -205,14 +312,22 @@ class _RunWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        if hasattr(instance, "name") and instance.name:
-            agent_name = instance.name.replace(" ", "_").replace("-", "_")
+
+        # For module-level functions, the agent/team is the first argument
+        # For instance methods, it's the instance itself
+        agent_or_team = _get_agent_or_team(instance, args, kwargs)
+
+        if agent_or_team and hasattr(agent_or_team, "name") and agent_or_team.name:
+            agent_name = agent_or_team.name.replace(" ", "_").replace("-", "_")
         else:
-            if isinstance(instance, Team):
+            if isinstance(agent_or_team, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'run')}"
+
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(agent_or_team)
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
@@ -221,6 +336,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -231,7 +347,7 @@ class _RunWrapper:
                             *args,
                             **kwargs,
                         ),
-                        **dict(_agent_run_attributes(instance)),
+                        **dict(_agent_run_attributes(agent_or_team) if agent_or_team else {}),
                         **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
@@ -239,9 +355,10 @@ class _RunWrapper:
             ),
         )
 
+        team_token = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
-                team_token, team_ctx = _setup_team_context(instance, node_id)
+                team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
                 run_response: RunOutput = wrapped(*args, **kwargs)
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
@@ -275,14 +392,20 @@ class _RunWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        if hasattr(instance, "name") and instance.name:
-            agent_name = instance.name.replace(" ", "_").replace("-", "_")
+        # For module-level functions, the agent/team is the first argument
+        agent_or_team = _get_agent_or_team(instance, args, kwargs)
+
+        if agent_or_team and hasattr(agent_or_team, "name") and agent_or_team.name:
+            agent_name = agent_or_team.name.replace(" ", "_").replace("-", "_")
         else:
-            if isinstance(instance, Team):
+            if isinstance(agent_or_team, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'run')}"
+
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(agent_or_team)
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
@@ -290,6 +413,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -300,7 +424,7 @@ class _RunWrapper:
                             *args,
                             **kwargs,
                         ),
-                        **dict(_agent_run_attributes(instance)),
+                        **dict(_agent_run_attributes(agent_or_team) if agent_or_team else {}),
                         **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
@@ -308,28 +432,32 @@ class _RunWrapper:
             ),
         )
 
+        team_token = None
+        ctx_token = None
+        initial_thread = threading.current_thread()
         try:
-            current_run_id = None
             yield_run_output_set = False
             if kwargs.get("yield_run_output") is not True:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
 
             run_response = None
-            with trace_api.use_span(span, end_on_exit=False):
-                team_token, team_ctx = _setup_team_context(instance, node_id)
-                for response in wrapped(*args, **kwargs):
-                    if hasattr(response, "run_id"):
-                        current_run_id = response.run_id
-                        if current_run_id:
-                            span.set_attribute("agno.run.id", current_run_id)
+            # Manually attach/detach instead of use_span() context manager to context errors
+            # when yielding results across threads.
+            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+            team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
+            for response in wrapped(*args, **kwargs):
+                if hasattr(response, "run_id"):
+                    current_run_id = response.run_id
+                    if current_run_id:
+                        span.set_attribute("agno.run.id", current_run_id)
 
-                    if isinstance(response, (RunOutput, TeamRunOutput)):
-                        run_response = response
-                        if yield_run_output_set:
-                            continue
+                if isinstance(response, (RunOutput, TeamRunOutput)):
+                    run_response = response
+                    if yield_run_output_set:
+                        continue
 
-                    yield response
+                yield response
 
             if run_response is not None:
                 output = _extract_run_response_output(run_response)
@@ -337,18 +465,12 @@ class _RunWrapper:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_status(trace_api.StatusCode.OK)
-
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
             raise
-
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
+            detach_context_tokens(threading.current_thread(), initial_thread, team_token, ctx_token)
             span.end()
 
     async def arun(
@@ -362,14 +484,20 @@ class _RunWrapper:
             response = await wrapped(*args, **kwargs)
             return response
 
-        if hasattr(instance, "name") and instance.name:
-            agent_name = instance.name.replace(" ", "_").replace("-", "_")
+        # For module-level functions, the agent/team is the first argument
+        agent_or_team = _get_agent_or_team(instance, args, kwargs)
+
+        if agent_or_team and hasattr(agent_or_team, "name") and agent_or_team.name:
+            agent_name = agent_or_team.name.replace(" ", "_").replace("-", "_")
         else:
-            if isinstance(instance, Team):
+            if isinstance(agent_or_team, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.arun"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'arun')}"
+
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(agent_or_team)
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
@@ -378,6 +506,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -388,7 +517,7 @@ class _RunWrapper:
                             *args,
                             **kwargs,
                         ),
-                        **dict(_agent_run_attributes(instance)),
+                        **dict(_agent_run_attributes(agent_or_team) if agent_or_team else {}),
                         **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
@@ -396,9 +525,10 @@ class _RunWrapper:
             ),
         )
 
+        team_token = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
-                team_token, team_ctx = _setup_team_context(instance, node_id)
+                team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
                 run_response = await wrapped(*args, **kwargs)
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
@@ -431,15 +561,22 @@ class _RunWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             async for response in await wrapped(*args, **kwargs):
                 yield response
+            return
 
-        if hasattr(instance, "name") and instance.name:
-            agent_name = instance.name.replace(" ", "_").replace("-", "_")
+        # For module-level functions, the agent/team is the first argument
+        agent_or_team = _get_agent_or_team(instance, args, kwargs)
+
+        if agent_or_team and hasattr(agent_or_team, "name") and agent_or_team.name:
+            agent_name = agent_or_team.name.replace(" ", "_").replace("-", "_")
         else:
-            if isinstance(instance, Team):
+            if isinstance(agent_or_team, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.arun"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'arun')}"
+
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(agent_or_team)
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
@@ -448,6 +585,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -458,7 +596,7 @@ class _RunWrapper:
                             *args,
                             **kwargs,
                         ),
-                        **dict(_agent_run_attributes(instance)),
+                        **dict(_agent_run_attributes(agent_or_team) if agent_or_team else {}),
                         **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
@@ -466,33 +604,48 @@ class _RunWrapper:
             ),
         )
 
+        team_token = None
+        ctx_token = None
+        initial_task = asyncio.current_task()
         try:
-            current_run_id = None
             yield_run_output_set = False
             if kwargs.get("yield_run_output") is not True:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
-            with trace_api.use_span(span, end_on_exit=False):
-                team_token, team_ctx = _setup_team_context(instance, node_id)
-                async for response in wrapped(*args, **kwargs):  # type: ignore
-                    if hasattr(response, "run_id"):
-                        current_run_id = response.run_id
-                        if current_run_id:
-                            span.set_attribute("agno.run.id", current_run_id)
+            completed_event_output = ""
+            iterator = cast(AsyncIterator[Any], wrapped(*args, **kwargs))
+            ctx_token = context_api.attach(trace_api.set_span_in_context(span))
+            team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
+            async for response in iterator:
+                if hasattr(response, "run_id"):
+                    current_run_id = response.run_id
+                    if current_run_id:
+                        span.set_attribute("agno.run.id", current_run_id)
 
-                    if isinstance(response, (RunOutput, TeamRunOutput)):
-                        run_response = response
-                        if yield_run_output_set:
-                            continue
+                if isinstance(response, (RunOutput, TeamRunOutput)):
+                    run_response = response
+                    if yield_run_output_set:
+                        continue
 
+                if isinstance(response, (AgentRunCompletedEvent, TeamRunCompletedEvent)):
+                    completed_event_output = _extract_completed_event_output(response)
+
+                try:
                     yield response
+                except GeneratorExit:
+                    if hasattr(iterator, "aclose"):
+                        await iterator.aclose()
+                    break
 
             if run_response is not None:
                 output = _extract_run_response_output(run_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            elif completed_event_output:
+                span.set_attribute(OUTPUT_VALUE, completed_event_output)
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_status(trace_api.StatusCode.OK)
 
         except Exception as e:
@@ -501,11 +654,7 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
+            detach_context_tokens(asyncio.current_task(), initial_task, team_token, ctx_token)
             span.end()
 
 
@@ -520,6 +669,7 @@ USER_ID = SpanAttributes.USER_ID
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_NAME = SpanAttributes.GRAPH_NODE_NAME
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
+METADATA = SpanAttributes.METADATA
 
 # message attributes
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON

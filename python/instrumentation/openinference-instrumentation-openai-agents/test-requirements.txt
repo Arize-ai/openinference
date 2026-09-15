@@ -1,8 +1,11 @@
-openai==1.99.9
-openai_agents==0.2.6
+openai==2.26.0
+# [realtime] pulls websockets, without which agents.realtime is not importable and the
+# realtime instrumentation silently disables itself. The extra tracks the SDK's own
+# websockets range rather than pinning one here.
+openai_agents[realtime]==0.11.0
 openinference-instrumentation-openai
 opentelemetry-sdk
 respx
 pytest-asyncio
 pytest-vcr
-vcrpy>=6.0.1
+vcrpy

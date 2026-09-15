@@ -1,4 +1,4 @@
-import { AnyFn, SpanTraceOptions } from "./types";
+import type { AnyFn, SpanTraceOptions } from "./types";
 import { withSpan } from "./withSpan";
 
 /**
@@ -8,13 +8,14 @@ import { withSpan } from "./withSpan";
  * for tracing purposes. It leverages the `withSpan` function internally to ensure
  * consistent tracing behavior across the library.
  *
- * The decorator uses an optimized caching mechanism to avoid rebinding methods on
- * every call, improving performance for frequently called methods.
+ * The decorator binds the original method at call time so the traced wrapper runs
+ * with the correct `this` value for each invocation.
  *
  * @experimental This API is experimental and may change in future versions
  *
  * @param options - Configuration options for the tracing behavior
- * @param options.tracer - Custom tracer instance to use (optional)
+ * @param options.tracer - Custom tracer instance to use (otherwise the current global tracer
+ * provider is resolved when the decorated method is invoked)
  * @param options.name - Custom span name (defaults to method name)
  * @param options.openTelemetrySpanKind - OpenTelemetry span kind (defaults to INTERNAL)
  * @param options.kind - OpenInference span kind (defaults to CHAIN)
@@ -26,7 +27,7 @@ import { withSpan } from "./withSpan";
  * @example
  * ```typescript
  * class MyService {
- *   @observe({ name: "processData", kind: OpenInferenceSpanKind.LLM })
+ *   @observe({ name: "processData", kind: "LLM" })
  *   async processData(input: string) {
  *     // Method implementation
  *     return `processed: ${input}`;
@@ -47,14 +48,14 @@ export function observe<Fn extends AnyFn>(options: SpanTraceOptions = {}) {
     // Create a wrapper that preserves 'this' context for class methods
     const wrappedMethod = function (this: unknown, ...args: Parameters<Fn>) {
       // Bind the original method to the current 'this' context
-      const boundMethod = originalMethod.bind(this) as Fn;
+      const boundMethod = originalMethod.bind(this);
 
       // Use withSpan to wrap the bound method, ensuring consistent tracing behavior
       const tracedMethod = withSpan(boundMethod, traceOptions);
 
       return tracedMethod(...args);
-    } as Fn;
+    };
 
-    return wrappedMethod;
+    return Object.assign(wrappedMethod, originalMethod);
   };
 }

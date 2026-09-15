@@ -1,3 +1,3 @@
-export * from "./OpenInferenceSpanProcessor";
-export { SpanFilter } from "./types";
-export { isOpenInferenceSpan } from "./utils";
+export * from "./OpenInferenceSpanProcessor.js";
+export type { SpanFilter } from "./types.js";
+export { isOpenInferenceSpan } from "./utils.js";

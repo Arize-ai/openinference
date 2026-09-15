@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import List, Mapping, Sequence, Union, cast
+from typing import Any, List, Mapping, Optional, Sequence, Union, cast
 
 import pytest
 from opentelemetry import trace
@@ -14,44 +14,75 @@ from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.instrumented import InstrumentationSettings
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolAttributes,
     ToolCallAttributes,
 )
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
-def test_openai_agent_and_llm_spans_v1(
+@pytest.mark.vcr
+def test_openai_agent_plain_text_output_v2(
     in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
 ) -> None:
-    # Version 1 is deprecated and will be removed in a future release.
-    _test_openai_agent_and_llm_spans(
+    _test_openai_agent_plain_text_output(
         in_memory_span_exporter,
         tracer_provider,
-        InstrumentationSettings(version=1, event_mode="attributes"),
-    )
-    in_memory_span_exporter.clear()
-    _test_openai_agent_and_llm_spans_message_history(
-        in_memory_span_exporter,
-        tracer_provider,
-        InstrumentationSettings(version=1, event_mode="attributes"),
+        InstrumentationSettings(version=2),
     )
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+def _test_openai_agent_plain_text_output(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    instrumentation: InstrumentationSettings,
+) -> None:
+    """Test that output.value is set for plain text (str) agent responses."""
+    trace.set_tracer_provider(tracer_provider)
+
+    api_key = os.getenv("OPENAI_API_KEY", "sk-test")
+    model = OpenAIChatModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    agent = Agent(model, output_type=str)
+    agent.instrument = instrumentation
+
+    result = agent.run_sync("Say hello.")
+    assert result is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
+    attributes = dict(cast(Mapping[str, AttributeValue], llm_span.attributes))
+
+    assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
+    # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
+    provider = attributes.pop(LLM_PROVIDER, None)
+    if provider is not None:
+        assert provider == OpenInferenceLLMProviderValues.OPENAI.value
+    system = attributes.pop(LLM_SYSTEM, None)
+    if system is not None:
+        assert system == OpenInferenceLLMSystemValues.OPENAI.value
+
+    message_content = attributes.get(
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+    )
+    assert message_content is not None
+    assert isinstance(message_content, str)
+
+    output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert output_value is not None, "output.value must be set for plain-text agent responses."
+    assert output_value == message_content
+
+
+@pytest.mark.vcr
 def test_openai_agent_and_llm_spans_v2(
     in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
 ) -> None:
@@ -84,14 +115,14 @@ def _test_openai_agent_and_llm_spans(
     api_key = os.getenv("OPENAI_API_KEY", "sk-test")
 
     # Create the model and agent
-    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    model = OpenAIChatModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
     agent = Agent(
         model,
         instructions=["Use the weather tool", "Use the calculator tool"],
         system_prompt="You are a weather assistant",
         output_type=LocationModel,
-        instrument=instrumentation,
     )
+    agent.instrument = instrumentation
 
     # Run the agent
     result = agent.run_sync("The windy city in the US of A.")
@@ -111,6 +142,13 @@ def _test_openai_agent_and_llm_spans(
     _verify_agent_span(agent_span)
 
 
+def _concatenated_instructions(message_content: Optional[AttributeValue]) -> List[str]:
+    """Recover an agent's instructions from the single system message pydantic-ai joins
+    them into."""
+    assert isinstance(message_content, str)
+    return [line for line in message_content.splitlines() if line]
+
+
 def _verify_llm_span(span: ReadableSpan) -> None:
     """Verify the LLM span has correct attributes."""
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -119,38 +157,30 @@ def _verify_llm_span(span: ReadableSpan) -> None:
         attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.LLM.value
     )
-    assert attributes.get(SpanAttributes.LLM_SYSTEM) == "openai"
-    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
 
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
-        == "system"
-    )
+    assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
+    assert attributes.pop(LLM_FINISH_REASON, None) == "tool_call"
+    # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
+    provider = attributes.pop(LLM_PROVIDER, None)
+    if provider is not None:
+        assert provider == OpenInferenceLLMProviderValues.OPENAI.value
+    system = attributes.pop(LLM_SYSTEM, None)
+    if system is not None:
+        assert system == OpenInferenceLLMSystemValues.OPENAI.value
+
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}") == "system"
+    assert _concatenated_instructions(
+        attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+    ) == ["Use the weather tool", "Use the calculator tool"]
+
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
-        == "Use the weather tool\nUse the calculator tool"
-    )
+    attribute = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    assert attributes.get(attribute) == "You are a weather assistant"
 
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}")
-        == "system"
-    )
-    # System instructions get concatenated into a single message by pydantic
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}")
-        == "You are a weather assistant"
-    )
-
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}")
-        == "user"
-    )
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_CONTENT}")
-        == "The windy city in the US of A."
-    )
-
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    attribute_name = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    assert attributes.get(attribute_name) == "The windy city in the US of A."
     assert (
         attributes.get(f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
         == "assistant"
@@ -166,10 +196,8 @@ def _verify_llm_span(span: ReadableSpan) -> None:
     )
     assert isinstance(tool_call_arguments, str)
     arguments_dict = json.loads(tool_call_arguments)
-    assert arguments_dict == {
-        "city": "Chicago",
-        "country": "United States of America",
-    }
+    assert arguments_dict["city"] == "Chicago"
+    assert arguments_dict["country"] in ("USA", "United States")
 
     assert (
         attributes.get(f"{SpanAttributes.LLM_TOOLS}.0.{SpanAttributes.TOOL_NAME}") == "final_result"
@@ -182,9 +210,8 @@ def _verify_llm_span(span: ReadableSpan) -> None:
     prompt_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT)
     completion_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION)
     total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
-    assert isinstance(prompt_tokens, int)
-    assert isinstance(completion_tokens, int)
-    assert isinstance(total_tokens, int)
+    assert isinstance(prompt_tokens, int) and prompt_tokens > 0
+    assert isinstance(completion_tokens, int) and completion_tokens > 0
     assert total_tokens == prompt_tokens + completion_tokens
 
 
@@ -202,10 +229,9 @@ def _verify_agent_span(span: ReadableSpan) -> None:
 
     output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "city": "Chicago",
-        "country": "United States of America",
-    }
+    output_dict = json.loads(output_value)
+    assert output_dict["city"] == "Chicago"
+    assert output_dict["country"] in ("USA", "United States")
 
 
 def get_span_by_kind(spans: Sequence[ReadableSpan], kind: str) -> ReadableSpan:
@@ -233,8 +259,10 @@ def _test_openai_agent_and_llm_spans_message_history(
         country: str
 
     # Create the model and agent
-    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key="sk-test"))
-    agent = Agent(model, output_type=LocationModel, instrument=instrumentation)
+    api_key = os.getenv("OPENAI_API_KEY", "sk-test")
+    model = OpenAIChatModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
+    agent = Agent(model, output_type=LocationModel)
+    agent.instrument = instrumentation
 
     # Create message history with multiple messages
     message_history: List[Union[ModelRequest, ModelResponse]] = [
@@ -273,3 +301,111 @@ def _test_openai_agent_and_llm_spans_message_history(
     assert input_value == "third message", (
         f"Expected INPUT_VALUE to be 'third message', but got '{input_value}'"
     )
+
+
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+
+
+@pytest.mark.vcr
+def test_openai_tool_span_instrumentation_v5(
+    in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
+) -> None:
+    trace.set_tracer_provider(tracer_provider)
+
+    api_key = os.getenv("OPENAI_API_KEY", "sk-test")
+    model = OpenAIChatModel("gpt-4o-mini", provider=OpenAIProvider(api_key=api_key))
+    agent = Agent(model)
+    agent.instrument = InstrumentationSettings(version=cast(Any, 5))
+
+    @agent.tool_plain
+    def get_weather(city: str) -> str:
+        return f"It's sunny in {city}."
+
+    result = agent.run_sync("What's the weather in Paris?")
+    assert result is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    tool_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    tool_attrs = dict(cast(Mapping[str, AttributeValue], tool_span.attributes))
+
+    assert (
+        tool_attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.TOOL.value
+    )
+    assert tool_attrs.get(SpanAttributes.TOOL_NAME) == "get_weather"
+    assert tool_attrs.get(SpanAttributes.TOOL_PARAMETERS) is not None
+    assert tool_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None
+
+    # The tool arguments must also land on input.value
+    assert json.loads(cast(str, tool_attrs[SpanAttributes.INPUT_VALUE])) == {"city": "Paris"}
+    assert tool_attrs.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+
+    # An LLM span must carry the tool's JSON schema. pydantic-ai 2.0 serializes it under
+    # ``parameters_json_schema`` (not ``properties``), so this guards the extraction path.
+    # A tool-calling run produces multiple LLM spans (the call and the follow-up); the tool
+    # definitions appear on the span(s) where the tool is offered to the model.
+    json_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    ]
+    json_schemas = [
+        json.loads(cast(str, span.attributes[json_schema_key]))
+        for span in llm_spans
+        if span.attributes and json_schema_key in span.attributes
+    ]
+    # Every LLM span (including only TOOL call attributes) must report an output.value
+    for llm_span in llm_spans:
+        llm_attrs = dict(cast(Mapping[str, AttributeValue], llm_span.attributes))
+        assert llm_attrs.get(SpanAttributes.OUTPUT_VALUE) is not None, (
+            f"LLM span {llm_span.name!r} is missing output.value"
+        )
+        assert llm_attrs.pop(LLM_MODEL_NAME, None) == "gpt-4o-mini"
+        assert llm_attrs.pop(LLM_FINISH_REASON, None) in ["stop", "tool_call"]
+        # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
+        provider = llm_attrs.pop(LLM_PROVIDER, None)
+        if provider is not None:
+            assert provider == OpenInferenceLLMProviderValues.OPENAI.value
+        system = llm_attrs.pop(LLM_SYSTEM, None)
+        if system is not None:
+            assert system == OpenInferenceLLMSystemValues.OPENAI.value
+
+    # Exactly one of them is the tool-calling step, and its output.value is the tool call
+    tool_calling_outputs = [
+        json.loads(cast(str, span.attributes[SpanAttributes.OUTPUT_VALUE]))
+        for span in llm_spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.OUTPUT_MIME_TYPE)
+        == OpenInferenceMimeTypeValues.JSON.value
+    ]
+    assert tool_calling_outputs, "no LLM span reported a tool call as its output.value"
+    assert any(
+        call.get("name") == "get_weather" for output in tool_calling_outputs for call in output
+    )
+
+    assert json_schemas, "no LLM span carried llm.tools.0.tool.json_schema"
+    # The emitted value must be the actual JSON schema object (the get_weather tool takes a
+    # `city: str`), not just any string that happens to contain "city".
+    assert any(
+        schema.get("properties", {}).get("city", {}).get("type") == "string"
+        for schema in json_schemas
+    )
+
+    agent_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+    agent_attrs = dict(cast(Mapping[str, AttributeValue], agent_span.attributes))
+    assert (
+        agent_attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.AGENT.value
+    )
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT not in agent_attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION not in agent_attrs

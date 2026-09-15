@@ -24,4 +24,7 @@ dependencies {
     // Auto-service for service provider
     compileOnly "com.google.auto.service:auto-service:${autoServiceVersion}"
     annotationProcessor "com.google.auto.service:auto-service:${autoServiceVersion}"
+
+    // Test
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing"
 } 

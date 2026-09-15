@@ -3,9 +3,6 @@ exclude:
   - node_modules
   - js/node_modules
   - js/packages/*/node_modules
-  - js/examples/*/node_modules
-  - js/examples/*/backend/node_modules
-  - js/examples/*/frontend/node_modules
   - .git
   - .github
   - Gemfile

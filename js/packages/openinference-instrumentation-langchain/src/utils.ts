@@ -1,3 +1,8 @@
+import type { Run } from "@langchain/core/tracers/base";
+import type { Attributes } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+import { isAttributeValue } from "@opentelemetry/core";
+
 import { withSafety } from "@arizeai/openinference-core";
 import {
   MimeType,
@@ -7,10 +12,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes, diag } from "@opentelemetry/api";
-import { isAttributeValue } from "@opentelemetry/core";
-
-import {
+import type {
   LLMMessage,
   LLMMessageFunctionCall,
   LLMMessagesAttributes,
@@ -21,31 +23,19 @@ import {
   TokenCountAttributes,
   ToolAttributes,
 } from "./types";
-import {
-  assertUnreachable,
-  isNonEmptyArray,
-  isNumber,
-  isObject,
-  isString,
-} from "./typeUtils";
-
-import { Run } from "@langchain/core/tracers/base";
+import { assertUnreachable, isNonEmptyArray, isNumber, isObject, isString } from "./typeUtils";
 
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;
 
-export const SESSION_ID_KEYS = [
-  "session_id",
-  "thread_id",
-  "conversation_id",
-] as const;
+export const SESSION_ID_KEYS = ["session_id", "thread_id", "conversation_id"] as const;
 
 /**
  * Handler for any unexpected errors that occur during processing.
  */
 const onError = (message: string) => (error: unknown) => {
   diag.warn(
-    `OpenInference-LangChain: error processing langchain run, falling back to null. ${message}. ${error}`,
+    `OpenInference-LangChain: error processing langchain run, falling back to null. ${message}. ${String(error)}`,
   );
 };
 
@@ -61,10 +51,7 @@ const safelyJSONStringify = withSafety({
  * @param baseKey - Base key to prepend to all keys.
  * @returns Flattened attributes
  */
-function flattenAttributes(
-  attributes: Record<string, unknown>,
-  baseKey: string = "",
-): Attributes {
+function flattenAttributes(attributes: Record<string, unknown>, baseKey: string = ""): Attributes {
   const result: Attributes = {};
   for (const key in attributes) {
     const newKey = baseKey ? `${baseKey}.${key}` : key;
@@ -102,12 +89,14 @@ function getOpenInferenceSpanKindFromRunType(runType: string) {
     return OpenInferenceSpanKind.AGENT;
   }
 
-  if (normalizedRunType in OpenInferenceSpanKind) {
-    return OpenInferenceSpanKind[
-      normalizedRunType as keyof typeof OpenInferenceSpanKind
-    ];
+  if (isOpenInferenceSpanKind(normalizedRunType)) {
+    return OpenInferenceSpanKind[normalizedRunType];
   }
   return OpenInferenceSpanKind.CHAIN;
+}
+
+function isOpenInferenceSpanKind(value: string): value is keyof typeof OpenInferenceSpanKind {
+  return value in OpenInferenceSpanKind;
 }
 
 /**
@@ -147,9 +136,7 @@ function formatIO({
   if (values.length === 1 && typeof values[0] === "string") {
     return {
       [valueAttribute]: values[0],
-      [mimeTypeAttribute]: isJSONString(values[0])
-        ? MimeType.JSON
-        : MimeType.TEXT,
+      [mimeTypeAttribute]: isJSONString(values[0]) ? MimeType.JSON : MimeType.TEXT,
     };
   }
 
@@ -164,9 +151,7 @@ function formatIO({
  * @param messageData - The langchain message data to extract the role from
  * @returns The role of the message or null
  */
-function getRoleFromMessageData(
-  messageData: Record<string, unknown>,
-): string | null {
+function getRoleFromMessageData(messageData: Record<string, unknown>): string | null {
   const messageIds = messageData.lc_id;
   if (!isNonEmptyArray(messageIds)) {
     return null;
@@ -205,9 +190,7 @@ function getRoleFromMessageData(
  * @param messageKwargs - The langchain message kwargs to extract the content from
  * @returns The content of the message or null
  */
-function getContentFromMessageData(
-  messageKwargs: Record<string, unknown>,
-): string | null {
+function getContentFromMessageData(messageKwargs: Record<string, unknown>): string | null {
   return isString(messageKwargs.content) ? messageKwargs.content : null;
 }
 
@@ -218,16 +201,11 @@ function getFunctionCallDataFromAdditionalKwargs(
   if (!isObject(functionCall)) {
     return {};
   }
-  const functionCallName = isString(functionCall.name)
-    ? functionCall.name
-    : undefined;
-  const functionCallArgs = isString(functionCall.args)
-    ? functionCall.args
-    : undefined;
+  const functionCallName = isString(functionCall.name) ? functionCall.name : undefined;
+  const functionCallArgs = isString(functionCall.args) ? functionCall.args : undefined;
   return {
     [SemanticConventions.MESSAGE_FUNCTION_CALL_NAME]: functionCallName,
-    [SemanticConventions.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON]:
-      functionCallArgs,
+    [SemanticConventions.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON]: functionCallArgs,
   };
 }
 
@@ -247,9 +225,7 @@ function getToolCallDataFromAdditionalKwargs(
     if (!isObject(toolCall) && !isObject(toolCall.function)) {
       return {};
     }
-    const toolCallName = isString(toolCall.function.name)
-      ? toolCall.function.name
-      : undefined;
+    const toolCallName = isString(toolCall.function.name) ? toolCall.function.name : undefined;
     const toolCallArgs = isString(toolCall.function.arguments)
       ? toolCall.function.arguments
       : undefined;
@@ -301,9 +277,7 @@ function parseMessage(messageData: Record<string, unknown>): LLMMessage {
  * @param input - The input of a langchain run.
  * @returns The OpenInference attributes for the input messages.
  */
-function formatInputMessages(
-  input: Run["inputs"],
-): LLMMessagesAttributes | null {
+function formatInputMessages(input: Run["inputs"]): LLMMessagesAttributes | null {
   const maybeMessages = input.messages;
   if (!isNonEmptyArray(maybeMessages)) {
     return null;
@@ -356,9 +330,7 @@ function getFirstOutputGeneration(output: Run["outputs"]) {
  * @param output - The output of a langchain run.
  * @returns The OpenInference attributes for the output messages.
  */
-function formatOutputMessages(
-  output: Run["outputs"],
-): LLMMessagesAttributes | null {
+function formatOutputMessages(output: Run["outputs"]): LLMMessagesAttributes | null {
   const firstGeneration = getFirstOutputGeneration(output);
   if (firstGeneration == null) {
     return null;
@@ -392,8 +364,7 @@ function parseRetrievalDocument(document: unknown) {
     parsedDocument["document.content"] = document.pageContent;
   }
   if (isObject(document.metadata)) {
-    parsedDocument["document.metadata"] =
-      safelyJSONStringify(document.metadata) ?? undefined;
+    parsedDocument["document.metadata"] = safelyJSONStringify(document.metadata) ?? undefined;
   }
   return parsedDocument;
 }
@@ -423,9 +394,7 @@ function formatRetrievalDocuments(run: Run) {
  * @param runExtra - The extra data from a langchain run
  * @returns The OpenInference attributes for the model name
  */
-function formatLLMParams(
-  runExtra: Run["extra"],
-): LLMParameterAttributes | null {
+function formatLLMParams(runExtra: Run["extra"]): LLMParameterAttributes | null {
   if (!isObject(runExtra) || !isObject(runExtra.invocation_params)) {
     return null;
   }
@@ -435,11 +404,9 @@ function formatLLMParams(
     safelyJSONStringify(runExtra.invocation_params) ?? undefined;
 
   if (isString(runExtra.invocation_params.model_name)) {
-    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] =
-      runExtra.invocation_params.model_name;
+    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] = runExtra.invocation_params.model_name;
   } else if (isString(runExtra.invocation_params.model)) {
-    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] =
-      runExtra.invocation_params.model;
+    openInferenceParams[SemanticConventions.LLM_MODEL_NAME] = runExtra.invocation_params.model;
   }
 
   // add tool json schema if present in the invocation params
@@ -490,8 +457,7 @@ function formatPromptTemplate(run: Run): PromptTemplateAttributes | null {
     return null;
   }
   return {
-    [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]:
-      safelyJSONStringify(run.inputs) ?? undefined,
+    [SemanticConventions.PROMPT_TEMPLATE_VARIABLES]: safelyJSONStringify(run.inputs) ?? undefined,
     [SemanticConventions.PROMPT_TEMPLATE_TEMPLATE]:
       safelyGetTemplateFromSerialized(run.serialized) ?? undefined,
   };
@@ -522,9 +488,7 @@ function isJSONString(str: string) {
  *
  * @see https://github.com/langchain-ai/langchainjs/blob/main/langchain-core/src/language_models/chat_models.ts#L403 for how token counts get added to outputs
  */
-function formatTokenCounts(
-  outputs: Run["outputs"],
-): TokenCountAttributes | null {
+function formatTokenCounts(outputs: Run["outputs"]): TokenCountAttributes | null {
   if (!isObject(outputs)) {
     return null;
   }
@@ -535,48 +499,29 @@ function formatTokenCounts(
    * @see https://github.com/langchain-ai/langchainjs/blob/a173e300ef9ada416220876a2739e024b3a7f268/libs/langchain-community/src/chat_models/bedrock/web.ts
    */
   // Generations is an array of arrays containing messages
-  const maybeGenerationComponent =
-    firstGeneration != null ? firstGeneration[0] : null;
-  const maybeMessage = isObject(maybeGenerationComponent)
-    ? maybeGenerationComponent.message
-    : null;
-  const usageMetadata = isObject(maybeMessage)
-    ? maybeMessage.usage_metadata
-    : null;
+  const maybeGenerationComponent = firstGeneration != null ? firstGeneration[0] : null;
+  const maybeMessage = isObject(maybeGenerationComponent) ? maybeGenerationComponent.message : null;
+  const usageMetadata = isObject(maybeMessage) ? maybeMessage.usage_metadata : null;
   if (isObject(usageMetadata)) {
     const tokenCountAttributes: TokenCountAttributes = {
-      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(
-        usageMetadata.output_tokens,
-      ),
-      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: getTokenCount(
-        usageMetadata.input_tokens,
-      ),
-      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: getTokenCount(
-        usageMetadata.total_tokens,
-      ),
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(usageMetadata.output_tokens),
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: getTokenCount(usageMetadata.input_tokens),
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: getTokenCount(usageMetadata.total_tokens),
     };
     // Parse out the prompt / input token details.
     // Note we fallback to undefined if the token details are not present just to save keys
     if (isObject(usageMetadata.input_token_details)) {
-      tokenCountAttributes[
-        SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
-      ] =
-        getTokenCount(usageMetadata.input_token_details.cache_read) ||
-        undefined;
-      tokenCountAttributes[
-        SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO
-      ] = getTokenCount(usageMetadata.input_token_details.audio) || undefined;
+      tokenCountAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
+        getTokenCount(usageMetadata.input_token_details.cache_read) || undefined;
+      tokenCountAttributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO] =
+        getTokenCount(usageMetadata.input_token_details.audio) || undefined;
     }
     // Parse out the completion / output token details
     if (isObject(usageMetadata.output_token_details)) {
-      tokenCountAttributes[
-        SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING
-      ] =
-        getTokenCount(usageMetadata.output_token_details.reasoning) ||
-        undefined;
-      tokenCountAttributes[
-        SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO
-      ] = getTokenCount(usageMetadata.output_token_details.audio) || undefined;
+      tokenCountAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] =
+        getTokenCount(usageMetadata.output_token_details.reasoning) || undefined;
+      tokenCountAttributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO] =
+        getTokenCount(usageMetadata.output_token_details.audio) || undefined;
     }
     return tokenCountAttributes;
   }
@@ -592,9 +537,7 @@ function formatTokenCounts(
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: getTokenCount(
         llmOutput.tokenUsage.promptTokens,
       ),
-      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: getTokenCount(
-        llmOutput.tokenUsage.totalTokens,
-      ),
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: getTokenCount(llmOutput.tokenUsage.totalTokens),
     };
   }
   /**
@@ -633,11 +576,8 @@ function formatTokenCounts(
           : undefined;
     }
     return {
-      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(
-        maybeCompletionTokens,
-      ),
-      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
-        getTokenCount(maybePromptTokens),
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: getTokenCount(maybeCompletionTokens),
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: getTokenCount(maybePromptTokens),
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: maybeTotalTokens,
     };
   }
@@ -661,17 +601,12 @@ function formatFunctionCalls(outputs: Run["outputs"]) {
 
   const additionalKwargs = maybeGeneration.message.additional_kwargs;
 
-  if (
-    !isObject(additionalKwargs) ||
-    !isObject(additionalKwargs.function_call)
-  ) {
+  if (!isObject(additionalKwargs) || !isObject(additionalKwargs.function_call)) {
     return null;
   }
 
   return {
-    [SemanticConventions.LLM_FUNCTION_CALL]: safelyJSONStringify(
-      additionalKwargs.function_call,
-    ),
+    [SemanticConventions.LLM_FUNCTION_CALL]: safelyJSONStringify(additionalKwargs.function_call),
   };
 }
 
@@ -695,8 +630,7 @@ function formatToolCalls(run: Run) {
     toolAttributes[SemanticConventions.TOOL_NAME] = run.serialized.name;
   }
   if (isString(run.serialized.description)) {
-    toolAttributes[SemanticConventions.TOOL_DESCRIPTION] =
-      run.serialized.description;
+    toolAttributes[SemanticConventions.TOOL_DESCRIPTION] = run.serialized.description;
   }
   return toolAttributes;
 }

@@ -2,6 +2,7 @@ import json
 from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
+from urllib.parse import urlparse
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -9,9 +10,10 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.util.types import AttributeValue
 
 from instructor.utils import is_async
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -206,6 +208,14 @@ class _PatchWrapper:
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
 
+                    if model_name := kwargs.get("model"):
+                        span.set_attribute(LLM_MODEL_NAME, model_name)
+                    if (endpoint := extract_llm_endpoint_from_sdk_instance(create, client)) and (
+                        provider := infer_llm_provider_from_host(endpoint)
+                    ):
+                        span.set_attribute(LLM_PROVIDER, provider.value)
+                    span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
+
                     span.set_status(trace_api.StatusCode.OK)
                     return resp
                 except Exception as e:
@@ -240,6 +250,14 @@ class _PatchWrapper:
                     if resp is not None and hasattr(resp, "dict"):
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+
+                    if model_name := kwargs.get("model"):
+                        span.set_attribute(LLM_MODEL_NAME, model_name)
+                    if (endpoint := extract_llm_endpoint_from_sdk_instance(create, client)) and (
+                        provider := infer_llm_provider_from_host(endpoint)
+                    ):
+                        span.set_attribute(LLM_PROVIDER, provider.value)
+                    span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
 
                     span.set_status(trace_api.StatusCode.OK)
                     return resp
@@ -312,8 +330,44 @@ class _HandleResponseWrapper:
         return response
 
 
+def extract_llm_endpoint_from_sdk_instance(
+    create: Any = None,
+    client: Any = None,
+) -> Optional[str]:
+    """Extract the LLM API endpoint from an SDK instance when possible."""
+    instance = None
+    if create is not None:
+        # create is a bound method
+        owner = getattr(create, "__self__", None)
+        if owner is not None:
+            # Completions -> client
+            instance = getattr(owner, "_client", None)
+    elif client is not None:
+        instance = client
+    else:
+        return None
+
+    endpoint = (
+        getattr(instance, "api_base", None)
+        or getattr(instance, "base_url", None)
+        or getattr(instance, "endpoint", None)
+        or getattr(instance, "host", None)
+    )
+
+    if not isinstance(endpoint, str) and endpoint is not None:
+        endpoint = str(endpoint)
+
+    if isinstance(endpoint, str):
+        return urlparse(endpoint).hostname
+
+    return None
+
+
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_VALUE_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE

@@ -1,12 +1,14 @@
-anthropic<0.72
-llama-index-core==0.13.1
+anthropic<1.5
+llama-index-core==0.14.19
+# anthropic>=1.0 removed `temperature` from `messages.create`; 0.11.3 is the first
+# llama-index-llms-anthropic release that omits it for models that reject it.
+llama_index-llms-anthropic>=0.12.0,<0.13.0
 llama-index-llms-groq
 llama-index-llms-openai
 llama-index-llms-vertex
-llama-index-multi-modal-llms-openai>=0.1.7
-llama-index==0.13.1
-llama_index-llms-anthropic<0.9.0
+llama-index-multi-modal-llms-openai>=0.6.2
+llama-index-workflows>=2.17.1
 openinference-instrumentation-openai
 opentelemetry-sdk
-pytest-vcr
+pytest-recording
 respx

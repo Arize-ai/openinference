@@ -55,6 +55,36 @@ for name, logger in logging.root.manager.loggerDict.items():
 _OPENAI_BASE_URL = "https://api.openai.com/v1/"
 _AZURE_BASE_URL = "https://aoairesource.openai.azure.com"
 
+_OPENINFERENCE_SCOPE = "openinference.instrumentation.openai"
+_HTTPX_SCOPE = "opentelemetry.instrumentation.httpx"
+
+
+def _spans_from(exporter: InMemorySpanExporter, scope: str) -> Tuple[ReadableSpan, ...]:
+    return tuple(
+        span
+        for span in exporter.get_finished_spans()
+        if span.instrumentation_scope is not None and span.instrumentation_scope.name == scope
+    )
+
+
+def _openinference_span(exporter: InMemorySpanExporter, name: str) -> ReadableSpan:
+    """Return the one span this instrumentor emitted, ignoring transport spans.
+
+    The httpx instrumentor only sees openai's client when the run aliases httpx
+    to httpx2, so its span is asserted on its own in
+    test_httpx_transport_span_is_emitted rather than through a total span count
+    that every other test would trip over.
+
+    The expected name is required rather than optional because most span names
+    come from the SDK response type (cast_to.__name__), so an upstream rename
+    would otherwise slip through every version lane unnoticed.
+    """
+    spans = _spans_from(exporter, _OPENINFERENCE_SCOPE)
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == name
+    return span
+
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
@@ -64,6 +94,42 @@ class TestInstrumentor:
         )
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, OpenAIInstrumentor)
+
+
+def test_httpx_transport_span_is_emitted(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """The transport instrumentor should still see the client openai uses.
+
+    On openai>=3 that holds only while the httpx2 alias is installed. Asserting
+    it here means a broken alias fails one obvious test instead of every test
+    that used to count total spans.
+    """
+    url = urljoin(_OPENAI_BASE_URL, "chat/completions")
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "sky is blue"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "model": "gpt-4",
+            },
+        )
+    )
+    openai = import_module("openai")
+    client = openai.OpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL)
+    client.chat.completions.create(
+        messages=[{"role": "user", "content": "what color is the sky?"}],
+        model="gpt-4",
+    )
+    assert len(_spans_from(in_memory_span_exporter, _HTTPX_SCOPE)) == 1
+    assert len(_spans_from(in_memory_span_exporter, _OPENINFERENCE_SCOPE)) == 1
 
 
 @pytest.mark.parametrize(
@@ -185,9 +251,7 @@ def test_chat_completions(
                     else:
                         for _ in response:
                             pass
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -226,6 +290,11 @@ def test_chat_completions(
             OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
             == OpenInferenceMimeTypeValues.JSON
         )
+        # finish_reason is captured only for the first choice. The non-streaming
+        # mock returns "stop" for every choice; the streaming mock sets
+        # "tool_calls" on the choice at index 0.
+        expected_finish_reason = "tool_calls" if is_stream else "stop"
+        assert attributes.pop(LLM_FINISH_REASON, None) == expected_finish_reason
         if not is_stream:
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
@@ -362,9 +431,7 @@ def test_completions(
                 if is_stream:
                     for _ in response:
                         pass
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "Completion")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -397,6 +464,10 @@ def test_completions(
         # Check output completions
         for i, text in enumerate(output_texts):
             assert attributes.pop(f"{LLM_CHOICES}.{i}.completion.text", None) == text
+        # finish_reason is captured only for the first choice. The streaming
+        # mock sets "length" on each choice; the non-streaming mock sets "stop".
+        expected_finish_reason = "length" if is_stream else "stop"
+        assert attributes.pop(LLM_FINISH_REASON, None) == expected_finish_reason
         if not is_stream:
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
@@ -496,9 +567,7 @@ def test_embeddings(
         else:
             response = create(**create_kwargs)
             _ = response.parse() if is_raw else response
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "CreateEmbeddings")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -514,6 +583,14 @@ def test_embeddings(
     assert (
         attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.EMBEDDING.value
     )
+
+    # Check provider/system values
+    if base_url == _AZURE_BASE_URL:
+        assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_AZURE
+    elif base_url == _OPENAI_BASE_URL:
+        assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+
     assert (
         json.loads(cast(str, attributes.pop(EMBEDDING_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
@@ -620,9 +697,7 @@ def test_embeddings_out_of_order(
         response = create(**create_kwargs)
         _ = response.parse() if is_raw else response
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "CreateEmbeddings")
     assert span.status.is_ok
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -631,6 +706,10 @@ def test_embeddings_out_of_order(
     assert (
         attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.EMBEDDING.value
     )
+
+    # Check provider/system values
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
 
     # Check invocation parameters
     assert (
@@ -922,9 +1001,7 @@ def test_responses(
                     else:
                         for _ in response:
                             pass
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "Response")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -1101,9 +1178,7 @@ def test_chat_completions_with_multiple_message_contents(
                 if is_stream:
                     for _ in response:
                         pass
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -1140,6 +1215,9 @@ def test_chat_completions_with_multiple_message_contents(
             OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
             == OpenInferenceMimeTypeValues.JSON
         )
+        # finish_reason is captured only for the first choice.
+        expected_finish_reason = "tool_calls" if is_stream else "stop"
+        assert attributes.pop(LLM_FINISH_REASON, None) == expected_finish_reason
         if not is_stream:
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
@@ -1225,9 +1303,7 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
 
     with suppress(openai.BadRequestError):
         _ = create(**create_kwargs)
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     assert span.status.is_ok
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -1266,6 +1342,8 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
         == OpenInferenceMimeTypeValues.JSON
     )
+    # finish_reason is captured only for the first choice.
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
     # Usage is not available for streaming in general.
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == completion_usage["prompt_tokens"]
@@ -1330,9 +1408,7 @@ def test_chat_completions_with_image_url_formats_issue_2188(
     client = openai.OpenAI(api_key="sk-test")
     client.chat.completions.create(messages=input_messages, **invocation_parameters)
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # httpx instrumentor + openai instrumentor
-    span = spans[1]
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
 
     assert span.status.is_ok
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -1403,9 +1479,7 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
 
     with suppress(openai.BadRequestError):
         _ = create(**create_kwargs)
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     assert span.status.is_ok
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -1442,13 +1516,15 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
     output_value = attributes.pop(OUTPUT_VALUE, None)
     assert output_value is not None
     if hide_outputs:
-        output_value == REDACTED_VALUE
+        assert output_value == REDACTED_VALUE
     else:
         assert isinstance(output_value, str)
         assert (
             OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE, None))
             == OpenInferenceMimeTypeValues.JSON
         )
+    # finish_reason is captured only for the first choice.
+    assert attributes.pop(LLM_FINISH_REASON, None) == "stop"
     # Usage is not available for streaming in general.
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == completion_usage["prompt_tokens"]
@@ -1717,6 +1793,7 @@ def chat_completion_mock_stream() -> Tuple[List[bytes], List[Dict[str, Any]]]:
             b'data: {"choices": [{"delta": {"tool_calls": [{"index": 1, "function": {"arguments": "}"}}]}, "index": 0}]}\n\n',  # noqa: E501
             b'data: {"choices": [{"delta": {"content": "}"}, "index": 1}]}\n\n',
             b'data: {"choices": [{"finish_reason": "tool_calls", "index": 0}]}\n\n',  # noqa: E501
+            b'data: {"choices": [{"finish_reason": "stop", "index": 1}]}\n\n',
             b"data: [DONE]\n",
         ],
         [
@@ -1777,6 +1854,8 @@ def completion_mock_stream() -> Tuple[List[bytes], List[str]]:
             b'data: {"choices": [{"text": "t\\"}", "index": 0}]}\n\n',
             b'data: {"choices": [{"text": "heit\\"", "index": 1}]}\n\n',
             b'data: {"choices": [{"text": "}", "index": 1}]}\n\n',
+            b'data: {"choices": [{"finish_reason": "length", "index": 0}]}\n\n',
+            b'data: {"choices": [{"finish_reason": "stop", "index": 1}]}\n\n',
             b"data: [DONE]\n",
         ],
         [
@@ -1957,6 +2036,7 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_CHOICES = SpanAttributes.LLM_CHOICES
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS

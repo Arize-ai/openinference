@@ -5,7 +5,7 @@
  * comprehensive coverage of Bedrock API scenarios including tool calls.
  */
 
-import { ToolDefinition } from "../../src/types/bedrock-types";
+import type { ToolDefinition } from "../../src/types/bedrock-types";
 
 // Type definitions for the functions we actually use
 interface ToolCallMessageOptions {
@@ -66,66 +66,52 @@ function generateToolDefinition(
  * Common tool definitions for testing
  */
 const commonTools = {
-  weather: generateToolDefinition(
-    "get_weather",
-    "Get current weather for a location",
-    {
-      properties: {
-        location: {
-          type: "string",
-          description: "The city and state, e.g. San Francisco, CA",
-        },
-        unit: {
-          type: "string",
-          enum: ["celsius", "fahrenheit"],
-          description: "Temperature unit",
-        },
+  weather: generateToolDefinition("get_weather", "Get current weather for a location", {
+    properties: {
+      location: {
+        type: "string",
+        description: "The city and state, e.g. San Francisco, CA",
       },
-      required: ["location"],
+      unit: {
+        type: "string",
+        enum: ["celsius", "fahrenheit"],
+        description: "Temperature unit",
+      },
     },
-  ),
+    required: ["location"],
+  }),
 
-  calculator: generateToolDefinition(
-    "calculate",
-    "Perform mathematical calculations",
-    {
-      properties: {
-        expression: {
-          type: "string",
-          description: "Mathematical expression to evaluate",
-        },
+  calculator: generateToolDefinition("calculate", "Perform mathematical calculations", {
+    properties: {
+      expression: {
+        type: "string",
+        description: "Mathematical expression to evaluate",
       },
-      required: ["expression"],
     },
-  ),
+    required: ["expression"],
+  }),
 
-  webSearch: generateToolDefinition(
-    "web_search",
-    "Search the web for information",
-    {
-      properties: {
-        query: {
-          type: "string",
-          description: "Search query",
-        },
-        num_results: {
-          type: "integer",
-          description: "Number of results to return",
-          minimum: 1,
-          maximum: 10,
-        },
+  webSearch: generateToolDefinition("web_search", "Search the web for information", {
+    properties: {
+      query: {
+        type: "string",
+        description: "Search query",
       },
-      required: ["query"],
+      num_results: {
+        type: "integer",
+        description: "Number of results to return",
+        minimum: 1,
+        maximum: 10,
+      },
     },
-  ),
+    required: ["query"],
+  }),
 };
 
 /**
  * Generates InvokeModel request with tool definitions
  */
-function generateToolCallMessage(
-  options: ToolCallMessageOptions = {},
-): TestMessageResult {
+function generateToolCallMessage(options: ToolCallMessageOptions = {}): TestMessageResult {
   const {
     prompt = "What's the weather like in San Francisco?",
     tools = [commonTools.weather],
@@ -154,9 +140,7 @@ function generateToolCallMessage(
 /**
  * Generates message with tool result
  */
-function generateToolResultMessage(
-  options: ToolResultMessageOptions = {},
-): TestMessageResult {
+function generateToolResultMessage(options: ToolResultMessageOptions = {}): TestMessageResult {
   const {
     initialPrompt = "What's the weather in Paris?",
     toolUseId = "toolu_123",

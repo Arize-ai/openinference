@@ -1,9 +1,15 @@
-from typing import Any, Generator
+import json
+from types import SimpleNamespace
+from typing import Any, Generator, Optional, cast
 
 import pytest
 import vcr  # type: ignore
 from agno.agent import Agent
+from agno.models.base import Model
 from agno.models.openai.chat import OpenAIChat
+from agno.models.openai.responses import OpenAIResponses
+from agno.models.openrouter import OpenRouter
+from agno.run.agent import RunOutput
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
@@ -20,7 +26,7 @@ from openinference.semconv.trace import SpanAttributes
 test_vcr = vcr.VCR(
     serializer="yaml",
     cassette_library_dir="tests/openinference/instrumentation/agno/fixtures/",
-    record_mode="never",
+    record_mode="none",
     match_on=["uri", "method"],
 )
 
@@ -49,7 +55,7 @@ def setup_agno_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor",
             name="agno",
         )
@@ -96,6 +102,7 @@ def test_agno_instrumentation(
             # Validate agent-specific attributes
             assert attributes.get("agno.agent.id") is not None, "Agent ID should be present"
             assert attributes.get("agno.run.id") is not None, "Run ID should be present"
+            assert attributes.get("agent.name") == "News Agent"
             assert attributes.get("user.id") == "test_user_123"
             assert span.status.is_ok
         elif span.name == "ToolUsage._use":
@@ -119,8 +126,184 @@ def test_agno_instrumentation(
             assert attributes.get("openinference.span.kind") == "LLM"
             assert attributes.get("llm.model_name") == "gpt-4o-mini"
             assert attributes.get("llm.provider") == "OpenAI"
+            assert attributes.get("llm.system") == "openai"
             assert span.status.is_ok
     assert checked_spans >= 3  # We expect at least agent, tool, and LLM spans
+
+
+def test_agent_metadata_captured() -> None:
+    """Test that Agent.metadata dict is captured as a span attribute."""
+    import json
+
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    agent = Agent(
+        name="Test Agent",
+        metadata={
+            "department": "finance",
+            "cost_center": "dept_123",
+            "environment": "production",
+        },
+    )
+    attributes = dict(_agent_run_attributes(agent))
+
+    raw_metadata = attributes.get("metadata")
+    assert raw_metadata is not None, "metadata attribute should be present"
+    assert isinstance(raw_metadata, str), "metadata should be a JSON string"
+
+    metadata = json.loads(raw_metadata)
+    assert metadata["department"] == "finance"
+    assert metadata["cost_center"] == "dept_123"
+    assert metadata["environment"] == "production"
+
+
+def test_agent_no_metadata() -> None:
+    """Test that no metadata attribute is set when agent has no metadata."""
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    agent = Agent(name="Test Agent")
+    attributes = dict(_agent_run_attributes(agent))
+    assert "metadata" not in attributes
+
+
+def test_team_metadata_captured() -> None:
+    """Test that Team.metadata dict is captured as a span attribute."""
+    import json
+
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    team = Team(
+        name="Test Team",
+        members=[Agent(name="Member Agent")],
+        metadata={
+            "project": "alpha",
+            "priority": "high",
+        },
+    )
+    attributes = dict(_agent_run_attributes(team))
+
+    raw_metadata = attributes.get("metadata")
+    assert raw_metadata is not None, "metadata attribute should be present"
+    assert isinstance(raw_metadata, str), "metadata should be a JSON string"
+
+    metadata = json.loads(raw_metadata)
+    assert metadata["project"] == "alpha"
+    assert metadata["priority"] == "high"
+
+
+@pytest.mark.parametrize(
+    "model_name, expected_system",
+    [
+        ("gpt-4o-mini", "openai"),
+        ("claude-sonnet-4-6", "anthropic"),
+        ("command-r", "cohere"),
+        ("mistral-large-latest", "mistralai"),
+        # Non-inferable model names stay represented by llm.provider only.
+        ("llama-3.1-70b-versatile", None),
+        ("custom-model", None),
+        # Empty / missing model ids yield no llm.system
+        (None, None),
+        ("", None),
+        ("   ", None),
+    ],
+)
+def test_get_llm_system(model_name: Any, expected_system: Any) -> None:
+    """llm.system is derived from the model id, not only the provider."""
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    model = cast(Model, SimpleNamespace(id=model_name))
+    assert _get_llm_system(model) == expected_system
+
+
+@pytest.mark.parametrize(
+    "vertexai, vertexai_env, client_params, expected_system",
+    [
+        (False, None, None, "google"),
+        (True, None, None, "vertexai"),
+        (False, "TRUE", None, "vertexai"),
+        (False, "1", None, "vertexai"),
+        (False, None, {"vertexai": True}, "vertexai"),
+        (True, None, {"vertexai": False}, "google"),
+        (True, None, {"vertexai": None}, "google"),
+        (True, "1", {"vertexai": None}, "vertexai"),
+    ],
+)
+def test_get_llm_system_for_gemini_api_mode(
+    vertexai: bool,
+    vertexai_env: Optional[str],
+    client_params: Optional[dict[str, Any]],
+    expected_system: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    if vertexai_env is None:
+        monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    else:
+        monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", vertexai_env)
+
+    model = cast(
+        Model,
+        SimpleNamespace(
+            id="gemini-2.0-flash",
+            name="Gemini",
+            provider="Google",
+            vertexai=vertexai,
+            client=None,
+            client_params=client_params,
+        ),
+    )
+    assert _get_llm_system(model) == expected_system
+
+
+@pytest.mark.parametrize(
+    "client_vertexai, expected_system",
+    [
+        (False, "google"),
+        (True, "vertexai"),
+        (None, None),
+    ],
+)
+def test_get_llm_system_for_prebuilt_gemini_client(
+    client_vertexai: Optional[bool],
+    expected_system: Optional[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    model = cast(
+        Model,
+        SimpleNamespace(
+            id="gemini-2.0-flash",
+            name="Gemini",
+            provider="Google",
+            vertexai=True,
+            client=SimpleNamespace(vertexai=client_vertexai),
+            client_params={"vertexai": True},
+        ),
+    )
+    assert _get_llm_system(model) == expected_system
+
+
+def test_get_llm_system_for_google_gemini_without_vertexai_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Google's Gemini Interactions API is Developer API-only."""
+    from openinference.instrumentation.agno._model_wrapper import _get_llm_system
+
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    model = cast(
+        Model,
+        SimpleNamespace(
+            id="gemini-3-flash-preview",
+            name="GeminiInteractions",
+            provider="Google",
+            client=None,
+            client_params=None,
+        ),
+    )
+    assert _get_llm_system(model) == "google"
 
 
 def test_agno_team_coordinate_instrumentation(
@@ -197,6 +380,7 @@ def test_agno_team_coordinate_instrumentation(
     # Validate team-specific attributes
     assert team_span.get("agno.team.id") is not None, "Team ID should be present"
     assert team_span.get("agno.run.id") is not None, "Team run ID should be present"
+    assert team_span.get(SpanAttributes.AGENT_NAME) == "Team"
     assert team_span.get("user.id") == "team_user_999"
 
     # Validate graph attributes for web agent span
@@ -210,6 +394,7 @@ def test_agno_team_coordinate_instrumentation(
             f"Web agent node ID should be valid hex: {web_agent_node_id}"
         )
         assert web_agent_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Web Agent"
+        assert web_agent_span.get(SpanAttributes.AGENT_NAME) == "Web Agent"
         # Web agent should have team as parent
         assert web_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
         # Ensure web agent has different node ID than team (uniqueness)
@@ -226,6 +411,7 @@ def test_agno_team_coordinate_instrumentation(
             f"Finance agent node ID should be valid hex: {finance_agent_node_id}"
         )
         assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Finance Agent"
+        assert finance_agent_span.get(SpanAttributes.AGENT_NAME) == "Finance Agent"
         # Finance agent should have team as parent
         assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
         # Ensure finance agent has different node ID than team (uniqueness)
@@ -239,3 +425,454 @@ def test_agno_team_coordinate_instrumentation(
     assert web_agent_span is not None or finance_agent_span is not None, (
         "At least one agent span should be found"
     )
+
+
+def test_extract_run_response_output_str_content() -> None:
+    """String content is returned verbatim."""
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
+
+    run_response = RunOutput(content="hello world")
+    assert _extract_run_response_output(run_response) == "hello world"
+
+
+def test_extract_run_response_output_pydantic_content() -> None:
+    """Content exposing model_dump_json is serialized via that method."""
+    from types import SimpleNamespace
+
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
+
+    content = SimpleNamespace(model_dump_json=lambda: '{"answer": 42}')
+    run_response = RunOutput(content=content)
+    assert _extract_run_response_output(run_response) == '{"answer": 42}'
+
+
+def test_extract_run_response_output_dict_content() -> None:
+    """Dict content is serialized as valid JSON.
+
+    Standalone ``agent.run`` calls that use ``output_schema``/JSON mode can return
+    a plain ``dict`` as ``content``. Previously this raised
+    ``'dict' object has no attribute 'model_dump_json'``.
+    """
+    from openinference.instrumentation.agno._runs_wrapper import _extract_run_response_output
+
+    run_response = RunOutput(content={"answer": True})
+    assert _extract_run_response_output(run_response) == '{"answer": true}'
+
+
+def test_agno_reasoning_content_instrumentation(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Test that reasoning_content from models with thinking is captured on the LLM span."""
+    with test_vcr.use_cassette(
+        "agent_run_reasoning.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="Reasoning Agent",
+            model=OpenAIResponses(
+                id="o4-mini",
+                reasoning={
+                    "effort": "high",
+                    "summary": "detailed",
+                },
+            ),
+            instructions="Use internal reasoning before answering.",
+        )
+        agent.run(
+            "Count the number of letter 'r' in the word 'strawberry'. Use internal reasoning.",
+            session_id="test_session",
+            stream=False,
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_span = next((s for s in spans if s.name == "OpenAIResponses.invoke"), None)
+    assert llm_span is not None, "Expected an LLM span for OpenAIResponses.invoke"
+
+    attributes = dict(llm_span.attributes or dict())
+
+    assert attributes.get("openinference.span.kind") == "LLM"
+    assert attributes.get("llm.model_name") == "o4-mini"
+    assert attributes.get("llm.provider") == "OpenAI"
+    assert llm_span.status.is_ok
+
+    # Reasoning content part
+    assert (
+        attributes.get("llm.output_messages.0.message.contents.0.message_content.type")
+        == "reasoning"
+    )
+    reasoning_text = attributes.get("llm.output_messages.0.message.contents.0.message_content.text")
+    assert reasoning_text, "Reasoning content text should be present and non-empty"
+
+    # Final answer content part
+    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.type") == "text"
+    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.text")
+
+    # Flat message.content retained for backward compatibility
+    assert attributes.get("llm.output_messages.0.message.content")
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for LLM_COST_TOTAL propagation from MessageMetrics.cost
+# ---------------------------------------------------------------------------
+
+
+def _make_model(model_id: str = "gpt-4o-mini") -> Any:
+    return SimpleNamespace(
+        name="TestModel",
+        id=model_id,
+        provider="OpenAI",
+    )
+
+
+def _make_metrics(cost: Optional[float]) -> Any:
+    return SimpleNamespace(
+        input_tokens=10,
+        output_tokens=5,
+        total_tokens=15,
+        cache_read_tokens=0,
+        cache_write_tokens=0,
+        cost=cost,
+    )
+
+
+def _make_response(cost: Optional[float]) -> Any:
+    return SimpleNamespace(
+        role="assistant",
+        content="Hello",
+        tool_calls=None,
+        reasoning_content=None,
+        response_usage=_make_metrics(cost),
+    )
+
+
+@pytest.mark.parametrize("cost", [0.00123, 0.0], ids=["positive", "zero"])
+def test_model_wrapper_run_sets_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    cost: float,
+) -> None:
+    """_ModelWrapper.run emits llm.cost.total when MessageMetrics.cost is set."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    response = _make_response(cost=cost)
+
+    def fake_invoke() -> Any:
+        return response
+
+    wrapper.run(fake_invoke, model, args=(), kwargs={})
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(cost)
+
+
+def test_model_wrapper_run_omits_llm_cost_total_when_none(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """_ModelWrapper.run does not emit llm.cost.total when cost is None."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    response = _make_response(cost=None)
+
+    def fake_invoke() -> Any:
+        return response
+
+    wrapper.run(fake_invoke, model, args=(), kwargs={})
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert SpanAttributes.LLM_COST_TOTAL not in attributes
+
+
+def test_model_wrapper_run_stream_sets_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """_ModelWrapper.run_stream emits llm.cost.total when MessageMetrics.cost is set."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    chunk = SimpleNamespace(
+        content="Hi",
+        tool_calls=None,
+        reasoning_content=None,
+        response_usage=_make_metrics(cost=0.00042),
+    )
+
+    def fake_stream() -> Any:
+        yield chunk
+
+    list(wrapper.run_stream(fake_stream, model, args=(), kwargs={}))
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(0.00042)
+
+
+@pytest.mark.asyncio
+async def test_model_wrapper_arun_sets_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """_ModelWrapper.arun emits llm.cost.total when MessageMetrics.cost is set."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    response = _make_response(cost=0.00777)
+
+    async def fake_ainvoke() -> Any:
+        return response
+
+    await wrapper.arun(fake_ainvoke, model, args=(), kwargs={})
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(0.00777)
+
+
+@pytest.mark.asyncio
+async def test_model_wrapper_arun_stream_sets_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """_ModelWrapper.arun_stream emits llm.cost.total when MessageMetrics.cost is set."""
+    from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+
+    tracer = tracer_provider.get_tracer("test")
+    wrapper = _ModelWrapper(tracer)
+    model = _make_model()
+    chunk = SimpleNamespace(
+        content="Hi",
+        tool_calls=None,
+        reasoning_content=None,
+        response_usage=_make_metrics(cost=0.00099),
+    )
+
+    async def fake_astream() -> Any:
+        yield chunk
+
+    async for _ in wrapper.arun_stream(fake_astream, model, args=(), kwargs={}):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(0.00099)
+
+
+def test_agno_reasoning_content_stream_instrumentation(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Test that reasoning_content accumulated in streamed chunks is captured on the LLM span."""
+    with test_vcr.use_cassette(
+        "agent_run_reasoning_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="Reasoning Agent Stream",
+            model=OpenAIResponses(
+                id="o4-mini",
+                reasoning={
+                    "effort": "high",
+                    "summary": "detailed",
+                },
+            ),
+            instructions="Use internal reasoning before answering.",
+        )
+        for _ in agent.run(
+            "Count the number of letter 'r' in the word 'strawberry'. Use internal reasoning.",
+            session_id="test_session",
+            stream=True,
+        ):
+            pass  # drain the stream
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_span = next((s for s in spans if s.name == "OpenAIResponses.invoke_stream"), None)
+    assert llm_span is not None, "Expected an LLM span for OpenAIResponses.invoke_stream"
+
+    attributes = dict(llm_span.attributes or dict())
+
+    assert attributes.get("openinference.span.kind") == "LLM"
+    assert attributes.get("llm.model_name") == "o4-mini"
+    assert attributes.get("llm.provider") == "OpenAI"
+    assert llm_span.status.is_ok
+
+    # Reasoning content part, accumulated across chunks
+    assert (
+        attributes.get("llm.output_messages.0.message.contents.0.message_content.type")
+        == "reasoning"
+    ), "Streamed reasoning_content was not captured on the LLM span"
+    reasoning_text = attributes.get("llm.output_messages.0.message.contents.0.message_content.text")
+    assert reasoning_text, "Reasoning content text should be present and non-empty"
+
+    # Final answer content part
+    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.type") == "text"
+    assert attributes.get("llm.output_messages.0.message.contents.1.message_content.text")
+
+    # Flat message.content retained for backward compatibility
+    assert attributes.get("llm.output_messages.0.message.content")
+
+
+def test_agno_openrouter_llm_cost_total(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """llm.cost.total is set from a real OpenRouter response.
+
+    OpenRouter reports the charged cost on the usage object. Agno keeps it on
+    MessageMetrics.cost, and the instrumentor forwards it to the LLM span.
+    """
+    with test_vcr.use_cassette(
+        "agent_run_openrouter_cost.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENROUTER_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="Cost Agent",
+            model=OpenRouter(id="openai/gpt-4o-mini"),
+        )
+        agent.run("Reply with a single word: ping.")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_spans = [
+        span
+        for span in spans
+        if dict(span.attributes or {}).get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    ]
+    assert len(llm_spans) == 1
+    span = llm_spans[0]
+    assert span.name == "OpenRouter.invoke"
+    assert span.status.is_ok
+
+    # Every attribute is popped so the final assertion catches anything the
+    # instrumentor emits beyond what this test accounts for.
+    attributes = dict(span.attributes or {})
+
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "OpenRouter"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "openai/gpt-4o-mini"
+
+    # The recorded OpenRouter response reports usage.cost, which agno keeps on
+    # MessageMetrics.cost and the instrumentor forwards to the span.
+    assert attributes.pop(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(3.45e-06)
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 15
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 2
+
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    # The serialized message carries a generated id and timestamp, so only the
+    # stable fields are checked here.
+    input_messages = json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE)))["messages"]
+    assert [(m["role"], m["content"]) for m in input_messages] == [
+        ("user", "Reply with a single word: ping.")
+    ]
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert (
+        attributes.pop("llm.input_messages.0.message.content") == "Reply with a single word: ping."
+    )
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == '{"max_tokens": 1024}'
+
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert json.loads(cast(str, attributes.pop(SpanAttributes.OUTPUT_VALUE))) == [
+        {"role": "assistant", "content": "pong."}
+    ]
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert attributes.pop("llm.output_messages.0.message.content") == "pong."
+
+    assert not attributes
+
+
+def test_agno_openrouter_llm_cost_total_stream(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """llm.cost.total is set from a real streamed OpenRouter response.
+
+    In a stream the usage, and with it the cost, only arrives on the final
+    chunk, which is where the existing token-count logic already looks.
+    """
+    with test_vcr.use_cassette(
+        "agent_run_openrouter_cost_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENROUTER_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="Cost Stream Agent",
+            model=OpenRouter(id="openai/gpt-4o-mini"),
+        )
+        for _ in agent.run("Reply with a single word: ping.", stream=True):
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_spans = [
+        span
+        for span in spans
+        if dict(span.attributes or {}).get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    ]
+    assert len(llm_spans) == 1
+    span = llm_spans[0]
+    assert span.name == "OpenRouter.invoke_stream"
+    assert span.status.is_ok
+
+    # Every attribute is popped so the final assertion catches anything the
+    # instrumentor emits beyond what this test accounts for.
+    attributes = dict(span.attributes or {})
+
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "OpenRouter"
+    assert attributes.pop(SpanAttributes.LLM_SYSTEM) == "openai"
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "openai/gpt-4o-mini"
+
+    assert attributes.pop(SpanAttributes.LLM_COST_TOTAL) == pytest.approx(3.45e-06)
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 15
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 2
+
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    # The serialized message carries a generated id and timestamp, so only the
+    # stable fields are checked here.
+    input_messages = json.loads(cast(str, attributes.pop(SpanAttributes.INPUT_VALUE)))["messages"]
+    assert [(m["role"], m["content"]) for m in input_messages] == [
+        ("user", "Reply with a single word: ping.")
+    ]
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert (
+        attributes.pop("llm.input_messages.0.message.content") == "Reply with a single word: ping."
+    )
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == '{"max_tokens": 1024}'
+
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    # The streaming path wraps the accumulated messages in a dict.
+    assert json.loads(cast(str, attributes.pop(SpanAttributes.OUTPUT_VALUE))) == {
+        "messages": [{"role": "assistant", "content": "pong."}]
+    }
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert attributes.pop("llm.output_messages.0.message.content") == "pong."
+
+    assert not attributes

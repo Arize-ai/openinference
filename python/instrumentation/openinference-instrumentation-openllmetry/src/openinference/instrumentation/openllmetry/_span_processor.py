@@ -7,9 +7,12 @@ into OpenInference semantic conventions for Phoenix observability.
 
 import json
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from opentelemetry.sdk.trace import SpanProcessor
+from opentelemetry.semconv._incubating.attributes import (
+    gen_ai_attributes as GenAIAttributes,
+)
 
 # Import OpenLLMetry constants from the official package
 from opentelemetry.semconv_ai import SpanAttributes, TraceloopSpanKindValues
@@ -39,9 +42,9 @@ _SPAN_KIND_MAPPING: Dict[str, str] = {
 }
 
 _INVOCATION_PARAMETER_KEYS: List[str] = [
-    SpanAttributes.LLM_REQUEST_MAX_TOKENS,
-    SpanAttributes.LLM_REQUEST_TEMPERATURE,
-    SpanAttributes.LLM_REQUEST_TOP_P,
+    GenAIAttributes.GEN_AI_REQUEST_MAX_TOKENS,
+    GenAIAttributes.GEN_AI_REQUEST_TEMPERATURE,
+    GenAIAttributes.GEN_AI_REQUEST_TOP_P,
     SpanAttributes.LLM_TOP_K,
     SpanAttributes.LLM_CHAT_STOP_SEQUENCES,
     SpanAttributes.LLM_REQUEST_REPETITION_PENALTY,
@@ -50,6 +53,24 @@ _INVOCATION_PARAMETER_KEYS: List[str] = [
 ]
 
 _OPENINF_TOOL_LIST_KEY = "llm.tools"
+
+# GenAI semconv attribute keys (v0.55.0+ default format)
+_GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
+_GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
+_GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
+
+_VALID_LLM_PROVIDERS = frozenset(v.value for v in sc.OpenInferenceLLMProviderValues)
+_VALID_LLM_SYSTEMS = frozenset(v.value for v in sc.OpenInferenceLLMSystemValues)
+
+_TOOL_KEY_CANDIDATES = [
+    SpanAttributes.LLM_REQUEST_FUNCTIONS,
+    "llm.request.tools",
+    _GEN_AI_TOOL_DEFINITIONS,
+]
+
+_RETRIEVAL_OPERATION_NAMES = frozenset({"retrieval", "vector_db_retrieve"})
+
+_MISSING: Any = object()
 
 
 # ---------------------------------------------------------------------------
@@ -73,30 +94,157 @@ def _safe_int(value: Any) -> Optional[int]:
         return None
 
 
-def _map_generic_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
+def _safe_float(value: Any) -> Optional[float]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _coerce_json_obj(value: Any) -> Optional[Any]:
+    """Coercion of a Traceloop entity input/output attribute into a Python object."""
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return None
+    return None
+
+
+def _unwrap_tool_io(input_raw: Any, output_raw: Any) -> Tuple[Optional[Any], Any, Optional[Any]]:
+    """Unwrap the LangChain/Traceloop tool envelopes into clean values."""
+    tool_args: Optional[Any] = None
+    tool_result: Any = _MISSING
+
+    input_obj = _coerce_json_obj(input_raw)
+    if isinstance(input_obj, dict) and "inputs" in input_obj:
+        tool_args = input_obj["inputs"]
+
+    output_obj = _coerce_json_obj(output_raw)
+    if isinstance(output_obj, dict) and "output" in output_obj:
+        tool_result = output_obj["output"]
+
+    return tool_args, tool_result, tool_args
+
+
+def _map_retriever_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
+    """Map an OpenLLMetry retrieval task to OpenInference retriever attributes."""
+    mapped: Dict[str, Any] = {
+        sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.RETRIEVER.value
+    }
+
+    input_raw = attrs.get("gen_ai.task.input") or attrs.get(SpanAttributes.TRACELOOP_ENTITY_INPUT)
+    input_obj = _coerce_json_obj(input_raw)
+    if isinstance(input_obj, dict) and input_obj.get("query") is not None:
+        mapped[sc.SpanAttributes.INPUT_VALUE] = str(input_obj["query"])
+        mapped[sc.SpanAttributes.INPUT_MIME_TYPE] = sc.OpenInferenceMimeTypeValues.TEXT.value
+
+    output_raw = attrs.get("gen_ai.task.output") or attrs.get(
+        SpanAttributes.TRACELOOP_ENTITY_OUTPUT
+    )
+    output_obj = _coerce_json_obj(output_raw)
+    documents = output_obj.get("documents") if isinstance(output_obj, dict) else None
+    if not isinstance(documents, list):
+        return mapped
+
+    for index, document in enumerate(documents):
+        prefix = f"{sc.SpanAttributes.RETRIEVAL_DOCUMENTS}.{index}"
+        if not isinstance(document, dict):
+            if document is not None:
+                mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_CONTENT}"] = str(document)
+            continue
+        content = document.get("page_content", document.get("content"))
+        if content is not None:
+            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_CONTENT}"] = str(content)
+        if document.get("metadata"):
+            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_METADATA}"] = _as_json_str(
+                document["metadata"]
+            )
+        if document.get("id") is not None:
+            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_ID}"] = str(document["id"])
+        if (score := _safe_float(document.get("score"))) is not None:
+            mapped[f"{prefix}.{sc.DocumentAttributes.DOCUMENT_SCORE}"] = score
+
+    return mapped
+
+
+def _map_generic_span(attrs: Dict[str, Any], span_name: Optional[str] = None) -> Dict[str, Any]:
     """
     Convert TraceLoop 'workflow' / 'task' / 'agent' / 'tool' spans
     to OpenInference semantic conventions.
     """
+    operation_name = str(attrs.get("gen_ai.operation.name", "")).lower()
+    if operation_name in _RETRIEVAL_OPERATION_NAMES:
+        return _map_retriever_span(attrs)
+
     raw_kind = str(attrs.get(SpanAttributes.TRACELOOP_SPAN_KIND, "unknown")).lower()
     kind_val = _SPAN_KIND_MAPPING.get(raw_kind, sc.OpenInferenceSpanKindValues.UNKNOWN.value)
 
     mapped: Dict[str, Any] = {"openinference.span.kind": kind_val}
 
     input_raw = attrs.get(SpanAttributes.TRACELOOP_ENTITY_INPUT)
-    if input_raw is not None:
+    output_raw = attrs.get(SpanAttributes.TRACELOOP_ENTITY_OUTPUT)
+
+    is_tool = kind_val == sc.OpenInferenceSpanKindValues.TOOL.value
+    tool_args: Optional[Any] = None
+    tool_params: Optional[Any] = None
+    tool_result: Any = _MISSING
+    if is_tool:
+        tool_args, tool_result, tool_params = _unwrap_tool_io(input_raw, output_raw)
+
+        tool_name = attrs.get(SpanAttributes.TRACELOOP_ENTITY_NAME) or span_name
+        if tool_name:
+            mapped[sc.SpanAttributes.TOOL_NAME] = tool_name
+        if tool_params is not None:
+            mapped[sc.SpanAttributes.TOOL_PARAMETERS] = _as_json_str(tool_params)
+
+    if is_tool and tool_args is not None:
         mapped.update(
             {
-                "input.mime_type": "application/json",
+                "input.mime_type": sc.OpenInferenceMimeTypeValues.JSON.value,
+                "input.value": _as_json_str(tool_args),
+            }
+        )
+    elif input_raw is not None:
+        mapped.update(
+            {
+                "input.mime_type": sc.OpenInferenceMimeTypeValues.JSON.value,
                 "input.value": _as_json_str(input_raw),
             }
         )
 
-    output_raw = attrs.get(SpanAttributes.TRACELOOP_ENTITY_OUTPUT)
-    if output_raw is not None:
+    if is_tool and tool_result is not _MISSING:
+        result_mime_type = sc.OpenInferenceMimeTypeValues.TEXT.value
+        result_value: Any = tool_result
+        if tool_result is None:
+            result_mime_type = sc.OpenInferenceMimeTypeValues.JSON.value
+            result_value = "null"
+        elif isinstance(tool_result, (dict, list)):
+            result_mime_type = sc.OpenInferenceMimeTypeValues.JSON.value
+        elif isinstance(tool_result, str):
+            try:
+                json.loads(tool_result)
+                result_mime_type = sc.OpenInferenceMimeTypeValues.JSON.value
+            except Exception:
+                result_mime_type = sc.OpenInferenceMimeTypeValues.TEXT.value
         mapped.update(
             {
-                "output.mime_type": "application/json",
+                "output.mime_type": result_mime_type,
+                "output.value": _as_json_str(result_value)
+                if not isinstance(result_value, str)
+                else result_value,
+            }
+        )
+    elif output_raw is not None:
+        mapped.update(
+            {
+                "output.mime_type": sc.OpenInferenceMimeTypeValues.JSON.value,
                 "output.value": _as_json_str(output_raw),
             }
         )
@@ -104,7 +252,7 @@ def _map_generic_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
     return mapped
 
 
-def _collect_oi_messages(
+def _parse_messages_from_attributes(
     attrs: Dict[str, Any], prefix: str
 ) -> tuple[List[oi.Message], List[Optional[str]]]:
     """
@@ -167,6 +315,71 @@ def _collect_oi_messages(
     return messages, finish_reasons
 
 
+def _parse_messages_from_json(
+    raw_json: str,
+) -> tuple[List[oi.Message], List[Optional[str]]]:
+    """
+    Parse the updated ``gen_ai.input.messages`` / ``gen_ai.output.messages``
+    JSON-string attribute (OTel GenAI semconv 0.5.1+).
+
+    Each message is ``{"role": "...", "parts": [{"type": "text", "content": "..."},
+    {"type": "tool_call", ...}], "finish_reason": "..."}``
+    """
+    try:
+        items = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+    except Exception:
+        return [], []
+    if not isinstance(items, list):
+        items = [items]
+
+    messages: List[oi.Message] = []
+    finish_reasons: List[Optional[str]] = []
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role", "user")
+        msg = oi.Message(role=role)
+
+        parts = item.get("parts") or []
+        text_parts: List[str] = []
+        tool_calls: List[oi.ToolCall] = []
+
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+            ptype = part.get("type", "")
+            if ptype == "text":
+                text_parts.append(part.get("content", ""))
+            elif ptype == "tool_call":
+                tc = oi.ToolCall(
+                    function=oi.ToolCallFunction(
+                        name=part.get("name", ""),
+                        arguments=part.get("arguments", ""),
+                    )
+                )
+                if part.get("id"):
+                    tc["id"] = part["id"]
+                tool_calls.append(tc)
+            elif ptype == "tool_call_response":
+                # tool role messages carry the response as content
+                text_parts.append(str(part.get("response", "")))
+
+        # If no parts array, fall back to top-level content
+        if not parts and "content" in item:
+            text_parts.append(str(item["content"]))
+
+        if text_parts:
+            msg["content"] = "\n".join(text_parts) if len(text_parts) > 1 else text_parts[0]
+        if tool_calls:
+            msg["tool_calls"] = tool_calls
+
+        messages.append(msg)
+        finish_reasons.append(item.get("finish_reason"))
+
+    return messages, finish_reasons
+
+
 def _handle_tool_list(raw: Any, dst: Dict[str, Any]) -> List[oi.Tool]:
     """
     Convert OpenLLMetry functions/tools list into OpenInference tools list
@@ -195,32 +408,90 @@ def _handle_tool_list(raw: Any, dst: Dict[str, Any]) -> List[oi.Tool]:
     return oi_tools
 
 
+def _extract_llm_provider_and_system(
+    attrs: Dict[str, Any],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Extract validated OpenInference LLM provider and system values from span attributes."""
+    provider_val: Optional[str] = str(
+        attrs.get(GenAIAttributes.GEN_AI_PROVIDER_NAME, "unknown")
+    ).lower()
+    if provider_val not in _VALID_LLM_PROVIDERS:
+        provider_val = None
+
+    # gen_ai.system is deprecated (OTel semconv v1.37.0); v0.55.0+ only emits
+    # gen_ai.provider.name, so system_val will be None for newer spans.
+    system_val: Optional[str] = str(attrs.get(GenAIAttributes.GEN_AI_SYSTEM, "unknown")).lower()
+    if system_val not in _VALID_LLM_SYSTEMS:
+        system_val = None
+
+    return provider_val, system_val
+
+
 class OpenInferenceSpanProcessor(SpanProcessor):
     """
     SpanProcessor that converts OpenLLMetry spans to OpenInference attributes.
     """
 
+    @staticmethod
+    def _write_attributes(span: Any, new_attrs: Dict[str, Any]) -> None:
+        """Write the converted attributes back onto the readable span.
+
+        Since opentelemetry-sdk 1.37, ``Span.end()`` marks the span's
+        attributes immutable (``self._attributes._immutable = True``) before
+        invoking ``on_end``, so mutating them in place via ``clear()`` /
+        ``update()`` raises ``TypeError``. Rebind the readable span's
+        ``_attributes`` to a fresh mapping instead. This only affects the
+        ``ReadableSpan`` handed to downstream processors/exporters; the live
+        span object is untouched. Older SDKs whose attributes are still
+        mutable are handled by the same in-place path below.
+        """
+        existing = getattr(span, "_attributes", None)
+        if existing is not None and not getattr(existing, "_immutable", False):
+            try:
+                existing.clear()
+                existing.update(new_attrs)
+                return
+            except (TypeError, AttributeError):
+                pass
+        span._attributes = new_attrs
+
     def on_end(self, span: Any) -> None:
-        attrs: Dict[str, Any] = getattr(span, "_attributes", {})
+        attrs: Dict[str, Any] = dict(getattr(span, "_attributes", None) or {})
 
         kind = attrs.get(SpanAttributes.TRACELOOP_SPAN_KIND)
         if kind and kind.lower() != "llm":
-            generic = _map_generic_span(attrs)
-            attrs.clear()
-            attrs.update(generic)
+            generic = _map_generic_span(attrs, span_name=getattr(span, "name", None))
+            self._write_attributes(span, generic)
             return
 
-        # Skip if no LLM prompt data
-        if not any(k.startswith("gen_ai.prompt.") for k in attrs):
+        # Detect which message format is present.
+        # The JSON-based format (v0.55.0+) is the default; the legacy
+        # attribute-per-field format is kept only as a fallback.
+        has_json_messages = _GEN_AI_INPUT_MESSAGES in attrs
+        has_legacy_attributes = any(k.startswith("gen_ai.prompt.") for k in attrs)
+
+        # Skip if no LLM prompt data in either format
+        if not has_json_messages and not has_legacy_attributes:
             return
 
-        # Reconstruct messages
-        inputs, input_finish_reasons = _collect_oi_messages(attrs, "gen_ai.prompt.")
-        outputs, output_finish_reasons = _collect_oi_messages(attrs, "gen_ai.completion.")
+        # Reconstruct messages, preferring the current format
+        if has_json_messages:
+            inputs, input_finish_reasons = _parse_messages_from_json(
+                attrs.get(_GEN_AI_INPUT_MESSAGES, "[]")
+            )
+            outputs, output_finish_reasons = _parse_messages_from_json(
+                attrs.get(_GEN_AI_OUTPUT_MESSAGES, "[]")
+            )
+        else:
+            # Fallback for older OpenLLMetry versions (< 0.55.0)
+            inputs, input_finish_reasons = _parse_messages_from_attributes(attrs, "gen_ai.prompt.")
+            outputs, output_finish_reasons = _parse_messages_from_attributes(
+                attrs, "gen_ai.completion."
+            )
 
         # Token usage
-        prompt_toks = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_PROMPT_TOKENS)) or 0
-        comp_toks = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_COMPLETION_TOKENS)) or 0
+        prompt_toks = _safe_int(attrs.get(GenAIAttributes.GEN_AI_USAGE_INPUT_TOKENS)) or 0
+        comp_toks = _safe_int(attrs.get(GenAIAttributes.GEN_AI_USAGE_OUTPUT_TOKENS)) or 0
         total_toks = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_TOTAL_TOKENS)) or (
             prompt_toks + comp_toks
         )
@@ -237,14 +508,10 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         for key in _INVOCATION_PARAMETER_KEYS:
             if key in attrs:
                 invocation_params[key.rsplit(".", 1)[-1]] = attrs[key]
-        if SpanAttributes.LLM_REQUEST_MODEL in attrs:
-            invocation_params.setdefault("model", attrs[SpanAttributes.LLM_REQUEST_MODEL])
+        if GenAIAttributes.GEN_AI_REQUEST_MODEL in attrs:
+            invocation_params.setdefault("model", attrs[GenAIAttributes.GEN_AI_REQUEST_MODEL])
         # Tools
-        tool_key = (
-            SpanAttributes.LLM_REQUEST_FUNCTIONS
-            if SpanAttributes.LLM_REQUEST_FUNCTIONS in attrs
-            else ("llm.request.tools" if "llm.request.tools" in attrs else None)
-        )
+        tool_key = next((k for k in _TOOL_KEY_CANDIDATES if k in attrs), None)
         oi_tools: List[oi.Tool] = []
         if tool_key:
             oi_tools = _handle_tool_list(attrs[tool_key], attrs)
@@ -252,7 +519,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         # Build bodies for OpenInference
         request_body = {
             "messages": [{"role": m.get("role"), "content": m.get("content", "")} for m in inputs],
-            "model": attrs.get(SpanAttributes.LLM_REQUEST_MODEL),
+            "model": attrs.get(GenAIAttributes.GEN_AI_REQUEST_MODEL),
             "max_tokens": invocation_params.get("max_tokens"),
             "temperature": invocation_params.get("temperature"),
             "top_p": invocation_params.get("top_p"),
@@ -260,6 +527,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         }
         assistant_text = outputs[0].get("content", "") if outputs else ""
         finish_reason = output_finish_reasons[0] if output_finish_reasons else "stop"
+        if finish_reason is None:
+            response_finish_reasons = attrs.get(GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS)
+            finish_reason = response_finish_reasons[0] if response_finish_reasons else "stop"
         response_body = {
             "id": attrs.get("gen_ai.response.id"),
             "choices": [
@@ -273,8 +543,8 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                     },
                 }
             ],
-            "model": attrs.get(SpanAttributes.LLM_RESPONSE_MODEL)
-            or attrs.get(SpanAttributes.LLM_REQUEST_MODEL),
+            "model": attrs.get(GenAIAttributes.GEN_AI_RESPONSE_MODEL)
+            or attrs.get(GenAIAttributes.GEN_AI_REQUEST_MODEL),
             "usage": {
                 "prompt_tokens": prompt_toks,
                 "completion_tokens": comp_toks,
@@ -282,8 +552,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             },
         }
 
-        system_val = attrs.get(SpanAttributes.LLM_SYSTEM, "unknown")
-        provider_val = attrs.get("gen_ai.provider", system_val)
+        provider_val, system_val = _extract_llm_provider_and_system(attrs)
 
         # Span kind
         span_val = (
@@ -295,6 +564,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         # Assemble OpenInference attributes
         oi_attrs = {
             sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: span_val,
+            sc.SpanAttributes.LLM_FINISH_REASON: finish_reason,
             **get_llm_attributes(
                 provider=provider_val,
                 system=system_val,
@@ -310,3 +580,4 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         }
 
         attrs.update(oi_attrs)
+        self._write_attributes(span, attrs)

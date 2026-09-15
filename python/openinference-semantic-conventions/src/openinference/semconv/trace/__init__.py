@@ -3,6 +3,19 @@ from enum import Enum
 
 
 class SpanAttributes:
+    ANNOTATIONS = "annotations"
+    """Feedback using annotation terminology."""
+    EVALUATIONS = "evaluations"
+    """Feedback using evaluation or eval terminology."""
+    TRACE_ANNOTATIONS = "trace.annotations"
+    """Trace-scoped feedback using annotation terminology."""
+    TRACE_EVALUATIONS = "trace.evaluations"
+    """Trace-scoped feedback using evaluation or eval terminology."""
+    SESSION_ANNOTATIONS = "session.annotations"
+    """Session-scoped feedback using annotation terminology."""
+    SESSION_EVALUATIONS = "session.evaluations"
+    """Session-scoped feedback using evaluation or eval terminology."""
+
     OUTPUT_VALUE = "output.value"
     OUTPUT_MIME_TYPE = "output.mime_type"
     """
@@ -14,6 +27,16 @@ class SpanAttributes:
     """
     The type of input.value. If unspecified, the type is plain text by default.
     If type is JSON, the value is a string representing a JSON object.
+    """
+    INPUT_IMAGES = "input.images"
+    """
+    A list of Image Objects that are inputs to an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `input.images.0.image.url`.
+    """
+    OUTPUT_IMAGES = "output.images"
+    """
+    A list of Image Objects produced by an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `output.images.0.image.url`.
     """
 
     EMBEDDING_EMBEDDINGS = "embedding.embeddings"
@@ -49,6 +72,18 @@ class SpanAttributes:
     LLM_MODEL_NAME = "llm.model_name"
     """
     The name of the model being used.
+    """
+    LLM_REQUEST_MODEL_NAME = "llm.request.model_name"
+    """
+    The model requested by the caller, as sent in the request. May differ from
+    llm.response.model_name when the provider routes the request to a different
+    model (e.g. classifier-triggered fallback).
+    """
+    LLM_RESPONSE_MODEL_NAME = "llm.response.model_name"
+    """
+    The model that actually generated the response, as reported by the provider.
+    May differ from llm.request.model_name when the provider routes the request
+    to a different model (e.g. classifier-triggered fallback).
     """
     LLM_PROVIDER = "llm.provider"
     """
@@ -123,6 +158,10 @@ class SpanAttributes:
     LLM_TOKEN_COUNT_TOTAL = "llm.token_count.total"
     """
     Total number of tokens, including both prompt and completion (in tokens).
+    """
+    LLM_FINISH_REASON = "llm.finish_reason"
+    """
+    The reason the model stopped generating tokens, e.g. `"stop"` or `"length"`.
     """
 
     LLM_COST_COMPLETION = "llm.cost.completion"
@@ -206,6 +245,10 @@ class SpanAttributes:
     Parameters of the tool represented a dictionary JSON string, e.g.
     see https://platform.openai.com/docs/guides/gpt/function-calling
     """
+    TOOL_ID = "tool.id"
+    """
+    The identifier for the result of the tool call (corresponding to tool_call.id).
+    """
 
     RETRIEVAL_DOCUMENTS = "retrieval.documents"
 
@@ -261,6 +304,30 @@ class SpanAttributes:
     """
 
 
+class AnnotationAttributes:
+    """Attributes for feedback about a span."""
+
+    ANNOTATION_NAME = "annotation.name"
+    ANNOTATION_SCORE = "annotation.score"
+    ANNOTATION_LABEL = "annotation.label"
+    ANNOTATION_EXPLANATION = "annotation.explanation"
+    ANNOTATION_ANNOTATOR_KIND = "annotation.annotator_kind"
+    ANNOTATION_IDENTIFIER = "annotation.identifier"
+    ANNOTATION_METADATA = "annotation.metadata"
+
+
+class EvaluationAttributes:
+    """Attributes for feedback using evaluation or eval terminology."""
+
+    EVALUATION_NAME = "evaluation.name"
+    EVALUATION_SCORE = "evaluation.score"
+    EVALUATION_LABEL = "evaluation.label"
+    EVALUATION_EXPLANATION = "evaluation.explanation"
+    EVALUATION_ANNOTATOR_KIND = "evaluation.annotator_kind"
+    EVALUATION_IDENTIFIER = "evaluation.identifier"
+    EVALUATION_METADATA = "evaluation.metadata"
+
+
 class MessageAttributes:
     """
     Attributes for a message sent to or from an LLM
@@ -312,11 +379,12 @@ class MessageContentAttributes:
 
     MESSAGE_CONTENT_TYPE = "message_content.type"
     """
-    The type of the content, such as "text" or "image".
+    The type of the content, such as "text", "image", "audio",
+    "video", "reasoning", or "tool_use".
     """
     MESSAGE_CONTENT_TEXT = "message_content.text"
     """
-    The text content of the message, if the type is "text".
+    The text content of the message, if the type is "text" or "reasoning".
     """
     MESSAGE_CONTENT_IMAGE = "message_content.image"
     """
@@ -324,6 +392,37 @@ class MessageContentAttributes:
     An image can be made available to the model by passing a link to
     the image or by passing the base64 encoded image directly in the
     request.
+    """
+    MESSAGE_CONTENT_AUDIO = "message_content.audio"
+    """
+    The audio content of the message, if the type is "audio".
+    Nested leaves come from AudioAttributes.
+    """
+    MESSAGE_CONTENT_VIDEO = "message_content.video"
+    """
+    The video content of the message, if the type is "video".
+    Nested leaves come from VideoAttributes.
+    """
+    MESSAGE_CONTENT_ID = "message_content.id"
+    """
+    Provider-assigned identifier for this message content item.
+    For OpenAI Responses reasoning items, this maps to
+    ResponseReasoningItem.id and should be preserved for stateless replay.
+    """
+    MESSAGE_CONTENT_SIGNATURE = "message_content.signature"
+    """
+    Opaque vendor-issued signature captured verbatim. Maps to provider
+    signature fields and to Gemini thoughtSignature fields when the signature
+    is attached to a non-tool content part.
+    """
+    MESSAGE_CONTENT_DATA = "message_content.data"
+    """
+    Opaque vendor-issued data captured verbatim. Maps to Anthropic
+    redacted_thinking.data.
+    """
+    MESSAGE_CONTENT_ENCRYPTED_CONTENT = "message_content.encrypted_content"
+    """
+    OpenAI encrypted_content captured verbatim.
     """
 
 
@@ -354,6 +453,17 @@ class AudioAttributes:
     AUDIO_TRANSCRIPT = "audio.transcript"
     """
     The transcript of the audio file
+    """
+
+
+class VideoAttributes:
+    """
+    Attributes for video
+    """
+
+    VIDEO_URL = "video.url"
+    """
+    The URL, object-store URI, or base64 data URI of a video.
     """
 
 
@@ -441,6 +551,11 @@ class ToolCallAttributes:
     The JSON string representing the arguments passed to the function
     during a tool call.
     """
+    TOOL_CALL_REASONING_SIGNATURE = "tool_call.reasoning_signature"
+    """
+    Opaque vendor-issued reasoning echo token attached to a tool call.
+    Maps to Gemini thoughtSignature when it is attached to a functionCall part.
+    """
 
 
 class PromptAttributes:
@@ -466,15 +581,19 @@ class ChoiceAttributes:
 
 
 class ToolAttributes:
-    """
-    Attributes for a tools
-    """
+    """Attributes for tools."""
 
     TOOL_JSON_SCHEMA = "tool.json_schema"
     """
     The json schema of a tool input, It is RECOMMENDED that this be in the
     OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
     """
+
+    TOOL_NAME = "tool.name"
+    """The name of the tool, i.e. the identifier the model uses to call it."""
+
+    TOOL_DESCRIPTION = "tool.description"
+    """The description of the tool, i.e. the text the model uses to decide whether to call it."""
 
 
 class OpenInferenceSpanKindValues(Enum):
@@ -488,6 +607,13 @@ class OpenInferenceSpanKindValues(Enum):
     UNKNOWN = "UNKNOWN"
     GUARDRAIL = "GUARDRAIL"
     EVALUATOR = "EVALUATOR"
+    PROMPT = "PROMPT"
+
+
+class OpenInferenceAnnotatorKindValues(Enum):
+    HUMAN = "HUMAN"
+    LLM = "LLM"
+    CODE = "CODE"
 
 
 class OpenInferenceMimeTypeValues(Enum):
@@ -513,3 +639,13 @@ class OpenInferenceLLMProviderValues(Enum):
     AWS = "aws"
     XAI = "xai"
     DEEPSEEK = "deepseek"
+    GROQ = "groq"
+    FIREWORKS = "fireworks"
+    MOONSHOT = "moonshot"
+    CEREBRAS = "cerebras"
+    PERPLEXITY = "perplexity"
+    TOGETHER = "together"
+    OLLAMA = "ollama"
+    META = "meta"
+    ZAI = "zai"
+    MINIMAX = "minimax"

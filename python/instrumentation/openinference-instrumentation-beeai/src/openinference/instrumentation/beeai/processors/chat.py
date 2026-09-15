@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Dict, Generator, Tuple
 
 from beeai_framework.backend import (
     AnyMessage,
@@ -19,6 +19,7 @@ from beeai_framework.tools import AnyTool
 from beeai_framework.utils.lists import remove_falsy
 from typing_extensions import override
 
+from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.beeai._utils import (
     _unpack_object,
     safe_dump_model_schema,
@@ -34,6 +35,24 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+
+def get_tool_parameters(tool: AnyTool) -> Dict[str, Any]:
+    tool_dict = tool.to_json_safe()
+    if "input_schema" in tool_dict:
+        input_schema = tool_dict.pop("input_schema")
+        tool_dict["parameters"] = input_schema or {}
+        tool_dict["parameters"]["type"] = "object"
+    return tool_dict
+
+
+def get_tools(tools: list[AnyTool]) -> Generator[Tuple[str, str], None, None]:
+    for index, tool in enumerate(tools):
+        function = {"type": "function", "function": get_tool_parameters(tool)}
+        yield (
+            f"{SpanAttributes.LLM_TOOLS}.{index}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+            safe_json_dumps(function),
+        )
 
 
 class ChatModelProcessor(Processor):
@@ -80,7 +99,7 @@ class ChatModelProcessor(Processor):
                 )
                 self.span.set_attributes(
                     {
-                        SpanAttributes.LLM_TOOLS: [t.name for t in (event.input.tools or [])],
+                        **dict(get_tools(event.input.tools or [])),
                         SpanAttributes.LLM_INVOCATION_PARAMETERS: stringify(
                             meta.creator.parameters.model_dump(
                                 exclude_none=True, exclude_unset=True

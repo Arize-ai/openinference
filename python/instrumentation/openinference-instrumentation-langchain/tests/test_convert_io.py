@@ -9,8 +9,10 @@ from typing import Any, Optional, Union
 from uuid import UUID
 
 import pytest
+from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
+import openinference.instrumentation.langchain._tracer as tracer_module
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.langchain._tracer import _convert_io
 from openinference.semconv.trace import OpenInferenceMimeTypeValues
@@ -558,6 +560,41 @@ class TestConvertIO:
         # Custom objects fallback to safe_json_dumps, which doesn't start with { or [, so no MIME type
         assert len(result) == 1
         assert result[0] == safe_json_dumps(custom_obj)
+
+    def test_convert_io_langchain_messages_json_not_repr(self) -> None:
+        message = HumanMessage(content="hi")
+
+        result = list(_convert_io({"messages": [message]}))
+
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        parsed = json.loads(result[0])
+        first_message = parsed["messages"][0]
+        assert isinstance(first_message, dict)
+        assert first_message["type"] == "human"
+        assert first_message.get("data", first_message)["content"] == "hi"
+
+    def test_convert_io_langchain_messages_manual_fallback_json_not_repr(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        message = HumanMessage(content="hi")
+        monkeypatch.setattr(tracer_module, "_message_to_dict", None)
+        monkeypatch.setattr(HumanMessage, "model_dump", None, raising=False)
+        monkeypatch.setattr(HumanMessage, "model_dump_json", None, raising=False)
+        monkeypatch.setattr(HumanMessage, "dict", None, raising=False)
+
+        result = list(_convert_io({"messages": [message]}))
+
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        parsed = json.loads(result[0])
+        first_message = parsed["messages"][0]
+        assert isinstance(first_message, dict)
+        assert first_message["type"] == "human"
+        assert first_message["data"]["content"] == "hi"
 
     def test_convert_io_string_vs_bytes_distinction(self) -> None:
         """Test how strings and bytes are handled with current input/output conditions."""
@@ -1385,3 +1422,268 @@ class TestConvertIO:
         assert parsed["control_chars"] == "Line1\nLine2\tTabbed\rCarriage"
 
         print("✓ All edge cases handled correctly")
+
+    @pytest.mark.parametrize(
+        "input_obj,expected_value,should_have_mime_type",
+        [
+            # Valid JSON strings (should get MIME type)
+            pytest.param(
+                {"input": '{"name": "John"}'},
+                '{"name": "John"}',
+                True,
+                id="json_object_string",
+            ),
+            pytest.param(
+                {"input": "[1, 2, 3]"},
+                "[1, 2, 3]",
+                True,
+                id="json_array_string",
+            ),
+            pytest.param(
+                {"input": '{"nested": {"key": "value"}}'},
+                '{"nested": {"key": "value"}}',
+                True,
+                id="nested_json_object",
+            ),
+            pytest.param(
+                {"input": '  {"whitespace": "allowed"}  '},
+                '  {"whitespace": "allowed"}  ',
+                True,
+                id="json_with_whitespace",
+            ),
+            pytest.param(
+                {"input": "[]"},
+                "[]",
+                True,
+                id="empty_json_array",
+            ),
+            pytest.param(
+                {"input": "{}"},
+                "{}",
+                True,
+                id="empty_json_object",
+            ),
+            # Non-JSON strings (should NOT get MIME type)
+            pytest.param(
+                {"input": "simple string"},
+                "simple string",
+                False,
+                id="plain_string",
+            ),
+            pytest.param(
+                {"input": "42"},
+                "42",
+                False,
+                id="number_string",
+            ),
+            pytest.param(
+                {"input": "true"},
+                "true",
+                False,
+                id="boolean_string",
+            ),
+            pytest.param(
+                {"input": '"quoted string"'},
+                '"quoted string"',
+                False,
+                id="json_string_primitive",
+            ),
+            pytest.param(
+                {"input": "null"},
+                "null",
+                False,
+                id="json_null_primitive",
+            ),
+            pytest.param(
+                {"input": "{not valid json}"},
+                "{not valid json}",
+                True,  # Heuristic: starts with {, ends with } → tagged as JSON (acceptable false positive)
+                id="malformed_json_heuristic_match",
+            ),
+            pytest.param(
+                {"input": "[1, 2, missing bracket"},
+                "[1, 2, missing bracket",
+                False,
+                id="incomplete_json",
+            ),
+            pytest.param(
+                {"input": ""},
+                "",
+                False,
+                id="empty_string",
+            ),
+            pytest.param(
+                {"input": "   "},
+                "   ",
+                False,
+                id="whitespace_only",
+            ),
+            pytest.param(
+                {"input": "{starts but doesn't end properly"},
+                "{starts but doesn't end properly",
+                False,
+                id="looks_like_json_but_isnt",
+            ),
+        ],
+    )
+    def test_convert_io_json_string_detection(
+        self,
+        input_obj: dict[str, str],
+        expected_value: str,
+        should_have_mime_type: bool,
+    ) -> None:
+        """
+        Test that JSON-like strings are detected using a fast heuristic.
+
+        Uses startswith/endswith check for performance. False positives (strings that
+        look like JSON but aren't valid) are acceptable since the frontend handles
+        invalid JSON gracefully. This validates that stringified JSON payloads are
+        identified so the frontend can render them as pretty JSON instead of plain text.
+        """
+        result = list(_convert_io(input_obj))
+
+        # First item should always be the original string value
+        assert result[0] == expected_value, f"Expected value '{expected_value}', got '{result[0]}'"
+
+        # Check MIME type based on whether string looks like JSON (heuristic)
+        if should_have_mime_type:
+            assert len(result) == 2, (
+                f"Expected 2 items (value + MIME type) for JSON-like string, got {len(result)}"
+            )
+            assert result[1] == OpenInferenceMimeTypeValues.JSON.value, (
+                f"Expected JSON MIME type for JSON-like string, got '{result[1]}'"
+            )
+            # Note: We don't validate parseability - the heuristic accepts false positives
+            # The frontend handles invalid JSON gracefully, so this is acceptable
+        else:
+            assert len(result) == 1, (
+                f"Expected 1 item (value only) for non-JSON string, got {len(result)}: {result}"
+            )
+
+    def test_convert_io_json_string_complex_scenarios(self) -> None:
+        """Test JSON string detection in complex real-world scenarios."""
+
+        # Scenario 1: LangChain chain with stringified JSON input
+        # This is the exact use case from the feature request
+        chain_input = {"input": '{"name": "Ada", "age": 30}'}
+        result = list(_convert_io(chain_input))
+
+        assert len(result) == 2
+        assert result[0] == '{"name": "Ada", "age": 30}'
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # Verify the frontend can parse this
+        parsed = json.loads(result[0])
+        assert parsed["name"] == "Ada"
+        assert parsed["age"] == 30
+
+        # Scenario 2: Chain output with stringified JSON
+        chain_output = {
+            "output": '[{"id": 1, "status": "complete"}, {"id": 2, "status": "pending"}]'
+        }
+        result = list(_convert_io(chain_output))
+
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+        parsed = json.loads(result[0])
+        assert len(parsed) == 2
+        assert parsed[0]["status"] == "complete"
+
+        # Scenario 3: Mixed - some keys are JSON strings, others aren't
+        # (but this is multiple keys, so goes through general path)
+        mixed = {"data": '{"valid": "json"}', "plain": "not json"}
+        result = list(_convert_io(mixed))
+
+        # Multiple keys always get JSON MIME type (general case)
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+    def test_convert_io_json_string_performance_early_exit(self) -> None:
+        """Test that JSON detection exits early for obviously non-JSON strings."""
+
+        # These should exit early without trying to parse
+        non_json_strings = [
+            {"input": "This is just plain text"},
+            {"input": "123456"},  # Number but not in braces/brackets
+            {"input": "true or false"},
+            {"input": "some text with } brace but not at start"},
+            {"input": "[ but missing closing bracket"},
+        ]
+
+        for input_obj in non_json_strings:
+            result = list(_convert_io(input_obj))
+            # All should return just the string, no MIME type
+            assert len(result) == 1, (
+                f"Expected early exit for non-JSON string: {input_obj['input']}"
+            )
+
+    def test_convert_io_json_string_with_escaping(self) -> None:
+        """Test that JSON strings with escaped characters are handled correctly."""
+
+        # JSON string with escaped quotes
+        json_with_quotes = r'{"message": "He said \"Hello\""}'
+        input_obj = {"input": json_with_quotes}
+        result = list(_convert_io(input_obj))
+
+        assert len(result) == 2
+        assert result[0] == json_with_quotes
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # Verify it's valid JSON
+        parsed = json.loads(result[0])
+        assert parsed["message"] == 'He said "Hello"'
+
+        # JSON string with newlines
+        json_with_newlines = '{"text": "Line 1\\nLine 2"}'
+        input_obj = {"input": json_with_newlines}
+        result = list(_convert_io(input_obj))
+
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+        parsed = json.loads(result[0])
+        assert "Line 1\nLine 2" in parsed["text"]
+
+    def test_convert_io_json_string_unicode(self) -> None:
+        """Test that JSON strings with Unicode are handled correctly."""
+
+        # JSON string with Unicode characters
+        json_unicode = '{"greeting": "Hello 世界 🌍", "emoji": "🎉"}'
+        input_obj = {"input": json_unicode}
+        result = list(_convert_io(input_obj))
+
+        assert len(result) == 2
+        assert result[0] == json_unicode
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # Verify it's valid JSON with correct Unicode
+        parsed = json.loads(result[0])
+        assert parsed["greeting"] == "Hello 世界 🌍"
+        assert parsed["emoji"] == "🎉"
+
+    def test_convert_io_json_string_edge_cases(self) -> None:
+        """Test edge cases for JSON string detection."""
+
+        # Very nested JSON string
+        deeply_nested = '{"a": {"b": {"c": {"d": {"e": "value"}}}}}'
+        result = list(_convert_io({"input": deeply_nested}))
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # JSON with special number values (NaN, Infinity not in strings)
+        # Note: These are NOT strictly valid JSON, but heuristic will match them
+        # (starts with {, ends with }) - acceptable false positive
+        invalid_json_numbers = '{"value": NaN}'
+        result = list(_convert_io({"input": invalid_json_numbers}))
+        assert len(result) == 2  # Heuristic matches, frontend will handle gracefully
+
+        # JSON array with mixed types
+        mixed_array = '[1, "string", true, null, {"nested": "object"}]'
+        result = list(_convert_io({"input": mixed_array}))
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+        # Single-character braces/brackets (not JSON)
+        assert len(list(_convert_io({"input": "{"}))) == 1
+        assert len(list(_convert_io({"input": "["}))) == 1
+        assert len(list(_convert_io({"input": "}"}))) == 1
+        assert len(list(_convert_io({"input": "]"}))) == 1

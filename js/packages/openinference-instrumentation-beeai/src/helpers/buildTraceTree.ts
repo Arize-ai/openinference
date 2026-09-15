@@ -1,13 +1,14 @@
-import { OITracer } from "@arizeai/openinference-core";
+import type { TimeInput } from "@opentelemetry/api";
+import { SpanStatusCode } from "@opentelemetry/api";
+
+import type { OITracer } from "@arizeai/openinference-core";
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { SpanStatusCode, TimeInput } from "@opentelemetry/api";
-
 import { startEventName, successEventName } from "../config";
-import { FrameworkSpan, GeneratedResponse } from "../types";
+import type { FrameworkSpan, GeneratedResponse } from "../types";
 
 interface BuiltTraceTreeProps {
   tracer: OITracer;
@@ -87,12 +88,8 @@ function buildAgentMainSpanData(data: BuiltTraceTreeProps["data"]) {
 }
 
 function buildToolMainSpanData(data: BuiltTraceTreeProps["data"]) {
-  const startBeeaiSpan = data.spans.find(
-    (span) => span.name === startEventName,
-  );
-  const successBeeeaiSpan = data.spans.find(
-    (span) => span.name === successEventName,
-  );
+  const startBeeaiSpan = data.spans.find((span) => span.name === startEventName);
+  const successBeeeaiSpan = data.spans.find((span) => span.name === successEventName);
 
   return {
     ...(startBeeaiSpan && {
@@ -109,48 +106,37 @@ function buildToolMainSpanData(data: BuiltTraceTreeProps["data"]) {
 }
 
 function buildLLMMainSpanData(data: BuiltTraceTreeProps["data"]) {
-  const startBeeaiSpan = data.spans.find(
-    (span) => span.name === startEventName,
-  );
-  const successBeeeaiSpan = data.spans.find(
-    (span) => span.name === successEventName,
-  );
+  const startBeeaiSpan = data.spans.find((span) => span.name === startEventName);
+  const successBeeeaiSpan = data.spans.find((span) => span.name === successEventName);
 
   if (!startBeeaiSpan && !successBeeeaiSpan) return {};
 
+  const startData = startBeeaiSpan?.attributes.data;
+  const successData = successBeeeaiSpan?.attributes.data;
+
   const provider =
-    startBeeaiSpan?.attributes.data?.[SemanticConventions.LLM_PROVIDER] ||
-    successBeeeaiSpan?.attributes.data?.[SemanticConventions.LLM_PROVIDER];
+    startData?.[SemanticConventions.LLM_PROVIDER] ||
+    successData?.[SemanticConventions.LLM_PROVIDER];
 
   const modelName =
-    startBeeaiSpan?.attributes.data?.[SemanticConventions.LLM_MODEL_NAME] ||
-    successBeeeaiSpan?.attributes.data?.[SemanticConventions.LLM_MODEL_NAME];
+    startData?.[SemanticConventions.LLM_MODEL_NAME] ||
+    successData?.[SemanticConventions.LLM_MODEL_NAME];
 
   return {
     ...(startBeeaiSpan && {
-      [SemanticConventions.INPUT_VALUE]:
-        startBeeaiSpan?.attributes.data?.[SemanticConventions.INPUT_VALUE],
-      [SemanticConventions.INPUT_MIME_TYPE]:
-        startBeeaiSpan?.attributes.data?.[SemanticConventions.INPUT_MIME_TYPE],
+      [SemanticConventions.INPUT_VALUE]: startData?.[SemanticConventions.INPUT_VALUE],
+      [SemanticConventions.INPUT_MIME_TYPE]: startData?.[SemanticConventions.INPUT_MIME_TYPE],
     }),
     ...(successBeeeaiSpan && {
-      [SemanticConventions.OUTPUT_MIME_TYPE]:
-        successBeeeaiSpan.attributes.data?.[
-          SemanticConventions.OUTPUT_MIME_TYPE
-        ],
-      [SemanticConventions.OUTPUT_VALUE]:
-        successBeeeaiSpan.attributes.data?.[SemanticConventions.OUTPUT_VALUE],
+      [SemanticConventions.OUTPUT_MIME_TYPE]: successData?.[SemanticConventions.OUTPUT_MIME_TYPE],
+      [SemanticConventions.OUTPUT_VALUE]: successData?.[SemanticConventions.OUTPUT_VALUE],
     }),
     ...(provider && { [SemanticConventions.LLM_PROVIDER]: provider }),
     ...(modelName && { [SemanticConventions.LLM_MODEL_NAME]: modelName }),
   };
 }
 
-export function buildTraceTree({
-  tracer,
-  data,
-  mainSpanKind,
-}: BuiltTraceTreeProps) {
+export function buildTraceTree({ tracer, data, mainSpanKind }: BuiltTraceTreeProps) {
   const computedData =
     mainSpanKind === OpenInferenceSpanKind.AGENT
       ? buildAgentMainSpanData(data)

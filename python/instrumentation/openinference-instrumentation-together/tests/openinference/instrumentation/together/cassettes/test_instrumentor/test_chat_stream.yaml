@@ -1,0 +1,70 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Count from one to five."}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","stream":true}'
+    headers: {}
+    method: POST
+    uri: https://api.together.ai/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"1","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":16,"role":"assistant","content":"1"}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":",","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":11,"role":"assistant","content":","}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"
+        ","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":220,"role":"assistant","content":"
+        "}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"2","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":17,"role":"assistant","content":"2"}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":",","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":11,"role":"assistant","content":","}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"
+        ","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":220,"role":"assistant","content":"
+        "}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"3","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":18,"role":"assistant","content":"3"}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":",","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":11,"role":"assistant","content":","}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"
+        ","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":220,"role":"assistant","content":"
+        "}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"4","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":19,"role":"assistant","content":"4"}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":",","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":11,"role":"assistant","content":","}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"
+        ","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":220,"role":"assistant","content":"
+        "}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"5","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":20,"role":"assistant","content":"5"}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":".","logprobs":null,"finish_reason":null,"seed":null,"delta":{"token_id":13,"role":"assistant","content":"."}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":null}
+
+
+        data: {"id":"ovCb55p-zfFMX-a273a0f90faa9289","object":"chat.completion.chunk","created":1786077894,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":"stop","seed":1395002666759424000,"delta":{"token_id":128009,"role":"assistant","content":""}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":{"prompt_tokens":41,"completion_tokens":15,"total_tokens":56,"cached_tokens":0}}
+
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

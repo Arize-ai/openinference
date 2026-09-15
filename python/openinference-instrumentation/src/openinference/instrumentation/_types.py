@@ -18,6 +18,7 @@ OpenInferenceSpanKind = Union[
         "evaluator",
         "guardrail",
         "llm",
+        "prompt",
         "reranker",
         "retriever",
         "tool",
@@ -31,15 +32,29 @@ OpenInferenceMimeType = Union[
 ]
 OpenInferenceLLMProvider: TypeAlias = Union[str, OpenInferenceLLMProviderValues]
 OpenInferenceLLMSystem: TypeAlias = Union[str, OpenInferenceLLMSystemValues]
+AnnotationScope: TypeAlias = Literal["span", "trace", "session"]
+
+
+class Annotation(TypedDict, total=False):
+    """A single annotation or evaluation result."""
+
+    name: Required[str]
+    score: Union[int, float]
+    label: str
+    explanation: str
+    annotator_kind: str
+    identifier: str
+    metadata: Union[str, Dict[str, Any]]
 
 
 class Image(TypedDict, total=False):
     url: str
 
 
-class TextMessageContent(TypedDict):
-    type: Literal["text"]
-    text: str
+class TextMessageContent(TypedDict, total=False):
+    type: Required[Literal["text"]]
+    text: Required[str]
+    signature: str
 
 
 class ImageMessageContent(TypedDict):
@@ -47,7 +62,15 @@ class ImageMessageContent(TypedDict):
     image: Image
 
 
-MessageContent: TypeAlias = Union[TextMessageContent, ImageMessageContent]
+class ReasoningMessageContent(TypedDict, total=False):
+    type: Required[Literal["reasoning"]]
+    text: str
+    signature: str
+    data: str
+    encrypted_content: str
+
+
+MessageContent: TypeAlias = Union[TextMessageContent, ImageMessageContent, ReasoningMessageContent]
 
 
 class ToolCallFunction(TypedDict, total=False):
@@ -58,6 +81,7 @@ class ToolCallFunction(TypedDict, total=False):
 class ToolCall(TypedDict, total=False):
     id: str
     function: ToolCallFunction
+    reasoning_signature: str
 
 
 class Message(TypedDict, total=False):
@@ -83,6 +107,8 @@ class TokenCount(TypedDict, total=False):
 
 class Tool(TypedDict, total=False):
     json_schema: Required[Union[str, Dict[str, Any]]]
+    name: str
+    description: str
 
 
 class Embedding(TypedDict, total=False):

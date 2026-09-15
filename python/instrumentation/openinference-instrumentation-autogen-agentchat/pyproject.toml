@@ -28,15 +28,15 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.21",
+  "openinference-instrumentation>=0.1.61",
+  "openinference-semantic-conventions>=0.1.37",
   "autogen-agentchat>=0.5.0",
   "autogen-core>=0.5.0",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "autogen-agentchat >= 0.5.0",
+  "autogen-agentchat >= 0.5.1",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]

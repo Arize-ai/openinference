@@ -1,3 +1,5 @@
+import type { Attributes } from "@opentelemetry/api";
+
 import {
   INPUT_MIME_TYPE,
   INPUT_VALUE,
@@ -7,11 +9,10 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes } from "@opentelemetry/api";
-
 import { safelyJSONStringify } from "../utils";
-
-import {
+import type {
+  Annotation,
+  AnnotationScope,
   Document,
   Embedding,
   InputToAttributesFn,
@@ -47,12 +48,12 @@ import {
  */
 export function toInputType(...args: unknown[]): SpanInput | undefined {
   if (args.length === 0) {
-    return;
+    return undefined;
   }
   if (args.length === 1) {
     const value = args[0];
     if (value == null) {
-      return;
+      return undefined;
     }
     if (typeof value === "string") {
       return {
@@ -67,7 +68,7 @@ export function toInputType(...args: unknown[]): SpanInput | undefined {
   }
   const value = safelyJSONStringify(args);
   if (value == null) {
-    return;
+    return undefined;
   }
   return {
     value,
@@ -99,7 +100,7 @@ export function toInputType(...args: unknown[]): SpanInput | undefined {
  */
 export function toOutputType(result: unknown): SpanOutput | undefined {
   if (result == null) {
-    return;
+    return undefined;
   }
   if (typeof result === "string") {
     return {
@@ -172,9 +173,7 @@ export const defaultProcessOutput: OutputToAttributesFn = (res: unknown) =>
  * getOutputAttributes(undefined) // Returns: {}
  * ```
  */
-export function getOutputAttributes(
-  output: SpanOutput | string | null | undefined,
-): Attributes {
+export function getOutputAttributes(output: SpanOutput | string | null | undefined): Attributes {
   if (output == null) {
     return {};
   }
@@ -213,9 +212,7 @@ export function getOutputAttributes(
  * getOutputAttributes(undefined) // Returns: {}
  * ```
  */
-export function getInputAttributes(
-  input: SpanInput | string | undefined,
-): Attributes {
+export function getInputAttributes(input: SpanInput | string | undefined): Attributes {
   if (input == null) {
     return {};
   }
@@ -302,9 +299,7 @@ export function getEmbeddingAttributes(options: {
  * });
  * ```
  */
-export function getRetrieverAttributes(options: {
-  documents: Document[];
-}): Attributes {
+export function getRetrieverAttributes(options: { documents: Document[] }): Attributes {
   const { documents } = options;
   const attributes: Attributes = {};
 
@@ -369,14 +364,11 @@ export function getDocumentAttributes(
   const attributes: Attributes = {};
 
   if (document.content != null) {
-    attributes[
-      `${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_CONTENT}`
-    ] = document.content;
+    attributes[`${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_CONTENT}`] =
+      document.content;
   }
   if (document.id != null) {
-    attributes[
-      `${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_ID}`
-    ] = document.id;
+    attributes[`${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_ID}`] = document.id;
   }
   if (document.metadata != null) {
     const key = `${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_METADATA}`;
@@ -387,12 +379,161 @@ export function getDocumentAttributes(
     }
   }
   if (document.score != null) {
-    attributes[
-      `${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_SCORE}`
-    ] = document.score;
+    attributes[`${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_SCORE}`] =
+      document.score;
   }
 
   return attributes;
+}
+
+type AnnotationTerminology = "annotation" | "evaluation";
+
+const annotationCollectionPrefixes = {
+  annotation: {
+    span: SemanticConventions.ANNOTATIONS,
+    trace: SemanticConventions.TRACE_ANNOTATIONS,
+    session: SemanticConventions.SESSION_ANNOTATIONS,
+  },
+  evaluation: {
+    span: SemanticConventions.EVALUATIONS,
+    trace: SemanticConventions.TRACE_EVALUATIONS,
+    session: SemanticConventions.SESSION_EVALUATIONS,
+  },
+} as const;
+
+const annotationFieldNames = {
+  annotation: {
+    name: SemanticConventions.ANNOTATION_NAME,
+    score: SemanticConventions.ANNOTATION_SCORE,
+    label: SemanticConventions.ANNOTATION_LABEL,
+    explanation: SemanticConventions.ANNOTATION_EXPLANATION,
+    annotatorKind: SemanticConventions.ANNOTATION_ANNOTATOR_KIND,
+    identifier: SemanticConventions.ANNOTATION_IDENTIFIER,
+    metadata: SemanticConventions.ANNOTATION_METADATA,
+  },
+  evaluation: {
+    name: SemanticConventions.EVALUATION_NAME,
+    score: SemanticConventions.EVALUATION_SCORE,
+    label: SemanticConventions.EVALUATION_LABEL,
+    explanation: SemanticConventions.EVALUATION_EXPLANATION,
+    annotatorKind: SemanticConventions.EVALUATION_ANNOTATOR_KIND,
+    identifier: SemanticConventions.EVALUATION_IDENTIFIER,
+    metadata: SemanticConventions.EVALUATION_METADATA,
+  },
+} as const;
+
+const annotationFields = [
+  "name",
+  "score",
+  "label",
+  "explanation",
+  "annotatorKind",
+  "identifier",
+  "metadata",
+] as const;
+
+/**
+ * Generates flattened attributes for annotations at a span, trace, or session scope.
+ */
+function getScopedAnnotationAttributes(options: {
+  annotations: readonly Annotation[];
+  terminology: AnnotationTerminology;
+  scope: AnnotationScope;
+}): Attributes {
+  const { annotations, terminology, scope } = options;
+  const collectionPrefix = annotationCollectionPrefixes[terminology]?.[scope];
+  const fieldNames = annotationFieldNames[terminology];
+  if (collectionPrefix == null || fieldNames == null) {
+    throw new TypeError(`Invalid annotation terminology or scope: ${terminology}, ${scope}`);
+  }
+  if (!Array.isArray(annotations)) {
+    throw new TypeError("annotations must be an array of annotation objects");
+  }
+
+  const attributes: Attributes = {};
+  annotations.forEach((result, index) => {
+    if (result == null || typeof result !== "object") {
+      throw new TypeError("each annotation must be an object");
+    }
+    if (typeof result.name !== "string") {
+      throw new TypeError("each annotation must have a string name");
+    }
+    if (result.score == null && result.label == null && result.explanation == null) {
+      throw new TypeError("each annotation must have at least one of score, label, or explanation");
+    }
+
+    for (const field of annotationFields) {
+      let value = result[field];
+      if (value == null) {
+        continue;
+      }
+      if (field === "metadata" && typeof value !== "string") {
+        value = safelyJSONStringify(value) ?? "{}";
+      }
+      attributes[`${collectionPrefix}.${index}.${fieldNames[field]}`] = value;
+    }
+  });
+  return attributes;
+}
+
+/**
+ * Generates annotation attributes for a span, trace, or session.
+ *
+ * Collection indices are assigned in input order. Metadata objects are JSON-stringified,
+ * while metadata strings are preserved as provided.
+ *
+ * @param options - Annotation values and target scope
+ * @param options.annotations - Ordered annotations to flatten
+ * @param options.scope - Target scope; defaults to `span`
+ * @returns OpenTelemetry attributes using annotation terminology
+ *
+ * @example
+ * ```typescript
+ * getAnnotationAttributes({
+ *   annotations: [{ name: "correctness", score: 0.95 }],
+ *   scope: "trace",
+ * });
+ * ```
+ */
+export function getAnnotationAttributes(options: {
+  annotations: readonly Annotation[];
+  scope?: AnnotationScope;
+}): Attributes {
+  return getScopedAnnotationAttributes({
+    annotations: options.annotations,
+    terminology: "annotation",
+    scope: options.scope ?? "span",
+  });
+}
+
+/**
+ * Generates annotations using evaluation terminology for a span, trace, or session.
+ *
+ * Collection indices are assigned in input order. Metadata objects are JSON-stringified,
+ * while metadata strings are preserved as provided.
+ *
+ * @param options - Annotation values and target scope
+ * @param options.evaluations - Ordered annotations to encode using evaluation terminology
+ * @param options.scope - Target scope; defaults to `span`
+ * @returns OpenTelemetry attributes using evaluation terminology
+ *
+ * @example
+ * ```typescript
+ * getEvaluationAttributes({
+ *   evaluations: [{ name: "correctness", label: "correct" }],
+ *   scope: "session",
+ * });
+ * ```
+ */
+export function getEvaluationAttributes(options: {
+  evaluations: readonly Annotation[];
+  scope?: AnnotationScope;
+}): Attributes {
+  return getScopedAnnotationAttributes({
+    annotations: options.evaluations,
+    terminology: "evaluation",
+    scope: options.scope ?? "span",
+  });
 }
 
 /**
@@ -406,9 +547,7 @@ export function getDocumentAttributes(
  * const attrs = getMetadataAttributes({ version: "1.0", env: "prod" });
  * ```
  */
-export function getMetadataAttributes(
-  metadata: Record<string, unknown>,
-): Attributes {
+export function getMetadataAttributes(metadata: Record<string, unknown>): Attributes {
   return {
     [SemanticConventions.METADATA]: safelyJSONStringify(metadata) ?? "{}",
   };
@@ -449,8 +588,36 @@ export function getToolAttributes(options: {
     attributes[SemanticConventions.TOOL_DESCRIPTION] = description;
   }
 
-  attributes[SemanticConventions.TOOL_PARAMETERS] =
-    safelyJSONStringify(parameters) ?? "{}";
+  attributes[SemanticConventions.TOOL_PARAMETERS] = safelyJSONStringify(parameters) ?? "{}";
+
+  return attributes;
+}
+
+/**
+ * Generates the model name attributes for LLM operations. llm.model_name is
+ * the key consumers display as the primary model, so it mirrors
+ * responseModelName ?? requestModelName when not set explicitly, matching how
+ * instrumentors populate all three keys.
+ */
+function getModelNameAttributes(options: {
+  modelName?: string;
+  requestModelName?: string;
+  responseModelName?: string;
+}): Attributes {
+  const attributes: Attributes = {};
+
+  const modelName = options.modelName ?? options.responseModelName ?? options.requestModelName;
+  if (modelName != null) {
+    attributes[SemanticConventions.LLM_MODEL_NAME] = modelName;
+  }
+
+  if (options.requestModelName != null) {
+    attributes[SemanticConventions.LLM_REQUEST_MODEL_NAME] = options.requestModelName;
+  }
+
+  if (options.responseModelName != null) {
+    attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME] = options.responseModelName;
+  }
 
   return attributes;
 }
@@ -465,6 +632,9 @@ export function getToolAttributes(options: {
  * @param options.provider - The LLM provider (e.g., "openai", "anthropic")
  * @param options.system - The LLM system type
  * @param options.modelName - The name of the LLM model
+ * @param options.requestModelName - The model requested by the caller, as sent in the request.
+ * When modelName is omitted, llm.model_name is mirrored from responseModelName ?? requestModelName
+ * @param options.responseModelName - The model that actually generated the response, as reported by the provider
  * @param options.invocationParameters - Parameters used for the LLM invocation
  * @param options.inputMessages - Input messages sent to the LLM
  * @param options.outputMessages - Output messages received from the LLM
@@ -487,6 +657,8 @@ export function getLLMAttributes(options: {
   provider?: string;
   system?: string;
   modelName?: string;
+  requestModelName?: string;
+  responseModelName?: string;
   invocationParameters?: Record<string, unknown>;
   inputMessages?: Message[];
   outputMessages?: Message[];
@@ -497,8 +669,7 @@ export function getLLMAttributes(options: {
 
   // Provider attributes
   if (options.provider != null) {
-    attributes[SemanticConventions.LLM_PROVIDER] =
-      options.provider.toLowerCase();
+    attributes[SemanticConventions.LLM_PROVIDER] = options.provider.toLowerCase();
   }
 
   // System attributes
@@ -506,10 +677,7 @@ export function getLLMAttributes(options: {
     attributes[SemanticConventions.LLM_SYSTEM] = options.system.toLowerCase();
   }
 
-  // Model name attributes
-  if (options.modelName != null) {
-    attributes[SemanticConventions.LLM_MODEL_NAME] = options.modelName;
-  }
+  Object.assign(attributes, getModelNameAttributes(options));
 
   // Invocation parameters
   if (options.invocationParameters != null) {
@@ -547,6 +715,28 @@ export function getLLMAttributes(options: {
               `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
             ] = content.image.url;
           }
+          if (content.type === "reasoning") {
+            if (content.text != null) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+              ] = content.text;
+            }
+            if (content.signature != null) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`
+              ] = content.signature;
+            }
+            if (content.data != null) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_DATA}`
+              ] = content.data;
+            }
+            if (content.encryptedContent != null) {
+              attributes[
+                `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_ENCRYPTED_CONTENT}`
+              ] = content.encryptedContent;
+            }
+          }
         });
       }
       if (message.toolCallId != null) {
@@ -574,6 +764,11 @@ export function getLLMAttributes(options: {
             attributes[
               `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
             ] = argsJson;
+          }
+          if (toolCall.reasoningSignature != null) {
+            attributes[
+              `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_REASONING_SIGNATURE}`
+            ] = toolCall.reasoningSignature;
           }
         });
       }
@@ -610,6 +805,28 @@ export function getLLMAttributes(options: {
               `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
             ] = content.image.url;
           }
+          if (content.type === "reasoning") {
+            if (content.text != null) {
+              attributes[
+                `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+              ] = content.text;
+            }
+            if (content.signature != null) {
+              attributes[
+                `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_SIGNATURE}`
+              ] = content.signature;
+            }
+            if (content.data != null) {
+              attributes[
+                `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_DATA}`
+              ] = content.data;
+            }
+            if (content.encryptedContent != null) {
+              attributes[
+                `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.${SemanticConventions.MESSAGE_CONTENT_ENCRYPTED_CONTENT}`
+              ] = content.encryptedContent;
+            }
+          }
         });
       }
       if (message.toolCallId != null) {
@@ -638,6 +855,11 @@ export function getLLMAttributes(options: {
               `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
             ] = argsJson;
           }
+          if (toolCall.reasoningSignature != null) {
+            attributes[
+              `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_REASONING_SIGNATURE}`
+            ] = toolCall.reasoningSignature;
+          }
         });
       }
     });
@@ -646,32 +868,26 @@ export function getLLMAttributes(options: {
   // Token count
   if (options.tokenCount != null) {
     if (options.tokenCount.prompt != null) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] =
-        options.tokenCount.prompt;
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = options.tokenCount.prompt;
     }
     if (options.tokenCount.completion != null) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] =
-        options.tokenCount.completion;
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = options.tokenCount.completion;
     }
     if (options.tokenCount.total != null) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] =
-        options.tokenCount.total;
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = options.tokenCount.total;
     }
     if (options.tokenCount.promptDetails != null) {
       const details = options.tokenCount.promptDetails;
       if (details.audio != null) {
-        attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO] =
-          details.audio;
+        attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO] = details.audio;
       }
       if (details.cacheRead != null) {
-        attributes[
-          SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
-        ] = details.cacheRead;
+        attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
+          details.cacheRead;
       }
       if (details.cacheWrite != null) {
-        attributes[
-          SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
-        ] = details.cacheWrite;
+        attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] =
+          details.cacheWrite;
       }
     }
   }

@@ -1,0 +1,50 @@
+interactions:
+- request:
+    body: '{"model":"gpt-4.1","input":"Write a poem about a boy and his first pet
+      dog."}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"id\": \"resp_0d1b17eaba7e034d00699ec45491c48193b7445a8680661400\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1772012628,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1772012635,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-4.1-2025-04-14\",\n  \"output\": [\n    {\n      \"id\": \"msg_0d1b17eaba7e034d00699ec454e3bc81939b5c46bf18f4a245\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [],\n          \"logprobs\": [],\n          \"text\": \"In a sunlit yard of
+        summer green,  \\nA boy stands shy, his gaze serene;  \\nA quiet world, so
+        big, so new\\u2014  \\nHe waits for dreams he never knew.\\n\\nA wagging tail
+        and floppy ears,  \\nCome tumbling close, erasing fears;  \\nWet nose meets
+        hand with gentle trust,  \\nIn that small moment, hearts adjust.\\n\\nHe names
+        him Max, a noble call,  \\nA promise in that name for all  \\nThe backyard
+        chases, muddy paws,  \\nNewfound laughter, happy flaws.\\n\\nThey run through
+        clover, roll in dirt,  \\nBest friends united in each spurt;  \\nThe boy,
+        once lonely, now alive,  \\nHis loyal friend by every stride.\\n\\nAt night
+        they curl in tangled heap,  \\nThe boy drifts softly into sleep;  \\nHe dreams
+        of fields and cheerful barks,  \\nThe endless love that friendship sparks.\\n\\nThrough
+        every season, every fall,  \\nThe boy and Max will heed the call;  \\nOf morning
+        walks and secret nooks,  \\nOf shared adventures, whispered looks.\\n\\nIn
+        growing up, in learning how  \\nTo care, and hope, and live in now\\u2014
+        \ \\nThe boy finds joy: a simple truth  \\nWithin the heartbeats of his youth.\"\n
+        \       }\n      ],\n      \"role\": \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\":
+        true,\n  \"presence_penalty\": 0.0,\n  \"previous_response_id\": null,\n  \"prompt_cache_key\":
+        null,\n  \"prompt_cache_retention\": null,\n  \"reasoning\": {\n    \"effort\":
+        null,\n    \"summary\": null\n  },\n  \"safety_identifier\": null,\n  \"service_tier\":
+        \"default\",\n  \"store\": true,\n  \"temperature\": 1.0,\n  \"text\": {\n
+        \   \"format\": {\n      \"type\": \"text\"\n    },\n    \"verbosity\": \"medium\"\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [],\n  \"top_logprobs\":
+        0,\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n  \"usage\": {\n    \"input_tokens\":
+        19,\n    \"input_tokens_details\": {\n      \"cached_tokens\": 0\n    },\n
+        \   \"output_tokens\": 253,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\":
+        0\n    },\n    \"total_tokens\": 272\n  },\n  \"user\": null,\n  \"metadata\":
+        {}\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

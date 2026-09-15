@@ -1,0 +1,17 @@
+interactions:
+- request:
+    body: '{"max_tokens":1024,"messages":[{"role":"user","content":"Extract the key
+      information from: The meeting is scheduled for March 15th at 2 PM."}],"model":"claude-sonnet-4-6"}'
+    headers: {}
+    method: POST
+    uri: https://api.anthropic.com/v1/messages?beta=true
+  response:
+    body:
+      string: '{"model":"claude-sonnet-4-6","id":"msg_015FWiTX6PfnwN4UdLKKAEar","type":"message","role":"assistant","content":[{"type":"text","text":"Here
+        is the key information extracted:\n\n- **Event:** Meeting\n- **Date:** March
+        15th\n- **Time:** 2:00 PM"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":28,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":36,"service_tier":"standard","inference_geo":"global"}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

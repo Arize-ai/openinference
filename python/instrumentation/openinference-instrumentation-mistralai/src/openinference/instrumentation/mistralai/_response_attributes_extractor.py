@@ -12,12 +12,14 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     SpanAttributes,
     ToolCallAttributes,
 )
 
 if TYPE_CHECKING:
-    from mistralai.models import ChatCompletionResponse
+    from mistralai.client.models import ChatCompletionResponse
 
 __all__ = ("_ResponseAttributesExtractor",)
 
@@ -39,6 +41,8 @@ def _get_attributes_from_chat_completion_response(
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if model := getattr(response, "model", None):
         yield SpanAttributes.LLM_MODEL_NAME, model
+    yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.MISTRALAI.value
+    yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.MISTRALAI.value
     if usage := getattr(response, "usage", None):
         yield from _get_attributes_from_completion_usage(usage)
     if (choices := getattr(response, "choices", None)) and isinstance(choices, Iterable):
@@ -48,6 +52,10 @@ def _get_attributes_from_chat_completion_response(
             if message := _get_attribute_or_value(choice, "message"):
                 for key, value in _get_attributes_from_chat_completion_message(message):
                     yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+            # Only capture finish_reason for the first choice.
+            if index == 0:
+                if (finish_reason := _get_attribute_or_value(choice, "finish_reason")) is not None:
+                    yield SpanAttributes.LLM_FINISH_REASON, finish_reason
 
 
 class _StreamResponseAttributesExtractor:
@@ -65,6 +73,8 @@ def _get_attributes_from_stream_chat_completion_response(
     data = response.data
     if model := data.get("model", None):
         yield SpanAttributes.LLM_MODEL_NAME, model
+    yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.MISTRALAI.value
+    yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.MISTRALAI.value
     if usage := data.get("usage", None):
         yield from _get_attributes_from_completion_usage(usage)
     if (choices := data.get("choices", None)) and isinstance(choices, Iterable):
@@ -74,6 +84,10 @@ def _get_attributes_from_stream_chat_completion_response(
             if message := _get_attribute_or_value(choice, "message"):
                 for key, value in _get_attributes_from_chat_completion_message(message):
                     yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+            # Only capture finish_reason for the first choice.
+            if index == 0:
+                if (finish_reason := _get_attribute_or_value(choice, "finish_reason")) is not None:
+                    yield SpanAttributes.LLM_FINISH_REASON, finish_reason
 
 
 def _get_attributes_from_chat_completion_message(

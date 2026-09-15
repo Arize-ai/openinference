@@ -1,0 +1,120 @@
+import asyncio
+import json
+
+import aioboto3
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation.bedrock import BedrockInstrumentor
+
+endpoint = "http://127.0.0.1:6006/v1/traces"
+tracer_provider = trace_sdk.TracerProvider()
+tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
+tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+
+BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
+
+tools = [
+    {
+        "name": "get_stock_price",
+        "description": "Get the current stock price for a given ticker symbol.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "The stock ticker symbol, e.g. AAPL for Apple Inc.",
+                }
+            },
+            "required": ["ticker"],
+        },
+    }
+]
+
+
+async def tool_call_example():
+    # Prepare Claude messages payload
+    body = {
+        "messages": [{"role": "user", "content": "What's the S&P 500 at today?"}],
+        "tools": tools,
+        "max_tokens": 1000,
+        "temperature": 0.7,
+        "anthropic_version": "bedrock-2023-05-31",
+    }
+    session = aioboto3.session.Session(
+        region_name="us-east-1",
+    )
+    async with session.client("bedrock-runtime") as client:
+        response = await client.invoke_model(
+            modelId="us.anthropic.claude-sonnet-4-6",
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(body),
+        )
+
+        response_body = json.loads(await response["body"].read())
+
+    # Display the response
+    print("Claude response:")
+    print(json.dumps(response_body, indent=2))
+
+
+async def tool_call_with_response():
+    # Prepare Claude messages payload
+    body = {
+        "messages": [
+            {"role": "user", "content": "What's the S&P 500 at today?"},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_01D7FLrfh4GYq7yT1ULFeyMV",
+                        "name": "get_stock_price",
+                        "input": {"ticker": "^GSPC"},
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_01D7FLrfh4GYq7yT1ULFeyMV",
+                        "content": "259.75 USD",
+                    }
+                ],
+            },
+        ],
+        "tools": tools,
+        "max_tokens": 1000,
+        "temperature": 0.7,
+        "anthropic_version": "bedrock-2023-05-31",
+    }
+
+    session = aioboto3.session.Session(
+        region_name="us-east-1",
+    )
+    async with session.client("bedrock-runtime") as client:
+        response = await client.invoke_model(
+            modelId="us.anthropic.claude-sonnet-4-6",
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(body),
+        )
+
+        response_body = json.loads(await response["body"].read())
+
+        # Display the response
+        print("Claude response:")
+        print(json.dumps(response_body, indent=2))
+
+
+async def run():
+    await tool_call_example()
+    await tool_call_with_response()
+
+
+if __name__ == "__main__":
+    asyncio.run(run())

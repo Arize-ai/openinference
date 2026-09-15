@@ -1,11 +1,13 @@
-import { AttributeValue } from "@opentelemetry/api";
+import type { AttributeValue } from "@opentelemetry/api";
 
-import { OISpan } from "./OISpan";
+import type { OISpan } from "./OISpan";
 
 /**
  * Tracing configuration options that can be set to hide or redact sensitive information from traces
  */
 export type TraceConfigOptions = {
+  /** Hides the tool definitions advertised to the LLM (`llm.tools.*`) */
+  hideLLMTools?: boolean;
   hideInputs?: boolean;
   hideOutputs?: boolean;
   hideInputMessages?: boolean;

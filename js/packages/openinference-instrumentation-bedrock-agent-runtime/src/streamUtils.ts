@@ -1,16 +1,14 @@
+import type { RetrieveAndGenerateStreamResponseOutput } from "@aws-sdk/client-bedrock-agent-runtime";
 import { diag } from "@opentelemetry/api";
 
-import { getObjectDataFromUnknown } from "./utils/jsonUtils";
-import { CallbackHandler, RagCallbackHandler } from "./callbackHandler";
+import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 
-import { RetrieveAndGenerateStreamResponseOutput } from "@aws-sdk/client-bedrock-agent-runtime";
+import type { CallbackHandler, RagCallbackHandler } from "./callbackHandler";
+import { getObjectDataFromUnknown } from "./utils/jsonUtils";
 
 export function interceptAgentResponse<
   T extends { chunk?: { bytes?: Uint8Array }; trace?: object },
->(
-  originalStream: AsyncIterable<T>,
-  callback: CallbackHandler,
-): AsyncIterable<T> {
+>(originalStream: AsyncIterable<T>, callback: CallbackHandler): AsyncIterable<T> {
   return {
     async *[Symbol.asyncIterator]() {
       try {
@@ -18,8 +16,8 @@ export function interceptAgentResponse<
           try {
             if (item.chunk?.bytes) {
               callback.consumeResponse(item.chunk.bytes);
-            } else if (item.trace) {
-              callback.consumeTrace(item.trace as Record<string, unknown>);
+            } else if (isObjectWithStringKeys(item.trace)) {
+              callback.consumeTrace(item.trace);
             }
           } catch (err: unknown) {
             diag.debug("Error in interceptAgentResponse Stream:", err);
@@ -55,9 +53,7 @@ export function interceptAgentResponse<
  * @param callback The RagCallbackHandler instance to receive output and citation events.
  * @returns An async iterable that yields the same items as the original stream, while invoking the callback.
  */
-export function interceptRagResponse<
-  T extends RetrieveAndGenerateStreamResponseOutput,
->(
+export function interceptRagResponse<T extends RetrieveAndGenerateStreamResponseOutput>(
   originalStream: AsyncIterable<T>,
   callback: RagCallbackHandler,
 ): AsyncIterable<T> {

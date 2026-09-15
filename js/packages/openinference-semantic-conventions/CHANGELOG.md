@@ -1,5 +1,99 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.11.0
+
+### Minor Changes
+
+- 0ff0af2: Add `input.images` and `output.images` semantic conventions, letting any span kind record images without the LLM message structure.
+
+## 2.10.0
+
+### Minor Changes
+
+- 6d9f813: Add `message_content.audio`, `message_content.video`, and `video.url` constants.
+
+## 2.9.0
+
+### Minor Changes
+
+- fd01216: Add `META`, `ZAI`, and `MINIMAX` to the `LLMProvider` enum, giving Meta AI (`https://api.meta.ai/v1`, `muse-spark-*` models), Z.ai (`https://api.z.ai/api/paas/v4`, GLM models), and MiniMax (`https://api.minimax.io/v1`) well-known `llm.provider` values instead of leaving each to a custom string. Mirrors the same additions in the Python, Java, and Go semantic conventions and in the spec's well-known value table.
+
+## 2.8.0
+
+### Minor Changes
+
+- 1fe497f: Add `llm.request.model_name` and `llm.response.model_name` semantic conventions, letting instrumentation record the model requested by the caller separately from the model that actually generated the response (e.g. provider-side classifier/fallback routing). `llm.model_name` keeps its existing meaning.
+
+## 2.7.0
+
+### Minor Changes
+
+- 237ce2b: Add OLLAMA to the LLMProvider enum, map the ollama.com host to it, and anchor host-suffix matching at label boundaries
+
+## 2.6.0
+
+### Minor Changes
+
+- 145e3c6: Add span-, trace-, and session-scoped semantic convention fields for annotations and evaluations.
+
+## 2.5.0
+
+### Minor Changes
+
+- 0f0242c: Add `PROMPT` to the `OpenInferenceSpanKind` enum, aligning the JS package with the OpenInference spec and the Python semantic conventions. LangChain prompt template spans now correctly report `openinference.span.kind = "PROMPT"` instead of falling through to `"CHAIN"`.
+
+## 2.4.0
+
+### Minor Changes
+
+- 81b8bdb: Add semantic convention constants for reasoning message content metadata and tool call signatures.
+
+## 2.3.0
+
+### Minor Changes
+
+- e09ce3f: Add `llm.finish_reason` semantic convention — a string indicating the reason the model stopped generating tokens (e.g. `"stop"`, `"length"`).
+
+## 2.2.0
+
+### Minor Changes
+
+- 7eb1c88: Add groq, fireworks, moonshot, cerebras, perplexity, and together as new well-known values to the LLMProvider enum
+
+## 2.1.7
+
+### Patch Changes
+
+- c79c564: force publish
+- c79c564: signed publishing
+
+## 2.1.6
+
+### Patch Changes
+
+- a4eead1: force publish
+- a4eead1: signed publishing
+
+## 2.1.5
+
+### Patch Changes
+
+- 74f278c: force publish
+- 74f278c: signed publishing
+
+## 2.1.4
+
+### Patch Changes
+
+- fe61379: force publish
+- fe61379: signed publishing
+
+## 2.1.3
+
+### Patch Changes
+
+- 006a685: signed publishing
+
 ## 2.1.2
 
 ### Patch Changes

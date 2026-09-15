@@ -1,0 +1,22 @@
+interactions:
+- request:
+    body: '{"model":"qwen3.6:latest","stream":false,"options":{"temperature":0,"seed":42},"messages":[{"role":"user","content":"What
+      is 2 + 3? Use the add_two_numbers tool."}],"tools":[{"type":"function","function":{"name":"add_two_numbers","description":"Add
+      two numbers.","parameters":{"type":"object","required":["a","b"],"properties":{"a":{"type":"integer","description":"The
+      first number."},"b":{"type":"integer","description":"The second number."}}}}}]}'
+    headers: {}
+    method: POST
+    uri: http://127.0.0.1:11434/api/chat
+  response:
+    body:
+      string: "{\"model\":\"qwen3.6:latest\",\"created_at\":\"2026-08-07T06:08:11.017589Z\",\"message\":{\"role\":\"assistant\",\"content\":\"\",\"thinking\":\"Thinking
+        Process:\\n1. Identify the user's request: The user wants to calculate 2 +
+        3 using the `add_two_numbers` tool.\\n2. Check the available tools: `add_two_numbers(a,
+        b)` is available.\\n3. Map the request to the tool parameters: a = 2, b =
+        3.\\n4. Construct the tool call: `add_two_numbers(a=2, b=3)`.\\n5. Execute
+        the tool call and return the result.\u2705\",\"tool_calls\":[{\"id\":\"call_2k7ryu9k\",\"function\":{\"index\":0,\"name\":\"add_two_numbers\",\"arguments\":{\"a\":2,\"b\":3}}}]},\"done\":true,\"done_reason\":\"stop\",\"total_duration\":1671921584,\"load_duration\":140923875,\"prompt_eval_count\":310,\"prompt_eval_duration\":155740000,\"eval_count\":145,\"eval_duration\":1361034000}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

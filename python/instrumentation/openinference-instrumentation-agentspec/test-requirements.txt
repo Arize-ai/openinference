@@ -1,0 +1,4 @@
+pyagentspec==26.1.0
+openinference-instrumentation-agentspec
+opentelemetry-sdk
+pytest-asyncio

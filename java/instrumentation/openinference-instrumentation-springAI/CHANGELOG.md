@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.8...java-openinference-instrumentation-springAI-v0.1.9) (2026-04-04)
+
+
+### Bug Fixes
+
+* update how hideinputs/outputs is handled ([#2925](https://github.com/Arize-ai/openinference/issues/2925)) ([c65393a](https://github.com/Arize-ai/openinference/commit/c65393a47f4d4c561fefcac52365cb821b0456bd))
+
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.7...java-openinference-instrumentation-springAI-v0.1.8) (2026-03-23)
+
+
+### Features
+
+* Add missing Java conventions + fix dependencies ([#2870](https://github.com/Arize-ai/openinference/issues/2870)) ([6ff2d19](https://github.com/Arize-ai/openinference/commit/6ff2d19da9cdcaf2b46155af679819ddbf991832))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.6...java-openinference-instrumentation-springAI-v0.1.7) (2025-08-19)
 
 

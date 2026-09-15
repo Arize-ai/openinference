@@ -60,6 +60,7 @@ from openinference.instrumentation.langchain import (
     get_ancestor_spans,
     get_current_span,
 )
+from openinference.instrumentation.langchain._tracer import _finish_reason
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -85,7 +86,7 @@ SUPPORTS_TEMPLATES = LANGCHAIN_VERSION < (0, 3, 0)
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor", name="langchain"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -107,19 +108,19 @@ async def test_get_current_span(
             await asyncio.sleep(0.001)
             return get_current_span()
 
-        results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))  # type: ignore[arg-type]
+        runnable: Any = RunnableLambda(f)
+        results = await asyncio.gather(*(runnable.ainvoke(0) for _ in range(n)))
     else:
         results = await asyncio.gather(
             *(
-                loop.run_in_executor(None, RunnableLambda(lambda _: get_current_span()).invoke, ...)
+                loop.run_in_executor(None, RunnableLambda(current_span_getter).invoke, 0)
                 for _ in range(n)
             )
         )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == n
     assert {id(span.get_span_context()) for span in results if isinstance(span, Span)} == {
-        id(span.get_span_context())  # type: ignore[no-untyped-call]
-        for span in spans
+        id(span.get_span_context()) for span in spans
     }
 
 
@@ -127,7 +128,7 @@ def test_get_current_span_when_there_is_no_tracer() -> None:
     instrumentor = LangChainInstrumentor()
     instrumentor.uninstrument()
     del instrumentor._tracer
-    assert RunnableLambda(lambda _: (get_current_span(), get_ancestor_spans())).invoke(0) == (
+    assert RunnableLambda(current_span_and_ancestors_getter).invoke(0) == (
         None,
         [],
     )
@@ -327,7 +328,9 @@ def test_callback_llm(
                 OTELSpanAttributes.EXCEPTION_TYPE
             )
             assert isinstance(exception_type, str)
-            assert exception_type.endswith("BadRequestError")
+            # langchain-openai >= 1.6 wraps openai.BadRequestError in its own
+            # OpenAIInvalidRequestError; both end with "RequestError".
+            assert exception_type.endswith("RequestError")
 
         # Ignore metadata since LC adds a bunch of unstable metadata
         rqa_attributes.pop(METADATA, None)
@@ -351,7 +354,9 @@ def test_callback_llm(
                 OTELSpanAttributes.EXCEPTION_TYPE
             )
             assert isinstance(exception_type, str)
-            assert exception_type.endswith("BadRequestError")
+            # langchain-openai >= 1.6 wraps openai.BadRequestError in its own
+            # OpenAIInvalidRequestError; both end with "RequestError".
+            assert exception_type.endswith("RequestError")
 
         # Ignore metadata since LC adds a bunch of unstable metadata
         sd_attributes.pop(METADATA, None)
@@ -400,7 +405,9 @@ def test_callback_llm(
                 OTELSpanAttributes.EXCEPTION_TYPE
             )
             assert isinstance(exception_type, str)
-            assert exception_type.endswith("BadRequestError")
+            # langchain-openai >= 1.6 wraps openai.BadRequestError in its own
+            # OpenAIInvalidRequestError; both end with "RequestError".
+            assert exception_type.endswith("RequestError")
         langchain_prompt_variables = {
             "context": "\n\n".join(documents),
             "question": question,
@@ -433,6 +440,7 @@ def test_callback_llm(
         assert oai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         if not is_stream and status_code == 200:
             assert oai_attributes.pop(LLM_MODEL_NAME, None) == model_name
+            assert oai_attributes.pop(LLM_FINISH_REASON, None) == "stop"
         else:
             assert oai_attributes.pop(LLM_MODEL_NAME, None) == "gpt-3.5-turbo"
         assert oai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
@@ -475,7 +483,9 @@ def test_callback_llm(
                 OTELSpanAttributes.EXCEPTION_TYPE
             )
             assert isinstance(exception_type, str)
-            assert exception_type.endswith("BadRequestError")
+            # langchain-openai >= 1.6 wraps openai.BadRequestError in its own
+            # OpenAIInvalidRequestError; both end with "RequestError".
+            assert exception_type.endswith("RequestError")
         else:
             if LANGCHAIN_VERSION >= (0, 2):
                 assert isinstance(_metadata := oai_attributes.pop(METADATA, None), str)
@@ -558,31 +568,50 @@ def test_anthropic_token_counts(
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     anthropic_api_key: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     langchain_anthropic = pytest.importorskip(
         "langchain_anthropic", reason="`langchain-anthropic` is not installed"
     )  # langchain-anthropic is not in pyproject.toml because it conflicts with pinned test deps
+    anthropic = pytest.importorskip("anthropic")
 
-    respx_mock.post("https://api.anthropic.com/v1/messages").mock(
-        return_value=Response(
-            status_code=200,
-            json={
-                "id": "msg_015kYHnmPtpzZbXpwMmziqju",
-                "type": "message",
-                "role": "assistant",
-                "model": "claude-3-5-sonnet-20240620",
-                "content": [{"type": "text", "text": "Argentina."}],
-                "stop_reason": "end_turn",
-                "stop_sequence": None,
-                "usage": {
-                    "input_tokens": 22,
-                    "output_tokens": 5,
-                    "cache_read_input_tokens": 9,
-                    "cache_creation_input_tokens": 2,
-                },
-            },
+    response_json = {
+        "id": "msg_015kYHnmPtpzZbXpwMmziqju",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-3-5-sonnet-20240620",
+        "content": [{"type": "text", "text": "Argentina."}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {
+            "input_tokens": 22,
+            "output_tokens": 5,
+            "cache_read_input_tokens": 9,
+            "cache_creation_input_tokens": 2,
+        },
+    }
+
+    if int(anthropic.__version__.split(".")[0]) >= 1:
+        # ``anthropic>=1`` routes requests through ``httpx2`` (an API-identical fork of
+        # ``httpx``), which ``respx`` cannot patch, so the ``respx_mock`` routes are
+        # bypassed and requests hit the real API (surfacing as a 401). Unlike the OpenAI
+        # SDK, ``langchain_anthropic`` always builds its own client via
+        # ``_get_default_httpx_client``, so inject an ``httpx2`` ``MockTransport`` there to
+        # serve the canned response.
+        httpx2 = pytest.importorskip("httpx2")
+        anthropic_chat_models = pytest.importorskip("langchain_anthropic.chat_models")
+
+        def _handler(request: Any) -> Any:
+            return httpx2.Response(status_code=200, json=response_json)
+
+        def _mock_httpx_client(**_: Any) -> Any:
+            return anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(_handler))
+
+        monkeypatch.setattr(anthropic_chat_models, "_get_default_httpx_client", _mock_httpx_client)
+    else:
+        respx_mock.post("https://api.anthropic.com/v1/messages").mock(
+            return_value=Response(status_code=200, json=response_json)
         )
-    )
     model = langchain_anthropic.ChatAnthropic(model="claude-3-5-sonnet-20240620")
     model.invoke("Who won the World Cup in 2022? Answer in one word.")
     spans = in_memory_span_exporter.get_finished_spans()
@@ -619,10 +648,13 @@ def test_gemini_token_counts_streaming(
             llm = VertexAI(
                 api_transport="rest",
                 project="test-project",
-                model_name="gemini-pro",
-                streaming=streaming,
+                model_name="gemini-2.5-flash",
             )
-            llm.invoke("Tell me a funny joke, a one-liner.")
+            if streaming:
+                for _ in llm.stream("Tell me a funny joke, a one-liner."):
+                    pass
+            else:
+                llm.invoke("Tell me a funny joke, a one-liner.")
             spans = in_memory_span_exporter.get_finished_spans()
             assert len(spans) == 1
             span = spans[0]
@@ -855,36 +887,62 @@ def test_read_session_from_metadata(
     assert llm_attributes == {}
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
+@pytest.mark.parametrize("is_stream", [False, True])
+@pytest.mark.parametrize("finish_reason", ["stop", "length", "tool_calls", "content_filter"])
+def test_finish_reason_values(
+    finish_reason: str,
+    is_stream: bool,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
+) -> None:
+    url = "https://api.openai.com/v1/chat/completions"
+    if is_stream:
+        chunks = [
+            b'data: {"choices": [{"delta": {"role": "assistant"}, "index": 0}]}\n\n',
+            b'data: {"choices": [{"delta": {"content": "hi"}, "index": 0}]}\n\n',
+            f'data: {{"choices": [{{"delta": {{}}, "finish_reason": "{finish_reason}", '
+            f'"index": 0}}]}}\n\n'.encode(),
+            b"data: [DONE]\n",
+        ]
+        respx_kwargs: Dict[str, Any] = {"stream": MockByteStream(chunks)}
+    else:
+        respx_kwargs = {
+            "json": {
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "hi"},
+                        "finish_reason": finish_reason,
+                    }
+                ],
+                "model": "gpt-3.5-turbo",
+                "usage": completion_usage,
+            }
+        }
+    respx_mock.post(url).mock(return_value=Response(status_code=200, **respx_kwargs))
+    ChatOpenAI(streaming=is_stream).invoke("hello")
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.pop(LLM_FINISH_REASON, None) == finish_reason
 
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
 
-
-def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
+def test_finish_reason_from_response_metadata() -> None:
+    # A message serialized into the lc envelope, e.g. from a streamed run.
+    outputs: Dict[str, Any] = {
+        "generations": [[{"message": {"kwargs": {"response_metadata": {"finish_reason": "stop"}}}}]]
+    }
+    assert dict(_finish_reason(outputs)) == {LLM_FINISH_REASON: "stop"}
+    # A live BaseMessage object carrying response_metadata.
+    message = AIMessage(content="hi", response_metadata={"finish_reason": "length"})
+    outputs = {"generations": [[{"message": message}]]}
+    assert dict(_finish_reason(outputs)) == {LLM_FINISH_REASON: "length"}
+    # Anthropic-style stop_reason.
+    outputs = {"generations": [[{"generation_info": {"stop_reason": "end_turn"}}]]}
+    assert dict(_finish_reason(outputs)) == {LLM_FINISH_REASON: "end_turn"}
+    outputs = {"generations": [[{"message": AIMessage(content="hi")}]]}
+    assert dict(_finish_reason(outputs)) == {}
 
 
 @pytest.mark.skipif(
@@ -892,10 +950,7 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
     reason="The stream_usage parameter was introduced in langchain-openai==0.1.9",
     # https://github.com/langchain-ai/langchain/releases/tag/langchain-openai%3D%3D0.1.9
 )
-@pytest.mark.vcr(
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_records_token_counts_for_streaming_openai_llm(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -911,11 +966,7 @@ def test_records_token_counts_for_streaming_openai_llm(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_token_counts(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -948,9 +999,6 @@ def test_token_counts(
 
 
 @pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
     cassette_library_dir="tests/cassettes/test_instrumentor",  # Explicitly set the directory
 )
 def test_tool_call_with_function(
@@ -1185,6 +1233,16 @@ class MockByteStream(SyncByteStream, AsyncByteStream):
             yield byte_string
 
 
+def current_span_getter(x: Any) -> Optional[Span]:
+    """Getter function that returns the current span."""
+    return get_current_span()
+
+
+def current_span_and_ancestors_getter(x: Any) -> Tuple[Optional[Span], List[Any]]:
+    """Getter function that returns the current span and ancestor spans."""
+    return (get_current_span(), get_ancestor_spans())
+
+
 LANGCHAIN_SESSION_ID = "session_id"
 LANGCHAIN_CONVERSATION_ID = "conversation_id"
 LANGCHAIN_THREAD_ID = "thread_id"
@@ -1201,6 +1259,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

@@ -1,0 +1,75 @@
+[
+  {
+    "name": "ai.generateText",
+    "spanContext": {
+      "traceId": "700d5f98fe2420adcf6ab0822f7a323c",
+      "spanId": "648be1dfd8e521b6"
+    },
+    "attributes": {
+      "operation.name": "ai.generateText test-generate-text",
+      "resource.name": "test-generate-text",
+      "ai.operationId": "ai.generateText",
+      "ai.telemetry.functionId": "test-generate-text",
+      "ai.model.provider": "openai.responses",
+      "ai.model.id": "gpt-4o-mini",
+      "ai.settings.maxRetries": 2,
+      "ai.telemetry.metadata.testCategory": "text-generation",
+      "ai.telemetry.metadata.customField": "custom-value",
+      "ai.request.headers.user-agent": "ai/6.0.68",
+      "ai.prompt": "{\"prompt\":\"Write a haiku about programming.\"}",
+      "ai.response.finishReason": "stop",
+      "ai.response.text": "Lines of code align,  \nLogic dances through the night—  \nDreams in data flow.",
+      "ai.response.providerMetadata": "{\"openai\":{\"responseId\":\"resp_0269f3aed1fd415900698212189ed88190b8bb13919d420b02\",\"serviceTier\":\"default\"}}",
+      "ai.usage.promptTokens": 14,
+      "ai.usage.completionTokens": 20
+    },
+    "status": {
+      "code": 0
+    },
+    "startTime": [
+      1770131992,
+      241000000
+    ],
+    "endTime": [
+      1770131994,
+      22541000
+    ],
+    "events": []
+  },
+  {
+    "name": "ai.generateText",
+    "spanContext": {
+      "traceId": "673a889f59126f8b4c90dce5a1f99368",
+      "spanId": "d3661934fbcf93fd"
+    },
+    "attributes": {
+      "operation.name": "ai.generateText test-generate-text-messages",
+      "resource.name": "test-generate-text-messages",
+      "ai.operationId": "ai.generateText",
+      "ai.telemetry.functionId": "test-generate-text-messages",
+      "ai.model.provider": "openai.responses",
+      "ai.model.id": "gpt-4o-mini",
+      "ai.settings.maxRetries": 2,
+      "ai.telemetry.metadata.testCategory": "multi-turn-conversation",
+      "ai.request.headers.user-agent": "ai/6.0.68",
+      "ai.prompt": "{\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"What is 2 + 2?\"},{\"role\":\"assistant\",\"content\":\"2 + 2 equals 4.\"},{\"role\":\"user\",\"content\":\"And what is 3 + 3?\"}]}",
+      "ai.response.finishReason": "stop",
+      "ai.response.text": "3 + 3 equals 6.",
+      "ai.response.providerMetadata": "{\"openai\":{\"responseId\":\"resp_0056c25ba5cb2bd9006982121a510c81a1a31c11ddcf1abc73\",\"serviceTier\":\"default\"}}",
+      "ai.usage.promptTokens": 50,
+      "ai.usage.completionTokens": 9
+    },
+    "status": {
+      "code": 0
+    },
+    "startTime": [
+      1770131994,
+      23000000
+    ],
+    "endTime": [
+      1770131997,
+      57733667
+    ],
+    "events": []
+  }
+]

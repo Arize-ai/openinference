@@ -10,48 +10,47 @@ permissions:
 env:
   CI: true
   PNPM_CACHE_FOLDER: .pnpm-store
+  # `changeset publish` shells out to `pnpm publish` without a --provenance
+  # flag, so provenance is enabled through npm config instead.
+  NPM_CONFIG_PROVENANCE: true
 jobs:
   version:
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
-      - name: checkout code repository
-        uses: actions/checkout@v3
+      - name: Checkout code repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - name: setup node.js
-        uses: actions/setup-node@v3
+          # changesets/action is configured below to use git-cli commit mode, so
+          # this checkout intentionally keeps credentials available for git push.
+          persist-credentials: true
+          token: ${{ secrets.MY_CHANGESET_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: lts/*
           registry-url: https://registry.npmjs.org/
           scope: "@arizeai"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Setup PNPM
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
-          version: 9.8.0
-      - name: setup pnpm config
+          version: 10.29.3
+      - name: Setup pnpm config
         run: pnpm config set store-dir $PNPM_CACHE_FOLDER
-      - name: Install Dependencies
+
+      - name: Install dependencies
         working-directory: ./js
         run: pnpm install --frozen-lockfile
-      - name: Creating .npmrc
-        run: |
-          cat << EOF > "$HOME/.npmrc"
-            //registry.npmjs.org/:_authToken=$NPM_TOKEN
-          EOF
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: create and publish versions
-        uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc
+      - name: Create and publish versions
+        uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
         with:
-          version: pnpm ci:version
-          commit: "chore(js): update versions"
-          title: "chore(js): update versions"
-          publish: pnpm ci:publish
-          cwd: "./js"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.MY_CHANGESET_TOKEN }}
+          version-script: pnpm ci:version
+          commit-message: "chore(js): update versions"
+          pr-title: "chore(js): update versions"
+          publish-script: pnpm ci:publish
+          create-github-releases: true
+          push-with-git-cli: true
+          cwd: "${{ github.workspace }}/js"

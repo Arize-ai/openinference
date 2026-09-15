@@ -6,6 +6,7 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
     GEN_AI_OUTPUT_MESSAGES,
+    GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_FREQUENCY_PENALTY,
     GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
@@ -15,6 +16,7 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_K,
     GEN_AI_REQUEST_TOP_P,
+    GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_SYSTEM,
     GEN_AI_SYSTEM_INSTRUCTIONS,
     GEN_AI_TOOL_CALL_ID,
@@ -28,6 +30,8 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
@@ -36,6 +40,9 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+_GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
+_GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
 
 # Many event related conventions are not in the opentelemetry-python package yet
@@ -75,6 +82,7 @@ class GenAIMessagePartFields:
     TYPE = "type"
     CONTENT = "content"
     RESULT = "result"
+    NAME = "name"
 
 
 class GenAIMessagePartTypes:
@@ -113,10 +121,15 @@ class PydanticAgentName:
 
 class PydanticTools:
     TOOLS = "tools"
+    TOOL_ARGUMENTS = "tool_arguments"
+    TOOL_RESPONSE = "tool_response"
 
 
 class PydanticGenAIAttribute:
     GEN_AI = "gen_ai"
+
+
+_AGENT_OPERATION_NAMES = frozenset({"invoke_agent", "create_agent"})
 
 
 class PydanticGenAITool:
@@ -129,6 +142,7 @@ class PydanticCustomAttributes:
 
 class PydanticModelRequestParameters:
     TOOLS = "output_tools"
+    FUNCTION_TOOLS = "function_tools"
     NAME = "name"
     DESCRIPTION = "description"
     PARAMETERS = "parameters"
@@ -137,7 +151,11 @@ class PydanticModelRequestParameters:
 class PydanticModelRequestParametersTool:
     NAME = "name"
     DESCRIPTION = "description"
-    PARAMETERS = "parameters"
+    # pydantic-ai serializes ToolDefinition with the JSON schema under
+    # ``parameters_json_schema`` (both instrumentation v2 and v5). ``properties`` is
+    # kept only as a defensive fallback for older/alternate shapes.
+    PARAMETERS_JSON_SCHEMA = "parameters_json_schema"
+    PARAMETERS = "properties"
 
 
 class PydanticMessageRoleUser:
@@ -154,6 +172,75 @@ class PydanticAllMessagesEvents:
 
 class PydanticAllMessages:
     ALL_MESSAGES = "pydantic_ai.all_messages"
+
+
+def _value_and_mime_type(payload: Any) -> Tuple[str, str]:
+    """Render a pydantic-ai payload as an input/output value plus its mime type.
+
+    pydantic-ai serializes tool arguments and results before putting them on the span, so
+    ``payload`` is normally already a string. JSON objects and arrays are passed through
+    untouched to preserve the original serialization; anything else is reported as text so
+    that a bare scalar or an unquoted string result does not claim to be JSON.
+    """
+    if isinstance(payload, str):
+        if payload.lstrip()[:1] in ("{", "["):
+            try:
+                json.loads(payload)
+            except json.JSONDecodeError:
+                return payload, OpenInferenceMimeTypeValues.TEXT.value
+            return payload, OpenInferenceMimeTypeValues.JSON.value
+        return payload, OpenInferenceMimeTypeValues.TEXT.value
+    if isinstance(payload, (Mapping, list, tuple)):
+        return safe_json_dumps(payload), OpenInferenceMimeTypeValues.JSON.value
+    return str(payload), OpenInferenceMimeTypeValues.TEXT.value
+
+
+def _normalize_tool_call(tool_call_id: Any, name: Any, arguments: Any) -> Dict[str, Any]:
+    """Build the ``output.value`` representation of a single tool call."""
+    normalized: Dict[str, Any] = {}
+    if tool_call_id is not None:
+        normalized[GenAIToolCallFields.ID] = tool_call_id
+    if name is not None:
+        normalized[GenAIFunctionFields.NAME] = name
+    if arguments is not None:
+        normalized[GenAIFunctionFields.ARGUMENTS] = arguments
+    return normalized
+
+
+def _find_llm_output_tool_calls(output_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Collect tool calls from LLM output messages extracted from v1 events."""
+    tool_calls: List[Dict[str, Any]] = []
+    for message in output_messages:
+        for tool_call in message.get(MessageAttributes.MESSAGE_TOOL_CALLS) or ():
+            if not isinstance(tool_call, dict):
+                continue
+            normalized = _normalize_tool_call(
+                tool_call.get(ToolCallAttributes.TOOL_CALL_ID),
+                tool_call.get(ToolCallAttributes.TOOL_CALL_FUNCTION_NAME),
+                tool_call.get(ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON),
+            )
+            if normalized:
+                tool_calls.append(normalized)
+    return tool_calls
+
+
+def _extract_output_value_attributes(
+    output_value: Optional[str], output_tool_calls: List[Dict[str, Any]]
+) -> Iterator[Tuple[str, Any]]:
+    """Select a consistent output.value representation for text and tool calls."""
+    regular_tool_calls = [
+        call
+        for call in output_tool_calls
+        if call.get(GenAIFunctionFields.NAME) != PydanticFinalResult.FINAL_RESULT
+    ]
+    if regular_tool_calls:
+        payload: Any = regular_tool_calls
+        if output_value is not None:
+            payload = {"content": output_value, "tool_calls": regular_tool_calls}
+        yield SpanAttributes.OUTPUT_VALUE, safe_json_dumps(payload)
+        yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+    elif output_value is not None:
+        yield SpanAttributes.OUTPUT_VALUE, output_value
 
 
 def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -174,9 +261,11 @@ def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]
 
 def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract attributes common to all operation types."""
-
     # We want to ignore token counts on non LLM spans. Pydantic adds token counts to agents
-    ignore_token_counts = PydanticAgentName.AGENT in gen_ai_attrs
+    ignore_token_counts = (
+        PydanticAgentName.AGENT in gen_ai_attrs
+        or gen_ai_attrs.get(GEN_AI_OPERATION_NAME) in _AGENT_OPERATION_NAMES
+    )
     if GEN_AI_OPERATION_NAME in gen_ai_attrs:
         try:
             operation = gen_ai_attrs[GEN_AI_OPERATION_NAME]
@@ -194,11 +283,19 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
     elif PydanticTools.TOOLS in gen_ai_attrs:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.CHAIN.value
 
-    if GEN_AI_SYSTEM in gen_ai_attrs:
-        yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GEN_AI_SYSTEM]
-
     if GEN_AI_REQUEST_MODEL in gen_ai_attrs:
         yield SpanAttributes.LLM_MODEL_NAME, gen_ai_attrs[GEN_AI_REQUEST_MODEL]
+
+    if GEN_AI_RESPONSE_FINISH_REASONS in gen_ai_attrs:
+        response_finish_reasons = gen_ai_attrs[GEN_AI_RESPONSE_FINISH_REASONS]
+        finish_reason = response_finish_reasons[0] if response_finish_reasons else "stop"
+        yield SpanAttributes.LLM_FINISH_REASON, finish_reason
+
+    if GEN_AI_PROVIDER_NAME in gen_ai_attrs:
+        yield SpanAttributes.LLM_PROVIDER, gen_ai_attrs[GEN_AI_PROVIDER_NAME]
+
+    if GEN_AI_SYSTEM in gen_ai_attrs:
+        yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GEN_AI_SYSTEM]
 
     if GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs and not ignore_token_counts:
         yield (
@@ -302,8 +399,8 @@ def _extract_llm_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[s
                     yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
 
             output_value = _find_llm_output_value(output_messages)
-            if output_value is not None:
-                yield SpanAttributes.OUTPUT_VALUE, output_value
+            output_tool_calls = _find_llm_output_tool_calls(output_messages)
+            yield from _extract_output_value_attributes(output_value, output_tool_calls)
 
 
 def _flatten_message(message: Dict[str, Any]) -> Dict[str, Any]:
@@ -329,11 +426,29 @@ def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[
     if GEN_AI_TOOL_NAME in gen_ai_attrs:
         yield SpanAttributes.TOOL_NAME, gen_ai_attrs[GEN_AI_TOOL_NAME]
 
-    if GEN_AI_TOOL_DESCRIPTION in gen_ai_attrs:
+    if gen_ai_attrs.get(GEN_AI_TOOL_DESCRIPTION) is not None:
         yield SpanAttributes.TOOL_DESCRIPTION, gen_ai_attrs[GEN_AI_TOOL_DESCRIPTION]
 
     if GEN_AI_TOOL_CALL_ID in gen_ai_attrs:
         yield ToolCallAttributes.TOOL_CALL_ID, gen_ai_attrs[GEN_AI_TOOL_CALL_ID]
+
+    # Instrumentation version >=3 emits dotted keys, version 2 the legacy flat ones.
+    tool_arguments = gen_ai_attrs.get(
+        _GEN_AI_TOOL_CALL_ARGUMENTS, gen_ai_attrs.get(PydanticTools.TOOL_ARGUMENTS)
+    )
+    if tool_arguments is not None:
+        yield SpanAttributes.TOOL_PARAMETERS, tool_arguments
+        input_value, input_mime_type = _value_and_mime_type(tool_arguments)
+        yield SpanAttributes.INPUT_VALUE, input_value
+        yield SpanAttributes.INPUT_MIME_TYPE, input_mime_type
+
+    tool_result = gen_ai_attrs.get(
+        _GEN_AI_TOOL_CALL_RESULT, gen_ai_attrs.get(PydanticTools.TOOL_RESPONSE)
+    )
+    if tool_result is not None:
+        output_value, output_mime_type = _value_and_mime_type(tool_result)
+        yield SpanAttributes.OUTPUT_VALUE, output_value
+        yield SpanAttributes.OUTPUT_MIME_TYPE, output_mime_type
 
     if OTELConventions.EVENTS in gen_ai_attrs:
         events = _parse_events(gen_ai_attrs[OTELConventions.EVENTS])
@@ -370,6 +485,29 @@ def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[
                                 )
 
 
+def _extract_tools(output_tools: List[Dict[str, Any]]) -> Any:
+    tools = []
+    for tool in output_tools:
+        if not isinstance(tool, dict):
+            continue
+
+        tool_info: Dict[str, Any] = {}
+        if PydanticModelRequestParametersTool.NAME in tool:
+            tool_info[SpanAttributes.TOOL_NAME] = tool[PydanticModelRequestParametersTool.NAME]
+        description = tool.get(PydanticModelRequestParametersTool.DESCRIPTION)
+        if description is not None:
+            tool_info[SpanAttributes.TOOL_DESCRIPTION] = description
+        json_schema = tool.get(
+            PydanticModelRequestParametersTool.PARAMETERS_JSON_SCHEMA
+        ) or tool.get(PydanticModelRequestParametersTool.PARAMETERS)
+        if isinstance(json_schema, dict):
+            tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(json_schema)
+
+        if tool_info:
+            tools.append(tool_info)
+    return tools
+
+
 def _extract_tools_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract tool definitions from model request parameters."""
     if PydanticCustomAttributes.MODEL_REQUEST_PARAMETERS not in gen_ai_attrs:
@@ -384,29 +522,11 @@ def _extract_tools_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
         if PydanticModelRequestParameters.TOOLS in params and isinstance(
             params[PydanticModelRequestParameters.TOOLS], list
         ):
-            for tool in params[PydanticModelRequestParameters.TOOLS]:
-                if not isinstance(tool, dict):
-                    continue
-
-                tool_info: Dict[str, Any] = {}
-                if PydanticModelRequestParametersTool.NAME in tool:
-                    tool_info[SpanAttributes.TOOL_NAME] = tool[
-                        PydanticModelRequestParametersTool.NAME
-                    ]
-                if PydanticModelRequestParametersTool.DESCRIPTION in tool:
-                    tool_info[SpanAttributes.TOOL_DESCRIPTION] = tool[
-                        PydanticModelRequestParametersTool.DESCRIPTION
-                    ]
-                if PydanticModelRequestParametersTool.PARAMETERS in tool and isinstance(
-                    tool[PydanticModelRequestParametersTool.PARAMETERS], dict
-                ):
-                    tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(
-                        tool[PydanticModelRequestParametersTool.PARAMETERS]
-                    )
-
-                if tool_info:
-                    tools.append(tool_info)
-
+            tools.extend(_extract_tools(params[PydanticModelRequestParameters.TOOLS]))
+        if PydanticModelRequestParameters.FUNCTION_TOOLS in params and isinstance(
+            params[PydanticModelRequestParameters.FUNCTION_TOOLS], list
+        ):
+            tools.extend(_extract_tools(params[PydanticModelRequestParameters.FUNCTION_TOOLS]))
         for idx, tool in enumerate(tools):
             for key, value in tool.items():
                 yield f"{SpanAttributes.LLM_TOOLS}.{idx}.{key}", value
@@ -605,7 +725,7 @@ def _find_llm_output_value(output_messages: List[Dict[str, Any]]) -> Optional[st
                         args = tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]
                         if isinstance(args, str):
                             return args
-                        return None
+                        return safe_json_dumps(args)
     return None
 
 
@@ -686,7 +806,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                         if GenAIMessageFields.PARTS in msg and isinstance(
                             msg[GenAIMessageFields.PARTS], list
                         ):
-                            for part in msg[GenAIMessageFields.PARTS]:
+                            for part_index, part in enumerate(msg[GenAIMessageFields.PARTS]):
                                 if isinstance(part, dict):
                                     if (
                                         part.get(GenAIMessagePartFields.TYPE)
@@ -694,8 +814,12 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         and GenAIMessagePartFields.CONTENT in part
                                     ):
                                         yield (
-                                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENT}",
+                                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
                                             part[GenAIMessagePartFields.CONTENT],
+                                        )
+                                        yield (
+                                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                                            "text",
                                         )
 
                                         # Set INPUT_VALUE for the last user message found
@@ -711,17 +835,22 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         # Extract tool call information
                                         if GenAIFunctionFields.NAME in part:
                                             yield (
-                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{part_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                                                 part[GenAIFunctionFields.NAME],
                                             )
                                         if GenAIFunctionFields.ARGUMENTS in part:
+                                            args = part[GenAIFunctionFields.ARGUMENTS]
+                                            if not isinstance(args, str):
+                                                args_str = safe_json_dumps(args)
+                                            else:
+                                                args_str = args
                                             yield (
-                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                                                part[GenAIFunctionFields.ARGUMENTS],
+                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{part_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                                args_str,
                                             )
                                         if GenAIToolCallFields.ID in part:
                                             yield (
-                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}",
+                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{part_index}.{ToolCallAttributes.TOOL_CALL_ID}",
                                                 part[GenAIToolCallFields.ID],
                                             )
                                     elif (
@@ -730,9 +859,14 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                     ):
                                         message_role = GenAIMessageRoles.TOOL
                                         if GenAIMessagePartFields.RESULT in part:
+                                            result = part[GenAIMessagePartFields.RESULT]
+                                            if not isinstance(result, str):
+                                                result_str = safe_json_dumps(result)
+                                            else:
+                                                result_str = result
                                             yield (
-                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENT}",
-                                                part[GenAIMessagePartFields.RESULT],
+                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                                                result_str,
                                             )
                                         if GenAIToolCallFields.ID in part:
                                             yield (
@@ -760,6 +894,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
 
     # Extract output messages
     output_value = None
+    output_tool_calls: List[Dict[str, Any]] = []
     if GEN_AI_OUTPUT_MESSAGES in gen_ai_attrs:
         output_messages_str = gen_ai_attrs[GEN_AI_OUTPUT_MESSAGES]
         if isinstance(output_messages_str, str):
@@ -777,7 +912,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                         if GenAIMessageFields.PARTS in msg and isinstance(
                             msg[GenAIMessageFields.PARTS], list
                         ):
-                            for part in msg[GenAIMessageFields.PARTS]:
+                            for parts_index, part in enumerate(msg[GenAIMessageFields.PARTS]):
                                 if isinstance(part, dict):
                                     if (
                                         part.get(GenAIMessagePartFields.TYPE)
@@ -788,7 +923,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                             f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_CONTENT}",
                                             part[GenAIMessagePartFields.CONTENT],
                                         )
-                                        break
+                                        output_value = part[GenAIMessagePartFields.CONTENT]
                                     elif (
                                         part.get(GenAIMessagePartFields.TYPE)
                                         == GenAIMessagePartTypes.TOOL_CALL
@@ -796,25 +931,38 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         # Extract tool call information
                                         if GenAIFunctionFields.NAME in part:
                                             yield (
-                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{parts_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                                                 part[GenAIFunctionFields.NAME],
                                             )
                                             if (
                                                 part.get(GenAIFunctionFields.NAME)
                                                 == PydanticFinalResult.FINAL_RESULT
                                             ):
-                                                output_value = part[GenAIFunctionFields.ARGUMENTS]
+                                                output_value = safe_json_dumps(
+                                                    part[GenAIFunctionFields.ARGUMENTS]
+                                                )
                                         if GenAIFunctionFields.ARGUMENTS in part:
+                                            args = part[GenAIFunctionFields.ARGUMENTS]
+                                            if not isinstance(args, str):
+                                                args_str = safe_json_dumps(args)
+                                            else:
+                                                args_str = args
                                             yield (
-                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                                                part[GenAIFunctionFields.ARGUMENTS],
+                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{parts_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                                args_str,
                                             )
                                         if GenAIToolCallFields.ID in part:
                                             yield (
-                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}",
+                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{parts_index}.{ToolCallAttributes.TOOL_CALL_ID}",
                                                 part[GenAIToolCallFields.ID],
                                             )
+                                        normalized = _normalize_tool_call(
+                                            part.get(GenAIToolCallFields.ID),
+                                            part.get(GenAIFunctionFields.NAME),
+                                            part.get(GenAIFunctionFields.ARGUMENTS),
+                                        )
+                                        if normalized:
+                                            output_tool_calls.append(normalized)
             except json.JSONDecodeError:
                 pass
-    if output_value is not None:
-        yield SpanAttributes.OUTPUT_VALUE, output_value
+    yield from _extract_output_value_attributes(output_value, output_tool_calls)

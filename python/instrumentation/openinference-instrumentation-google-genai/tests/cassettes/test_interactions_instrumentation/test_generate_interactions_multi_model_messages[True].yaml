@@ -1,0 +1,66 @@
+interactions:
+- request:
+    body: '{"input":[{"type":"text","text":"Describe the image in one sentence."},{"type":"image","data":"iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII=","mime_type":"image/png","resolution":"low"}],"model":"gemini-2.5-flash-lite","generation_config":{"temperature":0.7,"max_output_tokens":64,"thinking_level":"high"},"stream":true}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: 'event: interaction.created
+
+        data: {"interaction":{"id":"v1_ChduZUFFYXB6S0tkMjVzT0lQc2FUYzJBRRIXbmVBRWFwektLZDI1c09JUHNhVGMyQUU","status":"in_progress","object":"interaction","model":"gemini-2.5-flash-lite"},"event_type":"interaction.created"}
+
+
+        event: interaction.status_update
+
+        data: {"interaction_id":"v1_ChduZUFFYXB6S0tkMjVzT0lQc2FUYzJBRRIXbmVBRWFwektLZDI1c09JUHNhVGMyQUU","status":"in_progress","event_type":"interaction.status_update"}
+
+
+        event: step.start
+
+        data: {"index":0,"step":{"type":"thought"},"event_type":"step.start"}
+
+
+        event: step.delta
+
+        data: {"index":0,"delta":{"signature":"CiQBDDnWx2Ccq04K8Yfw+7OqE26OXY0bWI/rwkS88SPwG3sjXKwKbgEMOdbHRP03kpqlmCrqmp8N4l7sJABtAiCcW6l54ePHGjGIBMaqnK8ZKMvO4jA7olZAJ9JrmLzUxot1wgCaN+qAmhTC6GWM8Qhkamo7aTPkb5kNMeqFtCXF33kP7nCMw2Agxs61EXcHWBEAANpCCuYBAQw51seZYGY5J5F9sBrKY6LC9hiTaoDmNyFzMfESkcwdhusLUCU6rpAEClgVLhs5IzvRgcXxuoGJYN4N5pgDvlbqwPWCHuONLDoZHJ10bEO0NkigUe+H7Wr92N+8NW7X3EzxWlozWBFJFXAaCGNgVh8/EbyuJlRJ1dVg6/bwoEwcE9GnPYpTaP8j16vYydCNl+VLgTGnBAAFMdUrW/HG3x4vSt4+hnQLN9jzxOMGlTg75k2mkoqOhM+nRBA3d5e3RERIPTNpvD4Dmk7/tHhAY6C520QFSL0Okli/iRB95WSnuzxpOQQ=","type":"thought_signature"},"event_type":"step.delta"}
+
+
+        event: step.stop
+
+        data: {"index":0,"event_type":"step.stop"}
+
+
+        event: step.start
+
+        data: {"index":1,"step":{"type":"model_output"},"event_type":"step.start"}
+
+
+        event: step.delta
+
+        data: {"index":1,"delta":{"text":"The image displays","type":"text"},"event_type":"step.delta"}
+
+
+        event: step.stop
+
+        data: {"index":1,"event_type":"step.stop"}
+
+
+        event: interaction.completed
+
+        data: {"interaction":{"id":"v1_ChduZUFFYXB6S0tkMjVzT0lQc2FUYzJBRRIXbmVBRWFwektLZDI1c09JUHNhVGMyQUU","status":"incomplete","usage":{"total_tokens":326,"total_input_tokens":266,"input_tokens_by_modality":[{"modality":"text","tokens":8},{"modality":"image","tokens":258}],"total_cached_tokens":0,"total_output_tokens":3,"total_tool_use_tokens":0,"total_thought_tokens":57},"created":"2026-05-13T20:35:42Z","updated":"2026-05-13T20:35:42Z","service_tier":"standard","object":"interaction","model":"gemini-2.5-flash-lite"},"event_type":"interaction.completed"}
+
+
+        event: done
+
+        data: [DONE]
+
+
+        '
+    headers:
+      content-type:
+      - text/event-stream
+    status:
+      code: 200
+      message: OK
+version: 1

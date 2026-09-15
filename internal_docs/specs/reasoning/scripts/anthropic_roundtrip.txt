@@ -1,0 +1,169 @@
+# Reasoning round-trip debug log: anthropic-reasoning-roundtrip
+
+
+[anthropic response.content slots]
+  content[0].type=thinking
+  content[1].type=text
+
+[current baseline] attribute_keys (5)
+  llm.input_messages.0.message.contents.0.message_content.text = Factorize 47639 completel...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.output_messages.0.message.content = # Factorizing 47639\n\n##...
+  llm.output_messages.0.message.role = assistant
+
+[current augmented] attribute_keys (9)
+  llm.input_messages.0.message.contents.0.message_content.text = Factorize 47639 completel...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.signature = EvZKCmMIDRgCKkDLEAdhsHYRp...
+  llm.output_messages.0.message.contents.0.message_content.text =  I'm testing divisibility...
+  llm.output_messages.0.message.contents.0.message_content.type = reasoning
+  llm.output_messages.0.message.contents.1.message_content.text = # Factorizing 47639\n\n##...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.role = assistant
+
+[anthropic response.content slots]
+  content[0].type=thinking
+  content[1].type=text
+
+[current baseline] attribute_keys (11)
+  llm.input_messages.0.message.contents.0.message_content.text = Factorize 47639 completel...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.1.message_content.text = # Factorizing 47639\n\n##...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.role = assistant
+  llm.input_messages.2.message.contents.0.message_content.text = Using only the prime fact...
+  llm.input_messages.2.message.contents.0.message_content.type = text
+  llm.input_messages.2.message.role = user
+  llm.output_messages.0.message.content = ## Using the Factorizatio...
+  llm.output_messages.0.message.role = assistant
+
+[current augmented] attribute_keys (15)
+  llm.input_messages.0.message.contents.0.message_content.text = Factorize 47639 completel...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.1.message_content.text = # Factorizing 47639\n\n##...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.role = assistant
+  llm.input_messages.2.message.contents.0.message_content.text = Using only the prime fact...
+  llm.input_messages.2.message.contents.0.message_content.type = text
+  llm.input_messages.2.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.signature = Eq8CCmMIDRgCKkD9b21c1LVIe...
+  llm.output_messages.0.message.contents.0.message_content.text =  I'm checking whether 476...
+  llm.output_messages.0.message.contents.0.message_content.type = reasoning
+  llm.output_messages.0.message.contents.1.message_content.text = ## Using the Factorizatio...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.role = assistant
+
+[anthropic response.content slots]
+  content[0].type=thinking
+  content[1].type=text
+  content[2].type=tool_use
+
+[current baseline] attribute_keys (7)
+  llm.input_messages.0.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.output_messages.0.message.content = ## Reasoning\n\n**Goal:**...
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.output_messages.0.message.tool_calls.0.tool_call.function.name = get_weather
+
+[current augmented] attribute_keys (13)
+  llm.input_messages.0.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.signature = EoYCCmMIDRgCKkBROanGqGs3V...
+  llm.output_messages.0.message.contents.0.message_content.text =  I should think through t...
+  llm.output_messages.0.message.contents.0.message_content.type = reasoning
+  llm.output_messages.0.message.contents.1.message_content.text = ## Reasoning\n\n**Goal:**...
+  llm.output_messages.0.message.contents.1.message_content.type = text
+  llm.output_messages.0.message.contents.2.message_content.type = tool_use
+  llm.output_messages.0.message.role = assistant
+  llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.output_messages.0.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.output_messages.0.message.tool_calls.0.tool_call.id = toolu_01JM7Zo34rEF8RGhc9U...
+
+[anthropic response.content slots]
+  content[0].type=text
+
+[current baseline] attribute_keys (17)
+  llm.input_messages.0.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.1.message_content.text = ## Reasoning\n\n**Goal:**...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.role = assistant
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.input_messages.1.message.tool_calls.0.tool_call.id = toolu_01JM7Zo34rEF8RGhc9U...
+  llm.input_messages.2.message.content = {"temperature_c": 14.5}
+  llm.input_messages.2.message.role = user
+  llm.input_messages.2.message.tool_call_id = toolu_01JM7Zo34rEF8RGhc9U...
+  llm.input_messages.3.message.contents.0.message_content.text = Using only the weather re...
+  llm.input_messages.3.message.contents.0.message_content.type = text
+  llm.input_messages.3.message.role = user
+  llm.output_messages.0.message.content = ## Step-by-Step Fahrenhei...
+  llm.output_messages.0.message.role = assistant
+
+[current augmented] attribute_keys (18)
+  llm.input_messages.0.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.1.message_content.text = ## Reasoning\n\n**Goal:**...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.role = assistant
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.input_messages.1.message.tool_calls.0.tool_call.id = toolu_01JM7Zo34rEF8RGhc9U...
+  llm.input_messages.2.message.content = {"temperature_c": 14.5}
+  llm.input_messages.2.message.role = user
+  llm.input_messages.2.message.tool_call_id = toolu_01JM7Zo34rEF8RGhc9U...
+  llm.input_messages.3.message.contents.0.message_content.text = Using only the weather re...
+  llm.input_messages.3.message.contents.0.message_content.type = text
+  llm.input_messages.3.message.role = user
+  llm.output_messages.0.message.contents.0.message_content.text = ## Step-by-Step Fahrenhei...
+  llm.output_messages.0.message.contents.0.message_content.type = text
+  llm.output_messages.0.message.role = assistant
+
+[current negative_baseline] attribute_keys (15)
+  llm.input_messages.0.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.1.message_content.text = ## Reasoning\n\n**Goal:**...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.role = assistant
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.input_messages.1.message.tool_calls.0.tool_call.id = toolu_01JM7Zo34rEF8RGhc9U...
+  llm.input_messages.2.message.content = {"temperature_c": 14.5}
+  llm.input_messages.2.message.role = user
+  llm.input_messages.2.message.tool_call_id = toolu_01JM7Zo34rEF8RGhc9U...
+  llm.input_messages.3.message.contents.0.message_content.text = Using only the weather re...
+  llm.input_messages.3.message.contents.0.message_content.type = text
+  llm.input_messages.3.message.role = user
+
+[current negative_augmented] attribute_keys (21)
+  llm.input_messages.0.message.contents.0.message_content.text = You must reason step-by-s...
+  llm.input_messages.0.message.contents.0.message_content.type = text
+  llm.input_messages.0.message.role = user
+  llm.input_messages.1.message.contents.0.message_content.text =  I should think through t...
+  llm.input_messages.1.message.contents.0.message_content.type = reasoning
+  llm.input_messages.1.message.contents.1.message_content.text = ## Reasoning\n\n**Goal:**...
+  llm.input_messages.1.message.contents.1.message_content.type = text
+  llm.input_messages.1.message.contents.2.message_content.type = tool_use
+  llm.input_messages.1.message.contents.2.tool_call.function.arguments = {"city": "Paris"}
+  llm.input_messages.1.message.contents.2.tool_call.function.name = get_weather
+  llm.input_messages.1.message.contents.2.tool_call.id = toolu_01JM7Zo34rEF8RGhc9U...
+  llm.input_messages.1.message.role = assistant
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments = {"city": "Paris"}
+  llm.input_messages.1.message.tool_calls.0.tool_call.function.name = get_weather
+  llm.input_messages.1.message.tool_calls.0.tool_call.id = toolu_01JM7Zo34rEF8RGhc9U...
+  llm.input_messages.2.message.content = {"temperature_c": 14.5}
+  llm.input_messages.2.message.role = user
+  llm.input_messages.2.message.tool_call_id = toolu_01JM7Zo34rEF8RGhc9U...
+  llm.input_messages.3.message.contents.0.message_content.text = Using only the weather re...
+  llm.input_messages.3.message.contents.0.message_content.type = text
+  llm.input_messages.3.message.role = user

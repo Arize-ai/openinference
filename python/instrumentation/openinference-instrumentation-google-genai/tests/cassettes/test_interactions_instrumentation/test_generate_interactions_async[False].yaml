@@ -1,0 +1,17 @@
+interactions:
+- request:
+    body: '{"input":"Tell me a short joke about programming.","model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: '{"id":"v1_ChdzdGNFYXV1bUc4bWttdGtQdmE2Qm1RMBIXc3RjRWF1dW1HOG1rbXRrUHZhNkJtUTA","status":"completed","usage":{"total_tokens":229,"total_input_tokens":9,"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_output_tokens":13,"total_tool_use_tokens":0,"total_thought_tokens":207},"created":"2026-05-13T19:57:40Z","updated":"2026-05-13T19:57:40Z","service_tier":"standard","steps":[{"signature":"CoEGAQw51scxVeik0MHiqTmSvShUb2h8wZ7hbv2Krg/Dum5vy+lf50P1xUeYMOeRm12JKmZWCbRVTiO5hMRD7Z5lFGb0x3sBfbNlR4am5Sg2nEnrna986CE1/RwbVNJsJRSJneMEit8SF5aEpMxSKtmwaLE1aKzT+BGMHATpT/DQfTE2Kyc6/awv6QUwq/f6lKFWHpJ3ZOMiJKGvieu+mWROEMpT7CNk+BviRi78KVHPuFfu2sqkMJFJtZfGO4x3imEdcUtvu9+3YvtbViJz8zfidq3CeixoWe9g68J9KD7ozbSnpDEYatCL9FB/Ac3p41kaRqbOBBzudJ5l67bDa4DwigbNtz+h2/M8pjq5tKq6fTcWdmCKdnV8IXrrLhUblimcTnB71gR48jF5u3IuljZRLrf4xrjC/nwGFckz7GDLmQOPgZzGNWj5F0diso4HFo6obroY7vB3uKM885x4ld0TVTkW1ssq53LiIfmoyEQZzINzQYVrrm7yOOOWhxofDGB6Urz7Xg2/q/jJPPxGo15/zlWZ5VwJJWBy5vEweXnlr61aV+wuBloSFQUrMApKrq+BElpKCAnNUaAE0GOpG8PfcBu835BP3FKwG+Piy6hNs92ljuKFp2/G+MvkHn89qHXGXsscZqF3pI0i7WWPwe6Xmg+X0NxWHn9sX2TS6pVD8G7og6Ma5egp8CpJsFs6+hv3GtJiQbvvf7eX0NgW3yVfD5MJqGH+SD90/gEUgDGT8aDQg9SIbv8+MixVqRldCjCEYo2Bd5ncaXYzcgctG3mHTwct1LFuYZ0PVgIb8poO7Ylu7kOhYrthvBEOeuM41uXDkEi4hTAnWWQJCc4L5Uq0DOqriDF0VVezdvtmdWFlLNOddlKvuts+piijxu05ip5F2a4JIGx0/lx7+MEzL2qHpoLmfBobaz8waQaScuojvuwVGtFKUdXTLwMeHEC71uCplpDkYeCxmePx0g+R/bVNA5l0tX/knt4T05WDWkkJkfXrzvM9uqHjmtbxqcK1cmzf3A==","type":"thought"},{"content":[{"text":"Why
+        do programmers prefer dark mode?\n\nBecause light attracts bugs!","type":"text"}],"type":"model_output"}],"object":"interaction","model":"gemini-2.5-flash"}'
+    headers:
+      content-type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+version: 1

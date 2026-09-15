@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference DSPy Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.15"
+requires-python = ">=3.10, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,7 +18,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -29,8 +28,8 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.17",
+  "openinference-instrumentation>=0.1.61",
+  "openinference-semantic-conventions>=0.1.37",
   "wrapt",
   "typing-extensions",
 ]
@@ -38,15 +37,6 @@ dependencies = [
 [project.optional-dependencies]
 instruments = [
   "dspy >= 2.6.22",
-]
-test = [
-  "dspy>=2.6.22",
-  "google-generativeai",
-  "opentelemetry-sdk",
-  "pytest-recording",
-  "litellm",
-  "urllib3<3.0",
-  "vcrpy>=5.0.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -94,7 +84,7 @@ module = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
