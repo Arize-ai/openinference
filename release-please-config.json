@@ -213,6 +213,17 @@
                 }
             ]
         },
+        "java/instrumentation/openinference-instrumentation-adk-java": {
+            "package-name": "java-openinference-instrumentation-adk-java",
+            "release-type": "simple",
+            "version-file": "java/instrumentation/openinference-instrumentation-adk-java/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/instrumentation/openinference-instrumentation-adk-java/gradle.properties"
+                }
+            ]
+        },
         "go/openinference-semantic-conventions": {
             "package-name": "openinference-semantic-conventions-go",
             "component": "go/openinference-semantic-conventions",
