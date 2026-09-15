@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.26...python-openinference-instrumentation-groq-v0.1.27) (2026-09-15)
+
+
+### Bug Fixes
+
+* make the instruments extras match instrumentation_dependencies() ([#3543](https://github.com/Arize-ai/openinference/issues/3543)) ([1899791](https://github.com/Arize-ai/openinference/commit/18997915a9c3d5da05ad9ba0044d8dd6fb520208))
+
 ## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.25...python-openinference-instrumentation-groq-v0.1.26) (2026-09-10)
 
 
