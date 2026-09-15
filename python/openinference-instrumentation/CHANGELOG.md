@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.65](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.64...python-openinference-instrumentation-v0.1.65) (2026-09-15)
+
+
+### Bug Fixes
+
+* **instrumentation:** make suppress_tracing usable with `async with` ([#3554](https://github.com/Arize-ai/openinference/issues/3554)) ([2045da8](https://github.com/Arize-ai/openinference/commit/2045da8a6f81d94d39130b88840307bcd49559df))
+
 ## [0.1.64](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.63...python-openinference-instrumentation-v0.1.64) (2026-09-15)
 
 
