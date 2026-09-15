@@ -53,6 +53,7 @@ const generateV6FixtureTestCases = (): SpanProcessorTestCase[] => {
         // gen_ai.usage.* should be converted
         [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 14,
         [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 20,
+        [SemanticConventions.LLM_FINISH_REASON]: "stop",
         // Metadata should be extracted
         [`${SemanticConventions.METADATA}.testCategory`]: "text-generation",
         [`${SemanticConventions.METADATA}.customField`]: "custom-value",
@@ -73,6 +74,7 @@ const generateV6FixtureTestCases = (): SpanProcessorTestCase[] => {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
         // gen_ai.response.model takes precedence over gen_ai.request.model
         [SemanticConventions.LLM_MODEL_NAME]: "gpt-4o-mini-2024-07-18",
+        [SemanticConventions.LLM_FINISH_REASON]: "stop",
         // Streaming metrics should be stored as metadata
         [`${SemanticConventions.METADATA}.ai.response.msToFirstChunk`]:
           streamTextSpan.attributes["ai.response.msToFirstChunk"],
@@ -105,6 +107,7 @@ const generateV6FixtureTestCases = (): SpanProcessorTestCase[] => {
       vercelAttributes: generateObjectSpan.attributes as Attributes,
       expectedOpenInferenceAttributes: {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+        [SemanticConventions.LLM_FINISH_REASON]: "stop",
         [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
       },
     },
@@ -400,6 +403,21 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
       expectedOpenInferenceAttributes: {
         [SemanticConventions.OUTPUT_VALUE]: "hello",
         [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      },
+    },
+  ]);
+
+  // Response finish reason
+  testCases.push([
+    `${VercelAISemanticConventions.RESPONSE_FINISH_REASON} to ${SemanticConventions.LLM_FINISH_REASON}`,
+    {
+      vercelFunctionName: "ai.generateText.doGenerate",
+      vercelAttributes: {
+        [VercelAISemanticConventions.RESPONSE_FINISH_REASON]: "length",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.LLM_FINISH_REASON]: "length",
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
       },
     },
