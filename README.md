@@ -140,6 +140,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`openinference-instrumentation-langchain4j`](./java/instrumentation/openinference-instrumentation-langchain4j) | OpenInference Instrumentation for LangChain4j. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-langchain4j)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-langchain4j) |
 | [`openinference-instrumentation-springAI`](./java/instrumentation/openinference-instrumentation-springAI)       | OpenInference Instrumentation for Spring AI.   | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-springAI)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-springAI)       |
 | [`openinference-instrumentation-annotation`](./java/instrumentation/openinference-instrumentation-annotation) | Annotation-based manual tracing with ByteBuddy. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-annotation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-annotation) |
+| [`openinference-instrumentation-adk-java`](./java/instrumentation/openinference-instrumentation-adk-java) | OpenInference Instrumentation for Google ADK Java (`-javaagent`). | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-adk-java)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-adk-java) |
 
 ### Examples
 
@@ -149,6 +150,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [Spring AI Example](java/examples/spring-ai-example)     | Spring AI example with OpenAI and tool calling | Beginner         |
 | [Annotation Example](java/examples/annotation-example) | Annotation-based tracing with `@Chain`, `@LLM`, `@Tool`, `@Agent` | Beginner         |
 | [Programmatic Example](java/examples/programmatic-example) | Manual tracing with typed span classes (`LLMSpan`, `AgentSpan`, etc.) | Beginner         |
+| [ADK Java Example](java/examples/adk-java-example) | Google ADK for Java agent with a function tool, traced by the ADK `-javaagent` | Beginner         |
 
 ## Go
 
