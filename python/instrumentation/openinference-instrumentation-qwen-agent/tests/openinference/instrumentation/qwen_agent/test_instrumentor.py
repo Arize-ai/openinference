@@ -23,7 +23,9 @@ from openinference.instrumentation import (
 from openinference.instrumentation.qwen_agent import QwenAgentInstrumentor, _wrappers
 from openinference.semconv.trace import (
     DocumentAttributes,
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
@@ -329,7 +331,8 @@ class TestLLMSpans:
         (span,) = _spans_by_kind(in_memory_span_exporter, "LLM")
         attributes = _attrs(span)
         prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}.0"
-        assert attributes[f"{prefix}.message_content.type"] == "reasoning"
+        content_type = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+        assert attributes[f"{prefix}.{content_type}"] == "reasoning"
 
     def test_non_streaming_chat_is_traced(
         self, in_memory_span_exporter: InMemorySpanExporter
@@ -595,11 +598,14 @@ class TestMessageConversion:
         contents_prefix = (
             f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
         )
-        assert attributes[f"{contents_prefix}.0.message_content.type"] == "text"
-        assert attributes[f"{contents_prefix}.0.message_content.text"] == "what is this?"
-        assert attributes[f"{contents_prefix}.1.message_content.type"] == "image"
+        content_type = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+        content_text = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+        content_image = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+        assert attributes[f"{contents_prefix}.0.{content_type}"] == "text"
+        assert attributes[f"{contents_prefix}.0.{content_text}"] == "what is this?"
+        assert attributes[f"{contents_prefix}.1.{content_type}"] == "image"
         assert (
-            attributes[f"{contents_prefix}.1.message_content.image.image.url"]
+            attributes[f"{contents_prefix}.1.{content_image}.{ImageAttributes.IMAGE_URL}"]
             == "https://example.com/cat.png"
         )
 
