@@ -1,5 +1,5 @@
 ---
-"@arizeai/openinference-instrumentation-claude-agent-sdk": patch
+"@arizeai/openinference-instrumentation-claude-agent-sdk": minor
 ---
 
-Capture the Claude Agent SDK finish reason from result and assistant messages across supported SDK versions.
+Add the `llm.finish_reason` span attribute from Claude Agent SDK result and assistant messages for V1 queries and V2 sessions, including support for older SDK message shapes.
