@@ -107,6 +107,8 @@ class TokenCount(TypedDict, total=False):
 
 class Tool(TypedDict, total=False):
     json_schema: Required[Union[str, Dict[str, Any]]]
+    name: str
+    description: str
 
 
 class Embedding(TypedDict, total=False):

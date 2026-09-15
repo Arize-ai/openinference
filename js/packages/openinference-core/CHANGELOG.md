@@ -1,5 +1,61 @@
 # @arizeai/openinference-core
 
+## 2.7.0
+
+### Minor Changes
+
+- 0ff0af2: Apply the existing image privacy controls to the span-level `input.images` / `output.images` attributes: `hideInputs` and `hideInputImages` remove input images, `hideOutputs` removes output images, and `base64ImageMaxLength` redacts oversized base64 payloads recorded under `<input|output>.images.[i].image.url`.
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+
+## 2.6.3
+
+### Patch Changes
+
+- Updated dependencies [6d9f813]
+  - @arizeai/openinference-semantic-conventions@2.10.0
+
+## 2.6.2
+
+### Patch Changes
+
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+
+## 2.6.1
+
+### Patch Changes
+
+- 4d72f42: Mirror `llm.model_name` from `responseModelName ?? requestModelName` in `getLLMAttributes` when `modelName` is not passed explicitly, as the spec requires; document composing the options with `withSpan` and the `@observe` decorator via `processInput` and `processOutput`
+
+## 2.6.0
+
+### Minor Changes
+
+- 99f6e71: Add optional `requestModelName` and `responseModelName` options to `getLLMAttributes`, emitting the `llm.request.model_name` and `llm.response.model_name` semantic conventions; usable with `withSpan` and the `@observe` decorator via `attributes` and `processOutput`
+
+## 2.5.4
+
+### Patch Changes
+
+- 0071b37: Split over-complex functions into focused helpers and make implicit returns explicit (enforce `eslint/complexity`). Also hardens bedrock-agent-runtime tool-call extraction against a `function: null` payload that previously threw. No other behavior changes.
+
+## 2.5.3
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+
+## 2.5.2
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+
 ## 2.5.1
 
 ### Patch Changes

@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.1.63](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.62...python-openinference-instrumentation-v0.1.63) (2026-09-10)
+
+
+### Features
+
+* **instrumentation:** add request and response model name attributes ([#3613](https://github.com/Arize-ai/openinference/issues/3613)) ([7010ce3](https://github.com/Arize-ai/openinference/commit/7010ce3d08db32ebfced1f50ed586976274b489c))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.62](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.61...python-openinference-instrumentation-v0.1.62) (2026-09-09)
+
+
+### Features
+
+* **instrumentation:** apply image masking to input.images and output.images ([#3695](https://github.com/Arize-ai/openinference/issues/3695)) ([b739a63](https://github.com/Arize-ai/openinference/commit/b739a6357839aa2998258381d9c197f35888a136))
+
+## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.60...python-openinference-instrumentation-v0.1.61) (2026-09-04)
+
+
+### Features
+
+* **semconv:** add meta, zai, and minimax as well-known llm.provider values ([#3671](https://github.com/Arize-ai/openinference/issues/3671)) ([fd01216](https://github.com/Arize-ai/openinference/commit/fd012164266f3e2eec58017e3880aea505667a16))
+
+
+### Bug Fixes
+
+* **instrumentation:** preserve context attributes in async coroutine decorators ([#3583](https://github.com/Arize-ai/openinference/issues/3583)) ([#3662](https://github.com/Arize-ai/openinference/issues/3662)) ([d818097](https://github.com/Arize-ai/openinference/commit/d818097d43a345474b4b62cf6f207a52671b890d))
+
+## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.59...python-openinference-instrumentation-v0.1.60) (2026-09-01)
+
+
+### Features
+
+* add explicit name and description for advertised LLM tools ([#3630](https://github.com/Arize-ai/openinference/issues/3630)) ([0101ec1](https://github.com/Arize-ai/openinference/commit/0101ec1661dbdbb80d85b961826e3eae1d45a900))
+
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.58...python-openinference-instrumentation-v0.1.59) (2026-08-25)
+
+
+### Features
+
+* **cohere:** instrument ClientV2.rerank ([#3530](https://github.com/Arize-ai/openinference/issues/3530)) ([4f34a5a](https://github.com/Arize-ai/openinference/commit/4f34a5a69191569c06b893f7f974e1a41de84c86))
+
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.57...python-openinference-instrumentation-v0.1.58) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
 ## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.56...python-openinference-instrumentation-v0.1.57) (2026-08-07)
 
 

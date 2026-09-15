@@ -1,0 +1,5 @@
+instructor>=1.3.7
+arize-phoenix
+openinference-instrumentation-instructor
+opentelemetry-exporter-otlp
+opentelemetry-sdk

@@ -23,11 +23,17 @@ from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
     Response,
+    ResponseComputerToolCall,
+    ResponseComputerToolCallParam,
     ResponseCustomToolCall,
     ResponseCustomToolCallOutputParam,
     ResponseCustomToolCallParam,
+    ResponseFileSearchToolCall,
+    ResponseFileSearchToolCallParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
+    ResponseFunctionWebSearch,
+    ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
     ResponseInputItemParam,
     ResponseOutputItem,
@@ -36,10 +42,15 @@ from openai.types.responses import (
     ResponseOutputRefusal,
     ResponseOutputText,
     ResponseReasoningItem,
+    ResponseReasoningItemParam,
     ResponseUsage,
     Tool,
 )
-from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
+from openai.types.responses.response_input_item_param import (
+    ComputerCallOutput,
+    FunctionCallOutput,
+    Message,
+)
 from openai.types.responses.response_output_message_param import Content
 from opentelemetry.context import attach, detach
 from opentelemetry.trace import Span as OtelSpan
@@ -55,6 +66,7 @@ from typing_extensions import assert_never
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceLLMSystemValues,
@@ -66,6 +78,20 @@ from openinference.semconv.trace import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Responses API status to OpenInference finish reason mapping.
+_STATUS_TO_FINISH_REASON = {
+    "completed": "stop",
+    "failed": "error",
+    "cancelled": "cancelled",
+    "incomplete": "incomplete",
+}
+
+# Responses API incomplete reason to OpenInference finish reason mapping.
+_INCOMPLETE_REASON_TO_FINISH_REASON = {
+    "max_output_tokens": "length",
+    "content_filter": "content_filter",
+}
 
 
 class OpenInferenceTracingProcessor(TracingProcessor):
@@ -178,7 +204,9 @@ class OpenInferenceTracingProcessor(TracingProcessor):
                     otel_span.set_attribute(INPUT_VALUE, input)
                 elif isinstance(input, list):
                     otel_span.set_attribute(INPUT_MIME_TYPE, JSON)
-                    otel_span.set_attribute(INPUT_VALUE, safe_json_dumps(input))
+                    otel_span.set_attribute(
+                        INPUT_VALUE, safe_json_dumps(_without_computer_screenshot_urls(input))
+                    )
                     for k, v in _get_attributes_from_input(input):
                         otel_span.set_attribute(k, v)
                 elif TYPE_CHECKING:
@@ -281,8 +309,11 @@ def _get_attributes_from_input(
     obj: Iterable[ResponseInputItemParam],
     msg_idx: int = 1,
 ) -> Iterator[tuple[str, AttributeValue]]:
+    # Some items expand to more than one message (a file search that carries its results);
+    # `offset` keeps later message indices contiguous when that happens.
+    offset = 0
     for i, item in enumerate(obj, msg_idx):
-        prefix = f"{LLM_INPUT_MESSAGES}.{i}."
+        prefix = f"{LLM_INPUT_MESSAGES}.{i + offset}."
         if "type" not in item:
             if "role" in item and "content" in item:
                 yield from _get_attributes_from_message_param(
@@ -296,13 +327,31 @@ def _get_attributes_from_input(
         elif item["type"] == "message":
             yield from _get_attributes_from_message_param(item, prefix)
         elif item["type"] == "file_search_call":
-            continue  # TODO
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_file_search_tool_call(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
+            if item.get("results"):
+                offset += 1
+                yield from _get_attributes_from_file_search_results(
+                    item,
+                    f"{LLM_INPUT_MESSAGES}.{i + offset}.",
+                )
         elif item["type"] == "computer_call":
-            continue  # TODO
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_computer_tool_call_param(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
         elif item["type"] == "computer_call_output":
-            continue  # TODO
+            yield from _get_attributes_from_computer_call_output(item, prefix)
         elif item["type"] == "web_search_call":
-            continue  # TODO
+            yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_function_web_search(
+                item,
+                f"{prefix}{MESSAGE_TOOL_CALLS}.0.",
+            )
         elif item["type"] == "function_call":
             yield f"{prefix}{MESSAGE_ROLE}", "assistant"
             yield from _get_attributes_from_response_function_tool_call_param(
@@ -320,7 +369,7 @@ def _get_attributes_from_input(
         elif item["type"] == "custom_tool_call_output":
             yield from _get_attributes_from_response_custom_tool_call_output_param(item, prefix)
         elif item["type"] == "reasoning":
-            continue  # TODO
+            yield from _get_attributes_from_reasoning_item_param(item, prefix)
         elif item["type"] == "item_reference":
             continue  # TODO
         elif item["type"] == "image_generation_call":
@@ -372,8 +421,36 @@ def _get_attributes_from_input(
         elif item["type"] == "program_output":
             # TODO: Handle program output
             continue
+        elif item["type"] == "configuration_update":
+            # TODO: Handle configuration update
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
+
+
+def _get_attributes_from_reasoning_item_param(
+    obj: ResponseReasoningItemParam,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    # Continuation turns with reasoning models replay reasoning items as input;
+    # mirror _get_attributes_from_reasoning_item so the follow-up LLM span records
+    # the same reasoning context the output side already does.
+    summary_texts = [part["text"] for part in (obj.get("summary") or []) if part.get("text")]
+    content_texts = [part["text"] for part in (obj.get("content") or []) if part.get("text")]
+    texts = summary_texts or content_texts
+    encrypted_content = obj.get("encrypted_content")
+    if not texts and not encrypted_content:
+        return
+
+    yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+    content_prefix = f"{prefix}{MESSAGE_CONTENTS}.0."
+    yield f"{content_prefix}{MESSAGE_CONTENT_TYPE}", "reasoning"
+    if texts:
+        yield f"{content_prefix}{MESSAGE_CONTENT_TEXT}", "\n\n".join(texts)
+    if encrypted_content:
+        yield f"{content_prefix}{MESSAGE_CONTENT_ENCRYPTED_CONTENT}", encrypted_content
+    if item_id := obj.get("id"):
+        yield f"{content_prefix}{MESSAGE_CONTENT_ID}", item_id
 
 
 def _get_attributes_from_message_param(
@@ -439,7 +516,8 @@ def _get_attributes_from_function_call_output(
     prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_ROLE}", "tool"
-    yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", obj["call_id"]
+    if (call_id := obj.get("call_id")) is not None:
+        yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", call_id
     output = obj["output"]
     if output is not None:
         if isinstance(output, str):
@@ -447,6 +525,100 @@ def _get_attributes_from_function_call_output(
         else:
             output_value = safe_json_dumps(output)
         yield f"{prefix}{MESSAGE_CONTENT}", output_value
+
+
+def _dump_model(value: Any) -> Any:
+    """Convert pydantic models (including those inside lists) to JSON-compatible data.
+
+    Other values are returned unchanged. Never raises: a model that cannot be dumped is
+    returned as-is so `safe_json_dumps` can still fall back to `str()`.
+    """
+    if isinstance(value, list):
+        return [_dump_model(item) for item in value]
+    if callable(dump_fn := getattr(value, "model_dump", None)):
+        try:
+            return dump_fn(mode="json", exclude_unset=True)
+        except Exception:
+            logger.exception("Failed to dump %s", type(value).__name__)
+    return value
+
+
+def _without_computer_screenshot_urls(items: list[Any]) -> list[Any]:
+    """Keep screenshot data exclusively in maskable structured image attributes.
+
+    Only `computer_call_output` items are rewritten; every other item is passed through by
+    reference so the common (no computer tool) case costs a single pass over the list.
+    """
+    result: list[Any] = []
+    for item in items:
+        if isinstance(item, dict) and item.get("type") == "computer_call_output":
+            output = _dump_model(item.get("output"))
+            if isinstance(output, dict) and output.get("type") == "computer_screenshot":
+                item = {**item, "output": {k: v for k, v in output.items() if k != "image_url"}}
+        result.append(item)
+    return result
+
+
+def _get_computer_action_arguments(
+    obj: Any,
+    prefix: str,
+) -> Iterator[tuple[str, AttributeValue]]:
+    obj = _dump_model(obj)
+    if not isinstance(obj, dict):
+        return
+    arguments = {
+        key: _dump_model(value)
+        for key in ("action", "actions")
+        if (value := obj.get(key)) is not None
+    }
+    if arguments:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps(arguments)
+
+
+def _get_attributes_from_response_computer_tool_call_param(
+    obj: ResponseComputerToolCallParam,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    call_id = obj.get("call_id") if isinstance(obj, dict) else getattr(obj, "call_id", None)
+    id_ = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", None)
+    if (tool_call_id := call_id or id_) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", tool_call_id
+    type_ = obj.get("type") if isinstance(obj, dict) else getattr(obj, "type", None)
+    if type_ is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type_
+
+    yield from _get_computer_action_arguments(obj, prefix)
+
+
+def _get_attributes_from_computer_call_output(
+    obj: ComputerCallOutput,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    yield f"{prefix}{MESSAGE_ROLE}", "tool"
+    call_id = obj.get("call_id") if isinstance(obj, dict) else getattr(obj, "call_id", None)
+    if call_id is not None:
+        yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", call_id
+    output: Any = obj.get("output") if isinstance(obj, dict) else getattr(obj, "output", None)
+    if output is None:
+        return
+    output = _dump_model(output)
+    if (
+        isinstance(output, dict)
+        and output.get("type") == "computer_screenshot"
+        and "image_url" in output
+    ):
+        # Preserve file references without duplicating image data in text attributes.
+        output = dict(output)
+        if image_url := output.pop("image_url"):
+            yield f"{prefix}{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}", "image"
+            yield (
+                f"{prefix}{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+                image_url,
+            )
+    yield (
+        f"{prefix}{MESSAGE_CONTENT}",
+        output if isinstance(output, str) else safe_json_dumps(output),
+    )
 
 
 def _get_attributes_from_generation_span_data(
@@ -603,7 +775,18 @@ def _get_attributes_from_function_span_data(
     if obj.input:
         yield INPUT_VALUE, obj.input
         yield INPUT_MIME_TYPE, JSON
-    if obj.output is not None:
+    if (
+        # ComputerTool spans are named "computer" (SDK >= 0.14, `trace_name`) or
+        # "computer_use_preview" (older releases, `name`).
+        obj.name in ("computer", "computer_use_preview")
+        and isinstance(obj.output, str)
+        and obj.output.startswith("data:image/")
+    ):
+        # The following response span records this screenshot as maskable image content.
+        # Do not duplicate it in the tool span's unstructured output.
+        yield OUTPUT_VALUE, safe_json_dumps({"type": "computer_screenshot"})
+        yield OUTPUT_MIME_TYPE, JSON
+    elif obj.output is not None:
         yield OUTPUT_VALUE, _convert_to_primitive(obj.output)
         if (
             isinstance(obj.output, str)
@@ -623,8 +806,12 @@ def _get_attributes_from_message_content_list(
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item["text"]
         elif item["type"] == "input_image":
-            # TODO
-            ...
+            if image_url := item.get("image_url"):
+                yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "image"
+                yield (
+                    f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+                    image_url,
+                )
         elif item["type"] == "input_file":
             # TODO
             ...
@@ -647,6 +834,11 @@ def _get_attributes_from_response(obj: Response) -> Iterator[tuple[str, Attribut
     else:
         pass  # TODO: handle list instructions
     yield LLM_MODEL_NAME, obj.model
+    incomplete_reason = None
+    if (incomplete_details := getattr(obj, "incomplete_details", None)) is not None:
+        incomplete_reason = getattr(incomplete_details, "reason", None)
+    if finish_reason := _map_finish_reason(getattr(obj, "status", None), incomplete_reason):
+        yield LLM_FINISH_REASON, finish_reason
     param = obj.model_dump(
         exclude_none=True,
         exclude={"object", "tools", "usage", "output", "error", "status"},
@@ -689,6 +881,7 @@ def _get_attributes_from_response_output(
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
             yield from _get_attributes_from_message(item, prefix)
             msg_idx += 1
+            tool_call_idx = 0
         elif item.type == "function_call":
             yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
@@ -700,11 +893,28 @@ def _get_attributes_from_response_output(
             yield from _get_attributes_from_response_custom_tool_call(item, prefix)
             tool_call_idx += 1
         elif item.type == "file_search_call":
-            ...  # TODO
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_file_search_tool_call(item, prefix)
+            tool_call_idx += 1
+            if item.results:
+                # Close the assistant message and record the retrieved chunks as a tool message.
+                msg_idx += 1
+                tool_call_idx = 0
+                yield from _get_attributes_from_file_search_results(
+                    item, f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
+                )
+                msg_idx += 1
         elif item.type == "web_search_call":
-            ...  # TODO
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_function_web_search(item, prefix)
+            tool_call_idx += 1
         elif item.type == "computer_call":
-            ...  # TODO
+            yield f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_ROLE}", "assistant"
+            prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
+            yield from _get_attributes_from_response_computer_tool_call(item, prefix)
+            tool_call_idx += 1
         elif item.type == "reasoning":
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
             attrs = list(_get_attributes_from_reasoning_item(item, prefix))
@@ -712,6 +922,7 @@ def _get_attributes_from_response_output(
                 for k, v in attrs:
                     yield k, v
                 msg_idx += 1
+                tool_call_idx = 0
         elif item.type == "image_generation_call":
             ...  # TODO
         elif item.type == "code_interpreter_call":
@@ -792,6 +1003,73 @@ def _get_attributes_from_response_custom_tool_call(
         )
 
 
+def _get_attributes_from_response_file_search_tool_call(
+    obj: Union[ResponseFileSearchToolCall, ResponseFileSearchToolCallParam],
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    """Tool call attributes for a hosted file search (output item or replayed input item)."""
+    data = _dump_model(obj)
+    if not isinstance(data, Mapping):
+        return
+    if (id_ := data.get("id")) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", id_
+    yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", "file_search_call"
+    if queries := data.get("queries"):
+        yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps({"queries": queries})
+
+
+def _get_attributes_from_file_search_results(
+    obj: Union[ResponseFileSearchToolCall, ResponseFileSearchToolCallParam],
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    """A tool message carrying the retrieved chunks of a file search.
+
+    Results are only present when the tool was configured with `include_search_results=True`.
+    """
+    data = _dump_model(obj)
+    if not isinstance(data, Mapping) or not (results := data.get("results")):
+        return
+    yield f"{prefix}{MESSAGE_ROLE}", "tool"
+    if (id_ := data.get("id")) is not None:
+        yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", id_
+    yield f"{prefix}{MESSAGE_CONTENT}", safe_json_dumps(_dump_model(results))
+
+
+def _get_attributes_from_response_function_web_search(
+    obj: Union[ResponseFunctionWebSearch, ResponseFunctionWebSearchParam],
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    """Tool call attributes for a hosted web search (output item or replayed input item)."""
+    data = _dump_model(obj)
+    if not isinstance(data, Mapping):
+        return
+    if (id_ := data.get("id")) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", id_
+    yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", "web_search_call"
+    if (action := _dump_model(data.get("action"))) is not None:
+        if isinstance(action, Mapping):
+            # Field order differs across openai SDK versions; keep the attribute deterministic.
+            action = dict(sorted(action.items()))
+        yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", safe_json_dumps(action)
+
+
+def _get_attributes_from_response_computer_tool_call(
+    obj: Union[ResponseComputerToolCall, dict[str, Any]],
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    call_id = obj.get("call_id") if isinstance(obj, dict) else getattr(obj, "call_id", None)
+    id_ = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", None)
+    if (tool_call_id := call_id or id_) is not None:
+        yield f"{prefix}{TOOL_CALL_ID}", tool_call_id
+    type_ = (
+        obj.get("type") if isinstance(obj, dict) else getattr(obj, "type", None)
+    ) or "computer_call"
+    if type_ is not None:
+        yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", type_
+
+    yield from _get_computer_action_arguments(obj, prefix)
+
+
 def _get_attributes_from_message(
     obj: ResponseOutputMessage,
     prefix: str = "",
@@ -852,6 +1130,21 @@ def _get_attributes_from_reasoning_item(
         yield f"{content_prefix}{MESSAGE_CONTENT_ID}", obj.id
 
 
+def _map_finish_reason(status: Optional[str], incomplete_reason: Optional[str]) -> Optional[str]:
+    """
+    Map a Responses API status and incomplete reason to a single OpenInference finish reason.
+
+    The more specific ``incomplete_details.reason`` (e.g. ``max_output_tokens``) takes
+    precedence over the coarse ``status`` so that truncation is reported as ``length``
+    rather than ``incomplete``.
+    """
+    if incomplete_reason:
+        return _INCOMPLETE_REASON_TO_FINISH_REASON.get(incomplete_reason, incomplete_reason)
+    if status:
+        return _STATUS_TO_FINISH_REASON.get(status, status)
+    return None
+
+
 def _get_span_status(obj: Span[Any]) -> Status:
     if error := getattr(obj, "error", None):
         return Status(
@@ -866,6 +1159,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
@@ -887,6 +1181,8 @@ TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 AGENT_NAME = SpanAttributes.AGENT_NAME
+
+IMAGE_URL = ImageAttributes.IMAGE_URL
 
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS

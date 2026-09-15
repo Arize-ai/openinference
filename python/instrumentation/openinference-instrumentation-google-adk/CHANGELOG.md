@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.26...python-openinference-instrumentation-google-adk-v0.1.27) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.25...python-openinference-instrumentation-google-adk-v0.1.26) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.24...python-openinference-instrumentation-google-adk-v0.1.25) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.23...python-openinference-instrumentation-google-adk-v0.1.24) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.22...python-openinference-instrumentation-google-adk-v0.1.23) (2026-08-25)
+
+
+### Bug Fixes
+
+* Fix: google-adk tool/LLM spans locked at OK on ADK 2.x failures ([#3542](https://github.com/Arize-ai/openinference/issues/3542)) ([24271a9](https://github.com/Arize-ai/openinference/commit/24271a9a708e843ac3a353d0b8340ebe5f7e438f))
+* **google-adk:** trace compaction spans on ADK 1.32+ ([#3478](https://github.com/Arize-ai/openinference/issues/3478)) ([aa72912](https://github.com/Arize-ai/openinference/commit/aa729129304c407eb83605172738342daf25d190))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.21...python-openinference-instrumentation-google-adk-v0.1.22) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.20...python-openinference-instrumentation-google-adk-v0.1.21) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.19...python-openinference-instrumentation-google-adk-v0.1.20) (2026-08-12)
+
+
+### Features
+
+* **google-adk:** Add fallback output capture and agent description to agent spans ([#2759](https://github.com/Arize-ai/openinference/issues/2759)) ([91f1848](https://github.com/Arize-ai/openinference/commit/91f18488d6f03c9ecf442c7f917853cc191959bc))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.18...python-openinference-instrumentation-google-adk-v0.1.19) (2026-08-07)
 
 

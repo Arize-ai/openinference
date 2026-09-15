@@ -10,13 +10,17 @@ from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
     Response,
+    ResponseComputerToolCall,
+    ResponseComputerToolCallOutputScreenshot,
     ResponseComputerToolCallOutputScreenshotParam,
     ResponseComputerToolCallParam,
     ResponseCustomToolCall,
     ResponseError,
+    ResponseFileSearchToolCall,
     ResponseFileSearchToolCallParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
+    ResponseFunctionWebSearch,
     ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
     ResponseInputItemParam,
@@ -31,9 +35,14 @@ from openai.types.responses import (
     ResponseUsage,
     Tool,
 )
+from openai.types.responses.response import IncompleteDetails
+from openai.types.responses.response_computer_tool_call import ActionClick
 from openai.types.responses.response_custom_tool_call_output_param import (
     ResponseCustomToolCallOutputParam,
 )
+from openai.types.responses.response_file_search_tool_call import Result as FileSearchResult
+from openai.types.responses.response_function_web_search import ActionOpenPage as WebSearchOpenPage
+from openai.types.responses.response_function_web_search import ActionSearch as WebSearchAction
 from openai.types.responses.response_function_web_search_param import ActionSearch
 from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
@@ -52,6 +61,8 @@ from openinference.instrumentation.openai_agents._processor import (
     _get_attributes_from_chat_completions_output,
     _get_attributes_from_chat_completions_tool_call_dict,
     _get_attributes_from_chat_completions_usage,
+    _get_attributes_from_computer_call_output,
+    _get_attributes_from_file_search_results,
     _get_attributes_from_function_call_output,
     _get_attributes_from_function_span_data,
     _get_attributes_from_function_tool_call,
@@ -63,7 +74,11 @@ from openinference.instrumentation.openai_agents._processor import (
     _get_attributes_from_message_param,
     _get_attributes_from_reasoning_item,
     _get_attributes_from_response,
+    _get_attributes_from_response_computer_tool_call,
+    _get_attributes_from_response_computer_tool_call_param,
+    _get_attributes_from_response_file_search_tool_call,
     _get_attributes_from_response_function_tool_call_param,
+    _get_attributes_from_response_function_web_search,
     _get_attributes_from_response_instruction,
     _get_attributes_from_response_output,
     _get_attributes_from_tools,
@@ -184,7 +199,14 @@ from openinference.instrumentation.openai_agents._processor import (
                 )
             ],
             {
-                # TODO: Implement computer tool call attributes
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.id": "call-123",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"action": {"type": "click", "x": 100, "y": 200, "button": "left"}}'
+                ),
+                "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "computer_call"
+                ),
             },
             id="computer_tool_call",
         ),
@@ -198,7 +220,14 @@ from openinference.instrumentation.openai_agents._processor import (
                 )
             ],
             {
-                # TODO: Implement file search tool call attributes
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"queries": ["test query"]}'
+                ),
             },
             id="file_search_tool_call",
         ),
@@ -215,7 +244,14 @@ from openinference.instrumentation.openai_agents._processor import (
                 )
             ],
             {
-                # TODO: Implement web search tool call attributes
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.id": "web-123",
+                "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "web_search_call"
+                ),
+                "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"query": "test query", "type": "search"}'
+                ),
             },
             id="web_search_tool_call",
         ),
@@ -228,9 +264,79 @@ from openinference.instrumentation.openai_agents._processor import (
                 )
             ],
             {
-                # TODO: Implement reasoning item attributes
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.text": "Test reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.id": "reason-123",
             },
             id="reasoning_item",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason-124",
+                    summary=[],
+                    content=[{"type": "reasoning_text", "text": "Private reasoning"}],
+                )
+            ],
+            {
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.text": "Private reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.id": "reason-124",
+            },
+            id="reasoning_item_content_fallback",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason-125",
+                    summary=[],
+                    encrypted_content="blob",
+                )
+            ],
+            {
+                "llm.input_messages.1.message.role": "assistant",
+                "llm.input_messages.1.message.contents.0.message_content.type": "reasoning",
+                "llm.input_messages.1.message.contents.0.message_content.encrypted_content": "blob",
+                "llm.input_messages.1.message.contents.0.message_content.id": "reason-125",
+            },
+            id="reasoning_item_encrypted_content_only",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason-126",
+                    summary=[],
+                )
+            ],
+            {},
+            id="empty_reasoning_item_yields_nothing",
+        ),
+        pytest.param(
+            [
+                EasyInputMessageParam(
+                    role="user",
+                    content="What is the cube root of 8?",
+                ),
+                ResponseReasoningItemParam(
+                    type="reasoning",
+                    id="reason-127",
+                    summary=[{"type": "summary_text", "text": "Try 2**3."}],
+                ),
+            ],
+            {
+                "llm.input_messages.1.message.role": "user",
+                "llm.input_messages.1.message.content": "What is the cube root of 8?",
+                "llm.input_messages.2.message.role": "assistant",
+                "llm.input_messages.2.message.contents.0.message_content.type": "reasoning",
+                "llm.input_messages.2.message.contents.0.message_content.text": "Try 2**3.",
+                "llm.input_messages.2.message.contents.0.message_content.id": "reason-127",
+            },
+            id="message_then_reasoning_item",
         ),
         pytest.param(
             [
@@ -247,7 +353,15 @@ from openinference.instrumentation.openai_agents._processor import (
                 )
             ],
             {
-                # TODO: Implement computer call output attributes
+                "llm.input_messages.1.message.role": "tool",
+                "llm.input_messages.1.message.tool_call_id": "comp-123",
+                "llm.input_messages.1.message.content": (
+                    '{"type": "computer_screenshot", "file_id": "file-123"}'
+                ),
+                "llm.input_messages.1.message.contents.0.message_content.type": "image",
+                "llm.input_messages.1.message.contents.0.message_content.image.image.url": (
+                    "https://example.com/screenshot.png"
+                ),
             },
             id="computer_call_output",
         ),
@@ -525,6 +639,17 @@ def test_get_attributes_from_response_function_tool_call_param(
                 "message.tool_call_id": "123",
             },
             id="simple_output",
+        ),
+        pytest.param(
+            {
+                "call_id": None,
+                "output": "result",
+            },
+            {
+                "message.content": "result",
+                "message.role": "tool",
+            },
+            id="none_call_id",
         ),
         pytest.param(
             {
@@ -1267,6 +1392,48 @@ def test_get_attributes_from_function_span_data(
             },
             id="mixed_content_types",
         ),
+        pytest.param(
+            [{"type": "input_image", "detail": "auto", "image_url": "https://a.com/b.png"}],
+            {
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": "https://a.com/b.png",
+            },
+            id="input_image_http_url",
+        ),
+        pytest.param(
+            [
+                {
+                    "type": "input_image",
+                    "detail": "auto",
+                    "image_url": "data:image/png;base64,iVBORw0KGgo=",
+                }
+            ],
+            {
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": (
+                    "data:image/png;base64,iVBORw0KGgo="
+                ),
+            },
+            id="input_image_base64_data_uri",
+        ),
+        pytest.param(
+            [{"type": "input_image", "detail": "auto", "file_id": "file-123"}],
+            {},
+            id="input_image_without_url",
+        ),
+        pytest.param(
+            [
+                {"type": "input_text", "text": "What is in this screenshot?"},
+                {"type": "input_image", "detail": "auto", "image_url": "https://a.com/b.png"},
+            ],
+            {
+                "message.contents.0.message_content.type": "text",
+                "message.contents.0.message_content.text": "What is in this screenshot?",
+                "message.contents.1.message_content.type": "image",
+                "message.contents.1.message_content.image.image.url": "https://a.com/b.png",
+            },
+            id="text_and_image",
+        ),
     ],
 )
 def test_get_attributes_from_message_content_list(
@@ -1355,6 +1522,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "stop",
                 "llm.output_messages.0.message.content": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
@@ -1401,8 +1569,67 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "incomplete",
             },
             id="incomplete_response",
+        ),
+        pytest.param(
+            Response(
+                id="truncated-id",
+                created_at=1234567890.0,
+                model="gpt-4",
+                object="response",
+                output=[],
+                parallel_tool_calls=True,
+                tool_choice="auto",
+                tools=[],
+                status="incomplete",
+                incomplete_details=IncompleteDetails(reason="max_output_tokens"),
+            ),
+            {
+                "llm.invocation_parameters": json.dumps(
+                    {
+                        "id": "truncated-id",
+                        "created_at": 1234567890.0,
+                        "incomplete_details": {"reason": "max_output_tokens"},
+                        "model": "gpt-4",
+                        "parallel_tool_calls": True,
+                        "tool_choice": "auto",
+                    }
+                ),
+                "llm.model_name": "gpt-4",
+                "llm.finish_reason": "length",
+            },
+            id="incomplete_response_max_output_tokens",
+        ),
+        pytest.param(
+            Response(
+                id="filtered-id",
+                created_at=1234567890.0,
+                model="gpt-4",
+                object="response",
+                output=[],
+                parallel_tool_calls=True,
+                tool_choice="auto",
+                tools=[],
+                status="incomplete",
+                incomplete_details=IncompleteDetails(reason="content_filter"),
+            ),
+            {
+                "llm.invocation_parameters": json.dumps(
+                    {
+                        "id": "filtered-id",
+                        "created_at": 1234567890.0,
+                        "incomplete_details": {"reason": "content_filter"},
+                        "model": "gpt-4",
+                        "parallel_tool_calls": True,
+                        "tool_choice": "auto",
+                    }
+                ),
+                "llm.model_name": "gpt-4",
+                "llm.finish_reason": "content_filter",
+            },
+            id="incomplete_response_content_filter",
         ),
         pytest.param(
             Response(
@@ -1427,6 +1654,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "stop",
             },
             id="minimal_response",
         ),
@@ -1457,6 +1685,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "error",
             },
             id="error_response",
         ),
@@ -1552,6 +1781,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.finish_reason": "stop",
                 "llm.output_messages.0.message.content": "Hi\nI cannot help with that",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
@@ -2029,6 +2259,344 @@ def test_get_attributes_from_tools(
             },
             id="empty_reasoning_then_message",
         ),
+        pytest.param(
+            [
+                ResponseComputerToolCall(
+                    id="comp-123",
+                    call_id="call-123",
+                    type="computer_call",
+                    pending_safety_checks=[],
+                    status="completed",
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "computer_call"
+                ),
+            },
+            id="single_computer_call",
+        ),
+        pytest.param(
+            [
+                ResponseComputerToolCall(
+                    id="comp-123",
+                    call_id="call-123",
+                    type="computer_call",
+                    pending_safety_checks=[],
+                    status="completed",
+                ),
+                ResponseComputerToolCall(
+                    id="comp-456",
+                    call_id="call-456",
+                    type="computer_call",
+                    pending_safety_checks=[],
+                    status="completed",
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "computer_call"
+                ),
+                "llm.output_messages.0.message.tool_calls.1.tool_call.id": "call-456",
+                "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": (
+                    "computer_call"
+                ),
+            },
+            id="multiple_computer_calls",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItem(
+                    id="reason-123",
+                    type="reasoning",
+                    summary=[Summary(type="summary_text", text="Think then click")],
+                ),
+                ResponseComputerToolCall(
+                    id="comp-789",
+                    call_id="call-789",
+                    type="computer_call",
+                    pending_safety_checks=[],
+                    status="completed",
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+                "llm.output_messages.0.message.contents.0.message_content.text": "Think then click",
+                "llm.output_messages.0.message.contents.0.message_content.id": "reason-123",
+                "llm.output_messages.1.message.role": "assistant",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.id": "call-789",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "computer_call"
+                ),
+            },
+            id="reasoning_then_computer_call",
+        ),
+        pytest.param(
+            [
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="in_progress",
+                )
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"queries": ["test query"]}'
+                ),
+            },
+            id="file_search_tool_call",
+        ),
+        pytest.param(
+            [
+                ResponseFunctionWebSearch(
+                    id="web-123",
+                    type="web_search_call",
+                    status="in_progress",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test query",
+                    ),
+                )
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "web-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "web_search_call"
+                ),
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"query": "test query", "type": "search"}'
+                ),
+            },
+            id="web_search_tool_call",
+        ),
+        pytest.param(
+            [
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="completed",
+                ),
+                ResponseFunctionWebSearch(
+                    id="web-456",
+                    type="web_search_call",
+                    status="completed",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test web query",
+                    ),
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"queries": ["test query"]}'
+                ),
+                "llm.output_messages.0.message.tool_calls.1.tool_call.id": "web-456",
+                "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": (
+                    "web_search_call"
+                ),
+                "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments": (
+                    '{"query": "test web query", "type": "search"}'
+                ),
+            },
+            id="multiple_search_tool_calls",
+        ),
+        pytest.param(
+            [
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="completed",
+                ),
+                ResponseOutputMessage(
+                    id="msg-300",
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text", text="Search results found", annotations=[]
+                        )
+                    ],
+                    status="completed",
+                    type="message",
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"queries": ["test query"]}'
+                ),
+                "llm.output_messages.0.message.contents.0.message_content.type": "text",
+                "llm.output_messages.0.message.contents.0.message_content.text": (
+                    "Search results found"
+                ),
+                "llm.output_messages.0.message.content": "Search results found",
+            },
+            id="file_search_then_message",
+        ),
+        pytest.param(
+            [
+                ResponseFunctionWebSearch(
+                    id="web-123",
+                    type="web_search_call",
+                    status="completed",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test query",
+                    ),
+                ),
+                ResponseOutputMessage(
+                    id="msg-301",
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text", text="Web results found", annotations=[]
+                        )
+                    ],
+                    status="completed",
+                    type="message",
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "web-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "web_search_call"
+                ),
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"query": "test query", "type": "search"}'
+                ),
+                "llm.output_messages.0.message.contents.0.message_content.type": "text",
+                "llm.output_messages.0.message.contents.0.message_content.text": (
+                    "Web results found"
+                ),
+                "llm.output_messages.0.message.content": "Web results found",
+            },
+            id="web_search_then_message",
+        ),
+        pytest.param(
+            [
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="completed",
+                ),
+                ResponseOutputMessage(
+                    id="msg-302",
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text", text="Search results found", annotations=[]
+                        )
+                    ],
+                    status="completed",
+                    type="message",
+                ),
+                ResponseFunctionWebSearch(
+                    id="web-456",
+                    type="web_search_call",
+                    status="completed",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test web query",
+                    ),
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"queries": ["test query"]}'
+                ),
+                "llm.output_messages.0.message.contents.0.message_content.type": "text",
+                "llm.output_messages.0.message.contents.0.message_content.text": (
+                    "Search results found"
+                ),
+                "llm.output_messages.0.message.content": "Search results found",
+                "llm.output_messages.1.message.role": "assistant",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.id": "web-456",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "web_search_call"
+                ),
+                "llm.output_messages.1.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"query": "test web query", "type": "search"}'
+                ),
+            },
+            id="file_search_then_message_then_web_search",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItem(
+                    id="reason-123",
+                    type="reasoning",
+                    summary=[Summary(type="summary_text", text="Thinking it through")],
+                ),
+                ResponseFileSearchToolCall(
+                    id="file-123",
+                    type="file_search_call",
+                    queries=["test query"],
+                    status="completed",
+                ),
+                ResponseFunctionWebSearch(
+                    id="web-456",
+                    type="web_search_call",
+                    status="completed",
+                    action=WebSearchAction(
+                        type="search",
+                        query="test web query",
+                    ),
+                ),
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+                "llm.output_messages.0.message.contents.0.message_content.text": (
+                    "Thinking it through"
+                ),
+                "llm.output_messages.0.message.contents.0.message_content.id": "reason-123",
+                "llm.output_messages.1.message.role": "assistant",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.id": "file-123",
+                "llm.output_messages.1.message.tool_calls.0.tool_call.function.name": (
+                    "file_search_call"
+                ),
+                "llm.output_messages.1.message.tool_calls.0.tool_call.function.arguments": (
+                    '{"queries": ["test query"]}'
+                ),
+                "llm.output_messages.1.message.tool_calls.1.tool_call.id": "web-456",
+                "llm.output_messages.1.message.tool_calls.1.tool_call.function.name": (
+                    "web_search_call"
+                ),
+                "llm.output_messages.1.message.tool_calls.1.tool_call.function.arguments": (
+                    '{"query": "test web query", "type": "search"}'
+                ),
+            },
+            id="reasoning_then_file_search_then_web_search",
+        ),
     ],
 )
 def test_get_attributes_from_response_output(
@@ -2115,6 +2683,600 @@ def test_get_attributes_from_function_tool_call(
     expected_attributes: Mapping[str, Any],
 ) -> None:
     attributes = dict(_get_attributes_from_function_tool_call(function_tool_call, ""))
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "computer_tool_call,prefix,expected_attributes",
+    [
+        pytest.param(
+            ResponseComputerToolCall(
+                id="comp-1",
+                call_id="call-1",
+                type="computer_call",
+                pending_safety_checks=[],
+                status="completed",
+            ),
+            "",
+            {
+                "tool_call.id": "call-1",
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call",
+        ),
+        pytest.param(
+            ResponseComputerToolCall(
+                id="comp-2",
+                call_id="call-2",
+                type="computer_call",
+                pending_safety_checks=[],
+                status="in_progress",
+            ),
+            "custom.prefix.",
+            {
+                "custom.prefix.tool_call.id": "call-2",
+                "custom.prefix.tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_with_prefix",
+        ),
+        pytest.param(
+            ResponseComputerToolCall.model_construct(
+                id="comp-only-id",
+                call_id=None,
+                type="computer_call",
+            ),
+            "",
+            {
+                "tool_call.id": "comp-only-id",
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_fallback_to_id",
+        ),
+        pytest.param(
+            ResponseComputerToolCall.model_construct(
+                id="comp-fallback",
+                call_id="",
+                type="computer_call",
+            ),
+            "",
+            {
+                "tool_call.id": "comp-fallback",
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_fallback_to_id_when_call_id_empty",
+        ),
+        pytest.param(
+            ResponseComputerToolCall.model_construct(
+                id=None,
+                call_id=None,
+                type="computer_call",
+            ),
+            "",
+            {
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_no_ids",
+        ),
+        pytest.param(
+            {
+                "id": "comp-dict-id",
+                "call_id": "call-dict-id",
+                "type": "computer_call",
+            },  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.id": "call-dict-id",
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_dict",
+        ),
+    ],
+)
+def test_get_attributes_from_response_computer_tool_call(
+    computer_tool_call: ResponseComputerToolCall,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(_get_attributes_from_response_computer_tool_call(computer_tool_call, prefix))
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "computer_tool_call_param,prefix,expected_attributes",
+    [
+        pytest.param(
+            ResponseComputerToolCallParam(
+                id="comp-param-1",
+                call_id="call-param-1",
+                type="computer_call",
+                action={"type": "click", "x": 100, "y": 200, "button": "left"},
+                pending_safety_checks=[],
+                status="completed",
+            ),
+            "",
+            {
+                "tool_call.id": "call-param-1",
+                "tool_call.function.arguments": (
+                    '{"action": {"type": "click", "x": 100, "y": 200, "button": "left"}}'
+                ),
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_param",
+        ),
+        pytest.param(
+            {
+                "id": "comp-param-nested",
+                "call_id": "call-param-nested",
+                "type": "computer_call",
+                # A replayed dict item may still carry the pydantic action from the prior turn.
+                "action": ActionClick(type="click", x=1, y=2, button="left"),
+            },  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.id": "call-param-nested",
+                "tool_call.function.arguments": (
+                    '{"action": {"button": "left", "type": "click", "x": 1, "y": 2}}'
+                ),
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_param_nested_pydantic_action",
+        ),
+        pytest.param(
+            ResponseComputerToolCallParam(
+                id="comp-param-2",
+                call_id="call-param-2",
+                type="computer_call",
+            ),  # type: ignore[typeddict-item]
+            "test.prefix.",
+            {
+                "test.prefix.tool_call.id": "call-param-2",
+                "test.prefix.tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_param_with_prefix",
+        ),
+        pytest.param(
+            {"id": "comp-only-id", "type": "computer_call"},  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.id": "comp-only-id",
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_param_fallback_to_id",
+        ),
+        pytest.param(
+            {"call_id": "call-only-id"},  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.id": "call-only-id",
+            },
+            id="computer_tool_call_param_only_call_id",
+        ),
+        pytest.param(
+            {"id": "comp-only-id"},  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.id": "comp-only-id",
+            },
+            id="computer_tool_call_param_only_id",
+        ),
+        pytest.param(
+            {"type": "computer_call"},  # type: ignore[arg-type]
+            "",
+            {
+                "tool_call.function.name": "computer_call",
+            },
+            id="computer_tool_call_param_only_type",
+        ),
+        pytest.param(
+            {},  # type: ignore[arg-type]
+            "",
+            {},
+            id="computer_tool_call_param_empty",
+        ),
+    ],
+)
+def test_get_attributes_from_response_computer_tool_call_param(
+    computer_tool_call_param: ResponseComputerToolCallParam,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(
+        _get_attributes_from_response_computer_tool_call_param(computer_tool_call_param, prefix)
+    )
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "computer_call_output,prefix,expected_attributes",
+    [
+        pytest.param(
+            ComputerCallOutput(
+                type="computer_call_output",
+                call_id="call-123",
+                output=ResponseComputerToolCallOutputScreenshotParam(
+                    type="computer_screenshot",
+                    file_id="file-123",
+                    image_url="https://example.com/screenshot.png",
+                ),
+                id="out-1",
+                status="completed",
+            ),
+            "",
+            {
+                "message.role": "tool",
+                "message.tool_call_id": "call-123",
+                "message.content": '{"type": "computer_screenshot", "file_id": "file-123"}',
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": "https://example.com/screenshot.png",
+            },
+            id="screenshot_output",
+        ),
+        pytest.param(
+            ComputerCallOutput(
+                type="computer_call_output",
+                call_id="call-456",
+                output=ResponseComputerToolCallOutputScreenshotParam(
+                    type="computer_screenshot",
+                    file_id="file-456",
+                ),
+            ),  # type: ignore[typeddict-item]
+            "custom.prefix.",
+            {
+                "custom.prefix.message.role": "tool",
+                "custom.prefix.message.tool_call_id": "call-456",
+                "custom.prefix.message.content": (
+                    '{"type": "computer_screenshot", "file_id": "file-456"}'
+                ),
+            },
+            id="screenshot_output_with_prefix",
+        ),
+        pytest.param(
+            {
+                "type": "computer_call_output",
+                "call_id": "call-str",
+                "output": "Screenshot captured successfully",
+            },  # type: ignore[arg-type]
+            "",
+            {
+                "message.role": "tool",
+                "message.tool_call_id": "call-str",
+                "message.content": "Screenshot captured successfully",
+            },
+            id="string_output",
+        ),
+        pytest.param(
+            {
+                "type": "computer_call_output",
+                "call_id": "call-empty-str",
+                "output": "",
+            },  # type: ignore[arg-type]
+            "",
+            {
+                "message.role": "tool",
+                "message.tool_call_id": "call-empty-str",
+                "message.content": "",
+            },
+            id="empty_string_output",
+        ),
+        pytest.param(
+            {
+                "type": "computer_call_output",
+                "call_id": "call-none-out",
+                "output": None,
+            },  # type: ignore[arg-type]
+            "",
+            {
+                "message.role": "tool",
+                "message.tool_call_id": "call-none-out",
+            },
+            id="none_output",
+        ),
+        pytest.param(
+            {
+                "type": "computer_call_output",
+                "output": "No call id",
+            },  # type: ignore[arg-type]
+            "",
+            {
+                "message.role": "tool",
+                "message.content": "No call id",
+            },
+            id="no_call_id",
+        ),
+        pytest.param(
+            {
+                "type": "computer_call_output",
+            },  # type: ignore[arg-type]
+            "",
+            {
+                "message.role": "tool",
+            },
+            id="empty_output_dict",
+        ),
+        pytest.param(
+            ComputerCallOutput(
+                type="computer_call_output",
+                call_id="call-pydantic-1",
+                output=ResponseComputerToolCallOutputScreenshot(
+                    type="computer_screenshot",
+                    file_id="file-pydantic-1",
+                    image_url="https://example.com/pydantic.png",
+                ),  # type: ignore[typeddict-item]
+                id="out-pydantic-1",
+                status="completed",
+            ),
+            "",
+            {
+                "message.role": "tool",
+                "message.tool_call_id": "call-pydantic-1",
+                "message.content": '{"type": "computer_screenshot", "file_id": "file-pydantic-1"}',
+                "message.contents.0.message_content.type": "image",
+                "message.contents.0.message_content.image.image.url": "https://example.com/pydantic.png",
+            },
+            id="screenshot_pydantic_output",
+        ),
+        pytest.param(
+            ComputerCallOutput(
+                type="computer_call_output",
+                call_id="call-pydantic-2",
+                output=ResponseComputerToolCallOutputScreenshot(
+                    type="computer_screenshot",
+                    file_id="file-pydantic-2",
+                ),  # type: ignore[typeddict-item]
+                id="out-pydantic-2",
+                status="completed",
+            ),
+            "custom.prefix.",
+            {
+                "custom.prefix.message.role": "tool",
+                "custom.prefix.message.tool_call_id": "call-pydantic-2",
+                "custom.prefix.message.content": (
+                    '{"type": "computer_screenshot", "file_id": "file-pydantic-2"}'
+                ),
+            },
+            id="screenshot_pydantic_output_with_prefix",
+        ),
+    ],
+)
+def test_get_attributes_from_computer_call_output(
+    computer_call_output: ComputerCallOutput,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(_get_attributes_from_computer_call_output(computer_call_output, prefix))
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "file_search_tool_call,prefix,expected_attributes",
+    [
+        pytest.param(
+            ResponseFileSearchToolCall(
+                id="file-call-1",
+                type="file_search_call",
+                queries=["search query"],
+                status="in_progress",
+            ),
+            "",
+            {
+                "tool_call.id": "file-call-1",
+                "tool_call.function.name": "file_search_call",
+                "tool_call.function.arguments": '{"queries": ["search query"]}',
+            },
+            id="pydantic_with_queries",
+        ),
+        pytest.param(
+            ResponseFileSearchToolCall(
+                id="file-call-2",
+                type="file_search_call",
+                queries=[],
+                status="completed",
+            ),
+            "custom.prefix.",
+            {
+                "custom.prefix.tool_call.id": "file-call-2",
+                "custom.prefix.tool_call.function.name": "file_search_call",
+            },
+            id="pydantic_empty_queries_with_prefix",
+        ),
+        pytest.param(
+            ResponseFileSearchToolCall(
+                id="file-call-3",
+                type="file_search_call",
+                queries=["q"],
+                status="completed",
+                results=[FileSearchResult(file_id="f-1", filename="a.txt", score=0.9, text="hi")],
+            ),
+            "",
+            {
+                "tool_call.id": "file-call-3",
+                "tool_call.function.name": "file_search_call",
+                "tool_call.function.arguments": '{"queries": ["q"]}',
+            },
+            id="pydantic_results_not_in_tool_call",
+        ),
+        pytest.param(
+            ResponseFileSearchToolCallParam(
+                id="file-call-param-1",
+                type="file_search_call",
+                queries=["search query", "second query"],
+                status="searching",
+            ),
+            "",
+            {
+                "tool_call.id": "file-call-param-1",
+                "tool_call.function.name": "file_search_call",
+                "tool_call.function.arguments": '{"queries": ["search query", "second query"]}',
+            },
+            id="param_with_queries",
+        ),
+        pytest.param(
+            {"id": "file-only-id", "type": "file_search_call"},
+            "p.",
+            {
+                "p.tool_call.id": "file-only-id",
+                "p.tool_call.function.name": "file_search_call",
+            },
+            id="dict_without_queries",
+        ),
+    ],
+)
+def test_get_attributes_from_response_file_search_tool_call(
+    file_search_tool_call: Any,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(
+        _get_attributes_from_response_file_search_tool_call(file_search_tool_call, prefix)
+    )
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "file_search_tool_call,prefix,expected_attributes",
+    [
+        pytest.param(
+            ResponseFileSearchToolCall(
+                id="file-call-1",
+                type="file_search_call",
+                queries=["q"],
+                status="completed",
+                results=[
+                    FileSearchResult(
+                        file_id="f-1",
+                        filename="a.txt",
+                        score=0.9,
+                        text="hello",
+                        attributes={"k": "v"},
+                    )
+                ],
+            ),
+            "llm.output_messages.1.",
+            {
+                "llm.output_messages.1.message.role": "tool",
+                "llm.output_messages.1.message.tool_call_id": "file-call-1",
+                "llm.output_messages.1.message.content": (
+                    '[{"attributes": {"k": "v"}, "file_id": "f-1", "filename": "a.txt", '
+                    '"score": 0.9, "text": "hello"}]'
+                ),
+            },
+            id="pydantic_results",
+        ),
+        pytest.param(
+            ResponseFileSearchToolCallParam(
+                id="file-call-param-1",
+                type="file_search_call",
+                queries=["q"],
+                status="completed",
+                results=[{"file_id": "f-2", "filename": "b.txt", "score": 0.5, "text": "bye"}],
+            ),
+            "",
+            {
+                "message.role": "tool",
+                "message.tool_call_id": "file-call-param-1",
+                "message.content": (
+                    '[{"file_id": "f-2", "filename": "b.txt", "score": 0.5, "text": "bye"}]'
+                ),
+            },
+            id="param_results",
+        ),
+        pytest.param(
+            ResponseFileSearchToolCall(
+                id="file-call-2",
+                type="file_search_call",
+                queries=["q"],
+                status="completed",
+            ),
+            "",
+            {},
+            id="pydantic_no_results",
+        ),
+        pytest.param(
+            {"id": "file-call-3", "type": "file_search_call", "results": []},
+            "",
+            {},
+            id="dict_empty_results",
+        ),
+    ],
+)
+def test_get_attributes_from_file_search_results(
+    file_search_tool_call: Any,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(_get_attributes_from_file_search_results(file_search_tool_call, prefix))
+    assert attributes == expected_attributes
+
+
+@pytest.mark.parametrize(
+    "web_search_tool_call,prefix,expected_attributes",
+    [
+        pytest.param(
+            ResponseFunctionWebSearch(
+                id="web-call-1",
+                type="web_search_call",
+                status="in_progress",
+                action=WebSearchAction(type="search", query="search query"),
+            ),
+            "",
+            {
+                "tool_call.id": "web-call-1",
+                "tool_call.function.name": "web_search_call",
+                "tool_call.function.arguments": '{"query": "search query", "type": "search"}',
+            },
+            id="pydantic_search_action",
+        ),
+        pytest.param(
+            ResponseFunctionWebSearch(
+                id="web-call-2",
+                type="web_search_call",
+                status="completed",
+                action=WebSearchOpenPage(type="open_page", url="https://example.com"),
+            ),
+            "prefix.0.",
+            {
+                "prefix.0.tool_call.id": "web-call-2",
+                "prefix.0.tool_call.function.name": "web_search_call",
+                "prefix.0.tool_call.function.arguments": (
+                    '{"type": "open_page", "url": "https://example.com"}'
+                ),
+            },
+            id="pydantic_open_page_action_with_prefix",
+        ),
+        pytest.param(
+            ResponseFunctionWebSearchParam(
+                id="web-call-param-1",
+                type="web_search_call",
+                status="searching",
+                action=ActionSearch(type="search", query="search query"),
+            ),
+            "",
+            {
+                "tool_call.id": "web-call-param-1",
+                "tool_call.function.name": "web_search_call",
+                "tool_call.function.arguments": '{"query": "search query", "type": "search"}',
+            },
+            id="param_search_action",
+        ),
+        pytest.param(
+            {"id": "web-only-id", "type": "web_search_call"},
+            "",
+            {
+                "tool_call.id": "web-only-id",
+                "tool_call.function.name": "web_search_call",
+            },
+            id="dict_without_action",
+        ),
+    ],
+)
+def test_get_attributes_from_response_function_web_search(
+    web_search_tool_call: Any,
+    prefix: str,
+    expected_attributes: Mapping[str, Any],
+) -> None:
+    attributes = dict(
+        _get_attributes_from_response_function_web_search(web_search_tool_call, prefix)
+    )
     assert attributes == expected_attributes
 
 

@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.1.76](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.75...python-openinference-instrumentation-langchain-v0.1.76) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.75](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.74...python-openinference-instrumentation-langchain-v0.1.75) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+## [0.1.74](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.73...python-openinference-instrumentation-langchain-v0.1.74) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
+## [0.1.73](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.72...python-openinference-instrumentation-langchain-v0.1.73) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+
+## [0.1.72](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.71...python-openinference-instrumentation-langchain-v0.1.72) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.71](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.70...python-openinference-instrumentation-langchain-v0.1.71) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
 ## [0.1.70](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.69...python-openinference-instrumentation-langchain-v0.1.70) (2026-08-07)
 
 

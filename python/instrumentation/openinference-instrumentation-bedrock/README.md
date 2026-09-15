@@ -98,6 +98,8 @@ BedrockInstrumentor().instrument()
 
 
 Now, all calls to `invoke_model` are instrumented and can be viewed in the `phoenix` UI.
+When Bedrock returns a model stop reason, the span records it as `llm.finish_reason` for
+both `invoke_model` and `converse`, including their streaming and async variants.
 
 ## Quickstart (boto3)
 
@@ -264,6 +266,6 @@ asyncio.run(main())
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
-* [More info on OpenInference and Arize AX](https://arize.com/docs/ax)
+* [More info on OpenInference and Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

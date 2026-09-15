@@ -1,5 +1,29 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.11.0
+
+### Minor Changes
+
+- 0ff0af2: Add `input.images` and `output.images` semantic conventions, letting any span kind record images without the LLM message structure.
+
+## 2.10.0
+
+### Minor Changes
+
+- 6d9f813: Add `message_content.audio`, `message_content.video`, and `video.url` constants.
+
+## 2.9.0
+
+### Minor Changes
+
+- fd01216: Add `META`, `ZAI`, and `MINIMAX` to the `LLMProvider` enum, giving Meta AI (`https://api.meta.ai/v1`, `muse-spark-*` models), Z.ai (`https://api.z.ai/api/paas/v4`, GLM models), and MiniMax (`https://api.minimax.io/v1`) well-known `llm.provider` values instead of leaving each to a custom string. Mirrors the same additions in the Python, Java, and Go semantic conventions and in the spec's well-known value table.
+
+## 2.8.0
+
+### Minor Changes
+
+- 1fe497f: Add `llm.request.model_name` and `llm.response.model_name` semantic conventions, letting instrumentation record the model requested by the caller separately from the model that actually generated the response (e.g. provider-side classifier/fallback routing). `llm.model_name` keeps its existing meaning.
+
 ## 2.7.0
 
 ### Minor Changes

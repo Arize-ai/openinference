@@ -527,6 +527,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         }
         assistant_text = outputs[0].get("content", "") if outputs else ""
         finish_reason = output_finish_reasons[0] if output_finish_reasons else "stop"
+        if finish_reason is None:
+            response_finish_reasons = attrs.get(GenAIAttributes.GEN_AI_RESPONSE_FINISH_REASONS)
+            finish_reason = response_finish_reasons[0] if response_finish_reasons else "stop"
         response_body = {
             "id": attrs.get("gen_ai.response.id"),
             "choices": [
@@ -561,6 +564,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         # Assemble OpenInference attributes
         oi_attrs = {
             sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: span_val,
+            sc.SpanAttributes.LLM_FINISH_REASON: finish_reason,
             **get_llm_attributes(
                 provider=provider_val,
                 system=system_val,

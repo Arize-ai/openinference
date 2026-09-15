@@ -13,7 +13,7 @@ import sys
 
 import grpc
 import openlit
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import SpanProcessor
@@ -32,7 +32,7 @@ class DebugPrintProcessor(SpanProcessor):
     """Optional span processor for debugging."""
 
     def on_end(self, span):
-        print(f"\n=== RAW OpenLLMetry span: {span.name} ===", file=sys.stderr)
+        print(f"\n=== RAW OpenLIT span: {span.name} ===", file=sys.stderr)
         print(json.dumps(dict(span.attributes), default=str, indent=2), file=sys.stderr)
 
     def on_start(self, span, parent_context=None):

@@ -75,15 +75,15 @@ to redact or remove specific data.
 | Option | Type | Default | Effect |
 |--------|------|---------|--------|
 | `hideLLMTools` | boolean | false | Removes the tool definitions advertised to the LLM (`llm.tools.*`) |
-| `hideInputs` | boolean | false | Redacts `input.value` to `"__REDACTED__"`, removes `input.mime_type`, removes all `llm.input_messages.*`, removes all `llm.tools.*` |
-| `hideOutputs` | boolean | false | Redacts `output.value` to `"__REDACTED__"`, removes `output.mime_type`, removes all `llm.output_messages.*` |
+| `hideInputs` | boolean | false | Redacts `input.value` to `"__REDACTED__"`, removes `input.mime_type`, removes all `llm.input_messages.*`, removes all `input.images.*`, removes all `llm.tools.*` |
+| `hideOutputs` | boolean | false | Redacts `output.value` to `"__REDACTED__"`, removes `output.mime_type`, removes all `llm.output_messages.*`, removes all `output.images.*` |
 | `hideInputMessages` | boolean | false | Removes all `llm.input_messages.*` attributes |
 | `hideOutputMessages` | boolean | false | Removes all `llm.output_messages.*` attributes |
-| `hideInputImages` | boolean | false | Removes image content from input messages (`.message_content.image.*`) |
+| `hideInputImages` | boolean | false | Removes image content from input messages (`.message_content.image.*`) and all `input.images.*` |
 | `hideInputText` | boolean | false | Redacts text content in input messages to `"__REDACTED__"` |
 | `hideOutputText` | boolean | false | Redacts text content in output messages to `"__REDACTED__"` |
 | `hideEmbeddingVectors` | boolean | false | Removes all `embedding.embeddings.*.embedding.vector` attributes |
-| `base64ImageMaxLength` | number | 32000 | Redacts base64-encoded images longer than this character count |
+| `base64ImageMaxLength` | number | 32000 | Redacts base64-encoded image URLs longer than this character count, in input messages and under `input.images.*` / `output.images.*` |
 | `hidePrompts` | boolean | false | Redacts `llm.prompts` attribute |
 
 ### Redacted vs Removed
@@ -94,7 +94,7 @@ Some rules **redact** the value (replace with `"__REDACTED__"`), while others
 | Behavior | Options |
 |----------|---------|
 | **Redacts** value to `"__REDACTED__"` | `hideInputs` (input.value), `hideOutputs` (output.value), `hideInputText`, `hideOutputText`, `hidePrompts`, `base64ImageMaxLength` |
-| **Removes** attribute entirely | `hideInputs` (messages, mime_type, tools), `hideOutputs` (messages, mime_type), `hideInputMessages`, `hideOutputMessages`, `hideInputImages`, `hideEmbeddingVectors`, `hideLLMTools` |
+| **Removes** attribute entirely | `hideInputs` (messages, mime_type, images, tools), `hideOutputs` (messages, mime_type, images), `hideInputMessages`, `hideOutputMessages`, `hideInputImages`, `hideEmbeddingVectors`, `hideLLMTools` |
 
 ## Environment Variables
 
@@ -190,7 +190,7 @@ provider.register();
 const tracer = new OITracer({
   tracer: trace.getTracer("my-llm-app"),
   traceConfig: {
-    hideInputImages: true,        // Remove image data from input messages
+    hideInputImages: true,        // Remove image data from input messages and input.images
     base64ImageMaxLength: 8000,   // Truncate large base64 images
     hideEmbeddingVectors: true,   // Don't export raw embedding vectors
   },

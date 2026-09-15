@@ -335,6 +335,7 @@ def _assert_invoke_stream_span(span: Any, data: dict[str, Any]) -> None:
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     assert attributes.pop(LLM_MODEL_NAME) == model_id
+    assert attributes.pop(LLM_FINISH_REASON) == "tool_use"
     assert not attributes
 
 
@@ -344,6 +345,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 JSON = OpenInferenceMimeTypeValues.JSON
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

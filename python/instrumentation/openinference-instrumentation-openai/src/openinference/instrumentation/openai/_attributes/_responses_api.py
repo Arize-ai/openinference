@@ -479,6 +479,9 @@ class _ResponsesApiAttributes:
         elif obj["type"] == "program_output":
             # TODO: Handle program output
             pass
+        elif obj["type"] == "configuration_update":
+            # TODO: Handle configuration update
+            pass
         elif TYPE_CHECKING and obj["type"] is not None:
             assert_never(obj["type"])
 

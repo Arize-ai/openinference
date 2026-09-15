@@ -19,6 +19,12 @@ from openinference.instrumentation.bedrock import (
     _MINIMUM_CONVERSE_BOTOCORE_VERSION,
     BedrockInstrumentor,
 )
+from openinference.instrumentation.bedrock._converse_attributes import (
+    get_attributes_from_response_data,
+)
+from openinference.instrumentation.bedrock.utils._extract_invoke_model_attributes import (
+    _extract_finish_reason,
+)
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
@@ -175,6 +181,7 @@ def test_invoke_model_nova(
     attributes = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == model_id
+    assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
     assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str) and user_text in input_value
@@ -264,6 +271,7 @@ def test_invoke_client(
     assert attributes.pop(INPUT_VALUE) == body["prompt"]
     assert attributes.pop(OUTPUT_VALUE) == " Hello!"
     assert attributes.pop(LLM_MODEL_NAME) == model_name
+    assert attributes.pop(LLM_FINISH_REASON) == "stop_sequence"
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 12
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 6
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 18
@@ -354,6 +362,7 @@ def test_invoke_client_with_missing_tokens(
     assert attributes.pop(INPUT_VALUE) == body["prompt"]
     assert attributes.pop(OUTPUT_VALUE) == " Hello!"
     assert attributes.pop(LLM_MODEL_NAME) == model_name
+    assert attributes.pop(LLM_FINISH_REASON) == "stop_sequence"
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 6
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {
@@ -989,12 +998,65 @@ def _run_converse_checks(
     assert attributes == {}
 
 
+@pytest.mark.parametrize(
+    "stop_reason",
+    [
+        "end_turn",
+        "tool_use",
+        "max_tokens",
+        "stop_sequence",
+        "guardrail_intervened",
+        "content_filtered",
+        "model_context_window_exceeded",
+    ],
+)
+def test_converse_finish_reason_values(
+    stop_reason: str,
+) -> None:
+    request = {
+        "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "messages": [{"role": "user", "content": [{"text": "hello"}]}],
+        "inferenceConfig": {"maxTokens": 100},
+    }
+    output = {
+        "message": {"role": "assistant", "content": [{"text": "hi"}]},
+    }
+    response = {
+        "output": output,
+        "usage": {"inputTokens": 5, "outputTokens": 2, "totalTokens": 7},
+        "stopReason": stop_reason,
+    }
+    attributes = get_attributes_from_response_data(request, response)  # type: ignore[arg-type]
+    assert attributes[LLM_FINISH_REASON] == stop_reason
+
+
+@pytest.mark.parametrize(
+    ("response_body", "expected"),
+    [
+        ({"stopReason": "end_turn"}, "end_turn"),
+        ({"stop_reason": "max_tokens"}, "max_tokens"),
+        ({"finishReason": "stop"}, "stop"),
+        ({"generations": [{"finish_reason": "COMPLETE"}]}, "COMPLETE"),
+        ({"results": [{"completionReason": "FINISH"}]}, "FINISH"),
+        ({"outputs": [{"stop_reason": "stop"}]}, "stop"),
+        ({"choices": [{"finish_reason": "length"}]}, "length"),
+        ({"completions": [{"finishReason": {"reason": "stop"}}]}, "stop"),
+        ({"output": {"message": {"content": []}}}, None),
+    ],
+)
+def test_extract_invoke_model_finish_reason(
+    response_body: Dict[str, Any], expected: str | None
+) -> None:
+    assert _extract_finish_reason(response_body) == expected
+
+
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT

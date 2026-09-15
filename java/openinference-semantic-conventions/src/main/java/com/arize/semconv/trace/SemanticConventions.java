@@ -29,6 +29,7 @@ public class SemanticConventions {
         public static final String MESSAGE_CONTENT = "message_content";
         public static final String IMAGE = "image";
         public static final String AUDIO = "audio";
+        public static final String VIDEO = "video";
         public static final String PROMPT = "prompt";
         public static final String AGENT = "agent";
         public static final String GRAPH = "graph";
@@ -39,6 +40,8 @@ public class SemanticConventions {
         public static final String PROVIDER = "provider";
         public static final String SYSTEM = "system";
         public static final String MODEL_NAME = "model_name";
+        public static final String REQUEST = "request";
+        public static final String RESPONSE = "response";
         public static final String TOKEN_COUNT = "token_count";
         public static final String INPUT_MESSAGES = "input_messages";
         public static final String OUTPUT_MESSAGES = "output_messages";
@@ -107,6 +110,8 @@ public class SemanticConventions {
         public static final String TYPE = "type";
         public static final String TEXT = "text";
         public static final String IMAGE = "image";
+        public static final String AUDIO = "audio";
+        public static final String VIDEO = "video";
         public static final String ID = "id";
         public static final String SIGNATURE = "signature";
         public static final String DATA = "data";
@@ -115,6 +120,11 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class ImageAttributesPostfixes {
+        public static final String URL = "url";
+    }
+
+    @UtilityClass
+    public static class VideoAttributesPostfixes {
         public static final String URL = "url";
     }
 
@@ -235,11 +245,23 @@ public class SemanticConventions {
     public static final String INPUT_MIME_TYPE = SemanticAttributePrefixes.INPUT + ".mime_type";
 
     /**
+     * Images passed as input to a span of any kind. Flattened with an index, for example
+     * {@code input.images.0.image.url}.
+     */
+    public static final String INPUT_IMAGES = SemanticAttributePrefixes.INPUT + ".images";
+
+    /**
      * The output of any span
      */
     public static final String OUTPUT_VALUE = SemanticAttributePrefixes.OUTPUT + ".value";
 
     public static final String OUTPUT_MIME_TYPE = SemanticAttributePrefixes.OUTPUT + ".mime_type";
+
+    /**
+     * Images produced as output by a span of any kind. Flattened with an index, for example
+     * {@code output.images.0.image.url}.
+     */
+    public static final String OUTPUT_IMAGES = SemanticAttributePrefixes.OUTPUT + ".images";
 
     /**
      * The messages sent to the LLM for completions
@@ -259,6 +281,26 @@ public class SemanticConventions {
      * The model name used for the LLM
      */
     public static final String LLM_MODEL_NAME = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The model requested by the caller, as sent in the request. May differ from LLM_RESPONSE_MODEL_NAME
+     * when the provider routes the request to a different model (e.g. classifier-triggered fallback).
+     */
+    public static final String LLM_REQUEST_MODEL_NAME = SemanticAttributePrefixes.LLM
+            + "."
+            + LLMAttributePostfixes.REQUEST
+            + "."
+            + LLMAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The model that actually generated the response, as reported by the provider. May differ from
+     * LLM_REQUEST_MODEL_NAME when the provider routes the request to a different model.
+     */
+    public static final String LLM_RESPONSE_MODEL_NAME = SemanticAttributePrefixes.LLM
+            + "."
+            + LLMAttributePostfixes.RESPONSE
+            + "."
+            + LLMAttributePostfixes.MODEL_NAME;
 
     /**
      * Document content in retrieval operations
@@ -490,7 +532,7 @@ public class SemanticConventions {
 
     /**
      * The type of content sent to the LLM, such as "text", "image", "audio",
-     * "reasoning", or "tool_use"
+     * "video", "reasoning", or "tool_use"
      */
     public static final String MESSAGE_CONTENT_TYPE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.TYPE;
@@ -506,6 +548,18 @@ public class SemanticConventions {
      */
     public static final String MESSAGE_CONTENT_IMAGE =
             SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.IMAGE;
+
+    /**
+     * The audio content of the message sent to the LLM
+     */
+    public static final String MESSAGE_CONTENT_AUDIO =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.AUDIO;
+
+    /**
+     * The video content of the message sent to the LLM
+     */
+    public static final String MESSAGE_CONTENT_VIDEO =
+            SemanticAttributePrefixes.MESSAGE_CONTENT + "." + MessageContentsAttributePostfixes.VIDEO;
 
     /**
      * Provider-assigned identifier for this message content item. For OpenAI
@@ -540,6 +594,11 @@ public class SemanticConventions {
      * The http or base64 link to the image
      */
     public static final String IMAGE_URL = SemanticAttributePrefixes.IMAGE + "." + ImageAttributesPostfixes.URL;
+
+    /**
+     * The URL, object-store URI, or base64 data URI of a video.
+     */
+    public static final String VIDEO_URL = SemanticAttributePrefixes.VIDEO + "." + VideoAttributesPostfixes.URL;
 
     public static final String DOCUMENT_ID = SemanticAttributePrefixes.DOCUMENT + "." + DocumentAttributePostfixes.ID;
 
@@ -871,7 +930,10 @@ public class SemanticConventions {
         CEREBRAS("cerebras"),
         PERPLEXITY("perplexity"),
         TOGETHER("together"),
-        OLLAMA("ollama");
+        OLLAMA("ollama"),
+        META("meta"),
+        ZAI("zai"),
+        MINIMAX("minimax");
 
         private final String value;
 

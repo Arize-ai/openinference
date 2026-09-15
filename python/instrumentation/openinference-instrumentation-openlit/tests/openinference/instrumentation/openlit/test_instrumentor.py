@@ -121,6 +121,7 @@ class TestOpenLitInstrumentor:
 
             # LLM identity
             assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4o-mini"
+            assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
             assert (
                 attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
             )

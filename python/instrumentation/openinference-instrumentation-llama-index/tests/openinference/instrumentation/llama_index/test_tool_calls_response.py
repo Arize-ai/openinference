@@ -50,8 +50,9 @@ class TestToolCallsInChatResponse:
     async def test_anthropic(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
+        anthropic_model: str,
     ) -> None:
-        llm = Anthropic(model="claude-3-5-haiku-20241022", api_key="sk-ant-")
+        llm = Anthropic(model=anthropic_model, api_key="sk-ant-")
         await self._test(llm, in_memory_span_exporter)
 
     @classmethod

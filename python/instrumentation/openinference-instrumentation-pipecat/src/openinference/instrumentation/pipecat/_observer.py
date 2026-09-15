@@ -96,7 +96,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
             turn_end_timeout_secs=turn_end_timeout_secs,
             **kwargs,
         )
-        self._latency_observer: UserBotLatencyObserver = UserBotLatencyObserver()  # type: ignore[no-untyped-call]
+        self._latency_observer: UserBotLatencyObserver = UserBotLatencyObserver()  # type: ignore[no-untyped-call, unused-ignore]
         self._last_user_to_bot_latency: Optional[float] = None
 
         @self._latency_observer.event_handler("on_latency_measured")  # type: ignore[misc]

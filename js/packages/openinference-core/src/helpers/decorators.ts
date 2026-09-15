@@ -48,14 +48,14 @@ export function observe<Fn extends AnyFn>(options: SpanTraceOptions = {}) {
     // Create a wrapper that preserves 'this' context for class methods
     const wrappedMethod = function (this: unknown, ...args: Parameters<Fn>) {
       // Bind the original method to the current 'this' context
-      const boundMethod = originalMethod.bind(this) as Fn;
+      const boundMethod = originalMethod.bind(this);
 
       // Use withSpan to wrap the bound method, ensuring consistent tracing behavior
       const tracedMethod = withSpan(boundMethod, traceOptions);
 
       return tracedMethod(...args);
-    } as Fn;
+    };
 
-    return wrappedMethod;
+    return Object.assign(wrappedMethod, originalMethod);
   };
 }

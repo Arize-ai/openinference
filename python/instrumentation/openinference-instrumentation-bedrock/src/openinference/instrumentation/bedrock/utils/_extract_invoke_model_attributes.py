@@ -144,6 +144,53 @@ def _set_token_count_attributes(span: Span, metadata: Dict[str, Any]) -> None:
             _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count)
 
 
+def _extract_finish_reason(response_body: Dict[str, Any]) -> str | None:
+    """Extract a provider-native finish reason from an InvokeModel response body.
+
+    Unlike Converse, InvokeModel returns an opaque provider-defined JSON payload.
+    Bedrock's supported text model families expose their finish reason either at
+    the top level or on the first result/generation/output/completion object.
+    """
+    for key in (
+        "stopReason",
+        "stop_reason",
+        "finishReason",
+        "finish_reason",
+        "completionReason",
+    ):
+        if isinstance(value := response_body.get(key), str) and value:
+            return value
+
+    for collection_key, reason_key in (
+        ("results", "completionReason"),
+        ("generations", "finish_reason"),
+        ("outputs", "stop_reason"),
+        ("choices", "finish_reason"),
+    ):
+        collection = response_body.get(collection_key)
+        if (
+            isinstance(collection, list)
+            and collection
+            and isinstance(collection[0], dict)
+            and isinstance(value := collection[0].get(reason_key), str)
+            and value
+        ):
+            return value
+
+    completions = response_body.get("completions")
+    if isinstance(completions, list) and completions and isinstance(completions[0], dict):
+        finish_reason = completions[0].get("finishReason")
+        if isinstance(finish_reason, str) and finish_reason:
+            return finish_reason
+        if (
+            isinstance(finish_reason, dict)
+            and isinstance(reason := finish_reason.get("reason"), str)
+            and reason
+        ):
+            return reason
+    return None
+
+
 def set_input_attributes(span: Span, request_body: Dict[str, Any], kwargs: Dict[str, Any]) -> None:
     """
     Set input-related attributes on the span from the request body.
@@ -203,6 +250,8 @@ def set_response_attributes(
         response: The complete response object including metadata
     """
     _set_model_name_attributes(span, response_body, kwargs)
+    if finish_reason := _extract_finish_reason(response_body):
+        _set_span_attribute(span, SpanAttributes.LLM_FINISH_REASON, finish_reason)
     if metadata := response.get("ResponseMetadata"):
         _set_token_count_attributes(span, metadata)
     if "amazon.nova" in str(kwargs.get("modelId")):
