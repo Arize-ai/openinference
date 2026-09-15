@@ -1,0 +1,85 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Reply with a single word: ping."}],"model":"openai/gpt-4o-mini","max_tokens":1024}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '121'
+      content-type:
+      - application/json
+      host:
+      - openrouter.ai
+      user-agent:
+      - OpenAI/Python 3.8.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 3.8.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.6
+    method: POST
+    uri: https://openrouter.ai/api/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/+JSgAEuAAAAAP//fFHBbtswDP0XnZ3USZ0m8W3ALh1WFMOwXYZBUGTaYStLqkin
+        LQr/++hmSRw0my4CHh/feyTfFFaqVA34yWy5Wi3Xq2JVTPDm+84+fft88/Lzy90PXn99bqzKVNg8
+        gGWh263hqQ1tdMAYvJRsAsMgUieVTLWhAif0EMEbvGoiT4owadGjdMQUdlhBkvq91D/dCkavxNDq
+        Gn0DKSb0g1kd9aJYF3m+uN7MBhKkHVrQjEOz75wT+20QiFT5SwbyFbyoMs+UC424bOjAEl2krZao
+        JKFLRRyiCHrDuAP9j2oLRKYBVb6pFJz8yhAhsZFwYhw8w3vMGHwzFSRB3ZFxB8+9nAy0B/r+d6a6
+        g6CkayNrDo/gJeVsMQgetnqE55niwMadeMuBR+KaT/PhXRfSiaQ3r+FRlbVxBNm5uK6ADToaXK2x
+        W6iOarKod0Q/J2QYw6arMIyB4WAjoN/HGGt3kVhGbjX6GhJ4udPHpBdIf8Oecefzy9zTiui8YTbv
+        LyxwHO94jfFU2Mo5/jN33/d/AAAA//8DAFVOJXAyAwAA
+    headers:
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - X-Generation-Id,X-Provider-Name,request-id,cf-ray
+      cf-ray:
+      - a37715a0688cc728-MAA
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json
+      date:
+      - Mon, 07 Sep 2026 16:28:05 GMT
+      permissions-policy:
+      - payment=(self "https://checkout.stripe.com" "https://connect-js.stripe.com"
+        "https://js.stripe.com" "https://*.js.stripe.com" "https://hooks.stripe.com")
+      referrer-policy:
+      - no-referrer, strict-origin-when-cross-origin
+      server:
+      - cloudflare
+      set-cookie:
+      - __cf_bm=CrJDAVKRQ_u0mV84EJB5l93522RUqNqkeYMOsV.VAUo-1788798484.542525-1.0.1.1-KRWRfbzH2e.YlK2wnC9lx6rvW4r7_AbGSAkA93iwDF9GDAMTfDJWIrhETLL.gUMuTQdEs82VRSqz9zIiM45GDaFYNdIImu0op_ptqbSj8gcxTMsk8blHU9tKYXMapcm8;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=openrouter.ai; Expires=Mon,
+        07 Sep 2026 16:58:05 GMT
+      transfer-encoding:
+      - chunked
+      x-content-type-options:
+      - nosniff
+      x-generation-id:
+      - gen-1788798484-i6SvcqQD6xVJMUt9Lwgc
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,4 +1,4 @@
-import { type AttributeValue, type Context, type SpanContext, trace } from "@opentelemetry/api";
+import { type Context, trace } from "@opentelemetry/api";
 import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
 
 import {
@@ -45,23 +45,19 @@ export const reparentOrphanedSpan = (span: Span, parentContext: Context): void =
   // itself exported. "Can't inspect" is NOT "non-AI": treating it as non-AI re-roots the child
   // off an exported AI parent (orphaning it). When the parent isn't inspectable, leave the
   // child attached; the parentSpanId link stays valid if the parent is exported.
-  const parentAttributes = (parentSpan as unknown as { attributes?: unknown }).attributes;
+  const parentAttributes = Reflect.get(parentSpan, "attributes");
   if (parentAttributes == null) return;
 
   // The parent is inspectable and also looks like an AI span (so it will be exported too and
   // the link is fine). Only re-root when the parent is a real, inspectable, non-AI span — i.e.
   // likely to be filtered out, which is what would orphan this span.
-  if (isLikelyAISDKSpan(parentSpan as unknown as Span)) return;
+  if (isLikelyAISDKSpan(parentSpan)) return;
 
   // Detach from the non-AI parent so this span becomes a trace root. The parent fields are
   // typed readonly on ReadableSpan, but the live Span object at onStart is mutable — re-type
   // it as writable to clear both the 1.x (`parentSpanId`) and 2.x (`parentSpanContext`) shapes.
-  const writableSpan = span as unknown as {
-    parentSpanId?: string;
-    parentSpanContext?: SpanContext;
-  };
-  writableSpan.parentSpanId = undefined;
-  writableSpan.parentSpanContext = undefined;
+  Reflect.set(span, "parentSpanId", undefined);
+  Reflect.set(span, "parentSpanContext", undefined);
 };
 
 /**
@@ -90,6 +86,9 @@ export const promoteReparentedRoot = (span: ReadableSpan): void => {
   if (!isLikelyAISDKSpan(span)) return;
 
   // ReadableSpan attributes are typed readonly; runtime Span objects are mutable.
-  (span.attributes as Record<string, AttributeValue>)[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
-    OpenInferenceSpanKind.AGENT;
+  Reflect.set(
+    span.attributes,
+    SemanticConventions.OPENINFERENCE_SPAN_KIND,
+    OpenInferenceSpanKind.AGENT,
+  );
 };

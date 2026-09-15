@@ -143,11 +143,11 @@ export class LangChainTracer extends BaseTracer {
 
   private getParentSpanContext(run: Run) {
     if (run.parent_run_id == null) {
-      return;
+      return undefined;
     }
     const maybeParent = this.runs[run.parent_run_id];
     if (maybeParent == null) {
-      return;
+      return undefined;
     }
 
     return maybeParent.span.spanContext();

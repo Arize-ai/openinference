@@ -13,19 +13,23 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import { AnthropicInstrumentation } from "../src/index";
 
+const projectName = process.env.PHOENIX_PROJECT_NAME ?? "anthropic-service";
+const collectorEndpoint =
+  process.env.PHOENIX_COLLECTOR_ENDPOINT ?? "http://localhost:6006/v1/traces";
+
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 const provider = new NodeTracerProvider({
   resource: new Resource({
-    [ATTR_SERVICE_NAME]: "anthropic-service",
-    [SEMRESATTRS_PROJECT_NAME]: "anthropic-service",
+    [ATTR_SERVICE_NAME]: projectName,
+    [SEMRESATTRS_PROJECT_NAME]: projectName,
   }),
   spanProcessors: [
     new SimpleSpanProcessor(new ConsoleSpanExporter()),
     new SimpleSpanProcessor(
       new OTLPTraceExporter({
-        url: "http://localhost:6006/v1/traces",
+        url: collectorEndpoint,
       }),
     ),
   ],
@@ -40,3 +44,12 @@ provider.register();
 
 // eslint-disable-next-line no-console
 console.log("👀 OpenInference initialized");
+
+/**
+ * Flushes and shuts the exporter down. Examples are short-lived processes, so
+ * without this the last spans can be dropped on exit.
+ */
+export async function shutdownTracing() {
+  await provider.forceFlush();
+  await provider.shutdown();
+}

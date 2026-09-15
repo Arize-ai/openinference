@@ -21,6 +21,7 @@ from openinference.instrumentation import (
 from openinference.instrumentation.ollama import OllamaInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
@@ -74,12 +75,14 @@ def test_chat(in_memory_span_exporter: InMemorySpanExporter) -> None:
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
-    assert spans[0].name == "Chat"
-    assert spans[0].status.is_ok
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.OK
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
-    assert attrs[SpanAttributes.LLM_PROVIDER] == "ollama"
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert (
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "user"
     )
@@ -134,7 +137,14 @@ def test_chat_with_tool_call(in_memory_span_exporter: InMemorySpanExporter) -> N
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_current_weather"
     raw_args = attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"]
@@ -166,7 +176,14 @@ def test_chat_with_callable_tool(in_memory_span_exporter: InMemorySpanExporter) 
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     schema = json.loads(
         str(attrs[f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"])
     )
@@ -186,9 +203,14 @@ async def test_async_chat(in_memory_span_exporter: InMemorySpanExporter) -> None
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].name == "AsyncChat"
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncChat"
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in attrs
 
 
@@ -207,9 +229,14 @@ def test_chat_stream(in_memory_span_exporter: InMemorySpanExporter) -> None:
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.is_ok
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     streamed_content = "".join(chunk.message.content or "" for chunk in chunks)
     assert (
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
@@ -232,7 +259,14 @@ async def test_async_chat_stream(in_memory_span_exporter: InMemorySpanExporter) 
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncChat"
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     streamed_content = "".join(chunk.message.content or "" for chunk in chunks)
     assert (
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
@@ -251,8 +285,12 @@ def test_chat_error_records_model_name(in_memory_span_exporter: InMemorySpanExpo
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert not spans[0].status.is_ok
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "nonexistent-model:latest"
 
 
@@ -285,7 +323,14 @@ def test_context_attributes_propagation(in_memory_span_exporter: InMemorySpanExp
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert attrs[SpanAttributes.SESSION_ID] == "my-session"
     assert attrs[SpanAttributes.USER_ID] == "my-user"
     assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
@@ -311,7 +356,14 @@ def test_trace_config_masking(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
     assert f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}" not in attrs
@@ -352,8 +404,12 @@ def test_chat_stream_abandoned_before_iteration(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == trace_api.StatusCode.UNSET
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
 
 
@@ -382,8 +438,13 @@ def test_chat_stream_error_keeps_partial_output(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == trace_api.StatusCode.ERROR
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
     # The partial output that arrived before the failure is preserved.
     assert (
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
@@ -423,10 +484,47 @@ def test_chat_stream_merges_thinking(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "Chat"
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OLLAMA.value
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == MODEL
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "stop"
     output = json.loads(str(attrs[SpanAttributes.OUTPUT_VALUE]))
     assert output["message"]["thinking"] == "Let me think."
     assert output["message"]["content"] == "Blue."
+
+
+@pytest.mark.parametrize("done_reason", ["stop", "length"])
+def test_finish_reason_values(
+    done_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        Client,
+        "_request",
+        lambda self, *a, **k: ChatResponse(
+            model=MODEL,
+            message=Message(role="assistant", content="hi"),
+            done=True,
+            done_reason=done_reason,
+            prompt_eval_count=5,
+            eval_count=2,
+        ),
+    )
+
+    ollama.chat(
+        model=MODEL,
+        messages=[{"role": "user", "content": "hi"}],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs.get(SpanAttributes.LLM_FINISH_REASON) == done_reason
 
 
 def test_uninstrument_deactivates_captured_aliases(

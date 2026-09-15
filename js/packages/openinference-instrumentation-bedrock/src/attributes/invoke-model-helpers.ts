@@ -1,12 +1,15 @@
-import type { InvokeModelCommand, InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
+import type {
+  InvokeModelCommand,
+  InvokeModelResponse,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
 import { diag } from "@opentelemetry/api";
 
-import { withSafety } from "@arizeai/openinference-core";
+import { isObjectWithStringKeys, withSafety } from "@arizeai/openinference-core";
 import { LLMSystem } from "@arizeai/openinference-semantic-conventions";
 
 import type {
   BedrockMessage,
-  ConversationRole,
   ExtendedConversationRole,
   ImageContent,
   ImageSource,
@@ -17,7 +20,42 @@ import type {
   ToolUseContent,
   UsageAttributes,
 } from "../types/bedrock-types";
-import { isTextContent, isToolResultContent } from "../types/bedrock-types";
+import {
+  isImageContent,
+  isTextContent,
+  isToolResultContent,
+  isToolUseContent,
+} from "../types/bedrock-types";
+
+const isExtendedConversationRole = (value: unknown): value is ExtendedConversationRole =>
+  value === "assistant" || value === "user" || value === "system" || value === "tool";
+
+const isMessageContentBlock = (
+  item: unknown,
+): item is TextContent | ImageContent | ToolUseContent | ToolResultContent =>
+  isTextContent(item) ||
+  isImageContent(item) ||
+  isToolUseContent(item) ||
+  isToolResultContent(item);
+
+/**
+ * Coerces an unknown value into a {@link BedrockMessage} for telemetry capture, or returns
+ * undefined when the value is not message-shaped. Unrecognized content blocks (e.g. thinking,
+ * document) are dropped per-block so a single unknown block never erases the whole message
+ * from the recorded input messages.
+ */
+const toBedrockMessage = (value: unknown): BedrockMessage | undefined => {
+  if (!isObjectWithStringKeys(value) || !isExtendedConversationRole(value.role)) {
+    return undefined;
+  }
+  if (typeof value.content === "string") {
+    return { role: value.role, content: value.content };
+  }
+  if (Array.isArray(value.content)) {
+    return { role: value.role, content: value.content.filter(isMessageContentBlock) };
+  }
+  return undefined;
+};
 
 /**
  * Type guard to check if message contains a simple single text content
@@ -60,7 +98,9 @@ export function formatImageUrl(source: ImageSource): string {
  * @returns {InvokeModelRequestBody | null} Parsed request body or null on error
  */
 export const parseRequestBody = withSafety({
-  fn: (command: InvokeModelCommand): InvokeModelRequestBody => {
+  fn: (
+    command: InvokeModelCommand | InvokeModelWithResponseStreamCommand,
+  ): InvokeModelRequestBody => {
     if (!command.input?.body) {
       throw new Error("Request body is missing");
     }
@@ -75,10 +115,13 @@ export const parseRequestBody = withSafety({
     } else if (command.input.body instanceof ArrayBuffer) {
       bodyString = new TextDecoder().decode(new Uint8Array(command.input.body));
     } else {
-      // For other types, convert to string safely
-      bodyString = String(command.input.body);
+      throw new TypeError("Unsupported InvokeModel request body type");
     }
-    return JSON.parse(bodyString) as InvokeModelRequestBody;
+    const parsed: unknown = JSON.parse(bodyString);
+    if (!isObjectWithStringKeys(parsed)) {
+      throw new TypeError("InvokeModel request body must be a JSON object");
+    }
+    return parsed;
   },
   onError: (error) => {
     diag.warn("Error parsing InvokeModel request body:", error);
@@ -99,20 +142,13 @@ export function extractInvocationParameters(
   requestBody: InvokeModelRequestBody,
   system: LLMSystem,
 ): Record<string, unknown> {
-  if (
-    system === LLMSystem.AMAZON &&
-    requestBody.inferenceConfig &&
-    typeof requestBody.inferenceConfig === "object" &&
-    requestBody.inferenceConfig !== null
-  ) {
-    return requestBody.inferenceConfig as Record<string, unknown>;
+  if (system === LLMSystem.AMAZON && isObjectWithStringKeys(requestBody.inferenceConfig)) {
+    return requestBody.inferenceConfig;
   } else if (
     system === LLMSystem.AMAZON &&
-    requestBody.textGenerationConfig &&
-    typeof requestBody.textGenerationConfig === "object" &&
-    requestBody.textGenerationConfig !== null
+    isObjectWithStringKeys(requestBody.textGenerationConfig)
   ) {
-    return requestBody.textGenerationConfig as Record<string, unknown>;
+    return requestBody.textGenerationConfig;
   } else {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { system, messages, tools, prompt, ...invocationParams } = requestBody;
@@ -163,7 +199,7 @@ function isNovaRequest(requestBody: Record<string, unknown>): boolean {
  * @returns {boolean} True if request matches Titan format structure
  */
 function isTitanRequest(requestBody: Record<string, unknown>): boolean {
-  return "inputText" in requestBody && typeof requestBody.inputText === "string";
+  return hasStringProperty({ requestBody, key: "inputText" });
 }
 
 /**
@@ -179,11 +215,12 @@ function convertSimpleTextToBedrockMessages(
   requestBody: Record<string, unknown>,
   textFieldName: string,
 ): BedrockMessage[] {
-  const text = requestBody[textFieldName] as string;
+  const text = requestBody[textFieldName];
+  if (typeof text !== "string") return [];
 
   return [
     {
-      role: "user" as ConversationRole,
+      role: "user",
       content: text,
     },
   ];
@@ -198,41 +235,35 @@ function convertSimpleTextToBedrockMessages(
  * @returns {BedrockMessage[]} Array of normalized Bedrock messages with converted content
  */
 function convertNovaToBedrockMessages(requestBody: Record<string, unknown>): BedrockMessage[] {
-  const messages = requestBody.messages as Array<{
-    role: string;
-    content: Array<{
-      text?: string;
-      image?: {
-        format: string; // Always base64 string for Invoke API
-        source: {
-          bytes: string; // Always base64 string for Invoke API
-        };
-      };
-      video?: unknown; // Ignoring video for now
-    }>;
-  }>;
+  const messages = Array.isArray(requestBody.messages)
+    ? requestBody.messages.filter(isObjectWithStringKeys)
+    : [];
 
-  return messages.map((message) => {
+  return messages.map((message): BedrockMessage => {
     const content: (TextContent | ImageContent)[] = [];
 
-    message.content.forEach((contentItem) => {
-      if (contentItem.text) {
+    const contentItems = Array.isArray(message.content)
+      ? message.content.filter(isObjectWithStringKeys)
+      : [];
+    contentItems.forEach((contentItem) => {
+      if (typeof contentItem.text === "string") {
         // Handle text content
         content.push({
           type: "text",
           text: contentItem.text,
         });
-      } else if (contentItem.image) {
+      } else if (isObjectWithStringKeys(contentItem.image)) {
         // Handle image content - always base64 string for Invoke API
         const imageData = contentItem.image;
-        const mimeType = `image/${imageData.format}`;
+        const source = isObjectWithStringKeys(imageData.source) ? imageData.source : undefined;
+        if (typeof imageData.format !== "string" || typeof source?.bytes !== "string") return;
 
         content.push({
           type: "image",
           source: {
             type: "base64",
-            media_type: mimeType,
-            data: imageData.source.bytes, // Already base64 string
+            media_type: `image/${imageData.format}`,
+            data: source.bytes,
           },
         });
       }
@@ -240,7 +271,7 @@ function convertNovaToBedrockMessages(requestBody: Record<string, unknown>): Bed
     });
 
     return {
-      role: message.role as ConversationRole,
+      role: isExtendedConversationRole(message.role) ? message.role : "user",
       content,
     };
   });
@@ -254,7 +285,7 @@ function convertNovaToBedrockMessages(requestBody: Record<string, unknown>): Bed
  * @returns {boolean} True if request matches Mistral Text Completion format structure
  */
 function isMistralTextCompletionRequest(requestBody: Record<string, unknown>): boolean {
-  return "prompt" in requestBody && typeof requestBody.prompt === "string";
+  return hasStringProperty({ requestBody, key: "prompt" });
 }
 
 /**
@@ -273,6 +304,144 @@ function isMistralChatRequest(requestBody: Record<string, unknown>): boolean {
 }
 
 /**
+ * Builds a single-text-content BedrockMessage from a Mistral message.
+ *
+ * @param params.message The Mistral message
+ * @param params.role The already-normalized conversation role
+ * @returns {BedrockMessage} The converted message
+ */
+function convertMistralTextMessage({
+  message,
+  role,
+}: {
+  message: Record<string, unknown>;
+  role: ExtendedConversationRole;
+}): BedrockMessage {
+  return {
+    role,
+    content: [
+      {
+        type: "text",
+        text: typeof message.content === "string" ? message.content : "",
+      },
+    ],
+  };
+}
+
+/**
+ * Converts a Mistral assistant message carrying `tool_calls` into a BedrockMessage.
+ *
+ * @param params.message The Mistral assistant message
+ * @param params.role The already-normalized conversation role
+ * @returns {BedrockMessage} The converted message
+ */
+function convertMistralAssistantToolCallsMessage({
+  message,
+  role,
+}: {
+  message: Record<string, unknown>;
+  role: ExtendedConversationRole;
+}): BedrockMessage {
+  const rawToolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+  const content: (TextContent | ToolUseContent)[] = [];
+  for (const rawToolCall of rawToolCalls) {
+    if (!isObjectWithStringKeys(rawToolCall)) continue;
+    const fn = isObjectWithStringKeys(rawToolCall.function) ? rawToolCall.function : undefined;
+    if (typeof fn?.name !== "string" || typeof fn.arguments !== "string") {
+      continue;
+    }
+    const parsedInput: unknown = JSON.parse(fn.arguments);
+    content.push({
+      type: "tool_use",
+      id: typeof rawToolCall.id === "string" ? rawToolCall.id : "unknown",
+      name: fn.name,
+      input: parsedInput,
+    });
+  }
+
+  // Add text content if present
+  if (message.content && typeof message.content === "string") {
+    content.unshift({
+      type: "text",
+      text: message.content,
+    });
+  }
+
+  return {
+    role,
+    content,
+  };
+}
+
+/**
+ * Converts a single Pixtral Large multimodal content block into BedrockMessage content.
+ *
+ * @param contentBlock The Mistral content block
+ * @returns The converted content, or undefined for unsupported blocks
+ */
+function convertMistralMultimodalContentBlock(
+  contentBlock: Record<string, unknown>,
+): TextContent | ImageContent | undefined {
+  if (contentBlock.type === "text" && typeof contentBlock.text === "string") {
+    return {
+      type: "text",
+      text: contentBlock.text,
+    };
+  }
+  if (
+    contentBlock.type !== "image_url" ||
+    !isObjectWithStringKeys(contentBlock.image_url) ||
+    typeof contentBlock.image_url.url !== "string"
+  ) {
+    return undefined;
+  }
+  // Extract base64 data from data URL
+  const base64Match = contentBlock.image_url.url.match(/^data:image\/([^;]+);base64,(.+)$/);
+  if (!base64Match) {
+    return undefined;
+  }
+  const [, format, base64Data] = base64Match;
+  return {
+    type: "image",
+    source: {
+      type: "base64",
+      media_type: `image/${format}`,
+      data: base64Data,
+    },
+  };
+}
+
+/**
+ * Converts a Mistral message whose content is an array (Pixtral Large multimodal format).
+ *
+ * @param params.message The Mistral message
+ * @param params.role The already-normalized conversation role
+ * @returns {BedrockMessage} The converted message
+ */
+function convertMistralMultimodalMessage({
+  message,
+  role,
+}: {
+  message: Record<string, unknown>;
+  role: ExtendedConversationRole;
+}): BedrockMessage {
+  const contentBlocks = Array.isArray(message.content) ? message.content : [];
+  const content: (TextContent | ImageContent)[] = [];
+
+  for (const contentBlock of contentBlocks.filter(isObjectWithStringKeys)) {
+    const converted = convertMistralMultimodalContentBlock(contentBlock);
+    if (converted != null) {
+      content.push(converted);
+    }
+  }
+
+  return {
+    role,
+    content,
+  };
+}
+
+/**
  * Converts Mistral Chat Completion format to standardized BedrockMessage array
  * Handles complex message structures including tool calls and tool responses
  * Supports both regular chat and Pixtral Large (multimodal) formats
@@ -283,111 +452,30 @@ function isMistralChatRequest(requestBody: Record<string, unknown>): boolean {
 function convertMistralChatToBedrockMessages(
   requestBody: Record<string, unknown>,
 ): BedrockMessage[] {
-  const messages = requestBody.messages as Array<{
-    role: string;
-    content?:
-      | string
-      | Array<{
-          type?: string;
-          text?: string;
-          image_url?: {
-            url: string;
-          };
-        }>;
-    tool_calls?: Array<{
-      id: string;
-      function: {
-        name: string;
-        arguments: string;
-      };
-    }>;
-    tool_call_id?: string;
-  }>;
+  const messages = Array.isArray(requestBody.messages)
+    ? requestBody.messages.filter(isObjectWithStringKeys)
+    : [];
 
-  return messages.map((message) => {
+  return messages.map((message): BedrockMessage => {
+    const role = isExtendedConversationRole(message.role) ? message.role : "user";
     // Handle tool role messages (Mistral-specific)
-    if (message.role === "tool") {
-      return {
-        role: "tool" as ExtendedConversationRole,
-        content: [
-          {
-            type: "text",
-            text: typeof message.content === "string" ? message.content : "",
-          },
-        ],
-      };
+    if (role === "tool") {
+      return convertMistralTextMessage({ message, role });
     }
 
     // Handle assistant messages with tool calls
-    if (message.role === "assistant" && message.tool_calls) {
-      const content: (TextContent | ToolUseContent)[] = message.tool_calls.map((toolCall) => ({
-        type: "tool_use",
-        id: toolCall.id,
-        name: toolCall.function.name,
-        input: JSON.parse(toolCall.function.arguments),
-      }));
-
-      // Add text content if present
-      if (message.content && typeof message.content === "string") {
-        content.unshift({
-          type: "text",
-          text: message.content,
-        });
-      }
-
-      // Edge case: Simple text messages mixed in with complex chat completion requests
-      return {
-        role: message.role as ExtendedConversationRole,
-        content,
-      };
+    if (role === "assistant" && Array.isArray(message.tool_calls)) {
+      return convertMistralAssistantToolCallsMessage({ message, role });
     }
 
     // Handle Pixtral Large multimodal content (array format)
     if (Array.isArray(message.content)) {
-      const content: (TextContent | ImageContent)[] = [];
-
-      for (const contentBlock of message.content) {
-        if (contentBlock.type === "text" && contentBlock.text) {
-          content.push({
-            type: "text",
-            text: contentBlock.text,
-          });
-        } else if (contentBlock.type === "image_url" && contentBlock.image_url?.url) {
-          // Extract base64 data from data URL
-          const dataUrl = contentBlock.image_url.url;
-          const base64Match = dataUrl.match(/^data:image\/([^;]+);base64,(.+)$/);
-
-          if (base64Match) {
-            const [, format, base64Data] = base64Match;
-            content.push({
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: `image/${format}`,
-                data: base64Data,
-              },
-            });
-          }
-        }
-      }
-
-      return {
-        role: message.role as ExtendedConversationRole,
-        content,
-      };
+      return convertMistralMultimodalMessage({ message, role });
     }
 
     // Handle regular text content (string format)
     // Edge case: Simple text messages mixed in with complex chat completion requests
-    return {
-      role: message.role as ExtendedConversationRole,
-      content: [
-        {
-          type: "text",
-          text: typeof message.content === "string" ? message.content : "",
-        },
-      ],
-    };
+    return convertMistralTextMessage({ message, role });
   });
 }
 
@@ -400,20 +488,21 @@ function convertMistralChatToBedrockMessages(
  * @returns {BedrockMessage[]} Array of converted BedrockMessage objects
  */
 function convertAI21JambaToBedrockMessages(requestBody: Record<string, unknown>): BedrockMessage[] {
-  const messages = requestBody.messages as Array<{
-    role: string;
-    content: string;
-  }>;
+  const messages = Array.isArray(requestBody.messages)
+    ? requestBody.messages.filter(isObjectWithStringKeys)
+    : [];
 
-  return messages.map((message) => ({
-    role: message.role as ExtendedConversationRole,
-    content: [
-      {
-        type: "text",
-        text: message.content,
-      },
-    ],
-  }));
+  return messages.map(
+    (message): BedrockMessage => ({
+      role: isExtendedConversationRole(message.role) ? message.role : "user",
+      content: [
+        {
+          type: "text",
+          text: typeof message.content === "string" ? message.content : "",
+        },
+      ],
+    }),
+  );
 }
 
 /**
@@ -445,13 +534,90 @@ function fallbackNormalizeRequestContentBlocks(
     Array.isArray(requestBody.messages) &&
     requestBody.messages.length > 0
   ) {
-    return requestBody.messages as BedrockMessage[];
+    return requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? []);
   } else if ("prompt" in requestBody && typeof requestBody.prompt === "string") {
     return convertSimpleTextToBedrockMessages(requestBody, "prompt");
   } else if ("inputText" in requestBody && typeof requestBody.inputText === "string") {
     return convertSimpleTextToBedrockMessages(requestBody, "inputText");
   }
   return [];
+}
+
+/**
+ * Returns true when the request body carries a string value at the given key.
+ */
+function hasStringProperty({
+  requestBody,
+  key,
+}: {
+  requestBody: Record<string, unknown>;
+  key: "prompt" | "inputText";
+}): boolean {
+  return key in requestBody && typeof requestBody[key] === "string";
+}
+
+/**
+ * Normalizes Amazon request bodies (Nova multi-modal messages or Titan simple text).
+ *
+ * @param requestBody The parsed Amazon request body
+ * @returns {BedrockMessage[]} Array of normalized Bedrock messages
+ */
+function normalizeAmazonRequestContentBlocks(
+  requestBody: InvokeModelRequestBody,
+): BedrockMessage[] {
+  if (isNovaRequest(requestBody)) {
+    // Handle Amazon Nova format: { messages: [{ role, content: [{ text }] }] }
+    return convertNovaToBedrockMessages(requestBody);
+  }
+  if (isTitanRequest(requestBody)) {
+    // vs Titan format: { inputText: string }
+    return convertSimpleTextToBedrockMessages(requestBody, "inputText");
+  }
+  // LLM system defaults to Amazon when no correct format is given
+  // In this case we should gracefully degrade and extract as much info as possible
+  return fallbackNormalizeRequestContentBlocks(requestBody);
+}
+
+/**
+ * Normalizes Mistral request bodies (Chat/Pixtral messages or text completion prompt).
+ *
+ * @param requestBody The parsed Mistral request body
+ * @returns {BedrockMessage[]} Array of normalized Bedrock messages, empty for unknown shapes
+ */
+function normalizeMistralRequestContentBlocks(
+  requestBody: InvokeModelRequestBody,
+): BedrockMessage[] {
+  if (isMistralChatRequest(requestBody)) {
+    // Handle Mistral Chat/Pixtral format: { messages: [{ role, content }] }
+    return convertMistralChatToBedrockMessages(requestBody);
+  }
+  if (isMistralTextCompletionRequest(requestBody)) {
+    // Handle Mistral Text Completion format: { prompt: string }
+    return convertSimpleTextToBedrockMessages(requestBody, "prompt");
+  }
+  return [];
+}
+
+/**
+ * Normalizes AI21 request bodies (completion prompt or Jamba messages).
+ *
+ * @param requestBody The parsed AI21 request body
+ * @returns {BedrockMessage[]} Array of normalized Bedrock messages
+ */
+function normalizeAI21RequestContentBlocks(requestBody: InvokeModelRequestBody): BedrockMessage[] {
+  if (hasStringProperty({ requestBody, key: "prompt" })) {
+    // Handle AI21 format: { prompt: string }
+    return convertSimpleTextToBedrockMessages(requestBody, "prompt");
+  }
+  if (
+    "messages" in requestBody &&
+    Array.isArray(requestBody.messages) &&
+    requestBody.messages.length > 0
+  ) {
+    // Handle AI21 Jamba format: { messages: Array }
+    return convertAI21JambaToBedrockMessages(requestBody);
+  }
+  return fallbackNormalizeRequestContentBlocks(requestBody);
 }
 
 /**
@@ -465,65 +631,26 @@ function fallbackNormalizeRequestContentBlocks(
  */
 export const normalizeRequestContentBlocks = withSafety({
   fn: (requestBody: InvokeModelRequestBody, llm_system: LLMSystem): BedrockMessage[] => {
-    let messages: BedrockMessage[] = [];
-
-    if (llm_system === LLMSystem.ANTHROPIC) {
-      messages = requestBody.messages as BedrockMessage[];
-    } else if (llm_system === LLMSystem.AMAZON) {
-      if (isNovaRequest(requestBody)) {
-        // Handle Amazon Nova format: { messages: [{ role, content: [{ text }] }] }
-        messages = convertNovaToBedrockMessages(requestBody);
-      } else if (isTitanRequest(requestBody)) {
-        // vs Titan format: { inputText: string }
-        messages = convertSimpleTextToBedrockMessages(requestBody, "inputText");
-      } else {
-        // LLM system defaults to Amazon when no correct format is given
-        // In this case we should gracefully degrade and extract as much info as possible
-        messages = fallbackNormalizeRequestContentBlocks(requestBody);
-      }
-    } else if (
-      llm_system === LLMSystem.COHERE &&
-      "prompt" in requestBody &&
-      typeof requestBody.prompt === "string"
-    ) {
-      // Handle Cohere format: { prompt: string }
-      messages = convertSimpleTextToBedrockMessages(requestBody, "prompt");
-    } else if (
-      llm_system === LLMSystem.META &&
-      "prompt" in requestBody &&
-      typeof requestBody.prompt === "string"
-    ) {
-      // Handle Meta format: { prompt: string }
-      messages = convertSimpleTextToBedrockMessages(requestBody, "prompt");
-    } else if (llm_system === LLMSystem.MISTRALAI) {
-      // Handle Mistral formats
-      if (isMistralChatRequest(requestBody)) {
-        // Handle Mistral Chat/Pixtral format: { messages: [{ role, content }] }
-        messages = convertMistralChatToBedrockMessages(requestBody);
-      } else if (isMistralTextCompletionRequest(requestBody)) {
-        // Handle Mistral Text Completion format: { prompt: string }
-        messages = convertSimpleTextToBedrockMessages(requestBody, "prompt");
-      }
-    } else if (
-      llm_system === LLMSystem.AI21 &&
-      "prompt" in requestBody &&
-      typeof requestBody.prompt === "string"
-    ) {
-      // Handle AI21 format: { prompt: string }
-      messages = convertSimpleTextToBedrockMessages(requestBody, "prompt");
-    } else if (
-      llm_system === LLMSystem.AI21 &&
-      "messages" in requestBody &&
-      Array.isArray(requestBody.messages) &&
-      requestBody.messages.length > 0
-    ) {
-      // Handle AI21 Jamba format: { messages: Array }
-      messages = convertAI21JambaToBedrockMessages(requestBody);
-    } else {
-      messages = fallbackNormalizeRequestContentBlocks(requestBody);
+    switch (llm_system) {
+      case LLMSystem.ANTHROPIC:
+        return Array.isArray(requestBody.messages)
+          ? requestBody.messages.flatMap((message) => toBedrockMessage(message) ?? [])
+          : [];
+      case LLMSystem.AMAZON:
+        return normalizeAmazonRequestContentBlocks(requestBody);
+      case LLMSystem.COHERE:
+      case LLMSystem.META:
+        // Handle Cohere and Meta formats: { prompt: string }
+        return hasStringProperty({ requestBody, key: "prompt" })
+          ? convertSimpleTextToBedrockMessages(requestBody, "prompt")
+          : fallbackNormalizeRequestContentBlocks(requestBody);
+      case LLMSystem.MISTRALAI:
+        return normalizeMistralRequestContentBlocks(requestBody);
+      case LLMSystem.AI21:
+        return normalizeAI21RequestContentBlocks(requestBody);
+      default:
+        return fallbackNormalizeRequestContentBlocks(requestBody);
     }
-
-    return messages;
   },
   onError: (error) => {
     diag.warn("Error normalizing request content blocks:", error);
@@ -553,11 +680,14 @@ export const parseResponseBody = withSafety({
     } else if (response.body instanceof Uint8Array) {
       responseText = new TextDecoder().decode(response.body);
     } else {
-      // Handle other potential types
-      responseText = new TextDecoder().decode(response.body as Uint8Array);
+      throw new TypeError("Unsupported InvokeModel response body type");
     }
 
-    return JSON.parse(responseText) as Record<string, unknown>;
+    const parsed: unknown = JSON.parse(responseText);
+    if (!isObjectWithStringKeys(parsed)) {
+      throw new TypeError("InvokeModel response body must be a JSON object");
+    }
+    return parsed;
   },
   onError: (error) => {
     diag.warn("Error parsing response body:", error);
@@ -580,11 +710,11 @@ export function coerceNovaToMessageContent(content: unknown): MessageContent {
 
   const transformedContent = content
     .map((block): TextContent | ToolUseContent | null => {
-      if (!block || typeof block !== "object") {
+      if (!isObjectWithStringKeys(block)) {
         return null;
       }
 
-      const obj = block as Record<string, unknown>;
+      const obj = block;
 
       // Nova text content: { text: string } -> { type: "text", text: string }
       if ("text" in obj && typeof obj.text === "string" && !("type" in obj)) {
@@ -595,15 +725,18 @@ export function coerceNovaToMessageContent(content: unknown): MessageContent {
       }
 
       // Nova tool use: { toolUse: { toolUseId, name, input } } -> { type: "tool_use", id, name, input }
-      if ("toolUse" in obj && typeof obj.toolUse === "object" && obj.toolUse !== null) {
-        const toolUse = obj.toolUse as Record<string, unknown>;
-
-        if ("toolUseId" in toolUse && "name" in toolUse && "input" in toolUse) {
+      if (isObjectWithStringKeys(obj.toolUse)) {
+        const toolUse = obj.toolUse;
+        if (
+          typeof toolUse.toolUseId === "string" &&
+          typeof toolUse.name === "string" &&
+          isObjectWithStringKeys(toolUse.input)
+        ) {
           return {
             type: "tool_use",
-            id: toolUse.toolUseId as string,
-            name: toolUse.name as string,
-            input: toolUse.input as Record<string, unknown>,
+            id: toolUse.toolUseId,
+            name: toolUse.name,
+            input: toolUse.input,
           };
         }
       }
@@ -623,11 +756,11 @@ export function coerceNovaToMessageContent(content: unknown): MessageContent {
  * @returns {unknown} Extracted content array or empty array if structure is invalid
  */
 function extractNovaContent(responseBody: Record<string, unknown>): unknown {
-  const output = responseBody.output as Record<string, unknown> | undefined;
-  if (!output) return [];
+  const output = isObjectWithStringKeys(responseBody.output) ? responseBody.output : undefined;
+  if (output == null) return [];
 
-  const message = output.message as Record<string, unknown> | undefined;
-  if (!message) return [];
+  const message = isObjectWithStringKeys(output.message) ? output.message : undefined;
+  if (message == null) return [];
 
   return message.content || [];
 }
@@ -640,11 +773,7 @@ function extractNovaContent(responseBody: Record<string, unknown>): unknown {
  * @returns {boolean} True if response matches Nova format structure
  */
 function isNovaResponse(responseBody: Record<string, unknown>): boolean {
-  return !!(
-    responseBody.output &&
-    typeof responseBody.output === "object" &&
-    (responseBody.output as Record<string, unknown>).message
-  );
+  return isObjectWithStringKeys(responseBody.output) && responseBody.output.message != null;
 }
 
 /**
@@ -677,39 +806,31 @@ function convertAI21JambaToMessageContent(responseBody: Record<string, unknown>)
   }
 
   const content: MessageContent = [];
-  const choices = responseBody.choices as unknown[];
+  const choices = responseBody.choices;
 
   for (const choice of choices) {
-    if (choice && typeof choice === "object") {
-      const choiceObj = choice as Record<string, unknown>;
-      const message = choiceObj.message as Record<string, unknown>;
+    if (isObjectWithStringKeys(choice)) {
+      const message = isObjectWithStringKeys(choice.message) ? choice.message : undefined;
 
       if (message) {
         if (typeof message.content === "string") {
           content.push({
             type: "text",
-            text: message.content as string,
+            text: message.content,
           });
         }
 
         // Handle tool calls - AI21 format: { tool_calls: [{ id, function: { name, arguments } }] }
         if (Array.isArray(message.tool_calls)) {
-          const toolCalls = message.tool_calls as Array<{
-            id?: string;
-            function?: {
-              name?: string;
-              arguments?: string;
-            };
-          }>;
-
-          for (const toolCall of toolCalls) {
-            if (toolCall?.function?.name && toolCall?.function?.arguments) {
+          for (const toolCall of message.tool_calls.filter(isObjectWithStringKeys)) {
+            const fn = isObjectWithStringKeys(toolCall.function) ? toolCall.function : undefined;
+            if (typeof fn?.name === "string" && typeof fn.arguments === "string") {
               try {
                 content.push({
                   type: "tool_use",
-                  id: toolCall.id || "unknown",
-                  name: toolCall.function.name,
-                  input: JSON.parse(toolCall.function.arguments),
+                  id: typeof toolCall.id === "string" ? toolCall.id : "unknown",
+                  name: fn.name,
+                  input: JSON.parse(fn.arguments),
                 });
               } catch (error) {
                 // If arguments parsing fails, skip this tool call
@@ -769,9 +890,8 @@ function convertArrayFieldToMessageContent(
   // Convert each element in the array to a TextContent block
   const content: TextContent[] = [];
   for (const element of arrayField) {
-    if (element && typeof element === "object") {
-      const elementObj = element as Record<string, unknown>;
-      const text = elementObj[textFieldName];
+    if (isObjectWithStringKeys(element)) {
+      const text = element[textFieldName];
       if (typeof text === "string") {
         content.push({
           type: "text",
@@ -785,6 +905,61 @@ function convertArrayFieldToMessageContent(
 }
 
 /**
+ * Normalizes Amazon response bodies, distinguishing Nova from Titan by response structure.
+ *
+ * @param responseBody The parsed Amazon response body
+ * @returns {MessageContent} The extracted message content, empty for unknown shapes
+ */
+function normalizeAmazonResponseContent(responseBody: Record<string, unknown>): MessageContent {
+  if (isNovaResponse(responseBody)) {
+    return coerceNovaToMessageContent(extractNovaContent(responseBody));
+  }
+  if (isTitanResponse(responseBody)) {
+    // Titan format: { results: [{ outputText }] } - handle all results, not just first
+    return convertArrayFieldToMessageContent(responseBody, "results", "outputText");
+  }
+  return [];
+}
+
+/**
+ * Extracts the assistant message content from a provider-specific response body.
+ *
+ * @param responseBody The parsed response body containing content in provider-specific format
+ * @param llm_system The LLM system type to determine normalization strategy
+ * @returns {MessageContent} The extracted message content, empty for unknown shapes
+ */
+function normalizeResponseContent({
+  responseBody,
+  llm_system,
+}: {
+  responseBody: Record<string, unknown>;
+  llm_system: LLMSystem;
+}): MessageContent {
+  switch (llm_system) {
+    case LLMSystem.ANTHROPIC:
+      // Anthropic format: { content: [{ type: "text", text: "..." }] }
+      return Array.isArray(responseBody.content)
+        ? responseBody.content.filter(isMessageContentBlock)
+        : [];
+    case LLMSystem.AMAZON:
+      return normalizeAmazonResponseContent(responseBody);
+    case LLMSystem.COHERE:
+    case LLMSystem.MISTRALAI:
+      // Cohere and Mistral: { generations: [{ text }] } - handle all generations, not just first
+      // NOTE: Tool calls are not currently supported for Mistral models
+      return convertArrayFieldToMessageContent(responseBody, "generations", "text");
+    case LLMSystem.META:
+      return typeof responseBody.generation === "string"
+        ? convertMetaToMessageContent(responseBody)
+        : [];
+    case LLMSystem.AI21:
+      return convertAI21JambaToMessageContent(responseBody);
+    default:
+      return [];
+  }
+}
+
+/**
  * Normalizes response content blocks from various model providers into standardized BedrockMessage format
  * Handles Amazon Nova (nested output structure), Titan (results array), Anthropic, and other providers
  * Provides error handling and fallback to empty assistant message on normalization failures
@@ -794,71 +969,128 @@ function convertArrayFieldToMessageContent(
  * @returns {BedrockMessage} Normalized assistant message with extracted content or empty fallback
  */
 export const normalizeResponseContentBlocks = withSafety({
-  fn: (responseBody: Record<string, unknown>, llm_system: LLMSystem): BedrockMessage => {
-    const role = "assistant";
-    let content: MessageContent = [];
-
-    if (
-      llm_system === LLMSystem.ANTHROPIC &&
-      "content" in responseBody &&
-      Array.isArray(responseBody.content) &&
-      responseBody.content.length > 0
-    ) {
-      // Anthropic format: { content: [{ type: "text", text: "..." }] }
-      content = responseBody.content as MessageContent;
-    } else if (llm_system === LLMSystem.AMAZON) {
-      // Distinguish between Nova and Titan by response structure
-      if (isNovaResponse(responseBody)) {
-        const novaContent = extractNovaContent(responseBody);
-        content = coerceNovaToMessageContent(novaContent);
-      } else if (isTitanResponse(responseBody)) {
-        // Titan format: { results: [{ outputText }] } - handle all results, not just first
-        content = convertArrayFieldToMessageContent(responseBody, "results", "outputText");
-      }
-    } else if (
-      llm_system === LLMSystem.COHERE &&
-      "generations" in responseBody &&
-      Array.isArray(responseBody.generations) &&
-      responseBody.generations.length > 0
-    ) {
-      // Cohere: { generations: [{ text }] } - handle all generations, not just first
-      content = convertArrayFieldToMessageContent(responseBody, "generations", "text");
-    } else if (
-      llm_system === LLMSystem.META &&
-      "generation" in responseBody &&
-      typeof responseBody.generation === "string"
-    ) {
-      content = convertMetaToMessageContent(responseBody);
-    } else if (
-      llm_system === LLMSystem.MISTRALAI &&
-      "generations" in responseBody &&
-      Array.isArray(responseBody.generations) &&
-      responseBody.generations.length > 0
-    ) {
-      // Mistral: { generations: [{ text }] } - handle all generations, not just first
-      // NOTE: Tool calls are not currently supported for Mistral models
-      content = convertArrayFieldToMessageContent(responseBody, "generations", "text");
-    } else if (
-      llm_system === LLMSystem.AI21 &&
-      "choices" in responseBody &&
-      Array.isArray(responseBody.choices) &&
-      responseBody.choices.length > 0
-    ) {
-      content = convertAI21JambaToMessageContent(responseBody);
-    }
-    return {
-      role: role,
-      content: content,
-    } as BedrockMessage;
-  },
+  fn: (responseBody: Record<string, unknown>, llm_system: LLMSystem): BedrockMessage => ({
+    role: "assistant",
+    content: normalizeResponseContent({ responseBody, llm_system }),
+  }),
   onError: (error) => {
     diag.warn("Error normalizing content blocks:", error);
     return {
       role: "assistant",
       content: [],
-    } as BedrockMessage;
+    };
   },
 });
+
+/**
+ * Returns the value at `key` when it is a number, otherwise undefined.
+ */
+function getNumberProperty({
+  source,
+  key,
+}: {
+  source: Record<string, unknown>;
+  key: string;
+}): number | undefined {
+  const value = source[key];
+  return typeof value === "number" ? value : undefined;
+}
+
+/**
+ * Returns the response body's `usage` object when present.
+ */
+function getUsageObject(
+  responseBody: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  return isObjectWithStringKeys(responseBody.usage) ? responseBody.usage : undefined;
+}
+
+/**
+ * Normalizes Anthropic usage.
+ * Format: `{ usage: { input_tokens, output_tokens, total_tokens?, cache_read_input_tokens?, cache_creation_input_tokens? } }`
+ */
+function normalizeAnthropicUsage(responseBody: Record<string, unknown>): UsageAttributes {
+  const usage = getUsageObject(responseBody);
+  if (!usage) return {};
+
+  return {
+    input_tokens: getNumberProperty({ source: usage, key: "input_tokens" }),
+    output_tokens: getNumberProperty({ source: usage, key: "output_tokens" }),
+    total_tokens: getNumberProperty({ source: usage, key: "total_tokens" }),
+    cache_read_input_tokens: getNumberProperty({ source: usage, key: "cache_read_input_tokens" }),
+    cache_creation_input_tokens: getNumberProperty({
+      source: usage,
+      key: "cache_creation_input_tokens",
+    }),
+  };
+}
+
+/**
+ * Normalizes Amazon Nova usage.
+ * Format: `{ usage: { inputTokens, outputTokens, totalTokens?, cacheReadInputTokenCount?, cacheWriteInputTokenCount? } }`
+ */
+function normalizeNovaUsage(responseBody: Record<string, unknown>): UsageAttributes {
+  const usage = getUsageObject(responseBody);
+  if (!usage) return {};
+
+  return {
+    input_tokens: getNumberProperty({ source: usage, key: "inputTokens" }),
+    output_tokens: getNumberProperty({ source: usage, key: "outputTokens" }),
+    total_tokens: getNumberProperty({ source: usage, key: "totalTokens" }),
+    cache_read_input_tokens: getNumberProperty({ source: usage, key: "cacheReadInputTokenCount" }),
+    cache_creation_input_tokens: getNumberProperty({
+      source: usage,
+      key: "cacheWriteInputTokenCount",
+    }),
+  };
+}
+
+/**
+ * Normalizes Amazon Titan usage.
+ * Format: `{ inputTextTokenCount: N, results: [{ tokenCount: N }] }`
+ */
+function normalizeTitanUsage(responseBody: Record<string, unknown>): UsageAttributes {
+  const inputTokens = getNumberProperty({ source: responseBody, key: "inputTextTokenCount" });
+  const results = Array.isArray(responseBody.results)
+    ? responseBody.results.filter(isObjectWithStringKeys)
+    : [];
+  const firstResult = results[0];
+  const outputTokens =
+    firstResult != null ? getNumberProperty({ source: firstResult, key: "tokenCount" }) : undefined;
+
+  const result: UsageAttributes = {};
+  if (inputTokens !== undefined) result.input_tokens = inputTokens;
+  if (outputTokens !== undefined) result.output_tokens = outputTokens;
+  return result;
+}
+
+/**
+ * Normalizes Amazon usage, which differs between Nova and Titan responses.
+ */
+function normalizeAmazonUsage(responseBody: Record<string, unknown>): UsageAttributes {
+  if (isNovaResponse(responseBody)) {
+    return normalizeNovaUsage(responseBody);
+  }
+  if (isTitanResponse(responseBody)) {
+    return normalizeTitanUsage(responseBody);
+  }
+  return {};
+}
+
+/**
+ * Normalizes AI21 Jamba usage.
+ * Format: `{ usage: { prompt_tokens, completion_tokens, total_tokens } }`
+ */
+function normalizeAI21Usage(responseBody: Record<string, unknown>): UsageAttributes {
+  const usage = getUsageObject(responseBody);
+  if (!usage) return {};
+
+  return {
+    input_tokens: getNumberProperty({ source: usage, key: "prompt_tokens" }),
+    output_tokens: getNumberProperty({ source: usage, key: "completion_tokens" }),
+    total_tokens: getNumberProperty({ source: usage, key: "total_tokens" }),
+  };
+}
 
 /**
  * Normalizes token usage information from various model providers into standardized format
@@ -871,94 +1103,24 @@ export const normalizeResponseContentBlocks = withSafety({
  */
 export const normalizeUsageAttributes = withSafety({
   fn: (responseBody: Record<string, unknown>, llm_system: LLMSystem): UsageAttributes => {
-    if (llm_system === LLMSystem.ANTHROPIC) {
-      // Anthropic format: { usage: { input_tokens: N, output_tokens: N, cache_read_input_tokens?: N, cache_creation_input_tokens?: N } }
-      const usage = responseBody.usage as Record<string, unknown> | undefined;
-      if (!usage) return {};
-
-      return {
-        input_tokens: typeof usage.input_tokens === "number" ? usage.input_tokens : undefined,
-        output_tokens: typeof usage.output_tokens === "number" ? usage.output_tokens : undefined,
-        total_tokens: typeof usage.total_tokens === "number" ? usage.total_tokens : undefined,
-        cache_read_input_tokens:
-          typeof usage.cache_read_input_tokens === "number"
-            ? usage.cache_read_input_tokens
-            : undefined,
-        cache_creation_input_tokens:
-          typeof usage.cache_creation_input_tokens === "number"
-            ? usage.cache_creation_input_tokens
-            : undefined,
-      };
-    } else if (llm_system === LLMSystem.AMAZON) {
-      // Amazon has different formats for Nova vs Titan
-      if (isNovaResponse(responseBody)) {
-        // Nova format: { usage: { inputTokens: N, outputTokens: N, totalTokens?: N, cacheReadInputTokenCount?: N, cacheWriteInputTokenCount?: N } }
-        const usage = responseBody.usage as Record<string, unknown> | undefined;
-        if (!usage) return {};
-
+    switch (llm_system) {
+      case LLMSystem.ANTHROPIC:
+        return normalizeAnthropicUsage(responseBody);
+      case LLMSystem.AMAZON:
+        return normalizeAmazonUsage(responseBody);
+      case LLMSystem.AI21:
+        return normalizeAI21Usage(responseBody);
+      case LLMSystem.META:
+        // Meta format: { prompt_token_count: N, generation_token_count: N }
         return {
-          input_tokens: typeof usage.inputTokens === "number" ? usage.inputTokens : undefined,
-          output_tokens: typeof usage.outputTokens === "number" ? usage.outputTokens : undefined,
-          total_tokens: typeof usage.totalTokens === "number" ? usage.totalTokens : undefined,
-          cache_read_input_tokens:
-            typeof usage.cacheReadInputTokenCount === "number"
-              ? usage.cacheReadInputTokenCount
-              : undefined,
-          cache_creation_input_tokens:
-            typeof usage.cacheWriteInputTokenCount === "number"
-              ? usage.cacheWriteInputTokenCount
-              : undefined,
+          input_tokens: getNumberProperty({ source: responseBody, key: "prompt_token_count" }),
+          output_tokens: getNumberProperty({ source: responseBody, key: "generation_token_count" }),
         };
-      } else if (isTitanResponse(responseBody)) {
-        // Titan format: { inputTextTokenCount: N, results: [{ tokenCount: N }] }
-        const inputTokens =
-          typeof responseBody.inputTextTokenCount === "number"
-            ? responseBody.inputTextTokenCount
-            : undefined;
-        const results = responseBody.results as Array<Record<string, unknown>>;
-        const outputTokens =
-          typeof results?.[0]?.tokenCount === "number" ? results[0].tokenCount : undefined;
-
-        const result: UsageAttributes = {};
-        if (inputTokens !== undefined) result.input_tokens = inputTokens;
-        if (outputTokens !== undefined) result.output_tokens = outputTokens;
-        return result;
-      }
-      return {};
-    } else if (llm_system === LLMSystem.AI21) {
-      // AI21 Jamba format: { usage: { prompt_tokens: N, completion_tokens: N, total_tokens: N } }
-      const usage = responseBody.usage as Record<string, unknown> | undefined;
-      if (!usage) return {};
-
-      return {
-        input_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : undefined,
-        output_tokens:
-          typeof usage.completion_tokens === "number" ? usage.completion_tokens : undefined,
-        total_tokens: typeof usage.total_tokens === "number" ? usage.total_tokens : undefined,
-      };
-    } else if (llm_system === LLMSystem.META) {
-      // Meta format: { prompt_token_count: N, generation_token_count: N }
-      return {
-        input_tokens:
-          typeof responseBody.prompt_token_count === "number"
-            ? responseBody.prompt_token_count
-            : undefined,
-        output_tokens:
-          typeof responseBody.generation_token_count === "number"
-            ? responseBody.generation_token_count
-            : undefined,
-      };
-    } else if (llm_system === LLMSystem.COHERE) {
-      // Cohere: Token counts are in HTTP headers, not response body
-      // Return empty object as tokens should be extracted from headers separately
-      return {};
-    } else if (llm_system === LLMSystem.MISTRALAI) {
-      // Mistral: No usage information in response body for current implementation
-      return {};
+      // Cohere reports token counts in HTTP headers rather than the response body, and
+      // Mistral reports none at all, so both fall through to the empty default below.
+      default:
+        return {};
     }
-
-    // Fallback for unknown providers
-    return {};
   },
   onError: (error) => {
     diag.warn("Error normalizing usage attributes:", error);

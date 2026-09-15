@@ -24,6 +24,12 @@ interface SpanTraceOptions<Fn> {
 }
 ```
 
+To record LLM-specific attributes such as `llm.request.model_name` and
+`llm.response.model_name`, compose `getLLMAttributes` into the input/output
+processors — see
+[Request and Response Model Names](attribute-helpers.md#request-and-response-model-names)
+for the canonical example.
+
 ### Basic Usage
 
 ```typescript

@@ -1,0 +1,77 @@
+name: Wait for PyPI version
+description: >-
+  Block until a specific version of a package is resolvable from the PyPI simple
+  index, so downstream jobs never race an in-flight publish.
+
+inputs:
+  package:
+    description: PyPI distribution name (e.g. openinference-instrumentation).
+    required: true
+  version:
+    description: Exact version that must be present on PyPI (e.g. 0.1.57).
+    required: true
+  timeout-seconds:
+    description: Give up and fail after this many seconds.
+    required: false
+    default: "1800"
+  poll-interval-seconds:
+    description: Seconds to wait between polls.
+    required: false
+    default: "15"
+  settle-seconds:
+    description: >-
+      Extra wait after the version first appears, so CDN edges that have not yet
+      picked up the new index are given a chance to catch up.
+    required: false
+    default: "15"
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for version to appear on the PyPI simple index
+      shell: bash
+      env:
+        PACKAGE: ${{ inputs.package }}
+        VERSION: ${{ inputs.version }}
+        TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        POLL_INTERVAL_SECONDS: ${{ inputs.poll-interval-seconds }}
+        SETTLE_SECONDS: ${{ inputs.settle-seconds }}
+      run: |
+        set -euo pipefail
+
+        # Poll the simple index rather than the /pypi/<name>/<version>/json API:
+        # the simple index is what uv and pip actually resolve against, so it is
+        # the only surface whose freshness matters to CI.
+        URL="https://pypi.org/simple/${PACKAGE}/"
+
+        deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
+        attempt=0
+        while true; do
+          attempt=$(( attempt + 1 ))
+          if curl -sSf --max-time 30 \
+               -H 'Accept: application/vnd.pypi.simple.v1+json' \
+               -H 'Cache-Control: no-cache' \
+               "$URL" > response.json 2>/dev/null \
+             && jq -e --arg v "$VERSION" '(.versions // []) | index($v) != null' \
+                  response.json > /dev/null; then
+            echo "Found ${PACKAGE}==${VERSION} on PyPI after ${attempt} attempt(s)."
+            break
+          fi
+
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "::error::${PACKAGE}==${VERSION} did not appear on PyPI within ${TIMEOUT_SECONDS}s." \
+                 "The publish workflow has probably not run or has failed; re-run this job once" \
+                 "${PACKAGE}==${VERSION} is on PyPI."
+            exit 1
+          fi
+
+          echo "${PACKAGE}==${VERSION} not on PyPI yet (attempt ${attempt}); retrying in ${POLL_INTERVAL_SECONDS}s."
+          sleep "$POLL_INTERVAL_SECONDS"
+        done
+
+        rm -f response.json
+
+        if [ "$SETTLE_SECONDS" -gt 0 ]; then
+          echo "Waiting ${SETTLE_SECONDS}s for the index to settle across CDN edges."
+          sleep "$SETTLE_SECONDS"
+        fi

@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.18...java-openinference-semantic-conventions-v0.1.19) (2026-09-15)
+
+
+### Features
+
+* **semconv:** add span-kind-independent image attributes ([0ff0af2](https://github.com/Arize-ai/openinference/commit/0ff0af2ee2ad300daddec58099248fb4e397a7aa))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.17...java-openinference-semantic-conventions-v0.1.18) (2026-09-10)
+
+
+### Features
+
+* **semconv:** add audio and video semantic conventions ([#3700](https://github.com/Arize-ai/openinference/issues/3700)) ([6d9f813](https://github.com/Arize-ai/openinference/commit/6d9f81360eaf2ec90e03c43d2f0c617909ee2f4d))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.16...java-openinference-semantic-conventions-v0.1.17) (2026-09-04)
+
+
+### Features
+
+* **semconv:** add meta, zai, and minimax as well-known llm.provider values ([#3671](https://github.com/Arize-ai/openinference/issues/3671)) ([fd01216](https://github.com/Arize-ai/openinference/commit/fd012164266f3e2eec58017e3880aea505667a16))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.15...java-openinference-semantic-conventions-v0.1.16) (2026-08-24)
+
+
+### Features
+
+* **semconv:** add llm.input_model_name and llm.output_model_name ([#3585](https://github.com/Arize-ai/openinference/issues/3585)) ([1fe497f](https://github.com/Arize-ai/openinference/commit/1fe497f1d9f45a07eee55d97fe185e020560f9c7))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.14...java-openinference-semantic-conventions-v0.1.15) (2026-08-07)
 
 

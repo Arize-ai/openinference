@@ -82,30 +82,26 @@ const PATCHABLE_EXPORTS = [
  * - No-op setters can accept assignment without changing the exported function
  */
 function canPatchInPlace(module: ClaudeAgentSDKModule): boolean {
-  const exports = module as Record<(typeof PATCHABLE_EXPORTS)[number], unknown>;
   return PATCHABLE_EXPORTS.every((name) => {
-    const current = exports[name];
+    const current = Reflect.get(module, name);
     if (typeof current !== "function") {
       return true;
     }
     const restore = () => {
       try {
-        exports[name] = current;
+        Reflect.set(module, name, current);
       } catch {
         // Ignore restore failures (e.g. native ESM namespaces).
       }
     };
     try {
       // Use a distinct probe function — SameValue writes are not a mutability check.
-      const probe = function openInferencePatchProbe() {
-        /* empty */
-      };
-      exports[name] = probe;
-      if (exports[name] !== probe) {
+      const probe = new Proxy(current, {});
+      if (!Reflect.set(module, name, probe) || Reflect.get(module, name) !== probe) {
         restore();
         return false;
       }
-      exports[name] = current;
+      Reflect.set(module, name, current);
       return true;
     } catch {
       restore();
@@ -174,7 +170,14 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
    */
   manuallyInstrument<TModule extends ClaudeAgentSDKModule>(module: TModule): TModule {
     diag.debug(`Manually instrumenting ${MODULE_NAME}`);
-    return this.patch(module) as TModule;
+    const patched = this.patch(module);
+    if (patched === module) {
+      // Patched in place — return the caller's own module so a later
+      // unpatch()/disable() restoring the originals stays visible to the caller.
+      return module;
+    }
+    // Native ESM namespace (or default-export wrapper): return a patched copy.
+    return Object.assign({}, module, patched);
   }
 
   get tracer(): Tracer {
@@ -215,9 +218,7 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
 
     // Target is either the original module (CJS / IITM proxy) or a shallow copy
     // for native ESM namespaces whose exports cannot be reassigned.
-    const target: ClaudeAgentSDKModule = canPatchInPlace(sdkModule)
-      ? sdkModule
-      : ({ ...sdkModule } as ClaudeAgentSDKModule);
+    const target = canPatchInPlace(sdkModule) ? sdkModule : { ...sdkModule };
 
     // Store originals for unpatch restoration
     this._originals = {

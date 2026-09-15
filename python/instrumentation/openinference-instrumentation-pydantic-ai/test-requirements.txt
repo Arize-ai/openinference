@@ -2,11 +2,8 @@ pytest
 pytest-cov
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
-pydantic-ai==1.56.0
-# pydantic-ai 1.56.0 declares `genai-prices>=0.0.48` with no upper bound, but
-# genai-prices 0.1.0 changed usage extraction so `RequestUsage.extract()` returns
-# zero input/output tokens for OpenAI chat responses. That silently drops
-# gen_ai.usage.* from the spans pydantic-ai emits. Newer pydantic-ai (exercised by
-# the -latest env) is compatible, so this bound only guards the pinned version.
-genai-prices<0.1
 pytest-recording
+
+# Pin the supported dependency floor for the default tox environment.
+pydantic-ai==2.24.0
+genai-prices==0.1.1

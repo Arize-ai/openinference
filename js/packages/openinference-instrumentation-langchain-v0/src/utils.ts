@@ -35,7 +35,7 @@ export const SESSION_ID_KEYS = ["session_id", "thread_id", "conversation_id"] as
  */
 const onError = (message: string) => (error: unknown) => {
   diag.warn(
-    `OpenInference-LangChain-v0: error processing langchain run, falling back to null. ${message}. ${error}`,
+    `OpenInference-LangChain-v0: error processing langchain run, falling back to null. ${message}. ${String(error)}`,
   );
 };
 
@@ -89,10 +89,14 @@ function getOpenInferenceSpanKindFromRunType(runType: string) {
     return OpenInferenceSpanKind.AGENT;
   }
 
-  if (normalizedRunType in OpenInferenceSpanKind) {
-    return OpenInferenceSpanKind[normalizedRunType as keyof typeof OpenInferenceSpanKind];
+  if (isOpenInferenceSpanKind(normalizedRunType)) {
+    return OpenInferenceSpanKind[normalizedRunType];
   }
   return OpenInferenceSpanKind.CHAIN;
+}
+
+function isOpenInferenceSpanKind(value: string): value is keyof typeof OpenInferenceSpanKind {
+  return value in OpenInferenceSpanKind;
 }
 
 /**

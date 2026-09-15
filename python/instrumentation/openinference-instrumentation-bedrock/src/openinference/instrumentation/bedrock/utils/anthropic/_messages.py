@@ -185,6 +185,8 @@ def _attributes_from_message(
 ) -> Iterator[tuple[str, AttributeValue]]:
     if role := message.role:
         yield f"{prefix}{MESSAGE_ROLE}", role.value if isinstance(role, Enum) else role
+    if stop_reason := message.stop_reason:
+        yield LLM_FINISH_REASON, stop_reason
     for block in message.content:
         if isinstance(block, TextBlock):
             yield f"{prefix}{MESSAGE_CONTENTS}.{0}.{MESSAGE_CONTENT_TEXT}", block.text
@@ -291,6 +293,10 @@ def _attributes_from_image_param(
             f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
             source["url"],
         )
+    elif source["type"] == "file":
+        # File sources only carry a `file_id` referencing a previously
+        # uploaded file, so there is no inline image URL to surface.
+        yield from ()
     elif TYPE_CHECKING:
         assert_never(source["type"])
 
@@ -359,6 +365,7 @@ JSON = OpenInferenceMimeTypeValues.JSON.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

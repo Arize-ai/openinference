@@ -26,8 +26,7 @@ export function addTracerToHandlers(
   if (Array.isArray(handlers)) {
     const tracerAlreadyRegistered = handlers.some((handler) => handler instanceof LangChainTracer);
     if (!tracerAlreadyRegistered) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handlers.push(new LangChainTracer(tracer) as any);
+      handlers.push(new LangChainTracer(tracer));
     }
     return handlers;
   }
@@ -37,7 +36,6 @@ export function addTracerToHandlers(
   if (tracerAlreadyRegistered) {
     return handlers;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handlers.addHandler(new LangChainTracer(tracer) as any, true);
+  handlers.addHandler(new LangChainTracer(tracer), true);
   return handlers;
 }

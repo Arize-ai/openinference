@@ -45,9 +45,13 @@ const maybeSetRootStatus = (span: ReadableSpan, agg: TraceAggregate): void => {
   if (span.status.code !== SpanStatusCode.UNSET) return;
 
   // ReadableSpan is typed as readonly; runtime Span objects are mutable.
-  (span as unknown as { status: { code: SpanStatusCode; message?: string } }).status = agg.hadError
-    ? { code: SpanStatusCode.ERROR, message: agg.firstErrorMessage }
-    : { code: SpanStatusCode.OK };
+  Reflect.set(
+    span,
+    "status",
+    agg.hadError
+      ? { code: SpanStatusCode.ERROR, message: agg.firstErrorMessage }
+      : { code: SpanStatusCode.OK },
+  );
 };
 
 const maybeSetSpanOkStatus = (span: ReadableSpan): void => {
@@ -56,9 +60,7 @@ const maybeSetSpanOkStatus = (span: ReadableSpan): void => {
   if (span.status.code !== SpanStatusCode.UNSET) return;
 
   // ReadableSpan is typed as readonly; runtime Span objects are mutable.
-  (span as unknown as { status: { code: SpanStatusCode; message?: string } }).status = {
-    code: SpanStatusCode.OK,
-  };
+  Reflect.set(span, "status", { code: SpanStatusCode.OK });
 };
 
 const maybeRenameRootSpan = (span: ReadableSpan): void => {
@@ -78,7 +80,7 @@ const maybeRenameRootSpan = (span: ReadableSpan): void => {
 
   // NOTE: Span.updateName() refuses to update after end(); by the time span processors
   // run, spans are already ended. Assign directly.
-  (span as unknown as { name: string }).name = operationName;
+  Reflect.set(span, "name", operationName);
 };
 
 /**

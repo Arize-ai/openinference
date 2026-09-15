@@ -95,6 +95,7 @@ class TestOpenLLMetryInstrumentor:
 
         # LLM identity
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
         # gen_ai.system is deprecated; latest OpenLLMetry only emits gen_ai.provider.name
         if SpanAttributes.LLM_SYSTEM in attributes:
             assert (
@@ -152,6 +153,7 @@ class TestOpenLLMetryInstrumentor:
                     [{"role": "assistant", "parts": [{"type": "text", "content": "Hi"}]}]
                 ),
                 "gen_ai.request.model": "gpt-4.1",
+                "gen_ai.response.finish_reasons": ["length"],
                 "gen_ai.usage.input_tokens": 1,
                 "gen_ai.usage.output_tokens": 2,
                 "gen_ai.provider.name": "openai",
@@ -167,6 +169,7 @@ class TestOpenLLMetryInstrumentor:
             == OpenInferenceSpanKindValues.LLM.value
         )
         assert span._attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert span._attributes[SpanAttributes.LLM_FINISH_REASON] == "length"
         assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 1
         assert span._attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2
 
@@ -320,6 +323,7 @@ class TestUpdatedGenAIMessageFormat:
             == OpenInferenceSpanKindValues.LLM.value
         )
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 5
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
@@ -380,6 +384,7 @@ class TestUpdatedGenAIMessageFormat:
             == OpenInferenceSpanKindValues.LLM.value
         )
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
         assert isinstance(attributes[SpanAttributes.INPUT_VALUE], str)
         assert isinstance(attributes[SpanAttributes.OUTPUT_VALUE], str)
         assert attributes["llm.input_messages.0.message.role"] == "user"

@@ -39,6 +39,6 @@ export const propagateContextAttributesToSpan = withSafety({
     }
   },
   onError: (error) => {
-    diag.warn(`Unable to propagate OpenInference context attributes to span: ${error}`);
+    diag.warn(`Unable to propagate OpenInference context attributes to span: ${String(error)}`);
   },
 });

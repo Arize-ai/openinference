@@ -28,6 +28,16 @@ class SpanAttributes:
     The type of input.value. If unspecified, the type is plain text by default.
     If type is JSON, the value is a string representing a JSON object.
     """
+    INPUT_IMAGES = "input.images"
+    """
+    A list of Image Objects that are inputs to an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `input.images.0.image.url`.
+    """
+    OUTPUT_IMAGES = "output.images"
+    """
+    A list of Image Objects produced by an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `output.images.0.image.url`.
+    """
 
     EMBEDDING_EMBEDDINGS = "embedding.embeddings"
     """
@@ -62,6 +72,18 @@ class SpanAttributes:
     LLM_MODEL_NAME = "llm.model_name"
     """
     The name of the model being used.
+    """
+    LLM_REQUEST_MODEL_NAME = "llm.request.model_name"
+    """
+    The model requested by the caller, as sent in the request. May differ from
+    llm.response.model_name when the provider routes the request to a different
+    model (e.g. classifier-triggered fallback).
+    """
+    LLM_RESPONSE_MODEL_NAME = "llm.response.model_name"
+    """
+    The model that actually generated the response, as reported by the provider.
+    May differ from llm.request.model_name when the provider routes the request
+    to a different model (e.g. classifier-triggered fallback).
     """
     LLM_PROVIDER = "llm.provider"
     """
@@ -358,7 +380,7 @@ class MessageContentAttributes:
     MESSAGE_CONTENT_TYPE = "message_content.type"
     """
     The type of the content, such as "text", "image", "audio",
-    "reasoning", or "tool_use".
+    "video", "reasoning", or "tool_use".
     """
     MESSAGE_CONTENT_TEXT = "message_content.text"
     """
@@ -370,6 +392,16 @@ class MessageContentAttributes:
     An image can be made available to the model by passing a link to
     the image or by passing the base64 encoded image directly in the
     request.
+    """
+    MESSAGE_CONTENT_AUDIO = "message_content.audio"
+    """
+    The audio content of the message, if the type is "audio".
+    Nested leaves come from AudioAttributes.
+    """
+    MESSAGE_CONTENT_VIDEO = "message_content.video"
+    """
+    The video content of the message, if the type is "video".
+    Nested leaves come from VideoAttributes.
     """
     MESSAGE_CONTENT_ID = "message_content.id"
     """
@@ -421,6 +453,17 @@ class AudioAttributes:
     AUDIO_TRANSCRIPT = "audio.transcript"
     """
     The transcript of the audio file
+    """
+
+
+class VideoAttributes:
+    """
+    Attributes for video
+    """
+
+    VIDEO_URL = "video.url"
+    """
+    The URL, object-store URI, or base64 data URI of a video.
     """
 
 
@@ -538,15 +581,19 @@ class ChoiceAttributes:
 
 
 class ToolAttributes:
-    """
-    Attributes for a tools
-    """
+    """Attributes for tools."""
 
     TOOL_JSON_SCHEMA = "tool.json_schema"
     """
     The json schema of a tool input, It is RECOMMENDED that this be in the
     OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
     """
+
+    TOOL_NAME = "tool.name"
+    """The name of the tool, i.e. the identifier the model uses to call it."""
+
+    TOOL_DESCRIPTION = "tool.description"
+    """The description of the tool, i.e. the text the model uses to decide whether to call it."""
 
 
 class OpenInferenceSpanKindValues(Enum):
@@ -599,3 +646,6 @@ class OpenInferenceLLMProviderValues(Enum):
     PERPLEXITY = "perplexity"
     TOGETHER = "together"
     OLLAMA = "ollama"
+    META = "meta"
+    ZAI = "zai"
+    MINIMAX = "minimax"

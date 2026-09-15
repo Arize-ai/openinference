@@ -21,9 +21,9 @@ export function isSystemInitMessage(msg: unknown): msg is SDKSystemMessage {
     msg != null &&
     typeof msg === "object" &&
     "type" in msg &&
-    (msg as Record<string, unknown>).type === "system" &&
+    msg.type === "system" &&
     "subtype" in msg &&
-    (msg as Record<string, unknown>).subtype === "init" &&
+    msg.subtype === "init" &&
     "session_id" in msg &&
     "model" in msg
   );
@@ -37,9 +37,9 @@ export function isResultSuccessMessage(msg: unknown): msg is SDKResultSuccess {
     msg != null &&
     typeof msg === "object" &&
     "type" in msg &&
-    (msg as Record<string, unknown>).type === "result" &&
+    msg.type === "result" &&
     "subtype" in msg &&
-    (msg as Record<string, unknown>).subtype === "success" &&
+    msg.subtype === "success" &&
     "result" in msg &&
     "usage" in msg
   );
@@ -49,14 +49,13 @@ export function isResultSuccessMessage(msg: unknown): msg is SDKResultSuccess {
  * Type guard: checks if a message is a result error message.
  */
 export function isResultErrorMessage(msg: unknown): msg is SDKResultError {
+  if (msg == null || typeof msg !== "object" || !("subtype" in msg)) return false;
+  const subtype = msg.subtype;
   return (
-    msg != null &&
-    typeof msg === "object" &&
     "type" in msg &&
-    (msg as Record<string, unknown>).type === "result" &&
-    "subtype" in msg &&
-    typeof (msg as Record<string, unknown>).subtype === "string" &&
-    ((msg as Record<string, unknown>).subtype as string).startsWith("error") &&
+    msg.type === "result" &&
+    typeof subtype === "string" &&
+    subtype.startsWith("error") &&
     "usage" in msg
   );
 }
@@ -124,7 +123,7 @@ export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
  * Strings produce text/plain attributes; objects are JSON-stringified.
  * Delegates to {@link getInputAttributes} from `@arizeai/openinference-core`.
  */
-export function formatPromptAttributes(prompt: string | unknown): Attributes {
+export function formatPromptAttributes(prompt: unknown): Attributes {
   if (typeof prompt === "string") {
     return getInputAttributes(prompt);
   }

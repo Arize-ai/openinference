@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterator, List, Sequence
 
 import cohere
 import pytest
+from cohere.core.request_options import RequestOptions
 from cohere.types import (
     ApiMeta,
     ApiMetaTokens,
@@ -25,7 +26,11 @@ from cohere.types import (
     UsageTokens,
 )
 from cohere.v2.raw_client import AsyncRawV2Client, RawV2Client
-from cohere.v2.types import V2ChatResponse
+from cohere.v2.types import (
+    V2ChatResponse,
+    V2RerankResponse,
+    V2RerankResponseResultsItem,
+)
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -40,9 +45,11 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.cohere import CohereInstrumentor
 from openinference.semconv.trace import (
+    DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
     OpenInferenceSpanKindValues,
+    RerankerAttributes,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
@@ -121,6 +128,16 @@ def _vector(value: Any) -> List[float]:
     return [float(component) for component in value]
 
 
+def _rerank_response() -> V2RerankResponse:
+    return V2RerankResponse(
+        id="rerank-1",
+        results=[
+            V2RerankResponseResultsItem(index=1, relevance_score=0.95),
+            V2RerankResponseResultsItem(index=0, relevance_score=0.4),
+        ],
+    )
+
+
 def _raw_stream(events: "List[Any]") -> Any:
     """Build a stand-in for ``RawV2Client.chat_stream``.
 
@@ -175,12 +192,14 @@ def test_chat(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
-    assert spans[0].name == "ClientV2.chat"
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
     assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     # Only parameters the caller actually set appear in the invocation parameters;
     # cohere's OMIT sentinel defaults must not leak in.
     assert json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])) == {"temperature": 0.1}
@@ -218,7 +237,14 @@ def test_chat_with_tool_call(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "TOOL_CALL"
     prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}"] == "call-1"
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_current_weather"
@@ -244,7 +270,14 @@ def test_chat_records_tool_result_message(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.1"
     assert attrs[f"{prefix}.{MessageAttributes.MESSAGE_ROLE}"] == "tool"
     assert attrs[f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "call-1"
@@ -269,10 +302,14 @@ def test_chat_error_span_keeps_model_name(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == StatusCode.ERROR
-    attrs = dict(spans[0].attributes or {})
-    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
     assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert span.status.status_code == StatusCode.ERROR
 
 
 async def test_async_chat(
@@ -291,9 +328,14 @@ async def test_async_chat(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].name == "AsyncClientV2.chat"
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
 
 
@@ -314,7 +356,14 @@ async def test_async_chat_cancellation_ends_span(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code == StatusCode.ERROR
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert span.status.status_code == StatusCode.ERROR
 
 
 def test_suppress_tracing(
@@ -354,7 +403,14 @@ def test_context_attributes_propagation(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     assert attrs[SpanAttributes.SESSION_ID] == "my-session"
     assert attrs[SpanAttributes.USER_ID] == "my-user"
     assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
@@ -382,9 +438,54 @@ def test_trace_config_masking(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    assert not any("sensitive" in str(value) for value in attrs.values())
+
+
+def test_rerank_trace_config_masking(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        RawV2Client,
+        "rerank",
+        lambda self, **kwargs: SimpleNamespace(data=_rerank_response()),
+    )
+    CohereInstrumentor().uninstrument()
+    CohereInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+
+    _client().rerank(
+        model="rerank-v3.5",
+        query="sensitive query",
+        documents=["sensitive first document", "sensitive second document"],
+        top_n=2,
+    )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    assert attrs[RerankerAttributes.RERANKER_QUERY] == REDACTED_VALUE
+    assert attrs[RerankerAttributes.RERANKER_MODEL_NAME] == "rerank-v3.5"
+    assert attrs[RerankerAttributes.RERANKER_TOP_K] == 2
+    assert not any(
+        key.startswith(RerankerAttributes.RERANKER_INPUT_DOCUMENTS)
+        or key.startswith(RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS)
+        for key in attrs
+    )
     assert not any("sensitive" in str(value) for value in attrs.values())
 
 
@@ -405,7 +506,14 @@ def test_request_options_are_not_recorded(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     assert "request_options" not in str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])
     assert not any("super-secret-token" in str(value) for value in attrs.values())
 
@@ -432,6 +540,14 @@ def test_generator_messages_are_not_consumed(
     assert len(seen) == 1
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
 
 
 def test_unserializable_argument_still_produces_a_span(
@@ -454,8 +570,14 @@ def test_unserializable_argument_still_produces_a_span(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
 
 
 def test_typed_tool_is_recorded_as_json(
@@ -484,7 +606,14 @@ def test_typed_tool_is_recorded_as_json(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     schema = json.loads(
         str(attrs[f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"])
     )
@@ -509,7 +638,14 @@ def test_non_text_content_blocks_are_recorded(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     content = str(
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
     )
@@ -564,10 +700,14 @@ def test_chat_stream(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
-    assert spans[0].name == "ClientV2.chat_stream"
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat_stream"
     assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     assert attrs[SpanAttributes.OUTPUT_VALUE] == ("The sky is blue because of Rayleigh scattering.")
     assert (
         attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
@@ -655,7 +795,14 @@ def test_chat_stream_with_tool_calls(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat_stream"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "TOOL_CALL"
     prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0"
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_ID}"] == "call-1"
     assert attrs[f"{prefix}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"] == "get_current_weather"
@@ -688,8 +835,14 @@ def test_chat_stream_error_ends_span(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].status.status_code is StatusCode.ERROR
-    assert dict(spans[0].attributes or {})[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat_stream"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert span.status.status_code == StatusCode.ERROR
 
 
 async def test_async_chat_stream(
@@ -709,8 +862,14 @@ async def test_async_chat_stream(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attrs = dict(spans[0].attributes or {})
-    assert spans[0].name == "AsyncClientV2.chat_stream"
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncClientV2.chat_stream"
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == "cohere"
+    assert attrs[SpanAttributes.LLM_SYSTEM] == "cohere"
+    assert attrs[SpanAttributes.LLM_MODEL_NAME] == "command-a-03-2025"
+    assert attrs[SpanAttributes.LLM_FINISH_REASON] == "COMPLETE"
     assert attrs[SpanAttributes.OUTPUT_VALUE] == ("The sky is blue because of Rayleigh scattering.")
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 38
 
@@ -758,9 +917,8 @@ def test_embed(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    assert span.name == "CreateEmbeddings"
-    assert span.status.status_code is StatusCode.OK
     attrs = dict(span.attributes or {})
+    assert span.name == "CreateEmbeddings"
     assert (
         attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.EMBEDDING.value
@@ -821,8 +979,15 @@ def test_embed_extracts_text_from_structured_inputs(
         embedding_types=["float"],
     )
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
     attrs = dict(span.attributes or {})
+    assert span.name == "CreateEmbeddings"
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
+    assert attrs[SpanAttributes.EMBEDDING_MODEL_NAME] == "embed-v4.0"
     assert (
         attrs[f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"]
         == "Hello world"
@@ -849,8 +1014,16 @@ def test_embed_decodes_base64_vectors(
         embedding_types=["base64"],
     )
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    vector = dict(span.attributes or {})[
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "CreateEmbeddings"
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
+    assert attrs[SpanAttributes.EMBEDDING_MODEL_NAME] == "embed-v4.0"
+    vector = attrs[
         f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
     ]
     assert _vector(vector) == [1.5, 2.0]
@@ -877,9 +1050,14 @@ async def test_async_embed(
         embedding_types=["float"],
     )
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.name == "CreateEmbeddings"
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
     attrs = dict(span.attributes or {})
+    assert span.name == "CreateEmbeddings"
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
     assert attrs[SpanAttributes.EMBEDDING_MODEL_NAME] == "embed-v4.0"
     assert _vector(
         attrs[f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"]
@@ -909,8 +1087,15 @@ def test_embed_trace_config_masks_text_and_vectors(
         embedding_types=["float"],
     )
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
     attrs = dict(span.attributes or {})
+    assert span.name == "CreateEmbeddings"
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
+    assert attrs[SpanAttributes.EMBEDDING_MODEL_NAME] == "embed-v4.0"
     assert (
         attrs[f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"]
         == REDACTED_VALUE
@@ -938,12 +1123,18 @@ def test_embed_error_span_keeps_model_name(
             embedding_types=["float"],
         )
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.status_code is StatusCode.ERROR
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
     attrs = dict(span.attributes or {})
+    assert span.name == "CreateEmbeddings"
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
     assert attrs[SpanAttributes.EMBEDDING_MODEL_NAME] == "embed-v4.0"
     assert SpanAttributes.LLM_PROVIDER not in attrs
     assert SpanAttributes.LLM_SYSTEM not in attrs
+    assert span.status.status_code == StatusCode.ERROR
 
 
 def test_embed_suppressed(
@@ -967,3 +1158,311 @@ def test_embed_suppressed(
         )
 
     assert in_memory_span_exporter.get_finished_spans() == ()
+
+
+def test_rerank(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: Dict[str, Any] = {}
+
+    def _mock_rerank(self: Any, **kwargs: Any) -> Any:
+        received.update(kwargs)
+        return SimpleNamespace(data=_rerank_response())
+
+    monkeypatch.setattr(RawV2Client, "rerank", _mock_rerank)
+    documents: Any = [
+        "The first document",
+        {"id": "doc-2", "title": "Second", "text": "The second document"},
+    ]
+    request_options: RequestOptions = {"additional_headers": {"x-test-secret": "not-recorded"}}
+
+    with using_attributes(
+        session_id="rerank-session",
+        user_id="rerank-user",
+        metadata={"env": "test"},
+        tags=["rerank"],
+    ):
+        response = _client().rerank(
+            model="rerank-v3.5",
+            query="Which document is second?",
+            documents=documents,
+            top_n=2,
+            max_tokens_per_doc=512,
+            priority=1,
+            request_options=request_options,
+        )
+
+    assert response.results[0].index == 1
+    assert received["documents"] is documents
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.name == "ClientV2.rerank"
+    assert span.status.status_code is StatusCode.OK
+    attrs = dict(span.attributes or {})
+    assert "not-recorded" not in json.dumps(attrs, default=str)
+    assert (
+        attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.RERANKER.value
+    )
+    assert attrs.pop(RerankerAttributes.RERANKER_QUERY) == "Which document is second?"
+    assert attrs.pop(RerankerAttributes.RERANKER_MODEL_NAME) == "rerank-v3.5"
+    assert attrs.pop(RerankerAttributes.RERANKER_TOP_K) == 2
+
+    input_prefix = RerankerAttributes.RERANKER_INPUT_DOCUMENTS
+    output_prefix = RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
+    assert (
+        attrs.pop(f"{input_prefix}.0.{DocumentAttributes.DOCUMENT_CONTENT}") == "The first document"
+    )
+    structured_input = json.loads(
+        str(attrs.pop(f"{input_prefix}.1.{DocumentAttributes.DOCUMENT_CONTENT}"))
+    )
+    assert structured_input == {
+        "id": "doc-2",
+        "title": "Second",
+        "text": "The second document",
+    }
+    assert attrs.pop(f"{input_prefix}.1.{DocumentAttributes.DOCUMENT_ID}") == "doc-2"
+    structured_output = json.loads(
+        str(attrs.pop(f"{output_prefix}.0.{DocumentAttributes.DOCUMENT_CONTENT}"))
+    )
+    assert structured_output == structured_input
+    assert attrs.pop(f"{output_prefix}.0.{DocumentAttributes.DOCUMENT_ID}") == "doc-2"
+    assert attrs.pop(f"{output_prefix}.0.{DocumentAttributes.DOCUMENT_SCORE}") == 0.95
+    assert (
+        attrs.pop(f"{output_prefix}.1.{DocumentAttributes.DOCUMENT_CONTENT}")
+        == "The first document"
+    )
+    assert attrs.pop(f"{output_prefix}.1.{DocumentAttributes.DOCUMENT_SCORE}") == 0.4
+
+    input_value = json.loads(str(attrs.pop(SpanAttributes.INPUT_VALUE)))
+    assert input_value["documents"] == documents
+    assert input_value["max_tokens_per_doc"] == 512
+    assert input_value["priority"] == 1
+    assert "request_options" not in input_value
+    assert attrs.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    output_value = json.loads(str(attrs.pop(SpanAttributes.OUTPUT_VALUE)))
+    assert output_value["results"][0] == {"index": 1, "relevance_score": 0.95}
+    assert attrs.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attrs.pop(SpanAttributes.SESSION_ID) == "rerank-session"
+    assert attrs.pop(SpanAttributes.USER_ID) == "rerank-user"
+    assert json.loads(str(attrs.pop(SpanAttributes.METADATA))) == {"env": "test"}
+    assert list(attrs.pop(SpanAttributes.TAG_TAGS)) == ["rerank"]  # type: ignore[arg-type]
+    assert not attrs
+
+
+async def test_async_rerank(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _mock_rerank(self: Any, **kwargs: Any) -> Any:
+        return SimpleNamespace(data=_rerank_response())
+
+    monkeypatch.setattr(AsyncRawV2Client, "rerank", _mock_rerank)
+
+    await cohere.AsyncClientV2(api_key="fake-key").rerank(
+        model="rerank-v3.5",
+        query="Which document is second?",
+        documents=["The first document", "The second document"],
+        top_n=2,
+    )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.name == "AsyncClientV2.rerank"
+    assert span.status.status_code is StatusCode.OK
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.RERANKER.value
+    )
+    assert (
+        attrs[
+            f"{RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS}.0."
+            f"{DocumentAttributes.DOCUMENT_CONTENT}"
+        ]
+        == "The second document"
+    )
+
+
+def test_rerank_does_not_drain_generator_documents(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received_documents: List[str] = []
+
+    def _mock_rerank(self: Any, **kwargs: Any) -> Any:
+        received_documents.extend(kwargs["documents"])
+        return SimpleNamespace(data=_rerank_response())
+
+    monkeypatch.setattr(RawV2Client, "rerank", _mock_rerank)
+    documents: Any = (document for document in ["The first document", "The second document"])
+
+    _client().rerank(
+        model="rerank-v3.5",
+        query="Which document is second?",
+        documents=documents,
+        top_n=2,
+    )
+
+    assert received_documents == ["The first document", "The second document"]
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert not any(
+        key.startswith(RerankerAttributes.RERANKER_INPUT_DOCUMENTS)
+        or key.startswith(RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS)
+        for key in attrs
+    )
+
+
+def test_rerank_ignores_out_of_range_result_indices(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = V2RerankResponse(
+        id="rerank-invalid-index",
+        results=[V2RerankResponseResultsItem(index=3, relevance_score=0.8)],
+    )
+    monkeypatch.setattr(
+        RawV2Client,
+        "rerank",
+        lambda self, **kwargs: SimpleNamespace(data=response),
+    )
+
+    result = _client().rerank(
+        model="rerank-v3.5",
+        query="Which document is second?",
+        documents=["The only document"],
+        top_n=1,
+    )
+
+    assert result is response
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code is StatusCode.OK
+    attrs = dict(span.attributes or {})
+    assert not any(key.startswith(RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS) for key in attrs)
+
+
+def test_rerank_keeps_core_attributes_when_documents_exceed_span_limit(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    documents = [f"Document {index}" for index in range(150)]
+    response = V2RerankResponse(
+        id="rerank-many-documents",
+        results=[
+            V2RerankResponseResultsItem(index=index, relevance_score=index / len(documents))
+            for index in reversed(range(len(documents)))
+        ],
+    )
+    monkeypatch.setattr(
+        RawV2Client,
+        "rerank",
+        lambda self, **kwargs: SimpleNamespace(data=response),
+    )
+
+    with using_attributes(session_id="rerank-many-documents"):
+        _client().rerank(
+            model="rerank-v3.5",
+            query="Which document ranks highest?",
+            documents=documents,
+            top_n=len(documents),
+        )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.RERANKER.value
+    )
+    assert attrs[RerankerAttributes.RERANKER_QUERY] == "Which document ranks highest?"
+    assert attrs[RerankerAttributes.RERANKER_MODEL_NAME] == "rerank-v3.5"
+    assert attrs[RerankerAttributes.RERANKER_TOP_K] == len(documents)
+    assert attrs[SpanAttributes.SESSION_ID] == "rerank-many-documents"
+
+
+def test_rerank_error_span_keeps_request_attributes(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise(self: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("rerank failed")
+
+    monkeypatch.setattr(RawV2Client, "rerank", _raise)
+
+    with pytest.raises(RuntimeError, match="rerank failed"):
+        _client().rerank(
+            model="rerank-v3.5",
+            query="Which document is second?",
+            documents=["The first document", "The second document"],
+            top_n=2,
+        )
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code is StatusCode.ERROR
+    attrs = dict(span.attributes or {})
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.RERANKER.value
+    )
+    assert attrs[RerankerAttributes.RERANKER_QUERY] == "Which document is second?"
+    assert attrs[RerankerAttributes.RERANKER_MODEL_NAME] == "rerank-v3.5"
+    assert attrs[RerankerAttributes.RERANKER_TOP_K] == 2
+
+
+def test_rerank_suppressed(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from openinference.instrumentation import suppress_tracing
+
+    monkeypatch.setattr(
+        RawV2Client,
+        "rerank",
+        lambda self, **kwargs: SimpleNamespace(data=_rerank_response()),
+    )
+
+    with suppress_tracing():
+        _client().rerank(
+            model="rerank-v3.5",
+            query="Which document is second?",
+            documents=["The first document", "The second document"],
+            top_n=2,
+        )
+
+    assert in_memory_span_exporter.get_finished_spans() == ()
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    [
+        "COMPLETE",
+        "STOP_SEQUENCE",
+        "MAX_TOKENS",
+        "TOOL_CALL",
+        "ERROR",
+        "ERROR_TOXIC",
+        "ERROR_LIMIT",
+        "USER_CANCEL",
+    ],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = V2ChatResponse(
+        id="c-finish-reason-test",
+        finish_reason=finish_reason,
+        message=AssistantMessageResponse(
+            role="assistant",
+            content=[TextAssistantMessageResponseContentItem(type="text", text="hi")],
+        ),
+        usage=Usage(tokens=UsageTokens(input_tokens=5, output_tokens=2)),
+    )
+    monkeypatch.setattr(RawV2Client, "chat", lambda self, **k: SimpleNamespace(data=response))
+
+    _client().chat(
+        model="command-a-03-2025",
+        messages=[_user_message("hi")],
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    assert attrs.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason

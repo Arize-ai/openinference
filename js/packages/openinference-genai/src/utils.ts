@@ -63,7 +63,7 @@ export const set = (attrs: Attributes, key: string, value?: AttributeValue | nul
  * @returns The merged attributes
  */
 export const merge = (...groups: Attributes[]): Attributes =>
-  groups.reduce((acc, g) => Object.assign(acc, g), {} as Attributes);
+  groups.reduce<Attributes>((acc, g) => Object.assign(acc, g), {});
 
 /**
  * Convert a value to a string. If the value is already a string, return it.

@@ -55,6 +55,7 @@ from typing import Any
 from openinference.semconv.resource import ResourceAttributes
 from openinference.semconv.trace import (
     AnnotationAttributes,
+    AudioAttributes,
     DocumentAttributes,
     EmbeddingAttributes,
     EvaluationAttributes,
@@ -65,6 +66,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
+    VideoAttributes,
 )
 
 
@@ -99,6 +101,7 @@ class TestSpanAttributes:
                 },
             },
             "input": {
+                "images": SpanAttributes.INPUT_IMAGES,
                 "mime_type": SpanAttributes.INPUT_MIME_TYPE,
                 "value": SpanAttributes.INPUT_VALUE,
             },
@@ -134,6 +137,12 @@ class TestSpanAttributes:
                 },
                 "prompts": SpanAttributes.LLM_PROMPTS,
                 "provider": SpanAttributes.LLM_PROVIDER,
+                "request": {
+                    "model_name": SpanAttributes.LLM_REQUEST_MODEL_NAME,
+                },
+                "response": {
+                    "model_name": SpanAttributes.LLM_RESPONSE_MODEL_NAME,
+                },
                 "system": SpanAttributes.LLM_SYSTEM,
                 "token_count": {
                     "completion": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
@@ -159,6 +168,7 @@ class TestSpanAttributes:
                 }
             },
             "output": {
+                "images": SpanAttributes.OUTPUT_IMAGES,
                 "mime_type": SpanAttributes.OUTPUT_MIME_TYPE,
                 "value": SpanAttributes.OUTPUT_VALUE,
             },
@@ -260,6 +270,7 @@ class TestMessageContentAttributes:
         attributes = _get_attributes(MessageContentAttributes)
         assert _nested_dict(attributes) == {
             "message_content": {
+                "audio": MessageContentAttributes.MESSAGE_CONTENT_AUDIO,
                 "data": MessageContentAttributes.MESSAGE_CONTENT_DATA,
                 "encrypted_content": MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT,
                 "id": MessageContentAttributes.MESSAGE_CONTENT_ID,
@@ -267,6 +278,7 @@ class TestMessageContentAttributes:
                 "signature": MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE,
                 "text": MessageContentAttributes.MESSAGE_CONTENT_TEXT,
                 "type": MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+                "video": MessageContentAttributes.MESSAGE_CONTENT_VIDEO,
             }
         }
 
@@ -283,6 +295,28 @@ class TestImageAttributes:
         assert _nested_dict(attributes) == {
             "image": {
                 "url": ImageAttributes.IMAGE_URL,
+            }
+        }
+
+
+class TestAudioAttributes:
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(AudioAttributes)
+        assert _nested_dict(attributes) == {
+            "audio": {
+                "mime_type": AudioAttributes.AUDIO_MIME_TYPE,
+                "transcript": AudioAttributes.AUDIO_TRANSCRIPT,
+                "url": AudioAttributes.AUDIO_URL,
+            }
+        }
+
+
+class TestVideoAttributes:
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(VideoAttributes)
+        assert _nested_dict(attributes) == {
+            "video": {
+                "url": VideoAttributes.VIDEO_URL,
             }
         }
 
@@ -376,7 +410,9 @@ class TestToolAttributes:
         attributes = _get_attributes(ToolAttributes)
         assert _nested_dict(attributes) == {
             "tool": {
+                "description": ToolAttributes.TOOL_DESCRIPTION,
                 "json_schema": ToolAttributes.TOOL_JSON_SCHEMA,
+                "name": ToolAttributes.TOOL_NAME,
             }
         }
 

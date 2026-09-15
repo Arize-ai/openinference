@@ -226,8 +226,9 @@ function processTitanStreamChunk(
 
   // Titan incremental token counting
   if (typeof data.tokenCount === "number") {
+    const currentOutputTokenCount = state.rawUsageData.outputTokenCount;
     state.rawUsageData.outputTokenCount =
-      ((state.rawUsageData.outputTokenCount as number) || 0) + data.tokenCount;
+      (typeof currentOutputTokenCount === "number" ? currentOutputTokenCount : 0) + data.tokenCount;
   }
 
   // Titan final metrics (appears at end of stream)
@@ -474,13 +475,14 @@ export function safelySplitStream({ originalStream }: { originalStream: AsyncIte
         userStream.end();
       } catch (error) {
         // Propagate errors to both streams
-        instrumentationStream.destroy(error as Error);
-        userStream.destroy(error as Error);
+        const streamError = error instanceof Error ? error : new Error(String(error));
+        instrumentationStream.destroy(streamError);
+        userStream.destroy(streamError);
       }
     };
 
     // Start consuming in the background (non-blocking)
-    consumeAndDuplicate();
+    void consumeAndDuplicate();
 
     return {
       instrumentationStream,

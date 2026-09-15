@@ -42,7 +42,7 @@ describe("withSafety", () => {
     const diagMock = vi.spyOn(diag, "error");
     const safeFunction = withSafety({
       fn: mockFn,
-      onError: (error) => diag.error(`Test message ${error}`),
+      onError: (error) => diag.error(`Test message ${String(error)}`),
     });
     const result = safeFunction(1);
     expect(result).toBeNull();

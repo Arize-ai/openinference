@@ -68,12 +68,14 @@ public abstract class TracedSpan implements AutoCloseable {
             if (SemanticConventions.INPUT_MIME_TYPE.equals(key)) return true;
             if (key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)) return true;
             if (key.startsWith(SemanticConventions.LLM_PROMPTS)) return true;
+            if (isWithin(key, SemanticConventions.INPUT_IMAGES)) return true;
         }
         // hideOutputs (broad): output.value, output.mime_type, llm.output_messages.*
         if (config.isHideOutputs()) {
             if (SemanticConventions.OUTPUT_VALUE.equals(key)) return true;
             if (SemanticConventions.OUTPUT_MIME_TYPE.equals(key)) return true;
             if (key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES)) return true;
+            if (isWithin(key, SemanticConventions.OUTPUT_IMAGES)) return true;
         }
         // hideInputMessages (narrow): llm.input_messages.*
         if (config.isHideInputMessages() && key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)) return true;
@@ -97,6 +99,9 @@ public abstract class TracedSpan implements AutoCloseable {
         if (config.isHideOutputImages()
                 && key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES)
                 && key.contains(SemanticConventions.MESSAGE_CONTENT_IMAGE)) return true;
+        // hideInputImages / hideOutputImages: span-level input.images.* / output.images.*
+        if (config.isHideInputImages() && isWithin(key, SemanticConventions.INPUT_IMAGES)) return true;
+        if (config.isHideOutputImages() && isWithin(key, SemanticConventions.OUTPUT_IMAGES)) return true;
         // hideInputAudio: audio within llm.input_messages
         if (config.isHideInputAudio()
                 && key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)
@@ -213,6 +218,12 @@ public abstract class TracedSpan implements AutoCloseable {
                 ? SemanticConventions.MimeType.JSON.getValue()
                 : SemanticConventions.MimeType.TEXT.getValue();
         span.setAttribute(AttributeKey.stringKey(mimeKey), mimeType);
+    }
+
+    /** True for the namespace itself and anything indexed under it, so a key such as
+     * {@code input.imageset.foo} does not match {@code input.images}. */
+    private static boolean isWithin(String key, String namespace) {
+        return key.equals(namespace) || key.startsWith(namespace + ".");
     }
 
     private static boolean canSerializeStringCollection(List<?> list) {

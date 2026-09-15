@@ -20,6 +20,7 @@ from openinference.instrumentation import (
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -38,6 +39,7 @@ TEXT = OpenInferenceMimeTypeValues.TEXT
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 SESSION_ID = SpanAttributes.SESSION_ID
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
@@ -49,6 +51,8 @@ LLM_COST_TOTAL = SpanAttributes.LLM_COST_TOTAL
 AGENT_NAME = SpanAttributes.AGENT_NAME
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_PROVIDER_ANTHROPIC = OpenInferenceLLMProviderValues.ANTHROPIC.value
 TOOL_ID = SpanAttributes.TOOL_ID
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
@@ -225,6 +229,14 @@ def _maybe_set_model(span: trace_api.Span, msg: Any) -> None:
         span.set_attribute(LLM_MODEL_NAME, model)
 
 
+def _extract_stop_reason(message: Any) -> str | None:
+    stop_reason = _get_field(message, "stop_reason")
+    if stop_reason is None:
+        inner = _get_field(message, "message")
+        stop_reason = _get_field(inner, "stop_reason")
+    return str(stop_reason) if stop_reason else None
+
+
 def _extract_init_attributes(msg: Any) -> dict[str, Any]:
     session_id = _get_field(msg, "session_id")
     if session_id is None:
@@ -273,17 +285,20 @@ def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
     input_tokens = _safe_int(usage.get("input_tokens"))
     output_tokens = _safe_int(usage.get("output_tokens"))
     cache_read_tokens = _safe_int(usage.get("cache_read_input_tokens"))
-    cache_write_tokens = _safe_int(
-        usage.get("cache_write_input_tokens")
-        if usage.get("cache_write_input_tokens") is not None
-        else usage.get("cache_creation_input_tokens")
-    )
-    if input_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_PROMPT] = input_tokens
+    # Fall back to cache_creation_input_tokens when cache_write is absent or unparseable.
+    cache_write_tokens = _safe_int(usage.get("cache_write_input_tokens"))
+    if cache_write_tokens is None:
+        cache_write_tokens = _safe_int(usage.get("cache_creation_input_tokens"))
+    # Anthropic's input_tokens excludes cache tokens; fold them back into prompt/total.
+    prompt_parts = [
+        t for t in (input_tokens, cache_read_tokens, cache_write_tokens) if t is not None
+    ]
+    if prompt_parts:
+        attributes[LLM_TOKEN_COUNT_PROMPT] = sum(prompt_parts)
     if output_tokens is not None:
         attributes[LLM_TOKEN_COUNT_COMPLETION] = output_tokens
-    if input_tokens is not None and output_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_TOTAL] = input_tokens + output_tokens
+    if prompt_parts or output_tokens is not None:
+        attributes[LLM_TOKEN_COUNT_TOTAL] = sum(prompt_parts) + (output_tokens or 0)
     if cache_read_tokens is not None:
         attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read_tokens
     if cache_write_tokens is not None:
@@ -312,6 +327,9 @@ def _extract_result_error_attributes(msg: Any) -> dict[str, Any]:
 
 def _process_message(msg: Any, span: trace_api.Span) -> bool:
     _maybe_set_model(span, msg)
+    if stop_reason := _extract_stop_reason(msg):
+        if span.is_recording():
+            span.set_attribute(LLM_FINISH_REASON, stop_reason)
     if _is_system_init_message(msg):
         attrs = _extract_init_attributes(msg)
         if _has_existing_session_id(span):
@@ -1030,6 +1048,7 @@ class _QueryWrapper:
                 [
                     (OPENINFERENCE_SPAN_KIND, AGENT),
                     (LLM_SYSTEM, LLM_SYSTEM_ANTHROPIC),
+                    (LLM_PROVIDER, LLM_PROVIDER_ANTHROPIC),
                     *_format_prompt_attributes(prompt).items(),
                 ]
                 + list(get_attributes_from_context())
@@ -1165,6 +1184,7 @@ class _ClientReceiveResponseWrapper:
                 [
                     (OPENINFERENCE_SPAN_KIND, AGENT),
                     (LLM_SYSTEM, LLM_SYSTEM_ANTHROPIC),
+                    (LLM_PROVIDER, LLM_PROVIDER_ANTHROPIC),
                     *_format_prompt_attributes(prompt).items(),
                 ]
                 + list(get_attributes_from_context())
