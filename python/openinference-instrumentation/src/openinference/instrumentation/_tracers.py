@@ -59,10 +59,12 @@ from ._attributes import (
 from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
 from .config import (
+    REDACTED_VALUE,
     TraceConfig,
     mask_without_externalization,
 )
 from .context_attributes import get_attributes_from_context
+from .logging import logger
 
 if TYPE_CHECKING:
     from ._types import OpenInferenceSpanKind
@@ -121,6 +123,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         end_on_exit: bool = True,
         *,
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
+        input_value: Optional[Callable[[], str]] = None,
     ) -> Iterator[OpenInferenceSpan]:
         span = self.start_span(
             name=name,
@@ -132,6 +135,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
             start_time=start_time,
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,
+            input_value=input_value,
         )
         with use_span(
             span,
@@ -153,11 +157,14 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         set_status_on_exception: bool = True,
         *,
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
+        input_value: Optional[Callable[[], str]] = None,
     ) -> OpenInferenceSpan:
         otel_span: Span
         # Apply masking to attributes before passing to sampler to ensure
         # samplers don't see sensitive data that should be masked
         user_attributes = dict(attributes) if attributes else {}
+        if input_value is not None:
+            user_attributes[SpanAttributes.INPUT_VALUE] = REDACTED_VALUE
         span_kind_attributes = (
             get_span_kind_attributes(openinference_span_kind)
             if openinference_span_kind is not None
@@ -197,6 +204,20 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
             openinference_span.set_attributes(span_kind_attributes)
         if context_attributes:
             openinference_span.set_attributes(context_attributes)
+        if (
+            input_value is not None
+            and openinference_span.is_recording()
+            and not self._self_config.hide_inputs
+        ):
+            try:
+                resolved_input_value = input_value()
+            except Exception:
+                logger.exception("Failed to resolve deferred input value")
+            else:
+                openinference_span.set_attribute(
+                    SpanAttributes.INPUT_VALUE,
+                    resolved_input_value,
+                )
 
         _capture_span_context(openinference_span.get_span_context())
 
