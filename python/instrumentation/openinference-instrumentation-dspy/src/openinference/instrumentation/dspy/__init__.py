@@ -2,6 +2,7 @@ import json
 from abc import ABC
 from copy import copy, deepcopy
 from enum import Enum
+from functools import wraps
 from inspect import signature
 from logging import getLogger
 from typing import (
@@ -946,17 +947,21 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         *args,
         **kwargs,
     )
-    return safe_json_dumps(
-        {
-            **{
-                argument_name: argument_value
-                for argument_name, argument_value in bound_arguments.arguments.items()
-                if argument_name not in ["self", "kwargs"]
+    try:
+        return safe_json_dumps(
+            {
+                **{
+                    argument_name: argument_value
+                    for argument_name, argument_value in bound_arguments.arguments.items()
+                    if argument_name not in ["self", "kwargs"]
+                },
+                **bound_arguments.arguments.get("kwargs", {}),
             },
-            **bound_arguments.arguments.get("kwargs", {}),
-        },
-        cls=DSPyJSONEncoder,
-    )
+            cls=DSPyJSONEncoder,
+        )
+    except Exception:
+        logger.exception("Failed to serialize input value")
+        return ""
 
 
 def _get_predict_span_name(instance: Any) -> str:
@@ -994,20 +999,40 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
             for sub_key, sub_value in _flatten(value):
                 yield f"{key}.{sub_key}", sub_value
         elif isinstance(value, List) and any(isinstance(item, Mapping) for item in value):
-            for index, sub_mapping in enumerate(value):
-                for sub_key, sub_value in _flatten(sub_mapping):
-                    yield f"{key}.{index}.{sub_key}", sub_value
+            for index, item in enumerate(value):
+                if isinstance(item, Mapping):
+                    for sub_key, sub_value in _flatten(item):
+                        yield f"{key}.{index}.{sub_key}", sub_value
+                else:
+                    yield f"{key}.{index}", item
         else:
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
 
 
+def _suppress_extractor_errors(
+    fn: Callable[..., Iterator[Tuple[str, Any]]],
+) -> Callable[..., Iterator[Tuple[str, Any]]]:
+    """Extractor failures must never raise into user code; drop the attributes instead."""
+
+    @wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> Iterator[Tuple[str, Any]]:
+        try:
+            yield from fn(*args, **kwargs)
+        except Exception:
+            logger.exception("Failed to extract span attributes in %s", fn.__name__)
+
+    return wrapper
+
+
+@_suppress_extractor_errors
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     yield INPUT_MIME_TYPE, JSON
     yield INPUT_VALUE, safe_json_dumps(arguments)
 
 
+@_suppress_extractor_errors
 def _output_value_and_mime_type(response: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_VALUE, safe_json_dumps(response)
     yield OUTPUT_MIME_TYPE, JSON
@@ -1032,6 +1057,7 @@ def parse_provider_and_model(model_str: Optional[str]) -> tuple[Optional[str], O
     return None, model_str.strip() if model_str else None
 
 
+@_suppress_extractor_errors
 def _llm_model_name(lm: "LM") -> Iterator[Tuple[str, Any]]:
     if (model_name := getattr(lm, "model_name", None)) is not None:
         yield LLM_MODEL_NAME, model_name
@@ -1042,6 +1068,7 @@ def _llm_model_name(lm: "LM") -> Iterator[Tuple[str, Any]]:
             yield LLM_MODEL_NAME, model_name
 
 
+@_suppress_extractor_errors
 def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
     """
     Extract the LLM provider from a DSPy LM instance.
@@ -1068,6 +1095,7 @@ def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
             yield LLM_PROVIDER, provider
 
 
+@_suppress_extractor_errors
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     if isinstance(prompt := arguments.get("prompt"), str):
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
@@ -1082,6 +1110,7 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
 
 
+@_suppress_extractor_errors
 def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
     if isinstance(response, Iterable):
         for i, message in enumerate(response):
@@ -1090,6 +1119,7 @@ def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
                 yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", message
 
 
+@_suppress_extractor_errors
 def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
     kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
@@ -1130,13 +1160,16 @@ def _module_prediction_output_attributes(prediction: Any, instance: Any) -> Dict
     output_attributes = {OUTPUT_MIME_TYPE: JSON}
     import dspy
 
-    if isinstance(prediction, dspy.Prediction):
-        # https://github.com/stanfordnlp/dspy/blob/6fe693528323c9c10c82d90cb26711a985e18b29/dspy/primitives/example.py#L107C1-L108C1  # noqa E501
-        # The Prediction object in DSPy works like a dictionary
-        # https://github.com/stanfordnlp/dspy/blob/6fe693528323c9c10c82d90cb26711a985e18b29/dspy/primitives/prediction.py#L22  # noqa E501
-        output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction.toDict())
-    else:
-        output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction, cls=DSPyJSONEncoder)
+    try:
+        if isinstance(prediction, dspy.Prediction):
+            # https://github.com/stanfordnlp/dspy/blob/6fe693528323c9c10c82d90cb26711a985e18b29/dspy/primitives/example.py#L107C1-L108C1  # noqa E501
+            # The Prediction object in DSPy works like a dictionary
+            # https://github.com/stanfordnlp/dspy/blob/6fe693528323c9c10c82d90cb26711a985e18b29/dspy/primitives/prediction.py#L22  # noqa E501
+            output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction.toDict())
+        else:
+            output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction, cls=DSPyJSONEncoder)
+    except Exception:
+        logger.exception("Failed to extract module prediction output attributes")
     return output_attributes
 
 
