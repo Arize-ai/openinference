@@ -74,6 +74,7 @@ const generateV6FixtureTestCases = (): SpanProcessorTestCase[] => {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
         // gen_ai.response.model takes precedence over gen_ai.request.model
         [SemanticConventions.LLM_MODEL_NAME]: "gpt-4o-mini-2024-07-18",
+        [SemanticConventions.LLM_FINISH_REASON]: "stop",
         // Streaming metrics should be stored as metadata
         [`${SemanticConventions.METADATA}.ai.response.msToFirstChunk`]:
           streamTextSpan.attributes["ai.response.msToFirstChunk"],
@@ -106,6 +107,7 @@ const generateV6FixtureTestCases = (): SpanProcessorTestCase[] => {
       vercelAttributes: generateObjectSpan.attributes as Attributes,
       expectedOpenInferenceAttributes: {
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+        [SemanticConventions.LLM_FINISH_REASON]: "stop",
         [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
       },
     },
