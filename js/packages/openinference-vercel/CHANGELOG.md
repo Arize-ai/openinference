@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 3.2.0
+
+### Minor Changes
+
+- 4a64b91: Add the `llm.finish_reason` attribute to Vercel AI SDK LLM spans by mapping `ai.response.finishReason`.
+
 ## 3.1.13
 
 ### Patch Changes
