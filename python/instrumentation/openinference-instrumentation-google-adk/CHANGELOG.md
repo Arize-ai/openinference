@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.27...python-openinference-instrumentation-google-adk-v0.1.28) (2026-09-15)
+
+
+### Bug Fixes
+
+* **google_adk:** Avoid Redundant Request Attribute Derivation ([#3591](https://github.com/Arize-ai/openinference/issues/3591)) ([033027e](https://github.com/Arize-ai/openinference/commit/033027e3b1c5bb75ff7785d31ec5193b30225de2))
+* **google_adk:** patch merged-tool-call tracer for google-adk 2.x (_batch_tool_executor) ([#3740](https://github.com/Arize-ai/openinference/issues/3740)) ([1f09554](https://github.com/Arize-ai/openinference/commit/1f09554367dd443e4e5f7856be4c76ef5cdf6302))
+
 ## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.26...python-openinference-instrumentation-google-adk-v0.1.27) (2026-09-10)
 
 

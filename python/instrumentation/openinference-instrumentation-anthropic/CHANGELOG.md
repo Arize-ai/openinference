@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.1.4...python-openinference-instrumentation-anthropic-v2.1.5) (2026-09-15)
+
+
+### Bug Fixes
+
+* **anthropic:** support anthropic 1.5.0 streaming accumulate_event and parsed_output serialization changes ([#3741](https://github.com/Arize-ai/openinference/issues/3741)) ([8c007a1](https://github.com/Arize-ai/openinference/commit/8c007a15e6b0f804fd6774e61fe4725577702ca6))
+
 ## [2.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.1.3...python-openinference-instrumentation-anthropic-v2.1.4) (2026-09-10)
 
 
