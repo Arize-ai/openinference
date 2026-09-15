@@ -4,7 +4,12 @@ from typing import Any, Iterable, Iterator, Mapping, Tuple
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.groq._utils import _as_output_attributes, _io_value_and_type
-from openinference.semconv.trace import MessageAttributes, SpanAttributes, ToolCallAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 __all__ = ("_ResponseAttributesExtractor",)
 
@@ -55,7 +60,19 @@ class _ResponseAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if role := getattr(message, "role", None):
             yield MessageAttributes.MESSAGE_ROLE, role
-        if content := getattr(message, "content", None):
+        content = getattr(message, "content", None)
+        # Reasoning models return their reasoning beside the answer when the request
+        # asks for `reasoning_format="parsed"`. It goes out as a reasoning content
+        # block ahead of the text, the shape the other instrumentors use.
+        if reasoning := getattr(message, "reasoning", None):
+            prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.0"
+            yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "reasoning"
+            yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", reasoning
+            if content:
+                prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.1"
+                yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
+                yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", content
+        elif content:
             yield MessageAttributes.MESSAGE_CONTENT, content
         if function_call := getattr(message, "function_call", None):
             if name := getattr(function_call, "name", None):
@@ -100,3 +117,17 @@ class _ResponseAttributesExtractor:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (completion_tokens := getattr(usage, "completion_tokens", None)) is not None:
             yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+        # https://github.com/groq/groq-python/blob/main/src/groq/types/completion_usage.py
+        if (prompt_details := getattr(usage, "prompt_tokens_details", None)) is not None:
+            if (cached_tokens := _field(prompt_details, "cached_tokens")) is not None:
+                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+        if (completion_details := getattr(usage, "completion_tokens_details", None)) is not None:
+            if (reasoning_tokens := _field(completion_details, "reasoning_tokens")) is not None:
+                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
+
+
+def _field(obj: Any, name: str) -> Any:
+    # Older SDKs keep fields they do not know as a plain mapping under the parent model.
+    if isinstance(obj, Mapping):
+        return obj.get(name)
+    return getattr(obj, name, None)
