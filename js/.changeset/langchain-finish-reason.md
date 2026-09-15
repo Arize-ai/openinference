@@ -2,4 +2,4 @@
 "@arizeai/openinference-instrumentation-langchain": minor
 ---
 
-Capture the first generation's finish reason on LangChain LLM spans, including streamed response metadata.
+Add the `llm.finish_reason` attribute to LangChain LLM spans, supporting finish and stop reasons from generation information and streamed response metadata.
