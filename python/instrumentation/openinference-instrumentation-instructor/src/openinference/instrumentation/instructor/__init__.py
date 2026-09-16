@@ -42,6 +42,24 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
+        # The v2 instructor flow (>=1.15) never calls handle_response_model; every
+        # create() routes through retry_sync_v2/retry_async_v2. Wrap those FIRST:
+        # resolving instructor.patch (below) eagerly imports v2.core.patch, which
+        # binds retry_sync_v2 by value, so the retry wrap must land before it.
+        from openinference.instrumentation.instructor._wrappers import _RetryV2Wrapper
+
+        for _retry_fname in ("retry_sync_v2", "retry_async_v2"):
+            try:
+                _retry_mod = import_module("instructor.v2.core.retry")
+            except ModuleNotFoundError:
+                _retry_mod = None
+            if _retry_mod is not None and getattr(_retry_mod, _retry_fname, None) is not None:
+                wrap_function_wrapper(
+                    "instructor.v2.core.retry",
+                    _retry_fname,
+                    _RetryV2Wrapper(tracer=self._tracer),  # type: ignore[arg-type]
+                )
+
         self._original_patch = getattr(import_module("instructor"), "patch", None)
         patch_wrapper = _PatchWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         wrap_function_wrapper("instructor", "patch", patch_wrapper)
