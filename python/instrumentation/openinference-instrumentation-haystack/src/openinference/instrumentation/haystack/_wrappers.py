@@ -533,31 +533,23 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
         return
     for reply_index, reply in enumerate(replies):
         if isinstance(reply, ChatMessage):
-            if (
-                (reply_meta := getattr(reply, "meta", None)) is None
-                or not isinstance(reply_meta, dict)
-                or (finish_reason := reply_meta.get("finish_reason")) is None
-            ):
-                continue
-            if finish_reason == "tool_calls":
-                tool_calls = reply.tool_calls
-                for tool_call_index, tool_call in enumerate(tool_calls):
-                    if (tool_call_arguments := tool_call.arguments) is not None:
-                        yield (
-                            f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(tool_call_arguments),
-                        )
-                    if (tool_name := tool_call.tool_name) is not None:
-                        yield (
-                            f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
-                            tool_name,
-                        )
-            else:
-                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply.text
+            if (text := reply.text) is not None:
+                yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", text
             yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", reply.role.value
+            for tool_call_index, tool_call in enumerate(reply.tool_calls or []):
+                if (tool_call_arguments := tool_call.arguments) is not None:
+                    yield (
+                        f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                        safe_json_dumps(tool_call_arguments),
+                    )
+                if (tool_name := tool_call.tool_name) is not None:
+                    yield (
+                        f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
+                        tool_name,
+                    )
         elif isinstance(reply, str):
-            yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", reply
-            yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", ASSISTANT
+            yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_CONTENT}", reply
+            yield f"{LLM_OUTPUT_MESSAGES}.{reply_index}.{MESSAGE_ROLE}", ASSISTANT
 
 
 def _get_llm_model_provider_system_attributes(
