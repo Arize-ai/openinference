@@ -9,6 +9,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceMimeTypeValues,
@@ -26,6 +27,33 @@ def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, Mapping):
         return obj.get(attr_name, default)
     return getattr(obj, attr_name, default)
+
+
+def _get_attributes_from_message_content(
+    content: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    type_ = content.get("type")
+    if type_ == "text":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "text"
+        if text := content.get("text"):
+            yield MessageContentAttributes.MESSAGE_CONTENT_TEXT, text
+    elif type_ == "image_url":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "image"
+        if image := content.get("image_url"):
+            if isinstance(image, str):
+                if image:
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+                        f"{ImageAttributes.IMAGE_URL}",
+                        image,
+                    )
+            elif isinstance(image, Mapping):
+                if url := image.get("url"):
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+                        f"{ImageAttributes.IMAGE_URL}",
+                        url,
+                    )
 
 
 def _get_attributes_from_message(message: Any) -> Iterator[Tuple[str, AttributeValue]]:
@@ -53,7 +81,22 @@ def _get_attributes_from_message(message: Any) -> Iterator[Tuple[str, AttributeV
             yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", content
             content_index += 1
     elif content:
-        yield MessageAttributes.MESSAGE_CONTENT, content
+        if isinstance(content, str):
+            yield MessageAttributes.MESSAGE_CONTENT, content
+        elif isinstance(content, list) and all(isinstance(part, Mapping) for part in content):
+            # Multimodal requests send content as typed parts (text, image_url, ...).
+            # Flatten each part into message contents so the attribute value stays a
+            # primitive; a raw list of dicts is rejected by OpenTelemetry and dropped.
+            for part in content:
+                part_attributes = list(_get_attributes_from_message_content(part))
+                if not part_attributes:
+                    continue
+                prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
+                for key, value in part_attributes:
+                    yield f"{prefix}.{key}", value
+                content_index += 1
+        elif isinstance(content, list):
+            yield MessageAttributes.MESSAGE_CONTENT, safe_json_dumps(content)
     if name := get_attribute(message, "name"):
         yield MessageAttributes.MESSAGE_NAME, name
     if tool_call_id := get_attribute(message, "tool_call_id"):

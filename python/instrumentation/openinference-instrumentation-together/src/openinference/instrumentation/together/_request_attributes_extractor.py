@@ -1,13 +1,15 @@
 import logging
 from enum import Enum
-from typing import Any, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Iterable, Iterator, List, Mapping, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.together._utils import _as_input_attributes, _io_value_and_type
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -78,10 +80,26 @@ class _RequestAttributesExtractor:
                 role.value if isinstance(role, Enum) else role,
             )
         if content := get_attribute(message, "content"):
-            yield (
-                MessageAttributes.MESSAGE_CONTENT,
-                content,
-            )
+            if isinstance(content, str):
+                yield (
+                    MessageAttributes.MESSAGE_CONTENT,
+                    content,
+                )
+            elif isinstance(content, List) and all(isinstance(part, Mapping) for part in content):
+                # Multimodal requests send content as typed parts (text, image_url, ...).
+                # Flatten each part into message contents so the attribute value stays a
+                # primitive; a raw list of dicts is rejected by OpenTelemetry and dropped.
+                for part_index, part in enumerate(content):
+                    for key, value in _get_attributes_from_message_content(part):
+                        yield (
+                            f"{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{key}",
+                            value,
+                        )
+            elif isinstance(content, List):
+                yield (
+                    MessageAttributes.MESSAGE_CONTENT,
+                    safe_json_dumps(content),
+                )
         if name := get_attribute(message, "name"):
             yield MessageAttributes.MESSAGE_NAME, name
 
@@ -127,3 +145,30 @@ def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(attr_name, default)
     return getattr(obj, attr_name, default)
+
+
+def _get_attributes_from_message_content(
+    content: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    type_ = content.get("type")
+    if type_ == "text":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "text"
+        if text := content.get("text"):
+            yield MessageContentAttributes.MESSAGE_CONTENT_TEXT, text
+    elif type_ == "image_url":
+        yield MessageContentAttributes.MESSAGE_CONTENT_TYPE, "image"
+        if image := content.get("image_url"):
+            if isinstance(image, str):
+                if image:
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+                        f"{ImageAttributes.IMAGE_URL}",
+                        image,
+                    )
+            elif isinstance(image, Mapping):
+                if url := image.get("url"):
+                    yield (
+                        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+                        f"{ImageAttributes.IMAGE_URL}",
+                        url,
+                    )

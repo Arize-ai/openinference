@@ -14,7 +14,9 @@ from openinference.instrumentation import OITracer, TraceConfig, using_attribute
 from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.together import TogetherInstrumentor
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -325,3 +327,73 @@ def test_finish_reason_values(
     span = spans[0]
     attrs = dict(span.attributes or {})
     assert attrs[SpanAttributes.LLM_FINISH_REASON] == finish_reason
+
+
+def test_chat_with_multimodal_input(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    in_memory_span_exporter.clear()
+
+    with respx.mock(
+        base_url="https://api.together.ai",
+        assert_all_called=True,
+    ) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(
+                status_code=200,
+                json={
+                    "id": "chatcmpl-multimodal",
+                    "object": "chat.completion",
+                    "created": 1750000000,
+                    "model": _MODEL,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "A cat sitting on a couch.",
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 20,
+                        "completion_tokens": 8,
+                        "total_tokens": 28,
+                    },
+                },
+            )
+        )
+
+        client = Together()
+        client.chat.completions.create(
+            model=_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "What is in this image?"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "https://example.com/cat.png"},
+                        },
+                    ],
+                }
+            ],
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attrs = dict(spans[0].attributes or {})
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attrs[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "text"
+    assert (
+        attrs[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"]
+        == "What is in this image?"
+    )
+    assert attrs[f"{prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "image"
+    assert (
+        attrs[
+            f"{prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        ]
+        == "https://example.com/cat.png"
+    )
