@@ -10,7 +10,7 @@ from opentelemetry.trace import StatusCode
 from qwen_agent.agents import Assistant, Router
 from qwen_agent.llm import LLM_REGISTRY, get_chat_model
 from qwen_agent.llm.schema import ASSISTANT, FUNCTION, FunctionCall, Message
-from qwen_agent.tools.base import BaseTool, register_tool
+from qwen_agent.tools.base import BaseTool, ToolServiceError, register_tool
 from qwen_agent.tools.retrieval import Retrieval
 
 from openinference.instrumentation import (
@@ -57,6 +57,15 @@ class ExplodingTool(BaseTool):  # type: ignore[misc]
 
     def call(self, params: Any, **kwargs: Any) -> str:
         raise RuntimeError("tool exploded")
+
+
+@register_tool("svc_error", allow_overwrite=True)
+class ServiceErrorTool(BaseTool):  # type: ignore[misc]
+    description = "Raises an error qwen-agent re-raises instead of swallowing."
+    parameters = {"type": "object", "properties": {}, "required": []}
+
+    def call(self, params: Any, **kwargs: Any) -> str:
+        raise ToolServiceError(message="upstream tool service is down")
 
 
 class FakeRetrieval(Retrieval):  # type: ignore[misc]
@@ -465,6 +474,27 @@ class TestToolSpans:
         (span,) = _spans_by_kind(in_memory_span_exporter, "TOOL")
         assert span.status.status_code == StatusCode.OK
         assert "tool exploded" in _attrs(span)[SpanAttributes.OUTPUT_VALUE]
+
+    def test_propagating_tool_error_is_recorded_on_the_span(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        """`ToolServiceError` and `DocParserError` are re-raised by `Agent._call_tool`.
+
+        Unlike the swallowed case above these reach the wrapper, so the span
+        carries ERROR status and an exception event. `start_as_current_span`
+        does that through its `record_exception` / `set_status_on_exception`
+        defaults; this test pins the behaviour.
+        """
+        FakeChatModel.configure([_tool_call_turn("svc_error", {}), _text_turn("Sorry.")])
+
+        with pytest.raises(ToolServiceError):
+            _run(_agent(function_list=[ServiceErrorTool()]))
+
+        (span,) = _spans_by_kind(in_memory_span_exporter, "TOOL")
+        assert span.status.status_code == StatusCode.ERROR
+        assert "upstream tool service is down" in (span.status.description or "")
+        assert [event.name for event in span.events] == ["exception"]
+        assert span.end_time is not None
 
     @pytest.mark.parametrize(
         "target,span_kind",
