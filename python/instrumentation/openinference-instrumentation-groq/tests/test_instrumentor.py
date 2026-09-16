@@ -20,7 +20,9 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     SpanAttributes,
 )
@@ -394,3 +396,45 @@ TAG_TAGS = SpanAttributes.TAG_TAGS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+
+
+def test_groq_multimodal_input(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_groq_instrumentation: Any,
+) -> None:
+    client = Groq(api_key="fake")
+    client.chat.completions._post = _mock_post  # type: ignore[assignment]
+
+    client.chat.completions.create(
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What is in this image?"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/cat.png"},
+                    },
+                ],
+            }
+        ],
+        model="fake_model",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attributes[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "text"
+    assert (
+        attributes[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"]
+        == "What is in this image?"
+    )
+    assert attributes[f"{prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "image"
+    assert (
+        attributes[
+            f"{prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        ]
+        == "https://example.com/cat.png"
+    )
