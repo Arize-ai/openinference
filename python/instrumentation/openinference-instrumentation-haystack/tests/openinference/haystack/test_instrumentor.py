@@ -1593,3 +1593,75 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 USER_ID = SpanAttributes.USER_ID
+
+
+from typing import List  # noqa: E402
+
+from haystack import component  # noqa: E402
+from haystack.dataclasses import ToolCall  # noqa: E402
+
+
+@component
+class FakeChatGenerator:
+    @component.output_types(replies=List[ChatMessage])
+    def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+        # A reply that pairs text with a tool call, and one whose meta carries no
+        # finish_reason (haystack's own streaming conversion leaves it None when no
+        # chunk reports one).
+        tool_reply = ChatMessage.from_assistant(
+            text="Let me check that for you.",
+            tool_calls=[
+                ToolCall(tool_name="get_weather", arguments={"city": "Paris"}, id="call_1")
+            ],
+            meta={"model": "fake-model", "finish_reason": "tool_calls"},
+        )
+        plain_reply = ChatMessage.from_assistant(
+            text="streamed answer",
+            meta={"model": "fake-model"},
+        )
+        return {"replies": [tool_reply, plain_reply]}
+
+
+@component
+class FakeTextGenerator:
+    @component.output_types(replies=List[str])
+    def run(self, prompt: str) -> Dict[str, Any]:
+        return {"replies": ["answer one", "answer two"]}
+
+
+def test_output_messages_keep_content_without_finish_reason(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    pipe.add_component("chat_llm", FakeChatGenerator())
+    pipe.add_component("text_llm", FakeTextGenerator())
+    pipe.run(
+        {
+            "chat_llm": {"messages": [ChatMessage.from_user("hi")]},
+            "text_llm": {"prompt": "hi"},
+        }
+    )
+
+    spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
+    chat_attributes = dict(spans["FakeChatGenerator.run"].attributes or {})
+    assert (
+        chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Let me check that for you."
+    )
+    assert (
+        chat_attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}"
+        )
+        == "get_weather"
+    )
+    assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "streamed answer"
+    assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+
+    text_attributes = dict(spans["FakeTextGenerator.run"].attributes or {})
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "answer one"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "answer two"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
