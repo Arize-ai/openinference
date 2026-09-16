@@ -152,13 +152,17 @@ const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
 };
 
 /**
- * Normalize a GenAI tool definition into the OpenAI-style tool schema shape expected by OpenInference.
- * @param toolDefinition - The tool definition to normalize
- * @returns The normalized tool definition, or the original value when it cannot be normalized
+ * Type guard for a plain record object.
+ * @param value - The value to check
  */
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/**
+ * Normalize a GenAI tool definition into the OpenAI-style tool schema shape expected by OpenInference.
+ * @param toolDefinition - The tool definition to normalize
+ * @returns The normalized tool definition, or the original value when it cannot be normalized
+ */
 const normalizeToolDefinition = (toolDefinition: unknown): unknown => {
   if (!isRecord(toolDefinition)) {
     return toolDefinition;
