@@ -661,6 +661,50 @@ export const normalizeRequestContentBlocks = withSafety({
 // Response Processing Helpers
 
 /**
+ * Extracts the provider-native finish reason from an opaque InvokeModel payload.
+ *
+ * @param responseBody - The raw, unknown response body from the model.
+ * @returns The extracted finish reason string if found, otherwise `undefined`.
+ */
+export function extractFinishReason({
+  responseBody,
+}: {
+  responseBody: unknown;
+}): string | undefined {
+  if (!isObjectWithStringKeys(responseBody)) return undefined;
+
+  for (const key of [
+    "stopReason",
+    "stop_reason",
+    "finishReason",
+    "finish_reason",
+    "completionReason",
+  ]) {
+    const value = responseBody[key];
+    if (typeof value === "string" && value) return value;
+  }
+
+  // Use the first completion for the span-level finish reason.
+  for (const [collectionKey, reasonKey] of [
+    ["results", "completionReason"],
+    ["generations", "finish_reason"],
+    ["outputs", "stop_reason"],
+    ["choices", "finish_reason"],
+    ["completions", "finishReason"],
+  ]) {
+    const collection = responseBody[collectionKey];
+    if (!Array.isArray(collection) || !isObjectWithStringKeys(collection[0])) continue;
+    const value = collection[0][reasonKey];
+    if (typeof value === "string" && value) return value;
+    // AI21 Jurassic returns a nested reason object.
+    if (collectionKey === "completions" && isObjectWithStringKeys(value)) {
+      if (typeof value.reason === "string" && value.reason) return value.reason;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Safely parses the InvokeModel response body with comprehensive error handling
  * Handles multiple response body formats and provides null fallback on error
  *
