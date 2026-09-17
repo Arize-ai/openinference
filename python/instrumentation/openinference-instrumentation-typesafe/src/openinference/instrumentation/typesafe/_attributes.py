@@ -1,0 +1,133 @@
+"""Pure attribute builders for TypeSafe AI ``system_one`` calls.
+
+Every function here is side-effect free: it takes the SDK call arguments or the SDK
+response object and returns a flat mapping of OpenInference span attributes.
+
+A ``system_one`` call is modelled as an LLM span whose structured output is the map of
+typed answers. ``input.value`` and ``output.value`` mirror the wire request and response
+bodies; the ``questions`` map also rides in ``llm.invocation_parameters``, where it plays
+the role a JSON response schema plays for chat-completion APIs. See the package README
+for the full attribute mapping.
+
+A ``system_one`` call is not a chat exchange: neither side is a message list, so
+``llm.input_messages`` and ``llm.output_messages`` are deliberately not recorded.
+"""
+
+import logging
+from typing import Any, Dict, Mapping, Optional
+
+import msgspec
+from opentelemetry.util.types import AttributeValue
+
+from openinference.instrumentation import (
+    TokenCount,
+    get_input_attributes,
+    get_llm_attributes,
+    get_output_attributes,
+    get_span_kind_attributes,
+)
+from openinference.semconv.trace import OpenInferenceMimeTypeValues, OpenInferenceSpanKindValues
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
+LLM_PROVIDER = "typesafe"
+
+
+def _to_builtins(value: Any) -> Any:
+    """Converts msgspec structs, such as questions and answers, into JSON-compatible builtins.
+
+    Args:
+        value: Any value the SDK may hand back, msgspec struct or plain builtin.
+
+    Returns:
+        The value as JSON-compatible builtins, or ``str(value)`` if conversion fails.
+    """
+    try:
+        return msgspec.to_builtins(value, str_keys=True)
+    except Exception:
+        logger.exception("Failed to convert %r to builtins", type(value))
+        return str(value)
+
+
+def get_request_attributes(
+    *,
+    state: Any,
+    questions: Any,
+    model: Optional[str],
+    extra_body: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, AttributeValue]:
+    """Returns the span attributes that are known before the request is sent.
+
+    Args:
+        state: The state the questions are asked about, a string or a JSON-compatible value.
+        questions: The map of typed questions, as SDK objects or raw dictionaries.
+        model: The requested model, or ``None`` when the client default applies.
+        extra_body: Extra top-level request body fields, if any.
+
+    Returns:
+        The span kind, ``input.value``, and the request-side ``llm.*`` attributes.
+    """
+    body: Dict[str, Any] = {
+        "state": state,
+        "model": model,
+        "questions": _to_builtins(questions),
+    }
+    if extra_body:
+        body.update(extra_body)
+    invocation_parameters = {k: v for k, v in body.items() if k != "state" and v is not None}
+    return {
+        **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
+        **get_input_attributes(body, mime_type=OpenInferenceMimeTypeValues.JSON),
+        **get_llm_attributes(
+            provider=LLM_PROVIDER,
+            request_model_name=model,
+            invocation_parameters=invocation_parameters,
+        ),
+    }
+
+
+def get_response_attributes(response: Any) -> Dict[str, AttributeValue]:
+    """Returns the span attributes derived from a ``SystemOneResponse``.
+
+    Args:
+        response: The response object returned by ``system_one``.
+
+    Returns:
+        ``output.value``, the resolved response model name, and token counts.
+    """
+    model = getattr(response, "model", None)
+    usage = getattr(response, "usage", None)
+    body: Dict[str, Any] = {
+        "model": model,
+        "answers": _to_builtins(getattr(response, "answers", {})),
+        "usage": _to_builtins(usage),
+    }
+    return {
+        **get_llm_attributes(
+            response_model_name=model,
+            token_count=_get_token_count(usage),
+        ),
+        **get_output_attributes(body, mime_type=OpenInferenceMimeTypeValues.JSON),
+    }
+
+
+def _get_token_count(usage: Any) -> Optional[TokenCount]:
+    """Returns the prompt, completion, and total token counts, or ``None`` when unreported.
+
+    Args:
+        usage: The ``usage`` object on a ``SystemOneResponse``, or ``None``.
+
+    Returns:
+        A ``TokenCount`` with whichever counts the response reported, else ``None``.
+    """
+    prompt = getattr(usage, "input_tokens", None)
+    completion = getattr(usage, "output_tokens", None)
+    token_count: TokenCount = {}
+    if isinstance(prompt, int):
+        token_count["prompt"] = prompt
+    if isinstance(completion, int):
+        token_count["completion"] = completion
+    if token_count:
+        token_count["total"] = token_count.get("prompt", 0) + token_count.get("completion", 0)
+    return token_count or None
