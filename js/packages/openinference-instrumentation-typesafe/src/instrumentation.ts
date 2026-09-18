@@ -264,6 +264,12 @@ function instrumentAPIPromise<T>({
     });
   };
 
+  const endError = (error: unknown) => {
+    if (ended) return;
+    ended = true;
+    recordError(error);
+  };
+
   const recordOnce = (result: unknown) => {
     if (recorded) return;
     recorded = true;
@@ -293,16 +299,23 @@ function instrumentAPIPromise<T>({
       return response;
     },
     (error: unknown) => {
-      recordError(error);
+      endError(error);
       throw error;
     },
   );
 
   return new module.APIPromise(responsePromise, async () => {
     preferSdkParse = true;
-    const result = await promise;
-    recordOnce(result);
-    endOk();
-    return result;
+    try {
+      const result = await promise;
+      recordOnce(result);
+      endOk();
+      return result;
+    } catch (error) {
+      // The HTTP response may have succeeded while SDK parsing failed, in which
+      // case the fallback path above has already bailed out on `preferSdkParse`.
+      endError(error);
+      throw error;
+    }
   });
 }

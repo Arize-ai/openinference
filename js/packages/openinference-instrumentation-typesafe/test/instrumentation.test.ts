@@ -501,6 +501,22 @@ describe("TypeSafeInstrumentation", () => {
     expect(exporter.getFinishedSpans()[0].status.code).toBe(SpanStatusCode.OK);
   });
 
+  it("ends the span when SDK parsing fails after a successful response", async () => {
+    // The SDK parses the body with text(); a failure there rejects the awaited
+    // APIPromise even though the HTTP request itself succeeded.
+    vi.spyOn(Response.prototype, "text").mockRejectedValueOnce(new Error("parse failure"));
+    await expect(makeClient().client.systemOne(request)).rejects.toThrow("parse failure");
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].status).toEqual({ code: SpanStatusCode.ERROR, message: "parse failure" });
+    expect(spans[0].events).toEqual([
+      expect.objectContaining({
+        name: "exception",
+        attributes: expect.objectContaining({ "exception.message": "parse failure" }),
+      }),
+    ]);
+  });
+
   it("preserves SDK serialization errors for circular inputs", async () => {
     const state: Record<string, TypeSafe.JsonValue> = {};
     state.self = state;
