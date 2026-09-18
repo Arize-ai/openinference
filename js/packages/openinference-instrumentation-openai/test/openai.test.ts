@@ -1728,6 +1728,7 @@ describe("getProviderFromHost", () => {
     ["api.minimax.io", LLMProvider.MINIMAX],
     ["api.minimaxi.com", LLMProvider.MINIMAX],
     ["api.minimax.chat", LLMProvider.MINIMAX],
+    ["api.typesafe.ai", LLMProvider.TYPESAFE],
   ])("resolves %s to %s", (host, expected) => {
     expect(getProviderFromHost(host)).toBe(expected);
   });

@@ -932,6 +932,7 @@ export enum LLMSystem {
   AI21 = "ai21",
   META = "meta",
   AMAZON = "amazon",
+  TYPESAFE = "typesafe",
 }
 
 export enum LLMProvider {
@@ -955,4 +956,5 @@ export enum LLMProvider {
   META = "meta",
   ZAI = "zai",
   MINIMAX = "minimax",
+  TYPESAFE = "typesafe",
 }
