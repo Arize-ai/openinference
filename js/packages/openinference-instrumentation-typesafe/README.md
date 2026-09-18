@@ -52,16 +52,16 @@ The wrapped return value remains an SDK `APIPromise` (`await`, `withResponse()`,
 
 ## Captured attributes
 
-| Attribute | Value |
-| --- | --- |
-| Span name / kind | `TypeSafeClient.systemOne` / `LLM` |
-| `llm.provider`, `llm.system` | `typesafe` |
-| `llm.model_name` | Response model, else request or client default |
-| `input.value` / `output.value` | Full JSON request and response (`application/json`) |
-| `llm.token_count.*` | Prompt/completion when present; total when both exist |
-| `llm.invocation_parameters` | Model and explicit timeout/retry overrides |
-| `metadata.typesafe` | Request ID and question types/confidence |
-| `http.response.status_code` | HTTP status on SDK API errors |
+| Attribute                      | Value                                                 |
+| ------------------------------ | ----------------------------------------------------- |
+| Span name / kind               | `TypeSafeClient.systemOne` / `LLM`                    |
+| `llm.provider`, `llm.system`   | `typesafe`                                            |
+| `llm.model_name`               | Response model, else request or client default        |
+| `input.value` / `output.value` | Full JSON request and response (`application/json`)   |
+| `llm.token_count.*`            | Prompt/completion when present; total when both exist |
+| `llm.invocation_parameters`    | Model and explicit timeout/retry overrides            |
+| `metadata.typesafe`            | Request ID and question types/confidence              |
+| `http.response.status_code`    | HTTP status on SDK API errors                         |
 
 No `llm.input_messages` or `llm.output_messages` are emitted. State, questions, and answers live in the JSON payloads. Noul answers omit confidence.
 
@@ -104,8 +104,8 @@ cd packages/openinference-instrumentation-typesafe
 pnpm exec tsx examples/basic-usage.ts
 ```
 
-| Example | Description |
-| --- | --- |
-| [basic-usage.ts](examples/basic-usage.ts) | Classification with `withResponse()` |
-| [all-question-types.ts](examples/all-question-types.ts) | Choice, noul, score, and structured inputs |
-| [guardrail-routing.ts](examples/guardrail-routing.ts) | TypeSafe gates an OpenAI call (also needs `OPENAI_API_KEY`) |
+| Example                                                 | Description                                                 |
+| ------------------------------------------------------- | ----------------------------------------------------------- |
+| [basic-usage.ts](examples/basic-usage.ts)               | Classification with `withResponse()`                        |
+| [all-question-types.ts](examples/all-question-types.ts) | Choice, noul, score, and structured inputs                  |
+| [guardrail-routing.ts](examples/guardrail-routing.ts)   | TypeSafe gates an OpenAI call (also needs `OPENAI_API_KEY`) |
