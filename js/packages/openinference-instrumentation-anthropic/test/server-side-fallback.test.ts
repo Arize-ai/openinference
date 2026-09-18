@@ -59,7 +59,12 @@ function createJSONFetch(): typeof fetch {
     );
 }
 
-type UsageOverrides = Record<string, number | null>;
+type UsageOverrides = Partial<
+  Pick<
+    Anthropic.Beta.Messages.BetaMessageDeltaUsage,
+    "input_tokens" | "output_tokens" | "cache_creation_input_tokens" | "cache_read_input_tokens"
+  >
+>;
 
 function createStreamingFetch({
   deltaInputTokens = 12,

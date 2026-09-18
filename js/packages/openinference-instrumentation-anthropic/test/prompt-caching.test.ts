@@ -27,12 +27,11 @@ const TOKEN_COUNT_KEYS = [
 
 const model = "claude-sonnet-4-6";
 
-type Usage = {
-  input_tokens: number | null;
-  output_tokens: number;
-  cache_creation_input_tokens: number | null;
-  cache_read_input_tokens: number | null;
-};
+type Usage = Pick<
+  Anthropic.Messages.Usage,
+  "input_tokens" | "output_tokens" | "cache_creation_input_tokens" | "cache_read_input_tokens"
+>;
+type DeltaUsage = Pick<Anthropic.Messages.MessageDeltaUsage, keyof Usage>;
 
 const memoryExporter = new InMemorySpanExporter();
 const waitForSpans = (count: number) => waitForSpansOn(memoryExporter, count);
@@ -65,7 +64,7 @@ function createStreamingFetch({
   deltaUsage,
 }: {
   startUsage: Usage;
-  deltaUsage: Usage;
+  deltaUsage: DeltaUsage;
 }): typeof fetch {
   const events: Array<Record<string, unknown> & { type: string }> = [
     {

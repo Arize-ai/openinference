@@ -10,7 +10,7 @@ async function main() {
 
   // Simple message
   const message = await anthropic.messages.create({
-    model: "claude-opus-5",
+    model: "claude-3-5-sonnet-latest",
     max_tokens: 1000,
     messages: [
       {
