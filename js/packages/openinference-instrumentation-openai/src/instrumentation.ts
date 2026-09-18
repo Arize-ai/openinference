@@ -81,7 +81,6 @@ export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
   "api.minimax.io": LLMProvider.MINIMAX,
   "api.minimaxi.com": LLMProvider.MINIMAX,
   "api.minimax.chat": LLMProvider.MINIMAX,
-  "api.typesafe.ai": LLMProvider.TYPESAFE,
 };
 
 /**
