@@ -11,9 +11,17 @@ import {
 import { MimeType } from "@arizeai/openinference-semantic-conventions";
 
 /**
- * Request attributes for `systemOne`.
- * `input.value` is the actual request body. Invocation params exclude headers/signals.
- * Input masking is handled by OITracer / TraceConfig.
+ * Builds OpenInference attributes for a `systemOne` request.
+ *
+ * Serializes `request` onto `input.value` and records the resolved model plus
+ * invocation parameters from `options` (timeout and retry only; headers and
+ * abort signals are omitted).
+ *
+ * @param args - Attribute source values for the outbound call.
+ * @param args.request - The `systemOne` request body.
+ * @param args.options - Optional per-call request options.
+ * @param args.defaultModel - Client default model when `request.model` is unset.
+ * @returns OpenInference input and LLM request attributes.
  */
 function getRequestAttributes({
   request,
@@ -45,10 +53,23 @@ function getRequestAttributes({
   };
 }
 
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 /**
- * Response attributes for a parsed `systemOne` body.
- * `output.value` is the actual response body. Sets `llm.response.model_name` only when
- * present so the request/client model fallback stays. Output masking is handled by OITracer.
+ * Builds OpenInference attributes for a parsed `systemOne` response.
+ *
+ * Serializes `result` onto `output.value`. When `result` is an object, also
+ * records `llm.response.model_name` and token counts from `usage` when those
+ * fields are present.
+ *
+ * @param result - The parsed `systemOne` response body.
+ * @returns OpenInference output and LLM response attributes.
  */
 function getResponseAttributes(result: unknown): Attributes {
   const output = getOutputAttributes({
@@ -57,20 +78,18 @@ function getResponseAttributes(result: unknown): Attributes {
   });
   if (!isObjectWithStringKeys(result)) return output;
 
-  const usage = isObjectWithStringKeys(result.usage) ? result.usage : {};
-  const inputTokens = usage.input_tokens;
-  const outputTokens = usage.output_tokens;
+  const usage = isObjectWithStringKeys(result.usage) ? result.usage : undefined;
+  const prompt = asNumber(usage?.input_tokens);
+  const completion = asNumber(usage?.output_tokens);
+
   return {
     ...output,
     ...getLLMAttributes({
-      ...(typeof result.model === "string" && { responseModelName: result.model }),
+      responseModelName: asString(result.model),
       tokenCount: {
-        ...(typeof inputTokens === "number" && { prompt: inputTokens }),
-        ...(typeof outputTokens === "number" && { completion: outputTokens }),
-        ...(typeof inputTokens === "number" &&
-          typeof outputTokens === "number" && {
-            total: inputTokens + outputTokens,
-          }),
+        prompt,
+        completion,
+        total: prompt != null && completion != null ? prompt + completion : undefined,
       },
     }),
   };

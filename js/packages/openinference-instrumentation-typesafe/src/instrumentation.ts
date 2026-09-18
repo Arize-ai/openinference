@@ -27,18 +27,24 @@ const { LLM_PROVIDER, LLM_SYSTEM, OPENINFERENCE_SPAN_KIND } = SemanticConvention
 
 const MODULE_NAME = "@typesafe-ai/sdk";
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-typesafe";
-/** Supported `@typesafe-ai/sdk` versions for automatic CommonJS patching. */
-const SUPPORTED_VERSIONS = [">=0.6.0 <0.7.0"];
+/**
+ * Semver ranges of `@typesafe-ai/sdk` that this instrumentor auto-patches via
+ * the Node.js `require` hook.
+ */
+const SUPPORTED_VERSIONS = [">=0.6.0"];
 type TypeSafeModule = typeof TypeSafe;
 
 /**
- * Maps each patched `TypeSafeClient` prototype to the instrumentor that owns it.
- * WeakMap avoids writing to immutable ESM namespaces and allows CJS/ESM builds
- * to be patched independently.
+ * Ownership map from a patched `TypeSafeClient` prototype to the instrumentor
+ * that wrapped it. A {@link WeakMap} avoids mutating immutable ESM namespaces
+ * and lets CommonJS and ESM builds of the SDK be patched independently.
  */
 const owners = new WeakMap<TypeSafe.TypeSafeClient, TypeSafeInstrumentation>();
 
-/** Runs span recording without letting telemetry failures break the caller. */
+/**
+ * Invokes a span-recording callback, logging and swallowing telemetry errors so
+ * they never surface to the instrumented caller.
+ */
 const safelyRecord = withSafety({
   fn: (record: () => void) => {
     record();
@@ -51,14 +57,12 @@ const safelyRecord = withSafety({
 /**
  * OpenInference instrumentation for `@typesafe-ai/sdk`.
  *
- * One `LLM` span per `TypeSafeClient.systemOne` (including SDK retries).
- * `models.list` is not instrumented. Payloads are structured JSON — no chat
- * message attributes. Use {@link manuallyInstrument} for ESM / bundlers.
+ * Emits one OpenInference `LLM` span per `TypeSafeClient.systemOne` call,
+ * including SDK retries. Does not instrument `models.list`. Request and
+ * response bodies are recorded as JSON on `input.value` / `output.value`.
  *
- * The wrapper preserves `APIPromise` (`await`, `withResponse()`, `asResponse()`,
- * `map()`). When the caller only uses `asResponse()`, telemetry reads a response
- * clone so the caller's body stays unread; when the caller awaits/parses, attributes
- * come from the SDK parse and the clone is skipped.
+ * Automatic patching covers CommonJS `require` loads. For ESM, bundlers, or
+ * late imports, call {@link TypeSafeInstrumentation.manuallyInstrument}.
  *
  * @see {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md | OpenInference semantic conventions}
  */
@@ -68,16 +72,18 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
   private readonly manualModules = new Set<TypeSafeModule>();
   private readonly patchedModules = new Set<TypeSafeModule>();
 
+  /**
+   * @param options - Optional instrumentor configuration.
+   * @param options.instrumentationConfig - OpenTelemetry instrumentation config.
+   * @param options.traceConfig - OpenInference {@link TraceConfigOptions}.
+   * @param options.tracerProvider - Tracer provider used to create spans.
+   */
   constructor({
     instrumentationConfig,
     traceConfig,
     tracerProvider,
   }: {
     instrumentationConfig?: InstrumentationConfig;
-    /**
-     * OpenInference masking options. `hideInputMessages` / `hideOutputMessages`
-     * have no effect — this instrumentor does not emit chat-message attributes.
-     */
     traceConfig?: TraceConfigOptions;
     tracerProvider?: TracerProvider;
   } = {}) {
@@ -87,7 +93,12 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
     if (tracerProvider) this.setTracerProvider(tracerProvider);
   }
 
-  /** CommonJS module hook for `@typesafe-ai/sdk` (require-loaded only). */
+  /**
+   * Registers the CommonJS module definition used for automatic `require`
+   * patching of `@typesafe-ai/sdk`.
+   *
+   * @returns The Node.js module definition for this instrumentor.
+   */
   protected init() {
     return new InstrumentationNodeModuleDefinition<TypeSafeModule>(
       MODULE_NAME,
@@ -97,14 +108,24 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
     );
   }
 
+  /**
+   * Rebinds the instrumentor to a new tracer provider.
+   *
+   * @param provider - Tracer provider used for subsequent spans.
+   */
   setTracerProvider(provider: TracerProvider): void {
     super.setTracerProvider(provider);
     this.oiTracer = new OITracer({ tracer: this.tracer, traceConfig: this.traceConfig });
   }
 
   /**
-   * Patch an already-imported SDK namespace (ESM, bundlers, or late imports).
-   * Safe for CJS and ESM builds in the same process.
+   * Patches an already-imported `@typesafe-ai/sdk` namespace.
+   *
+   * Use this for ESM loads, bundlers, or modules imported before the
+   * instrumentor was enabled. Safe to call for both CommonJS and ESM builds
+   * in the same process.
+   *
+   * @param module - The imported `@typesafe-ai/sdk` module namespace.
    */
   manuallyInstrument(module: TypeSafeModule): void {
     this.manualModules.add(module);
@@ -203,11 +224,20 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
 }
 
 /**
- * Preserve APIPromise behavior while recording response attributes once.
+ * Wraps a TypeSafe `APIPromise` so response attributes are recorded once when
+ * the promise settles, without changing caller-visible behavior.
  *
- * - Await / withResponse / map: prefer the SDK parse (no extra clone).
- * - asResponse-only / never consumed: clone + json so the caller's body stays unread
- *   and the span still ends.
+ * Prefer the SDK-parsed body when the caller awaits, maps, or uses
+ * `withResponse()`. If the caller only uses `asResponse()` (or never consumes
+ * the body), clone the response so telemetry can read JSON while leaving the
+ * caller's body unread.
+ *
+ * @param args - Values needed to instrument the promise lifecycle.
+ * @param args.module - The patched TypeSafe SDK module namespace.
+ * @param args.promise - The original `APIPromise` returned by `systemOne`.
+ * @param args.span - The active OpenInference span for this call.
+ * @param args.recordError - Records the failure on `span` and ends it.
+ * @returns An `APIPromise` with the same public API as `args.promise`.
  */
 function instrumentAPIPromise<T>({
   module,

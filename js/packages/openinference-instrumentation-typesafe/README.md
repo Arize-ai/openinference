@@ -3,7 +3,7 @@
 OpenTelemetry instrumentation for [`@typesafe-ai/sdk`](https://www.npmjs.com/package/@typesafe-ai/sdk).
 Each `TypeSafeClient.systemOne` call produces one `LLM` span. `client.models.list()` is not instrumented.
 
-Requires Node.js 20+ and `@typesafe-ai/sdk >=0.6.0 <0.7.0`.
+Requires Node.js 20+ and `@typesafe-ai/sdk >=0.6.0`.
 
 ## Installation
 
