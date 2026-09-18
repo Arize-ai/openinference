@@ -1,5 +1,13 @@
 # @arizeai/openinference-instrumentation-openai-agents
 
+## 0.2.16
+
+### Patch Changes
+
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
 ## 0.2.15
 
 ### Patch Changes
