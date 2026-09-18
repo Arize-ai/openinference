@@ -881,6 +881,16 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert json.loads(tool_schema0) == get_weather_tool_schema
     assert isinstance(tool_schema1 := attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}"), str)
     assert json.loads(tool_schema1) == get_time_tool_schema
+    assert attributes.pop(f"{LLM_TOOLS}.0.{TOOL_NAME}") == "get_weather"
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.0.{TOOL_DESCRIPTION}")
+        == "Get the current weather in a given location"
+    )
+    assert attributes.pop(f"{LLM_TOOLS}.1.{TOOL_NAME}") == "get_time"
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.1.{TOOL_DESCRIPTION}")
+        == "Get the current time in a given time zone"
+    )
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -1078,6 +1088,16 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert json.loads(tool_schema0) == get_weather_tool_schema
     assert isinstance(tool_schema1 := attributes.pop(f"{LLM_TOOLS}.1.{TOOL_JSON_SCHEMA}"), str)
     assert json.loads(tool_schema1) == get_time_tool_schema
+    assert attributes.pop(f"{LLM_TOOLS}.0.{TOOL_NAME}") == "get_weather"
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.0.{TOOL_DESCRIPTION}")
+        == "Get the current weather in a given location"
+    )
+    assert attributes.pop(f"{LLM_TOOLS}.1.{TOOL_NAME}") == "get_time"
+    assert (
+        attributes.pop(f"{LLM_TOOLS}.1.{TOOL_DESCRIPTION}")
+        == "Get the current time in a given time zone"
+    )
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -2950,6 +2970,8 @@ TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+TOOL_NAME = ToolAttributes.TOOL_NAME
+TOOL_DESCRIPTION = ToolAttributes.TOOL_DESCRIPTION
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 USER_ID = SpanAttributes.USER_ID

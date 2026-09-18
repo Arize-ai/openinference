@@ -567,6 +567,15 @@ def _get_outputs(response: "BaseModel") -> Iterator[Tuple[str, Any]]:
 def _get_llm_tools(tools: Iterable[ToolUnionParam]) -> Iterator[Tuple[str, Any]]:
     for tool_index, tool_schema in enumerate(tools):
         yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool_schema)
+        # `tool.name` and `tool.description` are separate spec attributes
+        # (spec/tool_calling.md) and every Anthropic tool param carries them at the top
+        # level, so consumers should not have to parse the schema blob to get them.
+        if not isinstance(tool_schema, Mapping):
+            continue
+        if isinstance(name := tool_schema.get("name"), str) and name:
+            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_NAME}", name
+        if isinstance(description := tool_schema.get("description"), str) and description:
+            yield f"{LLM_TOOLS}.{tool_index}.{TOOL_DESCRIPTION}", description
 
 
 @_stop_on_exception
@@ -899,6 +908,8 @@ TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+TOOL_NAME = ToolAttributes.TOOL_NAME
+TOOL_DESCRIPTION = ToolAttributes.TOOL_DESCRIPTION
 USER_ID = SpanAttributes.USER_ID
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
