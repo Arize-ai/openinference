@@ -1,7 +1,7 @@
 """
 Traces a single ``TypeSafeClient.system_one`` call that asks all three TypeSafe primitives
 (Noul, Choice, Score) over structured state. Produces one LLM span named ``TypeSafeClient``
-whose ``llm.invocation_parameters`` carries the questions and whose output is the answers map.
+whose ``input.value`` carries the state and the questions and whose output is the answers map.
 
 1. Run a local OTLP collector such as Phoenix: `uvx arize-phoenix serve`
 2. Install dependencies: `pip install -r requirements.txt`

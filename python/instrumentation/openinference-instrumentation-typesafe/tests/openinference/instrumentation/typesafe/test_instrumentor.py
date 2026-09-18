@@ -80,9 +80,10 @@ def _assert_llm_span(span: ReadableSpan, transport: RecordingTransport) -> None:
         "questions": QUESTIONS_JSON,
     }
 
-    # questions ride in invocation parameters, like a response schema would.
+    # Invocation parameters are call configuration only: the questions are request content
+    # and are recorded once, in input.value.
     invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
-    assert invocation_parameters == {"model": "jev-latest", "questions": QUESTIONS_JSON}
+    assert invocation_parameters == {"model": "jev-latest"}
 
     # A System One call is not a chat exchange, so nothing is recorded as messages.
     assert not any(key.startswith(SpanAttributes.LLM_INPUT_MESSAGES) for key in attrs)
@@ -148,11 +149,7 @@ def test_structured_state_and_raw_dict_questions(
     # The client-level default model is picked up when no per-call model is given.
     assert attrs[SpanAttributes.LLM_REQUEST_MODEL_NAME] == "jev-preview"
     invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
-    assert invocation_parameters == {
-        "model": "jev-preview",
-        "questions": questions,
-        "beam_width": 4,
-    }
+    assert invocation_parameters == {"model": "jev-preview", "beam_width": 4}
     assert json.loads(str(attrs[SpanAttributes.INPUT_VALUE])) == transport.requests[-1]
 
 
@@ -170,8 +167,6 @@ def test_abstract_mapping_questions_and_tuple_state(
     assert body == transport.requests[-1]
     assert body["state"] == list(state)
     assert body["questions"] == QUESTIONS_JSON
-    invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
-    assert invocation_parameters["questions"] == QUESTIONS_JSON
 
 
 def test_abstract_containers_in_extra_body(
@@ -192,8 +187,11 @@ def test_abstract_containers_in_extra_body(
     assert body["routing"] == {"pool": "eu"}
     assert body["beams"] == [2, 4]
     invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
-    assert invocation_parameters["routing"] == {"pool": "eu"}
-    assert invocation_parameters["beams"] == [2, 4]
+    assert invocation_parameters == {
+        "model": "jev-latest",
+        "routing": {"pool": "eu"},
+        "beams": [2, 4],
+    }
 
 
 def test_partial_usage_omits_total(in_memory_span_exporter: InMemorySpanExporter) -> None:
@@ -237,7 +235,7 @@ def test_per_call_options_and_env_default_model(
         str(per_call_attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])
     )
     # Transport options (retry, timeout, headers) are not request-body parameters.
-    assert set(invocation_parameters) == {"model", "questions"}
+    assert set(invocation_parameters) == {"model"}
 
     env_attrs = _attrs(env_default)
     assert env_attrs[SpanAttributes.LLM_REQUEST_MODEL_NAME] == "jev-preview"
@@ -307,11 +305,13 @@ def test_trace_config_hides_inputs_and_outputs(
     attrs = _attrs(span)
     assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
-    # hide_inputs keeps the state off the span: it is only ever recorded in input.value.
+    # The whole request rides in input.value, so hide_inputs alone covers the state and the
+    # question instructions.
     assert STATE not in json.dumps(dict(attrs))
-    # The questions map is a schema, not caller data, so it stays in invocation parameters.
+    assert "Is this about billing?" not in json.dumps(dict(attrs))
+    # Invocation parameters carry configuration only, so they survive hide_inputs.
     invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
-    assert invocation_parameters["questions"] == QUESTIONS_JSON
+    assert invocation_parameters == {"model": "jev-latest"}
     # Non-sensitive attributes survive masking.
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "jev-1.13.0"
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 409
@@ -322,7 +322,8 @@ def test_trace_config_hides_llm_invocation_parameters(
     client: TypeSafeClient,
     tracer_provider: Any,
 ) -> None:
-    # The questions map carries the instructions, so masking it takes this flag as well.
+    # The flag drops the configuration attribute; the request content is already covered by
+    # hide_inputs.
     TypeSafeAIInstrumentor().uninstrument()
     TypeSafeAIInstrumentor().instrument(
         tracer_provider=tracer_provider,
@@ -337,7 +338,6 @@ def test_trace_config_hides_llm_invocation_parameters(
     assert SpanAttributes.LLM_INVOCATION_PARAMETERS not in attrs
     assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
-    assert "Is this about billing?" not in json.dumps(dict(attrs))
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 409
 
 

@@ -7,14 +7,14 @@ Python auto-instrumentation library for the [TypeSafe AI](https://docs.typesafe.
 Calls to `TypeSafeClient.system_one` and `AsyncTypeSafeClient.system_one` are traced and exported as OpenInference LLM spans. A System One request sends a `state` plus a map of typed `questions` (Noul, Choice, Score) and returns one typed `answer` per question, so the span records:
 
 - `input.value`: the request body (`state`, `model`, `questions`) as JSON
-- `llm.invocation_parameters`: the `model` and the `questions` map, which acts as the response schema
+- `llm.invocation_parameters`: the call configuration, meaning the `model` and any `extra_body` fields
 - `output.value`: the response body (`model`, `answers`, `usage`) as JSON
 - `llm.request.model_name` (for example `jev-latest`) and `llm.response.model_name` (the resolved model, for example `jev-1.13.0`)
 - `llm.token_count.prompt`, `llm.token_count.completion`, and `llm.token_count.total`
 
 A System One call is not a chat exchange, so the `state` and the `answers` are recorded only as `input.value` and `output.value`, not as `llm.input_messages` / `llm.output_messages`.
 
-Because the `questions` map rides in `llm.invocation_parameters`, it is masked by `hide_llm_invocation_parameters`, not by `hide_inputs`. The `state` — the caller data the questions are asked about — is only ever recorded in `input.value`, so `TraceConfig(hide_inputs=True)` is enough to keep it off the span. Use `TraceConfig(hide_inputs=True, hide_outputs=True, hide_llm_invocation_parameters=True)` when the question instructions themselves are sensitive too.
+The `state` and the `questions` are recorded only in `input.value`, so `TraceConfig(hide_inputs=True)` keeps the whole request — caller data and question instructions alike — off the span, and `hide_outputs=True` does the same for the answers. `llm.invocation_parameters` holds no request content, only the model and any `extra_body` fields; mask it with `hide_llm_invocation_parameters` if those are sensitive.
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
@@ -24,7 +24,7 @@ These traces are fully OpenTelemetry compatible and can be sent to an OpenTeleme
 - All three question primitives, passed as SDK objects or raw dictionaries
 - Suppressing tracing via `suppress_tracing()`
 - Context attribute propagation (`using_session`, `using_user`, `using_attributes`, metadata, tags)
-- Sensitive-data masking via `TraceConfig` (e.g. `hide_inputs`, `hide_outputs`, `hide_llm_invocation_parameters`)
+- Sensitive-data masking via `TraceConfig` (e.g. `hide_inputs`, `hide_outputs`)
 
 Requires `typesafe-sdk >= 0.6.0`.
 
