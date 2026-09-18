@@ -4,6 +4,14 @@ from typing import Any
 import pytest
 from pytest import MonkeyPatch
 
+# Force litellm to use its bundled model cost map instead of fetching
+# ``model_prices_and_context_window.json`` from raw.githubusercontent.com at
+# import time. dspy imports litellm lazily on the first LM call, so the fetch
+# happens mid-test where VCR cannot replay it, raising
+# CannotOverwriteExistingCassetteException. This must be set before litellm is
+# imported.
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
 
 def _strip_request_headers(request: Any) -> Any:
     request.headers.clear()
