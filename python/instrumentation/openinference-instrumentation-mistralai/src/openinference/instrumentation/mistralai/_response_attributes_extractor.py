@@ -4,6 +4,7 @@ from typing import (
     Any,
     Iterable,
     Iterator,
+    List,
     Mapping,
     Tuple,
 )
@@ -12,6 +13,7 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     SpanAttributes,
@@ -96,7 +98,15 @@ def _get_attributes_from_chat_completion_message(
     if role := _get_attribute_or_value(message, "role"):
         yield MessageAttributes.MESSAGE_ROLE, role
     if content := _get_attribute_or_value(message, "content"):
-        yield MessageAttributes.MESSAGE_CONTENT, content
+        if isinstance(content, str):
+            yield MessageAttributes.MESSAGE_CONTENT, content
+        elif isinstance(content, Iterable):
+            # Reasoning models answer with a list of chunks: a thinking chunk,
+            # itself a list of text chunks, followed by the text of the answer.
+            for index, chunk in enumerate(_flatten_content_chunks(content)):
+                prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{index}"
+                for key, value in chunk:
+                    yield f"{prefix}.{key}", value
     if (tool_calls := _get_attribute_or_value(message, "tool_calls")) and isinstance(
         tool_calls, Iterable
     ):
@@ -116,6 +126,26 @@ def _get_attributes_from_chat_completion_message(
                         f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                         arguments,
                     )
+
+
+def _flatten_content_chunks(
+    chunks: Iterable[Any],
+) -> Iterator[List[Tuple[str, AttributeValue]]]:
+    for chunk in chunks:
+        chunk_type = _get_attribute_or_value(chunk, "type")
+        if chunk_type == "thinking":
+            for thought in _get_attribute_or_value(chunk, "thinking") or ():
+                if text := _get_attribute_or_value(thought, "text"):
+                    yield [
+                        (MessageContentAttributes.MESSAGE_CONTENT_TYPE, "reasoning"),
+                        (MessageContentAttributes.MESSAGE_CONTENT_TEXT, text),
+                    ]
+        elif chunk_type == "text":
+            if text := _get_attribute_or_value(chunk, "text"):
+                yield [
+                    (MessageContentAttributes.MESSAGE_CONTENT_TYPE, "text"),
+                    (MessageContentAttributes.MESSAGE_CONTENT_TEXT, text),
+                ]
 
 
 def _get_attributes_from_completion_usage(
