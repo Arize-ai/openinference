@@ -14,6 +14,8 @@ Calls to `TypeSafeClient.system_one` and `AsyncTypeSafeClient.system_one` are tr
 
 A System One call is not a chat exchange, so the `state` and the `answers` are recorded only as `input.value` and `output.value`, not as `llm.input_messages` / `llm.output_messages`.
 
+Because the `questions` map rides in `llm.invocation_parameters`, it is masked by `hide_llm_invocation_parameters`, not by `hide_inputs`. The `state` — the caller data the questions are asked about — is only ever recorded in `input.value`, so `TraceConfig(hide_inputs=True)` is enough to keep it off the span. Use `TraceConfig(hide_inputs=True, hide_outputs=True, hide_llm_invocation_parameters=True)` when the question instructions themselves are sensitive too.
+
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 
 ## Supported Features
@@ -22,7 +24,7 @@ These traces are fully OpenTelemetry compatible and can be sent to an OpenTeleme
 - All three question primitives, passed as SDK objects or raw dictionaries
 - Suppressing tracing via `suppress_tracing()`
 - Context attribute propagation (`using_session`, `using_user`, `using_attributes`, metadata, tags)
-- Sensitive-data masking via `TraceConfig` (e.g. `hide_inputs`, `hide_outputs`)
+- Sensitive-data masking via `TraceConfig` (e.g. `hide_inputs`, `hide_outputs`, `hide_llm_invocation_parameters`)
 
 Requires `typesafe-sdk >= 0.6.0`.
 

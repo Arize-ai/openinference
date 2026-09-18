@@ -11,6 +11,7 @@ from typesafe_sdk import (
     AsyncTypeSafeClient,
     Choice,
     JSONContent,
+    JSONValue,
     Noul,
     Question,
     RetryPolicy,
@@ -173,6 +174,28 @@ def test_abstract_mapping_questions_and_tuple_state(
     assert invocation_parameters["questions"] == QUESTIONS_JSON
 
 
+def test_abstract_containers_in_extra_body(
+    in_memory_span_exporter: InMemorySpanExporter, transport: RecordingTransport
+) -> None:
+    # extra_body values are JSONValue, so they get the same treatment as state and questions.
+    extra_body: Dict[str, JSONValue] = {
+        "routing": MappingProxyType({"pool": "eu"}),
+        "beams": (2, 4),
+    }
+    client = TypeSafeClient(transport=transport.mock)
+    client.system_one(STATE, QUESTIONS, extra_body=extra_body)
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = _attrs(span)
+    body = json.loads(str(attrs[SpanAttributes.INPUT_VALUE]))
+    assert body == transport.requests[-1]
+    assert body["routing"] == {"pool": "eu"}
+    assert body["beams"] == [2, 4]
+    invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
+    assert invocation_parameters["routing"] == {"pool": "eu"}
+    assert invocation_parameters["beams"] == [2, 4]
+
+
 def test_partial_usage_omits_total(in_memory_span_exporter: InMemorySpanExporter) -> None:
     body = {**SYSTEM_ONE_RESPONSE, "usage": {"input_tokens": 344, "output_tokens": None}}
     transport = RecordingTransport(body=body)
@@ -284,8 +307,37 @@ def test_trace_config_hides_inputs_and_outputs(
     attrs = _attrs(span)
     assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    # hide_inputs keeps the state off the span: it is only ever recorded in input.value.
+    assert STATE not in json.dumps(dict(attrs))
+    # The questions map is a schema, not caller data, so it stays in invocation parameters.
+    invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
+    assert invocation_parameters["questions"] == QUESTIONS_JSON
     # Non-sensitive attributes survive masking.
     assert attrs[SpanAttributes.LLM_MODEL_NAME] == "jev-1.13.0"
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 409
+
+
+def test_trace_config_hides_llm_invocation_parameters(
+    in_memory_span_exporter: InMemorySpanExporter,
+    client: TypeSafeClient,
+    tracer_provider: Any,
+) -> None:
+    # The questions map carries the instructions, so masking it takes this flag as well.
+    TypeSafeAIInstrumentor().uninstrument()
+    TypeSafeAIInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(
+            hide_inputs=True, hide_outputs=True, hide_llm_invocation_parameters=True
+        ),
+    )
+    client.system_one(STATE, QUESTIONS)
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = _attrs(span)
+    assert SpanAttributes.LLM_INVOCATION_PARAMETERS not in attrs
+    assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
+    assert "Is this about billing?" not in json.dumps(dict(attrs))
     assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 409
 
 

@@ -6,8 +6,10 @@ response object and returns a flat mapping of OpenInference span attributes.
 A ``system_one`` call is modelled as an LLM span whose structured output is the map of
 typed answers. ``input.value`` and ``output.value`` mirror the wire request and response
 bodies; the ``questions`` map also rides in ``llm.invocation_parameters``, where it plays
-the role a JSON response schema plays for chat-completion APIs. See the package README
-for the full attribute mapping.
+the role a JSON response schema plays for chat-completion APIs. Because it rides there,
+the questions map is masked by ``hide_llm_invocation_parameters`` rather than by
+``hide_inputs``; the ``state``, which is where caller data lives, is never copied into
+the invocation parameters. See the package README for the full attribute mapping.
 
 A ``system_one`` call is not a chat exchange: neither side is a message list, so
 ``llm.input_messages`` and ``llm.output_messages`` are deliberately not recorded.
@@ -90,7 +92,9 @@ def get_request_attributes(
         "questions": _to_builtins(questions),
     }
     if extra_body:
-        body.update(extra_body)
+        # extra_body values are JSONValue, so they may hold abstract Mapping / Sequence
+        # containers that need the same conversion as state and questions.
+        body.update(_to_builtins(extra_body))
     invocation_parameters = {k: v for k, v in body.items() if k != "state" and v is not None}
     return {
         **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
