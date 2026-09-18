@@ -104,6 +104,12 @@ if _minimax_provider := getattr(OpenInferenceLLMProviderValues, "MINIMAX", None)
     _HOST_SUFFIX_TO_PROVIDER["api.minimaxi.com"] = _minimax_provider
     _HOST_SUFFIX_TO_PROVIDER["api.minimax.chat"] = _minimax_provider
 
+# ORACLE joined OpenInferenceLLMProviderValues after semconv 0.1.37; same guard.
+# OCI Generative AI serves inference.generativeai.<region>.oci.oraclecloud.com,
+# so the suffix covers every region.
+if _oracle_provider := getattr(OpenInferenceLLMProviderValues, "ORACLE", None):
+    _HOST_SUFFIX_TO_PROVIDER["oci.oraclecloud.com"] = _oracle_provider
+
 # Maps model name prefixes to their corresponding LLM system value.
 _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
     "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC,

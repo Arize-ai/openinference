@@ -74,4 +74,5 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.META: "meta",
             OpenInferenceLLMProviderValues.ZAI: "zai",
             OpenInferenceLLMProviderValues.MINIMAX: "minimax",
+            OpenInferenceLLMProviderValues.ORACLE: "oracle",
         }

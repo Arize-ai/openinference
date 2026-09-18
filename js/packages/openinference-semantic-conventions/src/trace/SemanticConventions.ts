@@ -957,4 +957,5 @@ export enum LLMProvider {
   ZAI = "zai",
   MINIMAX = "minimax",
   TYPESAFE = "typesafe",
+  ORACLE = "oracle",
 }

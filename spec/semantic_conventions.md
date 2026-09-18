@@ -195,6 +195,7 @@ used; otherwise, a custom value MAY be used.
 | `zai`        | Z.ai (GLM)      |
 | `minimax`    | MiniMax         |
 | `typesafe`   | TypeSafe AI     |
+| `oracle`     | Oracle (OCI Generative AI) |
 
 ### Token Count Details
 
