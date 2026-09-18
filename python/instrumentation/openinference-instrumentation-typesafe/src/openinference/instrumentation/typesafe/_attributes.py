@@ -38,12 +38,19 @@ LLM_PROVIDER = "typesafe"
 
 
 def _enc_hook(value: Any) -> Any:
-    """Materializes the abstract containers the SDK accepts (any ``Mapping`` / ``Sequence``).
+    """Materializes what msgspec cannot encode on its own into JSON-compatible builtins.
 
-    Mirrors the SDK's own encoder hook so that, for example, a ``MappingProxyType`` of
-    questions or a tuple-valued ``state`` is recorded as JSON rather than as its ``repr``.
-    Anything else is recorded as its string form.
+    Two kinds of value reach this hook. Pydantic models, which is what the SDK's questions,
+    answers, and usage became in ``typesafe-sdk`` 0.7.0, are dumped through their own
+    serializer, the one the SDK encodes with. Abstract containers, which the SDK accepts
+    anywhere it declares a ``Mapping`` or a ``Sequence``, are materialized the way the SDK's
+    own encoder fallback materializes them. Anything else is recorded as its string form.
     """
+    if callable(model_dump := getattr(value, "model_dump", None)):
+        try:
+            return model_dump(mode="json")
+        except Exception:
+            logger.exception("Failed to dump %r", type(value))
     if isinstance(value, AbcMapping):
         return dict(value)
     if isinstance(value, AbcSequence):
@@ -52,10 +59,11 @@ def _enc_hook(value: Any) -> Any:
 
 
 def _to_builtins(value: Any) -> Any:
-    """Converts msgspec structs, such as questions and answers, into JSON-compatible builtins.
+    """Converts the SDK's question, answer, and usage objects into JSON-compatible builtins.
 
     Args:
-        value: Any value the SDK may accept or hand back, msgspec struct or plain builtin.
+        value: Any value the SDK may accept or hand back: a msgspec struct (``typesafe-sdk``
+            0.6.x), a pydantic model (0.7.0 and later), or a plain builtin.
 
     Returns:
         The value as JSON-compatible builtins, or ``str(value)`` if conversion fails.

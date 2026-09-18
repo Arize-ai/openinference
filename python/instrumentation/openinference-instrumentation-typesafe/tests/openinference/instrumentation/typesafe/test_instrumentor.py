@@ -28,6 +28,7 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.typesafe import TypeSafeAIInstrumentor
+from openinference.instrumentation.typesafe._attributes import get_request_attributes
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -191,6 +192,22 @@ def test_abstract_containers_in_extra_body(
         "model": "jev-latest",
         "routing": {"pool": "eu"},
         "beams": [2, 4],
+    }
+
+
+def test_model_dump_objects_are_encoded_as_json() -> None:
+    # typesafe-sdk 0.7.0 moved questions, answers, and usage from msgspec structs to pydantic
+    # models, which msgspec cannot encode; they must not degrade to their repr. A stub stands
+    # in for the SDK type so this holds on either SDK generation.
+    class _Model:
+        def model_dump(self, mode: str = "python") -> Dict[str, Any]:
+            assert mode == "json"
+            return {"type": "noul", "instructions": "Is this about billing?"}
+
+    attrs = get_request_attributes(state="s", questions={"billing": _Model()}, model="jev-latest")
+    body = json.loads(str(attrs[SpanAttributes.INPUT_VALUE]))
+    assert body["questions"] == {
+        "billing": {"type": "noul", "instructions": "Is this about billing?"}
     }
 
 
