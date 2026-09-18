@@ -21,6 +21,7 @@ import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
 import {
   GRAPH_NODE_ID,
   GRAPH_NODE_PARENT_ID,
+  IMAGE_URL,
   INPUT_MIME_TYPE,
   INPUT_VALUE,
   LLM_FINISH_REASON,
@@ -48,6 +49,7 @@ import {
   MimeType,
   OpenInferenceSpanKind,
   OUTPUT_MIME_TYPE,
+  OUTPUT_IMAGES,
   OUTPUT_VALUE,
   SemanticConventions,
   TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
@@ -656,9 +658,31 @@ function getHandoffAttributes(data: HandoffSpanData): Attributes {
 /**
  * Extracts output messages and tool calls from a Responses API output array.
  */
-function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
+function imageBase64ToDataURL(base64: string, imageFormat: unknown): string {
+  if (base64.startsWith("data:image/")) return base64;
+  const normalizedFormat = imageFormat === "jpg" ? "jpeg" : imageFormat;
+  const mediaType =
+    normalizedFormat === "png" ||
+    normalizedFormat === "jpeg" ||
+    normalizedFormat === "webp" ||
+    normalizedFormat === "gif"
+      ? `image/${normalizedFormat}`
+      : "image/png";
+  return `data:${mediaType};base64,${base64}`;
+}
+
+function getImageGenerationOutputFormat(tools: ReadonlyArray<unknown>): string | undefined {
+  for (const tool of tools) {
+    if (!isRecord(tool) || tool.type !== "image_generation") continue;
+    if (isString(tool.output_format)) return tool.output_format;
+  }
+  return undefined;
+}
+
+function extractResponseOutput(output: ReadonlyArray<unknown>, imageFormat?: string): Attributes {
   const attributes: Attributes = {};
   let messageIndex = 0;
+  let imageIndex = 0;
 
   for (const item of output) {
     if (!isRecord(item)) continue;
@@ -697,6 +721,12 @@ function extractResponseOutput(output: ReadonlyArray<unknown>): Attributes {
         attributes[`${toolCallPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = item.arguments;
       }
       messageIndex++;
+    } else if (item.type === "image_generation_call" && isString(item.result)) {
+      attributes[`${OUTPUT_IMAGES}.${imageIndex}.${IMAGE_URL}`] = imageBase64ToDataURL(
+        item.result,
+        isString(item.output_format) ? item.output_format : imageFormat,
+      );
+      imageIndex++;
     }
     // Other item types (file_search_call, web_search_call, computer_call, ...)
     // are not yet supported, matching the Python instrumentation's TODOs.
@@ -914,7 +944,10 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
 
   // Output messages and function calls
   if (Array.isArray(response.output)) {
-    Object.assign(attributes, extractResponseOutput(response.output));
+    const imageFormat = Array.isArray(response.tools)
+      ? getImageGenerationOutputFormat(response.tools)
+      : undefined;
+    Object.assign(attributes, extractResponseOutput(response.output, imageFormat));
   }
 
   // System instructions become the first input message (matching the Python
