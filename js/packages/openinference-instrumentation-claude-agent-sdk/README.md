@@ -57,6 +57,7 @@ const instrumentation = new ClaudeAgentSDKInstrumentation({
 
 ### V1: `query()`
 
+The instrumented `query()` calls the SDK immediately, as the unwrapped SDK does, and returns the SDK's own `Query` object, so control methods such as `interrupt()` and `setPermissionMode()` keep working. Iteration is traced whether you use `for await` or call `next()`/`return()`/`throw()` directly.
 The `query()` function is wrapped to produce:
 
 - An **AGENT** span for the entire query lifecycle
