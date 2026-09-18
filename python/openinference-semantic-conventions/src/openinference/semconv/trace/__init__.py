@@ -627,7 +627,6 @@ class OpenInferenceLLMSystemValues(Enum):
     COHERE = "cohere"
     MISTRALAI = "mistralai"
     VERTEXAI = "vertexai"
-    TYPESAFE = "typesafe"
 
 
 class OpenInferenceLLMProviderValues(Enum):
@@ -650,4 +649,3 @@ class OpenInferenceLLMProviderValues(Enum):
     META = "meta"
     ZAI = "zai"
     MINIMAX = "minimax"
-    TYPESAFE = "typesafe"

@@ -21,8 +21,6 @@ def vcr_config() -> dict[str, Any]:
         "before_record_response": _strip_response_headers,
         "decode_compressed_response": True,
         "record_mode": "once",
-        # LiteLLM may fetch model pricing metadata outside recorded API traffic.
-        "ignore_hosts": ["raw.githubusercontent.com"],
     }
 
 

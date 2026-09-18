@@ -42,7 +42,6 @@ const (
 	LLMSystemCohere    = "cohere"
 	LLMSystemMistralAI = "mistralai"
 	LLMSystemVertexAI  = "vertexai"
-	LLMSystemTypeSafe  = "typesafe"
 )
 
 // Values for the LLMProvider attribute (the company providing the model —
@@ -68,5 +67,4 @@ const (
 	LLMProviderMeta       = "meta"
 	LLMProviderZAI        = "zai"
 	LLMProviderMiniMax    = "minimax"
-	LLMProviderTypeSafe   = "typesafe"
 )

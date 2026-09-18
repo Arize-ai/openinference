@@ -49,7 +49,6 @@ class TestOpenInferenceLLMSystemValues:
             OpenInferenceLLMSystemValues.MISTRALAI: "mistralai",
             OpenInferenceLLMSystemValues.OPENAI: "openai",
             OpenInferenceLLMSystemValues.VERTEXAI: "vertexai",
-            OpenInferenceLLMSystemValues.TYPESAFE: "typesafe",
         }
 
 
@@ -75,5 +74,4 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.META: "meta",
             OpenInferenceLLMProviderValues.ZAI: "zai",
             OpenInferenceLLMProviderValues.MINIMAX: "minimax",
-            OpenInferenceLLMProviderValues.TYPESAFE: "typesafe",
         }
