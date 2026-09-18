@@ -80,19 +80,7 @@ const instrumentation = new TypeSafeInstrumentation({
 
 ## Examples
 
-To run an example against local Phoenix (`http://localhost:6006`):
-
-```shell
-cd js/packages/openinference-instrumentation-typesafe
-pnpm install
-pnpm -r build
-export TYPESAFE_API_KEY=...
-pnpm exec tsx examples/basic-usage.ts          # single classification
-pnpm exec tsx examples/all-question-types.ts   # choice / noul / score
-pnpm exec tsx examples/guardrail-routing.ts    # TypeSafe + OpenAI child spans
-```
-
-Shared OpenTelemetry setup lives in [`examples/instrumentation.ts`](./examples/instrumentation.ts).
+Runnable examples live in the repository: [openinference-instrumentation-typesafe/examples](https://github.com/Arize-ai/openinference/tree/main/js/packages/openinference-instrumentation-typesafe/examples).
 
 For more information on OpenTelemetry Node.js SDK, see the [OpenTelemetry Node.js SDK documentation](https://opentelemetry.io/docs/instrumentation/js/getting-started/nodejs/).
 
