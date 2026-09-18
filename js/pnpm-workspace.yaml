@@ -4,3 +4,6 @@ onlyBuiltDependencies:
   - esbuild
   - protobufjs
 minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  # Reviewed SDK release used by the TypeSafe instrumentor's compatibility tests.
+  - "@typesafe-ai/sdk@0.6.0"

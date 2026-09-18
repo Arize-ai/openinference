@@ -22,6 +22,11 @@ import {
 
 const ALL_PROVIDER_VALUES = new Set(Object.values(LLMProvider));
 
+// Providers that are not reachable through an OpenAI-compatible endpoint, and so
+// intentionally have no host suffix entry here. They are traced by their own
+// instrumentation package instead.
+const PROVIDERS_WITHOUT_OPENAI_COMPATIBLE_HOST = new Set<string>([LLMProvider.TYPESAFE]);
+
 // Function tools
 async function getCurrentLocation() {
   return "Boston"; // Simulate lookup
@@ -1749,7 +1754,9 @@ describe("getProviderFromHost", () => {
 
   it("every provider has at least one host entry", () => {
     const mapped = new Set(Object.values(HOST_SUFFIX_TO_PROVIDER));
-    const missing = [...ALL_PROVIDER_VALUES].filter((p) => !mapped.has(p));
+    const missing = [...ALL_PROVIDER_VALUES].filter(
+      (p) => !mapped.has(p) && !PROVIDERS_WITHOUT_OPENAI_COMPATIBLE_HOST.has(p),
+    );
     expect(missing).toEqual([]);
   });
 
