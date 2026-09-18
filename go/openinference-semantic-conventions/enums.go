@@ -67,4 +67,5 @@ const (
 	LLMProviderMeta       = "meta"
 	LLMProviderZAI        = "zai"
 	LLMProviderMiniMax    = "minimax"
+	LLMProviderOracle     = "oracle"
 )

@@ -93,6 +93,11 @@ _LITELLM_TO_OPENINFERENCE_PROVIDERS = {
     "xai": OpenInferenceLLMProviderValues.XAI,
     "deepseek": OpenInferenceLLMProviderValues.DEEPSEEK,
 }
+# ORACLE joined OpenInferenceLLMProviderValues after semconv 0.1.37; guard the
+# reference so an older semconv release degrades to "no oci mapping" instead of
+# an import-time AttributeError.
+if _oracle_provider := getattr(OpenInferenceLLMProviderValues, "ORACLE", None):
+    _LITELLM_TO_OPENINFERENCE_PROVIDERS["oci"] = _oracle_provider
 
 
 def _get_oi_provider_from_litellm_model_name(

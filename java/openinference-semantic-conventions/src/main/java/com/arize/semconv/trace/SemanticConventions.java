@@ -933,7 +933,8 @@ public class SemanticConventions {
         OLLAMA("ollama"),
         META("meta"),
         ZAI("zai"),
-        MINIMAX("minimax");
+        MINIMAX("minimax"),
+        ORACLE("oracle");
 
         private final String value;
 
