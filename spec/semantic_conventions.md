@@ -168,6 +168,7 @@ used; otherwise, a custom value MAY be used.
 | `amazon`    | Amazon Bedrock native |
 | `meta`      | Meta (Llama)          |
 | `ai21`      | AI21 Labs             |
+| `typesafe`  | TypeSafe AI           |
 
 `llm.provider` has the following list of well-known values. If one of them applies, then the respective value MUST be
 used; otherwise, a custom value MAY be used.
@@ -193,6 +194,7 @@ used; otherwise, a custom value MAY be used.
 | `meta`       | Meta AI         |
 | `zai`        | Z.ai (GLM)      |
 | `minimax`    | MiniMax         |
+| `typesafe`   | TypeSafe AI     |
 
 ### Token Count Details
 

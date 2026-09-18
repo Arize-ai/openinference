@@ -3436,6 +3436,7 @@ class TestGetProviderFromHost:
             ("api.minimax.io", OpenInferenceLLMProviderValues.MINIMAX),
             ("api.minimaxi.com", OpenInferenceLLMProviderValues.MINIMAX),
             ("api.minimax.chat", OpenInferenceLLMProviderValues.MINIMAX),
+            ("api.typesafe.ai", OpenInferenceLLMProviderValues.TYPESAFE),
         ],
     )
     def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:
@@ -3503,6 +3504,7 @@ class TestGetSystemFromModel:
             ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
             ("vertex-ai-model", OpenInferenceLLMSystemValues.VERTEXAI),
             ("google-palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("jev-latest", OpenInferenceLLMSystemValues.TYPESAFE),
         ],
     )
     def test_known_models(self, model_name: str, expected: OpenInferenceLLMSystemValues) -> None:

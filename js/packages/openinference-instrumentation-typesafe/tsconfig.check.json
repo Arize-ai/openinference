@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.esm.json",
+  "compilerOptions": { "composite": false, "incremental": false },
+  "include": ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -104,6 +104,10 @@ if _minimax_provider := getattr(OpenInferenceLLMProviderValues, "MINIMAX", None)
     _HOST_SUFFIX_TO_PROVIDER["api.minimaxi.com"] = _minimax_provider
     _HOST_SUFFIX_TO_PROVIDER["api.minimax.chat"] = _minimax_provider
 
+# Keep imports compatible with semconv releases predating TypeSafe support.
+if _typesafe_provider := getattr(OpenInferenceLLMProviderValues, "TYPESAFE", None):
+    _HOST_SUFFIX_TO_PROVIDER["api.typesafe.ai"] = _typesafe_provider
+
 # Maps model name prefixes to their corresponding LLM system value.
 _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
     "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC,
@@ -129,6 +133,8 @@ _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
     "vertex": OpenInferenceLLMSystemValues.VERTEXAI,
     "google": OpenInferenceLLMSystemValues.VERTEXAI,
 }
+if _typesafe_system := getattr(OpenInferenceLLMSystemValues, "TYPESAFE", None):
+    _MODEL_PREFIX_TO_SYSTEM["jev-"] = _typesafe_system
 
 
 def infer_llm_provider_from_host(host: str) -> Optional[OpenInferenceLLMProviderValues]:
