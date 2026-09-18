@@ -142,8 +142,8 @@ def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Attribut
 
     if session_id:
         yield SESSION_ID, session_id
-    if user_id:
-        yield USER_ID, user_id
+    if user_id is not None:
+        yield USER_ID, str(user_id)
 
 
 def _agent_run_attributes(
@@ -161,8 +161,8 @@ def _agent_run_attributes(
         if hasattr(agent, "id") and agent.id:
             yield "agno.team.id", agent.id
 
-        if hasattr(agent, "user_id") and agent.user_id:
-            yield USER_ID, agent.user_id
+        if hasattr(agent, "user_id") and agent.user_id is not None:
+            yield USER_ID, str(agent.user_id)
 
         # Use context parent instead of structural parent
         if context_parent_id:
@@ -184,8 +184,8 @@ def _agent_run_attributes(
         if hasattr(agent, "id") and agent.id:
             yield "agno.agent.id", agent.id
 
-        if hasattr(agent, "user_id") and agent.user_id:
-            yield USER_ID, agent.user_id
+        if hasattr(agent, "user_id") and agent.user_id is not None:
+            yield USER_ID, str(agent.user_id)
 
         # Use context parent instead of structural parent
         if context_parent_id:

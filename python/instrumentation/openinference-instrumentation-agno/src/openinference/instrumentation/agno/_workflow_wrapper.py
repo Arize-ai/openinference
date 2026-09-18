@@ -174,8 +174,8 @@ def _workflow_run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str,
 
     if session_id:
         yield SESSION_ID, session_id
-    if user_id:
-        yield USER_ID, user_id
+    if user_id is not None:
+        yield USER_ID, str(user_id)
 
 
 class _WorkflowWrapper:
@@ -263,8 +263,8 @@ class _WorkflowWrapper:
                 span.set_attribute("agno.run.id", run_id)
 
             # Check instance user_id
-            if hasattr(instance, "user_id") and instance.user_id:
-                span.set_attribute(USER_ID, instance.user_id)
+            if hasattr(instance, "user_id") and instance.user_id is not None:
+                span.set_attribute(USER_ID, str(instance.user_id))
 
             return result
 
@@ -335,8 +335,8 @@ class _WorkflowWrapper:
                 span.set_attribute("agno.run.id", run_id)
 
             # Capture user_id from instance if available
-            if instance and hasattr(instance, "user_id") and instance.user_id:
-                span.set_attribute(USER_ID, instance.user_id)
+            if instance and hasattr(instance, "user_id") and instance.user_id is not None:
+                span.set_attribute(USER_ID, str(instance.user_id))
 
         except (StopIteration, StopAsyncIteration):
             raise
@@ -451,8 +451,8 @@ class _WorkflowWrapper:
                     span.set_attribute("agno.run.id", run_id)
 
                 # Capture user_id from instance if available
-                if hasattr(instance, "user_id") and instance.user_id:
-                    span.set_attribute(USER_ID, instance.user_id)
+                if hasattr(instance, "user_id") and instance.user_id is not None:
+                    span.set_attribute(USER_ID, str(instance.user_id))
 
                 return response
 
@@ -523,8 +523,8 @@ class _WorkflowWrapper:
                 span.set_attribute("agno.run.id", run_id)
 
             # Capture user_id from instance if available
-            if instance and hasattr(instance, "user_id") and instance.user_id:
-                span.set_attribute(USER_ID, instance.user_id)
+            if instance and hasattr(instance, "user_id") and instance.user_id is not None:
+                span.set_attribute(USER_ID, str(instance.user_id))
 
         except (StopIteration, StopAsyncIteration):
             raise
@@ -575,8 +575,8 @@ class _WorkflowExecuteWrapper:
             span.set_attribute("agno.run.id", run_id)
 
         user_id = getattr(run_output, "user_id", None)
-        if user_id:
-            span.set_attribute(USER_ID, user_id)
+        if user_id is not None:
+            span.set_attribute(USER_ID, str(user_id))
 
     async def aexecute(
         self,
