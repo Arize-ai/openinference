@@ -61,23 +61,24 @@ builds can be manually instrumented in the same process.
 
 ## Captured attributes
 
-| Attribute                                        | Value                                                         |
-| ------------------------------------------------ | ------------------------------------------------------------- |
-| Span name / kind                                 | `TypeSafeClient.systemOne` / `LLM`                            |
-| `llm.provider`, `llm.system`                     | `typesafe`                                                    |
-| `llm.model_name`                                 | Response model, falling back to the request or client default |
-| `input.value`                                    | JSON request including the resolved model                     |
-| `output.value`                                   | JSON response including answers, usage, and model             |
-| `llm.input_messages.0`                           | Synthetic user message containing state                       |
-| `llm.output_messages.0`                          | Synthetic assistant message containing answers                |
-| `llm.token_count.*`                              | Prompt/completion when present; total only when both exist    |
-| `llm.invocation_parameters`                      | Model and explicitly supplied timeout/retry overrides         |
-| `metadata.typesafe` (inside the `metadata` JSON) | Request ID and question types/confidence                      |
-| `http.response.status_code`                      | HTTP status on SDK API errors                                 |
+| Attribute                                        | Value                                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Span name / kind                                 | `TypeSafeClient.systemOne` / `LLM`                                           |
+| `llm.provider`, `llm.system`                     | `typesafe`                                                                   |
+| `llm.model_name`                                 | Response model, falling back to the request or client default                |
+| `input.value`                                    | Complete JSON request including state, questions, and resolved request model |
+| `output.value`                                   | JSON response including answers, usage, and model                            |
+| `input.mime_type`, `output.mime_type`            | `application/json`                                                           |
+| `llm.token_count.*`                              | Prompt/completion when present; total only when both exist                   |
+| `llm.invocation_parameters`                      | Model and explicitly supplied timeout/retry overrides                        |
+| `metadata.typesafe` (inside the `metadata` JSON) | Request ID and question types/confidence                                     |
+| `http.response.status_code`                      | HTTP status on SDK API errors                                                |
 
-The messages are a presentation of TypeSafe's structured API, not a chat history.
-The complete questions, instructions, and criteria remain in `input.value`;
-probabilities and score legends remain in the response. Noul answers report a
+TypeSafe evaluates state against typed questions and returns structured answers.
+The complete state, questions, instructions, and criteria are captured in
+`input.value`; answers, probabilities, and score legends are captured in
+`output.value`. No `llm.input_messages` or `llm.output_messages` attributes are
+emitted, including when the state contains a conversation. Noul answers report a
 probability of yes; no synthetic confidence is assigned to them. The span kind
 is always `LLM`, regardless of whether the application uses the call as a
 guardrail, router, or evaluator.
@@ -110,10 +111,10 @@ const instrumentation = new TypeSafeInstrumentation({
 
 Standard OpenInference context attributes (session, user, tags, metadata), tracing
 suppression, and `TraceConfig` environment variables are supported. `hideInputs`
-redacts the input payload and removes input messages and question metadata.
-`hideOutputs` redacts output and removes output messages and confidence metadata.
-`hideInputMessages` and `hideOutputMessages` remove only the corresponding message
-attributes; use `hideInputs` / `hideOutputs` to hide the full payloads.
+redacts the input payload and removes question metadata. `hideOutputs` redacts
+the output payload and removes confidence metadata. `hideInputMessages` and
+`hideOutputMessages` have no effect on this instrumentation because it emits no
+chat-message attributes; use `hideInputs` / `hideOutputs` to hide the payloads.
 
 Request headers, credentials, and abort signals are never copied into invocation
 parameters. Standard exception events and status messages are recorded on SDK

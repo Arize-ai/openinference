@@ -114,10 +114,6 @@ describe("TypeSafeInstrumentation", () => {
       "input.mime_type": "application/json",
       "output.value": JSON.stringify(result),
       "output.mime_type": "application/json",
-      "llm.input_messages.0.message.role": "user",
-      "llm.input_messages.0.message.content": request.state,
-      "llm.output_messages.0.message.role": "assistant",
-      "llm.output_messages.0.message.content": JSON.stringify(result.answers),
       "llm.token_count.prompt": 42,
       "llm.token_count.completion": 7,
       "llm.token_count.total": 49,
@@ -379,7 +375,6 @@ describe("TypeSafeInstrumentation", () => {
     const attributes = exporter.getFinishedSpans()[0].attributes;
     expect(attributes["input.value"]).toBe(REDACTED_VALUE);
     expect(attributes["input.mime_type"]).toBeUndefined();
-    expect(attributes["llm.input_messages.0.message.content"]).toBeUndefined();
     expect(JSON.stringify(attributes)).not.toContain("secret-");
   });
 
@@ -393,28 +388,34 @@ describe("TypeSafeInstrumentation", () => {
     ).toBeUndefined();
   });
 
-  it("hides output values, messages, and confidence metadata", async () => {
+  it("hides output values and confidence metadata", async () => {
     configure({ hideOutputs: true });
     await makeClient().client.systemOne(request);
     const attributes = exporter.getFinishedSpans()[0].attributes;
     expect(attributes["output.value"]).toBe(REDACTED_VALUE);
-    expect(attributes["llm.output_messages.0.message.content"]).toBeUndefined();
+    expect(attributes["output.mime_type"]).toBeUndefined();
     expect(JSON.stringify(attributes)).not.toContain("confidence");
     expect(attributes["llm.token_count.total"]).toBe(49);
   });
 
-  it("supports message-only masking independently from full input/output", async () => {
-    configure({ hideInputMessages: true, hideOutputMessages: true });
-    await makeClient().client.systemOne(request);
-    const attributes = exporter.getFinishedSpans()[0].attributes;
-    expect(
-      Object.keys(attributes).some(
-        (key) => key.startsWith("llm.input_messages") || key.startsWith("llm.output_messages"),
-      ),
-    ).toBe(false);
-    expect(JSON.parse(String(attributes["input.value"])).state).toBe(request.state);
-    expect(attributes["output.value"]).toBe(JSON.stringify(result));
-  });
+  it.each([{}, { hideInputMessages: true }, { hideOutputMessages: true }])(
+    "records structured payloads without chat messages (%j)",
+    async (traceConfig) => {
+      configure(traceConfig);
+      await makeClient().client.systemOne(request);
+      const attributes = exporter.getFinishedSpans()[0].attributes;
+      expect(
+        Object.keys(attributes).some(
+          (key) => key.startsWith("llm.input_messages") || key.startsWith("llm.output_messages"),
+        ),
+      ).toBe(false);
+      expect(JSON.parse(String(attributes["input.value"]))).toEqual({
+        ...request,
+        model: "jev-default",
+      });
+      expect(attributes["output.value"]).toBe(JSON.stringify(result));
+    },
+  );
 
   it("does not collect headers or signals", async () => {
     const { client, fetch } = makeClient();

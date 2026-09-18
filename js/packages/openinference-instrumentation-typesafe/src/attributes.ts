@@ -38,11 +38,6 @@ export function getRequestAttributes({
           httpStatuses: retry.httpStatuses && Array.from(retry.httpStatuses),
         },
       }) ?? undefined,
-    [`${SC.LLM_INPUT_MESSAGES}.0.${SC.MESSAGE_ROLE}`]: "user",
-    [`${SC.LLM_INPUT_MESSAGES}.0.${SC.MESSAGE_CONTENT}`]:
-      typeof request.state === "string"
-        ? request.state
-        : (safelyJSONStringify(request.state) ?? undefined),
   };
 }
 
@@ -60,9 +55,6 @@ export function getResponseAttributes(result: unknown): Attributes {
     }),
     // An absent model must not overwrite the request/client fallback.
     ...(typeof response.model === "string" && { [SC.LLM_MODEL_NAME]: response.model }),
-    [`${SC.LLM_OUTPUT_MESSAGES}.0.${SC.MESSAGE_ROLE}`]: "assistant",
-    [`${SC.LLM_OUTPUT_MESSAGES}.0.${SC.MESSAGE_CONTENT}`]:
-      safelyJSONStringify(response.answers) ?? undefined,
     ...(typeof inputTokens === "number" && { [SC.LLM_TOKEN_COUNT_PROMPT]: inputTokens }),
     ...(typeof outputTokens === "number" && { [SC.LLM_TOKEN_COUNT_COMPLETION]: outputTokens }),
     ...(typeof inputTokens === "number" &&

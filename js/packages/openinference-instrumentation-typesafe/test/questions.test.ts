@@ -96,6 +96,7 @@ describe("question and state extraction", () => {
     "text",
     { document: "ticket", fields: [1, null] },
     ["passage", { index: 1 }],
+    [{ role: "user", content: "Please refund the duplicate charge." }],
     null,
   ])("serializes mixed questions and structured state (%j)", async (state) => {
     const result = { model: "jev", answers, usage: { input_tokens: 10, output_tokens: 3 } };
@@ -112,9 +113,12 @@ describe("question and state extraction", () => {
       questions: JSON.parse(JSON.stringify(questions)),
       model: "jev-latest",
     });
-    expect(attributes["llm.input_messages.0.message.content"]).toBe(
-      typeof state === "string" ? state : JSON.stringify(state),
-    );
+    expect(JSON.parse(String(attributes["output.value"]))).toEqual(result);
+    expect(
+      Object.keys(attributes).some(
+        (key) => key.startsWith("llm.input_messages") || key.startsWith("llm.output_messages"),
+      ),
+    ).toBe(false);
     expect(JSON.parse(String(attributes.metadata)).typesafe.questions).toEqual({
       category: { type: "choice", confidence: 0 },
       urgent: { type: "noul" },
