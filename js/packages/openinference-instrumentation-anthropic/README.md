@@ -97,24 +97,7 @@ The `AnthropicInstrumentation` constructor accepts the following options:
 - **Streaming**: Automatic handling of streaming responses
 - **Tool Use**: Captures tool/function calling information
 - **Token Usage**: Records input/output token counts when available
-- **Prompt Caching**: Records cache writes and reads and includes both in prompt and total token counts for streaming and non-streaming responses
 - **Error Handling**: Proper error recording and span status management
-
-### Prompt cache token counts
-
-Anthropic reports `input_tokens` separately from cache tokens. This instrumentation records:
-
-| Span attribute                               | Value                                                                  |
-| -------------------------------------------- | ---------------------------------------------------------------------- |
-| `llm.token_count.prompt`                     | `input_tokens + cache_creation_input_tokens + cache_read_input_tokens` |
-| `llm.token_count.completion`                 | `output_tokens`                                                        |
-| `llm.token_count.total`                      | Prompt tokens + completion tokens                                      |
-| `llm.token_count.prompt_details.cache_write` | `cache_creation_input_tokens`, when positive                           |
-| `llm.token_count.prompt_details.cache_read`  | `cache_read_input_tokens`, when positive                               |
-
-For example, 10 input tokens, 1,733 cache-write tokens, 512 cache-read tokens, and 5 output tokens produce 2,255 prompt tokens and 2,260 total tokens. Cache details are included in the prompt count; do not add them to it again.
-
-Streaming usage is merged before computing these attributes. Later non-null values replace earlier values, including explicit zeros. When server-side fallback occurs, the serving attempt's usage replaces the declined attempt's usage before applying the final stream usage updates.
 
 ## Semantic Conventions
 
