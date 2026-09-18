@@ -92,9 +92,15 @@ def _parse_args(
     *args: Tuple[Any],
     **kwargs: Mapping[str, Any],
 ) -> Dict[str, Any]:
-    bound_signature = signature.bind(*args, **kwargs)
-    bound_signature.apply_defaults()
-    bound_arguments = bound_signature.arguments  # Defaults empty to NOT_GIVEN
+    """
+    Map the call's arguments to parameter names, keeping only values the caller set.
+
+    Applying signature defaults would add every optional parameter the caller left
+    out, and the SDK marks those with a sentinel (``Omit`` on groq >= 1.0, the
+    ``NOT_GIVEN`` singleton before that) that is not caller input: on groq 1.0.0 a
+    two-argument call ends up recording 34 parameters.
+    """
+    bound_arguments = signature.bind(*args, **kwargs).arguments
     request_data: Dict[str, Any] = {}
     for key, value in bound_arguments.items():
         try:
