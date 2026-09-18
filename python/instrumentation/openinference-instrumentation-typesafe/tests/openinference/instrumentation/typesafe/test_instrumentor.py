@@ -1,4 +1,5 @@
 import json
+from types import MappingProxyType
 from typing import Any, Dict
 
 import pytest
@@ -152,6 +153,73 @@ def test_structured_state_and_raw_dict_questions(
         "beam_width": 4,
     }
     assert json.loads(str(attrs[SpanAttributes.INPUT_VALUE])) == transport.requests[-1]
+
+
+def test_abstract_mapping_questions_and_tuple_state(
+    in_memory_span_exporter: InMemorySpanExporter, transport: RecordingTransport
+) -> None:
+    # The SDK accepts any Mapping / Sequence; the span must mirror the wire body, not a repr.
+    state = ("first message", "second message")
+    client = TypeSafeClient(transport=transport.mock)
+    client.system_one(state, MappingProxyType(QUESTIONS))
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = _attrs(span)
+    body = json.loads(str(attrs[SpanAttributes.INPUT_VALUE]))
+    assert body == transport.requests[-1]
+    assert body["state"] == list(state)
+    assert body["questions"] == QUESTIONS_JSON
+    invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
+    assert invocation_parameters["questions"] == QUESTIONS_JSON
+
+
+def test_partial_usage_omits_total(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    body = {**SYSTEM_ONE_RESPONSE, "usage": {"input_tokens": 344, "output_tokens": None}}
+    transport = RecordingTransport(body=body)
+    client = TypeSafeClient(transport=transport.mock)
+    client.system_one(STATE, QUESTIONS)
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    attrs = _attrs(span)
+    assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 344
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION not in attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL not in attrs
+
+
+def test_per_call_options_and_env_default_model(
+    in_memory_span_exporter: InMemorySpanExporter,
+    transport: RecordingTransport,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Per-call keyword options documented in the SDK usage guide must bind cleanly and the
+    # per-call model must win over the client default.
+    monkeypatch.setenv("TYPESAFE_DEFAULT_MODEL", "jev-preview")
+    client = TypeSafeClient(transport=transport.mock)
+    client.system_one(
+        STATE,
+        QUESTIONS,
+        model="jev-latest",
+        retry=RetryPolicy(max_retries=3, backoff_max=0.2, timeout=1.0),
+        timeout=5.0,
+        extra_headers={"x-demo": "1"},
+    )
+    # With no per-call model, the client default from TYPESAFE_DEFAULT_MODEL applies.
+    client.system_one(STATE, QUESTIONS)
+
+    per_call, env_default = in_memory_span_exporter.get_finished_spans()
+    per_call_attrs = _attrs(per_call)
+    assert per_call_attrs[SpanAttributes.LLM_REQUEST_MODEL_NAME] == "jev-latest"
+    assert json.loads(str(per_call_attrs[SpanAttributes.INPUT_VALUE])) == transport.requests[0]
+    invocation_parameters = json.loads(
+        str(per_call_attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS])
+    )
+    # Transport options (retry, timeout, headers) are not request-body parameters.
+    assert set(invocation_parameters) == {"model", "questions"}
+
+    env_attrs = _attrs(env_default)
+    assert env_attrs[SpanAttributes.LLM_REQUEST_MODEL_NAME] == "jev-preview"
+    assert json.loads(str(env_attrs[SpanAttributes.INPUT_VALUE])) == transport.requests[1]
+    assert transport.requests[1]["model"] == "jev-preview"
 
 
 def test_error_sets_span_status(in_memory_span_exporter: InMemorySpanExporter) -> None:

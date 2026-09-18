@@ -14,6 +14,8 @@ A ``system_one`` call is not a chat exchange: neither side is a message list, so
 """
 
 import logging
+from collections.abc import Mapping as AbcMapping
+from collections.abc import Sequence as AbcSequence
 from typing import Any, Dict, Mapping, Optional
 
 import msgspec
@@ -34,17 +36,31 @@ logger.addHandler(logging.NullHandler())
 LLM_PROVIDER = "typesafe"
 
 
+def _enc_hook(value: Any) -> Any:
+    """Materializes the abstract containers the SDK accepts (any ``Mapping`` / ``Sequence``).
+
+    Mirrors the SDK's own encoder hook so that, for example, a ``MappingProxyType`` of
+    questions or a tuple-valued ``state`` is recorded as JSON rather than as its ``repr``.
+    Anything else is recorded as its string form.
+    """
+    if isinstance(value, AbcMapping):
+        return dict(value)
+    if isinstance(value, AbcSequence):
+        return list(value)
+    return str(value)
+
+
 def _to_builtins(value: Any) -> Any:
     """Converts msgspec structs, such as questions and answers, into JSON-compatible builtins.
 
     Args:
-        value: Any value the SDK may hand back, msgspec struct or plain builtin.
+        value: Any value the SDK may accept or hand back, msgspec struct or plain builtin.
 
     Returns:
         The value as JSON-compatible builtins, or ``str(value)`` if conversion fails.
     """
     try:
-        return msgspec.to_builtins(value, str_keys=True)
+        return msgspec.to_builtins(value, str_keys=True, enc_hook=_enc_hook)
     except Exception:
         logger.exception("Failed to convert %r to builtins", type(value))
         return str(value)
@@ -69,7 +85,7 @@ def get_request_attributes(
         The span kind, ``input.value``, and the request-side ``llm.*`` attributes.
     """
     body: Dict[str, Any] = {
-        "state": state,
+        "state": _to_builtins(state),
         "model": model,
         "questions": _to_builtins(questions),
     }
@@ -119,7 +135,8 @@ def _get_token_count(usage: Any) -> Optional[TokenCount]:
         usage: The ``usage`` object on a ``SystemOneResponse``, or ``None``.
 
     Returns:
-        A ``TokenCount`` with whichever counts the response reported, else ``None``.
+        A ``TokenCount`` with whichever counts the response reported, else ``None``. The
+        total is only derived when both the prompt and completion counts are present.
     """
     prompt = getattr(usage, "input_tokens", None)
     completion = getattr(usage, "output_tokens", None)
@@ -128,6 +145,6 @@ def _get_token_count(usage: Any) -> Optional[TokenCount]:
         token_count["prompt"] = prompt
     if isinstance(completion, int):
         token_count["completion"] = completion
-    if token_count:
-        token_count["total"] = token_count.get("prompt", 0) + token_count.get("completion", 0)
+    if isinstance(prompt, int) and isinstance(completion, int):
+        token_count["total"] = prompt + completion
     return token_count or None
