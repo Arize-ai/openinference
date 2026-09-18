@@ -80,13 +80,6 @@ describe("question and state extraction", () => {
           JSON.parse(JSON.stringify(question)),
         );
         expect(JSON.parse(String(span.attributes["output.value"]))).toEqual(result);
-        const metadata = JSON.parse(String(span.attributes.metadata));
-        expect(metadata.typesafe.questions[name].type).toBe(question.type);
-        if (name === "urgent") {
-          expect(metadata.typesafe.questions[name]).not.toHaveProperty("confidence");
-        } else {
-          expect(metadata.typesafe.questions[name].confidence).toBe(answers[name].confidence);
-        }
       }
       expect(exporter.getFinishedSpans()).toHaveLength(2);
     },
@@ -111,7 +104,6 @@ describe("question and state extraction", () => {
     expect(JSON.parse(String(attributes["input.value"]))).toEqual({
       state,
       questions: JSON.parse(JSON.stringify(questions)),
-      model: "jev-latest",
     });
     expect(JSON.parse(String(attributes["output.value"]))).toEqual(result);
     expect(
@@ -119,11 +111,6 @@ describe("question and state extraction", () => {
         (key) => key.startsWith("llm.input_messages") || key.startsWith("llm.output_messages"),
       ),
     ).toBe(false);
-    expect(JSON.parse(String(attributes.metadata)).typesafe.questions).toEqual({
-      category: { type: "choice", confidence: 0 },
-      urgent: { type: "noul" },
-      severity: { type: "score", confidence: 0.9 },
-    });
     expect(attributes["llm.token_count.total"]).toBe(13);
   });
 });

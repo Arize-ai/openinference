@@ -112,19 +112,13 @@ describe("TypeSafeInstrumentation", () => {
         timeout: 5000,
         retry: { maxRetries: 1, httpStatuses: [429] },
       }),
-      "input.value": JSON.stringify({ ...request, model: "jev-default" }),
+      "input.value": JSON.stringify(request),
       "input.mime_type": "application/json",
       "output.value": JSON.stringify(result),
       "output.mime_type": "application/json",
       "llm.token_count.prompt": 42,
       "llm.token_count.completion": 7,
       "llm.token_count.total": 49,
-      metadata: JSON.stringify({
-        typesafe: {
-          request_id: "req_test",
-          questions: { category: { type: "choice", confidence: 0.95 } },
-        },
-      }),
     });
   });
 
@@ -252,9 +246,6 @@ describe("TypeSafeInstrumentation", () => {
         }),
       ]);
       expect(spans[0].attributes["http.response.status_code"]).toBe(401);
-      expect(JSON.parse(String(spans[0].attributes.metadata)).typesafe.request_id).toBe(
-        "req_error",
-      );
     },
   );
 
@@ -320,7 +311,7 @@ describe("TypeSafeInstrumentation", () => {
     expect(exporter.getFinishedSpans()).toHaveLength(0);
   });
 
-  it("propagates caller context, merges metadata, and activates the span during fetch", async () => {
+  it("propagates caller context and activates the span during fetch", async () => {
     const { client, fetch } = makeClient();
     let activeSpanId: string | undefined;
     fetch.mockImplementation(async () => {
@@ -345,10 +336,9 @@ describe("TypeSafeInstrumentation", () => {
       "user.id": "user-1",
       "tag.tags": JSON.stringify(["routing"]),
     });
-    expect(JSON.parse(String(span.attributes.metadata))).toMatchObject({
+    expect(JSON.parse(String(span.attributes.metadata))).toEqual({
       application: "support",
       nested: { keep: true },
-      typesafe: { questions: { category: { confidence: 0.95 } } },
     });
     parent.end();
   });
@@ -370,7 +360,7 @@ describe("TypeSafeInstrumentation", () => {
     parents.forEach((span) => span.end());
   });
 
-  it("redacts inputs without copying state, instructions, or question names into other attributes", async () => {
+  it("redacts inputs via TraceConfig / OITracer", async () => {
     configure({ hideInputs: true });
     const secretRequest = {
       state: "secret-state",
@@ -388,18 +378,14 @@ describe("TypeSafeInstrumentation", () => {
     configure();
     await makeClient().client.systemOne(request);
     expect(exporter.getFinishedSpans()[0].attributes["input.value"]).toBe(REDACTED_VALUE);
-    expect(
-      JSON.parse(String(exporter.getFinishedSpans()[0].attributes.metadata)).typesafe.questions,
-    ).toBeUndefined();
   });
 
-  it("hides output values and confidence metadata", async () => {
+  it("hides output values via TraceConfig / OITracer", async () => {
     configure({ hideOutputs: true });
     await makeClient().client.systemOne(request);
     const attributes = exporter.getFinishedSpans()[0].attributes;
     expect(attributes["output.value"]).toBe(REDACTED_VALUE);
     expect(attributes["output.mime_type"]).toBeUndefined();
-    expect(JSON.stringify(attributes)).not.toContain("confidence");
     expect(attributes["llm.token_count.total"]).toBe(49);
   });
 
@@ -414,10 +400,7 @@ describe("TypeSafeInstrumentation", () => {
           (key) => key.startsWith("llm.input_messages") || key.startsWith("llm.output_messages"),
         ),
       ).toBe(false);
-      expect(JSON.parse(String(attributes["input.value"]))).toEqual({
-        ...request,
-        model: "jev-default",
-      });
+      expect(JSON.parse(String(attributes["input.value"]))).toEqual(request);
       expect(attributes["output.value"]).toBe(JSON.stringify(result));
     },
   );
