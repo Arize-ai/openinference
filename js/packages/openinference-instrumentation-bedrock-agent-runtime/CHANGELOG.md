@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock-agent-runtime
 
+## 1.2.0
+
+### Minor Changes
+
+- 9838bd3: Record provider-native stop reasons from agent model trace responses as `llm.finish_reason` on model invocation spans. Preserve the original values and omit the attribute when the reason is unavailable or invalid.
+
 ## 1.1.28
 
 ### Patch Changes
