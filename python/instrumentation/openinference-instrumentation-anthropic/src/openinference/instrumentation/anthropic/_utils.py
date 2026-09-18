@@ -26,7 +26,7 @@ def _get_token_counts(usage: "Usage") -> Iterator[Tuple[str, AttributeValue]]:
     - input_tokens: Number of input tokens which were not read from or used to create a cache.
     """
     prompt_tokens = (
-        usage.input_tokens
+        (usage.input_tokens or 0)
         + (usage.cache_creation_input_tokens or 0)
         + (usage.cache_read_input_tokens or 0)
     )
