@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.13.0
+
+### Minor Changes
+
+- a719562: Add `ORACLE` to the `LLMProvider` enum, giving Oracle Cloud Infrastructure Generative AI (`https://inference.generativeai.<region>.oci.oraclecloud.com`) a well-known `llm.provider` value instead of leaving it to a custom string. Mirrors the same addition in the Python, Java, and Go semantic conventions and in the spec's well-known value table.
+
 ## 2.12.0
 
 ### Minor Changes
