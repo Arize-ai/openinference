@@ -8,8 +8,35 @@ import {
   isObjectWithStringKeys,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
-import { MimeType, SemanticConventions as SC } from "@arizeai/openinference-semantic-conventions";
+import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+const {
+  LLM_INVOCATION_PARAMETERS,
+  LLM_MODEL_NAME,
+  LLM_REQUEST_MODEL_NAME,
+  LLM_RESPONSE_MODEL_NAME,
+  LLM_TOKEN_COUNT_COMPLETION,
+  LLM_TOKEN_COUNT_PROMPT,
+  LLM_TOKEN_COUNT_TOTAL,
+  METADATA,
+} = SemanticConventions;
+
+/**
+ * Builds request-side OpenInference attributes for a `systemOne` call.
+ *
+ * Emits:
+ * - `input.value` — full JSON request with the resolved model (`application/json`)
+ * - `llm.model_name` / `llm.request.model_name` — request model, else the client's `defaultModel`
+ * - `llm.invocation_parameters` — model plus explicit `timeout` / `retry` only
+ *   (headers, credentials, and abort signals are never copied)
+ *
+ * Does **not** emit `llm.input_messages`. State, questions, instructions, and
+ * criteria stay in `input.value` as structured JSON.
+ *
+ * @param request - The `systemOne` request body from the SDK
+ * @param options - Optional per-call transport overrides from the SDK
+ * @param defaultModel - Client default used when `request.model` is omitted
+ */
 export function getRequestAttributes({
   request,
   options,
@@ -28,8 +55,9 @@ export function getRequestAttributes({
       value: safelyJSONStringify({ ...request, model }) ?? "",
       mimeType: MimeType.JSON,
     }),
-    [SC.LLM_MODEL_NAME]: model,
-    [SC.LLM_INVOCATION_PARAMETERS]:
+    [LLM_MODEL_NAME]: model,
+    [LLM_REQUEST_MODEL_NAME]: model,
+    [LLM_INVOCATION_PARAMETERS]:
       safelyJSONStringify({
         model,
         timeout: options?.timeout,
@@ -41,6 +69,21 @@ export function getRequestAttributes({
   };
 }
 
+/**
+ * Builds response-side OpenInference attributes from a parsed `systemOne` body.
+ *
+ * Emits:
+ * - `output.value` — full JSON response (`application/json`)
+ * - `llm.model_name` / `llm.response.model_name` — only when the response includes a string `model`
+ *   (absent model must not overwrite the request/client fallback)
+ * - `llm.token_count.prompt` / `.completion` when present; `.total` only when both exist
+ *
+ * Does **not** emit `llm.output_messages`. Answers, probabilities, and score
+ * legends stay in `output.value`. Tolerates partial or malformed success bodies
+ * without throwing — the SDK does not validate response JSON.
+ *
+ * @param result - Parsed JSON body (or any value); non-objects yield empty usage fields
+ */
 export function getResponseAttributes(result: unknown): Attributes {
   // The SDK returns parsed JSON without validation. Partial usage and malformed
   // success bodies must not produce invalid attributes or affect the caller.
@@ -48,22 +91,44 @@ export function getResponseAttributes(result: unknown): Attributes {
   const usage = isObjectWithStringKeys(response.usage) ? response.usage : {};
   const inputTokens = usage.input_tokens;
   const outputTokens = usage.output_tokens;
+  const responseModel = typeof response.model === "string" ? response.model : undefined;
   return {
     ...getOutputAttributes({
       value: safelyJSONStringify(result) ?? "",
       mimeType: MimeType.JSON,
     }),
     // An absent model must not overwrite the request/client fallback.
-    ...(typeof response.model === "string" && { [SC.LLM_MODEL_NAME]: response.model }),
-    ...(typeof inputTokens === "number" && { [SC.LLM_TOKEN_COUNT_PROMPT]: inputTokens }),
-    ...(typeof outputTokens === "number" && { [SC.LLM_TOKEN_COUNT_COMPLETION]: outputTokens }),
+    ...(responseModel && {
+      [LLM_MODEL_NAME]: responseModel,
+      [LLM_RESPONSE_MODEL_NAME]: responseModel,
+    }),
+    ...(typeof inputTokens === "number" && { [LLM_TOKEN_COUNT_PROMPT]: inputTokens }),
+    ...(typeof outputTokens === "number" && { [LLM_TOKEN_COUNT_COMPLETION]: outputTokens }),
     ...(typeof inputTokens === "number" &&
       typeof outputTokens === "number" && {
-        [SC.LLM_TOKEN_COUNT_TOTAL]: inputTokens + outputTokens,
+        [LLM_TOKEN_COUNT_TOTAL]: inputTokens + outputTokens,
       }),
   };
 }
 
+/**
+ * Builds the `metadata` JSON attribute, merging active OpenInference context
+ * metadata with a reserved `typesafe` object.
+ *
+ * `metadata.typesafe` contains:
+ * - `request_id` — when known (response header or API error)
+ * - `questions` — per-question `{ type, confidence? }` only (never instructions,
+ *   labels, or rubrics, so `hideInputs` cannot be undone via metadata)
+ *
+ * Masking:
+ * - `hideInputs` → omits `questions` entirely
+ * - `hideOutputs` → omits `confidence` on each question
+ * - Preserves caller context keys; `typesafe` is reserved for this instrumentor
+ *
+ * Noul answers have no confidence and do not get a synthetic value.
+ *
+ * @returns Attributes with a single `metadata` key, or empty if stringify fails
+ */
 export function getMetadataAttributes({
   request,
   result,
@@ -74,13 +139,14 @@ export function getMetadataAttributes({
   request: SystemOneRequest;
   result?: unknown;
   requestId?: string;
+  /** Active OpenInference context metadata to merge (session workflow tags, etc.). */
   metadata?: Record<string, unknown>;
   config: TraceConfig;
 }): Attributes {
   const answers =
     isObjectWithStringKeys(result) && isObjectWithStringKeys(result.answers) ? result.answers : {};
   return {
-    [SC.METADATA]:
+    [METADATA]:
       safelyJSONStringify({
         ...metadata,
         typesafe: {

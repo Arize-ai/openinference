@@ -105,6 +105,8 @@ describe("TypeSafeInstrumentation", () => {
       "llm.provider": "typesafe",
       "llm.system": "typesafe",
       "llm.model_name": "jev-resolved",
+      "llm.request.model_name": "jev-default",
+      "llm.response.model_name": "jev-resolved",
       "llm.invocation_parameters": JSON.stringify({
         model: "jev-default",
         timeout: 5000,
@@ -131,9 +133,10 @@ describe("TypeSafeInstrumentation", () => {
     async (model) => {
       const { client } = makeClient({ ...result, model: undefined });
       await client.systemOne({ ...request, model });
-      expect(exporter.getFinishedSpans()[0].attributes["llm.model_name"]).toBe(
-        model ?? "jev-default",
-      );
+      const attributes = exporter.getFinishedSpans()[0].attributes;
+      expect(attributes["llm.model_name"]).toBe(model ?? "jev-default");
+      expect(attributes["llm.request.model_name"]).toBe(model ?? "jev-default");
+      expect(attributes["llm.response.model_name"]).toBeUndefined();
     },
   );
 

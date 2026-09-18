@@ -15,8 +15,10 @@ import {
   LLMProvider,
   LLMSystem,
   OpenInferenceSpanKind,
-  SemanticConventions as SC,
+  SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
+const { LLM_PROVIDER, LLM_SYSTEM, OPENINFERENCE_SPAN_KIND } = SemanticConventions;
 
 import { getMetadataAttributes, getRequestAttributes, getResponseAttributes } from "./attributes";
 // oxlint-disable-next-line typescript/prefer-ts-expect-error
@@ -25,11 +27,21 @@ import { VERSION } from "./version";
 
 const MODULE_NAME = "@typesafe-ai/sdk";
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-typesafe";
+/** Supported `@typesafe-ai/sdk` versions for automatic CommonJS patching. */
 const SUPPORTED_VERSIONS = [">=0.6.0 <0.7.0"];
 type TypeSafeModule = typeof TypeSafe;
-// Track prototypes, without writing to immutable ESM module namespaces.
+
+/**
+ * Maps each patched `TypeSafeClient` prototype to the instrumentor that owns it.
+ * Uses a WeakMap so we never write to immutable ESM module namespaces (Deno,
+ * bundlers) and so CJS/ESM builds can be patched independently.
+ */
 const owners = new WeakMap<TypeSafe.TypeSafeClient, TypeSafeInstrumentation>();
 
+/**
+ * Runs span recording without letting telemetry failures break the caller.
+ * Attribute extraction and span end must never throw into application code.
+ */
 function safelyRecord(record: () => void): void {
   try {
     record();
@@ -38,11 +50,42 @@ function safelyRecord(record: () => void): void {
   }
 }
 
-/** One LLM span per TypeSafe systemOne invocation, including all SDK retries. */
+/**
+ * OpenInference auto-instrumentation for the TypeSafe AI SDK (`@typesafe-ai/sdk`).
+ *
+ * Each `TypeSafeClient.systemOne` call produces one OpenTelemetry CLIENT span with
+ * OpenInference span kind `LLM`. The span covers the full invocation, including
+ * any SDK-level HTTP retries. `client.models.list()` is not instrumented.
+ *
+ * ## Span attributes
+ *
+ * - `llm.provider` / `llm.system` → `"typesafe"`
+ * - `input.value` / `output.value` → full JSON request and response (`application/json`)
+ * - `llm.model_name`, `llm.request.model_name`, `llm.response.model_name`,
+ *   `llm.invocation_parameters`, `llm.token_count.*` when present
+ * - `metadata.typesafe` → request id and per-question type/confidence
+ * - No `llm.input_messages` or `llm.output_messages` (TypeSafe is structured Q&A, not chat)
+ *
+ * ## Return value
+ *
+ * The wrapper preserves the SDK `APIPromise` surface (`await`, `withResponse()`,
+ * `asResponse()`, `map()`, etc.). Telemetry reads a clone of the buffered response
+ * so the caller's body stays unread. The span ends before the wrapped promise is
+ * delivered, even if the caller never awaits it.
+ *
+ * ## Setup
+ *
+ * Register before loading the SDK in CommonJS, or call {@link manuallyInstrument}
+ * for ESM / bundlers / late imports.
+ *
+ * @see {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md | OpenInference semantic conventions}
+ */
 export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule> {
   private oiTracer: OITracer;
   private readonly traceConfig: TraceConfig;
+  /** SDK namespaces registered via {@link manuallyInstrument}. */
   private readonly manualModules = new Set<TypeSafeModule>();
+  /** SDK namespaces currently patched by this instance. */
   private readonly patchedModules = new Set<TypeSafeModule>();
 
   constructor({
@@ -50,8 +93,23 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
     traceConfig,
     tracerProvider,
   }: {
+    /**
+     * Standard OpenTelemetry instrumentation options (for example `enabled`).
+     * @see {@link InstrumentationConfig}
+     */
     instrumentationConfig?: InstrumentationConfig;
+    /**
+     * OpenInference masking / redaction options (`hideInputs`, `hideOutputs`, …).
+     * `hideInputMessages` / `hideOutputMessages` have no effect — this instrumentor
+     * does not emit chat-message attributes.
+     * @see {@link TraceConfigOptions}
+     */
     traceConfig?: TraceConfigOptions;
+    /**
+     * Optional tracer provider. Defaults to the global provider when omitted.
+     * Prefer this when you need a non-global provider or an explicit project resource.
+     * @see {@link TracerProvider}
+     */
     tracerProvider?: TracerProvider;
   } = {}) {
     super(INSTRUMENTATION_NAME, VERSION, { ...instrumentationConfig });
@@ -60,6 +118,10 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
     if (tracerProvider) this.setTracerProvider(tracerProvider);
   }
 
+  /**
+   * Declares the CommonJS module hook for `@typesafe-ai/sdk`.
+   * Automatic patching only applies when the SDK is loaded via `require`.
+   */
   protected init() {
     return new InstrumentationNodeModuleDefinition<TypeSafeModule>(
       MODULE_NAME,
@@ -69,28 +131,52 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
     );
   }
 
+  /**
+   * Rebuilds the {@link OITracer} against the given provider so later spans
+   * use that provider (and its resource attributes such as project name).
+   */
   setTracerProvider(provider: TracerProvider): void {
     super.setTracerProvider(provider);
     this.oiTracer = new OITracer({ tracer: this.tracer, traceConfig: this.traceConfig });
   }
 
-  /** Patch an imported SDK namespace, including native ESM and bundled modules. */
+  /**
+   * Patches an already-imported SDK namespace.
+   *
+   * Required for native ESM, bundlers, and any case where the SDK is imported
+   * before `registerInstrumentations`. Safe to call for both CJS and ESM builds
+   * in the same process — each prototype is tracked independently.
+   *
+   * @param module - The `@typesafe-ai/sdk` namespace (`import * as TypeSafe from "..."`)
+   */
   manuallyInstrument(module: TypeSafeModule): void {
     this.manualModules.add(module);
     if (this.isEnabled()) this.patch(module);
   }
 
+  /**
+   * Enables instrumentation and re-applies patches to every module previously
+   * registered with {@link manuallyInstrument}.
+   */
   enable(): void {
     super.enable();
     // InstrumentationBase calls enable from its constructor, before fields exist.
     for (const module of this.manualModules ?? []) this.patch(module);
   }
 
+  /**
+   * Disables instrumentation and restores every `TypeSafeClient.prototype.systemOne`
+   * patched by this instance. Does not unpatch prototypes owned by another instance.
+   */
   disable(): void {
     super.disable();
     for (const module of this.patchedModules ?? []) this.unpatch(module);
   }
 
+  /**
+   * Wraps `TypeSafeClient.prototype.systemOne` on the given module once.
+   * Skips if the prototype is already owned by any instrumentor instance.
+   */
   private patch(module: TypeSafeModule): TypeSafeModule {
     const prototype = module.TypeSafeClient?.prototype;
     if (!prototype?.systemOne || owners.has(prototype)) return module;
@@ -110,9 +196,9 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
           {
             kind: SpanKind.CLIENT,
             attributes: {
-              [SC.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-              [SC.LLM_PROVIDER]: LLMProvider.TYPESAFE,
-              [SC.LLM_SYSTEM]: LLMSystem.TYPESAFE,
+              [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+              [LLM_PROVIDER]: LLMProvider.TYPESAFE,
+              [LLM_SYSTEM]: LLMSystem.TYPESAFE,
             },
           },
           parent,
@@ -173,6 +259,10 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
     return module;
   }
 
+  /**
+   * Unwraps `systemOne` only if this instance owns the prototype.
+   * Leaves patches from other instrumentor instances untouched.
+   */
   private unpatch(module: TypeSafeModule): void {
     const prototype = module.TypeSafeClient.prototype;
     if (owners.get(prototype) !== this) return;
@@ -182,6 +272,13 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
   }
 }
 
+/**
+ * Attaches response attributes and ends the span as OK.
+ *
+ * Clones the buffered `Response` before `json()` so `asResponse()` / `map()`
+ * still see an unread body. Parse failures are logged and do not fail the span
+ * status or the caller's promise — the SDK may return non-JSON success bodies.
+ */
 async function recordResponse({
   response,
   span,
