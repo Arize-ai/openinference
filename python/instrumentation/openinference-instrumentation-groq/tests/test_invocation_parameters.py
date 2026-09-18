@@ -90,7 +90,9 @@ def test_parameters_the_caller_omitted_are_not_recorded(
         model=MODEL,
     )
     attributes = _llm_span_attributes(in_memory_span_exporter)
-    assert json.loads(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS]) == {"model": MODEL}
+    assert json.loads(cast(str, attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS])) == {
+        "model": MODEL
+    }
 
 
 def test_parameters_the_caller_omitted_are_not_recorded_in_input_value(
@@ -104,7 +106,7 @@ def test_parameters_the_caller_omitted_are_not_recorded_in_input_value(
         model=MODEL,
     )
     attributes = _llm_span_attributes(in_memory_span_exporter)
-    recorded = json.loads(attributes[SpanAttributes.INPUT_VALUE])
+    recorded = json.loads(cast(str, attributes[SpanAttributes.INPUT_VALUE]))
     assert sorted(recorded) == ["messages", "model"]
 
 
@@ -141,7 +143,7 @@ def test_parameters_the_caller_passed_are_still_recorded(
         stop="END",
     )
     attributes = _llm_span_attributes(in_memory_span_exporter)
-    recorded = json.loads(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS])
+    recorded = json.loads(cast(str, attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
     assert recorded == {"model": MODEL, "temperature": 0.5, "max_tokens": 10, "stop": "END"}
 
 
@@ -160,4 +162,6 @@ def test_async_path_records_only_the_parameters_the_caller_passed(
 
     asyncio.run(exec_completion())
     attributes = _llm_span_attributes(in_memory_span_exporter)
-    assert json.loads(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS]) == {"model": MODEL}
+    assert json.loads(cast(str, attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS])) == {
+        "model": MODEL
+    }
