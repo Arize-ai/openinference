@@ -192,8 +192,10 @@ describe("TypeSafeInstrumentation", () => {
       expect(response.bodyUsed).toBe(false);
       expect(response.headers.get("x-typesafe-request-id")).toBe("req_test");
       expect(await response.json()).toEqual(result);
-      expect(exporter.getFinishedSpans()).toHaveLength(1);
-      expect(exporter.getFinishedSpans()[0].attributes["llm.token_count.total"]).toBe(49);
+      await vi.waitFor(() => {
+        expect(exporter.getFinishedSpans()).toHaveLength(1);
+        expect(exporter.getFinishedSpans()[0].attributes["llm.token_count.total"]).toBe(49);
+      });
     },
   );
 
