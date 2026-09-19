@@ -126,6 +126,11 @@ class _ChatCompletionAccumulator:
                 lambda: _ValuesAccumulator(
                     message=_ValuesAccumulator(
                         content=_StringAccumulator(),
+                        # streamed across chunks like content: `refusal` is a first-party
+                        # delta field, `reasoning_content` comes from OpenAI-compatible
+                        # servers (DeepSeek, vLLM, Qwen3)
+                        refusal=_StringAccumulator(),
+                        reasoning_content=_StringAccumulator(),
                         function_call=_ValuesAccumulator(arguments=_StringAccumulator()),
                         tool_calls=_IndexedAccumulator(
                             lambda: _ValuesAccumulator(
