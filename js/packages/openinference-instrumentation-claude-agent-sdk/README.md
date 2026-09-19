@@ -71,17 +71,17 @@ The `query()` function is wrapped to produce:
 
 ### AGENT spans
 
-| Attribute                    | Description            |
-| ---------------------------- | ---------------------- |
-| `openinference.span.kind`    | `"AGENT"`              |
-| `input.value`                | Prompt text            |
-| `output.value`               | Result text            |
-| `session.id`                 | SDK session identifier |
-| `llm.model_name`             | Model used             |
-| `llm.token_count.prompt`     | Input token count      |
-| `llm.token_count.completion` | Output token count     |
-| `llm.token_count.total`      | Total token count      |
-| `llm.cost.total`             | Total cost in USD      |
+| Attribute                    | Description                                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `openinference.span.kind`    | `"AGENT"`                                                                                            |
+| `input.value`                | Prompt text                                                                                          |
+| `output.value`               | Result text                                                                                          |
+| `session.id`                 | Caller-supplied session id from OpenInference context when set, otherwise the SDK session identifier |
+| `llm.model_name`             | Model used                                                                                           |
+| `llm.token_count.prompt`     | Input token count                                                                                    |
+| `llm.token_count.completion` | Output token count                                                                                   |
+| `llm.token_count.total`      | Total token count                                                                                    |
+| `llm.cost.total`             | Total cost in USD                                                                                    |
 
 ### TOOL spans
 
