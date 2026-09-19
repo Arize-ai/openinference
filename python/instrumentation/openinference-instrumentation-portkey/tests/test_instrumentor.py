@@ -7,7 +7,12 @@ from httpx import Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+)
 
 
 @pytest.mark.vcr(
@@ -332,3 +337,81 @@ def test_uninstrument_restores_all_wrapped_methods(
     assert chat_complete.AsyncCompletions.create is original_async_chat_create
     assert generation.Completions.create is original_prompt_create
     assert generation.AsyncCompletions.create is original_async_prompt_create
+
+
+def test_chat_completion_with_multimodal_input(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with respx.mock(
+        base_url="https://api.portkey.ai",
+        assert_all_called=True,
+    ) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(
+                status_code=200,
+                json={
+                    "id": "chatcmpl-multimodal",
+                    "object": "chat.completion",
+                    "created": 1750000000,
+                    "model": "gpt-4o-mini-2024-07-18",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "A cat sitting on a couch.",
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 20,
+                        "completion_tokens": 8,
+                        "total_tokens": 28,
+                    },
+                },
+            )
+        )
+
+        portkey = import_module("portkey_ai")
+        client = portkey.Portkey(
+            api_key="REDACTED",
+            virtual_key="REDACTED",
+        )
+        client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "What is in this image?"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "https://example.com/cat.png"},
+                        },
+                    ],
+                }
+            ],
+            model="gpt-4o-mini",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attributes[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "text"
+    assert (
+        attributes[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"]
+        == "What is in this image?"
+    )
+    assert attributes[f"{prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "image"
+    assert (
+        attributes[
+            f"{prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        ]
+        == "https://example.com/cat.png"
+    )
