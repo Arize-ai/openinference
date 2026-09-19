@@ -1,0 +1,5 @@
+arize-phoenix
+arize-phoenix-otel
+openinference-instrumentation-qwen-agent
+openinference-instrumentation-openai
+qwen-agent
