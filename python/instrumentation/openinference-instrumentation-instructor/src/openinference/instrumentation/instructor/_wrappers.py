@@ -171,6 +171,16 @@ class _PatchWrapper:
 
         create = kwargs.get("create")
         client = kwargs.get("client")
+        if client is None and create is None and args:
+            # Modern call style: instructor.patch(client, mode=...) passes the
+            # client positionally.
+            client = args[0]
+
+        if not callable(new_func):
+            # Modern instructor.patch returns a patched client object, not a
+            # callable. Spans for its create() calls are emitted by the
+            # retry_sync_v2/retry_async_v2 wrappers; return the client as-is.
+            return new_func
 
         if create is not None:
             func = create
@@ -375,3 +385,56 @@ OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+
+
+class _RetryV2Wrapper:
+    """Span for instructor's v2 retry path - the real call boundary in instructor>=1.15."""
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        span_name = f"instructor.{wrapped.__name__}"
+        attributes = dict(
+            _flatten(
+                {
+                    OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                    INPUT_VALUE_MIME_TYPE: "application/json",
+                }
+            )
+        )
+        create_kwargs = kwargs.get("kwargs") or {}
+        if not isinstance(create_kwargs, Mapping):
+            create_kwargs = {}
+        if messages := create_kwargs.get("messages"):
+            try:
+                attributes[INPUT_VALUE] = safe_json_dumps(messages, cls=SafeJSONEncoder)
+            except Exception:
+                attributes[INPUT_VALUE] = repr(messages)
+        response_model = create_kwargs.get("response_model")
+        if response_model is not None:
+            attributes["instructor.response_model"] = getattr(
+                response_model, "__name__", repr(response_model)
+            )
+        with self._tracer.start_as_current_span(span_name, attributes=attributes) as span:
+            response = wrapped(*args, **kwargs)
+            try:
+                span.set_attribute(
+                    OUTPUT_VALUE,
+                    safe_json_dumps(
+                        response.model_dump() if hasattr(response, "model_dump") else repr(response),
+                        cls=SafeJSONEncoder,
+                    ),
+                )
+            except Exception:
+                pass
+            span.set_status(trace_api.StatusCode.OK)
+            return response
