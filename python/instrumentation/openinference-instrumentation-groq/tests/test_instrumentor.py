@@ -438,3 +438,48 @@ def test_groq_multimodal_input(
         ]
         == "https://example.com/cat.png"
     )
+
+
+def test_groq_multimodal_input_unsupported_part_keeps_position(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_groq_instrumentation: Any,
+) -> None:
+    client = Groq(api_key="fake")
+    client.chat.completions._post = _mock_post  # type: ignore[assignment]
+
+    client.chat.completions.create(
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Describe this audio."},
+                    {
+                        "type": "input_audio",
+                        "input_audio": {"data": "ZmFrZQ==", "format": "wav"},
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/cat.png"},
+                    },
+                ],
+            }
+        ],
+        model="fake_model",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attributes[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "text"
+    # input_audio is not flattened, so index 1 stays empty and the image keeps
+    # its position at index 2.
+    assert not any(key.startswith(f"{prefix}.1.") for key in attributes)
+    assert attributes[f"{prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "image"
+    assert (
+        attributes[
+            f"{prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        ]
+        == "https://example.com/cat.png"
+    )
