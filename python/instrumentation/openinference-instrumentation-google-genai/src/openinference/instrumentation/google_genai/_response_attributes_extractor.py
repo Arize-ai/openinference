@@ -2,7 +2,7 @@ import base64
 import logging
 from typing import Any, Iterable, Iterator, Mapping, Optional
 
-from google.genai import types
+from google.genai import _transformers, types
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
@@ -25,6 +25,31 @@ __all__ = ("_ResponseAttributesExtractor",)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+def _request_content_count(request_parameters: Mapping[str, Any]) -> int:
+    """Return the number of request contents seeded into AFC history.
+
+    The SDK seeds the history with `t_contents(contents)` before appending
+    this call's own function-call/response turns, so those entries belong to
+    `llm.input_messages` rather than to this span's output.
+    """
+    contents = (
+        request_parameters.get("contents")
+        if isinstance(request_parameters, Mapping)
+        else None
+    )
+
+    if contents is None:
+        return 0
+
+    try:
+        return len(_transformers.t_contents(contents))
+    except Exception:
+        logger.warning(
+            "Failed to size the request contents seeded into the AFC history"
+        )
+        return 0
 
 
 class _ResponseAttributesExtractor:
@@ -51,6 +76,10 @@ class _ResponseAttributesExtractor:
             yield SpanAttributes.LLM_MODEL_NAME, model_version
         if usage_metadata := getattr(response, "usage_metadata", None):
             yield from self._get_attributes_from_generate_content_usage(usage_metadata)
+
+        last_output_message_index = -1
+        published_contents: list[object] = []
+
         if (candidates := getattr(response, "candidates", None)) and isinstance(
             candidates, Iterable
         ):
@@ -65,8 +94,18 @@ class _ResponseAttributesExtractor:
                     else getattr(candidate, "index")
                 )
                 if content := getattr(candidate, "content", None):
-                    for key, value in self._get_attributes_from_generate_content_content(content):
-                        yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+                    published_contents.append(content)
+                    for key, value in self._get_attributes_from_generate_content_content(
+                        content
+                    ):
+                        yield (
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}",
+                            value,
+                        )
+                    last_output_message_index = max(
+                        last_output_message_index,
+                        index,
+                    )
 
                 # Only capture finish_reason for the first candidate.
                 if index == 0:
@@ -75,9 +114,16 @@ class _ResponseAttributesExtractor:
 
         # Handle automatic function calling history
         # For automatic function calling, the function call details are stored separately
-        if automatic_history := getattr(response, "automatic_function_calling_history", None):
+        if automatic_history := getattr(
+            response, "automatic_function_calling_history", None
+        ):
             yield from self._get_attributes_from_automatic_function_calling_history(
-                automatic_history
+                automatic_history,
+                first_message_index=last_output_message_index + 1,
+                request_content_count=_request_content_count(
+                    request_parameters
+                ),
+                published_contents=published_contents,
             )
 
     def _get_attributes_from_generate_content_content(
@@ -192,28 +238,63 @@ class _ResponseAttributesExtractor:
     def _get_attributes_from_automatic_function_calling_history(
         self,
         history: Iterable[object],
+        *,
+        first_message_index: int,
+        request_content_count: int,
+        published_contents: list[object],
     ) -> Iterator[tuple[str, AttributeValue]]:
-        """Extract function call information from automatic_function_calling_history.
+        """Extract function calls from automatic_function_calling_history.
 
-        This history contains the sequence of model->function call->function response
-        that happened during automatic function calling.
+        Only model turns produced by the current automatic function call are
+        published as output messages. Request-seeded history and candidate
+        content that was already published are skipped.
         """
-        tool_call_index = 0
+        message_index = first_message_index
 
-        for content_entry in history:
-            # Each entry is a Content object with parts
-            if not hasattr(content_entry, "parts") or not hasattr(content_entry, "role"):
+        for position, content_entry in enumerate(history):
+            if position < request_content_count:
                 continue
 
-            # Look for model responses that contain function calls
-            if getattr(content_entry, "role") == "model":
-                parts = getattr(content_entry, "parts", [])
-                for part in parts:
-                    if function_call := getattr(part, "function_call", None):
-                        thought_signature: Optional[bytes] = getattr(
-                            part, "thought_signature", None
+            if not hasattr(content_entry, "parts") or not hasattr(
+                content_entry, "role"
+            ):
+                continue
+
+            if getattr(content_entry, "role") != "model":
+                continue
+
+            if any(content_entry is content for content in published_contents):
+                continue
+
+            parts = getattr(content_entry, "parts", [])
+            if not parts:
+                continue
+
+            tool_call_index = 0
+
+            for part in parts:
+                if function_call := getattr(part, "function_call", None):
+                    thought_signature: Optional[bytes] = getattr(
+                        part, "thought_signature", None
+                    )
+
+                    for key, value in self._get_attributes_from_function_call(
+                        function_call,
+                        tool_call_index,
+                        thought_signature,
+                    ):
+                        yield (
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}."
+                            f"{message_index}.{key}",
+                            value,
                         )
-                        yield from self._get_attributes_from_function_call(
-                            function_call, tool_call_index, thought_signature
-                        )
-                        tool_call_index += 1
+
+                    tool_call_index += 1
+
+            if tool_call_index:
+                yield (
+                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}."
+                    f"{message_index}.{MessageAttributes.MESSAGE_ROLE}",
+                    "model",
+                )
+                message_index += 1
