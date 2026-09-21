@@ -1,17 +1,15 @@
 import os
-from typing import Iterator, Optional
+from typing import Optional
 
 import openai
 import pytest
 from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import TracerProvider
 
-from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.instrumentation.openai._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
 
 
 class TestTokenCounts:
@@ -30,8 +28,15 @@ class TestTokenCounts:
         usage = resp.usage
         assert usage is not None
 
-        span = in_memory_span_exporter.get_finished_spans()[0]
-        attr = dict(span.attributes or {})
+        # HTTPX is instrumented too, so pick the OpenAI LLM span rather than the first span.
+        spans = [
+            span
+            for span in in_memory_span_exporter.get_finished_spans()
+            if (span.attributes or {}).get(SpanAttributes.LLM_PROVIDER)
+            == OpenInferenceLLMProviderValues.OPENAI.value
+        ]
+        assert len(spans) == 1
+        attr = dict(spans[0].attributes or {})
 
         assert attr.pop(LLM_TOKEN_COUNT_COMPLETION) == usage.completion_tokens
         assert attr.pop(LLM_TOKEN_COUNT_PROMPT) == usage.prompt_tokens
@@ -59,16 +64,6 @@ class TestTokenCounts:
                 attr.pop(LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING)
                 == usage.completion_tokens_details.reasoning_tokens
             )
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Iterator[None]:
-    OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    OpenAIInstrumentor().uninstrument()
 
 
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
