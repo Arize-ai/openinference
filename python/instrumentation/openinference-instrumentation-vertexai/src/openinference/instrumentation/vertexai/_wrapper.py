@@ -338,10 +338,33 @@ def _(req: GenerateContentRequest, span: Span) -> None:
         for k, v in _parse_content(cast(Content, system_instruction), prefix, "system"):
             span.set_attribute(k, v)
     for content in cast(Iterable[Content], req.contents):
-        msg_idx += 1
-        prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
-        for k, v in _parse_content(content, prefix):
-            span.set_attribute(k, v)
+        # A content can carry several function_response parts (parallel function
+        # calls), but a span message has one message.name and one message.content.
+        # Each part becomes its own tool message right after this one, per the
+        # OpenInference spec.
+        function_response_parts = [
+            part for part in cast(Iterable[Part], content.parts) if part.function_response.name
+        ]
+        pure_function_responses = len(function_response_parts) > 0 and len(
+            function_response_parts
+        ) == len(content.parts)
+        if not pure_function_responses:
+            msg_idx += 1
+            prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
+            for k, v in _parse_content(content, prefix):
+                span.set_attribute(k, v)
+        for part in function_response_parts:
+            msg_idx += 1
+            prefix = f"{LLM_INPUT_MESSAGES}.{msg_idx}."
+            span.set_attribute(f"{prefix}{MESSAGE_ROLE}", "tool")
+            span.set_attribute(f"{prefix}{MESSAGE_NAME}", part.function_response.name)
+            cls = part.function_response.__class__
+            # Maybe there's an easier way to do this.
+            function_response = cls.to_dict(part.function_response)
+            span.set_attribute(
+                f"{prefix}{MESSAGE_CONTENT}",
+                safe_json_dumps(function_response.get("response") or {}),
+            )
 
 
 @_update_span.register(v1.GenerateContentResponse)
@@ -415,19 +438,6 @@ def _parse_content(
     """
     yield f"{prefix}{MESSAGE_ROLE}", role_override or _role(content.role)
     parts = cast(Iterable[Part], content.parts)
-    for part in parts:
-        if part.function_response.name:
-            # FIXME: It's unclear whether multiple `function_response` can
-            # coexist, but currently we can retain only one.
-            yield f"{prefix}{MESSAGE_ROLE}", "tool"
-            yield f"{prefix}{MESSAGE_NAME}", part.function_response.name
-            cls = part.function_response.__class__
-            # Maybe there's an easier way to do this.
-            function_response = cls.to_dict(part.function_response)
-            yield (
-                f"{prefix}{MESSAGE_CONTENT}",
-                safe_json_dumps(function_response.get("response") or {}),
-            )
     yield from _parse_parts(parts, prefix)
     yield from _parse_tool_calls(parts, prefix)
 
