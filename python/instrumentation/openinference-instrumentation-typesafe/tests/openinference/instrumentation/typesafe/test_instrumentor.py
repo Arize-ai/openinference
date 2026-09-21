@@ -30,6 +30,7 @@ from openinference.instrumentation.config import REDACTED_VALUE
 from openinference.instrumentation.typesafe import TypeSafeAIInstrumentor
 from openinference.instrumentation.typesafe._attributes import get_request_attributes
 from openinference.semconv.trace import (
+    MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -86,9 +87,35 @@ def _assert_llm_span(span: ReadableSpan, transport: RecordingTransport) -> None:
     invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
     assert invocation_parameters == {"model": "jev-latest"}
 
-    # A System One call is not a chat exchange, so nothing is recorded as messages.
-    assert not any(key.startswith(SpanAttributes.LLM_INPUT_MESSAGES) for key in attrs)
-    assert not any(key.startswith(SpanAttributes.LLM_OUTPUT_MESSAGES) for key in attrs)
+    # The request is also rendered as messages: the questions as a system message, the state
+    # as a user message, and the answers as an assistant message.
+    assert (
+        attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "system"
+    )
+    assert attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"] == (
+        "billing (noul): Is this about billing?\n\n"
+        "tone (choice): What is the tone?\n- calm\n- angry\n\n"
+        "urgency (score): How urgent?\n- 0: low\n- 1: medium\n- 2: high"
+    )
+    assert (
+        attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}"] == "user"
+    )
+    assert (
+        attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"] == STATE
+    )
+    assert f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}" not in attrs
+    assert (
+        attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+        == "assistant"
+    )
+    assert (
+        json.loads(
+            str(
+                attrs[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            )
+        )
+        == SYSTEM_ONE_RESPONSE["answers"]
+    )
 
     # output.value mirrors the wire response body.
     assert attrs[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
@@ -322,10 +349,12 @@ def test_trace_config_hides_inputs_and_outputs(
     attrs = _attrs(span)
     assert attrs[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert attrs[SpanAttributes.OUTPUT_VALUE] == REDACTED_VALUE
-    # The whole request rides in input.value, so hide_inputs alone covers the state and the
-    # question instructions.
+    # hide_inputs covers input.value and llm.input_messages alike, so the state and the
+    # question instructions are gone; hide_outputs does the same for the answers.
     assert STATE not in json.dumps(dict(attrs))
     assert "Is this about billing?" not in json.dumps(dict(attrs))
+    assert not any(key.startswith(SpanAttributes.LLM_INPUT_MESSAGES) for key in attrs)
+    assert not any(key.startswith(SpanAttributes.LLM_OUTPUT_MESSAGES) for key in attrs)
     # Invocation parameters carry configuration only, so they survive hide_inputs.
     invocation_parameters = json.loads(str(attrs[SpanAttributes.LLM_INVOCATION_PARAMETERS]))
     assert invocation_parameters == {"model": "jev-latest"}

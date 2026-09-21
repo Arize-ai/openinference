@@ -7,14 +7,16 @@ Python auto-instrumentation library for the [TypeSafe AI](https://docs.typesafe.
 Calls to `TypeSafeClient.system_one` and `AsyncTypeSafeClient.system_one` are traced and exported as OpenInference LLM spans. A System One request sends a `state` plus a map of typed `questions` (Noul, Choice, Score) and returns one typed `answer` per question, so the span records:
 
 - `input.value`: the request body (`state`, `model`, `questions`) as JSON
+- `llm.input_messages`: a `system` message rendering the `questions` as text and a `user` message carrying the `state`
 - `llm.invocation_parameters`: the call configuration, meaning the `model` and any `extra_body` fields
 - `output.value`: the response body (`model`, `answers`, `usage`) as JSON
+- `llm.output_messages`: an `assistant` message carrying the `answers` as JSON
 - `llm.request.model_name` (for example `jev-latest`) and `llm.response.model_name` (the resolved model, for example `jev-1.13.0`)
 - `llm.token_count.prompt`, `llm.token_count.completion`, and `llm.token_count.total`
 
-A System One call is not a chat exchange, so the `state` and the `answers` are recorded only as `input.value` and `output.value`, not as `llm.input_messages` / `llm.output_messages`.
+A System One call is not a chat exchange, but it is also recorded as one so the request and the answers render as messages in trace viewers. The messages repeat what `input.value` and `output.value` carry and are masked by the same flags.
 
-The `state` and the `questions` are recorded only in `input.value`, so `TraceConfig(hide_inputs=True)` keeps the whole request — caller data and question instructions alike — off the span, and `hide_outputs=True` does the same for the answers. `llm.invocation_parameters` holds no request content, only the model and any `extra_body` fields; mask it with `hide_llm_invocation_parameters` if those are sensitive.
+The `state` and the `questions` are recorded in `input.value` and `llm.input_messages`, both of which `TraceConfig(hide_inputs=True)` masks, so that one flag keeps the whole request — caller data and question instructions alike — off the span; `hide_outputs=True` does the same for the answers in `output.value` and `llm.output_messages`. `llm.invocation_parameters` holds no request content, only the model and any `extra_body` fields; mask it with `hide_llm_invocation_parameters` if those are sensitive.
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize Phoenix](https://github.com/Arize-ai/phoenix) or [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference).
 

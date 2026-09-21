@@ -10,19 +10,24 @@ recorded, so ``hide_inputs`` alone keeps every part of the request off the span.
 ``llm.invocation_parameters`` carries only call configuration: the ``model`` and any
 ``extra_body`` fields. See the package README for the full attribute mapping.
 
-A ``system_one`` call is not a chat exchange: neither side is a message list, so
-``llm.input_messages`` and ``llm.output_messages`` are deliberately not recorded.
+A ``system_one`` call is not a chat exchange, but it is rendered as one so the request reads
+naturally in trace viewers: the ``questions`` become a ``system`` message, the ``state`` a
+``user`` message, and the ``answers`` an ``assistant`` message. Those messages repeat what
+``input.value`` and ``output.value`` already carry and are masked by the same ``hide_inputs``
+and ``hide_outputs`` flags.
 """
 
+import json
 import logging
 from collections.abc import Mapping as AbcMapping
 from collections.abc import Sequence as AbcSequence
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import msgspec
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
+    Message,
     TokenCount,
     get_input_attributes,
     get_llm_attributes,
@@ -91,13 +96,18 @@ def get_request_attributes(
         extra_body: Extra top-level request body fields, if any.
 
     Returns:
-        The span kind, ``input.value``, and the request-side ``llm.*`` attributes.
+        The span kind, ``input.value``, ``llm.input_messages``, and the request-side
+        ``llm.*`` attributes.
     """
     body: Dict[str, Any] = {
         "state": _to_builtins(state),
         "model": model,
         "questions": _to_builtins(questions),
     }
+    input_messages: List[Message] = [
+        {"role": "system", "content": _render_questions(body["questions"])},
+        {"role": "user", "content": _render_content(body["state"])},
+    ]
     if extra_body:
         # extra_body values are JSONValue, so they may hold abstract Mapping / Sequence
         # containers that need the same conversion as state and questions.
@@ -115,6 +125,7 @@ def get_request_attributes(
             provider=LLM_PROVIDER,
             request_model_name=model,
             invocation_parameters=invocation_parameters,
+            input_messages=input_messages,
         ),
     }
 
@@ -126,7 +137,8 @@ def get_response_attributes(response: Any) -> Dict[str, AttributeValue]:
         response: The response object returned by ``system_one``.
 
     Returns:
-        ``output.value``, the resolved response model name, and token counts.
+        ``output.value``, ``llm.output_messages``, the resolved response model name, and
+        token counts.
     """
     model = getattr(response, "model", None)
     usage = getattr(response, "usage", None)
@@ -139,9 +151,45 @@ def get_response_attributes(response: Any) -> Dict[str, AttributeValue]:
         **get_llm_attributes(
             response_model_name=model,
             token_count=_get_token_count(usage),
+            output_messages=[{"role": "assistant", "content": _render_content(body["answers"])}],
         ),
         **get_output_attributes(body, mime_type=OpenInferenceMimeTypeValues.JSON),
     }
+
+
+def _render_content(value: Any) -> str:
+    """Returns a string as-is and anything else as indented JSON."""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, indent=2, ensure_ascii=False)
+    except Exception:
+        return str(value)
+
+
+def _render_questions(questions: Any) -> str:
+    """Renders the questions map as one readable block, one question per paragraph.
+
+    Each paragraph names the question key and type, then the instructions, then one line per
+    criterion. Criteria are a label-to-description mapping for Noul and Choice and an ordered
+    list of labels for Score. Anything that is not a mapping of question dictionaries is
+    rendered as JSON.
+    """
+    if not isinstance(questions, dict) or not all(isinstance(q, dict) for q in questions.values()):
+        return _render_content(questions)
+    paragraphs = []
+    for key, question in questions.items():
+        lines = [f"{key} ({question.get('type', 'question')}): {question.get('instructions', '')}"]
+        criteria = question.get("criteria")
+        if isinstance(criteria, dict):
+            lines.extend(
+                f"- {label}: {description}" if description is not None else f"- {label}"
+                for label, description in criteria.items()
+            )
+        elif isinstance(criteria, list):
+            lines.extend(f"- {position}: {label}" for position, label in enumerate(criteria))
+        paragraphs.append("\n".join(lines))
+    return "\n\n".join(paragraphs)
 
 
 def _get_token_count(usage: Any) -> Optional[TokenCount]:
