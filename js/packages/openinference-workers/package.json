@@ -1,0 +1,50 @@
+{
+  "name": "@arizeai/openinference-workers",
+  "version": "0.1.0",
+  "private": false,
+  "description": "OpenInference tracing for Cloudflare Workers, Durable Objects, and celld",
+  "license": "Apache-2.0",
+  "author": "oss-devs@arize.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arize-ai/openinference.git"
+  },
+  "files": [
+    "dist/esm",
+    "src"
+  ],
+  "type": "module",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "scripts": {
+    "prebuild": "rimraf dist && pnpm run version:update",
+    "build": "tsc --build tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
+    "version:update": "../../scripts/version-update.js",
+    "type:check": "tsc --noEmit",
+    "dev:cloudflare": "wrangler dev --config examples/cloudflare/wrangler.jsonc",
+    "build:example": "wrangler deploy --dry-run --outdir ../celld/dist --config examples/cloudflare/wrangler.jsonc",
+    "test": "vitest run --typecheck"
+  },
+  "dependencies": {
+    "@arizeai/openinference-core": "workspace:*",
+    "@arizeai/openinference-semantic-conventions": "workspace:*",
+    "@cloudflare/workers-types": "^5.20260915.1",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/core": "^2.11.0",
+    "@opentelemetry/otlp-transformer": "^0.222.0",
+    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/sdk-trace": "^2.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.0.0"
+  }
+}

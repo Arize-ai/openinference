@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.esm.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "target": "ES2022",
+    "types": ["node", "@cloudflare/workers-types"]
+  },
+  "include": ["src/**/*.ts", "examples/**/*.ts", "test/**/*.ts"],
+  "exclude": ["examples/celld/dist"]
+}

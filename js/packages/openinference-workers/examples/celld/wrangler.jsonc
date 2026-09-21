@@ -1,0 +1,29 @@
+{
+  "name": "openinference-workers-example",
+  "main": "dist/index.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "OTEL_ENDPOINT": "http://host.docker.internal:6006",
+    "PHOENIX_PROJECT": "openinference-workers-celld"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "COUNTERS",
+        "class_name": "Counter"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "Counter"
+      ]
+    }
+  ],
+  "no_bundle": true
+}

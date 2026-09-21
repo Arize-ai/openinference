@@ -129,6 +129,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`@arizeai/openinference-instrumentation-claude-agent-sdk`](./js/packages/openinference-instrumentation-claude-agent-sdk)           | OpenInference Instrumentation for Claude Agent SDK.                 | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-claude-agent-sdk)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-claude-agent-sdk)           |
 | [`@arizeai/openinference-vercel`](./js/packages/openinference-vercel)                                                               | OpenInference Support for Vercel AI SDK.                            | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-vercel)](https://www.npmjs.com/package/@arizeai/openinference-vercel)                                                               |
 | [`@arizeai/openinference-tanstack-ai`](./js/packages/openinference-tanstack-ai)                                                     | OpenInference middleware for TanStack AI.                           | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-tanstack-ai)](https://www.npmjs.com/package/@arizeai/openinference-tanstack-ai)                                                     |
+| [`@arizeai/openinference-workers`](./js/packages/openinference-workers) | OpenInference tracing for Workers, Durable Objects, and celld. | Experimental |
 | [`@arizeai/openinference-genai`](./js/packages/openinference-genai)                                                                 | OpenInference Support for GenAI conventions                         | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-genai)](https://www.npmjs.com/package/@arizeai/openinference-genai)                                                                 |
 | [`@arizeai/openinference-instrumentation-typesafe`](./js/packages/openinference-instrumentation-typesafe) | OpenInference Instrumentation for the TypeSafe AI SDK. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-typesafe)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-typesafe) |
 
@@ -136,6 +137,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 
 | Name | Description | Complexity Level |
 | --- | --- | --- |
+| [Workers and Durable Objects](js/packages/openinference-workers/examples/) | Cloudflare and celld request tracing with Phoenix verification | Intermediate |
 | [TypeSafe AI](js/packages/openinference-instrumentation-typesafe/examples/) | Classification, structured questions, and confidence-gated routing to an LLM | Beginner |
 
 ## Java

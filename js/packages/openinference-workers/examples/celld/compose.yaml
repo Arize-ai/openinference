@@ -1,0 +1,12 @@
+services:
+  celld:
+    image: ghcr.io/denoland/celld:v0.5.0
+    command: [dev, /app, --host, 0.0.0.0, --port, "9877", --watch-ignore, .celld/**]
+    ports: ["127.0.0.1:9877:9877"]
+    volumes:
+      - ./wrangler.jsonc:/app/wrangler.jsonc:ro
+      - ./dist:/app/dist:ro
+      - cell-state:/app/.celld
+    extra_hosts: ["host.docker.internal:host-gateway"]
+volumes:
+  cell-state:

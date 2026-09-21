@@ -1,0 +1,2 @@
+# Optional collector authentication. Copy to .dev.vars for local use.
+# OTEL_AUTHORIZATION="Bearer your-collector-token"

@@ -1,6 +1,7 @@
 {
   "entryPoints": [
     "packages/openinference-core",
+    "packages/openinference-workers",
     "packages/openinference-genai",
     "packages/openinference-vercel",
     "packages/openinference-semantic-conventions",
