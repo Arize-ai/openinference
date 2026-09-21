@@ -129,3 +129,4 @@ python your_file.py
 * [More info on OpenInference and Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)
+* [How prompt cache reads and writes are counted](https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md#token-count-details), with a [Phoenix round-trip example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md)
