@@ -7,3 +7,4 @@ export {
   type WorkersTracingOptions,
 } from "./provider.js";
 export { withRequestSpan, type RequestSpanOptions } from "./request.js";
+export { instrumentAi, type InstrumentAiOptions } from "./ai.js";

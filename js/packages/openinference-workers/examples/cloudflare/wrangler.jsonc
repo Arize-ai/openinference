@@ -3,10 +3,11 @@
   "main": "index.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  "ai": { "binding": "AI" },
   "vars": {
     "OTEL_ENDPOINT": "http://localhost:6006",
-    "PHOENIX_PROJECT": "openinference-workers-cloudflare"
+    "PHOENIX_PROJECT": "openinference-workers-cloudflare",
   },
   "durable_objects": { "bindings": [{ "name": "COUNTERS", "class_name": "Counter" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Counter"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Counter"] }],
 }
