@@ -58,6 +58,17 @@ for (const path of cases.filter((p) => p !== "/suppressed")) {
   assert.equal(llm.name, "Workers AI.run");
   assert.equal(llm.status_code, path === "/error" ? "ERROR" : "UNSET");
   assert(attrs["llm.model_name"]);
+  for (const parent of group.filter((s) => s.span_kind === "CHAIN")) {
+    assert.equal(
+      parent.attributes["input.value"],
+      path.startsWith("/masked")
+        ? "__REDACTED__"
+        : path === "/tools"
+          ? "What is the weather in Boston? Use the get_weather tool."
+          : "Say hello in one short sentence.",
+      "Parent input visibility",
+    );
+  }
   if (path === "/error") continue;
   if (path.startsWith("/masked")) {
     assert.equal(attrs["input.value"], "__REDACTED__");

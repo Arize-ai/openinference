@@ -74,7 +74,7 @@ for (const [i, result] of results.entries()) {
   assert.equal(worker.attributes["session.id"], `${run}-${i}`);
   assert.equal(worker.attributes["user.id"], "example-user");
   assert.equal(worker.attributes["metadata.scenario"], "counter");
-  assert.equal(worker.attributes["input.value"], "__REDACTED__");
+  assert.equal(worker.attributes["input.value"], "Increment the counter.");
   const tags = worker.attributes["tag.tags"];
   assert.deepEqual(typeof tags === "string" ? JSON.parse(tags) : tags, ["example"]);
   assert.equal(worker.status_code, "UNSET");
@@ -105,7 +105,7 @@ console.log(
       spans: 41,
       parentage: "passed",
       context: "passed",
-      masking: "passed",
+      inputVisibility: "passed",
       suppression: "passed",
       error: "passed",
       remoteParent: "passed",

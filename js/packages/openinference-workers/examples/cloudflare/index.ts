@@ -41,8 +41,19 @@ function tracingFor(env: Env) {
     headers: env.OTEL_AUTHORIZATION ? { authorization: env.OTEL_AUTHORIZATION } : undefined,
     projectName: env.PHOENIX_PROJECT,
     serviceName: "openinference-workers-example",
-    traceConfig: { hideInputs: true },
   }));
+}
+function aiTracer(request: Request, t: WorkersTracing) {
+  const masked = new URL(request.url).pathname.startsWith("/ai/masked");
+  return new OITracer({
+    tracer: t.otelTracer,
+    traceConfig: { hideInputs: masked, hideOutputs: masked },
+  });
+}
+function aiPrompt(request: Request) {
+  return new URL(request.url).pathname === "/ai/tools"
+    ? "What is the weather in Boston? Use the get_weather tool."
+    : "Say hello in one short sentence.";
 }
 export class Counter extends DurableObject<Env> {
   async fetch(request: Request) {
@@ -55,7 +66,8 @@ export class Counter extends DurableObject<Env> {
         () =>
           withRequestSpan(
             {
-              tracer: t.tracer,
+              tracer: aiTracer(request, t),
+              attributes: getInputAttributes(aiPrompt(request)),
               request,
               name: "ai.object",
               kind: OpenInferenceSpanKind.CHAIN,
@@ -118,13 +130,15 @@ export default {
       .with(ctx, () =>
         withRequestSpan(
           {
-            tracer: t.tracer,
+            tracer: url.pathname.startsWith("/ai") ? aiTracer(request, t) : t.tracer,
             request,
             name: "worker.request",
             kind: OpenInferenceSpanKind.CHAIN,
             execution,
             flush: t.flush,
-            attributes: getInputAttributes("private example input"),
+            attributes: getInputAttributes(
+              url.pathname.startsWith("/ai") ? aiPrompt(request) : "Increment the counter.",
+            ),
           },
           async (span) => {
             if (url.pathname.startsWith("/ai")) {
@@ -179,7 +193,6 @@ async function aiResponse(
       headers: injectTraceHeaders(),
     });
   }
-  const masked = url.pathname.startsWith("/ai/masked");
   const ai = instrumentAi({
     ai: env.AI,
     models: [
@@ -187,15 +200,12 @@ async function aiResponse(
       "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
       "@cf/example/nonexistent-model",
     ],
-    tracer: new OITracer({
-      tracer: t.otelTracer,
-      traceConfig: { hideInputs: masked, hideOutputs: masked },
-    }),
+    tracer: aiTracer(request, t),
     execution,
     flush: t.flush,
   });
   const input = {
-    messages: [{ role: "user", content: "Say hello in one short sentence." }],
+    messages: [{ role: "user", content: aiPrompt(request) }],
     max_tokens: 32,
   };
   const model = "@cf/meta/llama-3.2-1b-instruct";
@@ -205,9 +215,7 @@ async function aiResponse(
     const result = await ai.run(
       "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
       {
-        messages: [
-          { role: "user", content: "What is the weather in Boston? Use the get_weather tool." },
-        ],
+        messages: [{ role: "user", content: aiPrompt(request) }],
         tools: [
           {
             type: "function",

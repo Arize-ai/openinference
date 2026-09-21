@@ -32,7 +32,7 @@ worker.request [CHAIN]
     └── counter.increment [TOOL]
 ```
 
-The Worker attaches a session, user, metadata, and tags. Inputs are masked. `/error` records an exception and returns HTTP 500; `/suppressed` runs the local handler without recording a span. Suppression and application metadata are local context, not an HTTP propagation protocol.
+The Worker attaches a session, user, metadata, and tags. Normal parent and LLM inputs are visible. Masking is confined to `/ai/masked` and `/ai/masked/stream`, where both parent and LLM spans redact inputs. `/error` records an exception and returns HTTP 500; `/suppressed` runs the local handler without recording a span. Suppression and application metadata are local context, not an HTTP propagation protocol.
 
 ## Build
 
@@ -60,7 +60,7 @@ curl 'http://localhost:8787/?session=review&counter=review'
 PHOENIX_HOST=http://localhost:6006 node examples/verify.mjs http://localhost:8787 openinference-workers-cloudflare
 ```
 
-The script makes 12 concurrent requests to the same Durable Object, verifies persisted counter updates, and checks the spans read back from Phoenix, including exact parent relationships, isolated sessions, masking, suppression, and error recording. It prints the run ID and trace IDs. Normal verification expects 41 spans: 36 from concurrent requests, two error spans, and three spans from a request with an inbound remote parent. Runs use unique session IDs, so repeated runs can accumulate in the same Phoenix project.
+The script makes 12 concurrent requests to the same Durable Object, verifies persisted counter updates, and checks the spans read back from Phoenix, including exact parent relationships, isolated sessions, visible inputs, suppression, and error recording. It prints the run ID and trace IDs. Normal verification expects 41 spans: 36 from concurrent requests, two error spans, and three spans from a request with an inbound remote parent. Runs use unique session IDs, so repeated runs can accumulate in the same Phoenix project.
 
 ## Verify LLM tracing
 
@@ -135,7 +135,7 @@ The package manages its own OpenTelemetry context and exports application spans.
 
 ## Verification evidence
 
-Verified with Wrangler 4.135.0 (workerd 1.20260918.1), a deployed Cloudflare Worker and SQLite Durable Object, and celld 0.5.0. The deployed run exported 41 application spans to authenticated public Phoenix: 12 concurrent three-span traces, two error spans, and a three-span trace with a remote parent. Context isolation, input masking, suppression, error status, and parent relationships passed read-back assertions.
+Verified with Wrangler 4.135.0 (workerd 1.20260918.1), a deployed Cloudflare Worker and SQLite Durable Object, and celld 0.5.0. The deployed run exported 41 application spans to authenticated public Phoenix: 12 concurrent three-span traces, two error spans, and a three-span trace with a remote parent. Context isolation, input visibility, suppression, error status, and parent relationships passed read-back assertions.
 
 Focused regression tests cover the runtime findings. Run `pnpm test` from the package. The HTTP error boundary is exercised by the real-runtime verification script: on celld, allowing the exception to escape the handler can cancel export before the error span reaches Phoenix.
 

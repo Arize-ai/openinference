@@ -31,7 +31,6 @@ export default {
       endpoint: env.OTEL_ENDPOINT, // collector base URL; /v1/traces is appended
       projectName: "my-worker",
       serviceName: "my-worker",
-      traceConfig: { hideInputs: true },
     }));
     return withRequestSpan(
       {
