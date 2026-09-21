@@ -83,6 +83,7 @@ function endCurrentLLMSpan(options: {
   }
 
   if (options.finishReason != null) {
+    llmState.span.setAttribute(SemanticConventions.LLM_FINISH_REASON, options.finishReason);
     llmState.span.setAttribute("tanstack.ai.finish_reason", options.finishReason);
   }
 
