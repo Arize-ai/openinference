@@ -507,6 +507,24 @@ function accumulateChatCompletionUsage({
   } else if (promptTokens !== undefined || completionTokens !== undefined) {
     totals.totalTokens = (totals.totalTokens ?? 0) + (promptTokens ?? 0) + (completionTokens ?? 0);
   }
+  accumulatePromptCacheUsage({ totals, usage });
+  // o-series completion_tokens_details.reasoning_tokens
+  if (
+    isRecord(usage.completion_tokens_details) &&
+    isNumber(usage.completion_tokens_details.reasoning_tokens)
+  ) {
+    totals.reasoningTokens =
+      (totals.reasoningTokens ?? 0) + usage.completion_tokens_details.reasoning_tokens;
+  }
+}
+
+function accumulatePromptCacheUsage({
+  totals,
+  usage,
+}: {
+  totals: ChatCompletionTokenTotals;
+  usage: Record<string, unknown>;
+}) {
   // OpenAI / DeepSeek prompt_tokens_details.cached_tokens
   if (
     isRecord(usage.prompt_tokens_details) &&
@@ -521,14 +539,6 @@ function accumulateChatCompletionUsage({
   ) {
     totals.cacheWriteTokens =
       (totals.cacheWriteTokens ?? 0) + usage.prompt_tokens_details.cache_write_tokens;
-  }
-  // o-series completion_tokens_details.reasoning_tokens
-  if (
-    isRecord(usage.completion_tokens_details) &&
-    isNumber(usage.completion_tokens_details.reasoning_tokens)
-  ) {
-    totals.reasoningTokens =
-      (totals.reasoningTokens ?? 0) + usage.completion_tokens_details.reasoning_tokens;
   }
 }
 

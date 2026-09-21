@@ -187,3 +187,11 @@ The realtime instrumentor recognizes three environment variables for redacting c
 * [More info on OpenInference and Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference)
 * [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
 * [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)
+
+## Prompt cache token counts
+
+OpenAI cache reads (`cached_tokens`) and writes (`cache_write_tokens`) are recorded
+as `llm.token_count.prompt_details.cache_read` and `cache_write` when reported.
+Zero counts are preserved; absent counts are not inferred. These counts are
+already included in the prompt total. See the [cache token guide and Phoenix
+example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md) for API mappings, accounting, and verification.

@@ -217,9 +217,12 @@ export function getResponsesUsageAttributes(response: ResponseType): Attributes 
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: response.usage.total_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]:
         response.usage.input_tokens_details?.cached_tokens,
-      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: (
-        response.usage.input_tokens_details as { cache_write_tokens?: number } | undefined
-      )?.cache_write_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]:
+        response.usage.input_tokens_details &&
+        "cache_write_tokens" in response.usage.input_tokens_details &&
+        typeof response.usage.input_tokens_details.cache_write_tokens === "number"
+          ? response.usage.input_tokens_details.cache_write_tokens
+          : undefined,
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]:
         response.usage.output_tokens_details?.reasoning_tokens,
       // no audio tokens for response inputs or outputs

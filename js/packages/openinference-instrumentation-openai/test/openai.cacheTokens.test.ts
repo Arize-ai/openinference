@@ -46,6 +46,35 @@ describe("OpenAIInstrumentation - real prompt cache usage", () => {
     vi.restoreAllMocks();
   });
 
+  it.each([
+    ["zero", 0],
+    ["missing", undefined],
+    ["null", null],
+  ])("preserves zero and omits unavailable cache writes (%s)", async (_, cacheWriteTokens) => {
+    const recorded = realCacheTokenResponses.chatCompletionsLuna.cacheRead;
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error mock the transport response, including fields absent from older SDK types
+      async () => ({
+        ...recorded,
+        usage: {
+          ...recorded.usage,
+          prompt_tokens_details: { cached_tokens: 7, cache_write_tokens: cacheWriteTokens },
+        },
+      }),
+    );
+    await openai.chat.completions.create({
+      model: "gpt-5.6-luna",
+      messages: [{ role: "user", content: "Hello" }],
+    });
+    const [span] = memoryExporter.getFinishedSpans();
+    expect(span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(7);
+    if (cacheWriteTokens === 0) {
+      expect(span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(0);
+    } else {
+      expect(span.attributes).not.toHaveProperty(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE);
+    }
+  });
+
   const chatCompletionCases = [
     ["gpt-5.6-luna", realCacheTokenResponses.chatCompletionsLuna],
     ["gpt-5.6-terra", realCacheTokenResponses.chatCompletionsTerra],

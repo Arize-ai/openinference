@@ -73,7 +73,7 @@ def test_chat_completions_cache_write_then_read(
         < first[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]
     )
 
-    # Every prompt token is accounted for as either read from or written to cache.
+    # Cache reads and writes are subsets; some input may be neither.
     for usage in (first, second):
         cache_total = (
             usage[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]

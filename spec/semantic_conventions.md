@@ -202,7 +202,8 @@ used; otherwise, a custom value MAY be used.
 `llm.token_count.prompt_details.cache_read` and `llm.token_count.prompt_details.cache_write` provide granular token count information for cache operations, enabling detailed API usage tracking and cost analysis.
 
 - `cache_read` represents the number of prompt tokens successfully retrieved from cache (cache hits). For OpenAI, this
-  corresponds to the `usage.prompt_tokens_details.cached_tokens` field in completion API responses. For Anthropic, when
+  corresponds to `usage.prompt_tokens_details.cached_tokens` in Chat Completions API responses and
+  `usage.input_tokens_details.cached_tokens` in Responses API responses. For Anthropic, when
   using a cache_control block, this maps to the `cache_read_input_tokens` field in Messages API responses.
 - `cache_write` represents the number of prompt tokens not found in cache (cache misses) that were subsequently written
   to cache. For OpenAI, this corresponds to the `usage.prompt_tokens_details.cache_write_tokens` field in Chat

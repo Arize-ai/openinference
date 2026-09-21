@@ -86,3 +86,11 @@ openaiInstrumentation.setTracerProvider(customTracerProvider);
 | ^6.0.0         | ^4.0.0                                |
 | ^5.0.0         | ^3.0.0                                |
 | ^4.0.0         | ^2.0.0                                |
+
+## Prompt cache token counts
+
+OpenAI cache reads (`cached_tokens`) and writes (`cache_write_tokens`) are recorded
+as `llm.token_count.prompt_details.cache_read` and `cache_write` when reported.
+Zero counts are preserved; absent counts are not inferred. These counts are
+already included in the prompt total. See the [cache token guide and Phoenix
+example](https://github.com/Arize-ai/openinference/blob/main/python/instrumentation/openinference-instrumentation-openai/examples/cache_tokens.md) for API mappings, accounting, and verification.
