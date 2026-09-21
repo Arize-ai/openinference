@@ -22,6 +22,16 @@ import type {
 } from "openai/resources/chat/completions";
 import type { CompletionCreateParamsBase } from "openai/resources/completions";
 import type {
+  ImageCreateVariationParams,
+  ImageEditCompletedEvent,
+  ImageEditParamsBase,
+  ImageEditStreamEvent,
+  ImageGenCompletedEvent,
+  ImageGenerateParamsBase,
+  ImageGenStreamEvent,
+  ImagesResponse,
+} from "openai/resources/images";
+import type {
   Response as ResponseType,
   ResponseCreateParamsBase,
   ResponseStreamEvent,
@@ -39,8 +49,14 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 
 import {
+  getCompletedImageEventAttributes,
+  getImagesResponseAttributes,
+  getInputImageAttributes,
+} from "./imageAttributes";
+import {
   consumeResponseStreamEvents,
   getResponsesInputMessagesAttributes,
+  getResponsesOutputImageAttributes,
   getResponsesOutputMessagesAttributes,
   getResponsesUsageAttributes,
 } from "./responsesAttributes";
@@ -562,6 +578,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   // Override the model from the value sent by the server
                   [SemanticConventions.LLM_MODEL_NAME]: result.model,
                   ...getResponsesOutputMessagesAttributes(result),
+                  ...getResponsesOutputImageAttributes(result, body),
                   ...getResponsesUsageAttributes(result),
                 });
                 span.setStatus({ code: SpanStatusCode.OK });
@@ -584,6 +601,131 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               return result;
             };
             const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+    }
+
+    // Patch the Images API when it is available in the installed SDK.
+    if (module.OpenAI.Images) {
+      const startImagesSpan = (
+        clientInstance: unknown,
+        body: ImageGenerateParamsBase | ImageEditParamsBase | ImageCreateVariationParams,
+        requestBody: Record<string, unknown>,
+      ) =>
+        instrumentation.oiTracer.startSpan(`OpenAI Images`, {
+          kind: SpanKind.INTERNAL,
+          attributes: {
+            [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+            [SemanticConventions.LLM_MODEL_NAME]: body.model ?? undefined,
+            [SemanticConventions.INPUT_VALUE]: JSON.stringify(requestBody),
+            [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+            [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(requestBody),
+            [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
+            [SemanticConventions.LLM_PROVIDER]: getLLMProvider(clientInstance),
+          },
+        });
+
+      type ImagesGenerateType = typeof module.OpenAI.Images.prototype.generate;
+      this._wrap(
+        module.OpenAI.Images.prototype,
+        "generate",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ImagesGenerateType): any => {
+          return function patchedGenerate(this: unknown, ...args: Parameters<ImagesGenerateType>) {
+            const body = args[0];
+            const requestBody = { ...body };
+            const span = startImagesSpan(this, body, requestBody);
+            const execContext = getExecContext(span);
+            const execPromise = safeExecuteInTheMiddle(
+              () =>
+                context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
+              getImageRequestErrorHandler(span),
+            );
+            const wrappedPromise = invokeMaybeAPIPromiseAsync(
+              execPromise,
+              (result) =>
+                recordImagesResult({
+                  result,
+                  span,
+                  inputAttributes: Promise.resolve({}),
+                  requestFormat: body.output_format,
+                }),
+              getImageRequestErrorHandler(span),
+            );
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+
+      type ImagesEditType = typeof module.OpenAI.Images.prototype.edit;
+      this._wrap(
+        module.OpenAI.Images.prototype,
+        "edit",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ImagesEditType): any => {
+          return function patchedEdit(this: unknown, ...args: Parameters<ImagesEditType>) {
+            const body = args[0];
+            const { image, mask, ...requestBody } = body;
+            const inputAttributes = getInputImageAttributes(
+              mask === undefined ? [image] : [image, mask],
+              instrumentation.traceConfig,
+            );
+            const span = startImagesSpan(this, body, requestBody);
+            const execContext = getExecContext(span);
+            const execPromise = safeExecuteInTheMiddle(
+              () =>
+                context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
+              getImageRequestErrorHandler(span),
+            );
+            const wrappedPromise = invokeMaybeAPIPromiseAsync(
+              execPromise,
+              (result) =>
+                recordImagesResult({
+                  result,
+                  span,
+                  inputAttributes,
+                  requestFormat: body.output_format,
+                }),
+              getImageRequestErrorHandler(span),
+            );
+            return context.bind(execContext, wrappedPromise);
+          };
+        },
+      );
+
+      type ImagesCreateVariationType = typeof module.OpenAI.Images.prototype.createVariation;
+      this._wrap(
+        module.OpenAI.Images.prototype,
+        "createVariation",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (original: ImagesCreateVariationType): any => {
+          return function patchedCreateVariation(
+            this: unknown,
+            ...args: Parameters<ImagesCreateVariationType>
+          ) {
+            const body = args[0];
+            const { image, ...requestBody } = body;
+            const inputAttributes = getInputImageAttributes([image], instrumentation.traceConfig);
+            const span = startImagesSpan(this, body, requestBody);
+            const execContext = getExecContext(span);
+            const execPromise = safeExecuteInTheMiddle(
+              () =>
+                context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
+              getImageRequestErrorHandler(span),
+            );
+            const wrappedPromise = invokeMaybeAPIPromiseAsync(
+              execPromise,
+              (result) =>
+                recordImagesResult({
+                  result,
+                  span,
+                  inputAttributes,
+                  requestFormat: "png",
+                }),
+              getImageRequestErrorHandler(span),
+            );
             return context.bind(execContext, wrappedPromise);
           };
         },
@@ -613,6 +755,14 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
+    if (moduleExports.OpenAI.Responses) {
+      this._unwrap(moduleExports.OpenAI.Responses.prototype, "create");
+    }
+    if (moduleExports.OpenAI.Images) {
+      this._unwrap(moduleExports.OpenAI.Images.prototype, "generate");
+      this._unwrap(moduleExports.OpenAI.Images.prototype, "edit");
+      this._unwrap(moduleExports.OpenAI.Images.prototype, "createVariation");
+    }
 
     // Keyed the same way patch() keys it, so a re-patch is possible after.
     _patchedModules.delete(moduleExports.OpenAI);
@@ -625,6 +775,97 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
       diag.warn(`Failed to unset ${MODULE_NAME} patched flag on the module`, e);
     }
   }
+}
+
+type ImagesStreamEvent = ImageEditStreamEvent | ImageGenStreamEvent;
+type ImagesResult = ImagesResponse | Stream<ImagesStreamEvent>;
+
+type ImagesStreamLike = {
+  tee: () => [AsyncIterable<ImagesStreamEvent>, AsyncIterable<ImagesStreamEvent>];
+  [Symbol.asyncIterator]: () => AsyncIterator<ImagesStreamEvent>;
+};
+
+function isImagesStream(result: unknown): result is ImagesStreamLike {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "tee" in result &&
+    typeof result.tee === "function" &&
+    Symbol.asyncIterator in result &&
+    typeof result[Symbol.asyncIterator] === "function"
+  );
+}
+
+function getImageRequestErrorHandler(span: Span): (error?: Error) => void {
+  return (error) => {
+    if (!error) return;
+    span.recordException(error);
+    span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+    span.end();
+  };
+}
+
+function isCompletedImageEvent(
+  event: ImagesStreamEvent,
+): event is ImageEditCompletedEvent | ImageGenCompletedEvent {
+  return event.type === "image_edit.completed" || event.type === "image_generation.completed";
+}
+
+async function consumeImagesStreamEvents(stream: AsyncIterable<ImagesStreamEvent>, span: Span) {
+  let completedEvent: ImageEditCompletedEvent | ImageGenCompletedEvent | undefined;
+  try {
+    for await (const event of stream) {
+      if (isCompletedImageEvent(event)) completedEvent = event;
+    }
+    if (!completedEvent) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      span.end();
+      return;
+    }
+    span.setAttributes({
+      [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(completedEvent),
+      [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+      ...getCompletedImageEventAttributes(completedEvent),
+    });
+    span.setStatus({ code: SpanStatusCode.OK });
+    span.end();
+  } catch (error) {
+    if (error instanceof Error) span.recordException(error);
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: error instanceof Error ? error.message : undefined,
+    });
+    span.end();
+  }
+}
+
+async function recordImagesResult<T extends ImagesResult>({
+  result,
+  span,
+  inputAttributes,
+  requestFormat,
+}: {
+  result: T;
+  span: Span;
+  inputAttributes: Promise<Attributes>;
+  requestFormat?: unknown;
+}): Promise<T> {
+  span.setAttributes(await inputAttributes);
+  if (isImagesStream(result)) {
+    const [leftStream, rightStream] = result.tee();
+    void consumeImagesStreamEvents(rightStream, span);
+    // The tee preserves the stream's event type, which instanceof cannot express for generic T.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return leftStream as T;
+  }
+  span.setAttributes({
+    [SemanticConventions.OUTPUT_VALUE]: JSON.stringify(result),
+    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+    ...getImagesResponseAttributes(result, requestFormat),
+  });
+  span.setStatus({ code: SpanStatusCode.OK });
+  span.end();
+  return result;
 }
 
 function isResponseCreateResponse(
@@ -1024,6 +1265,36 @@ function getToolAndFunctionCallAttributesFromStreamChunk(chunk: ChatCompletionCh
  */
 function isAPIPromise<T>(promise: unknown): promise is APIPromise<T> {
   return promise instanceof APIPromise;
+}
+
+/**
+ * Applies an async transform while retaining the OpenAI SDK's APIPromise API.
+ * The SDK's parser awaits the transform before resolving the returned promise.
+ */
+function invokeMaybeAPIPromiseAsync<T>(
+  promise: APIPromise<T> | Promise<T> | T,
+  then: (value: T) => Promise<T>,
+  onRejected?: (error: Error) => void,
+): APIPromise<T> | Promise<T> | T {
+  if (isAPIPromise<T>(promise)) {
+    // OpenAI's runtime awaits async parser transforms, but _thenUnwrap's declaration does not.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    const transformedPromise = promise._thenUnwrap(then) as unknown as APIPromise<T>;
+    if (onRejected) {
+      // Observe the transformed promise so the response body is parsed only once.
+      void transformedPromise.catch((error: unknown) => {
+        onRejected(error instanceof Error ? error : new Error(String(error)));
+      });
+    }
+    return transformedPromise;
+  }
+  if (promise instanceof Promise) {
+    return promise.then(then, (error: unknown) => {
+      onRejected?.(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    });
+  }
+  return promise;
 }
 
 /**

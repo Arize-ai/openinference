@@ -139,6 +139,60 @@ describe("OpenAIInstrumentation - Responses", () => {
 `);
   });
 
+  it("captures image generation results as span-level output images", async () => {
+    const response = {
+      ...responseBase,
+      id: "resp_images",
+      output: [
+        {
+          id: "ig_failed",
+          type: "image_generation_call" as const,
+          status: "failed" as const,
+          result: null,
+        },
+        {
+          id: "ig_first",
+          type: "image_generation_call" as const,
+          status: "completed" as const,
+          result: "Zmlyc3Q=",
+        },
+        {
+          id: "ig_second",
+          type: "image_generation_call" as const,
+          status: "completed" as const,
+          result: "c2Vjb25k",
+          // The runtime may return this before the generated SDK type exposes it.
+          // @ts-expect-error output_format is not in the current ImageGenerationCall type.
+          output_format: "jpeg",
+        },
+      ],
+      model: "gpt-image-1",
+      output_text: "",
+    } satisfies ResponseType;
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        Promise.resolve({
+          response: new Response(),
+          options: {},
+          controller: new AbortController(),
+        }) as never,
+        () => response,
+      );
+    });
+
+    await openai.responses.create({
+      input: "Draw two lighthouses",
+      model: "gpt-image-1",
+      tools: [{ type: "image_generation", output_format: "webp" }],
+    });
+
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.attributes["output.images.0.image.url"]).toBe("data:image/webp;base64,Zmlyc3Q=");
+    expect(span.attributes["output.images.1.image.url"]).toBe("data:image/jpeg;base64,c2Vjb25k");
+    expect(span.attributes["output.images.2.image.url"]).toBeUndefined();
+  });
+
   it("creates a span for responses with multiple messages and instructions", async () => {
     const response = {
       ...responseBase,
