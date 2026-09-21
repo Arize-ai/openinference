@@ -5,9 +5,10 @@ See cache_tokens.md for installation, execution, and Phoenix readback commands.
 
 import argparse
 import json
+from typing import Any, Tuple
 from uuid import uuid4
 
-from openai import OpenAI
+from openai import NOT_GIVEN, OpenAI
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -17,6 +18,52 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.resource import ResourceAttributes
 from openinference.semconv.trace import SpanAttributes
+
+# (usage, prompt token details, prompt tokens, completion tokens)
+Usage = Tuple[Any, Any, int, int]
+
+
+def _responses_usage(client: OpenAI, args: argparse.Namespace, prefix: str, question: str) -> Usage:
+    result = client.responses.create(
+        model=args.model,
+        instructions=prefix,
+        input=question,
+        reasoning={"effort": "low"},
+        max_output_tokens=128,
+        stream=args.stream,
+    )
+    if args.stream:
+        usage = None
+        for event in result:
+            if event.type in ("response.completed", "response.incomplete"):
+                usage = event.response.usage
+    else:
+        usage = result.usage
+    assert usage is not None, "No final usage received"
+    return usage, usage.input_tokens_details, usage.input_tokens, usage.output_tokens
+
+
+def _chat_usage(client: OpenAI, args: argparse.Namespace, prefix: str, question: str) -> Usage:
+    result = client.chat.completions.create(
+        model=args.model,
+        messages=[
+            {"role": "system", "content": prefix},
+            {"role": "user", "content": question},
+        ],
+        reasoning_effort="low",
+        max_completion_tokens=128,
+        stream=args.stream,
+        stream_options={"include_usage": True} if args.stream else NOT_GIVEN,
+    )
+    if args.stream:
+        usage = None
+        for chunk in result:
+            if chunk.usage is not None:
+                usage = chunk.usage
+    else:
+        usage = result.usage
+    assert usage is not None, "No final usage received"
+    return usage, usage.prompt_tokens_details, usage.prompt_tokens, usage.completion_tokens
 
 
 def main() -> None:
@@ -41,52 +88,11 @@ def main() -> None:
         f"Reference entry {i}: cache reads reuse input; cache writes store input for later reuse."
         for i in range(100)
     )
-    counts = []
+    get_usage = _responses_usage if args.api == "responses" else _chat_usage
     try:
         with OpenAI() as client:
-            for question in ("Reply with only OK.", "Reply with only DONE."):
-                if args.api == "responses":
-                    result = client.responses.create(
-                        model=args.model,
-                        instructions=prefix,
-                        input=question,
-                        reasoning={"effort": "low"},
-                        max_output_tokens=128,
-                        stream=args.stream,
-                    )
-                    if args.stream:
-                        usage = None
-                        for event in result:
-                            if event.type in ("response.completed", "response.incomplete"):
-                                usage = event.response.usage
-                    else:
-                        usage = result.usage
-                    assert usage is not None, "No final usage received"
-                    details = usage.input_tokens_details
-                    prompt, completion = usage.input_tokens, usage.output_tokens
-                else:
-                    kwargs = {"stream_options": {"include_usage": True}} if args.stream else {}
-                    result = client.chat.completions.create(
-                        model=args.model,
-                        messages=[
-                            {"role": "system", "content": prefix},
-                            {"role": "user", "content": question},
-                        ],
-                        reasoning_effort="low",
-                        max_completion_tokens=128,
-                        stream=args.stream,
-                        **kwargs,
-                    )
-                    if args.stream:
-                        usage = None
-                        for chunk in result:
-                            if chunk.usage is not None:
-                                usage = chunk.usage
-                    else:
-                        usage = result.usage
-                    assert usage is not None, "No final usage received"
-                    details = usage.prompt_tokens_details
-                    prompt, completion = usage.prompt_tokens, usage.completion_tokens
+            for index, question in enumerate(("Reply with only OK.", "Reply with only DONE.")):
+                usage, details, prompt, completion = get_usage(client, args, prefix, question)
                 read = getattr(details, "cached_tokens", None)
                 write = getattr(details, "cache_write_tokens", None)
                 assert read is not None and write is not None, "Model did not report cache counts"
@@ -114,10 +120,11 @@ def main() -> None:
                         }
                     )
                 )
-                counts.append((read, write))
                 memory.clear()
-        assert counts[0][1] > 0, "Cold request did not produce cache writes"
-        assert counts[1][0] > 0, "Warm request did not produce cache reads; try another run"
+                if index == 0:
+                    assert write > 0, "Cold request did not produce cache writes"
+                else:
+                    assert read > 0, "Warm request did not produce cache reads; try another run"
     finally:
         provider.shutdown()
         OpenAIInstrumentor().uninstrument()

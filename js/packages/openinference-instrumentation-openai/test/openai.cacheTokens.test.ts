@@ -1,18 +1,62 @@
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import OpenAI, { APIPromise } from "openai";
+import { Stream } from "openai/streaming";
 import { vi } from "vitest";
 
 import {
+  LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+  LLM_TOKEN_COUNT_TOTAL,
 } from "@arizeai/openinference-semantic-conventions";
 
 import { OpenAIInstrumentation } from "../src";
+import type { CacheTokenDetails } from "./fixtures/realCacheTokenResponses";
 import { realCacheTokenResponses } from "./fixtures/realCacheTokenResponses";
 
 const memoryExporter = new InMemorySpanExporter();
+
+/**
+ * Assert that two consecutive spans replay a cold cache write followed by a warm
+ * cache read, and that each span's cache counts pass through from the recorded
+ * usage unchanged.
+ */
+function expectColdWriteThenWarmRead({
+  cacheWrite,
+  cacheRead,
+}: {
+  cacheWrite: CacheTokenDetails;
+  cacheRead: CacheTokenDetails;
+}) {
+  const spans = memoryExporter.getFinishedSpans();
+  expect(spans).toHaveLength(2);
+  const [writeSpan, readSpan] = spans;
+  const counts = (span: (typeof spans)[number]) => ({
+    prompt: span.attributes[LLM_TOKEN_COUNT_PROMPT] as number,
+    read: span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] as number,
+    write: span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] as number,
+  });
+  const write = counts(writeSpan);
+  const read = counts(readSpan);
+
+  // Cold call: nothing served from cache, the prompt is written to it.
+  expect(write.read).toBe(cacheWrite.cached_tokens);
+  expect(write.write).toBe(cacheWrite.cache_write_tokens);
+  expect(write.write).toBeGreaterThan(1024);
+
+  // Warm call: the shared prefix is read back instead of written again.
+  expect(read.read).toBe(cacheRead.cached_tokens);
+  expect(read.write).toBe(cacheRead.cache_write_tokens);
+  expect(read.read).toBeGreaterThan(1024);
+  expect(read.write).toBeLessThan(write.write);
+
+  // Cache read and write never exceed the prompt they describe.
+  for (const span of [write, read]) {
+    expect(span.read + span.write).toBeLessThanOrEqual(span.prompt);
+  }
+}
 
 /**
  * These tests replay real OpenAI responses (see the fixture for provenance) so the
@@ -47,32 +91,77 @@ describe("OpenAIInstrumentation - real prompt cache usage", () => {
   });
 
   it.each([
-    ["zero", 0],
-    ["missing", undefined],
-    ["null", null],
-  ])("preserves zero and omits unavailable cache writes (%s)", async (_, cacheWriteTokens) => {
-    const recorded = realCacheTokenResponses.chatCompletionsLuna.cacheRead;
+    ["zero", 0, 0],
+    ["missing", undefined, undefined],
+    ["null", null, undefined],
+  ])(
+    "preserves zero and omits unavailable cache writes (%s)",
+    async (_, cacheWriteTokens, expected) => {
+      const recorded = realCacheTokenResponses.chatCompletionsLuna.cacheRead;
+      vi.spyOn(openai, "post").mockImplementation(
+        // @ts-expect-error mock the transport response, including fields absent from older SDK types
+        async () => ({
+          ...recorded,
+          usage: {
+            ...recorded.usage,
+            prompt_tokens_details: { cached_tokens: 7, cache_write_tokens: cacheWriteTokens },
+          },
+        }),
+      );
+      await openai.chat.completions.create({
+        model: "gpt-5.6-luna",
+        messages: [{ role: "user", content: "Hello" }],
+      });
+      const [span] = memoryExporter.getFinishedSpans();
+      expect(span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(7);
+      expect(span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(expected);
+    },
+  );
+
+  it("records usage from the final usage-only chunk of a chat completions stream", async () => {
     vi.spyOn(openai, "post").mockImplementation(
-      // @ts-expect-error mock the transport response, including fields absent from older SDK types
-      async () => ({
-        ...recorded,
-        usage: {
-          ...recorded.usage,
-          prompt_tokens_details: { cached_tokens: 7, cache_write_tokens: cacheWriteTokens },
-        },
-      }),
+      // @ts-expect-error the response type is not correct - this is just for testing
+      async (): Promise<unknown> => {
+        const iterator = () =>
+          (async function* () {
+            yield { choices: [{ delta: { content: "This is " } }], usage: null };
+            yield { choices: [{ delta: { content: "a test." } }], usage: null };
+            yield { choices: [{ delta: {}, finish_reason: "stop" }], usage: null };
+            // `stream_options.include_usage` adds one last chunk with no choices.
+            yield {
+              choices: [],
+              usage: {
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                total_tokens: 15,
+                prompt_tokens_details: { cached_tokens: 6, cache_write_tokens: 4 },
+              },
+            };
+          })();
+        return new Stream(iterator, new AbortController());
+      },
     );
-    await openai.chat.completions.create({
+
+    const stream = await openai.chat.completions.create({
       model: "gpt-5.6-luna",
-      messages: [{ role: "user", content: "Hello" }],
+      messages: [{ role: "user", content: "Say this is a test" }],
+      stream: true,
+      stream_options: { include_usage: true },
     });
-    const [span] = memoryExporter.getFinishedSpans();
-    expect(span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(7);
-    if (cacheWriteTokens === 0) {
-      expect(span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(0);
-    } else {
-      expect(span.attributes).not.toHaveProperty(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE);
+    let response = "";
+    for await (const chunk of stream) {
+      response += chunk.choices[0]?.delta.content ?? "";
     }
+    expect(response).toBe("This is a test.");
+
+    const [span] = memoryExporter.getFinishedSpans();
+    expect(span.attributes).toMatchObject({
+      [LLM_TOKEN_COUNT_PROMPT]: 10,
+      [LLM_TOKEN_COUNT_COMPLETION]: 5,
+      [LLM_TOKEN_COUNT_TOTAL]: 15,
+      [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: 6,
+      [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: 4,
+    });
   });
 
   const chatCompletionCases = [
@@ -99,41 +188,10 @@ describe("OpenAIInstrumentation - real prompt cache usage", () => {
         });
       }
 
-      const [writeSpan, readSpan] = memoryExporter.getFinishedSpans();
-      expect(memoryExporter.getFinishedSpans()).toHaveLength(2);
-
-      // Cold call: nothing served from cache, the prompt is written to it.
-      expect(writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(
-        recorded.cacheWrite.usage.prompt_tokens_details.cached_tokens,
-      );
-      expect(writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(
-        recorded.cacheWrite.usage.prompt_tokens_details.cache_write_tokens,
-      );
-      expect(writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(0);
-      expect(
-        writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] as number,
-      ).toBeGreaterThan(1024);
-
-      // Warm call: the shared prefix is read back instead of written again.
-      expect(readSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(
-        recorded.cacheRead.usage.prompt_tokens_details.cached_tokens,
-      );
-      expect(readSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(
-        recorded.cacheRead.usage.prompt_tokens_details.cache_write_tokens,
-      );
-      expect(
-        readSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] as number,
-      ).toBeGreaterThan(1024);
-      expect(
-        readSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] as number,
-      ).toBeLessThan(writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] as number);
-
-      // Cache read and write never exceed the prompt they describe.
-      for (const span of [writeSpan, readSpan]) {
-        const read = span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] as number;
-        const write = span.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] as number;
-        expect(read + write).toBeLessThanOrEqual(span.attributes[LLM_TOKEN_COUNT_PROMPT] as number);
-      }
+      expectColdWriteThenWarmRead({
+        cacheWrite: recorded.cacheWrite.usage.prompt_tokens_details,
+        cacheRead: recorded.cacheRead.usage.prompt_tokens_details,
+      });
     },
   );
 
@@ -170,32 +228,10 @@ describe("OpenAIInstrumentation - real prompt cache usage", () => {
         });
       }
 
-      const [writeSpan, readSpan] = memoryExporter.getFinishedSpans();
-      expect(memoryExporter.getFinishedSpans()).toHaveLength(2);
-
-      expect(writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(
-        recorded.cacheWrite.usage.input_tokens_details.cached_tokens,
-      );
-      expect(writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(
-        recorded.cacheWrite.usage.input_tokens_details.cache_write_tokens,
-      );
-      expect(writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(0);
-      expect(
-        writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] as number,
-      ).toBeGreaterThan(1024);
-
-      expect(readSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]).toBe(
-        recorded.cacheRead.usage.input_tokens_details.cached_tokens,
-      );
-      expect(readSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]).toBe(
-        recorded.cacheRead.usage.input_tokens_details.cache_write_tokens,
-      );
-      expect(
-        readSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] as number,
-      ).toBeGreaterThan(1024);
-      expect(
-        readSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] as number,
-      ).toBeLessThan(writeSpan.attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] as number);
+      expectColdWriteThenWarmRead({
+        cacheWrite: recorded.cacheWrite.usage.input_tokens_details,
+        cacheRead: recorded.cacheRead.usage.input_tokens_details,
+      });
     },
   );
 });

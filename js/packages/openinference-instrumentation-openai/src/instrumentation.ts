@@ -44,7 +44,7 @@ import {
   getResponsesOutputMessagesAttributes,
   getResponsesUsageAttributes,
 } from "./responsesAttributes";
-import { assertUnreachable, isString } from "./typeUtils";
+import { assertUnreachable, getNumberProperty, isString } from "./typeUtils";
 import { VERSION } from "./version";
 
 const MODULE_NAME = "openai";
@@ -789,7 +789,9 @@ function getCompletionInputValueAndMimeType(body: CompletionCreateParamsBase): A
 /**
  * Get usage attributes
  */
-function getUsageAttributes(completion: ChatCompletion | Completion): Attributes {
+function getUsageAttributes(
+  completion: ChatCompletion | Completion | ChatCompletionChunk,
+): Attributes {
   if (completion.usage) {
     const usageAttributes: Attributes = {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: completion.usage.completion_tokens,
@@ -797,12 +799,10 @@ function getUsageAttributes(completion: ChatCompletion | Completion): Attributes
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: completion.usage.total_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]:
         completion.usage.prompt_tokens_details?.cached_tokens,
-      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]:
-        completion.usage.prompt_tokens_details &&
-        "cache_write_tokens" in completion.usage.prompt_tokens_details &&
-        typeof completion.usage.prompt_tokens_details.cache_write_tokens === "number"
-          ? completion.usage.prompt_tokens_details.cache_write_tokens
-          : undefined,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: getNumberProperty(
+        completion.usage.prompt_tokens_details,
+        "cache_write_tokens",
+      ),
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO]:
         completion.usage.prompt_tokens_details?.audio_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO]:
@@ -945,6 +945,11 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   let finishReason: string | undefined;
   // The first message is for the assistant response so we start at 1
   for await (const chunk of stream) {
+    // With `stream_options.include_usage`, the final chunk carries the request's
+    // usage and an empty `choices` array, so read it before the guard below.
+    if (chunk.usage) {
+      span.setAttributes(getUsageAttributes(chunk));
+    }
     if (chunk.choices.length <= 0) {
       continue;
     }

@@ -18,7 +18,7 @@
  * are typed structurally rather than with the SDK response types.
  */
 
-type CacheTokenDetails = {
+export type CacheTokenDetails = {
   cached_tokens: number;
   cache_write_tokens: number;
   [key: string]: unknown;

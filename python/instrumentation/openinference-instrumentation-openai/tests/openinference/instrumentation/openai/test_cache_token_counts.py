@@ -60,26 +60,7 @@ def test_chat_completions_cache_write_then_read(
             ],
         )
 
-    first, second = _cache_token_counts(in_memory_span_exporter, expected_spans=2)
-
-    # First call is a cache miss: nothing read, (almost) the whole prompt written.
-    assert first[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 0
-    assert first[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] > 1024
-
-    # Second call reuses the prefix: it is read from cache instead of written again.
-    assert second[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] > 1024
-    assert (
-        second[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]
-        < first[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]
-    )
-
-    # Cache reads and writes are subsets; some input may be neither.
-    for usage in (first, second):
-        cache_total = (
-            usage[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]
-            + usage[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]
-        )
-        assert cache_total <= usage[LLM_TOKEN_COUNT_PROMPT]
+    _assert_cold_write_then_warm_read(in_memory_span_exporter, prefix)
 
 
 @pytest.mark.parametrize("model", ["gpt-5.6-luna", "gpt-5.6-terra"])
@@ -104,39 +85,59 @@ def test_responses_cache_write_then_read(
             input=question,
         )
 
-    first, second = _cache_token_counts(in_memory_span_exporter, expected_spans=2)
+    _assert_cold_write_then_warm_read(in_memory_span_exporter, prefix)
 
+
+def _assert_cold_write_then_warm_read(
+    in_memory_span_exporter: InMemorySpanExporter, prefix: str
+) -> None:
+    """Assert a cold cache write span followed by a warm cache read span of the same prefix."""
+    first, second = _cache_token_counts(in_memory_span_exporter, prefix)
+
+    # First call is a cache miss: nothing read, (almost) the whole prompt written.
     assert first[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 0
     assert first[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] > 1024
 
+    # Second call reuses the prefix: it is read from cache instead of written again.
     assert second[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] > 1024
     assert (
         second[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]
         < first[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]
     )
 
+    # Cache reads and writes are subsets of the prompt; some input may be neither.
+    for usage in (first, second):
+        cache_total = (
+            usage[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]
+            + usage[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]
+        )
+        assert cache_total <= usage[LLM_TOKEN_COUNT_PROMPT]
+
 
 def _cache_token_counts(
-    in_memory_span_exporter: InMemorySpanExporter,
-    expected_spans: int,
-) -> Tuple[Dict[str, int], ...]:
-    """Return the token count attributes of each OpenAI LLM span, in call order."""
-    spans = get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
-    assert len(spans) == expected_spans
+    in_memory_span_exporter: InMemorySpanExporter, prefix: str
+) -> Tuple[Dict[str, int], Dict[str, int]]:
+    """Return the token counts of the two OpenAI LLM spans that sent ``prefix``, in call order."""
+    # Match on the prefix so a span left over from an earlier test cannot be counted.
+    spans = tuple(
+        span
+        for span in get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
+        if prefix in str((span.attributes or {}).get(SpanAttributes.INPUT_VALUE, ""))
+    )
+    assert len(spans) == 2
     usages = []
     for span in spans:
-        attributes = dict(span.attributes or {})
         usage = {}
         for key in (
             LLM_TOKEN_COUNT_PROMPT,
             LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
             LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
         ):
-            value = attributes.get(key)
+            value = (span.attributes or {}).get(key)
             assert isinstance(value, int), f"{key} missing or not an int on span {span.name}"
             usage[key] = value
         usages.append(usage)
-    return tuple(usages)
+    return usages[0], usages[1]
 
 
 def _openai_version() -> Tuple[int, int, int]:

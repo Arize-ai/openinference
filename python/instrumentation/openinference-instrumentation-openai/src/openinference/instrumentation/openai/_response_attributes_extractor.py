@@ -245,10 +245,7 @@ class _ResponseAttributesExtractor:
             if (
                 cache_write_tokens := getattr(prompt_completion_tokens, "cache_write_tokens", None)
             ) is not None:
-                yield (
-                    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-                    cache_write_tokens,
-                )
+                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
             if (
                 audio_tokens := getattr(prompt_completion_tokens, "audio_tokens", None)
             ) is not None:

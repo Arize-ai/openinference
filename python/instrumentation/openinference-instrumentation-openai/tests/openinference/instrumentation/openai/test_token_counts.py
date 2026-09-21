@@ -1,5 +1,5 @@
 import os
-from typing import Iterator
+from typing import Iterator, Optional
 
 import openai
 import pytest
@@ -122,7 +122,10 @@ class TestCompletionUsageCacheTokens:
             ),
             pytest.param(
                 {"cached_tokens": 7},
-                {LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 7},
+                {
+                    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 7,
+                    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: None,
+                },
                 id="older_sdk_without_cache_write_tokens",
             ),
         ],
@@ -130,12 +133,13 @@ class TestCompletionUsageCacheTokens:
     def test_get_attributes_from_completion_usage(
         self,
         prompt_tokens_details: dict[str, int],
-        expected: dict[str, int],
+        expected: dict[str, Optional[int]],
     ) -> None:
         usage = CompletionUsage.model_construct(
             prompt_tokens=10,
             completion_tokens=5,
             total_tokens=15,
+            # The leading None is `_fields_set`; without it mypy assumes the splat could fill it.
             prompt_tokens_details=PromptTokensDetails.model_construct(
                 None, **prompt_tokens_details
             ),
@@ -144,6 +148,4 @@ class TestCompletionUsageCacheTokens:
         attributes = dict(extractor._get_attributes_from_completion_usage(usage))
 
         for key, value in expected.items():
-            assert attributes[key] == value
-        if LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE not in expected:
-            assert LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE not in attributes
+            assert attributes.get(key) == value
