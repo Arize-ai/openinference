@@ -1561,7 +1561,75 @@ def test_anthropic_instrumentation_tool_use_in_input(
         attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}")
         == '{"weather": "sunny", "temperature": "75"}'
     )
-    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert (
+        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}")
+        == "toolu_01KBqpqR73qWGsMaW3vBzEjz"
+    )
+
+
+@pytest.mark.vcr
+def test_anthropic_instrumentation_multiple_tool_results_in_input(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = anthropic.Anthropic(api_key="sk-ant-fake")
+    messages = [
+        {"role": "user", "content": "Add 2+2 and get the weather in Paris."},
+        {
+            "role": "assistant",
+            "content": [
+                ToolUseBlockParam(
+                    id="toolu_01AAA",
+                    input={"expression": "2+2"},
+                    name="calculator",
+                    type="tool_use",
+                ),
+                ToolUseBlockParam(
+                    id="toolu_02BBB",
+                    input={"city": "Paris"},
+                    name="get_weather",
+                    type="tool_use",
+                ),
+            ],
+        },
+        MessageParam(
+            content=[
+                ToolResultBlockParam(
+                    tool_use_id="toolu_01AAA",
+                    content="4",
+                    type="tool_result",
+                    is_error=False,
+                ),
+                ToolResultBlockParam(
+                    tool_use_id="toolu_02BBB",
+                    content="sunny, 22C",
+                    type="tool_result",
+                    is_error=False,
+                ),
+            ],
+            role="user",
+        ),
+    ]
+
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=messages,  # type: ignore
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    attributes = dict(spans[0].attributes or {})
+
+    # each tool_result block becomes its own tool message, in order
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_TOOL_CALL_ID}") == "toolu_01AAA"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}") == "4"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_ROLE}") == "tool"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_TOOL_CALL_ID}") == "toolu_02BBB"
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.3.{MESSAGE_CONTENT}") == "sunny, 22C"
 
 
 @pytest.mark.vcr
@@ -2933,6 +3001,7 @@ MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_A
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
