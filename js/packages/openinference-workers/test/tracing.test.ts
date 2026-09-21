@@ -231,13 +231,16 @@ describe("request lifecycle regressions", () => {
 
   it("does not block a response on waitUntil export work", async () => {
     const t = setup();
-    const deferred = Promise.withResolvers<void>();
+    let finishFlush = () => {};
+    const flushing = new Promise<void>((resolve) => {
+      finishFlush = resolve;
+    });
     const pending: Promise<unknown>[] = [];
     await expect(
       withRequestSpan(
         {
           ...requestOptions(t),
-          flush: () => deferred.promise,
+          flush: () => flushing,
           execution: {
             waitUntil: (p) => {
               pending.push(p);
@@ -248,7 +251,7 @@ describe("request lifecycle regressions", () => {
       ),
     ).resolves.toBe("response");
     expect(pending).toHaveLength(1);
-    deferred.resolve();
+    finishFlush();
     await Promise.all(pending);
   });
 
@@ -375,10 +378,13 @@ describe("fetch exporter regressions", () => {
   });
 
   it("flushes in-flight exports before shutdown and rejects later exports", async () => {
-    const response = Promise.withResolvers<Response>();
+    let finishResponse: (value: Response) => void = () => {};
+    const response = new Promise<Response>((resolve) => {
+      finishResponse = resolve;
+    });
     const exporter = new FetchTraceExporter({
       url: "https://collector.example/v1/traces",
-      fetch: () => response.promise,
+      fetch: () => response,
     });
     const callback = vi.fn();
     exporter.export(readableSpans(), callback);
@@ -388,7 +394,7 @@ describe("fetch exporter regressions", () => {
     });
     await Promise.resolve();
     expect(stopped).toBe(false);
-    response.resolve(new Response(null));
+    finishResponse(new Response(null));
     await shutdown;
     expect(callback).toHaveBeenCalledExactlyOnceWith({ code: ExportResultCode.SUCCESS });
     const later = vi.fn();
