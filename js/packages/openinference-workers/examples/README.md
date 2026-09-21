@@ -60,9 +60,21 @@ curl 'http://localhost:8787/?session=review&counter=review'
 PHOENIX_HOST=http://localhost:6006 node examples/verify.mjs http://localhost:8787 openinference-workers-cloudflare
 ```
 
-The script makes 12 concurrent requests to the same Durable Object, verifies persisted counter updates, and checks the spans read back from Phoenix, including exact parent relationships, isolated sessions, masking, suppression, and error recording. It prints the run ID and trace IDs. Normal verification expects 41 spans: 36 from concurrent requests, two error spans, and three spans from a request with an inbound remote parent. Give each invocation an otherwise quiet project if running alongside other examples.
+The script makes 12 concurrent requests to the same Durable Object, verifies persisted counter updates, and checks the spans read back from Phoenix, including exact parent relationships, isolated sessions, masking, suppression, and error recording. It prints the run ID and trace IDs. Normal verification expects 41 spans: 36 from concurrent requests, two error spans, and three spans from a request with an inbound remote parent. Runs use unique session IDs, so repeated runs can accumulate in the same Phoenix project.
 
 ## Verify LLM tracing
+
+Both verification scripts default to `PHOENIX_PROJECT` when it is set. An explicit
+project argument overrides it. Reuse the same project for local, deployed, and
+celld testing; the exporter configuration must use that same name. For credentials
+and settings stored in the package's ignored `.env` file, load them with Node:
+
+```sh
+node --env-file=.env examples/verify-ai.mjs https://YOUR-WORKER.workers.dev
+```
+
+Do not append timestamps to the project name. Each verification run already uses
+unique session IDs to distinguish its spans from previous runs.
 
 With the Worker running (locally or deployed), run:
 
@@ -104,13 +116,13 @@ docker compose -p openinference-workers-example -f examples/celld/compose.yaml d
 
 ## Deployed Cloudflare verification
 
-Authenticate with `pnpm exec wrangler login`. Deploy the same config with a publicly reachable collector base URL and a separate Phoenix project:
+Authenticate with `pnpm exec wrangler login`. Deploy the same config with a publicly reachable collector base URL and the Phoenix project named in your environment:
 
 ```sh
 pnpm exec wrangler deploy --config examples/cloudflare/wrangler.jsonc \
   --var OTEL_ENDPOINT:https://YOUR-COLLECTOR \
-  --var PHOENIX_PROJECT:openinference-workers-deployed
-node examples/verify.mjs https://YOUR-WORKER.workers.dev openinference-workers-deployed
+  --var PHOENIX_PROJECT:$PHOENIX_PROJECT
+node examples/verify.mjs https://YOUR-WORKER.workers.dev
 ```
 
 Set `PHOENIX_HOST` for `px` to the corresponding Phoenix server. Never use localhost as the collector URL for a deployed Worker. For an authenticated collector, run `pnpm exec wrangler secret put OTEL_AUTHORIZATION --config examples/cloudflare/wrangler.jsonc` and enter the complete authorization value (for example, `Bearer ...`). For local runs, copy `cloudflare/.dev.vars.example` to `cloudflare/.dev.vars`. Do not commit credentials.

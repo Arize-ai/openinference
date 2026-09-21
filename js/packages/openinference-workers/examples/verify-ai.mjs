@@ -3,8 +3,10 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 
-const [base = "http://localhost:8787", project = "openinference-workers-cloudflare"] =
-  process.argv.slice(2);
+const [
+  base = "http://localhost:8787",
+  project = process.env.PHOENIX_PROJECT ?? "openinference-workers-cloudflare",
+] = process.argv.slice(2);
 const run = `ai-${randomUUID()}`;
 const cases = [
   "",
