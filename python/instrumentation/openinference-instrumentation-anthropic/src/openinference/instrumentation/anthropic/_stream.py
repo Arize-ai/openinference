@@ -168,10 +168,17 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         )
 
 
-@lru_cache(maxsize=1)
-def _accumulate_event_supports_json_bufs() -> bool:
+@lru_cache(maxsize=2)
+def _accumulate_event_supports_json_bufs(is_beta: bool = False) -> bool:
     """anthropic >= 1.5.0 added a required ``json_bufs`` parameter to accumulate_event."""
     import inspect
+
+    if is_beta:
+        from anthropic.lib.streaming._beta_messages import (
+            accumulate_event as accumulate_beta_event,
+        )
+
+        return "json_bufs" in inspect.signature(accumulate_beta_event).parameters
 
     from anthropic.lib.streaming._messages import accumulate_event
 
@@ -181,7 +188,7 @@ def _accumulate_event_supports_json_bufs() -> bool:
 class _MessageResponseAccumulator:
     """Accumulates raw SSE events into a ParsedMessage using the SDK's own accumulate_event."""
 
-    __slots__ = ("_is_beta", "_request_headers", "_snapshot")
+    __slots__ = ("_is_beta", "_request_headers", "_snapshot", "_json_bufs")
 
     def __init__(
         self,
@@ -204,19 +211,25 @@ class _MessageResponseAccumulator:
                 accumulate_event as accumulate_beta_event,
             )
 
+            beta_kwargs: Dict[str, Any] = dict(
+                event=chunk,
+                current_snapshot=self._snapshot,
+                request_headers=self._request_headers,
+            )
+            if _accumulate_event_supports_json_bufs(is_beta=True):
+                beta_kwargs["json_bufs"] = self._json_bufs
             try:
-                self._snapshot = accumulate_beta_event(
-                    event=chunk,  # type: ignore[arg-type]
-                    current_snapshot=self._snapshot,
-                    request_headers=self._request_headers,
-                )
+                self._snapshot = accumulate_beta_event(**beta_kwargs)
             except Exception:
                 pass
         else:
             from anthropic.lib.streaming._messages import accumulate_event
 
+            kwargs: Dict[str, Any] = dict(event=chunk, current_snapshot=self._snapshot)
+            if _accumulate_event_supports_json_bufs():
+                kwargs["json_bufs"] = self._json_bufs
             try:
-                self._snapshot = accumulate_event(event=chunk, current_snapshot=self._snapshot)
+                self._snapshot = accumulate_event(**kwargs)
             except Exception:
                 pass
 

@@ -1,5 +1,6 @@
 """Tests for Anthropic's beta server-side fallback feature."""
 
+import functools
 import json
 from typing import Any, Dict
 
@@ -346,6 +347,7 @@ def test_beta_messages_streaming_fallback_content_block(
     request_headers: list[Any] = []
     original_accumulate_event = _beta_messages.accumulate_event
 
+    @functools.wraps(original_accumulate_event)
     def capture_request_headers(**kwargs: Any) -> Any:
         request_headers.append(kwargs["request_headers"])
         return original_accumulate_event(**kwargs)
