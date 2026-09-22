@@ -84,7 +84,6 @@ function endCurrentLLMSpan(options: {
 
   if (options.finishReason != null) {
     llmState.span.setAttribute(SemanticConventions.LLM_FINISH_REASON, options.finishReason);
-    llmState.span.setAttribute("tanstack.ai.finish_reason", options.finishReason);
   }
 
   if (options.error != null) {
@@ -350,7 +349,6 @@ export function openInferenceMiddleware({
 
       state.chatSpan.setAttributes({
         ...getOutputAttributes(info.content),
-        "tanstack.ai.finish_reason": info.finishReason ?? "",
         "tanstack.ai.duration_ms": info.duration,
       });
 
