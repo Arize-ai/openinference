@@ -2199,11 +2199,13 @@ def test_request_body_preparation_is_instrumented_and_restored(
     async_original = getattr(module, async_transform_name)
 
     AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
-
-    assert isinstance(getattr(module, transform_name), FunctionWrapper)
-    assert isinstance(getattr(module, async_transform_name), FunctionWrapper)
-
-    AnthropicInstrumentor().uninstrument()
+    try:
+        assert isinstance(getattr(module, transform_name), FunctionWrapper)
+        assert isinstance(getattr(module, async_transform_name), FunctionWrapper)
+    finally:
+        # the instrumentor is a singleton, so a failure here would otherwise leave every
+        # later test instrumented against this test's tracer provider
+        AnthropicInstrumentor().uninstrument()
 
     assert getattr(module, transform_name) is original
     assert getattr(module, async_transform_name) is async_original
