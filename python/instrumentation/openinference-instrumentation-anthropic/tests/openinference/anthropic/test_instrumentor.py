@@ -27,6 +27,7 @@ from anthropic.types import (
     ToolUseBlockParam,
     Usage,
 )
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
@@ -66,6 +67,29 @@ def _mock_anthropic_client(handler: Callable[[Any], Any]) -> Anthropic:
     """Build an ``Anthropic`` client whose HTTP transport is mocked by ``handler``."""
     transport = httpx2.MockTransport(handler)
     return Anthropic(api_key="sk-ant-fake", http_client=httpx2.Client(transport=transport))
+
+
+def _mock_async_anthropic_client(handler: Callable[[Any], Any]) -> AsyncAnthropic:
+    """Build an ``AsyncAnthropic`` client whose HTTP transport is mocked by ``handler``."""
+    transport = httpx2.MockTransport(handler)
+    return AsyncAnthropic(
+        api_key="sk-ant-fake", http_client=httpx2.AsyncClient(transport=transport)
+    )
+
+
+_STREAM_KWARGS: Dict[str, Any] = {
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1000,
+    "messages": [{"role": "user", "content": "hello"}],
+}
+
+
+def _bad_request_handler(request: Any) -> Any:
+    """A non-retryable error response, so the client does not back off before raising."""
+    return httpx2.Response(
+        status_code=400,
+        json={"type": "error", "error": {"type": "invalid_request_error", "message": "nope"}},
+    )
 
 
 def _get_tool_use_id(message: Message) -> Optional[str]:
@@ -2236,6 +2260,56 @@ def test_only_request_bodies_are_recorded_as_invocation_parameters(
     with params:
         assert _TransformWrapper()(prepare, None, (prepared,), location) is prepared
     assert dict(params) == expected
+
+
+@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
+def test_failed_streaming_request_is_recorded(
+    beta: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    The streaming helpers only make the request when the manager is entered, so a request
+    that fails there must still end the span.
+    """
+    client = _mock_anthropic_client(_bad_request_handler)
+    messages: Any = client.beta.messages if beta else client.messages
+
+    with pytest.raises(anthropic.BadRequestError):
+        with messages.stream(**_STREAM_KWARGS):
+            pass
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.events
+    attributes = dict(span.attributes or {})
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
+        "max_tokens": 1000,
+        "stream": True,
+    }
+
+
+@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
+async def test_failed_async_streaming_request_is_recorded(
+    beta: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_bad_request_handler)
+    messages: Any = client.beta.messages if beta else client.messages
+
+    with pytest.raises(anthropic.BadRequestError):
+        async with messages.stream(**_STREAM_KWARGS):
+            pass
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.events
+    attributes = dict(span.attributes or {})
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
+        "max_tokens": 1000,
+        "stream": True,
+    }
 
 
 # Ensure we're using the common OITracer from common openinference-instrumentation pkg

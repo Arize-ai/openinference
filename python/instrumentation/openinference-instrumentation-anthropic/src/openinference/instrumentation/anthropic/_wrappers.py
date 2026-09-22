@@ -438,8 +438,18 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type
         self._self_message_stream: Any = None
 
     def __enter__(self) -> Any:
-        with self._self_with_span.params_context():
-            message_stream = self.__wrapped__.__enter__()
+        try:
+            with self._self_with_span.params_context():
+                message_stream = self.__wrapped__.__enter__()
+        except Exception as exception:
+            # the request is made here, not by the wrapped stream() call, so this is the
+            # only place a failed streaming request can be recorded
+            self._self_with_span.set_status(
+                trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+            )
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -474,8 +484,18 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,
         self._self_message_stream: Any = None
 
     def __enter__(self) -> Any:
-        with self._self_with_span.params_context():
-            message_stream = self.__wrapped__.__enter__()
+        try:
+            with self._self_with_span.params_context():
+                message_stream = self.__wrapped__.__enter__()
+        except Exception as exception:
+            # the request is made here, not by the wrapped stream() call, so this is the
+            # only place a failed streaming request can be recorded
+            self._self_with_span.set_status(
+                trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+            )
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -513,8 +533,18 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined
         self._self_message_stream: Any = None
 
     async def __aenter__(self) -> Any:
-        with self._self_with_span.params_context():
-            message_stream = await self.__wrapped__.__aenter__()
+        try:
+            with self._self_with_span.params_context():
+                message_stream = await self.__wrapped__.__aenter__()
+        except Exception as exception:
+            # the request is made here, not by the wrapped stream() call, so this is the
+            # only place a failed streaming request can be recorded
+            self._self_with_span.set_status(
+                trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+            )
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -549,8 +579,18 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-def
         self._self_message_stream: Any = None
 
     async def __aenter__(self) -> Any:
-        with self._self_with_span.params_context():
-            message_stream = await self.__wrapped__.__aenter__()
+        try:
+            with self._self_with_span.params_context():
+                message_stream = await self.__wrapped__.__aenter__()
+        except Exception as exception:
+            # the request is made here, not by the wrapped stream() call, so this is the
+            # only place a failed streaming request can be recorded
+            self._self_with_span.set_status(
+                trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+            )
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
