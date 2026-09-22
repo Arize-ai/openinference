@@ -14,10 +14,19 @@ export type LLMMessageFunctionCall = {
   [SemanticConventions.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON]?: string;
 };
 
+export type LLMMessageContent = {
+  [SemanticConventions.MESSAGE_CONTENT_TYPE]?: string;
+  [SemanticConventions.MESSAGE_CONTENT_TEXT]?: string;
+  [SemanticConventions.MESSAGE_CONTENT_IMAGE]?: {
+    [SemanticConventions.IMAGE_URL]?: string;
+  };
+};
+
 export type LLMMessage = LLMMessageToolCalls &
   LLMMessageFunctionCall & {
     [SemanticConventions.MESSAGE_ROLE]?: string;
     [SemanticConventions.MESSAGE_CONTENT]?: string;
+    [SemanticConventions.MESSAGE_CONTENTS]?: LLMMessageContent[];
   };
 
 export type LLMMessagesAttributes =

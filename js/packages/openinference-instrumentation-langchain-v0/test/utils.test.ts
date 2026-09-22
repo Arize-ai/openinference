@@ -191,6 +191,58 @@ describe("formatMessages", () => {
       });
     });
 
+    it("should record content blocks as message contents", () => {
+      const result = safelyFormatInputMessages({
+        messages: [
+          [
+            getLangchainMessage({
+              lc_kwargs: {
+                role: "user",
+                content: [
+                  { type: "text", text: "what is in this image?" },
+                  {
+                    type: "image_url",
+                    image_url: { url: "data:image/png;base64,abc123" },
+                  },
+                ],
+                additional_kwargs: {},
+              },
+            }),
+            getLangchainMessage({
+              lc_kwargs: {
+                role: "user",
+                content: "plain string",
+                additional_kwargs: {},
+              },
+            }),
+          ],
+        ],
+      });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_INPUT_MESSAGES]: [
+          {
+            [SemanticConventions.MESSAGE_ROLE]: "user",
+            [SemanticConventions.MESSAGE_CONTENTS]: [
+              {
+                [SemanticConventions.MESSAGE_CONTENT_TYPE]: "text",
+                [SemanticConventions.MESSAGE_CONTENT_TEXT]: "what is in this image?",
+              },
+              {
+                [SemanticConventions.MESSAGE_CONTENT_TYPE]: "image",
+                [SemanticConventions.MESSAGE_CONTENT_IMAGE]: {
+                  [SemanticConventions.IMAGE_URL]: "data:image/png;base64,abc123",
+                },
+              },
+            ],
+          },
+          {
+            [SemanticConventions.MESSAGE_ROLE]: "user",
+            [SemanticConventions.MESSAGE_CONTENT]: "plain string",
+          },
+        ],
+      });
+    });
+
     it("should ignore non-object messages and return the valid ones", () => {
       const result = safelyFormatInputMessages({
         messages: [[...testMessages[0], "invalid message"]],

@@ -22,6 +22,7 @@ import type {
   RetrievalDocument,
   TokenCountAttributes,
   ToolAttributes,
+  LLMMessageContent,
 } from "./types";
 import { assertUnreachable, isNonEmptyArray, isNumber, isObject, isString } from "./typeUtils";
 
@@ -194,6 +195,49 @@ function getContentFromMessageData(messageKwargs: Record<string, unknown>): stri
   return isString(messageKwargs.content) ? messageKwargs.content : null;
 }
 
+/**
+ * Parses one entry of a langchain content block array into OpenInference
+ * message contents. Mirrors the python langchain tracer: text blocks carry
+ * their text, image_url blocks carry their url, plain strings count as text,
+ * and unknown block types are skipped.
+ * @param block - The content block to parse
+ * @returns The OpenInference message content for the block, or null
+ */
+function parseMessageContentBlock(block: unknown): LLMMessageContent | null {
+  if (isString(block)) {
+    return {
+      [SemanticConventions.MESSAGE_CONTENT_TYPE]: "text",
+      [SemanticConventions.MESSAGE_CONTENT_TEXT]: block,
+    };
+  }
+  if (!isObject(block)) {
+    return null;
+  }
+  const type = block.type;
+  if (type === "text" && isString(block.text)) {
+    return {
+      [SemanticConventions.MESSAGE_CONTENT_TYPE]: "text",
+      [SemanticConventions.MESSAGE_CONTENT_TEXT]: block.text,
+    };
+  }
+  if (type === "image_url" && block.image_url != null) {
+    const url = isString(block.image_url)
+      ? block.image_url
+      : isObject(block.image_url) && isString(block.image_url.url)
+        ? block.image_url.url
+        : null;
+    if (url != null) {
+      return {
+        [SemanticConventions.MESSAGE_CONTENT_TYPE]: "image",
+        [SemanticConventions.MESSAGE_CONTENT_IMAGE]: {
+          [SemanticConventions.IMAGE_URL]: url,
+        },
+      };
+    }
+  }
+  return null;
+}
+
 function getFunctionCallDataFromAdditionalKwargs(
   additionalKwargs: Record<string, unknown>,
 ): LLMMessageFunctionCall {
@@ -259,6 +303,13 @@ function parseMessage(messageData: Record<string, unknown>): LLMMessage {
   const maybeContent = getContentFromMessageData(messageKwargs);
   if (maybeContent != null) {
     message[SemanticConventions.MESSAGE_CONTENT] = maybeContent;
+  } else if (Array.isArray(messageKwargs.content)) {
+    const contents = messageKwargs.content
+      .map(parseMessageContentBlock)
+      .filter((content): content is LLMMessageContent => content != null);
+    if (contents.length > 0) {
+      message[SemanticConventions.MESSAGE_CONTENTS] = contents;
+    }
   }
 
   const additionalKwargs = messageKwargs.additional_kwargs;
