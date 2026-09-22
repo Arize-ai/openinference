@@ -48,11 +48,20 @@ from openinference.instrumentation import (
     ToolCall,
     ToolCallFunction,
     TraceConfig,
+    agent_span,
+    chain_span,
+    evaluator_span,
     get_llm_attributes,
     get_output_attributes,
+    get_span_kind_attributes,
+    guardrail_span,
     infer_llm_provider_from_host,
     infer_llm_system_from_model_name,
+    llm_span,
+    reranker_span,
+    retriever_span,
     suppress_tracing,
+    tool_span,
     using_session,
 )
 from openinference.instrumentation._attributes import (
@@ -117,7 +126,7 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "span-name",
-            openinference_span_kind="chain",
+            attributes=get_span_kind_attributes("chain"),
         ) as chain_span:
             chain_span.set_input("plain-text-input")
             chain_span.set_output("plain-text-output")
@@ -144,7 +153,7 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "span-name",
-            openinference_span_kind="chain",
+            attributes=get_span_kind_attributes("chain"),
         ) as chain_span:
             chain_span.set_input(
                 {"input-key": "input-value"},
@@ -185,7 +194,7 @@ class TestStartAsCurrentSpanContextManager:
 
         with tracer.start_as_current_span(
             "span-name",
-            openinference_span_kind="chain",
+            attributes=get_span_kind_attributes("chain"),
         ) as chain_span:
             chain_span.set_input(InputModel(string_input="input1", int_input=1))
             chain_span.set_output(OutputModel(string_output="output", int_output=2))
@@ -214,7 +223,7 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "agent-span-name",
-            openinference_span_kind="agent",
+            attributes=get_span_kind_attributes("agent"),
         ) as agent_span:
             agent_span.set_input("input")
             agent_span.set_output("output")
@@ -241,7 +250,7 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "chain-span-name",
-            openinference_span_kind="chain",
+            attributes=get_span_kind_attributes("chain"),
         ) as chain_span:
             with pytest.raises(ValueError) as exc_info:
                 chain_span.set_tool(
@@ -294,7 +303,7 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "tool-span-name",
-            openinference_span_kind="tool",
+            attributes=get_span_kind_attributes("tool"),
         ) as tool_span:
             tool_span.set_input("input")
             tool_span.set_output("output")
@@ -332,7 +341,7 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "tool-span-name",
-            openinference_span_kind="tool",
+            attributes=get_span_kind_attributes("tool"),
         ) as tool_span:
             tool_span.set_input("input")
             tool_span.set_output("output")
@@ -367,7 +376,7 @@ class TestStartAsCurrentSpanContextManager:
         with pytest.raises(ValueError, match=error_message):
             with tracer.start_as_current_span(
                 "span-name",
-                openinference_span_kind="chain",
+                attributes=get_span_kind_attributes("chain"),
             ):
                 raise ValueError(error_message)
 
@@ -402,7 +411,7 @@ class TestStartAsCurrentSpanContextManager:
             with suppress_tracing():
                 with tracer.start_as_current_span(
                     "span-name",
-                    openinference_span_kind="chain",
+                    attributes=get_span_kind_attributes("chain"),
                 ):
                     raise ValueError("Something went wrong")
 
@@ -417,7 +426,7 @@ class TestStartAsCurrentSpanContextManager:
     ) -> None:
         with tracer.start_as_current_span(
             "span-name",
-            openinference_span_kind="chain",
+            attributes=get_span_kind_attributes("chain"),
         ) as span:
             span.set_input("hello")
             span.set_output("world")
@@ -434,7 +443,7 @@ class TestStartAsCurrentSpanContextManager:
         with using_session("123"):
             with tracer.start_as_current_span(
                 "chain-span-with-session",
-                openinference_span_kind="chain",
+                attributes=get_span_kind_attributes("chain"),
             ) as chain_span:
                 chain_span.set_input("input")
                 chain_span.set_output("output")
@@ -456,7 +465,7 @@ class TestTracerChainDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain
+        @chain_span(tracer=tracer)
         def decorated_chain_with_plain_text_io(input: str) -> str:
             return "output"
 
@@ -481,7 +490,7 @@ class TestTracerChainDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain
+        @chain_span(tracer=tracer)
         def decorated_chain_with_json_output(input: str) -> Dict[str, Any]:
             return {"output": "output"}
 
@@ -506,7 +515,7 @@ class TestTracerChainDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain
+        @chain_span(tracer=tracer)
         async def decorated_async_chain(input: str) -> str:
             return "output"
 
@@ -531,7 +540,7 @@ class TestTracerChainDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain()  # apply decorator with no parameters
+        @chain_span(tracer=tracer)  # apply decorator with no parameters
         def decorated_chain_with_empty_parens(input: str) -> Dict[str, Any]:
             return {"output": "output"}
 
@@ -556,7 +565,7 @@ class TestTracerChainDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain(name="overridden-name")
+        @chain_span(tracer=tracer, name="overridden-name")
         def decorated_chain_with_overridden_name(input: str) -> Dict[str, Any]:
             return {"output": "output"}
 
@@ -589,7 +598,7 @@ class TestTracerChainDecorator:
             string_output: str
             int_output: int
 
-        @tracer.chain
+        @chain_span(tracer=tracer)
         def decorated_chain_with_pydantic_io(input: InputModel) -> OutputModel:
             return OutputModel(string_output="output", int_output=42)
 
@@ -626,7 +635,7 @@ class TestTracerChainDecorator:
             string_output: str
             int_output: int
 
-        @tracer.chain
+        @chain_span(tracer=tracer)
         def decorated_chain_with_dataclass_io(input: InputModel) -> OutputModel:
             return OutputModel(string_output="output", int_output=42)
 
@@ -672,7 +681,7 @@ class TestTracerChainDecorator:
             dataclass_part: NestedDataclass
             string_part: str
 
-        @tracer.chain
+        @chain_span(tracer=tracer)
         def decorated_chain_complex_io(
             model: BaseModel,
             text: str,
@@ -734,7 +743,7 @@ class TestTracerChainDecorator:
         def chain_with_decorator_applied_as_function(input: str) -> str:
             return "output"
 
-        decorated = tracer.chain(chain_with_decorator_applied_as_function)
+        decorated = chain_span(chain_with_decorator_applied_as_function, tracer=tracer)
         decorated("input")
 
         spans = in_memory_span_exporter.get_finished_spans()
@@ -759,7 +768,7 @@ class TestTracerChainDecorator:
         def chain_with_overridden_name(input: str) -> str:
             return "output"
 
-        decorated = tracer.chain(name="overridden-name")(chain_with_overridden_name)
+        decorated = chain_span(tracer=tracer, name="overridden-name")(chain_with_overridden_name)
         decorated("input")
 
         spans = in_memory_span_exporter.get_finished_spans()
@@ -781,7 +790,7 @@ class TestTracerChainDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain
+        @chain_span(tracer=tracer)
         def chain_with_error(input: str) -> str:
             raise ValueError("error message")
 
@@ -817,7 +826,7 @@ class TestTracerChainDecorator:
         tracer: OITracer,
     ) -> None:
         class ChainRunner:
-            @tracer.chain
+            @chain_span(tracer=tracer)
             def decorated_chain_method(self, input1: str, input2: str) -> str:
                 return "output"
 
@@ -845,7 +854,7 @@ class TestTracerChainDecorator:
         tracer: OITracer,
     ) -> None:
         class ChainRunner:
-            @tracer.chain
+            @chain_span(tracer=tracer)
             @classmethod
             def decorated_chain_method(cls, input1: str, input2: str) -> str:
                 return "output"
@@ -873,7 +882,7 @@ class TestTracerChainDecorator:
         tracer: OITracer,
     ) -> None:
         class ChainRunner:
-            @tracer.chain
+            @chain_span(tracer=tracer)
             @staticmethod
             def decorated_chain_method(input1: str, input2: str) -> str:
                 return "output"
@@ -900,7 +909,7 @@ class TestTracerChainDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain
+        @chain_span(tracer=tracer)
         def chain_with_manual_span_updates(input: str) -> str:
             span = get_current_span()
             span.set_input("overridden-input")  # type: ignore[attr-defined]
@@ -928,7 +937,7 @@ class TestTracerChainDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain
+        @chain_span(tracer=tracer)
         def decorated_chain(input: str) -> str:
             return "output"
 
@@ -943,7 +952,7 @@ class TestTracerChainDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.chain
+        @chain_span(tracer=tracer)
         def decorated_chain_with_session(input: str) -> str:
             return "output"
 
@@ -965,7 +974,7 @@ class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
     EVALUATOR spans previously had no dedicated tracer decorator, so anyone
     creating these span kinds had to hand-roll span creation and typically
     never called set_status, leaving status="UNSET" forever. These decorators
-    mirror @tracer.chain / @tracer.tool, reusing the same _chain machinery,
+    mirror @chain_span(tracer=tracer) / @tool_span(tracer=tracer), reusing the same _chain machinery,
     which always sets status to OK on successful completion.
     """
 
@@ -974,7 +983,7 @@ class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.retriever
+        @retriever_span(tracer=tracer)
         def decorated_retriever(query: str) -> str:
             return "output"
 
@@ -998,7 +1007,7 @@ class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.reranker
+        @reranker_span(tracer=tracer)
         def decorated_reranker(query: str) -> str:
             return "output"
 
@@ -1022,7 +1031,7 @@ class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.guardrail
+        @guardrail_span(tracer=tracer)
         def decorated_guardrail(text: str) -> str:
             return "output"
 
@@ -1046,7 +1055,7 @@ class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.evaluator
+        @evaluator_span(tracer=tracer)
         def decorated_evaluator(output: str) -> str:
             return "output"
 
@@ -1070,7 +1079,7 @@ class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.retriever()  # apply decorator with no parameters
+        @retriever_span(tracer=tracer)  # apply decorator with no parameters
         def decorated_retriever_with_empty_parens(query: str) -> str:
             return "output"
 
@@ -1088,7 +1097,7 @@ class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.reranker(name="overridden-name")
+        @reranker_span(tracer=tracer, name="overridden-name")
         def decorated_reranker_with_overridden_name(query: str) -> str:
             return "output"
 
@@ -1105,7 +1114,7 @@ class TestTracerRetrieverRerankerGuardrailEvaluatorDecorators:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.evaluator
+        @evaluator_span(tracer=tracer)
         async def decorated_async_evaluator(output: str) -> str:
             return "output"
 
@@ -1124,7 +1133,7 @@ class TestAgentDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.agent
+        @agent_span(tracer=tracer)
         def decorated_agent(input: str) -> str:
             return "output"
 
@@ -1149,7 +1158,7 @@ class TestAgentDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.agent(name="custom-name")
+        @agent_span(tracer=tracer, name="custom-name")
         async def decorated_agent(input: str) -> str:
             return "output"
 
@@ -1176,7 +1185,7 @@ class TestTracerToolDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.tool
+        @tool_span(tracer=tracer)
         def decorated_tool(input: str) -> None:
             """
             tool-description
@@ -1218,7 +1227,7 @@ class TestTracerToolDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.tool
+        @tool_span(tracer=tracer)
         def decorated_tool(input1: str, input2: int) -> None:
             pass
 
@@ -1260,7 +1269,7 @@ class TestTracerToolDecorator:
         tracer: OITracer,
     ) -> None:
         class ClassTool:
-            @tracer.tool
+            @tool_span(tracer=tracer)
             def __call__(self, input: str) -> None:
                 """
                 tool-description
@@ -1304,7 +1313,7 @@ class TestTracerToolDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.tool
+        @tool_span(tracer=tracer)
         async def decorated_async_tool(input: str) -> None:
             """
             tool-description
@@ -1358,7 +1367,8 @@ class TestTracerToolDecorator:
             "required": ["input"],
         }
 
-        @tracer.tool(
+        @tool_span(
+            tracer=tracer,
             name="overridden-name",
             description="overridden-description",
             parameters=overridden_parameters,
@@ -1392,7 +1402,8 @@ class TestTracerToolDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.tool(
+        @tool_span(
+            tracer=tracer,
             name="decorated-tool-with-overriden-name",
             description="overriden-tool-description",
         )
@@ -1447,7 +1458,7 @@ class TestTracerToolDecorator:
             "required": ["input1", "input2"],
         }
 
-        @tracer.tool
+        @tool_span(tracer=tracer)
         def tool_with_manual_span_updates(input1: str, input2: int) -> str:
             span = get_current_span()
             span.set_input("inside-input")  # type: ignore[attr-defined]
@@ -1484,7 +1495,7 @@ class TestTracerToolDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.tool
+        @tool_span(tracer=tracer)
         def tool_with_error(input_str: str = "default") -> str:
             raise ValueError("test error")
 
@@ -1522,7 +1533,7 @@ class TestTracerToolDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.tool
+        @tool_span(tracer=tracer)
         def tool_function(input_str: str) -> str:
             return f"processed {input_str}"
 
@@ -1541,7 +1552,7 @@ class TestTracerToolDecorator:
         session_id = "test-session-id"
         with using_session(session_id):
 
-            @tracer.tool
+            @tool_span(tracer=tracer)
             def tool_function(input_str: str) -> str:
                 return f"processed {input_str}"
 
@@ -1570,7 +1581,7 @@ class TestTracerLLMDecorator:
         tracer: OITracer,
         sync_openai_client: OpenAI,
     ) -> None:
-        @tracer.llm
+        @llm_span(tracer=tracer)
         def sync_llm_function(
             input_messages: List[ChatCompletionMessageParam],
         ) -> ChatCompletion:
@@ -1611,7 +1622,7 @@ class TestTracerLLMDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.llm
+        @llm_span(tracer=tracer)
         def sync_llm_function(
             input_messages: List[ChatCompletionMessageParam],
         ) -> ChatCompletion:
@@ -1658,7 +1669,7 @@ class TestTracerLLMDecorator:
         tracer: OITracer,
         async_openai_client: AsyncOpenAI,
     ) -> None:
-        @tracer.llm
+        @llm_span(tracer=tracer)
         async def async_llm_function(
             input_messages: List[ChatCompletionMessageParam],
         ) -> ChatCompletion:
@@ -1699,7 +1710,7 @@ class TestTracerLLMDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.llm
+        @llm_span(tracer=tracer)
         async def async_llm_function(
             input_messages: List[ChatCompletionMessageParam],
         ) -> ChatCompletion:
@@ -1746,7 +1757,7 @@ class TestTracerLLMDecorator:
         tracer: OITracer,
         sync_openai_client: OpenAI,
     ) -> None:
-        @tracer.llm
+        @llm_span(tracer=tracer)
         def sync_llm_generator_function(
             input_messages: List[ChatCompletionMessageParam],
         ) -> Generator[ChatCompletionChunk, None, None]:
@@ -1791,7 +1802,7 @@ class TestTracerLLMDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.llm
+        @llm_span(tracer=tracer)
         def sync_llm_generator_function(
             input_messages: List[ChatCompletionMessageParam],
         ) -> Generator[str, None, None]:
@@ -1846,7 +1857,7 @@ class TestTracerLLMDecorator:
         tracer: OITracer,
         async_openai_client: AsyncOpenAI,
     ) -> None:
-        @tracer.llm
+        @llm_span(tracer=tracer)
         async def async_llm_generator_function(
             input_messages: List[ChatCompletionMessageParam],
         ) -> AsyncGenerator[ChatCompletionChunk, None]:
@@ -1893,7 +1904,7 @@ class TestTracerLLMDecorator:
         in_memory_span_exporter: InMemorySpanExporter,
         tracer: OITracer,
     ) -> None:
-        @tracer.llm
+        @llm_span(tracer=tracer)
         async def async_llm_generator_function(
             input_messages: List[ChatCompletionMessageParam],
         ) -> AsyncGenerator[str, None]:
@@ -1958,7 +1969,8 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
-        @tracer.llm(
+        @llm_span(
+            tracer=tracer,
             name="custom-llm-name",
             process_input=get_input_attributes,
             process_output=get_output_attributes,
@@ -2009,7 +2021,8 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
-        @tracer.llm(
+        @llm_span(
+            tracer=tracer,
             name="custom-llm-name",
             process_input=get_input_attributes,
             process_output=get_output_attributes,
@@ -2068,7 +2081,8 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
-        @tracer.llm(
+        @llm_span(
+            tracer=tracer,
             name="custom-llm-name",
             process_input=get_input_attributes,
             process_output=get_output_attributes,
@@ -2119,7 +2133,8 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
-        @tracer.llm(
+        @llm_span(
+            tracer=tracer,
             name="custom-llm-name",
             process_input=get_input_attributes,
             process_output=get_output_attributes,
@@ -2178,7 +2193,8 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
-        @tracer.llm(
+        @llm_span(
+            tracer=tracer,
             name="custom-llm-name",
             process_input=get_input_attributes,
             process_output=get_output_attributes,
@@ -2233,7 +2249,8 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "".join(outputs)}
 
-        @tracer.llm(
+        @llm_span(
+            tracer=tracer,
             name="custom-llm-name",
             process_input=get_input_attributes,
             process_output=get_output_attributes,
@@ -2298,7 +2315,8 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "output"}
 
-        @tracer.llm(
+        @llm_span(
+            tracer=tracer,
             name="custom-llm-name",
             process_input=get_input_attributes,
             process_output=get_output_attributes,
@@ -2353,7 +2371,8 @@ class TestTracerLLMDecorator:
         ) -> "Mapping[str, AttributeValue]":
             return {OUTPUT_VALUE: "".join(outputs)}
 
-        @tracer.llm(
+        @llm_span(
+            tracer=tracer,
             name="custom-llm-name",
             process_input=get_input_attributes,
             process_output=get_output_attributes,
@@ -2662,7 +2681,7 @@ def test_context_manager_llm_span_emits_reasoning_content(
 ) -> None:
     with tracer.start_as_current_span(
         "llm-span",
-        openinference_span_kind="llm",
+        attributes=get_span_kind_attributes("llm"),
     ) as span:
         span.set_attributes(
             get_llm_attributes(
@@ -2698,7 +2717,7 @@ def test_llm_decorator_emits_reasoning_content(
     def process_output(_: object) -> "Mapping[str, AttributeValue]":
         return get_llm_attributes(output_messages=[_reasoning_message("assistant")])
 
-    @tracer.llm(process_input=process_input, process_output=process_output)
+    @llm_span(tracer=tracer, process_input=process_input, process_output=process_output)
     def call(prompt: str) -> str:
         return "ok"
 
@@ -3242,8 +3261,7 @@ class TestSamplerAttributeAccess:
         with using_attributes(session_id="session_123", metadata={"key": "value"}):
             with tracer.start_as_current_span(
                 "test-span",
-                openinference_span_kind="chain",
-                attributes=user_attributes,
+                attributes={**user_attributes, **get_span_kind_attributes("chain")},
             ) as span:
                 span.set_input("test input")
                 span.set_output("test output")
@@ -3332,8 +3350,7 @@ class TestSamplerAttributeAccess:
 
         with tracer.start_as_current_span(
             "test-span",
-            openinference_span_kind="llm",
-            attributes=sensitive_attributes,
+            attributes={**sensitive_attributes, **get_span_kind_attributes("llm")},
         ):
             pass
 

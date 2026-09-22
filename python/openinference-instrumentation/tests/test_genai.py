@@ -14,6 +14,7 @@ from openinference.instrumentation import (
     get_embedding_attributes,
     get_llm_attributes,
     get_retriever_attributes,
+    get_span_kind_attributes,
     using_session,
 )
 from openinference.instrumentation._genai_attributes import (
@@ -521,7 +522,7 @@ def test_oi_tracer_emits_genai_semconv_when_enabled(
 
     with tracer.start_as_current_span(
         "llm-span",
-        openinference_span_kind="llm",
+        attributes=get_span_kind_attributes("llm"),
     ) as span:
         span.set_attributes(
             get_llm_attributes(
@@ -561,7 +562,7 @@ def test_oi_tracer_does_not_emit_genai_semconv_when_disabled(
 
     with tracer.start_as_current_span(
         "llm-span",
-        openinference_span_kind="llm",
+        attributes=get_span_kind_attributes("llm"),
     ) as span:
         span.set_attributes(
             get_llm_attributes(
@@ -586,8 +587,8 @@ def test_oi_tracer_preserves_user_defined_genai_attributes(
 
     tracer.start_span(
         "llm-span",
-        openinference_span_kind="llm",
         attributes={
+            **get_span_kind_attributes("llm"),
             SpanAttributes.LLM_MODEL_NAME: "gpt-4o-mini",
             GenAIAttributes.GEN_AI_REQUEST_MODEL: "custom-model",
         },
@@ -609,8 +610,8 @@ def test_oi_tracer_preserves_user_defined_plan_operation(
 
     tracer.start_span(
         "plan research_planner",
-        openinference_span_kind="agent",
         attributes={
+            **get_span_kind_attributes("agent"),
             SpanAttributes.AGENT_NAME: "research_planner",
             GenAIAttributes.GEN_AI_OPERATION_NAME: _GENAI_PLAN_OPERATION,
         },
@@ -633,7 +634,7 @@ def test_oi_tracer_derives_genai_from_masked_attributes(
 
     with tracer.start_as_current_span(
         "masked-llm-span",
-        openinference_span_kind="llm",
+        attributes=get_span_kind_attributes("llm"),
     ) as span:
         span.set_attributes(
             get_llm_attributes(input_messages=[{"role": "user", "content": "secret"}])
@@ -661,7 +662,7 @@ def test_oi_tracer_does_not_derive_genai_tool_definitions_from_masked_tools(
 
     with tracer.start_as_current_span(
         "masked-llm-span",
-        openinference_span_kind="llm",
+        attributes=get_span_kind_attributes("llm"),
     ) as span:
         span.set_attributes(
             get_llm_attributes(
@@ -691,8 +692,8 @@ def test_oi_tracer_preserves_initial_genai_attributes_after_set_attribute(
 
     span = tracer.start_span(
         "llm-span",
-        openinference_span_kind="llm",
         attributes={
+            **get_span_kind_attributes("llm"),
             SpanAttributes.LLM_MODEL_NAME: "gpt-4o",
             GenAIAttributes.GEN_AI_REQUEST_MODEL: "custom-model",
         },
@@ -718,7 +719,7 @@ def test_oi_tracer_propagates_context_attributes_to_genai_semconv(
     with using_session("session-abc"):
         with tracer.start_as_current_span(
             "llm-span",
-            openinference_span_kind="llm",
+            attributes=get_span_kind_attributes("llm"),
         ):
             pass
 

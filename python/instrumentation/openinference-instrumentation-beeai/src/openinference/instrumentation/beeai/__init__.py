@@ -16,6 +16,7 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
+    get_span_kind_attributes,
 )
 from openinference.instrumentation.beeai._span import SpanWrapper
 from openinference.instrumentation.beeai._utils import _datetime_to_span_time, exception_handler
@@ -82,8 +83,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
     def _build_tree_for_span(self, node: SpanWrapper) -> Generator[OpenInferenceSpan, None, None]:
         with self._tracer.start_as_current_span(
             name=node.name,
-            openinference_span_kind=node.kind,
-            attributes=node.attributes,
+            attributes={**node.attributes, **get_span_kind_attributes(node.kind)},
             start_time=_datetime_to_span_time(node.started_at) if node.started_at else None,
             end_on_exit=False,  # we do it manually
         ) as current_span:
