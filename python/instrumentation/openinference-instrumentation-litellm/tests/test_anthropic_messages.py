@@ -974,6 +974,52 @@ def test_create_input_content_blocks(
     assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_CONTENT}"] == "42"
 
 
+def test_create_input_multiple_tool_result_blocks(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    messages: List[Dict[str, Any]] = [
+        {"role": "user", "content": "what is 2+2 and what is 3+3? call calc twice"},
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "id": "toolu_A", "name": "calc", "input": {"expr": "2+2"}},
+                {"type": "tool_use", "id": "toolu_B", "name": "calc", "input": {"expr": "3+3"}},
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "tool_result", "tool_use_id": "toolu_A", "content": "RESULT-A: 4"},
+                {"type": "tool_result", "tool_use_id": "toolu_B", "content": "RESULT-B: 6"},
+            ],
+        },
+    ]
+    original = LiteLLMInstrumentor.original_anthropic_funcs["create"]
+    LiteLLMInstrumentor.original_anthropic_funcs["create"] = (
+        lambda *args, **kwargs: _mock_anthropic_response()
+    )
+    try:
+        litellm_anthropic.create(model=MODEL, messages=messages, max_tokens=16)
+    finally:
+        LiteLLMInstrumentor.original_anthropic_funcs["create"] = original
+
+    attributes = dict(
+        cast(
+            Mapping[str, AttributeValue], in_memory_span_exporter.get_finished_spans()[0].attributes
+        )
+    )
+    in_prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    # Each tool_result block is recorded as its own tool message, not clobbered by the last.
+    assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_ROLE}"] == "tool"
+    assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "toolu_A"
+    assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_CONTENT}"] == "RESULT-A: 4"
+    assert attributes[f"{in_prefix}.3.{MessageAttributes.MESSAGE_ROLE}"] == "tool"
+    assert attributes[f"{in_prefix}.3.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "toolu_B"
+    assert attributes[f"{in_prefix}.3.{MessageAttributes.MESSAGE_CONTENT}"] == "RESULT-B: 6"
+
+
 def test_create_system_as_content_blocks(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: Any,
