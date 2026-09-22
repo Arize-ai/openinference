@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+from contextlib import AbstractContextManager, nullcontext
 from itertools import chain
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import (
@@ -37,6 +38,16 @@ class _WithSpan:
     @property
     def is_finished(self) -> bool:
         return self._is_finished
+
+    def params_context(self) -> AbstractContextManager[Any]:
+        """
+        Activates the request parameters, if they can be updated, for the duration of a
+        deferred API request. anthropic>=1.8.0 prepares the request body when the request is
+        actually made, which for the streaming helpers is after the wrapped call has returned.
+        """
+        if isinstance(self._params, AbstractContextManager):
+            return self._params
+        return nullcontext()
 
     def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
         self._span.set_attributes(attributes)

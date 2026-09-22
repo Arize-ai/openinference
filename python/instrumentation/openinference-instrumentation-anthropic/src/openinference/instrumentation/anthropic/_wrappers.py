@@ -114,6 +114,14 @@ class _Params:
 _params: ContextVar[Optional[_Params]] = ContextVar("params", default=None)
 
 
+def _is_request_body(kwargs: Mapping[str, Any]) -> bool:
+    """
+    anthropic>=1.8.0 prepares request bodies and query parameters with the same function,
+    telling them apart with a ``location`` keyword. Earlier versions prepare bodies only.
+    """
+    return bool(kwargs.get("location", "body") == "body")
+
+
 class _TransformWrapper:
     def __call__(
         self,
@@ -123,7 +131,11 @@ class _TransformWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         params = _params.get()
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
+        if (
+            context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY)
+            or params is None
+            or not _is_request_body(kwargs)
+        ):
             return wrapped(*args, **kwargs)
         ans = wrapped(*args, **kwargs)
         if isinstance(ans, Mapping):
@@ -140,7 +152,11 @@ class _AsyncTransformWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         params = _params.get()
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
+        if (
+            context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY)
+            or params is None
+            or not _is_request_body(kwargs)
+        ):
             return await wrapped(*args, **kwargs)
         ans = await wrapped(*args, **kwargs)
         if isinstance(ans, Mapping):
@@ -422,7 +438,8 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type
         self._self_message_stream: Any = None
 
     def __enter__(self) -> Any:
-        message_stream = self.__wrapped__.__enter__()
+        with self._self_with_span.params_context():
+            message_stream = self.__wrapped__.__enter__()
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -457,7 +474,8 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,
         self._self_message_stream: Any = None
 
     def __enter__(self) -> Any:
-        message_stream = self.__wrapped__.__enter__()
+        with self._self_with_span.params_context():
+            message_stream = self.__wrapped__.__enter__()
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -495,7 +513,8 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined
         self._self_message_stream: Any = None
 
     async def __aenter__(self) -> Any:
-        message_stream = await self.__wrapped__.__aenter__()
+        with self._self_with_span.params_context():
+            message_stream = await self.__wrapped__.__aenter__()
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -530,7 +549,8 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-def
         self._self_message_stream: Any = None
 
     async def __aenter__(self) -> Any:
-        message_stream = await self.__wrapped__.__aenter__()
+        with self._self_with_span.params_context():
+            message_stream = await self.__wrapped__.__aenter__()
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )

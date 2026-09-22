@@ -31,15 +31,20 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from pydantic import BaseModel
-from wrapt import BoundFunctionWrapper
+from wrapt import BoundFunctionWrapper, FunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.anthropic import AnthropicInstrumentor
+from openinference.instrumentation.anthropic import (
+    AnthropicInstrumentor,
+    _resolve_transform_target,
+)
 from openinference.instrumentation.anthropic._stream import _MessageExtractor
 from openinference.instrumentation.anthropic._wrappers import (
     _get_llm_input_messages,
     _get_llm_token_counts,
     _get_output_messages,
+    _Params,
+    _TransformWrapper,
 )
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -2175,6 +2180,60 @@ def test_anthropic_uninstrumentation(
     assert not isinstance(AsyncBetaMessages.stream, BoundFunctionWrapper)
     assert not isinstance(BetaMessages.parse, BoundFunctionWrapper)
     assert not isinstance(AsyncBetaMessages.parse, BoundFunctionWrapper)
+
+
+def test_request_body_preparation_is_instrumented_and_restored(
+    tracer_provider: TracerProvider,
+) -> None:
+    """
+    The private request body preparation function is patched to enrich the recorded
+    invocation parameters. anthropic>=1.8.0 renamed it and moved its call site, so this
+    fails if a future version renames it again rather than at instrument() time.
+    """
+    target = _resolve_transform_target()
+    assert target is not None, (
+        f"no known request body preparation function found in anthropic {anthropic.__version__}"
+    )
+    module, transform_name, async_transform_name = target
+    original = getattr(module, transform_name)
+    async_original = getattr(module, async_transform_name)
+
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+
+    assert isinstance(getattr(module, transform_name), FunctionWrapper)
+    assert isinstance(getattr(module, async_transform_name), FunctionWrapper)
+
+    AnthropicInstrumentor().uninstrument()
+
+    assert getattr(module, transform_name) is original
+    assert getattr(module, async_transform_name) is async_original
+
+
+@pytest.mark.parametrize(
+    "location,expected",
+    [
+        pytest.param({}, {"max_tokens": 256, "stream": True}, id="unspecified"),
+        pytest.param({"location": "body"}, {"max_tokens": 256, "stream": True}, id="body"),
+        pytest.param({"location": "query"}, {"max_tokens": 256}, id="query"),
+    ],
+)
+def test_only_request_bodies_are_recorded_as_invocation_parameters(
+    location: Dict[str, str],
+    expected: Dict[str, Any],
+) -> None:
+    """
+    anthropic>=1.8.0 prepares request bodies and query parameters with the same function,
+    telling them apart with a ``location`` keyword. Only bodies carry invocation parameters.
+    """
+    prepared = {"stream": True}
+
+    def prepare(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        return prepared
+
+    params = _Params({"max_tokens": 256})
+    with params:
+        assert _TransformWrapper()(prepare, None, (prepared,), location) is prepared
+    assert dict(params) == expected
 
 
 # Ensure we're using the common OITracer from common openinference-instrumentation pkg

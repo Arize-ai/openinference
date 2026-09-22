@@ -1,5 +1,7 @@
 import logging
-from typing import Any, Collection
+from importlib import import_module
+from types import ModuleType
+from typing import Any, Collection, Optional, Tuple
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
@@ -23,8 +25,34 @@ from openinference.instrumentation.anthropic._wrappers import (
 from openinference.instrumentation.anthropic.version import __version__
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 _instruments = ("anthropic >= 1.0.0",)
+
+# The private function that prepares an Anthropic request body is patched to enrich the
+# recorded invocation parameters. anthropic>=1.8.0 renamed it from
+# anthropic._utils._transform.transform to anthropic._utils._prepare.prepare_request_data and
+# calls it from anthropic._base_client, which binds it as a module global, so each version has
+# to be patched where its own call site resolves the name. Newest layout first.
+_TRANSFORM_TARGETS = (
+    ("anthropic._base_client", "prepare_request_data", "async_prepare_request_data"),
+    ("anthropic._utils._transform", "transform", "async_transform"),
+)
+
+
+def _resolve_transform_target() -> Optional[Tuple[ModuleType, str, str]]:
+    """
+    Returns the module to patch and the names of the sync and async request-body preparation
+    functions it calls, or None if this version of anthropic has neither known layout.
+    """
+    for module_name, transform_name, async_transform_name in _TRANSFORM_TARGETS:
+        try:
+            module = import_module(module_name)
+        except ImportError:
+            continue
+        if hasattr(module, transform_name) and hasattr(module, async_transform_name):
+            return module, transform_name, async_transform_name
+    return None
 
 
 class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
@@ -45,6 +73,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_async_beta_messages_parse",
         "_original_transform",
         "_original_async_transform",
+        "_transform_target",
         "_instruments",
         "_tracer",
     )
@@ -192,24 +221,32 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ),
         )
 
-        import anthropic._utils._transform as _transform_module
+        self._transform_target = _resolve_transform_target()
+        self._original_transform = None
+        self._original_async_transform = None
+        if self._transform_target is None:
+            logger.warning(
+                "Could not find the request body preparation functions of this anthropic "
+                "version. Some invocation parameters may be missing from LLM spans."
+            )
+        else:
+            transform_module, transform_name, async_transform_name = self._transform_target
 
-        self._original_transform = _transform_module.transform
-        wrap_function_wrapper(
-            "anthropic._utils._transform",
-            "transform",
-            _TransformWrapper(),
-        )
+            self._original_transform = getattr(transform_module, transform_name)
+            wrap_function_wrapper(
+                transform_module.__name__,
+                transform_name,
+                _TransformWrapper(),
+            )
 
-        self._original_async_transform = _transform_module.async_transform
-        wrap_function_wrapper(
-            "anthropic._utils._transform",
-            "async_transform",
-            _AsyncTransformWrapper(),
-        )
+            self._original_async_transform = getattr(transform_module, async_transform_name)
+            wrap_function_wrapper(
+                transform_module.__name__,
+                async_transform_name,
+                _AsyncTransformWrapper(),
+            )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        import anthropic._utils._transform as _transform_module
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
         from anthropic.resources.beta.messages import Messages as BetaMessages
         from anthropic.resources.messages import AsyncMessages, Messages
@@ -244,7 +281,10 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if self._original_async_beta_messages_parse is not None:
             AsyncBetaMessages.parse = self._original_async_beta_messages_parse  # type: ignore[method-assign]
 
-        if self._original_transform is not None:
-            _transform_module.transform = self._original_transform
-        if self._original_async_transform is not None:
-            _transform_module.async_transform = self._original_async_transform
+        if self._transform_target is not None:
+            transform_module, transform_name, async_transform_name = self._transform_target
+            if self._original_transform is not None:
+                setattr(transform_module, transform_name, self._original_transform)
+            if self._original_async_transform is not None:
+                setattr(transform_module, async_transform_name, self._original_async_transform)
+            self._transform_target = None
