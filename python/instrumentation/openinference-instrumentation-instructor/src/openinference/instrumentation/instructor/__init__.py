@@ -19,6 +19,8 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
         "_tracer",
         "_original_handle_response_model",
         "_original_patch",
+        "_original_v2_create_factories",
+        "_v2_create_factory_wrappers",
         "_patch_module",
     )
 
@@ -29,6 +31,7 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
         from openinference.instrumentation.instructor._wrappers import (
             _HandleResponseWrapper,
             _PatchWrapper,
+            _V2CreateFactoryWrapper,
         )
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
@@ -42,23 +45,30 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
-        # The v2 instructor flow (>=1.15) never calls handle_response_model; every
-        # create() routes through retry_sync_v2/retry_async_v2. Wrap those FIRST:
-        # resolving instructor.patch (below) eagerly imports v2.core.patch, which
-        # binds retry_sync_v2 by value, so the retry wrap must land before it.
-        from openinference.instrumentation.instructor._wrappers import _RetryV2Wrapper
-
-        for _retry_fname in ("retry_sync_v2", "retry_async_v2"):
-            try:
-                _retry_mod = import_module("instructor.v2.core.retry")
-            except ModuleNotFoundError:
-                _retry_mod = None
-            if _retry_mod is not None and getattr(_retry_mod, _retry_fname, None) is not None:
-                wrap_function_wrapper(
-                    "instructor.v2.core.retry",
-                    _retry_fname,
-                    _RetryV2Wrapper(tracer=self._tracer),  # type: ignore[arg-type]
+        # The generated v2 create callables contain cache lookup and retry execution.
+        # Wrapping their factories produces one span around every public create call,
+        # including cache hits, without double-counting retry calls.
+        self._original_v2_create_factories = []
+        self._v2_create_factory_wrappers = []
+        try:
+            v2_patch_module = import_module("instructor.v2.core.patch")
+        except ModuleNotFoundError:
+            v2_patch_module = None
+        if v2_patch_module is not None:
+            for function_name, is_async in (
+                ("_create_sync_wrapper", False),
+                ("_create_async_wrapper", True),
+            ):
+                original = getattr(v2_patch_module, function_name, None)
+                if original is None:
+                    continue
+                self._original_v2_create_factories.append((function_name, original))
+                factory_wrapper = _V2CreateFactoryWrapper(
+                    tracer=self._tracer,  # type: ignore[arg-type]
+                    is_async=is_async,
                 )
+                self._v2_create_factory_wrappers.append(factory_wrapper)
+                wrap_function_wrapper("instructor.v2.core.patch", function_name, factory_wrapper)
 
         self._original_patch = getattr(import_module("instructor"), "patch", None)
         patch_wrapper = _PatchWrapper(tracer=self._tracer)  # type: ignore[arg-type]
@@ -95,6 +105,17 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
             wrap_function_wrapper(self._patch_module, "handle_response_model", process_resp_wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        # Clients patched while instrumented keep their generated create callables,
+        # so those callables must stop tracing too.
+        for factory_wrapper in getattr(self, "_v2_create_factory_wrappers", []):
+            factory_wrapper.disable()
+        self._v2_create_factory_wrappers = []
+
+        for function_name, original in getattr(self, "_original_v2_create_factories", []):
+            module = import_module("instructor.v2.core.patch")
+            setattr(module, function_name, original)
+        self._original_v2_create_factories = []
+
         if self._original_patch is not None:
             instructor_module = import_module("instructor")
             instructor_module.patch = self._original_patch  # type: ignore[attr-defined]

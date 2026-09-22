@@ -1,7 +1,22 @@
 import json
+from collections.abc import AsyncIterator as AsyncIteratorABC
+from collections.abc import Iterable as IterableABC
+from collections.abc import Iterator as IteratorABC
 from enum import Enum
+from functools import wraps
 from inspect import signature
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    get_origin,
+)
 from urllib.parse import urlparse
 
 from opentelemetry import context as context_api
@@ -17,6 +32,8 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+
+_V2_CREATE_WRAPPER_MARKER = "__openinference_instructor_v2_create_wrapper__"
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -179,7 +196,12 @@ class _PatchWrapper:
         if not callable(new_func):
             # Modern instructor.patch returns a patched client object, not a
             # callable. Spans for its create() calls are emitted by the
-            # retry_sync_v2/retry_async_v2 wrappers; return the client as-is.
+            # v2 create factory wrapper; return the client as-is.
+            return new_func
+
+        if getattr(new_func, _V2_CREATE_WRAPPER_MARKER, False):
+            # Instructor v2 created this callable through the already-instrumented
+            # factory. The legacy wrapper below would create a duplicate TOOL span.
             return new_func
 
         if create is not None:
@@ -387,11 +409,264 @@ MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 
 
-class _RetryV2Wrapper:
-    """Span for instructor's v2 retry path - the real call boundary in instructor>=1.15."""
+_NO_ITEM = object()
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+
+class _StreamAccumulator:
+    """Holds the stream output reported on the span.
+
+    Iterable streams yield separate results, so all of them are kept. Other
+    streams (e.g. partial models) yield successive snapshots, so only the
+    latest one is kept.
+    """
+
+    def __init__(self, keep_all: bool) -> None:
+        self._keep_all = keep_all
+        self._items: List[Any] = []
+        self._last: Any = _NO_ITEM
+
+    def add(self, item: Any) -> None:
+        if self._keep_all:
+            self._items.append(item)
+        else:
+            self._last = item
+
+    def output(self) -> Any:
+        return self._items if self._keep_all else self._last
+
+
+class _SyncIteratorProxy(IteratorABC[Any]):
+    def __init__(
+        self,
+        iterator: IteratorABC[Any],
+        span: trace_api.Span,
+        finish_span: Callable[[trace_api.Span, Any], None],
+        keep_all: bool = True,
+    ) -> None:
+        self._iterator = iterator
+        self._span = span
+        self._finish_span = finish_span
+        self._output = _StreamAccumulator(keep_all)
+        self._finished = False
+
+    def __iter__(self) -> Iterator[Any]:
+        return self
+
+    def __next__(self) -> Any:
+        if self._finished:
+            raise StopIteration
+        exhausted = False
+        try:
+            with trace_api.use_span(self._span, end_on_exit=False):
+                try:
+                    item = next(self._iterator)
+                except StopIteration:
+                    exhausted = True
+                    item = None
+        except BaseException:
+            self._end()
+            raise
+        if exhausted:
+            self._finish()
+            raise StopIteration
+        self._output.add(item)
+        return item
+
+    def close(self) -> None:
+        if self._finished:
+            return
+        try:
+            with trace_api.use_span(self._span, end_on_exit=False):
+                close = getattr(self._iterator, "close", None)
+                if callable(close):
+                    close()
+        except BaseException:
+            self._end()
+            raise
+        self._finish()
+
+    def __del__(self) -> None:
+        # The stream was dropped without being exhausted or closed.
+        try:
+            self._finish()
+        except BaseException:
+            pass
+
+    def _finish(self) -> None:
+        if self._finished:
+            return
+        try:
+            self._finish_span(self._span, self._output.output())
+        finally:
+            self._end()
+
+    def _end(self) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        self._span.end()
+
+
+class _AsyncIteratorProxy(AsyncIteratorABC[Any]):
+    def __init__(
+        self,
+        iterator: AsyncIteratorABC[Any],
+        span: trace_api.Span,
+        finish_span: Callable[[trace_api.Span, Any], None],
+        keep_all: bool = True,
+    ) -> None:
+        self._iterator = iterator
+        self._span = span
+        self._finish_span = finish_span
+        self._output = _StreamAccumulator(keep_all)
+        self._finished = False
+
+    def __aiter__(self) -> AsyncIteratorABC[Any]:
+        return self
+
+    async def __anext__(self) -> Any:
+        if self._finished:
+            raise StopAsyncIteration
+        exhausted = False
+        try:
+            with trace_api.use_span(self._span, end_on_exit=False):
+                try:
+                    item = await self._iterator.__anext__()
+                except StopAsyncIteration:
+                    exhausted = True
+                    item = None
+        except BaseException:
+            self._end()
+            raise
+        if exhausted:
+            self._finish()
+            raise StopAsyncIteration
+        self._output.add(item)
+        return item
+
+    async def aclose(self) -> None:
+        if self._finished:
+            return
+        try:
+            with trace_api.use_span(self._span, end_on_exit=False):
+                close = getattr(self._iterator, "aclose", None)
+                if callable(close):
+                    await close()
+        except BaseException:
+            self._end()
+            raise
+        self._finish()
+
+    def __del__(self) -> None:
+        # The stream was dropped without being exhausted or closed.
+        try:
+            self._finish()
+        except BaseException:
+            pass
+
+    def _finish(self) -> None:
+        if self._finished:
+            return
+        try:
+            self._finish_span(self._span, self._output.output())
+        finally:
+            self._end()
+
+    def _end(self) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        self._span.end()
+
+
+class _V2CreateFactoryWrapper:
+    """Instrument the public create callable generated by Instructor v2."""
+
+    def __init__(self, tracer: trace_api.Tracer, is_async: bool) -> None:
         self._tracer = tracer
+        self._is_async = is_async
+        self._enabled = True
+
+    def disable(self) -> None:
+        """Stop tracing create callables that were already handed out."""
+        self._enabled = False
+
+    @staticmethod
+    def _is_iterable_response_model(args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> bool:
+        try:
+            response_model = kwargs.get("response_model", args[0] if args else None)
+            if get_origin(response_model) in (IterableABC, list):
+                return True
+            from instructor.dsl.iterable import IterableBase
+
+            return isinstance(response_model, type) and issubclass(response_model, IterableBase)
+        except Exception:
+            return False
+
+    @staticmethod
+    def _get_attributes(
+        args: Tuple[Any, ...], kwargs: Mapping[str, Any]
+    ) -> Dict[str, AttributeValue]:
+        attributes: Dict[str, AttributeValue] = {
+            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value
+        }
+        try:
+            input_value = kwargs.get("messages", kwargs)
+            attributes[INPUT_VALUE] = safe_json_dumps(input_value, cls=SafeJSONEncoder)
+            attributes[INPUT_VALUE_MIME_TYPE] = "application/json"
+        except Exception:
+            pass
+        try:
+            response_model = kwargs.get("response_model", args[0] if args else None)
+            if response_model is not None:
+                response_model_name = getattr(response_model, "__name__", None)
+                attributes["instructor.response_model"] = (
+                    response_model_name if response_model_name is not None else repr(response_model)
+                )
+        except Exception:
+            pass
+        return attributes
+
+    @staticmethod
+    def _normalize_output(response: Any) -> Any:
+        if hasattr(response, "model_dump"):
+            return response.model_dump()
+        if isinstance(response, Mapping):
+            return {
+                key: _V2CreateFactoryWrapper._normalize_output(value)
+                for key, value in response.items()
+            }
+        if isinstance(response, (list, tuple)):
+            return [_V2CreateFactoryWrapper._normalize_output(value) for value in response]
+        return response
+
+    @classmethod
+    def _set_output_attributes(cls, span: trace_api.Span, response: Any) -> None:
+        try:
+            output = cls._normalize_output(response)
+            output_value = safe_json_dumps(output, cls=SafeJSONEncoder)
+            span.set_attribute(OUTPUT_VALUE, output_value)
+            span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+        except Exception:
+            pass
+
+    @classmethod
+    def _finish_span(cls, span: trace_api.Span, response: Any) -> None:
+        if response is not _NO_ITEM:
+            cls._set_output_attributes(span, response)
+        span.set_status(trace_api.StatusCode.OK)
+
+    @classmethod
+    def _wrap_sync_iterator(
+        cls, iterator: IteratorABC[Any], span: trace_api.Span, keep_all: bool
+    ) -> Iterator[Any]:
+        return _SyncIteratorProxy(iterator, span, cls._finish_span, keep_all)
+
+    @classmethod
+    def _wrap_async_iterator(
+        cls, iterator: AsyncIteratorABC[Any], span: trace_api.Span, keep_all: bool
+    ) -> AsyncIteratorABC[Any]:
+        return _AsyncIteratorProxy(iterator, span, cls._finish_span, keep_all)
 
     def __call__(
         self,
@@ -400,41 +675,50 @@ class _RetryV2Wrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
-        span_name = f"instructor.{wrapped.__name__}"
-        attributes = dict(
-            _flatten(
-                {
-                    OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
-                    INPUT_VALUE_MIME_TYPE: "application/json",
-                }
-            )
-        )
-        create_kwargs = kwargs.get("kwargs") or {}
-        if not isinstance(create_kwargs, Mapping):
-            create_kwargs = {}
-        if messages := create_kwargs.get("messages"):
+        create = wrapped(*args, **kwargs)
+
+        @wraps(create)
+        def create_sync(*create_args: Any, **create_kwargs: Any) -> Any:
+            if not self._enabled or context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return create(*create_args, **create_kwargs)
+            attributes = self._get_attributes(create_args, create_kwargs)
+            span = self._tracer.start_span("instructor.create", attributes=attributes)
             try:
-                attributes[INPUT_VALUE] = safe_json_dumps(messages, cls=SafeJSONEncoder)
-            except Exception:
-                attributes[INPUT_VALUE] = repr(messages)
-        response_model = create_kwargs.get("response_model")
-        if response_model is not None:
-            attributes["instructor.response_model"] = getattr(
-                response_model, "__name__", repr(response_model)
-            )
-        with self._tracer.start_as_current_span(span_name, attributes=attributes) as span:
-            response = wrapped(*args, **kwargs)
+                with trace_api.use_span(span, end_on_exit=False):
+                    response = create(*create_args, **create_kwargs)
+            except BaseException:
+                span.end()
+                raise
+            if isinstance(response, IteratorABC):
+                keep_all = self._is_iterable_response_model(create_args, create_kwargs)
+                return self._wrap_sync_iterator(response, span, keep_all)
             try:
-                span.set_attribute(
-                    OUTPUT_VALUE,
-                    safe_json_dumps(
-                        response.model_dump() if hasattr(response, "model_dump") else repr(response),
-                        cls=SafeJSONEncoder,
-                    ),
-                )
-            except Exception:
-                pass
-            span.set_status(trace_api.StatusCode.OK)
-            return response
+                self._finish_span(span, response)
+                return response
+            finally:
+                span.end()
+
+        @wraps(create)
+        async def create_async(*create_args: Any, **create_kwargs: Any) -> Any:
+            if not self._enabled or context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return await create(*create_args, **create_kwargs)
+            attributes = self._get_attributes(create_args, create_kwargs)
+            span = self._tracer.start_span("instructor.async_create", attributes=attributes)
+            try:
+                with trace_api.use_span(span, end_on_exit=False):
+                    response = await create(*create_args, **create_kwargs)
+            except BaseException:
+                span.end()
+                raise
+            if isinstance(response, AsyncIteratorABC):
+                keep_all = self._is_iterable_response_model(create_args, create_kwargs)
+                return self._wrap_async_iterator(response, span, keep_all)
+            try:
+                self._finish_span(span, response)
+                return response
+            finally:
+                span.end()
+
+        wrapped_create = create_async if self._is_async else create_sync
+        setattr(wrapped_create, _V2_CREATE_WRAPPER_MARKER, True)
+        return wrapped_create

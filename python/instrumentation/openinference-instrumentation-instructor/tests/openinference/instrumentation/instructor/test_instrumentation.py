@@ -56,6 +56,13 @@ test_vcr = vcr.VCR(
     match_on=["uri", "method"],
 )
 
+try:
+    import_module("instructor.v2.core.patch")
+except ModuleNotFoundError:
+    _USES_V2_CREATE = False
+else:
+    _USES_V2_CREATE = True
+
 
 class UserInfo(BaseModel):
     name: Optional[str] = None
@@ -147,15 +154,15 @@ async def test_async_instrumentation(
 
         spans = in_memory_span_exporter.get_finished_spans()
 
-        # We should have 2 spans for what we consider "TOOL" calling
-        assert len(spans) == 2
+        assert len(spans) == (1 if _USES_V2_CREATE else 2)
         for span in spans:
             attributes = dict(span.attributes or dict())
             if span.name in {"instructor.patch", "instructor.async_patch"}:
                 assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
                 assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
                 assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
-            assert attributes.get("openinference.span.kind") in ["TOOL"]
+            expected_span_kind = "CHAIN" if _USES_V2_CREATE else "TOOL"
+            assert attributes.get("openinference.span.kind") == expected_span_kind
             assert span.status.status_code == trace_api.StatusCode.OK
 
 
@@ -190,15 +197,15 @@ async def test_streaming_instrumentation(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    # We should have 2 spans for what we consider "TOOL" calling
-    assert len(spans) == 2
+    assert len(spans) == (1 if _USES_V2_CREATE else 2)
     for span in spans:
         attributes = dict(span.attributes or dict())
         if span.name in {"instructor.patch", "instructor.async_patch"}:
             assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
             assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
             assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
-        assert attributes.get("openinference.span.kind") in ["TOOL"]
+        expected_span_kind = "CHAIN" if _USES_V2_CREATE else "TOOL"
+        assert attributes.get("openinference.span.kind") == expected_span_kind
         assert span.status.status_code == trace_api.StatusCode.OK
 
 
@@ -221,15 +228,15 @@ def test_instructor_instrumentation(
 
         spans = in_memory_span_exporter.get_finished_spans()
 
-        # We should have 2 spans for what we consider "TOOL" calling
-        assert len(spans) == 2
+        assert len(spans) == (1 if _USES_V2_CREATE else 2)
         for span in spans:
             attributes = dict(span.attributes or dict())
             if span.name in {"instructor.patch", "instructor.async_patch"}:
                 assert attributes.get("llm.model_name") == "gpt-3.5-turbo"
                 assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
                 assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
-            assert attributes.get("openinference.span.kind") in ["TOOL"]
+            expected_span_kind = "CHAIN" if _USES_V2_CREATE else "TOOL"
+            assert attributes.get("openinference.span.kind") == expected_span_kind
             assert span.status.status_code == trace_api.StatusCode.OK
 
             # Validate invocation parameters handling
