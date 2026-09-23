@@ -266,6 +266,17 @@ class _MessagesWrapper(_WithTracer):
     Captures all calls to the pipeline
     """
 
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        span_name: str,
+        parse_raw_response: bool = True,
+    ) -> None:
+        super().__init__(tracer=tracer, span_name=span_name)
+        # False for parse(), which validates a response against the caller's output_format:
+        # that is caller code, which must run only when the caller parses a raw response itself
+        self._parse_raw_response = parse_raw_response
+
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -297,7 +308,7 @@ class _MessagesWrapper(_WithTracer):
                 span.finish_tracing()
                 raise
         if _is_api_response(response):
-            _finish_api_response_tracing(span, response)
+            _finish_api_response_tracing(span, response, parse=self._parse_raw_response)
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
@@ -312,6 +323,17 @@ class _AsyncMessagesWrapper(_WithTracer):
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
     """
+
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        span_name: str,
+        parse_raw_response: bool = True,
+    ) -> None:
+        super().__init__(tracer=tracer, span_name=span_name)
+        # False for parse(), which validates a response against the caller's output_format:
+        # that is caller code, which must run only when the caller parses a raw response itself
+        self._parse_raw_response = parse_raw_response
 
     async def __call__(
         self,
@@ -345,7 +367,7 @@ class _AsyncMessagesWrapper(_WithTracer):
                 span.finish_tracing()
                 raise
         if _is_api_response(response):
-            await _async_finish_api_response_tracing(span, response)
+            await _async_finish_api_response_tracing(span, response, parse=self._parse_raw_response)
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
@@ -379,13 +401,14 @@ def _is_api_response(response: Any) -> bool:
     return isinstance(response, (APIResponse, AsyncAPIResponse))
 
 
-def _finish_api_response_tracing(span: _WithSpan, response: Any) -> None:
+def _finish_api_response_tracing(span: _WithSpan, response: Any, parse: bool) -> None:
     """
-    The response is parsed for the output attributes only if its body has already been read, so
-    a body the caller chose to stream or read itself is left alone. The response caches what it
-    parses, so the caller's own parse() returns the same message.
+    The response is parsed for the output attributes only if parsing runs no caller code and its
+    body has already been read, so a body the caller chose to stream or read itself is left
+    alone. The response caches a successful parse, so the caller's own parse() returns the same
+    message.
     """
-    if not response.is_closed:
+    if not parse or not response.is_closed:
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
     try:
@@ -397,11 +420,11 @@ def _finish_api_response_tracing(span: _WithSpan, response: Any) -> None:
     _finish_message_tracing(span, message)
 
 
-async def _async_finish_api_response_tracing(span: _WithSpan, response: Any) -> None:
+async def _async_finish_api_response_tracing(span: _WithSpan, response: Any, parse: bool) -> None:
     """
     See _finish_api_response_tracing.
     """
-    if not response.is_closed:
+    if not parse or not response.is_closed:
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
     try:

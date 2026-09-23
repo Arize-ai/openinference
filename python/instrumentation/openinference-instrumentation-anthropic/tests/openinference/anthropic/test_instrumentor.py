@@ -3,7 +3,7 @@ import asyncio
 import json
 import random
 import string
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, ClassVar, Dict, List, Optional
 
 import anthropic
 import httpx2
@@ -32,7 +32,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from wrapt import BoundFunctionWrapper, FunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -2455,6 +2455,58 @@ async def test_async_raw_response_is_recorded(
     assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
     assert json.loads(str(attributes[OUTPUT_VALUE]))["content"][0]["text"] == "hi"
     assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
+
+
+class _City(BaseModel):
+    city: str
+    validations: ClassVar[int] = 0
+
+    @field_validator("city")
+    @classmethod
+    def count_validations(cls, city: str) -> str:
+        cls.validations += 1
+        return city
+
+
+def _parsed_message_handler(request: Any) -> Any:
+    content = [{"type": "text", "text": json.dumps({"city": "Paris"})}]
+    return httpx2.Response(status_code=200, json={**_MESSAGE_JSON, "content": content})
+
+
+def test_raw_parse_response_is_left_to_the_caller(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    parse() validates the response against the caller's output_format, which is caller code
+    that must run only when the caller parses the raw response itself.
+    """
+    _City.validations = 0
+    client = _mock_anthropic_client(_parsed_message_handler)
+
+    response = client.beta.messages.with_raw_response.parse(**_STREAM_KWARGS, output_format=_City)
+
+    assert _City.validations == 0
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert response.parse().parsed_output == _City(city="Paris")
+
+
+async def test_async_raw_parse_response_is_left_to_the_caller(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    _City.validations = 0
+    client = _mock_async_anthropic_client(_parsed_message_handler)
+
+    response = await client.beta.messages.with_raw_response.parse(
+        **_STREAM_KWARGS, output_format=_City
+    )
+
+    assert _City.validations == 0
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert (await response.parse()).parsed_output == _City(city="Paris")
 
 
 @pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
