@@ -266,17 +266,6 @@ class _MessagesWrapper(_WithTracer):
     Captures all calls to the pipeline
     """
 
-    def __init__(
-        self,
-        tracer: trace_api.Tracer,
-        span_name: str,
-        parse_raw_response: bool = True,
-    ) -> None:
-        super().__init__(tracer=tracer, span_name=span_name)
-        # False for parse(), which validates a response against the caller's output_format:
-        # that is caller code, which must run only when the caller parses a raw response itself
-        self._parse_raw_response = parse_raw_response
-
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -308,12 +297,7 @@ class _MessagesWrapper(_WithTracer):
                 span.finish_tracing()
                 raise
         if _is_api_response(response):
-            _finish_api_response_tracing(
-                span,
-                response,
-                parse=self._parse_raw_response,
-                streaming=kwargs.get("stream", False),
-            )
+            _finish_api_response_tracing(span, response, streaming=kwargs.get("stream", False))
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
@@ -328,17 +312,6 @@ class _AsyncMessagesWrapper(_WithTracer):
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
     """
-
-    def __init__(
-        self,
-        tracer: trace_api.Tracer,
-        span_name: str,
-        parse_raw_response: bool = True,
-    ) -> None:
-        super().__init__(tracer=tracer, span_name=span_name)
-        # False for parse(), which validates a response against the caller's output_format:
-        # that is caller code, which must run only when the caller parses a raw response itself
-        self._parse_raw_response = parse_raw_response
 
     async def __call__(
         self,
@@ -373,10 +346,7 @@ class _AsyncMessagesWrapper(_WithTracer):
                 raise
         if _is_api_response(response):
             await _async_finish_api_response_tracing(
-                span,
-                response,
-                parse=self._parse_raw_response,
-                streaming=kwargs.get("stream", False),
+                span, response, streaming=kwargs.get("stream", False)
             )
             return response
         streaming = kwargs.get("stream", False)
@@ -411,9 +381,19 @@ def _is_api_response(response: Any) -> bool:
     return isinstance(response, (APIResponse, AsyncAPIResponse))
 
 
-def _finish_api_response_tracing(
-    span: _WithSpan, response: Any, parse: bool, streaming: bool
-) -> None:
+def _parsing_runs_caller_code(response: Any) -> bool:
+    """
+    Parsing applies the request's post_parser, which is caller code: messages.parse() sets one
+    to validate the response against the caller's output_format, and middleware can set one on
+    any request. Caller code must run only when the caller parses a raw response itself.
+    """
+    from anthropic import NotGiven
+
+    options = getattr(response, "_options", None)
+    return not isinstance(getattr(options, "post_parser", None), NotGiven)
+
+
+def _finish_api_response_tracing(span: _WithSpan, response: Any, streaming: bool) -> None:
     """
     The response is parsed for the output attributes only if parsing runs no caller code and its
     body has already been read, so a body the caller chose to stream or read itself is left
@@ -425,7 +405,7 @@ def _finish_api_response_tracing(
     if streaming or not response.is_closed:
         span.finish_tracing()
         return
-    if not parse:
+    if _parsing_runs_caller_code(response):
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
     try:
@@ -438,7 +418,7 @@ def _finish_api_response_tracing(
 
 
 async def _async_finish_api_response_tracing(
-    span: _WithSpan, response: Any, parse: bool, streaming: bool
+    span: _WithSpan, response: Any, streaming: bool
 ) -> None:
     """
     See _finish_api_response_tracing.
@@ -446,7 +426,7 @@ async def _async_finish_api_response_tracing(
     if streaming or not response.is_closed:
         span.finish_tracing()
         return
-    if not parse:
+    if _parsing_runs_caller_code(response):
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
     try:

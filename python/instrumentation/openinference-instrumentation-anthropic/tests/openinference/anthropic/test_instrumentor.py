@@ -2501,6 +2501,43 @@ def test_raw_parse_response_is_left_to_the_caller(
     assert response.parse().parsed_output == _City(city="Paris")
 
 
+@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
+def test_raw_response_with_middleware_post_parser_is_left_to_the_caller(
+    beta: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    Middleware can attach a post_parser to any request, which is caller code that must run only
+    when the caller parses the raw response itself.
+    """
+    post_parsed: List[Any] = []
+
+    def post_parser(message: Any) -> Any:
+        post_parsed.append(message)
+        return message
+
+    def middleware(request: Any, call_next: Callable[[Any], Any]) -> Any:
+        request = request.copy()
+        request.options.post_parser = post_parser
+        return call_next(request)
+
+    client = Anthropic(
+        api_key="sk-ant-fake",
+        middleware=[middleware],
+        http_client=httpx2.Client(transport=httpx2.MockTransport(_message_handler)),
+    )
+    messages: Any = client.beta.messages if beta else client.messages
+
+    response = messages.with_raw_response.create(**_STREAM_KWARGS)
+
+    assert not post_parsed
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert response.parse().content[0].text == "hi"
+    assert len(post_parsed) == 1
+
+
 async def test_async_raw_parse_response_is_left_to_the_caller(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,

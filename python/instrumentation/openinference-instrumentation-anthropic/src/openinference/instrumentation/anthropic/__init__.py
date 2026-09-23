@@ -180,7 +180,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             _MessagesWrapper(
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.parse",
-                parse_raw_response=False,
             ),
         )
 
@@ -191,7 +190,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             _AsyncMessagesWrapper(
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.parse",
-                parse_raw_response=False,
             ),
         )
 
@@ -244,7 +242,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             _MessagesWrapper(
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.parse",
-                parse_raw_response=False,
             ),
         )
 
@@ -255,7 +252,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             _AsyncMessagesWrapper(
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.parse",
-                parse_raw_response=False,
             ),
         )
 
