@@ -7,6 +7,7 @@ from functools import wraps
 from inspect import signature
 from typing import (
     Any,
+    Awaitable,
     Callable,
     Dict,
     Iterable,
@@ -23,11 +24,13 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.util.types import AttributeValue
+from wrapt import ObjectProxy
 
 from instructor.utils import is_async
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -174,6 +177,19 @@ class _PatchWrapper:
 
         return attributes
 
+    @staticmethod
+    def _get_client_and_create(
+        wrapped: Callable[..., Any], args: Tuple[Any, ...], kwargs: Mapping[str, Any]
+    ) -> Tuple[Any, Any]:
+        """Read `client` and `create` whether they were passed by keyword or by position."""
+        try:
+            arguments: Dict[str, Any] = dict(
+                signature(wrapped).bind_partial(*args, **kwargs).arguments
+            )
+        except (TypeError, ValueError):
+            arguments = {**dict(zip(("client", "create"), args)), **kwargs}
+        return arguments.get("client"), arguments.get("create")
+
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -186,12 +202,7 @@ class _PatchWrapper:
 
         new_func = wrapped(*args, **kwargs)
 
-        create = kwargs.get("create")
-        client = kwargs.get("client")
-        if client is None and create is None and args:
-            # Modern call style: instructor.patch(client, mode=...) passes the
-            # client positionally.
-            client = args[0]
+        client, create = self._get_client_and_create(wrapped, args, kwargs)
 
         if not callable(new_func):
             # Modern instructor.patch returns a patched client object, not a
@@ -408,6 +419,54 @@ LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 
+# Instructor names its providers slightly differently from OpenInference, and covers some
+# that OpenInference has no value for; those are left unset rather than guessed.
+_LLM_PROVIDERS = {
+    "openai": OpenInferenceLLMProviderValues.OPENAI,
+    "azure_openai": OpenInferenceLLMProviderValues.AZURE,
+    "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC,
+    "cohere": OpenInferenceLLMProviderValues.COHERE,
+    "mistral": OpenInferenceLLMProviderValues.MISTRALAI,
+    "bedrock": OpenInferenceLLMProviderValues.AWS,
+    "vertexai": OpenInferenceLLMProviderValues.GOOGLE,
+    "gemini": OpenInferenceLLMProviderValues.GOOGLE,
+    "genai": OpenInferenceLLMProviderValues.GOOGLE,
+    "google": OpenInferenceLLMProviderValues.GOOGLE,
+    "generative-ai": OpenInferenceLLMProviderValues.GOOGLE,
+    "groq": OpenInferenceLLMProviderValues.GROQ,
+    "together": OpenInferenceLLMProviderValues.TOGETHER,
+    "fireworks": OpenInferenceLLMProviderValues.FIREWORKS,
+    "cerebras": OpenInferenceLLMProviderValues.CEREBRAS,
+    "deepseek": OpenInferenceLLMProviderValues.DEEPSEEK,
+    "perplexity": OpenInferenceLLMProviderValues.PERPLEXITY,
+    "xai": OpenInferenceLLMProviderValues.XAI,
+    "ollama": OpenInferenceLLMProviderValues.OLLAMA,
+}
+
+_LLM_SYSTEMS = {
+    "openai": OpenInferenceLLMSystemValues.OPENAI,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI,
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC,
+    "cohere": OpenInferenceLLMSystemValues.COHERE,
+    "mistral": OpenInferenceLLMSystemValues.MISTRALAI,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI,
+}
+
+# Instructor's own arguments, plus the messages reported as input.value.
+_NON_INVOCATION_PARAMETERS = frozenset(
+    {
+        "messages",
+        "response_model",
+        "context",
+        "hooks",
+        "cache",
+        "cache_namespace",
+        "cache_ttl",
+        "strict",
+        "token_budget",
+    }
+)
+
 
 _NO_ITEM = object()
 
@@ -435,148 +494,180 @@ class _StreamAccumulator:
         return self._items if self._keep_all else self._last
 
 
-class _SyncIteratorProxy(IteratorABC[Any]):
+class _SyncIteratorProxy(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """Keeps the span open while a stream is consumed.
+
+    Instructor streams are generators, so `send`, `throw`, `close` and the value carried by
+    `StopIteration` are passed through unchanged.
+    """
+
     def __init__(
         self,
-        iterator: IteratorABC[Any],
+        iterator: Any,
         span: trace_api.Span,
         finish_span: Callable[[trace_api.Span, Any], None],
         keep_all: bool = True,
     ) -> None:
-        self._iterator = iterator
-        self._span = span
-        self._finish_span = finish_span
-        self._output = _StreamAccumulator(keep_all)
-        self._finished = False
+        super().__init__(iterator)
+        self._self_span = span
+        self._self_finish_span = finish_span
+        self._self_output = _StreamAccumulator(keep_all)
+        self._self_finished = False
 
-    def __iter__(self) -> Iterator[Any]:
+    def __iter__(self) -> Any:
         return self
 
     def __next__(self) -> Any:
-        if self._finished:
-            raise StopIteration
-        exhausted = False
-        try:
-            with trace_api.use_span(self._span, end_on_exit=False):
-                try:
-                    item = next(self._iterator)
-                except StopIteration:
-                    exhausted = True
-                    item = None
-        except BaseException:
-            self._end()
-            raise
-        if exhausted:
-            self._finish()
-            raise StopIteration
-        self._output.add(item)
-        return item
+        return self._self_step(self.__wrapped__.__next__)
+
+    def send(self, value: Any) -> Any:
+        return self._self_step(self.__wrapped__.send, value)
+
+    def throw(self, *args: Any) -> Any:
+        return self._self_step(self.__wrapped__.throw, *args)
 
     def close(self) -> None:
-        if self._finished:
+        close = getattr(self.__wrapped__, "close", None)
+        if self._self_finished:
+            if callable(close):
+                close()
             return
         try:
-            with trace_api.use_span(self._span, end_on_exit=False):
-                close = getattr(self._iterator, "close", None)
+            with trace_api.use_span(self._self_span, end_on_exit=False):
                 if callable(close):
                     close()
         except BaseException:
-            self._end()
+            self._self_end()
             raise
-        self._finish()
+        self._self_finish()
 
     def __del__(self) -> None:
         # The stream was dropped without being exhausted or closed.
         try:
-            self._finish()
+            self._self_finish()
         except BaseException:
             pass
 
-    def _finish(self) -> None:
-        if self._finished:
+    def _self_step(self, method: Callable[..., Any], *args: Any) -> Any:
+        if self._self_finished:
+            return method(*args)
+        stop: Optional[StopIteration] = None
+        try:
+            with trace_api.use_span(self._self_span, end_on_exit=False):
+                try:
+                    item = method(*args)
+                except StopIteration as exception:
+                    stop = exception
+        except BaseException:
+            self._self_end()
+            raise
+        if stop is not None:
+            self._self_finish()
+            raise stop
+        self._self_output.add(item)
+        return item
+
+    def _self_finish(self) -> None:
+        if self._self_finished:
             return
         try:
-            self._finish_span(self._span, self._output.output())
+            self._self_finish_span(self._self_span, self._self_output.output())
         finally:
-            self._end()
+            self._self_end()
 
-    def _end(self) -> None:
-        if self._finished:
+    def _self_end(self) -> None:
+        if self._self_finished:
             return
-        self._finished = True
-        self._span.end()
+        self._self_finished = True
+        self._self_span.end()
 
 
-class _AsyncIteratorProxy(AsyncIteratorABC[Any]):
+class _AsyncIteratorProxy(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
+    """Keeps the span open while an async stream is consumed.
+
+    Instructor async streams are async generators, so `asend`, `athrow` and `aclose` are
+    passed through unchanged.
+    """
+
     def __init__(
         self,
-        iterator: AsyncIteratorABC[Any],
+        iterator: Any,
         span: trace_api.Span,
         finish_span: Callable[[trace_api.Span, Any], None],
         keep_all: bool = True,
     ) -> None:
-        self._iterator = iterator
-        self._span = span
-        self._finish_span = finish_span
-        self._output = _StreamAccumulator(keep_all)
-        self._finished = False
+        super().__init__(iterator)
+        self._self_span = span
+        self._self_finish_span = finish_span
+        self._self_output = _StreamAccumulator(keep_all)
+        self._self_finished = False
 
-    def __aiter__(self) -> AsyncIteratorABC[Any]:
+    def __aiter__(self) -> Any:
         return self
 
     async def __anext__(self) -> Any:
-        if self._finished:
-            raise StopAsyncIteration
-        exhausted = False
-        try:
-            with trace_api.use_span(self._span, end_on_exit=False):
-                try:
-                    item = await self._iterator.__anext__()
-                except StopAsyncIteration:
-                    exhausted = True
-                    item = None
-        except BaseException:
-            self._end()
-            raise
-        if exhausted:
-            self._finish()
-            raise StopAsyncIteration
-        self._output.add(item)
-        return item
+        return await self._self_step(self.__wrapped__.__anext__)
+
+    async def asend(self, value: Any) -> Any:
+        return await self._self_step(self.__wrapped__.asend, value)
+
+    async def athrow(self, *args: Any) -> Any:
+        return await self._self_step(self.__wrapped__.athrow, *args)
 
     async def aclose(self) -> None:
-        if self._finished:
+        close = getattr(self.__wrapped__, "aclose", None)
+        if self._self_finished:
+            if callable(close):
+                await close()
             return
         try:
-            with trace_api.use_span(self._span, end_on_exit=False):
-                close = getattr(self._iterator, "aclose", None)
+            with trace_api.use_span(self._self_span, end_on_exit=False):
                 if callable(close):
                     await close()
         except BaseException:
-            self._end()
+            self._self_end()
             raise
-        self._finish()
+        self._self_finish()
 
     def __del__(self) -> None:
         # The stream was dropped without being exhausted or closed.
         try:
-            self._finish()
+            self._self_finish()
         except BaseException:
             pass
 
-    def _finish(self) -> None:
-        if self._finished:
+    async def _self_step(self, method: Callable[..., Awaitable[Any]], *args: Any) -> Any:
+        if self._self_finished:
+            return await method(*args)
+        exhausted = False
+        try:
+            with trace_api.use_span(self._self_span, end_on_exit=False):
+                try:
+                    item = await method(*args)
+                except StopAsyncIteration:
+                    exhausted = True
+        except BaseException:
+            self._self_end()
+            raise
+        if exhausted:
+            self._self_finish()
+            raise StopAsyncIteration
+        self._self_output.add(item)
+        return item
+
+    def _self_finish(self) -> None:
+        if self._self_finished:
             return
         try:
-            self._finish_span(self._span, self._output.output())
+            self._self_finish_span(self._self_span, self._self_output.output())
         finally:
-            self._end()
+            self._self_end()
 
-    def _end(self) -> None:
-        if self._finished:
+    def _self_end(self) -> None:
+        if self._self_finished:
             return
-        self._finished = True
-        self._span.end()
+        self._self_finished = True
+        self._self_span.end()
 
 
 class _V2CreateFactoryWrapper:
@@ -604,8 +695,63 @@ class _V2CreateFactoryWrapper:
             return False
 
     @staticmethod
+    def _get_output(args: Tuple[Any, ...], kwargs: Mapping[str, Any], response: Any) -> Any:
+        """Report only the final snapshot when a partial model comes back as a list of them."""
+        try:
+            if not isinstance(response, list) or not response:
+                return response
+            response_model = kwargs.get("response_model", args[0] if args else None)
+            from instructor.dsl.partial import PartialBase
+
+            if isinstance(response_model, type) and issubclass(response_model, PartialBase):
+                return response[-1]
+        except Exception:
+            pass
+        return response
+
+    @staticmethod
+    def _get_provider_and_default_model(
+        wrapped: Callable[..., Any], args: Tuple[Any, ...], kwargs: Mapping[str, Any]
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Read the provider and default model that Instructor generated this create for."""
+        try:
+            arguments = signature(wrapped).bind_partial(*args, **kwargs).arguments
+        except (TypeError, ValueError):
+            return None, None
+        provider = arguments.get("provider")
+        provider_name = getattr(provider, "value", provider)
+        default_model = arguments.get("default_model")
+        return (
+            provider_name if isinstance(provider_name, str) else None,
+            default_model if isinstance(default_model, str) else None,
+        )
+
+    @classmethod
+    def _get_messages(cls, messages: Any) -> Dict[str, AttributeValue]:
+        attributes: Dict[str, AttributeValue] = {}
+        if not isinstance(messages, (list, tuple)):
+            return attributes
+        for index, message in enumerate(messages):
+            if not isinstance(message, Mapping):
+                continue
+            if isinstance(role := message.get("role"), str):
+                attributes[f"{LLM_INPUT_MESSAGES}.{index}.{MESSAGE_ROLE}"] = role
+            content = message.get("content")
+            if isinstance(content, str):
+                attributes[f"{LLM_INPUT_MESSAGES}.{index}.{MESSAGE_CONTENT}"] = content
+            elif content is not None:
+                attributes[f"{LLM_INPUT_MESSAGES}.{index}.{MESSAGE_CONTENT}"] = safe_json_dumps(
+                    content, cls=SafeJSONEncoder
+                )
+        return attributes
+
+    @classmethod
     def _get_attributes(
-        args: Tuple[Any, ...], kwargs: Mapping[str, Any]
+        cls,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+        provider: Optional[str] = None,
+        default_model: Optional[str] = None,
     ) -> Dict[str, AttributeValue]:
         attributes: Dict[str, AttributeValue] = {
             OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value
@@ -617,12 +763,38 @@ class _V2CreateFactoryWrapper:
         except Exception:
             pass
         try:
+            attributes.update(cls._get_messages(kwargs.get("messages")))
+        except Exception:
+            pass
+        try:
             response_model = kwargs.get("response_model", args[0] if args else None)
             if response_model is not None:
                 response_model_name = getattr(response_model, "__name__", None)
                 attributes["instructor.response_model"] = (
                     response_model_name if response_model_name is not None else repr(response_model)
                 )
+        except Exception:
+            pass
+        try:
+            if isinstance(model := kwargs.get("model", default_model), str):
+                attributes[LLM_MODEL_NAME] = model
+        except Exception:
+            pass
+        try:
+            if invocation_parameters := {
+                key: value for key, value in kwargs.items() if key not in _NON_INVOCATION_PARAMETERS
+            }:
+                attributes[LLM_INVOCATION_PARAMETERS] = safe_json_dumps(
+                    invocation_parameters, cls=SafeJSONEncoder
+                )
+        except Exception:
+            pass
+        try:
+            if provider is not None:
+                if (provider_value := _LLM_PROVIDERS.get(provider)) is not None:
+                    attributes[LLM_PROVIDER] = provider_value.value
+                if (system_value := _LLM_SYSTEMS.get(provider)) is not None:
+                    attributes[LLM_SYSTEM] = system_value.value
         except Exception:
             pass
         return attributes
@@ -659,13 +831,13 @@ class _V2CreateFactoryWrapper:
     @classmethod
     def _wrap_sync_iterator(
         cls, iterator: IteratorABC[Any], span: trace_api.Span, keep_all: bool
-    ) -> Iterator[Any]:
+    ) -> Any:
         return _SyncIteratorProxy(iterator, span, cls._finish_span, keep_all)
 
     @classmethod
     def _wrap_async_iterator(
         cls, iterator: AsyncIteratorABC[Any], span: trace_api.Span, keep_all: bool
-    ) -> AsyncIteratorABC[Any]:
+    ) -> Any:
         return _AsyncIteratorProxy(iterator, span, cls._finish_span, keep_all)
 
     def __call__(
@@ -676,12 +848,13 @@ class _V2CreateFactoryWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         create = wrapped(*args, **kwargs)
+        provider, default_model = self._get_provider_and_default_model(wrapped, args, kwargs)
 
         @wraps(create)
         def create_sync(*create_args: Any, **create_kwargs: Any) -> Any:
             if not self._enabled or context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
                 return create(*create_args, **create_kwargs)
-            attributes = self._get_attributes(create_args, create_kwargs)
+            attributes = self._get_attributes(create_args, create_kwargs, provider, default_model)
             span = self._tracer.start_span("instructor.create", attributes=attributes)
             try:
                 with trace_api.use_span(span, end_on_exit=False):
@@ -693,7 +866,7 @@ class _V2CreateFactoryWrapper:
                 keep_all = self._is_iterable_response_model(create_args, create_kwargs)
                 return self._wrap_sync_iterator(response, span, keep_all)
             try:
-                self._finish_span(span, response)
+                self._finish_span(span, self._get_output(create_args, create_kwargs, response))
                 return response
             finally:
                 span.end()
@@ -702,7 +875,7 @@ class _V2CreateFactoryWrapper:
         async def create_async(*create_args: Any, **create_kwargs: Any) -> Any:
             if not self._enabled or context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
                 return await create(*create_args, **create_kwargs)
-            attributes = self._get_attributes(create_args, create_kwargs)
+            attributes = self._get_attributes(create_args, create_kwargs, provider, default_model)
             span = self._tracer.start_span("instructor.async_create", attributes=attributes)
             try:
                 with trace_api.use_span(span, end_on_exit=False):
@@ -714,7 +887,7 @@ class _V2CreateFactoryWrapper:
                 keep_all = self._is_iterable_response_model(create_args, create_kwargs)
                 return self._wrap_async_iterator(response, span, keep_all)
             try:
-                self._finish_span(span, response)
+                self._finish_span(span, self._get_output(create_args, create_kwargs, response))
                 return response
             finally:
                 span.end()
