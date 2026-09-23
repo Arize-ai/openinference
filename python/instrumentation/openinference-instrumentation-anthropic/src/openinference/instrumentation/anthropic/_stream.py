@@ -1,4 +1,5 @@
 from functools import lru_cache
+from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -7,6 +8,7 @@ from typing import (
     Iterator,
     Optional,
     Tuple,
+    Type,
 )
 
 from opentelemetry import trace as trace_api
@@ -111,6 +113,40 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         super().__init__(stream)
         self._response_accumulator = _MessageResponseAccumulator()
         self._with_span = with_span
+
+    # The SDK stream's context manager returns the SDK stream itself, which would bypass the
+    # iteration below, so these return the proxy instead. Leaving the context before the stream
+    # is exhausted also has to finish the span, as iteration never gets to.
+
+    def __enter__(self) -> "_MessagesStream":
+        self.__wrapped__.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            self._finish_tracing()
+
+    async def __aenter__(self) -> "_MessagesStream":
+        await self.__wrapped__.__aenter__()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        finally:
+            self._finish_tracing()
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:
