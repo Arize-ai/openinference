@@ -308,7 +308,12 @@ class _MessagesWrapper(_WithTracer):
                 span.finish_tracing()
                 raise
         if _is_api_response(response):
-            _finish_api_response_tracing(span, response, parse=self._parse_raw_response)
+            _finish_api_response_tracing(
+                span,
+                response,
+                parse=self._parse_raw_response,
+                streaming=kwargs.get("stream", False),
+            )
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
@@ -367,7 +372,12 @@ class _AsyncMessagesWrapper(_WithTracer):
                 span.finish_tracing()
                 raise
         if _is_api_response(response):
-            await _async_finish_api_response_tracing(span, response, parse=self._parse_raw_response)
+            await _async_finish_api_response_tracing(
+                span,
+                response,
+                parse=self._parse_raw_response,
+                streaming=kwargs.get("stream", False),
+            )
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
@@ -401,15 +411,18 @@ def _is_api_response(response: Any) -> bool:
     return isinstance(response, (APIResponse, AsyncAPIResponse))
 
 
-def _finish_api_response_tracing(span: _WithSpan, response: Any, parse: bool) -> None:
+def _finish_api_response_tracing(
+    span: _WithSpan, response: Any, parse: bool, streaming: bool
+) -> None:
     """
     The response is parsed for the output attributes only if parsing runs no caller code and its
     body has already been read, so a body the caller chose to stream or read itself is left
     alone. The response caches a successful parse, so the caller's own parse() returns the same
     message. An unread body leaves the outcome unknown, e.g. a stream can still end in an error
-    event, so the status is left unset.
+    event, so the status is left unset. That includes an event stream whose body a transport
+    buffered, e.g. a recorded cassette, which is closed although its events are still unread.
     """
-    if not response.is_closed:
+    if streaming or not response.is_closed:
         span.finish_tracing()
         return
     if not parse:
@@ -424,11 +437,13 @@ def _finish_api_response_tracing(span: _WithSpan, response: Any, parse: bool) ->
     _finish_message_tracing(span, message)
 
 
-async def _async_finish_api_response_tracing(span: _WithSpan, response: Any, parse: bool) -> None:
+async def _async_finish_api_response_tracing(
+    span: _WithSpan, response: Any, parse: bool, streaming: bool
+) -> None:
     """
     See _finish_api_response_tracing.
     """
-    if not response.is_closed:
+    if streaming or not response.is_closed:
         span.finish_tracing()
         return
     if not parse:

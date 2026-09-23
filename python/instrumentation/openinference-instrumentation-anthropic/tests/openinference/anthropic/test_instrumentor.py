@@ -2518,20 +2518,24 @@ async def test_async_raw_parse_response_is_left_to_the_caller(
     assert (await response.parse()).parsed_output == _City(city="Paris")
 
 
+@pytest.mark.parametrize("buffered", [False, True], ids=["streamed", "buffered"])
 def test_raw_event_stream_status_is_left_unset(
+    buffered: bool,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """
     A raw streaming response is returned before its events are read, and a stream can still end
-    in an error event, so the span must not be recorded as successful.
+    in an error event, so the span must not be recorded as successful. A transport can buffer the
+    body, e.g. a recorded cassette, which closes the response although its events are unread.
     """
+    body = _event_stream_body(error=True)
 
     def handler(request: Any) -> Any:
         return httpx2.Response(
             status_code=200,
             headers={"content-type": "text/event-stream"},
-            content=iter([_event_stream_body(error=True)]),
+            content=body if buffered else iter([body]),
         )
 
     client = _mock_anthropic_client(handler)
