@@ -3,7 +3,17 @@ import asyncio
 import json
 import random
 import string
-from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    ClassVar,
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Optional,
+)
 
 import anthropic
 import httpx2
@@ -2757,6 +2767,49 @@ def test_exception_closing_streaming_create_context_is_recorded(
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.status.status_code == trace_api.StatusCode.ERROR
     assert span.events
+
+
+def test_closing_generator_holding_streaming_create_context_is_not_an_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    Closing a generator that holds the context raises GeneratorExit through it, which leaves the
+    stream early rather than failing the request.
+    """
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    def events() -> Generator[Any, None, None]:
+        with client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+            yield from stream
+
+    generator = events()
+    next(generator)
+    generator.close()
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert not span.events
+
+
+async def test_closing_async_generator_holding_streaming_create_context_is_not_an_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_event_stream_handler)
+
+    async def events() -> AsyncGenerator[Any, None]:
+        async with await client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+            async for event in stream:
+                yield event
+
+    generator = events()
+    await generator.__anext__()
+    await generator.aclose()
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert not span.events
 
 
 async def test_cancellation_leaving_async_streaming_create_context_is_recorded(

@@ -157,7 +157,9 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         self._finish_tracing_on_exit(exc_val)
 
     def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
-        if exception is None:
+        # GeneratorExit means a generator holding the context was closed early, which leaves the
+        # stream early just like the end of the context does, rather than failing the request
+        if exception is None or isinstance(exception, GeneratorExit):
             self._finish_tracing()
             return
         self._with_span.record_exception(exception)
