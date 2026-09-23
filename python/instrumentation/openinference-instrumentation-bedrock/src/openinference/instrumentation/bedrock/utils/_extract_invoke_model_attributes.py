@@ -77,6 +77,7 @@ def _set_model_name_attributes(
         - Cohere: Uses "generations" field
         - Meta: Uses "generation" field
         - Amazon Nova: Uses "output.message.content" field
+        - OpenAI: Uses "choices[0].message.content" field
     """
     content = ""
     model_id = kwargs.get("modelId")
@@ -89,6 +90,10 @@ def _set_model_name_attributes(
         output_messages = _build_nova_output_messages(response_body)
         if output_messages:
             span.set_attributes(get_llm_output_message_attributes(output_messages))
+    elif "openai." in str(model_id):
+        # OpenAI models (gpt-oss, GPT-5.x, GPT-6) return a Chat Completions body.
+        choices = response_body.get("choices") or [{}]
+        content = str((choices[0].get("message") or {}).get("content") or "")
     else:
         vendor = ""
         if model_id and isinstance(model_id, str):
@@ -220,6 +225,11 @@ def set_input_attributes(span: Span, request_body: Dict[str, Any], kwargs: Dict[
         tools = _build_nova_tools(request_body)
         if tools:
             span.set_attributes(get_llm_tool_attributes(tools))
+    elif "openai." in str(model_id):
+        # OpenAI models (gpt-oss, GPT-5.x, GPT-6) take a Chat Completions body.
+        input_value = safe_json_dumps(request_body.pop("messages", []))
+        span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value)
+        invocation_parameters = safe_json_dumps(request_body)
     else:
         # All other models (anthropic completion style, cohere, meta, ai21):
         # input is the prompt field, remaining body fields are invocation params
