@@ -28,6 +28,7 @@ from openinference.instrumentation.bedrock.utils._extract_invoke_model_attribute
     _build_nova_input_messages,
     _build_nova_output_messages,
     _build_nova_tools,
+    set_input_attributes,
 )
 
 if TYPE_CHECKING:
@@ -198,6 +199,63 @@ class _NovaStreamCallback:
             span.set_attributes(get_llm_output_message_attributes(output_messages))
 
 
+class _OpenAIStreamCallback:
+    """
+    Processes OpenAI (gpt-oss, GPT-5.x, GPT-6) invoke_model_with_response_stream events.
+
+    Each chunk is a Chat Completions ``chat.completion.chunk``: text arrives in
+    ``choices[0].delta.content`` and the finish reason in ``choices[0].finish_reason``.
+    GPT-5.x/GPT-6 send ``usage`` with the finish reason (again in a trailing chunk with
+    empty ``choices`` when ``stream_options.include_usage`` is set). gpt-oss sends
+    ``usage`` only with ``include_usage``, so token counts fall back to the
+    ``amazon-bedrock-invocationMetrics`` of the last chunk.
+    """
+
+    def __init__(self, span: Span) -> None:
+        self._span = span
+        self._text = ""
+        self._finish_reason: str | None = None
+        self._usage: Dict[str, Any] = {}
+
+    def __call__(self, obj: Any) -> Any:
+        span = self._span
+        if isinstance(obj, dict):
+            if "chunk" in obj and "bytes" in obj["chunk"]:
+                try:
+                    payload = json.loads(obj["chunk"]["bytes"])
+                    for choice in payload.get("choices") or []:
+                        if content := (choice.get("delta") or {}).get("content"):
+                            self._text += content
+                        if finish_reason := choice.get("finish_reason"):
+                            self._finish_reason = finish_reason
+                    if isinstance(usage := payload.get("usage"), dict):
+                        self._usage = usage
+                    elif isinstance(
+                        metrics := payload.get("amazon-bedrock-invocationMetrics"), dict
+                    ):
+                        prompt = metrics.get("inputTokenCount")
+                        completion = metrics.get("outputTokenCount")
+                        self._usage = {"prompt_tokens": prompt, "completion_tokens": completion}
+                        if isinstance(prompt, int) and isinstance(completion, int):
+                            self._usage["total_tokens"] = prompt + completion
+                except Exception:
+                    pass
+        elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            if self._finish_reason:
+                span.set_attribute(LLM_FINISH_REASON, self._finish_reason)
+            for key, attribute in (
+                ("prompt_tokens", LLM_TOKEN_COUNT_PROMPT),
+                ("completion_tokens", LLM_TOKEN_COUNT_COMPLETION),
+                ("total_tokens", LLM_TOKEN_COUNT_TOTAL),
+            ):
+                if isinstance(value := self._usage.get(key), int):
+                    span.set_attribute(attribute, value)
+            _finish(span, self._text or None, {})
+        elif isinstance(obj, BaseException):
+            _finish(span, obj, {})
+        return obj
+
+
 def _is_async_at_decoration(wrapped: Callable[..., Any]) -> bool:
     """
     Decide sync vs async at decoration time (same heuristic as call-time check).
@@ -287,9 +345,17 @@ class _InvokeModelWithResponseStream(_WithTracer):
                     _use_span(span),
                 )
                 return response
-        span.set_attribute(LLM_INVOCATION_PARAMETERS, body)
+            if "openai." in model_id:
+                set_input_attributes(span, body, dict(kwargs))
+                response["body"] = _EventStream(
+                    response["body"],
+                    _OpenAIStreamCallback(span),
+                    _use_span(span),
+                )
+                return response
+        span.set_attribute(LLM_INVOCATION_PARAMETERS, safe_json_dumps(body))
         span.set_attribute(INPUT_MIME_TYPE, JSON)
-        span.set_attribute(INPUT_VALUE, body)
+        span.set_attribute(INPUT_VALUE, safe_json_dumps(body))
         span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
         span.end()
 
