@@ -3293,7 +3293,7 @@ def message_contents_image_url(prefix: str, i: int, j: int) -> str:
     "model_name,expected_provider",
     [
         pytest.param("gpt-4o", "openai", id="openai"),
-        pytest.param("claude-3-haiku-20240307", "anthropic", id="anthropic"),
+        pytest.param("anthropic/claude-3-haiku-20240307", "anthropic", id="anthropic"),
         pytest.param("azure/gpt-4", "azure", id="azure"),
         pytest.param("bedrock/anthropic.claude-3-sonnet-20240229-v1:0", "aws", id="aws"),
         pytest.param("vertex_ai/gemini-1.5-pro", "google", id="google"),
