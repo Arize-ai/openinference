@@ -406,9 +406,13 @@ def _finish_api_response_tracing(span: _WithSpan, response: Any, parse: bool) ->
     The response is parsed for the output attributes only if parsing runs no caller code and its
     body has already been read, so a body the caller chose to stream or read itself is left
     alone. The response caches a successful parse, so the caller's own parse() returns the same
-    message.
+    message. An unread body leaves the outcome unknown, e.g. a stream can still end in an error
+    event, so the status is left unset.
     """
-    if not parse or not response.is_closed:
+    if not response.is_closed:
+        span.finish_tracing()
+        return
+    if not parse:
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
     try:
@@ -424,7 +428,10 @@ async def _async_finish_api_response_tracing(span: _WithSpan, response: Any, par
     """
     See _finish_api_response_tracing.
     """
-    if not parse or not response.is_closed:
+    if not response.is_closed:
+        span.finish_tracing()
+        return
+    if not parse:
         span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
         return
     try:

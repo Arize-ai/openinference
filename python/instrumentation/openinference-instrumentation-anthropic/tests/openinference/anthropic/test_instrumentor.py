@@ -128,8 +128,8 @@ def _async_unread_message_handler(request: Any) -> Any:
     )
 
 
-def _event_stream_handler(request: Any) -> Any:
-    """Streams _MESSAGE_JSON as server-sent events."""
+def _event_stream_body(error: bool = False) -> bytes:
+    """_MESSAGE_JSON as server-sent events, or ending in an error event instead of message_stop."""
     events: List[Dict[str, Any]] = [
         {"type": "message_start", "message": {**_MESSAGE_JSON, "content": []}},
         {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
@@ -142,9 +142,18 @@ def _event_stream_handler(request: Any) -> Any:
         },
         {"type": "message_stop"},
     ]
+    if error:
+        events[-1] = {
+            "type": "error",
+            "error": {"type": "overloaded_error", "message": "Overloaded"},
+        }
     body = "".join(f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events)
+    return body.encode()
+
+
+def _event_stream_handler(request: Any) -> Any:
     return httpx2.Response(
-        status_code=200, headers={"content-type": "text/event-stream"}, content=body.encode()
+        status_code=200, headers={"content-type": "text/event-stream"}, content=_event_stream_body()
     )
 
 
@@ -2509,6 +2518,33 @@ async def test_async_raw_parse_response_is_left_to_the_caller(
     assert (await response.parse()).parsed_output == _City(city="Paris")
 
 
+def test_raw_event_stream_status_is_left_unset(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    A raw streaming response is returned before its events are read, and a stream can still end
+    in an error event, so the span must not be recorded as successful.
+    """
+
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            content=iter([_event_stream_body(error=True)]),
+        )
+
+    client = _mock_anthropic_client(handler)
+
+    response = client.messages.with_raw_response.create(**_STREAM_KWARGS, stream=True)
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    with pytest.raises(anthropic.APIStatusError):
+        for _ in response.parse():
+            pass
+
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+
+
 @pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
 def test_streaming_response_body_is_left_to_the_caller(
     beta: bool,
@@ -2526,7 +2562,7 @@ def test_streaming_response_body_is_left_to_the_caller(
         (span,) = in_memory_span_exporter.get_finished_spans()
         assert response.parse().content[0].text == "hi"
 
-    assert span.status.status_code == trace_api.StatusCode.OK
+    assert span.status.status_code == trace_api.StatusCode.UNSET
     assert OUTPUT_VALUE not in (span.attributes or {})
 
 
@@ -2544,7 +2580,7 @@ async def test_async_streaming_response_body_is_left_to_the_caller(
         (span,) = in_memory_span_exporter.get_finished_spans()
         assert (await response.parse()).content[0].text == "hi"
 
-    assert span.status.status_code == trace_api.StatusCode.OK
+    assert span.status.status_code == trace_api.StatusCode.UNSET
     assert OUTPUT_VALUE not in (span.attributes or {})
 
 
