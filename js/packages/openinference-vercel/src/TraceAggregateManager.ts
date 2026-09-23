@@ -1,7 +1,7 @@
 import { SpanStatusCode } from "@opentelemetry/api";
 import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
 
-import { isLikelyAISDKSpan } from "./typeUtils.js";
+import { getParentSpanId, isLikelyAISDKSpan } from "./typeUtils.js";
 import { addOpenInferenceAttributesToSpan } from "./utils.js";
 
 type TraceAggregate = {
@@ -40,7 +40,7 @@ const spanHasErrorSignal = (span: ReadableSpan): { error: boolean; message?: str
 
 const maybeSetRootStatus = (span: ReadableSpan, agg: TraceAggregate): void => {
   // Only set status on the root span, and only when it's currently UNSET.
-  if (span.parentSpanId != null) return;
+  if (getParentSpanId(span) != null) return;
   if (!isLikelyAISDKSpan(span)) return;
   if (span.status.code !== SpanStatusCode.UNSET) return;
 
@@ -64,7 +64,7 @@ const maybeSetSpanOkStatus = (span: ReadableSpan): void => {
 };
 
 const maybeRenameRootSpan = (span: ReadableSpan): void => {
-  if (span.parentSpanId != null) return;
+  if (getParentSpanId(span) != null) return;
   if (!isLikelyAISDKSpan(span)) return;
 
   const attrs = span.attributes as Record<string, unknown>;
@@ -150,7 +150,7 @@ export class TraceAggregateManager {
     // - Root spans get OK/ERROR based on aggregate error state
     // - Child spans get OK if they completed without error (already have ERROR if they errored)
     if (agg.isAISDKTrace) {
-      if (span.parentSpanId == null) {
+      if (getParentSpanId(span) == null) {
         maybeSetRootStatus(span, agg);
       } else {
         maybeSetSpanOkStatus(span);

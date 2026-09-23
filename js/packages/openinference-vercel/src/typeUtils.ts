@@ -25,6 +25,20 @@ export const isLikelyAISDKSpan = (span: object): boolean => {
   );
 };
 
+/**
+ * Returns the parent span ID of a span, or undefined for a root span. OpenTelemetry JS SDK 2.x
+ * removed `ReadableSpan.parentSpanId` in favor of `parentSpanContext`, so read the 2.x shape
+ * first and fall back to the 1.x field.
+ */
+export const getParentSpanId = (span: object): string | undefined => {
+  const parentSpanContext: unknown = Reflect.get(span, "parentSpanContext");
+  const parentSpanId: unknown =
+    typeof parentSpanContext === "object" && parentSpanContext !== null
+      ? Reflect.get(parentSpanContext, "spanId")
+      : Reflect.get(span, "parentSpanId");
+  return typeof parentSpanId === "string" ? parentSpanId : undefined;
+};
+
 const isObjectWithStringKeys = (value: unknown): value is Record<string, unknown> => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;

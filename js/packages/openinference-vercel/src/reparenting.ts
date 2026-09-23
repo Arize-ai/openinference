@@ -6,7 +6,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { isLikelyAISDKSpan } from "./typeUtils.js";
+import { getParentSpanId, isLikelyAISDKSpan } from "./typeUtils.js";
 
 /**
  * Reparents an AI span that would be orphaned by span filtering.
@@ -81,7 +81,7 @@ export const reparentOrphanedSpan = (span: Span, parentContext: Context): void =
  * onEnd, after attribute conversion and before the export filter.
  */
 export const promoteReparentedRoot = (span: ReadableSpan): void => {
-  if (span.parentSpanId != null) return;
+  if (getParentSpanId(span) != null) return;
   if (span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] != null) return;
   if (!isLikelyAISDKSpan(span)) return;
 
