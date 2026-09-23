@@ -132,8 +132,11 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
     ) -> None:
         try:
             self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
-        finally:
-            self._finish_tracing_on_exit(exc_val)
+        except BaseException as exception:
+            # e.g. closing the response failed
+            self._finish_tracing_on_exit(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
 
     async def __aenter__(self) -> "_MessagesStream":
         await self.__wrapped__.__aenter__()
@@ -147,8 +150,11 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
     ) -> None:
         try:
             await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
-        finally:
-            self._finish_tracing_on_exit(exc_val)
+        except BaseException as exception:
+            # e.g. closing the response failed, or the task was cancelled while it closed
+            self._finish_tracing_on_exit(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
 
     def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
         if exception is None:

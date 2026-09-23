@@ -3,7 +3,7 @@ import asyncio
 import json
 import random
 import string
-from typing import Any, Callable, ClassVar, Dict, List, Optional
+from typing import Any, Callable, ClassVar, Dict, Iterator, List, Optional
 
 import anthropic
 import httpx2
@@ -2719,6 +2719,40 @@ def test_exception_leaving_streaming_create_context_is_recorded(
         with client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
             for _ in stream:
                 raise RuntimeError("stop")
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.events
+
+
+def test_exception_closing_streaming_create_context_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    Leaving the context closes the response, which can itself fail after the body of the
+    context completed normally.
+    """
+
+    class FailingToCloseStream(httpx2.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield _event_stream_body()
+
+        def close(self) -> None:
+            raise OSError("close failed")
+
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            stream=FailingToCloseStream(),
+        )
+
+    client = _mock_anthropic_client(handler)
+
+    with pytest.raises(OSError):
+        with client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+            next(iter(stream))
 
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.status.status_code == trace_api.StatusCode.ERROR
