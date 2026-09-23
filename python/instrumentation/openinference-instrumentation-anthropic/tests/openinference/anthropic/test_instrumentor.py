@@ -2662,6 +2662,59 @@ async def test_async_streaming_create_as_context_manager_is_recorded(
         assert json.loads(str(attributes[OUTPUT_VALUE]))["content"][0]["text"] == "hi"
 
 
+def test_exception_leaving_streaming_create_context_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    with pytest.raises(RuntimeError):
+        with client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+            for _ in stream:
+                raise RuntimeError("stop")
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.events
+
+
+async def test_cancellation_leaving_async_streaming_create_context_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    A task cancelled while awaiting the next event raises CancelledError, which is a
+    BaseException that iteration does not catch, so the context has to record it.
+    """
+    first_event_read = asyncio.Event()
+
+    def handler(request: Any) -> Any:
+        async def content() -> Any:
+            yield _event_stream_body().split(b"\n\n", 1)[0] + b"\n\n"
+            await asyncio.Event().wait()  # the next event never arrives
+
+        return httpx2.Response(
+            status_code=200, headers={"content-type": "text/event-stream"}, content=content()
+        )
+
+    client = _mock_async_anthropic_client(handler)
+
+    async def consume() -> None:
+        async with await client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+            async for _ in stream:
+                first_event_read.set()
+
+    task = asyncio.create_task(consume())
+    await first_event_read.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.events
+
+
 @pytest.mark.parametrize(
     "method,kwargs",
     [

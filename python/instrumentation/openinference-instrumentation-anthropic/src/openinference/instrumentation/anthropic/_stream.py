@@ -116,7 +116,9 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
 
     # The SDK stream's context manager returns the SDK stream itself, which would bypass the
     # iteration below, so these return the proxy instead. Leaving the context before the stream
-    # is exhausted also has to finish the span, as iteration never gets to.
+    # is exhausted also has to finish the span, as iteration never gets to, recording the
+    # exception that left it, e.g. a cancelled task's CancelledError, which iteration does not
+    # catch.
 
     def __enter__(self) -> "_MessagesStream":
         self.__wrapped__.__enter__()
@@ -131,7 +133,7 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         try:
             self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
         finally:
-            self._finish_tracing()
+            self._finish_tracing_on_exit(exc_val)
 
     async def __aenter__(self) -> "_MessagesStream":
         await self.__wrapped__.__aenter__()
@@ -146,7 +148,19 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         try:
             await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         finally:
+            self._finish_tracing_on_exit(exc_val)
+
+    def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
+        if exception is None:
             self._finish_tracing()
+            return
+        self._with_span.record_exception(exception)
+        self._finish_tracing(
+            status=trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+        )
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:
