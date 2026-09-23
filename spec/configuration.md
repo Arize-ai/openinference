@@ -22,6 +22,7 @@ The possible settings are:
 | OPENINFERENCE_HIDE_EMBEDDING_VECTORS         | Deprecated: use OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS                                                                          | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS        | Replaces embedding.embeddings.*.embedding.vector values with `"__REDACTED__"`                                                  | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDINGS_TEXT           | Replaces embedding.embeddings.*.embedding.text values with `"__REDACTED__"`                                                    | bool | False   |
+| OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS       | Replaces retrieval.documents.*.document.content and .document.metadata values with `"__REDACTED__"` (also implied by HIDE_OUTPUTS) | bool | False   |
 | OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
 | OPENINFERENCE_BLOB_UPLOADER                  | Names a `BlobUploader` registered under the `openinference_blob_uploader` entry-point group; base64 images larger than `OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` are handed to it and the span attribute records the returned URI instead of being redacted | str  | unset   |
 
