@@ -2614,6 +2614,12 @@ def test_any_request_body_key_is_recorded_without_raising(
     assert sent[0][str(key)] == value
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.status.status_code == trace_api.StatusCode.OK
+    anthropic_version = _get_anthropic_version()
+    assert anthropic_version is not None, anthropic.__version__
+    if anthropic_version >= (1, 8, 0):
+        # earlier versions prepare the body before extra_body is merged into it
+        attributes = dict(span.attributes or {})
+        assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS]))[str(key)] == value
 
 
 @pytest.mark.parametrize("exhaust", [True, False], ids=["exhausted", "left_early"])
