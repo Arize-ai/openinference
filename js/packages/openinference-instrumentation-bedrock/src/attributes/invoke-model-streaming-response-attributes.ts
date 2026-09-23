@@ -52,6 +52,8 @@ interface StreamEventData {
     text?: string;
   };
   usage?: Record<string, unknown>;
+  // OpenAI Chat Completions chunk fields
+  choices?: Array<{ delta?: { content?: string | null } }>;
 
   // Amazon-specific fields
   outputText?: string;
@@ -176,6 +178,32 @@ function processMetaStreamChunk(
     state.rawUsageData.prompt_token_count = data.prompt_token_count;
   }
 
+  return state;
+}
+
+/**
+ * Processes OpenAI Chat Completions stream chunks (gpt-oss, GPT-5.x, GPT-6)
+ */
+function processOpenAIStreamChunk(
+  data: StreamEventData,
+  state: StreamProcessingState,
+): StreamProcessingState {
+  const content = data.choices?.[0]?.delta?.content;
+  if (typeof content === "string") {
+    state.outputText += content;
+  }
+  // Without stream_options.include_usage, gpt-oss only sends Bedrock's invocation metrics
+  const metrics = data["amazon-bedrock-invocationMetrics"];
+  if (metrics) {
+    state.rawUsageData = {
+      prompt_tokens: metrics.inputTokenCount,
+      completion_tokens: metrics.outputTokenCount,
+      ...state.rawUsageData,
+    };
+  }
+  if (data.usage && typeof data.usage === "object") {
+    state.rawUsageData = { ...state.rawUsageData, ...data.usage };
+  }
   return state;
 }
 
@@ -336,6 +364,10 @@ function normalizeStreamUsageData(
       };
       return normalizeUsageAttributes(responseStructure, modelType) || {};
     }
+  }
+
+  if (modelType === LLMSystem.OPENAI) {
+    return normalizeUsageAttributes({ usage: rawUsageData }, modelType) || {};
   }
 
   if (modelType === LLMSystem.META) {
@@ -581,6 +613,8 @@ export const consumeBedrockStreamChunks = withSafety({
                 }
               } else if (modelType === LLMSystem.META) {
                 processMetaStreamChunk(data, state);
+              } else if (modelType === LLMSystem.OPENAI) {
+                processOpenAIStreamChunk(data, state);
               }
             } catch {
               // Skip malformed JSON lines silently

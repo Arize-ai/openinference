@@ -1,0 +1,93 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/us.openai.gpt-6-sol/invoke",
+    "body": {
+      "messages": [
+        {
+          "role": "system",
+          "content": "Answer in one short sentence."
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Hello, how are you?"
+            }
+          ]
+        }
+      ],
+      "max_completion_tokens": 100
+    },
+    "status": 200,
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "annotations": [],
+            "content": "I’m doing well, thanks—how are you?",
+            "refusal": null,
+            "role": "assistant"
+          }
+        }
+      ],
+      "created": 1790214860,
+      "id": "chatcmpl-ouepj6bibbnhxktrlqx5hacyfqgf5ddt4ws64t42udxjpdufsz5q",
+      "model": "us.openai.gpt-6-sol",
+      "object": "chat.completion",
+      "service_tier": "default",
+      "usage": {
+        "completion_tokens": 15,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "prompt_tokens": 22,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 37
+      },
+      "system_fingerprint": null
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 24 Sep 2026 01:54:21 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "645",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "3b1118ef-b555-485b-9c5b-7c1ee279854f",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "717",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "15",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "22"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "175",
+      "x-amz-user-agent": "aws-sdk-js/3.916.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "f564b218-8e53-4ead-be3e-113acc764291",
+      "amz-sdk-request": "attempt=1; max=3",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-date": "20250626T120000Z"
+    },
+    "responseIsBinary": false
+  }
+]
