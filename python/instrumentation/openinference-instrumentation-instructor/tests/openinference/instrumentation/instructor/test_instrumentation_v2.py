@@ -421,7 +421,8 @@ def test_unstarted_stream_close_finishes_span_and_closes_underlying_iterator() -
         "messages": [{"role": "user", "content": "Create users"}]
     }
     assert not attributes
-    assert span.status.status_code == trace_api.StatusCode.OK
+    # the stream never ran out, so the span must not claim success
+    assert span.status.status_code == trace_api.StatusCode.UNSET
 
 
 def test_partial_stream_reports_only_the_latest_snapshot() -> None:
@@ -489,7 +490,8 @@ def test_abandoned_stream_finishes_span_on_garbage_collection() -> None:
     (span,) = exporter.get_finished_spans()
     attributes = dict(span.attributes or {})
     assert attributes[SpanAttributes.OUTPUT_VALUE] == '[{"name": "Jane Doe", "age": 31}]'
-    assert span.status.status_code == trace_api.StatusCode.OK
+    # the stream never ran out, so the span must not claim success
+    assert span.status.status_code == trace_api.StatusCode.UNSET
 
 
 def test_streaming_span_records_delayed_iteration_failure() -> None:
@@ -637,7 +639,8 @@ async def test_unstarted_async_stream_aclose_finishes_span_and_closes_underlying
         "messages": [{"role": "user", "content": "Create users"}]
     }
     assert not attributes
-    assert span.status.status_code == trace_api.StatusCode.OK
+    # the stream never ran out, so the span must not claim success
+    assert span.status.status_code == trace_api.StatusCode.UNSET
 
 
 @pytest.mark.asyncio
@@ -663,7 +666,8 @@ async def test_abandoned_async_stream_finishes_span_on_garbage_collection() -> N
     attributes = dict(span.attributes or {})
     assert span.name == "instructor.async_create"
     assert attributes[SpanAttributes.OUTPUT_VALUE] == '{"name": "Jane Doe", "age": 31}'
-    assert span.status.status_code == trace_api.StatusCode.OK
+    # the stream never ran out, so the span must not claim success
+    assert span.status.status_code == trace_api.StatusCode.UNSET
 
 
 def _patched_create_with_response(monkeypatch: Any, response: Any) -> Callable[..., Any]:

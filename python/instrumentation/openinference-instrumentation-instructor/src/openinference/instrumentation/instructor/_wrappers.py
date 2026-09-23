@@ -505,7 +505,7 @@ class _SyncIteratorProxy(ObjectProxy):  # type: ignore[misc,name-defined,type-ar
         self,
         iterator: Any,
         span: trace_api.Span,
-        finish_span: Callable[[trace_api.Span, Any], None],
+        finish_span: Callable[[trace_api.Span, Any, bool], None],
         keep_all: bool = True,
     ) -> None:
         super().__init__(iterator)
@@ -562,16 +562,16 @@ class _SyncIteratorProxy(ObjectProxy):  # type: ignore[misc,name-defined,type-ar
             self._self_end()
             raise
         if stop is not None:
-            self._self_finish()
+            self._self_finish(exhausted=True)
             raise stop
         self._self_output.add(item)
         return item
 
-    def _self_finish(self) -> None:
+    def _self_finish(self, exhausted: bool = False) -> None:
         if self._self_finished:
             return
         try:
-            self._self_finish_span(self._self_span, self._self_output.output())
+            self._self_finish_span(self._self_span, self._self_output.output(), exhausted)
         finally:
             self._self_end()
 
@@ -593,7 +593,7 @@ class _AsyncIteratorProxy(ObjectProxy):  # type: ignore[misc,name-defined,type-a
         self,
         iterator: Any,
         span: trace_api.Span,
-        finish_span: Callable[[trace_api.Span, Any], None],
+        finish_span: Callable[[trace_api.Span, Any, bool], None],
         keep_all: bool = True,
     ) -> None:
         super().__init__(iterator)
@@ -650,16 +650,16 @@ class _AsyncIteratorProxy(ObjectProxy):  # type: ignore[misc,name-defined,type-a
             self._self_end()
             raise
         if exhausted:
-            self._self_finish()
+            self._self_finish(exhausted=True)
             raise StopAsyncIteration
         self._self_output.add(item)
         return item
 
-    def _self_finish(self) -> None:
+    def _self_finish(self, exhausted: bool = False) -> None:
         if self._self_finished:
             return
         try:
-            self._self_finish_span(self._self_span, self._self_output.output())
+            self._self_finish_span(self._self_span, self._self_output.output(), exhausted)
         finally:
             self._self_end()
 
@@ -823,10 +823,13 @@ class _V2CreateFactoryWrapper:
             pass
 
     @classmethod
-    def _finish_span(cls, span: trace_api.Span, response: Any) -> None:
+    def _finish_span(cls, span: trace_api.Span, response: Any, exhausted: bool = True) -> None:
         if response is not _NO_ITEM:
             cls._set_output_attributes(span, response)
-        span.set_status(trace_api.StatusCode.OK)
+        # A stream that was closed or dropped before it ran out is left UNSET, so it stays
+        # distinguishable from one that completed.
+        if exhausted:
+            span.set_status(trace_api.StatusCode.OK)
 
     @classmethod
     def _wrap_sync_iterator(
