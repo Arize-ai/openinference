@@ -21,6 +21,7 @@ class TestOpenInferenceSpanKindValues:
         assert {e: e.value for e in OpenInferenceSpanKindValues} == {
             OpenInferenceSpanKindValues.AGENT: "AGENT",
             OpenInferenceSpanKindValues.CHAIN: "CHAIN",
+            OpenInferenceSpanKindValues.DECISION: "DECISION",
             OpenInferenceSpanKindValues.EMBEDDING: "EMBEDDING",
             OpenInferenceSpanKindValues.EVALUATOR: "EVALUATOR",
             OpenInferenceSpanKindValues.GUARDRAIL: "GUARDRAIL",
