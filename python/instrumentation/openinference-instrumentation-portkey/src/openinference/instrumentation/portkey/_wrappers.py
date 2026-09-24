@@ -17,7 +17,10 @@ from openinference.instrumentation.portkey._request_attributes_extractor import 
 from openinference.instrumentation.portkey._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.portkey._utils import _finish_tracing
+from openinference.instrumentation.portkey._utils import (
+    _finish_tracing,
+    _materialize_content_iterables,
+)
 from openinference.instrumentation.portkey._with_span import _WithSpan
 
 logger = logging.getLogger(__name__)
@@ -104,6 +107,8 @@ class _CompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        kwargs = _materialize_content_iterables(kwargs)
+
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {**kwargs}
         for arg in args:
@@ -161,6 +166,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
+
+        kwargs = _materialize_content_iterables(kwargs)
 
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {**kwargs}
