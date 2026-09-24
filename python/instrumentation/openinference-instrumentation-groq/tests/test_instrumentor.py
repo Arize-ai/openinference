@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List, Mapping, Optional, Type, Union, cast
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Type, Union, cast
 
 import pytest
 from groq import AsyncGroq, Groq
@@ -527,3 +527,61 @@ def test_message_content_as_tuple() -> None:
         == "https://example.com/cat.png"
     )
     assert not attributes
+
+
+def test_groq_with_generator_content(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_groq_instrumentation: Any,
+) -> None:
+    sent: Dict[str, Any] = {}
+
+    def _capturing_post(self: Any, path: str = "fake/url", **kwargs: Any) -> Any:
+        sent["body"] = kwargs.get("body")
+        return MOCK_COMPLETION
+
+    client = Groq(api_key="fake")
+    client.chat.completions._post = _capturing_post  # type: ignore[assignment]
+    parts = (
+        {"type": "text", "text": "What is in this image?"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+    )
+    content: Iterator[Any] = (part for part in parts)
+
+    client.chat.completions.create(
+        messages=[{"role": "user", "content": content}],
+        model="fake_model",
+    )
+
+    # The generator is read once for the span, and the SDK still sends every part.
+    assert list(sent["body"]["messages"][0]["content"]) == list(parts)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    input_messages = {
+        key: value
+        for key, value in (spans[0].attributes or {}).items()
+        if key.startswith(SpanAttributes.LLM_INPUT_MESSAGES)
+    }
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert input_messages.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    contents = f"{message}.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert (
+        input_messages.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        input_messages.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "What is in this image?"
+    )
+    assert (
+        input_messages.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "image"
+    )
+    assert (
+        input_messages.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        )
+        == "https://example.com/cat.png"
+    )
+    assert not input_messages
