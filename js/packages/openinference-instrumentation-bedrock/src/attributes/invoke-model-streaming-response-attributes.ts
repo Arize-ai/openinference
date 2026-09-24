@@ -192,12 +192,16 @@ function processOpenAIStreamChunk(
   if (typeof content === "string") {
     state.outputText += content;
   }
-  // Without stream_options.include_usage, gpt-oss only sends Bedrock's invocation metrics
+  // Without stream_options.include_usage, gpt-oss sends no usage chunk, only Bedrock's
+  // invocation metrics on the last chunk. They fill the gaps; a usage chunk always wins.
   const metrics = data["amazon-bedrock-invocationMetrics"];
-  if (metrics) {
+  const input = metrics?.inputTokenCount;
+  const output = metrics?.outputTokenCount;
+  if (typeof input === "number" && typeof output === "number") {
     state.rawUsageData = {
-      prompt_tokens: metrics.inputTokenCount,
-      completion_tokens: metrics.outputTokenCount,
+      prompt_tokens: input,
+      completion_tokens: output,
+      total_tokens: input + output,
       ...state.rawUsageData,
     };
   }

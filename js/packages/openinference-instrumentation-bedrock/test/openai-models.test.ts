@@ -72,15 +72,23 @@ describe("OpenAI models", () => {
 
   it.each([
     {
+      // GPT-6 sends a usage chunk and Bedrock's metrics; the usage chunk wins
       name: "usage chunk",
-      last: { choices: [], usage: { prompt_tokens: 14, completion_tokens: 18, total_tokens: 32 } },
+      last: {
+        usage: { prompt_tokens: 14, completion_tokens: 18, total_tokens: 32 },
+        "amazon-bedrock-invocationMetrics": { inputTokenCount: 1, outputTokenCount: 1 },
+      },
       expected: { "llm.token_count.prompt": 14, "llm.token_count.total": 32 },
     },
     {
-      // gpt-oss without stream_options.include_usage
+      // gpt-oss without stream_options.include_usage sends only Bedrock's metrics
       name: "invocation metrics only",
       last: { "amazon-bedrock-invocationMetrics": { inputTokenCount: 75, outputTokenCount: 37 } },
-      expected: { "llm.token_count.prompt": 75, "llm.token_count.completion": 37 },
+      expected: {
+        "llm.token_count.prompt": 75,
+        "llm.token_count.completion": 37,
+        "llm.token_count.total": 112,
+      },
     },
   ])("records the streamed text and tokens from the $name", async ({ last, expected }) => {
     const span = provider.getTracer("test").startSpan("invoke_model_stream");
