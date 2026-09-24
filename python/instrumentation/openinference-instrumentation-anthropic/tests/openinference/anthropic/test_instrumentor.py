@@ -13,6 +13,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Type,
 )
 
 import anthropic
@@ -39,7 +40,7 @@ from anthropic.types import (
     Usage,
 )
 from opentelemetry import trace as trace_api
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from pydantic import BaseModel, field_validator
@@ -89,7 +90,7 @@ def _mock_async_anthropic_client(handler: Callable[[Any], Any]) -> AsyncAnthropi
     )
 
 
-_STREAM_KWARGS: Dict[str, Any] = {
+_REQUEST_KWARGS: Dict[str, Any] = {
     "model": "claude-sonnet-4-6",
     "max_tokens": 1000,
     "messages": [{"role": "user", "content": "hello"}],
@@ -165,6 +166,22 @@ def _event_stream_handler(request: Any) -> Any:
     return httpx2.Response(
         status_code=200, headers={"content-type": "text/event-stream"}, content=_event_stream_body()
     )
+
+
+def _get_span(exporter: InMemorySpanExporter) -> ReadableSpan:
+    (span,) = exporter.get_finished_spans()
+    return span
+
+
+def _assert_error_span(
+    exporter: InMemorySpanExporter, exception_type: Type[BaseException]
+) -> ReadableSpan:
+    """Asserts that the one finished span failed and recorded exactly one ``exception_type``."""
+    span = _get_span(exporter)
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    (event,) = [event for event in span.events if event.name == "exception"]
+    assert str((event.attributes or {})["exception.type"]).endswith(exception_type.__qualname__)
+    return span
 
 
 def _get_tool_use_id(message: Message) -> Optional[str]:
@@ -2368,12 +2385,10 @@ def test_failed_streaming_request_is_recorded(
     messages: Any = client.beta.messages if beta else client.messages
 
     with pytest.raises(anthropic.BadRequestError):
-        with messages.stream(**_STREAM_KWARGS):
+        with messages.stream(**_REQUEST_KWARGS):
             pass
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.status_code == trace_api.StatusCode.ERROR
-    assert span.events
+    span = _assert_error_span(in_memory_span_exporter, anthropic.BadRequestError)
     attributes = dict(span.attributes or {})
     assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
         "max_tokens": 1000,
@@ -2391,12 +2406,10 @@ async def test_failed_async_streaming_request_is_recorded(
     messages: Any = client.beta.messages if beta else client.messages
 
     with pytest.raises(anthropic.BadRequestError):
-        async with messages.stream(**_STREAM_KWARGS):
+        async with messages.stream(**_REQUEST_KWARGS):
             pass
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.status_code == trace_api.StatusCode.ERROR
-    assert span.events
+    span = _assert_error_span(in_memory_span_exporter, anthropic.BadRequestError)
     attributes = dict(span.attributes or {})
     assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
         "max_tokens": 1000,
@@ -2422,17 +2435,13 @@ async def test_cancelled_async_streaming_request_is_recorded(
     messages: Any = client.beta.messages if beta else client.messages
 
     with pytest.raises(asyncio.CancelledError):
-        async with messages.stream(**_STREAM_KWARGS):
+        async with messages.stream(**_REQUEST_KWARGS):
             pass
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.status_code == trace_api.StatusCode.ERROR
-    assert span.events
+    _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
 
 
-@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
 def test_raw_response_is_recorded(
-    beta: bool,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
@@ -2441,13 +2450,12 @@ def test_raw_response_is_recorded(
     read, so the message is recorded, and the caller still gets the response it asked for.
     """
     client = _mock_anthropic_client(_message_handler)
-    messages: Any = client.beta.messages if beta else client.messages
 
-    response = messages.with_raw_response.create(**_STREAM_KWARGS)
+    response = client.messages.with_raw_response.create(**_REQUEST_KWARGS)
 
     assert isinstance(response, anthropic.APIResponse)
     assert response.parse().content[0].text == "hi"
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
     attributes = dict(span.attributes or {})
     assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
@@ -2455,20 +2463,17 @@ def test_raw_response_is_recorded(
     assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
 
 
-@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
 async def test_async_raw_response_is_recorded(
-    beta: bool,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
     client = _mock_async_anthropic_client(_message_handler)
-    messages: Any = client.beta.messages if beta else client.messages
 
-    response = await messages.with_raw_response.create(**_STREAM_KWARGS)
+    response = await client.messages.with_raw_response.create(**_REQUEST_KWARGS)
 
     assert isinstance(response, anthropic.AsyncAPIResponse)
     assert (await response.parse()).content[0].text == "hi"
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
     attributes = dict(span.attributes or {})
     assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
@@ -2503,17 +2508,15 @@ def test_raw_parse_response_is_left_to_the_caller(
     _City.validations = 0
     client = _mock_anthropic_client(_parsed_message_handler)
 
-    response = client.beta.messages.with_raw_response.parse(**_STREAM_KWARGS, output_format=_City)
+    response = client.beta.messages.with_raw_response.parse(**_REQUEST_KWARGS, output_format=_City)
 
     assert _City.validations == 0
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
     assert response.parse().parsed_output == _City(city="Paris")
 
 
-@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
 def test_raw_response_with_middleware_post_parser_is_left_to_the_caller(
-    beta: bool,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
@@ -2537,12 +2540,11 @@ def test_raw_response_with_middleware_post_parser_is_left_to_the_caller(
         middleware=[middleware],
         http_client=httpx2.Client(transport=httpx2.MockTransport(_message_handler)),
     )
-    messages: Any = client.beta.messages if beta else client.messages
 
-    response = messages.with_raw_response.create(**_STREAM_KWARGS)
+    response = client.messages.with_raw_response.create(**_REQUEST_KWARGS)
 
     assert not post_parsed
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
     assert response.parse().content[0].text == "hi"
     assert len(post_parsed) == 1
@@ -2556,11 +2558,11 @@ async def test_async_raw_parse_response_is_left_to_the_caller(
     client = _mock_async_anthropic_client(_parsed_message_handler)
 
     response = await client.beta.messages.with_raw_response.parse(
-        **_STREAM_KWARGS, output_format=_City
+        **_REQUEST_KWARGS, output_format=_City
     )
 
     assert _City.validations == 0
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
     assert (await response.parse()).parsed_output == _City(city="Paris")
 
@@ -2587,8 +2589,8 @@ def test_raw_event_stream_status_is_left_unset(
 
     client = _mock_anthropic_client(handler)
 
-    response = client.messages.with_raw_response.create(**_STREAM_KWARGS, stream=True)
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    response = client.messages.with_raw_response.create(**_REQUEST_KWARGS, stream=True)
+    span = _get_span(in_memory_span_exporter)
     with pytest.raises(anthropic.APIStatusError):
         for _ in response.parse():
             pass
@@ -2596,9 +2598,7 @@ def test_raw_event_stream_status_is_left_unset(
     assert span.status.status_code == trace_api.StatusCode.UNSET
 
 
-@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
 def test_streaming_response_body_is_left_to_the_caller(
-    beta: bool,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
@@ -2606,29 +2606,25 @@ def test_streaming_response_body_is_left_to_the_caller(
     with_streaming_response leaves the body unread for the caller, so it is not parsed.
     """
     client = _mock_anthropic_client(_unread_message_handler)
-    messages: Any = client.beta.messages if beta else client.messages
 
-    with messages.with_streaming_response.create(**_STREAM_KWARGS) as response:
+    with client.messages.with_streaming_response.create(**_REQUEST_KWARGS) as response:
         assert not response.is_closed
-        (span,) = in_memory_span_exporter.get_finished_spans()
+        span = _get_span(in_memory_span_exporter)
         assert response.parse().content[0].text == "hi"
 
     assert span.status.status_code == trace_api.StatusCode.UNSET
     assert OUTPUT_VALUE not in (span.attributes or {})
 
 
-@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
 async def test_async_streaming_response_body_is_left_to_the_caller(
-    beta: bool,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
     client = _mock_async_anthropic_client(_async_unread_message_handler)
-    messages: Any = client.beta.messages if beta else client.messages
 
-    async with messages.with_streaming_response.create(**_STREAM_KWARGS) as response:
+    async with client.messages.with_streaming_response.create(**_REQUEST_KWARGS) as response:
         assert not response.is_closed
-        (span,) = in_memory_span_exporter.get_finished_spans()
+        span = _get_span(in_memory_span_exporter)
         assert (await response.parse()).content[0].text == "hi"
 
     assert span.status.status_code == trace_api.StatusCode.UNSET
@@ -2659,11 +2655,11 @@ def test_any_request_body_key_is_recorded_without_raising(
 
     client = _mock_anthropic_client(handler)
 
-    client.messages.create(**_STREAM_KWARGS, extra_body=extra_body)
+    client.messages.create(**_REQUEST_KWARGS, extra_body=extra_body)
 
     ((key, value),) = extra_body.items()
     assert sent[0][str(key)] == value
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
     anthropic_version = _get_anthropic_version()
     assert anthropic_version is not None, anthropic.__version__
@@ -2673,9 +2669,17 @@ def test_any_request_body_key_is_recorded_without_raising(
         assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS]))[str(key)] == value
 
 
-@pytest.mark.parametrize("exhaust", [True, False], ids=["exhausted", "left_early"])
+@pytest.mark.parametrize(
+    "exhaust,status_code,texts",
+    [
+        pytest.param(True, trace_api.StatusCode.OK, ["hi"], id="exhausted"),
+        pytest.param(False, trace_api.StatusCode.UNSET, [], id="left_early"),
+    ],
+)
 def test_streaming_create_as_context_manager_is_recorded(
     exhaust: bool,
+    status_code: trace_api.StatusCode,
+    texts: List[str],
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
@@ -2685,38 +2689,42 @@ def test_streaming_create_as_context_manager_is_recorded(
     """
     client = _mock_anthropic_client(_event_stream_handler)
 
-    with client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+    with client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
         for _ in stream:
             if not exhaust:
                 break
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    attributes = dict(span.attributes or {})
-    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
-    if exhaust:
-        assert span.status.status_code == trace_api.StatusCode.OK
-        assert json.loads(str(attributes[OUTPUT_VALUE]))["content"][0]["text"] == "hi"
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == status_code
+    output = json.loads(str(dict(span.attributes or {})[OUTPUT_VALUE]))
+    assert [block["text"] for block in output["content"]] == texts
 
 
-@pytest.mark.parametrize("exhaust", [True, False], ids=["exhausted", "left_early"])
+@pytest.mark.parametrize(
+    "exhaust,status_code,texts",
+    [
+        pytest.param(True, trace_api.StatusCode.OK, ["hi"], id="exhausted"),
+        pytest.param(False, trace_api.StatusCode.UNSET, [], id="left_early"),
+    ],
+)
 async def test_async_streaming_create_as_context_manager_is_recorded(
     exhaust: bool,
+    status_code: trace_api.StatusCode,
+    texts: List[str],
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
     client = _mock_async_anthropic_client(_event_stream_handler)
 
-    async with await client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+    async with await client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
         async for _ in stream:
             if not exhaust:
                 break
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    attributes = dict(span.attributes or {})
-    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
-    if exhaust:
-        assert span.status.status_code == trace_api.StatusCode.OK
-        assert json.loads(str(attributes[OUTPUT_VALUE]))["content"][0]["text"] == "hi"
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == status_code
+    output = json.loads(str(dict(span.attributes or {})[OUTPUT_VALUE]))
+    assert [block["text"] for block in output["content"]] == texts
 
 
 def test_exception_leaving_streaming_create_context_is_recorded(
@@ -2726,13 +2734,11 @@ def test_exception_leaving_streaming_create_context_is_recorded(
     client = _mock_anthropic_client(_event_stream_handler)
 
     with pytest.raises(RuntimeError):
-        with client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+        with client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
             for _ in stream:
                 raise RuntimeError("stop")
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.status_code == trace_api.StatusCode.ERROR
-    assert span.events
+    _assert_error_span(in_memory_span_exporter, RuntimeError)
 
 
 def test_exception_closing_streaming_create_context_is_recorded(
@@ -2761,12 +2767,10 @@ def test_exception_closing_streaming_create_context_is_recorded(
     client = _mock_anthropic_client(handler)
 
     with pytest.raises(OSError):
-        with client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+        with client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
             next(iter(stream))
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.status_code == trace_api.StatusCode.ERROR
-    assert span.events
+    _assert_error_span(in_memory_span_exporter, OSError)
 
 
 def test_closing_generator_holding_streaming_create_context_is_not_an_error(
@@ -2780,14 +2784,14 @@ def test_closing_generator_holding_streaming_create_context_is_not_an_error(
     client = _mock_anthropic_client(_event_stream_handler)
 
     def events() -> Generator[Any, None, None]:
-        with client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+        with client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
             yield from stream
 
     generator = events()
     next(generator)
     generator.close()
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.UNSET
     assert not span.events
 
@@ -2799,7 +2803,7 @@ async def test_closing_async_generator_holding_streaming_create_context_is_not_a
     client = _mock_async_anthropic_client(_event_stream_handler)
 
     async def events() -> AsyncGenerator[Any, None]:
-        async with await client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+        async with await client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
             async for event in stream:
                 yield event
 
@@ -2807,7 +2811,7 @@ async def test_closing_async_generator_holding_streaming_create_context_is_not_a
     await generator.__anext__()
     await generator.aclose()
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
+    span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.UNSET
     assert not span.events
 
@@ -2834,7 +2838,7 @@ async def test_cancellation_leaving_async_streaming_create_context_is_recorded(
     client = _mock_async_anthropic_client(handler)
 
     async def consume() -> None:
-        async with await client.messages.create(**_STREAM_KWARGS, stream=True) as stream:
+        async with await client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
             async for _ in stream:
                 first_event_read.set()
 
@@ -2844,9 +2848,7 @@ async def test_cancellation_leaving_async_streaming_create_context_is_recorded(
     with pytest.raises(asyncio.CancelledError):
         await task
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.status_code == trace_api.StatusCode.ERROR
-    assert span.events
+    _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
 
 
 @pytest.mark.parametrize(
@@ -2874,11 +2876,9 @@ async def test_cancelled_async_request_is_recorded(
     client = _mock_async_anthropic_client(cancelled_handler)
 
     with pytest.raises(asyncio.CancelledError):
-        await getattr(client.messages, method)(**_STREAM_KWARGS, **kwargs)
+        await getattr(client.messages, method)(**_REQUEST_KWARGS, **kwargs)
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.status_code == trace_api.StatusCode.ERROR
-    assert span.events
+    _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
 
 
 def test_interrupted_request_is_recorded(
@@ -2891,11 +2891,9 @@ def test_interrupted_request_is_recorded(
     client = _mock_anthropic_client(interrupted_handler)
 
     with pytest.raises(KeyboardInterrupt):
-        client.messages.create(**_STREAM_KWARGS)
+        client.messages.create(**_REQUEST_KWARGS)
 
-    (span,) = in_memory_span_exporter.get_finished_spans()
-    assert span.status.status_code == trace_api.StatusCode.ERROR
-    assert span.events
+    _assert_error_span(in_memory_span_exporter, KeyboardInterrupt)
 
 
 # Ensure we're using the common OITracer from common openinference-instrumentation pkg
