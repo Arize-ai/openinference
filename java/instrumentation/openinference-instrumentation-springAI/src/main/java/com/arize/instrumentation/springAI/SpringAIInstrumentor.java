@@ -105,6 +105,9 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
             // Set token usage if available
             setTokenUsage(span, chatContext);
 
+            // Set finish reason if available
+            setFinishReason(span, chatContext);
+
             span.setStatus(StatusCode.OK);
             log.debug("Completed LLM span successfully");
         } finally {
@@ -324,6 +327,27 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
             }
         } catch (Exception e) {
             log.debug("Could not extract token usage", e);
+        }
+    }
+
+    private void setFinishReason(Span span, ChatModelObservationContext context) {
+        try {
+            if (context.getResponse() == null) {
+                return;
+            }
+
+            // Use the first generation for the single-valued span attribute.
+            Generation generation = context.getResponse().getResult();
+            if (generation == null || generation.getMetadata() == null) {
+                return;
+            }
+
+            String finishReason = generation.getMetadata().getFinishReason();
+            if (finishReason != null && !finishReason.isBlank()) {
+                span.setAttribute(SemanticConventions.LLM_FINISH_REASON, finishReason);
+            }
+        } catch (Exception e) {
+            log.debug("Could not extract finish reason", e);
         }
     }
 
