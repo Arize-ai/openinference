@@ -19,11 +19,13 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
+from openinference.instrumentation.groq._utils import _get_attributes_from_message
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
+    OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 
@@ -424,62 +426,74 @@ def test_groq_multimodal_input(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
-    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
-    assert attributes[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "text"
     assert (
-        attributes[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"]
+        attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == OpenInferenceLLMProviderValues.GROQ.value
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "fake_model"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS)
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE)
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE)
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 25
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 379
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 404
+
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    contents = f"{message}.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
         == "What is in this image?"
     )
-    assert attributes[f"{prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "image"
     assert (
-        attributes[
-            f"{prefix}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+        attributes.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
             f"{ImageAttributes.IMAGE_URL}"
-        ]
+        )
         == "https://example.com/cat.png"
     )
 
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "idk, sorry!"
+    assert not attributes
 
-def test_groq_multimodal_input_unsupported_part_keeps_position(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_groq_instrumentation: Any,
-) -> None:
-    client = Groq(api_key="fake")
-    client.chat.completions._post = _mock_post  # type: ignore[assignment]
 
-    client.chat.completions.create(
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Describe this audio."},
-                    {
-                        "type": "input_audio",
-                        "input_audio": {"data": "ZmFrZQ==", "format": "wav"},
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": "https://example.com/cat.png"},
-                    },
-                ],
-            }
+def test_message_content_unsupported_part_keeps_position() -> None:
+    # Newer groq releases accept `document` parts, which are not flattened. The parts
+    # after it keep their original index so a gap is left rather than shifting them.
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Summarize this."},
+            {"type": "document", "document": {"data": {"title": "cats"}}},
+            {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
         ],
-        model="fake_model",
-    )
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
-    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}"
-    assert attributes[f"{prefix}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "text"
-    # input_audio is not flattened, so index 1 stays empty and the image keeps
-    # its position at index 2.
-    assert not any(key.startswith(f"{prefix}.1.") for key in attributes)
-    assert attributes[f"{prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"] == "image"
+    }
+    attributes = dict(_get_attributes_from_message(message))
+    assert attributes.pop(MessageAttributes.MESSAGE_ROLE) == "user"
+    contents = MessageAttributes.MESSAGE_CONTENTS
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
     assert (
-        attributes[
-            f"{prefix}.2.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "Summarize this."
+    )
+    assert (
+        attributes.pop(f"{contents}.2.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{contents}.2.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
             f"{ImageAttributes.IMAGE_URL}"
-        ]
+        )
         == "https://example.com/cat.png"
     )
+    assert not attributes
