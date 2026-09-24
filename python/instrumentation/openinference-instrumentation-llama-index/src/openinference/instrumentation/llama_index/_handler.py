@@ -900,6 +900,40 @@ def _get_attributes_from_image_block(
         yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
 
 
+def _reactivate_context_while_iterating(
+    gen: Generator[Any, None, None], context: context_api.Context
+) -> Generator[Any, None, None]:
+    """Yield from ``gen`` with ``context`` active around each step.
+
+    Used to re-parent spans that llama-index creates lazily while a streaming
+    response generator is consumed, keeping them within the original trace.
+    """
+    while True:
+        token = context_api.attach(context)
+        try:
+            value = next(gen)
+        except StopIteration:
+            return
+        finally:
+            context_api.detach(token)
+        yield value
+
+
+async def _areactivate_context_while_iterating(
+    gen: AsyncGenerator[Any, None], context: context_api.Context
+) -> AsyncGenerator[Any, None]:
+    """Async counterpart of ``_reactivate_context_while_iterating``."""
+    while True:
+        token = context_api.attach(context)
+        try:
+            value = await gen.__anext__()
+        except StopAsyncIteration:
+            return
+        finally:
+            context_api.detach(token)
+        yield value
+
+
 END_OF_QUEUE = None
 
 
@@ -963,6 +997,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _otel_tracer: Tracer = PrivateAttr()
     _separate_trace_from_runtime_context: bool = PrivateAttr()
     _export_queue: _ExportQueue = PrivateAttr()
+    _stream_context_by_gen: "weakref.WeakKeyDictionary[Any, context_api.Context]" = PrivateAttr()
 
     def __init__(
         self,
@@ -980,6 +1015,10 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         self._otel_tracer = tracer
         self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
         self._export_queue = _ExportQueue()
+        # Maps a streaming response generator to the context of the span that
+        # produced it, so that context can be re-activated while the generator is
+        # consumed. Weakly keyed so exhausted/abandoned generators do not accumulate.
+        self._stream_context_by_gen = weakref.WeakKeyDictionary()
 
     def new_span(
         self,
@@ -1037,11 +1076,45 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
                 span._end_time = time_ns()
                 self._export_queue.put(span)
                 return span
+            self._track_streaming_response(span, instance, result)
             span.process_output(instance, result)
             span.end()
         else:
             logger.warning(f"Open span is missing for {id_=}")
         return span
+
+    def _track_streaming_response(self, span: "_Span", instance: Any, result: Any) -> None:
+        """Keep lazily-consumed streaming responses within the same trace.
+
+        Newer llama-index defers the actual LLM call until the streaming response
+        generator is consumed, which happens after every enclosing span (e.g.
+        ``get_response``, ``synthesize``, ``query``) has already exited. By then
+        llama-index no longer tracks an active parent span, so the LLM span would
+        start a brand-new trace. To prevent that we remember the context of the span
+        that produced a streaming generator, and when that same generator resurfaces
+        as a ``StreamingResponse`` we re-activate that context while the generator is
+        iterated (see ``_reactivate_context_while_iterating``), so any span created
+        during consumption is parented correctly.
+        """
+        if isinstance(instance, (BaseLLM, MultiModalLLM)):
+            return
+        if isinstance(result, (Generator, AsyncGenerator)):
+            self._stream_context_by_gen[result] = span.context
+            return
+        response_gen = getattr(result, "response_gen", None)
+        if response_gen is None:
+            return
+        producer_context = self._stream_context_by_gen.get(response_gen)
+        if producer_context is None:
+            return
+        if isinstance(response_gen, AsyncGenerator):
+            result.response_gen = _areactivate_context_while_iterating(
+                response_gen, producer_context
+            )
+        elif isinstance(response_gen, Generator):
+            result.response_gen = _reactivate_context_while_iterating(
+                response_gen, producer_context
+            )
 
     def prepare_to_drop_span(
         self,
