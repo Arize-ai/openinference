@@ -497,3 +497,33 @@ def test_message_content_unsupported_part_keeps_position() -> None:
         == "https://example.com/cat.png"
     )
     assert not attributes
+
+
+def test_message_content_as_tuple() -> None:
+    # The SDKs accept any iterable of content parts, not only lists.
+    message = {
+        "role": "user",
+        "content": (
+            {"type": "text", "text": "What is in this image?"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+        ),
+    }
+    attributes = dict(_get_attributes_from_message(message))
+    assert attributes.pop(MessageAttributes.MESSAGE_ROLE) == "user"
+    contents = MessageAttributes.MESSAGE_CONTENTS
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "What is in this image?"
+    )
+    assert (
+        attributes.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        )
+        == "https://example.com/cat.png"
+    )
+    assert not attributes

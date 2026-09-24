@@ -83,7 +83,7 @@ def _get_attributes_from_message(message: Any) -> Iterator[Tuple[str, AttributeV
     elif content:
         if isinstance(content, str):
             yield MessageAttributes.MESSAGE_CONTENT, content
-        elif isinstance(content, list) and all(isinstance(part, Mapping) for part in content):
+        elif isinstance(content, Sequence) and all(isinstance(part, Mapping) for part in content):
             # Multimodal requests send content as typed parts (text, image_url, ...).
             # Flatten each part into message contents so the attribute value stays a
             # primitive; a raw list of dicts is rejected by OpenTelemetry and dropped.
@@ -95,7 +95,7 @@ def _get_attributes_from_message(message: Any) -> Iterator[Tuple[str, AttributeV
                         f"{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{key}",
                         value,
                     )
-        elif isinstance(content, list):
+        elif isinstance(content, Sequence):
             yield MessageAttributes.MESSAGE_CONTENT, safe_json_dumps(content)
     if name := get_attribute(message, "name"):
         yield MessageAttributes.MESSAGE_NAME, name
