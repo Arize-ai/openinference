@@ -75,6 +75,10 @@ class LangChain4jModelListenerTest {
     }
 
     private void stubChatCompletion(String content) {
+        stubChatCompletion(content, "stop");
+    }
+
+    private void stubChatCompletion(String content, String finishReason) {
         wireMock.stubFor(post(urlPathEqualTo("/v1/chat/completions"))
                 .willReturn(okJson(
                         """
@@ -88,7 +92,7 @@ class LangChain4jModelListenerTest {
                       "role": "assistant",
                       "content": "%s"
                     },
-                    "finish_reason": "stop"
+                    "finish_reason": %s
                   }],
                   "usage": {
                     "prompt_tokens": 10,
@@ -97,7 +101,7 @@ class LangChain4jModelListenerTest {
                   }
                 }
                 """
-                                .formatted(content))));
+                                .formatted(content, finishReason == null ? "null" : "\"" + finishReason + "\""))));
     }
 
     private void stubToolCallResponse() {
@@ -190,9 +194,8 @@ class LangChain4jModelListenerTest {
                 .isEqualTo(30L);
 
         // Finish reason
-        List<String> finishReasons =
-                span.getAttributes().get(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
-        assertThat(finishReasons).containsExactly("STOP");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("STOP");
 
         // Input messages: system at index 0, user at index 1
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
@@ -271,9 +274,36 @@ class LangChain4jModelListenerTest {
                 .isEqualTo("call_abc123");
 
         // Finish reason
-        List<String> finishReasons =
-                span.getAttributes().get(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
-        assertThat(finishReasons).containsExactly("TOOL_EXECUTION");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("TOOL_EXECUTION");
+    }
+
+    @Test
+    void capturesLengthFinishReason() {
+        stubChatCompletion("Partial response", "length");
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(oiTracer));
+        model.chat("Hi");
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).hasSize(1);
+        assertThat(spans.get(0).getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("LENGTH");
+    }
+
+    @Test
+    void omitsFinishReasonWhenAbsent() {
+        stubChatCompletion("Hello!", null);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(oiTracer));
+        model.chat("Hi");
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).hasSize(1);
+        SpanData span = spans.get(0);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isEqualTo("Hello!");
+        assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
     }
 
     // ── Multi-turn tool execution ───────────────────────────────────────
@@ -835,8 +865,8 @@ class LangChain4jModelListenerTest {
                 .isEqualTo(30L);
 
         // Finish reason still present
-        assertThat(span.getAttributes().get(AttributeKey.stringArrayKey("llm.response.finish_reasons")))
-                .containsExactly("STOP");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("STOP");
 
         // Span status still OK
         assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
