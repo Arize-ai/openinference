@@ -304,7 +304,9 @@ public class ChatMessageAttributeUtils {
     public static void handleChatResponse(OITracer tracer, Span span, ChatResponse response) {
         // Set response attributes
         if (response.finishReason() != null) {
-            span.setAttribute(SemanticConventions.LLM_FINISH_REASON, response.finishReason().name());
+            span.setAttribute(
+                    SemanticConventions.LLM_FINISH_REASON,
+                    response.finishReason().name());
         }
 
         // Set output attributes
