@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.1.5...python-openinference-instrumentation-anthropic-v2.1.6) (2026-09-24)
+
+
+### Bug Fixes
+
+* **anthropic:** support the anthropic 1.8.0 request body preparation rename ([#3824](https://github.com/Arize-ai/openinference/issues/3824)) ([0501716](https://github.com/Arize-ai/openinference/commit/05017165ecc5e08b25e0408107216778080ca4cd))
+
 ## [2.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.1.4...python-openinference-instrumentation-anthropic-v2.1.5) (2026-09-15)
 
 
