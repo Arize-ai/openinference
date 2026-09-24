@@ -105,8 +105,8 @@ class _Params:
             _params.reset(self._token)
 
     def update(self, kwargs: Mapping[Any, Any]) -> None:
-        # a mapping rather than keyword arguments, because a request body can have any keys,
-        # including "self" and non-strings, e.g. from extra_body
+        # a mapping, not keyword arguments: a request body can have any keys, e.g. "self" or
+        # non-strings from extra_body
         if self._updated:
             return
         self._kwargs.update(kwargs)
@@ -291,7 +291,7 @@ class _MessagesWrapper(_WithTracer):
             try:
                 response = wrapped(*args, **kwargs)
             except BaseException as exception:
-                # e.g. KeyboardInterrupt, which is not an Exception, must still finish the span
+                # BaseException, so that e.g. KeyboardInterrupt also finishes the span
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 span.finish_tracing()
@@ -338,8 +338,8 @@ class _AsyncMessagesWrapper(_WithTracer):
             try:
                 response = await wrapped(*args, **kwargs)
             except BaseException as exception:
-                # e.g. a cancelled task's CancelledError, which is not an Exception, must still
-                # finish the span
+                # BaseException, so that e.g. a cancelled task's CancelledError also finishes
+                # the span
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 span.finish_tracing()
@@ -395,12 +395,10 @@ def _parsing_runs_caller_code(response: Any) -> bool:
 
 def _finish_api_response_tracing(span: _WithSpan, response: Any, streaming: bool) -> None:
     """
-    The response is parsed for the output attributes only if parsing runs no caller code and its
-    body has already been read, so a body the caller chose to stream or read itself is left
-    alone. The response caches a successful parse, so the caller's own parse() returns the same
-    message. An unread body leaves the outcome unknown, e.g. a stream can still end in an error
-    event, so the status is left unset. That includes an event stream whose body a transport
-    buffered, e.g. a recorded cassette, which is closed although its events are still unread.
+    The output attributes are recorded only if the body has been read and parsing runs no caller
+    code; the response caches the parsed message for the caller's own parse(). An unread body
+    leaves the outcome unknown, e.g. a stream can still end in an error event, so the status is
+    left unset. An event stream counts as unread even if a transport buffered its body.
     """
     if streaming or not response.is_closed:
         span.finish_tracing()
@@ -551,9 +549,9 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type
 
     def __enter__(self) -> Any:
         try:
-            # the request is sent here, after the wrapped stream() call has returned, and
-            # anthropic>=1.8.0 also prepares the request body here, so the params are activated
-            # again for the request body preparation wrapper to update
+            # the request is sent here, after stream() has returned, and anthropic>=1.8.0
+            # prepares its body here, so the params are made current again for the body
+            # preparation wrapper
             with self._self_params:
                 message_stream = self.__wrapped__.__enter__()
         except BaseException as exception:
@@ -601,9 +599,9 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,
 
     def __enter__(self) -> Any:
         try:
-            # the request is sent here, after the wrapped stream() call has returned, and
-            # anthropic>=1.8.0 also prepares the request body here, so the params are activated
-            # again for the request body preparation wrapper to update
+            # the request is sent here, after stream() has returned, and anthropic>=1.8.0
+            # prepares its body here, so the params are made current again for the body
+            # preparation wrapper
             with self._self_params:
                 message_stream = self.__wrapped__.__enter__()
         except BaseException as exception:
@@ -654,9 +652,9 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined
 
     async def __aenter__(self) -> Any:
         try:
-            # the request is sent here, after the wrapped stream() call has returned, and
-            # anthropic>=1.8.0 also prepares the request body here, so the params are activated
-            # again for the request body preparation wrapper to update
+            # the request is sent here, after stream() has returned, and anthropic>=1.8.0
+            # prepares its body here, so the params are made current again for the body
+            # preparation wrapper
             with self._self_params:
                 message_stream = await self.__wrapped__.__aenter__()
         except BaseException as exception:
@@ -704,9 +702,9 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-def
 
     async def __aenter__(self) -> Any:
         try:
-            # the request is sent here, after the wrapped stream() call has returned, and
-            # anthropic>=1.8.0 also prepares the request body here, so the params are activated
-            # again for the request body preparation wrapper to update
+            # the request is sent here, after stream() has returned, and anthropic>=1.8.0
+            # prepares its body here, so the params are made current again for the body
+            # preparation wrapper
             with self._self_params:
                 message_stream = await self.__wrapped__.__aenter__()
         except BaseException as exception:

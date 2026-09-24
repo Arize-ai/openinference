@@ -34,20 +34,19 @@ _instruments = ("anthropic >= 1.0.0",)
 
 class _RequestPreparation(NamedTuple):
     """
-    The private anthropic functions that prepare a request body, patched to record the body
-    actually sent (e.g. the ``stream`` flag added by messages.stream(), or the JSON schema that
-    messages.parse() derives from ``output_format``) as invocation parameters.
+    The private anthropic functions that prepare a request body, patched to record the body as
+    sent, e.g. with the ``stream`` flag that messages.stream() adds, as invocation parameters.
     """
 
-    module: str  # the module whose global name the SDK calls, which is where it must be patched
+    module: str  # the module the SDK looks the functions up in, so the one to patch
     sync_name: str
     async_name: str
     sync_wrapper: Callable[..., Any]
     async_wrapper: Callable[..., Any]
 
 
-# anthropic<1.8.0: the resource methods prepare the body as they build the request, through
-# anthropic._utils._transform.maybe_transform, which calls transform as a global of that module.
+# anthropic<1.8.0: the resource methods prepare the body when they build the request, through
+# anthropic._utils._transform.maybe_transform, which calls transform as a module global.
 _TRANSFORM = _RequestPreparation(
     "anthropic._utils._transform",
     "transform",
@@ -56,9 +55,9 @@ _TRANSFORM = _RequestPreparation(
     _AsyncTransformWrapper(),
 )
 
-# anthropic>=1.8.0: renamed to anthropic._utils._prepare.prepare_request_data, which also prepares
-# query parameters, and called from anthropic._base_client (which binds it as a module global)
-# when the request is sent rather than when it is built.
+# anthropic>=1.8.0: anthropic._utils._prepare.prepare_request_data, which prepares query
+# parameters too, called when the request is sent from anthropic._base_client, which imports it
+# as a module global.
 _PREPARE_REQUEST_DATA = _RequestPreparation(
     "anthropic._base_client",
     "prepare_request_data",
@@ -259,8 +258,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
     def _wrap_request_preparation(self) -> None:
         """
-        The patch only enriches the invocation parameters, so failing to apply it, e.g. because a
-        future anthropic version moves the functions again, must not stop the instrumentation.
+        The patch only enriches the invocation parameters, so failing to apply it must not stop
+        the instrumentation.
         """
         from anthropic import __version__ as anthropic_version
 

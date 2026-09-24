@@ -2302,9 +2302,8 @@ def test_request_body_preparation_is_instrumented_and_restored(
     tracer_provider: TracerProvider,
 ) -> None:
     """
-    The private request body preparation functions are patched to enrich the recorded
-    invocation parameters. anthropic 1.8.0 renamed them and moved their call site, so this
-    fails if a future version moves them again, which instrument() only logs a warning for.
+    instrument() only warns if the private request body preparation functions are missing, so
+    this fails instead when an anthropic release moves them.
     """
     anthropic_version = _get_anthropic_version()
     assert anthropic_version is not None, anthropic.__version__
@@ -2446,8 +2445,8 @@ def test_raw_response_is_recorded(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """
-    with_raw_response returns the HTTP response instead of the message. Its body has already been
-    read, so the message is recorded, and the caller still gets the response it asked for.
+    with_raw_response returns the HTTP response instead of the message. Its body is already read,
+    so the message is recorded.
     """
     client = _mock_anthropic_client(_message_handler)
 
@@ -2574,9 +2573,8 @@ def test_raw_event_stream_status_is_left_unset(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """
-    A raw streaming response is returned before its events are read, and a stream can still end
-    in an error event, so the span must not be recorded as successful. A transport can buffer the
-    body, e.g. a recorded cassette, which closes the response although its events are unread.
+    A raw event stream is returned before its events are read and can still end in an error
+    event, so its status is left unset, also when a transport buffered its body, e.g. a cassette.
     """
     body = _event_stream_body(error=True)
 
@@ -2684,8 +2682,9 @@ def test_streaming_create_as_context_manager_is_recorded(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """
-    The SDK stream's context manager returns the SDK stream itself, which bypassed the
-    instrumented iteration, and leaving the context early never finished the span.
+    The SDK stream's context manager returns the SDK stream itself, so the instrumentation has to
+    return its proxy for iteration to be recorded, and finish the span if the context is left
+    early.
     """
     client = _mock_anthropic_client(_event_stream_handler)
 

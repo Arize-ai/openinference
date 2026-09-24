@@ -114,11 +114,10 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         self._response_accumulator = _MessageResponseAccumulator()
         self._with_span = with_span
 
-    # The SDK stream's context manager returns the SDK stream itself, which would bypass the
-    # iteration below, so these return the proxy instead. Leaving the context before the stream
-    # is exhausted also has to finish the span, as iteration never gets to, recording the
-    # exception that left it, e.g. a cancelled task's CancelledError, which iteration does not
-    # catch.
+    # The SDK stream's context manager returns the SDK stream, which would bypass the iteration
+    # below, so these return the proxy. Exiting finishes the span if iteration has not, e.g. when
+    # the stream is left early, recording the exception that ended the context, e.g. a
+    # CancelledError, which iteration does not catch.
 
     def __enter__(self) -> "_MessagesStream":
         self.__wrapped__.__enter__()
@@ -157,8 +156,8 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         self._finish_tracing_on_exit(exc_val)
 
     def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
-        # GeneratorExit means a generator holding the context was closed early, which leaves the
-        # stream early just like the end of the context does, rather than failing the request
+        # GeneratorExit: a generator holding the context was closed, which leaves the stream
+        # early rather than failing the request
         if exception is None or isinstance(exception, GeneratorExit):
             self._finish_tracing()
             return
