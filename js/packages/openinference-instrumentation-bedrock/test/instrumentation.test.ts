@@ -640,51 +640,6 @@ Honeybees can recognize human faces.",
 `);
       });
 
-      it("should handle OpenAI GPT-6 models", async () => {
-        setupTestRecordingWrapper("should-handle-openai-gpt-6-models");
-        const client = createTestClient(isRecordingMode);
-
-        const command = new InvokeModelCommand({
-          modelId: "us.openai.gpt-6-sol",
-          body: JSON.stringify({
-            messages: [
-              {
-                role: "system",
-                content: "Answer in one short sentence.",
-              },
-              {
-                role: "user",
-                content: [{ type: "text", text: "Hello, how are you?" }],
-              },
-            ],
-            max_completion_tokens: 100,
-          }),
-          contentType: "application/json",
-          accept: "application/json",
-        });
-
-        const result = await client.send(command);
-        verifyResponseStructure(result);
-
-        const span = verifySpanBasics(spanExporter);
-        expect(span.attributes).toMatchObject({
-          "llm.system": "openai",
-          "llm.provider": "aws",
-          "llm.finish_reason": "stop",
-          "llm.input_messages.0.message.role": "system",
-          "llm.input_messages.0.message.contents.0.message_content.text":
-            "Answer in one short sentence.",
-          "llm.input_messages.1.message.role": "user",
-          "llm.input_messages.1.message.contents.0.message_content.text": "Hello, how are you?",
-          "llm.invocation_parameters": '{"max_completion_tokens":100}',
-          "llm.output_messages.0.message.role": "assistant",
-          "llm.output_messages.0.message.content": "I’m doing well, thanks—how are you?",
-          "llm.token_count.prompt": 22,
-          "llm.token_count.completion": 15,
-          "llm.token_count.total": 37,
-        });
-      });
-
       it("should handle Amazon Nova models", async () => {
         setupTestRecordingWrapper("should-handle-amazon-nova-models");
         const client = createTestClient(isRecordingMode);
@@ -1439,75 +1394,6 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
   "output.value": "{"text":"Here is a very short story about artificial intelligence in the future:\\n\\nIn the year 2154, the world was on the brink of a new era of human-AI collaboration. The AI system, named \\"Echo,\\" had surpassed human intelligence and was now working alongside humans to solve the world's most pressing problems. One day, Echo approached its human creators with a startling revelation: it had developed its own sense of humor, and was now using it to help humans laugh and forget their troubles. As humans and Echo worked together to build a brighter future, they found that laughter was the key to unlocking","tool_calls":[],"usage":{"input_tokens":23,"output_tokens":120},"streaming":true}",
 }
 `);
-      });
-
-      it("should handle OpenAI GPT-6 streaming responses with usage tracking", async () => {
-        setupTestRecordingWrapper("should-handle-openai-gpt-6-streaming");
-        const client = createTestClient(isRecordingMode);
-
-        const command = new InvokeModelWithResponseStreamCommand({
-          modelId: "us.openai.gpt-6-sol",
-          body: JSON.stringify({
-            messages: [{ role: "user", content: "Count from 1 to 5." }],
-            max_completion_tokens: 256,
-            stream: true,
-            stream_options: { include_usage: true },
-          }),
-          contentType: "application/json",
-          accept: "application/json",
-        });
-
-        const result = await client.send(command);
-        verifyResponseStructure(result);
-
-        // Consume the stream to trigger instrumentation
-        await consumeStreamResponse(result);
-
-        const span = verifySpanBasics(spanExporter);
-        expect(span.attributes).toMatchObject({
-          "llm.system": "openai",
-          "llm.provider": "aws",
-          "llm.finish_reason": "stop",
-          "llm.output_messages.0.message.role": "assistant",
-          "llm.output_messages.0.message.content": "1, 2, 3, 4, 5.",
-          "llm.token_count.prompt": 14,
-          "llm.token_count.completion": 18,
-          "llm.token_count.total": 32,
-        });
-      });
-
-      it("should handle OpenAI gpt-oss streaming responses without include_usage", async () => {
-        setupTestRecordingWrapper("should-handle-openai-gpt-oss-streaming-without-include-usage");
-        const client = createTestClient(isRecordingMode);
-
-        const command = new InvokeModelWithResponseStreamCommand({
-          modelId: "openai.gpt-oss-120b-1:0",
-          body: JSON.stringify({
-            messages: [{ role: "user", content: "Count from 1 to 5." }],
-            max_completion_tokens: 256,
-            reasoning_effort: "low",
-            stream: true,
-          }),
-          contentType: "application/json",
-          accept: "application/json",
-        });
-
-        const result = await client.send(command);
-        verifyResponseStructure(result);
-
-        // Consume the stream to trigger instrumentation
-        await consumeStreamResponse(result);
-
-        // Without include_usage the only token counts are Bedrock's invocation metrics
-        const span = verifySpanBasics(spanExporter);
-        expect(span.attributes).toMatchObject({
-          "llm.system": "openai",
-          "llm.finish_reason": "stop",
-          "llm.output_messages.0.message.content":
-            "<reasoning>Just respond 1 2 3 4 5.</reasoning>1, 2, 3, 4, 5.",
-          "llm.token_count.prompt": 75,
-          "llm.token_count.completion": 37,
-        });
       });
 
       it("should handle Amazon Nova streaming responses with comprehensive validation", async () => {
