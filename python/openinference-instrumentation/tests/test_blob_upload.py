@@ -99,6 +99,66 @@ def test_mask_passes_blob_context_to_uploader() -> None:
     assert uploader.blobs[0].attribute_key == INPUT_IMAGE_URL_KEY
 
 
+def test_externalize_blob_passes_decoded_image_to_uploader() -> None:
+    uploader = InMemoryUploader()
+    config = TraceConfig(blob_uploader=uploader)
+
+    uri = config.externalize_blob(
+        PNG_BYTES,
+        mime_type="image/png",
+        attribute_key=SpanAttributes.INPUT_VALUE,
+    )
+
+    assert uri.startswith("memory://")
+    assert len(uploader.blobs) == 1
+    assert uploader.blobs[0] == Blob(
+        data=PNG_BYTES,
+        mime_type="image/png",
+        modality="image",
+        attribute_key=SpanAttributes.INPUT_VALUE,
+    )
+
+
+@pytest.mark.parametrize(
+    "upload_result",
+    [None, "relative/path.png", "https://example.com/image with space.png"],
+)
+def test_externalize_blob_redacts_rejected_reference(upload_result: Optional[str]) -> None:
+    class RejectingUploader(InMemoryUploader):
+        def upload(self, blob: Blob) -> Optional[str]:
+            self.blobs.append(blob)
+            return upload_result
+
+    config = TraceConfig(blob_uploader=RejectingUploader())
+    assert (
+        config.externalize_blob(PNG_BYTES, mime_type="image/png", attribute_key="input.value")
+        == REDACTED_VALUE
+    )
+
+
+def test_externalize_blob_redacts_uploader_exception() -> None:
+    class RaisingUploader(InMemoryUploader):
+        def upload(self, blob: Blob) -> Optional[str]:
+            raise RuntimeError("upload failed")
+
+    config = TraceConfig(blob_uploader=RaisingUploader())
+    assert (
+        config.externalize_blob(PNG_BYTES, mime_type="image/png", attribute_key="input.value")
+        == REDACTED_VALUE
+    )
+
+
+def test_externalize_blob_redacts_without_uploader() -> None:
+    assert (
+        TraceConfig().externalize_blob(
+            PNG_BYTES,
+            mime_type="image/png",
+            attribute_key="input.value",
+        )
+        == REDACTED_VALUE
+    )
+
+
 def test_mask_redacts_oversized_image_without_uploader() -> None:
     config = TraceConfig(base64_image_max_length=100)
     assert config.mask(INPUT_IMAGE_URL_KEY, PNG_DATA_URI) == REDACTED_VALUE
