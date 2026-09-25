@@ -2346,8 +2346,14 @@ describe.each([
 
     const build = (reparentOrphanedSpans?: boolean, spanFilter?: SpanFilter) => {
       const exporter = new InMemorySpanExporter();
-      const proc = new Processor({ exporter, reparentOrphanedSpans, spanFilter });
-      const provider = new BasicTracerProvider({ spanProcessors: [toSdk2SpanShape, proc] });
+      const openInferenceSpanProcessor = new Processor({
+        exporter,
+        reparentOrphanedSpans,
+        spanFilter,
+      });
+      const provider = new BasicTracerProvider({
+        spanProcessors: [toSdk2SpanShape, openInferenceSpanProcessor],
+      });
       return { exporter, provider, tracer: provider.getTracer("test") };
     };
 
@@ -2377,10 +2383,11 @@ describe.each([
       const spans = exporter.getFinishedSpans();
       await provider.shutdown();
 
-      const byId = (id: string) => spans.find((s) => s.spanContext().spanId === id);
-      const exportedRoot = byId(root.spanContext().spanId);
-      const exportedFailed = byId(failed.spanContext().spanId);
-      const exportedRetried = byId(retried.spanContext().spanId);
+      const findExportedSpanById = (id: string) =>
+        spans.find((exportedSpan) => exportedSpan.spanContext().spanId === id);
+      const exportedRoot = findExportedSpanById(root.spanContext().spanId);
+      const exportedFailed = findExportedSpanById(failed.spanContext().spanId);
+      const exportedRetried = findExportedSpanById(retried.spanContext().spanId);
 
       // The root is renamed and carries the aggregated trace error.
       expect(exportedRoot?.name).toBe("ai.generateText my-fn");
@@ -2413,7 +2420,7 @@ describe.each([
       await provider.shutdown();
 
       const exportedNested = spans.find(
-        (s) => s.spanContext().spanId === nested.spanContext().spanId,
+        (exportedSpan) => exportedSpan.spanContext().spanId === nested.spanContext().spanId,
       );
       expect(exportedNested).toBeDefined();
       expect(
@@ -2443,13 +2450,13 @@ describe.each([
       const spans = exporter.getFinishedSpans();
       await provider.shutdown();
 
-      expect(spans.find((s) => s.name === "vercel.workflow")).toBeUndefined();
-      const promoted = spans.find((s) => s.name === "ai.eve.turn");
+      expect(spans.find((exportedSpan) => exportedSpan.name === "vercel.workflow")).toBeUndefined();
+      const promoted = spans.find((exportedSpan) => exportedSpan.name === "ai.eve.turn");
       expect(Reflect.get(promoted ?? {}, "parentSpanContext")).toBeUndefined();
       expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
         OpenInferenceSpanKind.AGENT,
       );
-      const child = spans.find((s) => s.name === "ai.streamText.doStream");
+      const child = spans.find((exportedSpan) => exportedSpan.name === "ai.streamText.doStream");
       expect(Reflect.get(child ?? {}, "parentSpanContext")).toMatchObject({
         spanId: turn.spanContext().spanId,
       });
