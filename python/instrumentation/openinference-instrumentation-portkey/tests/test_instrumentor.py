@@ -1,5 +1,6 @@
 import json
 from importlib import import_module
+from typing import Any, Iterator
 
 import pytest
 import respx
@@ -7,7 +8,17 @@ from httpx import Response
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.instrumentation.portkey._request_attributes_extractor import (
+    _RequestAttributesExtractor,
+)
+from openinference.semconv.trace import (
+    AudioAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 @pytest.mark.vcr(
@@ -332,3 +343,369 @@ def test_uninstrument_restores_all_wrapped_methods(
     assert chat_complete.AsyncCompletions.create is original_async_chat_create
     assert generation.Completions.create is original_prompt_create
     assert generation.AsyncCompletions.create is original_async_prompt_create
+
+
+def test_chat_completion_with_multimodal_input(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with respx.mock(
+        base_url="https://api.portkey.ai",
+        assert_all_called=True,
+    ) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(
+                status_code=200,
+                json={
+                    "id": "chatcmpl-multimodal",
+                    "object": "chat.completion",
+                    "created": 1750000000,
+                    "model": "gpt-4o-mini-2024-07-18",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "A cat sitting on a couch.",
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 20,
+                        "completion_tokens": 8,
+                        "total_tokens": 28,
+                    },
+                },
+            )
+        )
+
+        portkey = import_module("portkey_ai")
+        client = portkey.Portkey(
+            api_key="REDACTED",
+            virtual_key="REDACTED",
+        )
+        client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "What is in this image?"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "https://example.com/cat.png"},
+                        },
+                    ],
+                }
+            ],
+            model="gpt-4o-mini",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert (
+        attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini-2024-07-18"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS)
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE)
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE)
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 20
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 8
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 28
+
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    contents = f"{message}.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "What is in this image?"
+    )
+    assert (
+        attributes.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        )
+        == "https://example.com/cat.png"
+    )
+
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}")
+        == "A cat sitting on a couch."
+    )
+    assert not attributes
+
+
+def test_chat_completion_with_input_audio(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    with respx.mock(
+        base_url="https://api.portkey.ai",
+        assert_all_called=True,
+    ) as respx_mock:
+        respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(
+                status_code=200,
+                json={
+                    "id": "chatcmpl-multimodal-audio",
+                    "object": "chat.completion",
+                    "created": 1750000000,
+                    "model": "gpt-4o-mini-2024-07-18",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "The audio says meow.",
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 20,
+                        "completion_tokens": 8,
+                        "total_tokens": 28,
+                    },
+                },
+            )
+        )
+
+        portkey = import_module("portkey_ai")
+        client = portkey.Portkey(
+            api_key="REDACTED",
+            virtual_key="REDACTED",
+        )
+        client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "What does this audio say?"},
+                        {
+                            "type": "input_audio",
+                            "input_audio": {"data": "ZmFrZQ==", "format": "mp3"},
+                        },
+                    ],
+                }
+            ],
+            model="gpt-4o-mini",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert (
+        attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini-2024-07-18"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS)
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE)
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE)
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 20
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 8
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 28
+
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    contents = f"{message}.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "What does this audio say?"
+    )
+    assert (
+        attributes.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "audio"
+    )
+    assert (
+        attributes.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}."
+            f"{AudioAttributes.AUDIO_URL}"
+        )
+        == "data:audio/mpeg;base64,ZmFrZQ=="
+    )
+
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert (
+        attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}")
+        == "The audio says meow."
+    )
+    assert not attributes
+
+
+def test_message_content_as_tuple() -> None:
+    # The SDKs accept any iterable of content parts, not only lists.
+    message = {
+        "role": "user",
+        "content": (
+            {"type": "text", "text": "What is in this image?"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+        ),
+    }
+    attributes = dict(_RequestAttributesExtractor()._get_attributes_from_message_param(message))
+    assert attributes.pop(MessageAttributes.MESSAGE_ROLE) == "user"
+    contents = MessageAttributes.MESSAGE_CONTENTS
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "What is in this image?"
+    )
+    assert (
+        attributes.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        )
+        == "https://example.com/cat.png"
+    )
+    assert not attributes
+
+
+def test_chat_completion_with_generator_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    parts = (
+        {"type": "text", "text": "What is in this image?"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+    )
+    content: Iterator[Any] = (part for part in parts)
+
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=True) as respx_mock:
+        route = respx_mock.post("/v1/chat/completions").mock(
+            return_value=Response(
+                status_code=200,
+                json={
+                    "id": "chatcmpl-generator",
+                    "object": "chat.completion",
+                    "created": 1750000000,
+                    "model": "gpt-4o-mini",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": "A cat."},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                },
+            )
+        )
+        portkey = import_module("portkey_ai")
+        client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+        client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": content}],
+        )
+
+    # The generator is read once for the span, and the SDK still sends every part.
+    assert json.loads(route.calls.last.request.content)["messages"][0]["content"] == list(parts)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    input_messages = {
+        key: value
+        for key, value in (spans[0].attributes or {}).items()
+        if key.startswith(SpanAttributes.LLM_INPUT_MESSAGES)
+    }
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert input_messages.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    contents = f"{message}.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert (
+        input_messages.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        input_messages.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "What is in this image?"
+    )
+    assert (
+        input_messages.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "image"
+    )
+    assert (
+        input_messages.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        )
+        == "https://example.com/cat.png"
+    )
+    assert not input_messages
+
+
+def _failing_content() -> Iterator[Any]:
+    yield {"type": "text", "text": "What is in this image?"}
+    raise RuntimeError("content failed")
+
+
+def _assert_failed_content_span(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description == "RuntimeError: content failed"
+    assert [event.name for event in span.events] == ["exception"]
+
+
+def test_chat_completion_with_failing_generator_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    portkey = import_module("portkey_ai")
+    client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=False) as respx_mock:
+        route = respx_mock.post("/v1/chat/completions")
+        with pytest.raises(RuntimeError, match="content failed"):
+            client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": _failing_content()}],
+            )
+    assert not route.called
+    _assert_failed_content_span(in_memory_span_exporter)
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_with_failing_generator_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    portkey = import_module("portkey_ai")
+    client = portkey.AsyncPortkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=False) as respx_mock:
+        route = respx_mock.post("/v1/chat/completions")
+        with pytest.raises(RuntimeError, match="content failed"):
+            await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": _failing_content()}],
+            )
+    assert not route.called
+    _assert_failed_content_span(in_memory_span_exporter)
