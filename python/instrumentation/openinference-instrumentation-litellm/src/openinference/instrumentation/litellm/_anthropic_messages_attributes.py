@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import codecs
 import json
-from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, Union
 
 from opentelemetry.util.types import AttributeValue
 
@@ -120,6 +120,39 @@ def _get_attributes_from_anthropic_content_blocks(
                 yield f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_DATA}", data
 
 
+def _expand_tool_result_messages(
+    messages: Iterable[Mapping[str, Any]],
+) -> List[Mapping[str, Any]]:
+    """Split a message made only of tool_result blocks into one tool message per block.
+
+    Parallel tool calls answer with a single user message carrying one tool_result
+    block per call. Recording that message as-is writes every block to the same
+    content and tool_call_id keys, so only the last block survives. Each block
+    becomes its own message with role "tool" instead. Mixed contents are left
+    untouched.
+    """
+    expanded: List[Mapping[str, Any]] = []
+    for message in messages:
+        content = message.get("content")
+        if (
+            isinstance(content, Sequence)
+            and not isinstance(content, (str, bytes))
+            and len(content) > 0
+            and all(_get_block_type(block) == "tool_result" for block in content)
+        ):
+            for block in content:
+                expanded.append(
+                    {
+                        "role": "tool",
+                        "content": _get_block_field(block, "content"),
+                        "tool_call_id": _get_block_field(block, "tool_use_id"),
+                    }
+                )
+        else:
+            expanded.append(message)
+    return expanded
+
+
 def _get_attributes_from_anthropic_input_messages(
     messages: Iterable[Mapping[str, Any]],
     system: Optional[Union[str, Iterable[Mapping[str, Any]]]] = None,
@@ -131,10 +164,12 @@ def _get_attributes_from_anthropic_input_messages(
     synthetic system message so OI consumers see it in LLM_INPUT_MESSAGES.
     """
     start = 1 if system else 0
-    for i, message in enumerate(messages, start=start):
+    for i, message in enumerate(_expand_tool_result_messages(messages), start=start):
         prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.{i}"
         if role := message.get("role"):
             yield f"{prefix}.{MessageAttributes.MESSAGE_ROLE}", role
+        if (tool_call_id := message.get("tool_call_id")) is not None:
+            yield f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALL_ID}", tool_call_id
         if (content := message.get("content")) is not None:
             yield from _get_attributes_from_anthropic_content_blocks(content, prefix)
 
