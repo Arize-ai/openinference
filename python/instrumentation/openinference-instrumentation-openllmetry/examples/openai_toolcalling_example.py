@@ -21,6 +21,7 @@ from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from phoenix.otel import register
 
+from openinference.instrumentation import tool_span
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 
 # --------------------------------------------------------------------------------
@@ -80,11 +81,11 @@ if __name__ == "__main__":
     # ------------------------------
     # Tool Functions
     # ------------------------------
-    @tracer.tool
+    @tool_span(tracer=tracer)
     def get_weather(location: str) -> str:
         return "100 degrees"
 
-    @tracer.tool
+    @tool_span(tracer=tracer)
     def get_traffic(location: str) -> str:
         return "high level traffic"
 
