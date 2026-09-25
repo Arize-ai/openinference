@@ -1,5 +1,14 @@
 # @arizeai/openinference-instrumentation-langchain-v0
 
+## 0.1.2
+
+### Patch Changes
+
+- b20a083: Keep the content blocks of multimodal LangChain messages on spans: text and image blocks (OpenAI-style `image_url` and LangChain standard `image` blocks, given as a url or base64 data) are recorded under `message.contents` instead of being dropped.
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
 ## 0.1.1
 
 ### Patch Changes
