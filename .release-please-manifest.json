@@ -35,7 +35,7 @@
     "python/instrumentation/openinference-instrumentation-openllmetry": "0.1.20",
     "java/openinference-semantic-conventions": "0.1.20",
     "java/openinference-instrumentation": "0.1.10",
-    "java/instrumentation/openinference-instrumentation-langchain4j": "0.1.8",
+    "java/instrumentation/openinference-instrumentation-langchain4j": "0.1.9",
     "java/instrumentation/openinference-instrumentation-springAI": "0.1.9",
     "java/instrumentation/openinference-instrumentation-annotation": "0.1.2",
     "java/instrumentation/openinference-instrumentation-adk-java": "0.1.1",
