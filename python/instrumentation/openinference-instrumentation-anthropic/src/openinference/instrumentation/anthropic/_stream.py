@@ -1,4 +1,5 @@
 from functools import lru_cache
+from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -7,6 +8,7 @@ from typing import (
     Iterator,
     Optional,
     Tuple,
+    Type,
 )
 
 from opentelemetry import trace as trace_api
@@ -111,6 +113,61 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         super().__init__(stream)
         self._response_accumulator = _MessageResponseAccumulator()
         self._with_span = with_span
+
+    # The SDK stream's context manager returns the SDK stream, which would bypass the iteration
+    # below, so these return the proxy. Exiting finishes the span if iteration has not, e.g. when
+    # the stream is left early, recording the exception that ended the context, e.g. a
+    # CancelledError, which iteration does not catch.
+
+    def __enter__(self) -> "_MessagesStream":
+        self.__wrapped__.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+        except BaseException as exception:
+            # e.g. closing the response failed
+            self._finish_tracing_on_exit(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
+
+    async def __aenter__(self) -> "_MessagesStream":
+        await self.__wrapped__.__aenter__()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseException as exception:
+            # e.g. closing the response failed, or the task was cancelled while it closed
+            self._finish_tracing_on_exit(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
+
+    def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
+        # GeneratorExit: a generator holding the context was closed, which leaves the stream
+        # early rather than failing the request
+        if exception is None or isinstance(exception, GeneratorExit):
+            self._finish_tracing()
+            return
+        self._with_span.record_exception(exception)
+        self._finish_tracing(
+            status=trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+        )
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:

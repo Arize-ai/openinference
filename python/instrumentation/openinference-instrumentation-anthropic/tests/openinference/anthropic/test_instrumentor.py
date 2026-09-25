@@ -1,8 +1,20 @@
 # ruff: noqa: E501
+import asyncio
 import json
 import random
 import string
-from typing import Any, Callable, Dict, Optional
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    ClassVar,
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Optional,
+    Type,
+)
 
 import anthropic
 import httpx2
@@ -27,19 +39,26 @@ from anthropic.types import (
     ToolUseBlockParam,
     Usage,
 )
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from pydantic import BaseModel
-from wrapt import BoundFunctionWrapper
+from pydantic import BaseModel, field_validator
+from wrapt import BoundFunctionWrapper, FunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.anthropic import AnthropicInstrumentor
+from openinference.instrumentation.anthropic import (
+    AnthropicInstrumentor,
+    _get_anthropic_version,
+)
 from openinference.instrumentation.anthropic._stream import _MessageExtractor
 from openinference.instrumentation.anthropic._wrappers import (
     _get_llm_input_messages,
     _get_llm_token_counts,
     _get_output_messages,
+    _Params,
+    _PrepareRequestDataWrapper,
+    _TransformWrapper,
 )
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -61,6 +80,108 @@ def _mock_anthropic_client(handler: Callable[[Any], Any]) -> Anthropic:
     """Build an ``Anthropic`` client whose HTTP transport is mocked by ``handler``."""
     transport = httpx2.MockTransport(handler)
     return Anthropic(api_key="sk-ant-fake", http_client=httpx2.Client(transport=transport))
+
+
+def _mock_async_anthropic_client(handler: Callable[[Any], Any]) -> AsyncAnthropic:
+    """Build an ``AsyncAnthropic`` client whose HTTP transport is mocked by ``handler``."""
+    transport = httpx2.MockTransport(handler)
+    return AsyncAnthropic(
+        api_key="sk-ant-fake", http_client=httpx2.AsyncClient(transport=transport)
+    )
+
+
+_REQUEST_KWARGS: Dict[str, Any] = {
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1000,
+    "messages": [{"role": "user", "content": "hello"}],
+}
+
+
+def _bad_request_handler(request: Any) -> Any:
+    """A non-retryable error response, so the client does not back off before raising."""
+    return httpx2.Response(
+        status_code=400,
+        json={"type": "error", "error": {"type": "invalid_request_error", "message": "nope"}},
+    )
+
+
+_MESSAGE_JSON: Dict[str, Any] = {
+    "id": "msg_1",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-4-6",
+    "content": [{"type": "text", "text": "hi"}],
+    "stop_reason": "end_turn",
+    "stop_sequence": None,
+    "usage": {"input_tokens": 3, "output_tokens": 1},
+}
+
+
+def _message_handler(request: Any) -> Any:
+    return httpx2.Response(status_code=200, json=_MESSAGE_JSON)
+
+
+def _unread_message_handler(request: Any) -> Any:
+    """A response whose body is streamed from the transport, so it stays unread until consumed."""
+    return httpx2.Response(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        content=iter([json.dumps(_MESSAGE_JSON).encode()]),
+    )
+
+
+def _async_unread_message_handler(request: Any) -> Any:
+    async def content() -> Any:
+        yield json.dumps(_MESSAGE_JSON).encode()
+
+    return httpx2.Response(
+        status_code=200, headers={"content-type": "application/json"}, content=content()
+    )
+
+
+def _event_stream_body(error: bool = False) -> bytes:
+    """_MESSAGE_JSON as server-sent events, or ending in an error event instead of message_stop."""
+    events: List[Dict[str, Any]] = [
+        {"type": "message_start", "message": {**_MESSAGE_JSON, "content": []}},
+        {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "hi"}},
+        {"type": "content_block_stop", "index": 0},
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+            "usage": {"output_tokens": 1},
+        },
+        {"type": "message_stop"},
+    ]
+    if error:
+        events[-1] = {
+            "type": "error",
+            "error": {"type": "overloaded_error", "message": "Overloaded"},
+        }
+    body = "".join(f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events)
+    return body.encode()
+
+
+def _event_stream_handler(request: Any) -> Any:
+    return httpx2.Response(
+        status_code=200, headers={"content-type": "text/event-stream"}, content=_event_stream_body()
+    )
+
+
+def _get_span(exporter: InMemorySpanExporter) -> ReadableSpan:
+    (span,) = exporter.get_finished_spans()
+    return span
+
+
+def _assert_error_span(
+    exporter: InMemorySpanExporter, exception_type: Type[BaseException]
+) -> ReadableSpan:
+    """Asserts that the one finished span failed and recorded exactly one ``exception_type``."""
+    span = _get_span(exporter)
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    (event,) = [event for event in span.events if event.name == "exception"]
+    assert str((event.attributes or {})["exception.type"]).endswith(exception_type.__qualname__)
+    return span
 
 
 def _get_tool_use_id(message: Message) -> Optional[str]:
@@ -2175,6 +2296,603 @@ def test_anthropic_uninstrumentation(
     assert not isinstance(AsyncBetaMessages.stream, BoundFunctionWrapper)
     assert not isinstance(BetaMessages.parse, BoundFunctionWrapper)
     assert not isinstance(AsyncBetaMessages.parse, BoundFunctionWrapper)
+
+
+def test_request_body_preparation_is_instrumented_and_restored(
+    tracer_provider: TracerProvider,
+) -> None:
+    """
+    instrument() only warns if the private request body preparation functions are missing, so
+    this fails instead when an anthropic release moves them.
+    """
+    anthropic_version = _get_anthropic_version()
+    assert anthropic_version is not None, anthropic.__version__
+    if anthropic_version >= (1, 8, 0):
+        import anthropic._base_client as module
+
+        sync_name, async_name = "prepare_request_data", "async_prepare_request_data"
+    else:
+        import anthropic._utils._transform as module  # type: ignore[no-redef]
+
+        sync_name, async_name = "transform", "async_transform"
+    original = getattr(module, sync_name)
+    async_original = getattr(module, async_name)
+
+    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
+    try:
+        assert isinstance(getattr(module, sync_name), FunctionWrapper)
+        assert isinstance(getattr(module, async_name), FunctionWrapper)
+    finally:
+        # the instrumentor is a singleton, so a failure here would otherwise leave every
+        # later test instrumented against this test's tracer provider
+        AnthropicInstrumentor().uninstrument()
+
+    assert getattr(module, sync_name) is original
+    assert getattr(module, async_name) is async_original
+
+
+@pytest.mark.parametrize(
+    "wrapper,location,expected",
+    [
+        pytest.param(_TransformWrapper(), {}, {"max_tokens": 256, "stream": True}, id="transform"),
+        pytest.param(
+            _PrepareRequestDataWrapper(),
+            {"location": "body"},
+            {"max_tokens": 256, "stream": True},
+            id="prepare_request_data-body",
+        ),
+        pytest.param(
+            _PrepareRequestDataWrapper(),
+            {"location": "query"},
+            {"max_tokens": 256},
+            id="prepare_request_data-query",
+        ),
+    ],
+)
+def test_only_request_bodies_are_recorded_as_invocation_parameters(
+    wrapper: Callable[..., Any],
+    location: Dict[str, str],
+    expected: Dict[str, Any],
+) -> None:
+    """
+    anthropic<1.8.0 prepares request bodies only. anthropic>=1.8.0 prepares request bodies and
+    query parameters with the same function, telling them apart with a ``location`` keyword.
+    Only bodies carry invocation parameters.
+    """
+    prepared = {"stream": True}
+
+    def prepare(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        return prepared
+
+    params = _Params({"max_tokens": 256})
+    with params:
+        assert wrapper(prepare, None, (prepared,), location) is prepared
+    assert dict(params) == expected
+
+
+@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
+def test_failed_streaming_request_is_recorded(
+    beta: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    The streaming helpers only make the request when the manager is entered, so a request
+    that fails there must still end the span.
+    """
+    client = _mock_anthropic_client(_bad_request_handler)
+    messages: Any = client.beta.messages if beta else client.messages
+
+    with pytest.raises(anthropic.BadRequestError):
+        with messages.stream(**_REQUEST_KWARGS):
+            pass
+
+    span = _assert_error_span(in_memory_span_exporter, anthropic.BadRequestError)
+    attributes = dict(span.attributes or {})
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
+        "max_tokens": 1000,
+        "stream": True,
+    }
+
+
+@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
+async def test_failed_async_streaming_request_is_recorded(
+    beta: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_bad_request_handler)
+    messages: Any = client.beta.messages if beta else client.messages
+
+    with pytest.raises(anthropic.BadRequestError):
+        async with messages.stream(**_REQUEST_KWARGS):
+            pass
+
+    span = _assert_error_span(in_memory_span_exporter, anthropic.BadRequestError)
+    attributes = dict(span.attributes or {})
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
+        "max_tokens": 1000,
+        "stream": True,
+    }
+
+
+@pytest.mark.parametrize("beta", [False, True], ids=["messages", "beta_messages"])
+async def test_cancelled_async_streaming_request_is_recorded(
+    beta: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    A cancelled task, e.g. under asyncio.timeout(), raises CancelledError, which is a
+    BaseException rather than an Exception, and must still end the span.
+    """
+
+    def cancelled_handler(request: Any) -> Any:
+        raise asyncio.CancelledError
+
+    client = _mock_async_anthropic_client(cancelled_handler)
+    messages: Any = client.beta.messages if beta else client.messages
+
+    with pytest.raises(asyncio.CancelledError):
+        async with messages.stream(**_REQUEST_KWARGS):
+            pass
+
+    _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
+
+
+def test_raw_response_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    with_raw_response returns the HTTP response instead of the message. Its body is already read,
+    so the message is recorded.
+    """
+    client = _mock_anthropic_client(_message_handler)
+
+    response = client.messages.with_raw_response.create(**_REQUEST_KWARGS)
+
+    assert isinstance(response, anthropic.APIResponse)
+    assert response.parse().content[0].text == "hi"
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.OK
+    attributes = dict(span.attributes or {})
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
+    assert json.loads(str(attributes[OUTPUT_VALUE]))["content"][0]["text"] == "hi"
+    assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
+
+
+async def test_async_raw_response_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_message_handler)
+
+    response = await client.messages.with_raw_response.create(**_REQUEST_KWARGS)
+
+    assert isinstance(response, anthropic.AsyncAPIResponse)
+    assert (await response.parse()).content[0].text == "hi"
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.OK
+    attributes = dict(span.attributes or {})
+    assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
+    assert json.loads(str(attributes[OUTPUT_VALUE]))["content"][0]["text"] == "hi"
+    assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
+
+
+class _City(BaseModel):
+    city: str
+    validations: ClassVar[int] = 0
+
+    @field_validator("city")
+    @classmethod
+    def count_validations(cls, city: str) -> str:
+        cls.validations += 1
+        return city
+
+
+def _parsed_message_handler(request: Any) -> Any:
+    content = [{"type": "text", "text": json.dumps({"city": "Paris"})}]
+    return httpx2.Response(status_code=200, json={**_MESSAGE_JSON, "content": content})
+
+
+def test_raw_parse_response_is_left_to_the_caller(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    parse() validates the response against the caller's output_format, which is caller code
+    that must run only when the caller parses the raw response itself.
+    """
+    _City.validations = 0
+    client = _mock_anthropic_client(_parsed_message_handler)
+
+    response = client.beta.messages.with_raw_response.parse(**_REQUEST_KWARGS, output_format=_City)
+
+    assert _City.validations == 0
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert response.parse().parsed_output == _City(city="Paris")
+
+
+def test_raw_response_with_middleware_post_parser_is_left_to_the_caller(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    Middleware can attach a post_parser to any request, which is caller code that must run only
+    when the caller parses the raw response itself.
+    """
+    post_parsed: List[Any] = []
+
+    def post_parser(message: Any) -> Any:
+        post_parsed.append(message)
+        return message
+
+    def middleware(request: Any, call_next: Callable[[Any], Any]) -> Any:
+        request = request.copy()
+        request.options.post_parser = post_parser
+        return call_next(request)
+
+    client = Anthropic(
+        api_key="sk-ant-fake",
+        middleware=[middleware],
+        http_client=httpx2.Client(transport=httpx2.MockTransport(_message_handler)),
+    )
+
+    response = client.messages.with_raw_response.create(**_REQUEST_KWARGS)
+
+    assert not post_parsed
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert response.parse().content[0].text == "hi"
+    assert len(post_parsed) == 1
+
+
+async def test_async_raw_parse_response_is_left_to_the_caller(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    _City.validations = 0
+    client = _mock_async_anthropic_client(_parsed_message_handler)
+
+    response = await client.beta.messages.with_raw_response.parse(
+        **_REQUEST_KWARGS, output_format=_City
+    )
+
+    assert _City.validations == 0
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.OK
+    assert (await response.parse()).parsed_output == _City(city="Paris")
+
+
+@pytest.mark.parametrize("buffered", [False, True], ids=["streamed", "buffered"])
+def test_raw_event_stream_status_is_left_unset(
+    buffered: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    A raw event stream is returned before its events are read and can still end in an error
+    event, so its status is left unset, also when a transport buffered its body, e.g. a cassette.
+    """
+    body = _event_stream_body(error=True)
+
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            content=body if buffered else iter([body]),
+        )
+
+    client = _mock_anthropic_client(handler)
+
+    response = client.messages.with_raw_response.create(**_REQUEST_KWARGS, stream=True)
+    span = _get_span(in_memory_span_exporter)
+    with pytest.raises(anthropic.APIStatusError):
+        for _ in response.parse():
+            pass
+
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+
+
+def test_streaming_response_body_is_left_to_the_caller(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    with_streaming_response leaves the body unread for the caller, so it is not parsed.
+    """
+    client = _mock_anthropic_client(_unread_message_handler)
+
+    with client.messages.with_streaming_response.create(**_REQUEST_KWARGS) as response:
+        assert not response.is_closed
+        span = _get_span(in_memory_span_exporter)
+        assert response.parse().content[0].text == "hi"
+
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert OUTPUT_VALUE not in (span.attributes or {})
+
+
+async def test_async_streaming_response_body_is_left_to_the_caller(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_async_unread_message_handler)
+
+    async with client.messages.with_streaming_response.create(**_REQUEST_KWARGS) as response:
+        assert not response.is_closed
+        span = _get_span(in_memory_span_exporter)
+        assert (await response.parse()).content[0].text == "hi"
+
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert OUTPUT_VALUE not in (span.attributes or {})
+
+
+@pytest.mark.parametrize(
+    "extra_body",
+    [
+        pytest.param({"self": "value"}, id="self"),
+        pytest.param({1: "value"}, id="non-string"),
+    ],
+)
+def test_any_request_body_key_is_recorded_without_raising(
+    extra_body: Dict[Any, Any],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    anthropic>=1.8.0 merges extra_body into the request body before it is prepared, so the
+    prepared body recorded as invocation parameters can have any keys.
+    """
+    sent: List[Dict[str, Any]] = []
+
+    def handler(request: Any) -> Any:
+        sent.append(json.loads(request.content))
+        return _message_handler(request)
+
+    client = _mock_anthropic_client(handler)
+
+    client.messages.create(**_REQUEST_KWARGS, extra_body=extra_body)
+
+    ((key, value),) = extra_body.items()
+    assert sent[0][str(key)] == value
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.OK
+    anthropic_version = _get_anthropic_version()
+    assert anthropic_version is not None, anthropic.__version__
+    if anthropic_version >= (1, 8, 0):
+        # earlier versions prepare the body before extra_body is merged into it
+        attributes = dict(span.attributes or {})
+        assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS]))[str(key)] == value
+
+
+@pytest.mark.parametrize(
+    "exhaust,status_code,texts",
+    [
+        pytest.param(True, trace_api.StatusCode.OK, ["hi"], id="exhausted"),
+        pytest.param(False, trace_api.StatusCode.UNSET, [], id="left_early"),
+    ],
+)
+def test_streaming_create_as_context_manager_is_recorded(
+    exhaust: bool,
+    status_code: trace_api.StatusCode,
+    texts: List[str],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    The SDK stream's context manager returns the SDK stream itself, so the instrumentation has to
+    return its proxy for iteration to be recorded, and finish the span if the context is left
+    early.
+    """
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    with client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
+        for _ in stream:
+            if not exhaust:
+                break
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == status_code
+    output = json.loads(str(dict(span.attributes or {})[OUTPUT_VALUE]))
+    assert [block["text"] for block in output["content"]] == texts
+
+
+@pytest.mark.parametrize(
+    "exhaust,status_code,texts",
+    [
+        pytest.param(True, trace_api.StatusCode.OK, ["hi"], id="exhausted"),
+        pytest.param(False, trace_api.StatusCode.UNSET, [], id="left_early"),
+    ],
+)
+async def test_async_streaming_create_as_context_manager_is_recorded(
+    exhaust: bool,
+    status_code: trace_api.StatusCode,
+    texts: List[str],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_event_stream_handler)
+
+    async with await client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
+        async for _ in stream:
+            if not exhaust:
+                break
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == status_code
+    output = json.loads(str(dict(span.attributes or {})[OUTPUT_VALUE]))
+    assert [block["text"] for block in output["content"]] == texts
+
+
+def test_exception_leaving_streaming_create_context_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    with pytest.raises(RuntimeError):
+        with client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
+            for _ in stream:
+                raise RuntimeError("stop")
+
+    _assert_error_span(in_memory_span_exporter, RuntimeError)
+
+
+def test_exception_closing_streaming_create_context_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    Leaving the context closes the response, which can itself fail after the body of the
+    context completed normally.
+    """
+
+    class FailingToCloseStream(httpx2.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield _event_stream_body()
+
+        def close(self) -> None:
+            raise OSError("close failed")
+
+    def handler(request: Any) -> Any:
+        return httpx2.Response(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            stream=FailingToCloseStream(),
+        )
+
+    client = _mock_anthropic_client(handler)
+
+    with pytest.raises(OSError):
+        with client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
+            next(iter(stream))
+
+    _assert_error_span(in_memory_span_exporter, OSError)
+
+
+def test_closing_generator_holding_streaming_create_context_is_not_an_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    Closing a generator that holds the context raises GeneratorExit through it, which leaves the
+    stream early rather than failing the request.
+    """
+    client = _mock_anthropic_client(_event_stream_handler)
+
+    def events() -> Generator[Any, None, None]:
+        with client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
+            yield from stream
+
+    generator = events()
+    next(generator)
+    generator.close()
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert not span.events
+
+
+async def test_closing_async_generator_holding_streaming_create_context_is_not_an_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = _mock_async_anthropic_client(_event_stream_handler)
+
+    async def events() -> AsyncGenerator[Any, None]:
+        async with await client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
+            async for event in stream:
+                yield event
+
+    generator = events()
+    await generator.__anext__()
+    await generator.aclose()
+
+    span = _get_span(in_memory_span_exporter)
+    assert span.status.status_code == trace_api.StatusCode.UNSET
+    assert not span.events
+
+
+async def test_cancellation_leaving_async_streaming_create_context_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    A task cancelled while awaiting the next event raises CancelledError, which is a
+    BaseException that iteration does not catch, so the context has to record it.
+    """
+    first_event_read = asyncio.Event()
+
+    def handler(request: Any) -> Any:
+        async def content() -> Any:
+            yield _event_stream_body().split(b"\n\n", 1)[0] + b"\n\n"
+            await asyncio.Event().wait()  # the next event never arrives
+
+        return httpx2.Response(
+            status_code=200, headers={"content-type": "text/event-stream"}, content=content()
+        )
+
+    client = _mock_async_anthropic_client(handler)
+
+    async def consume() -> None:
+        async with await client.messages.create(**_REQUEST_KWARGS, stream=True) as stream:
+            async for _ in stream:
+                first_event_read.set()
+
+    task = asyncio.create_task(consume())
+    await first_event_read.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
+
+
+@pytest.mark.parametrize(
+    "method,kwargs",
+    [
+        pytest.param("create", {}, id="create"),
+        pytest.param("create", {"stream": True}, id="create_stream"),
+        pytest.param("parse", {}, id="parse"),
+    ],
+)
+async def test_cancelled_async_request_is_recorded(
+    method: str,
+    kwargs: Dict[str, Any],
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """
+    A cancelled task, e.g. under asyncio.timeout(), raises CancelledError, which is a
+    BaseException rather than an Exception, and must still end the span.
+    """
+
+    def cancelled_handler(request: Any) -> Any:
+        raise asyncio.CancelledError
+
+    client = _mock_async_anthropic_client(cancelled_handler)
+
+    with pytest.raises(asyncio.CancelledError):
+        await getattr(client.messages, method)(**_REQUEST_KWARGS, **kwargs)
+
+    _assert_error_span(in_memory_span_exporter, asyncio.CancelledError)
+
+
+def test_interrupted_request_is_recorded(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    def interrupted_handler(request: Any) -> Any:
+        raise KeyboardInterrupt
+
+    client = _mock_anthropic_client(interrupted_handler)
+
+    with pytest.raises(KeyboardInterrupt):
+        client.messages.create(**_REQUEST_KWARGS)
+
+    _assert_error_span(in_memory_span_exporter, KeyboardInterrupt)
 
 
 # Ensure we're using the common OITracer from common openinference-instrumentation pkg

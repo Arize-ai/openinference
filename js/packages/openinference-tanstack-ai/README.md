@@ -136,7 +136,7 @@ For a tool loop, the trace will typically look like:
 - `TOOL`
 - `LLM 2`
 
-The `AGENT` span captures the top-level request and final response. The `LLM` spans capture provider/model metadata, input messages, output messages, tool definitions, and token counts. The `TOOL` spans capture tool names, arguments, outputs, and errors.
+The `AGENT` span captures the top-level request and final response. The `LLM` spans capture provider/model metadata, input messages, output messages, tool definitions, token counts, and the model's finish reason (`llm.finish_reason`) when provided. The `TOOL` spans capture tool names, arguments, outputs, and errors.
 
 ## Examples
 

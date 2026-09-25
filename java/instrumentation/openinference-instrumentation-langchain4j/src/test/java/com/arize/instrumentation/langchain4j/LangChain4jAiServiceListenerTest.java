@@ -157,9 +157,8 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
                 .isEqualTo(179L);
 
         // Finish reason
-        Object value = attrs.remove(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
-
-        assertThat(value).isInstanceOf(List.class);
+        assertThat(attrs.remove(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("TOOL_EXECUTION");
 
         // Input messages: system at index 0, user at index 1
         assertThat(attrs.remove(AttributeKey.stringKey("llm.input_messages.0.message.role")))
@@ -261,9 +260,8 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
                 .isEqualTo(202L);
 
         // Finish reason
-        List<String> finishReasons =
-                (List<String>) finalLlmAttrs.remove(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
-        assertThat(finishReasons).containsExactly("STOP");
+        assertThat(finalLlmAttrs.remove(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("STOP");
 
         // Input messages: system at index 0, user at index 1
         assertThat(finalLlmAttrs.remove(AttributeKey.stringKey("llm.input_messages.0.message.role")))
@@ -465,9 +463,8 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
                 .isEqualTo(179L);
 
         // Finish reason
-        List<String> finishReasons =
-                (List<String>) llmAttrs.remove(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
-        assertThat(finishReasons).containsExactly("TOOL_EXECUTION");
+        assertThat(llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("TOOL_EXECUTION");
 
         // llm.input_messages.* should be hidden (narrow flag)
         assertThat(llmAttrs.remove(AttributeKey.stringKey("llm.input_messages.0.message.role")))
@@ -562,9 +559,8 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
                 .isEqualTo(202L);
 
         // Finish reason
-        List<String> finalFinishReasons =
-                (List<String>) finalLlmAttrs.remove(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
-        assertThat(finalFinishReasons).containsExactly("STOP");
+        assertThat(finalLlmAttrs.remove(AttributeKey.stringKey(SemanticConventions.LLM_FINISH_REASON)))
+                .isEqualTo("STOP");
 
         // Output messages
         assertThat(finalLlmAttrs.remove(AttributeKey.stringKey("llm.output_messages.0.message.role")))
