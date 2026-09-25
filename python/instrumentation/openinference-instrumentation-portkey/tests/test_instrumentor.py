@@ -656,3 +656,56 @@ def test_chat_completion_with_generator_content(
         == "https://example.com/cat.png"
     )
     assert not input_messages
+
+
+def _failing_content() -> Iterator[Any]:
+    yield {"type": "text", "text": "What is in this image?"}
+    raise RuntimeError("content failed")
+
+
+def _assert_failed_content_span(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == trace_api.StatusCode.ERROR
+    assert span.status.description == "RuntimeError: content failed"
+    assert [event.name for event in span.events] == ["exception"]
+
+
+def test_chat_completion_with_failing_generator_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    portkey = import_module("portkey_ai")
+    client = portkey.Portkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=False) as respx_mock:
+        route = respx_mock.post("/v1/chat/completions")
+        with pytest.raises(RuntimeError, match="content failed"):
+            client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": _failing_content()}],
+            )
+    assert not route.called
+    _assert_failed_content_span(in_memory_span_exporter)
+
+
+@pytest.mark.asyncio
+async def test_async_chat_completion_with_failing_generator_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: trace_api.TracerProvider,
+    setup_portkey_instrumentation: None,
+) -> None:
+    in_memory_span_exporter.clear()
+    portkey = import_module("portkey_ai")
+    client = portkey.AsyncPortkey(api_key="REDACTED", virtual_key="REDACTED")
+    with respx.mock(base_url="https://api.portkey.ai", assert_all_called=False) as respx_mock:
+        route = respx_mock.post("/v1/chat/completions")
+        with pytest.raises(RuntimeError, match="content failed"):
+            await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": _failing_content()}],
+            )
+    assert not route.called
+    _assert_failed_content_span(in_memory_span_exporter)
