@@ -6,7 +6,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { isLikelyAISDKSpan } from "./typeUtils.js";
+import { getParentSpanId, isLikelyAISDKSpan } from "./typeUtils.js";
 
 /**
  * Reparents an AI span that would be orphaned by span filtering.
@@ -44,7 +44,7 @@ export const reparentOrphanedSpan = (span: Span, parentContext: Context): void =
   // SpanContext, with no `attributes` — even though its spanId is correct and the parent is
   // itself exported. "Can't inspect" is NOT "non-AI": treating it as non-AI re-roots the child
   // off an exported AI parent (orphaning it). When the parent isn't inspectable, leave the
-  // child attached; the parentSpanId link stays valid if the parent is exported.
+  // child attached; the parent link stays valid if the parent is exported.
   const parentAttributes = Reflect.get(parentSpan, "attributes");
   if (parentAttributes == null) return;
 
@@ -81,7 +81,7 @@ export const reparentOrphanedSpan = (span: Span, parentContext: Context): void =
  * onEnd, after attribute conversion and before the export filter.
  */
 export const promoteReparentedRoot = (span: ReadableSpan): void => {
-  if (span.parentSpanId != null) return;
+  if (getParentSpanId(span) != null) return;
   if (span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] != null) return;
   if (!isLikelyAISDKSpan(span)) return;
 
