@@ -644,6 +644,8 @@ export const normalizeRequestContentBlocks = withSafety({
         return hasStringProperty({ requestBody, key: "prompt" })
           ? convertSimpleTextToBedrockMessages(requestBody, "prompt")
           : fallbackNormalizeRequestContentBlocks(requestBody);
+      // OpenAI models on Bedrock take the same Chat Completions request as Mistral chat.
+      case LLMSystem.OPENAI:
       case LLMSystem.MISTRALAI:
         return normalizeMistralRequestContentBlocks(requestBody);
       case LLMSystem.AI21:
@@ -996,6 +998,8 @@ function normalizeResponseContent({
       return typeof responseBody.generation === "string"
         ? convertMetaToMessageContent(responseBody)
         : [];
+    // OpenAI models on Bedrock use the same Chat Completions body as AI21 Jamba.
+    case LLMSystem.OPENAI:
     case LLMSystem.AI21:
       return convertAI21JambaToMessageContent(responseBody);
     default:
@@ -1152,6 +1156,8 @@ export const normalizeUsageAttributes = withSafety({
         return normalizeAnthropicUsage(responseBody);
       case LLMSystem.AMAZON:
         return normalizeAmazonUsage(responseBody);
+      // OpenAI models on Bedrock use the same Chat Completions body as AI21 Jamba.
+      case LLMSystem.OPENAI:
       case LLMSystem.AI21:
         return normalizeAI21Usage(responseBody);
       case LLMSystem.META:
