@@ -16,7 +16,10 @@ from openinference.instrumentation.together._response_attributes_extractor impor
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.together._stream import _Stream
-from openinference.instrumentation.together._utils import _finish_tracing
+from openinference.instrumentation.together._utils import (
+    _finish_tracing,
+    _materialize_content_iterables,
+)
 from openinference.instrumentation.together._with_span import _WithSpan
 from together import AsyncStream, NotGiven, Omit, Stream
 
@@ -112,6 +115,8 @@ class _CompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        kwargs = _materialize_content_iterables(kwargs)
+
         request_parameters = self._parse_request(wrapped, args, kwargs)
         with self._start_as_current_span(
             span_name="Completions",
@@ -145,6 +150,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
+
+        kwargs = _materialize_content_iterables(kwargs)
 
         request_parameters = self._parse_request(wrapped, args, kwargs)
         with self._start_as_current_span(
