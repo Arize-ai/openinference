@@ -11,6 +11,8 @@ import type { Stream } from "openai/streaming";
 import { safelyJSONStringify } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+import { getNumberProperty } from "./typeUtils";
+
 /**
  * Get attributes for responses api Items that are not typical messages with role
  * @param item - The item to get attributes for
@@ -217,6 +219,10 @@ export function getResponsesUsageAttributes(response: ResponseType): Attributes 
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: response.usage.total_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]:
         response.usage.input_tokens_details?.cached_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: getNumberProperty(
+        response.usage.input_tokens_details,
+        "cache_write_tokens",
+      ),
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]:
         response.usage.output_tokens_details?.reasoning_tokens,
       // no audio tokens for response inputs or outputs

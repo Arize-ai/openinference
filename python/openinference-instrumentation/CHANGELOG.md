@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.66](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.65...python-openinference-instrumentation-v0.1.66) (2026-09-24)
+
+
+### Features
+
+* **semconv:** add oracle as a well-known llm.provider value ([#3780](https://github.com/Arize-ai/openinference/issues/3780)) ([a719562](https://github.com/Arize-ai/openinference/commit/a719562e20437d433a2e4cfb599256e22ec04531))
+
+## [0.1.65](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.64...python-openinference-instrumentation-v0.1.65) (2026-09-15)
+
+
+### Bug Fixes
+
+* **instrumentation:** make suppress_tracing usable with `async with` ([#3554](https://github.com/Arize-ai/openinference/issues/3554)) ([2045da8](https://github.com/Arize-ai/openinference/commit/2045da8a6f81d94d39130b88840307bcd49559df))
+
+## [0.1.64](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.63...python-openinference-instrumentation-v0.1.64) (2026-09-15)
+
+
+### Bug Fixes
+
+* **instrumentation:** raise a real error for unparsable bool env vars ([215d0de](https://github.com/Arize-ai/openinference/commit/215d0de54177a87e5a7b980d04c6746538ca32f9))
+
 ## [0.1.63](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.62...python-openinference-instrumentation-v0.1.63) (2026-09-10)
 
 

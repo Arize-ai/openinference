@@ -3436,6 +3436,14 @@ class TestGetProviderFromHost:
             ("api.minimax.io", OpenInferenceLLMProviderValues.MINIMAX),
             ("api.minimaxi.com", OpenInferenceLLMProviderValues.MINIMAX),
             ("api.minimax.chat", OpenInferenceLLMProviderValues.MINIMAX),
+            (
+                "inference.generativeai.us-chicago-1.oci.oraclecloud.com",
+                OpenInferenceLLMProviderValues.ORACLE,
+            ),
+            (
+                "inference.generativeai.eu-frankfurt-1.oci.oraclecloud.com",
+                OpenInferenceLLMProviderValues.ORACLE,
+            ),
         ],
     )
     def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:

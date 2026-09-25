@@ -31,6 +31,8 @@ export const RETRIEVAL_DOCUMENTS =
 
 export const SESSION_ID_KEYS = ["session_id", "thread_id", "conversation_id"] as const;
 
+const FINISH_REASON_KEYS = ["finish_reason", "stop_reason", "finishReason", "stopReason"] as const;
+
 /**
  * Handler for any unexpected errors that occur during processing.
  */
@@ -659,6 +661,49 @@ function formatTokenCounts(outputs: Run["outputs"]): TokenCountAttributes | null
   return null;
 }
 
+function getFinishReason(metadata: unknown): string | null {
+  if (!isObject(metadata)) {
+    return null;
+  }
+  for (const key of FINISH_REASON_KEYS) {
+    const finishReason = metadata[key];
+    if (isString(finishReason) && finishReason.length > 0) {
+      return finishReason;
+    }
+  }
+  return null;
+}
+
+/**
+ * Formats the finish reason of a langchain run into OpenInference attributes.
+ * @param outputs - The outputs of a langchain run
+ * @returns The OpenInference attributes for the finish reason
+ */
+function formatFinishReason(outputs: Run["outputs"]) {
+  const firstGeneration = getFirstOutputGeneration(outputs);
+  if (firstGeneration == null || !isObject(firstGeneration[0])) {
+    return null;
+  }
+  const generation = firstGeneration[0];
+
+  const generationFinishReason = getFinishReason(generation.generationInfo);
+  if (generationFinishReason != null) {
+    return { [SemanticConventions.LLM_FINISH_REASON]: generationFinishReason };
+  }
+
+  if (!isObject(generation.message)) {
+    return null;
+  }
+  let responseMetadata = generation.message.response_metadata;
+  if (!isObject(responseMetadata) && isObject(generation.message.lc_kwargs)) {
+    responseMetadata = generation.message.lc_kwargs.response_metadata;
+  }
+  const responseMetadataFinishReason = getFinishReason(responseMetadata);
+  return responseMetadataFinishReason == null
+    ? null
+    : { [SemanticConventions.LLM_FINISH_REASON]: responseMetadataFinishReason };
+}
+
 /**
  * Formats the function calls of a langchain run into OpenInference attributes.
  * @param outputs - The outputs of a langchain run
@@ -784,6 +829,10 @@ export const safelyFormatPromptTemplate = withSafety({
 export const safelyFormatTokenCounts = withSafety({
   fn: formatTokenCounts,
   onError: onError("Error formatting token counts"),
+});
+export const safelyFormatFinishReason = withSafety({
+  fn: formatFinishReason,
+  onError: onError("Error formatting finish reason"),
 });
 export const safelyFormatFunctionCalls = withSafety({
   fn: formatFunctionCalls,

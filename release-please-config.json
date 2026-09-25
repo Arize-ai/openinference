@@ -82,6 +82,10 @@
             "package-name": "python-openinference-instrumentation-together",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-typesafe": {
+            "package-name": "python-openinference-instrumentation-typesafe",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-ollama": {
             "package-name": "python-openinference-instrumentation-ollama",
             "release-type": "python"
@@ -210,6 +214,17 @@
                 {
                     "type": "generic",
                     "path": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties"
+                }
+            ]
+        },
+        "java/instrumentation/openinference-instrumentation-adk-java": {
+            "package-name": "java-openinference-instrumentation-adk-java",
+            "release-type": "simple",
+            "version-file": "java/instrumentation/openinference-instrumentation-adk-java/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/instrumentation/openinference-instrumentation-adk-java/gradle.properties"
                 }
             ]
         },

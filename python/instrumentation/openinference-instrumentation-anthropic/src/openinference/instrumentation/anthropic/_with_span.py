@@ -41,7 +41,7 @@ class _WithSpan:
     def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
         self._span.set_attributes(attributes)
 
-    def record_exception(self, exception: Exception) -> None:
+    def record_exception(self, exception: BaseException) -> None:
         if self._is_finished:
             return
         try:

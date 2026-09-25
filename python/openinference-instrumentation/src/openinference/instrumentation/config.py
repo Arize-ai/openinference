@@ -46,13 +46,17 @@ class suppress_tracing:
         with suppress_tracing():
             # No tracing will occur within this block
             ...
+
+        async with suppress_tracing():
+            # No tracing will occur within this block
+            ...
     """
 
     def __enter__(self) -> "suppress_tracing":
         self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
         return self
 
-    def __aenter__(self) -> "suppress_tracing":
+    async def __aenter__(self) -> "suppress_tracing":
         self._token = attach(set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
         return self
 
@@ -64,7 +68,7 @@ class suppress_tracing:
     ) -> None:
         detach(self._token)
 
-    def __aexit__(
+    async def __aexit__(
         self,
         exc_type: Optional[Type[BaseException]],
         exc_value: Optional[BaseException],

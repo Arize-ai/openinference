@@ -104,6 +104,7 @@ const {
   OPENINFERENCE_SPAN_KIND,
   LLM_MODEL_NAME,
   LLM_INVOCATION_PARAMETERS,
+  LLM_FINISH_REASON,
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_TOTAL,
@@ -178,6 +179,7 @@ describe("LangChainInstrumentation", () => {
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
+      [LLM_FINISH_REASON]: "stop",
       [LLM_TOKEN_COUNT_COMPLETION]: 5,
       [LLM_TOKEN_COUNT_PROMPT]: 12,
       [LLM_TOKEN_COUNT_TOTAL]: 17,
@@ -262,6 +264,7 @@ describe("LangChainInstrumentation", () => {
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
+      [LLM_FINISH_REASON]: "stop",
       [LLM_TOKEN_COUNT_COMPLETION]: 5,
       [LLM_TOKEN_COUNT_PROMPT]: 12,
       [LLM_TOKEN_COUNT_TOTAL]: 17,
@@ -295,6 +298,7 @@ describe("LangChainInstrumentation", () => {
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test stream.",
+      [LLM_FINISH_REASON]: "stop",
       [LLM_TOKEN_COUNT_COMPLETION]: 6,
       [LLM_TOKEN_COUNT_PROMPT]: 13,
       [LLM_TOKEN_COUNT_TOTAL]: 19,
@@ -469,6 +473,7 @@ describe("LangChainInstrumentation", () => {
     expect(attributes).toStrictEqual({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
       [LLM_MODEL_NAME]: "gpt-3.5-turbo",
+      [LLM_FINISH_REASON]: "function_call",
       [LLM_FUNCTION_CALL]:
         '{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}',
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
@@ -597,6 +602,7 @@ describe("LangChainInstrumentation", () => {
     expect(attributes).toMatchInlineSnapshot(`
       {
         "input.mime_type": "application/json",
+        "llm.finish_reason": "stop",
         "llm.input_messages.0.message.content": "hello, this is a test",
         "llm.input_messages.0.message.role": "user",
         "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"stream":false}",
@@ -982,6 +988,7 @@ describe("LangChainTracer", () => {
         generations: [
           [
             {
+              generationInfo: { finish_reason: "stop" },
               message: getLangchainMessage({
                 lc_id: ["ai"],
                 lc_kwargs: { content: "This is a test." },
@@ -1024,6 +1031,7 @@ describe("LangChainTracer", () => {
     expect(attrs[OUTPUT_VALUE]).toBeDefined();
     expect(attrs[OUTPUT_MIME_TYPE]).toBeDefined();
     expect(attrs[LLM_MODEL_NAME]).toBe("gpt-3.5-turbo");
+    expect(attrs[LLM_FINISH_REASON]).toBe("stop");
     expect(attrs[LLM_TOKEN_COUNT_COMPLETION]).toBe(5);
     expect(attrs[LLM_TOKEN_COUNT_PROMPT]).toBe(12);
     expect(attrs[LLM_TOKEN_COUNT_TOTAL]).toBe(17);

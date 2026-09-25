@@ -649,3 +649,4 @@ class OpenInferenceLLMProviderValues(Enum):
     META = "meta"
     ZAI = "zai"
     MINIMAX = "minimax"
+    ORACLE = "oracle"

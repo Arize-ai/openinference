@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.5...python-openinference-instrumentation-pipecat-v2.0.6) (2026-09-15)
+
+
+### Bug Fixes
+
+* **pipecat:** tolerate typed UserBotLatencyObserver in pipecat-ai 1.9 ([#3739](https://github.com/Arize-ai/openinference/issues/3739)) ([7103041](https://github.com/Arize-ai/openinference/commit/71030411c089864aa90720135d9d259a61670862))
+
 ## [2.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.4...python-openinference-instrumentation-pipecat-v2.0.5) (2026-09-09)
 
 

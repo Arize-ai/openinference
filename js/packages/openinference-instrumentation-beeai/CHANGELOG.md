@@ -1,5 +1,22 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.5.30
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 1.5.29
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+  - @arizeai/openinference-core@2.7.0
+
 ## 1.5.28
 
 ### Patch Changes

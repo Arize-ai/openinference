@@ -1,5 +1,28 @@
 # @arizeai/openinference-instrumentation-anthropic
 
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 0.2.7
+
+### Patch Changes
+
+- 4157dde: Capture prompt caching token counts as `llm.token_count.prompt_details.cache_write` and `llm.token_count.prompt_details.cache_read` for streaming and non-streaming `messages.create` calls. Anthropic's `input_tokens` excludes cached tokens, so `llm.token_count.prompt` and `llm.token_count.total` now include the cache write and read counts. Zero cache counts are omitted, and streaming usage is merged field by field across `message_start`, the server-side fallback hop and `message_delta`, so streaming and non-streaming spans report the same counts.
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+  - @arizeai/openinference-core@2.7.0
+
 ## 0.2.5
 
 ### Patch Changes

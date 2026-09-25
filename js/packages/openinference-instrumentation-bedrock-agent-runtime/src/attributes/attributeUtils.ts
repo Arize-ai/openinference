@@ -192,6 +192,7 @@ export function getLLMAttributes({
   invocationParameters,
   inputMessages,
   outputMessages,
+  finishReason,
   tokenCount,
   tools,
 }: {
@@ -201,6 +202,7 @@ export function getLLMAttributes({
   invocationParameters?: string | Record<string, unknown>;
   inputMessages?: Message[];
   outputMessages?: Message[];
+  finishReason?: string;
   tokenCount?: TokenCount;
   tools?: Record<string, unknown>[];
 } = {}): Attributes {
@@ -219,6 +221,9 @@ export function getLLMAttributes({
     ...invocationParameterAttributes,
     ...inputMessageAttributes,
     ...outputMessageAttributes,
+    ...(typeof finishReason === "string" && finishReason
+      ? { [SemanticConventions.LLM_FINISH_REASON]: finishReason }
+      : {}),
     ...tokenCountAttributes,
     ...toolAttributes,
   };

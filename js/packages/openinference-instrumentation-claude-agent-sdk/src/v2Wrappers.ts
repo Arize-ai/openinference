@@ -17,10 +17,12 @@ import {
 
 import { ToolSpanTracker, mergeHooks } from "./hookInjector";
 import {
+  extractAssistantStopReason,
   extractInitAttributes,
   extractResultErrorAttributes,
   extractResultSuccessAttributes,
   formatPromptAttributes,
+  isAssistantMessage,
   isResultErrorMessage,
   isResultSuccessMessage,
   isSystemInitMessage,
@@ -62,6 +64,11 @@ export function wrapPrompt({
       {
         attributes: {
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+          // Unlike query(), unstable_v2_prompt() never yields a system-init message,
+          // so the model has to come from the caller-supplied options up front.
+          ...(options?.model != null
+            ? { [SemanticConventions.LLM_MODEL_NAME]: options.model }
+            : {}),
           ...inputAttrs,
         },
       },
@@ -74,6 +81,9 @@ export function wrapPrompt({
           });
           const result = await original(message, modifiedOptions);
 
+          // SDK versions before 0.2.31 expose stop_reason only on streamed
+          // assistant messages. unstable_v2_prompt() returns only a result, so
+          // the finish reason is unavailable for those versions.
           if (isResultSuccessMessage(result)) {
             span.setAttributes(extractResultSuccessAttributes(result));
             span.setStatus({ code: SpanStatusCode.OK });
@@ -417,7 +427,12 @@ function createSessionProxy(
  * Processes a message from the V2 session stream, setting span attributes.
  */
 function processSessionMessage(msg: SDKMessage, span: Span): void {
-  if (isSystemInitMessage(msg)) {
+  if (isAssistantMessage(msg)) {
+    const stopReason = extractAssistantStopReason(msg);
+    if (stopReason != null) {
+      span.setAttribute(SemanticConventions.LLM_FINISH_REASON, stopReason);
+    }
+  } else if (isSystemInitMessage(msg)) {
     const { sessionId, model } = extractInitAttributes(msg);
     span.setAttributes({
       [SemanticConventions.SESSION_ID]: sessionId,

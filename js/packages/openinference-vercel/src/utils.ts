@@ -705,6 +705,27 @@ const safelyGetVercelIOAttributes = withSafety({
 });
 
 /**
+ * Gets the OpenInference finish reason from Vercel's response attributes.
+ * @param attributes the span attributes
+ * @returns the finish reason attribute, or null when it is unavailable
+ */
+const getFinishReasonAttribute = (attributes: Attributes): Attributes | null => {
+  const finishReason = attributes[VercelAISemanticConventions.RESPONSE_FINISH_REASON];
+  if (typeof finishReason !== "string") {
+    return null;
+  }
+  return { [SemanticConventions.LLM_FINISH_REASON]: finishReason };
+};
+
+/**
+ * {@link getFinishReasonAttribute} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetFinishReasonAttribute = withSafety({
+  fn: getFinishReasonAttribute,
+  onError: onErrorCallback("finish reason"),
+});
+
+/**
  * Gets model name from Vercel attributes when gen_ai.* attributes are not present
  * @param attributes the span attributes
  * @param spanKind the span kind
@@ -1168,6 +1189,9 @@ const getVercelSpecificAttributes = (
 
     // Input/Output values from ai.response.* and ai.prompt
     ...safelyGetVercelIOAttributes(attributes, spanKind),
+
+    // Finish reason from ai.response.finishReason
+    ...safelyGetFinishReasonAttribute(attributes),
 
     // Metadata from ai.telemetry.metadata.*
     ...safelyGetMetadataAttributes(attributes),

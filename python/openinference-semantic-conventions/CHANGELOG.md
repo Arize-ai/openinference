@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.38...python-openinference-semantic-conventions-v0.1.39) (2026-09-24)
+
+
+### Features
+
+* **semconv:** add oracle as a well-known llm.provider value ([#3780](https://github.com/Arize-ai/openinference/issues/3780)) ([a719562](https://github.com/Arize-ai/openinference/commit/a719562e20437d433a2e4cfb599256e22ec04531))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.37...python-openinference-semantic-conventions-v0.1.38) (2026-09-15)
+
+
+### Features
+
+* **semconv:** add span-kind-independent image attributes ([0ff0af2](https://github.com/Arize-ai/openinference/commit/0ff0af2ee2ad300daddec58099248fb4e397a7aa))
+
 ## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.36...python-openinference-semantic-conventions-v0.1.37) (2026-09-10)
 
 

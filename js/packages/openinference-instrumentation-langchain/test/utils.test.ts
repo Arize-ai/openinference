@@ -12,6 +12,7 @@ import {
 import type { LLMMessage } from "../src/types";
 import {
   safelyFlattenAttributes,
+  safelyFormatFinishReason,
   safelyFormatFunctionCalls,
   safelyFormatInputMessages,
   safelyFormatIO,
@@ -762,6 +763,85 @@ describe("formatTokenCounts", () => {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: 10,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: 20,
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 35,
+    });
+  });
+});
+
+describe("formatFinishReason", () => {
+  it("should return null when the first generation is missing", () => {
+    expect(safelyFormatFinishReason(undefined)).toBeNull();
+    expect(safelyFormatFinishReason({ generations: [] })).toBeNull();
+  });
+
+  it.each([
+    ["finish_reason", "stop"],
+    ["stop_reason", "end_turn"],
+    ["finishReason", "length"],
+    ["stopReason", "tool_use"],
+  ])("should extract %s from generationInfo", (key, value) => {
+    const result = safelyFormatFinishReason({
+      generations: [[{ generationInfo: { [key]: value } }]],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: value,
+    });
+  });
+
+  it("should fall back to response_metadata for streamed generations", () => {
+    const result = safelyFormatFinishReason({
+      generations: [
+        [
+          {
+            message: {
+              response_metadata: { finish_reason: "stop" },
+            },
+          },
+        ],
+      ],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: "stop",
+    });
+  });
+
+  it("should prefer generationInfo over response_metadata", () => {
+    const result = safelyFormatFinishReason({
+      generations: [
+        [
+          {
+            generationInfo: { finish_reason: "length" },
+            message: {
+              response_metadata: { finish_reason: "stop" },
+            },
+          },
+        ],
+      ],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: "length",
+    });
+  });
+
+  it("should read response_metadata from serialized message kwargs", () => {
+    const result = safelyFormatFinishReason({
+      generations: [
+        [
+          {
+            message: {
+              lc_kwargs: {
+                response_metadata: { stop_reason: "end_turn" },
+              },
+            },
+          },
+        ],
+      ],
+    });
+
+    expect(result).toEqual({
+      [SemanticConventions.LLM_FINISH_REASON]: "end_turn",
     });
   });
 });

@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.45...python-openinference-instrumentation-litellm-v0.1.46) (2026-09-24)
+
+
+### Features
+
+* **semconv:** add oracle as a well-known llm.provider value ([#3780](https://github.com/Arize-ai/openinference/issues/3780)) ([a719562](https://github.com/Arize-ai/openinference/commit/a719562e20437d433a2e4cfb599256e22ec04531))
+
+## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.44...python-openinference-instrumentation-litellm-v0.1.45) (2026-09-15)
+
+
+### Bug Fixes
+
+* **litellm:** do not report token counts as USD cost ([#3549](https://github.com/Arize-ai/openinference/issues/3549)) ([939b26f](https://github.com/Arize-ai/openinference/commit/939b26feb9eafe4a78464f6048ad199409a3324e))
+
+## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.43...python-openinference-instrumentation-litellm-v0.1.44) (2026-09-15)
+
+
+### Bug Fixes
+
+* **litellm:** Preserve Stream Types & Isolate Extraction Errors ([#3578](https://github.com/Arize-ai/openinference/issues/3578)) ([95bb490](https://github.com/Arize-ai/openinference/commit/95bb490b73b2835442af56542a7a8a4e5d4137b5))
+
 ## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.42...python-openinference-instrumentation-litellm-v0.1.43) (2026-09-10)
 
 

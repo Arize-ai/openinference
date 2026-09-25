@@ -1,5 +1,28 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 0.5.0
+
+### Minor Changes
+
+- 5a1db03: Record provider-native stop reasons as `llm.finish_reason` for Converse, InvokeModel, and streaming responses. Preserve the existing Converse `llm.stop_reason` attribute and omit the finish reason when unavailable.
+
+## 0.4.31
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+  - @arizeai/openinference-core@2.7.0
+
 ## 0.4.30
 
 ### Patch Changes

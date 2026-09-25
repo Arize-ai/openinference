@@ -65,6 +65,7 @@ languages.
 | [`openinference-instrumentation-agentspec`](./python/instrumentation/openinference-instrumentation-agentspec)                 | OpenInference Instrumentation for Open Agent Specification.                      | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-agentspec.svg)](https://pypi.python.org/pypi/openinference-instrumentation-agentspec)                 |
 | [`openinference-instrumentation-strands-agents`](./python/instrumentation/openinference-instrumentation-strands-agents)       | OpenInference Instrumentation for Strands Agents.                                | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-strands-agents.svg)](https://pypi.python.org/pypi/openinference-instrumentation-strands-agents)       |
 | [`openinference-instrumentation-together`](./python/instrumentation/openinference-instrumentation-together)                   | OpenInference Instrumentation for Together AI.                                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-together.svg)](https://pypi.python.org/pypi/openinference-instrumentation-together)                   |
+| [`openinference-instrumentation-typesafe`](./python/instrumentation/openinference-instrumentation-typesafe)                   | OpenInference Instrumentation for TypeSafe AI.                                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-typesafe.svg)](https://pypi.python.org/pypi/openinference-instrumentation-typesafe)                   |
 | [`openinference-instrumentation-ollama`](./python/instrumentation/openinference-instrumentation-ollama)                       | OpenInference Instrumentation for Ollama.                                        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-ollama.svg)](https://pypi.python.org/pypi/openinference-instrumentation-ollama)                       |
 | [`openinference-instrumentation-cohere`](./python/instrumentation/openinference-instrumentation-cohere)                       | OpenInference Instrumentation for Cohere.                                        | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-cohere.svg)](https://pypi.python.org/pypi/openinference-instrumentation-cohere)                       |
 
@@ -94,6 +95,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [LiteLLM Proxy](python/instrumentation/openinference-instrumentation-litellm/examples/litellm-proxy/) | LiteLLM Proxy to log OpenAI, Azure, Vertex, Bedrock                                          | Beginner         |
 | [Groq](python/instrumentation/openinference-instrumentation-groq/examples/)                           | Groq and AsyncGroq chat completions                                                          | Beginner         |
 | [Together AI](python/instrumentation/openinference-instrumentation-together/examples/)                | Together and AsyncTogether chat completions, streaming, and tool calls                       | Beginner         |
+| [TypeSafe AI](python/instrumentation/openinference-instrumentation-typesafe/examples/)                | TypeSafeClient and AsyncTypeSafeClient System One calls (Noul, Choice, Score)                | Beginner         |
 | [Anthropic](python/instrumentation/openinference-instrumentation-anthropic/examples/)                 | Anthropic Messages client                                                                    | Beginner         |
 | [BeeAI](python/instrumentation/openinference-instrumentation-beeai/examples/)                         | Agentic instrumentation in the BeeAI framework                                               | Beginner         |
 | [Haystack](python/instrumentation/openinference-instrumentation-haystack/examples/)                   | A Haystack QA RAG application                                                                | Intermediate     |
@@ -128,6 +130,13 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`@arizeai/openinference-vercel`](./js/packages/openinference-vercel)                                                               | OpenInference Support for Vercel AI SDK.                            | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-vercel)](https://www.npmjs.com/package/@arizeai/openinference-vercel)                                                               |
 | [`@arizeai/openinference-tanstack-ai`](./js/packages/openinference-tanstack-ai)                                                     | OpenInference middleware for TanStack AI.                           | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-tanstack-ai)](https://www.npmjs.com/package/@arizeai/openinference-tanstack-ai)                                                     |
 | [`@arizeai/openinference-genai`](./js/packages/openinference-genai)                                                                 | OpenInference Support for GenAI conventions                         | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-genai)](https://www.npmjs.com/package/@arizeai/openinference-genai)                                                                 |
+| [`@arizeai/openinference-instrumentation-typesafe`](./js/packages/openinference-instrumentation-typesafe) | OpenInference Instrumentation for the TypeSafe AI SDK. | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-typesafe)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-typesafe) |
+
+### Examples
+
+| Name | Description | Complexity Level |
+| --- | --- | --- |
+| [TypeSafe AI](js/packages/openinference-instrumentation-typesafe/examples/) | Classification, structured questions, and confidence-gated routing to an LLM | Beginner |
 
 ## Java
 
@@ -140,6 +149,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`openinference-instrumentation-langchain4j`](./java/instrumentation/openinference-instrumentation-langchain4j) | OpenInference Instrumentation for LangChain4j. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-langchain4j)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-langchain4j) |
 | [`openinference-instrumentation-springAI`](./java/instrumentation/openinference-instrumentation-springAI)       | OpenInference Instrumentation for Spring AI.   | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-springAI)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-springAI)       |
 | [`openinference-instrumentation-annotation`](./java/instrumentation/openinference-instrumentation-annotation) | Annotation-based manual tracing with ByteBuddy. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-annotation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-annotation) |
+| [`openinference-instrumentation-adk-java`](./java/instrumentation/openinference-instrumentation-adk-java) | OpenInference Instrumentation for Google ADK Java (`-javaagent`). | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-adk-java)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-adk-java) |
 
 ### Examples
 
@@ -149,6 +159,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [Spring AI Example](java/examples/spring-ai-example)     | Spring AI example with OpenAI and tool calling | Beginner         |
 | [Annotation Example](java/examples/annotation-example) | Annotation-based tracing with `@Chain`, `@LLM`, `@Tool`, `@Agent` | Beginner         |
 | [Programmatic Example](java/examples/programmatic-example) | Manual tracing with typed span classes (`LLMSpan`, `AgentSpan`, etc.) | Beginner         |
+| [ADK Java Example](java/examples/adk-java-example) | Google ADK for Java agent with a function tool, traced by the ADK `-javaagent` | Beginner         |
 
 ## Go
 

@@ -206,6 +206,7 @@ func TestEnumValues(t *testing.T) {
 		{LLMProviderMeta, "meta"},
 		{LLMProviderZAI, "zai"},
 		{LLMProviderMiniMax, "minimax"},
+		{LLMProviderOracle, "oracle"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

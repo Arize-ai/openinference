@@ -1,5 +1,28 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 4.1.1
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 4.1.0
+
+### Minor Changes
+
+- b12ee55: Add the `llm.finish_reason` attribute to LangChain LLM spans, supporting finish and stop reasons from generation information and streamed response metadata.
+
+## 4.0.25
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+  - @arizeai/openinference-core@2.7.0
+
 ## 4.0.24
 
 ### Patch Changes
