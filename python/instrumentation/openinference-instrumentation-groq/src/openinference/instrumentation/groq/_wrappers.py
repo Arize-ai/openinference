@@ -19,7 +19,10 @@ from openinference.instrumentation.groq._request_attributes_extractor import (
 from openinference.instrumentation.groq._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.groq._utils import _finish_tracing
+from openinference.instrumentation.groq._utils import (
+    _finish_tracing,
+    _materialize_content_iterables,
+)
 from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -131,6 +134,8 @@ class _CompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        kwargs = _materialize_content_iterables(kwargs)
+
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
         for arg in args:
@@ -192,6 +197,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
+
+        kwargs = _materialize_content_iterables(kwargs)
 
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
