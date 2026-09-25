@@ -39,8 +39,7 @@ const spanHasErrorSignal = (span: ReadableSpan): { error: boolean; message?: str
 };
 
 const maybeSetRootStatus = (span: ReadableSpan, agg: TraceAggregate): void => {
-  // Only set status on the root span, and only when it's currently UNSET.
-  if (getParentSpanId(span) != null) return;
+  // Called only for root spans; only set status when it's currently UNSET.
   if (!isLikelyAISDKSpan(span)) return;
   if (span.status.code !== SpanStatusCode.UNSET) return;
 
@@ -63,8 +62,8 @@ const maybeSetSpanOkStatus = (span: ReadableSpan): void => {
   Reflect.set(span, "status", { code: SpanStatusCode.OK });
 };
 
-const maybeRenameRootSpan = (span: ReadableSpan): void => {
-  if (getParentSpanId(span) != null) return;
+const maybeRenameRootSpan = (span: ReadableSpan, isRoot: boolean): void => {
+  if (!isRoot) return;
   if (!isLikelyAISDKSpan(span)) return;
 
   const attrs = span.attributes as Record<string, unknown>;
@@ -118,12 +117,13 @@ export class TraceAggregateManager {
   onEnd(span: ReadableSpan): void {
     addOpenInferenceAttributesToSpan(span);
 
+    const isRoot = getParentSpanId(span) == null;
     const traceId = span.spanContext().traceId;
     const agg = this.traceAggregates.get(traceId);
 
     // If we don't have an aggregate for this trace, just process the span
     if (agg == null) {
-      maybeRenameRootSpan(span);
+      maybeRenameRootSpan(span, isRoot);
       return;
     }
 
@@ -144,13 +144,13 @@ export class TraceAggregateManager {
       }
     }
 
-    maybeRenameRootSpan(span);
+    maybeRenameRootSpan(span, isRoot);
 
     // Set status for AI SDK spans:
     // - Root spans get OK/ERROR based on aggregate error state
     // - Child spans get OK if they completed without error (already have ERROR if they errored)
     if (agg.isAISDKTrace) {
-      if (getParentSpanId(span) == null) {
+      if (isRoot) {
         maybeSetRootStatus(span, agg);
       } else {
         maybeSetSpanOkStatus(span);

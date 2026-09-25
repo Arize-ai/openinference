@@ -2344,9 +2344,9 @@ describe.each([
       shutdown: () => Promise.resolve(),
     };
 
-    const build = (reparentOrphanedSpans?: boolean) => {
+    const build = (reparentOrphanedSpans?: boolean, spanFilter?: SpanFilter) => {
       const exporter = new InMemorySpanExporter();
-      const proc = new Processor({ exporter, reparentOrphanedSpans });
+      const proc = new Processor({ exporter, reparentOrphanedSpans, spanFilter });
       const provider = new BasicTracerProvider({ spanProcessors: [toSdk2SpanShape, proc] });
       return { exporter, provider, tracer: provider.getTracer("test") };
     };
@@ -2419,6 +2419,40 @@ describe.each([
       expect(
         exportedNested?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
       ).toBeUndefined();
+    });
+
+    it("re-roots and promotes a kind-less AI wrapper under a non-AI parent", async () => {
+      const { exporter, provider, tracer } = build(true, isOpenInferenceSpan);
+
+      const workflow = tracer.startSpan("vercel.workflow");
+      const turn = tracer.startSpan(
+        "ai.eve.turn",
+        { attributes: { "operation.name": "ai.eve.turn" } },
+        trace.setSpan(context.active(), workflow),
+      );
+      const llm = tracer.startSpan(
+        "ai.streamText.doStream",
+        { attributes: { "operation.name": "ai.streamText.doStream" } },
+        trace.setSpan(context.active(), turn),
+      );
+      llm.end();
+      turn.end();
+      workflow.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.find((s) => s.name === "vercel.workflow")).toBeUndefined();
+      const promoted = spans.find((s) => s.name === "ai.eve.turn");
+      expect(Reflect.get(promoted ?? {}, "parentSpanContext")).toBeUndefined();
+      expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+        OpenInferenceSpanKind.AGENT,
+      );
+      const child = spans.find((s) => s.name === "ai.streamText.doStream");
+      expect(Reflect.get(child ?? {}, "parentSpanContext")).toMatchObject({
+        spanId: turn.spanContext().spanId,
+      });
     });
   },
 );
