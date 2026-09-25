@@ -196,10 +196,38 @@ function getContentFromMessageData(messageKwargs: Record<string, unknown>): stri
 }
 
 /**
+ * Extracts the url of an image content block.
+ *
+ * Handles the OpenAI-style block `{ type: "image_url", image_url: url | { url } }`
+ * as well as the langchain standard block `{ type: "image", ... }`, whose image
+ * is given either as a `url` or as base64 `data` plus a `mimeType` (or the
+ * legacy `mime_type`). Base64 data is folded into a data url so that the
+ * TraceConfig base64 image masking applies to it.
+ * @param block - The image content block
+ * @returns The image url, or null when the block does not carry one
+ */
+function getImageUrlFromBlock(block: Record<string, unknown>): string | null {
+  const imageUrl = block.image_url;
+  if (isString(imageUrl)) {
+    return imageUrl;
+  }
+  if (isObject(imageUrl) && isString(imageUrl.url)) {
+    return imageUrl.url;
+  }
+  if (isString(block.url)) {
+    return block.url;
+  }
+  const mimeType = isString(block.mimeType) ? block.mimeType : block.mime_type;
+  if (isString(block.data) && isString(mimeType)) {
+    return `data:${mimeType};base64,${block.data}`;
+  }
+  return null;
+}
+
+/**
  * Parses one entry of a langchain content block array into OpenInference
- * message contents. Mirrors the python langchain tracer: text blocks carry
- * their text, image_url blocks carry their url, plain strings count as text,
- * and unknown block types are skipped.
+ * message contents. Text blocks carry their text, image blocks carry their
+ * url, plain strings count as text, and unknown block types are skipped.
  * @param block - The content block to parse
  * @returns The OpenInference message content for the block, or null
  */
@@ -220,12 +248,8 @@ function parseMessageContentBlock(block: unknown): LLMMessageContent | null {
       [SemanticConventions.MESSAGE_CONTENT_TEXT]: block.text,
     };
   }
-  if (type === "image_url" && block.image_url != null) {
-    const url = isString(block.image_url)
-      ? block.image_url
-      : isObject(block.image_url) && isString(block.image_url.url)
-        ? block.image_url.url
-        : null;
+  if (type === "image_url" || type === "image") {
+    const url = getImageUrlFromBlock(block);
     if (url != null) {
       return {
         [SemanticConventions.MESSAGE_CONTENT_TYPE]: "image",
