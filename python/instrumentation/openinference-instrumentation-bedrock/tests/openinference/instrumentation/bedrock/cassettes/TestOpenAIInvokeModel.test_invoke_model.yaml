@@ -1,0 +1,31 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "Answer in one word."}, {"role":
+      "user", "content": "say pong"}], "max_completion_tokens": 256}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/us.openai.gpt-6-sol/invoke
+  response:
+    body:
+      string: '{"choices":[{"finish_reason":"stop","index":0,"message":{"annotations":[],"content":"pong","refusal":null,"role":"assistant"}}],"created":1790160188,"id":"chatcmpl-cphwvianomgfo5t4uicha6i47pijf35p3gmzpcwcdnz2my3xwehq","model":"us.openai.gpt-6-sol","object":"chat.completion","service_tier":"default","usage":{"completion_tokens":5,"completion_tokens_details":{"accepted_prediction_tokens":0,"audio_tokens":0,"reasoning_tokens":0,"rejected_prediction_tokens":0},"prompt_tokens":17,"prompt_tokens_details":{"audio_tokens":0,"cache_write_tokens":0,"cached_tokens":0},"total_tokens":22},"system_fingerprint":null}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '609'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 23 Sep 2026 10:43:09 GMT
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '17'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '466'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '5'
+      x-amzn-RequestId:
+      - eea3d244-44fb-4dc3-ab46-9643b83cdd42
+    status:
+      code: 200
+      message: OK
+version: 1
