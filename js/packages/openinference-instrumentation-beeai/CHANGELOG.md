@@ -1,5 +1,17 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.6.0
+
+### Minor Changes
+
+- 44b433b: Add the OpenInference `llm.finish_reason` attribute to BeeAI LLM spans.
+
+### Patch Changes
+
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
 ## 1.5.30
 
 ### Patch Changes

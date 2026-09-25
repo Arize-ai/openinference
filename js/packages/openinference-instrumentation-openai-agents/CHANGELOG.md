@@ -1,5 +1,17 @@
 # @arizeai/openinference-instrumentation-openai-agents
 
+## 0.3.0
+
+### Minor Changes
+
+- 7feb0c4: Capture `llm.token_count.prompt_details.cache_write` from OpenAI prompt cache usage (`cache_write_tokens`) on both the Chat Completions and Responses APIs. Chat Completions streams now record token usage from the final `stream_options.include_usage` chunk.
+
+### Patch Changes
+
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
 ## 0.2.15
 
 ### Patch Changes

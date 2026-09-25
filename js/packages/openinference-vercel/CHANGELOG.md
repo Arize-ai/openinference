@@ -1,5 +1,15 @@
 # @arizeai/openinference-vercel
 
+## 3.2.2
+
+### Patch Changes
+
+- 300bba9: Read the parent span from `parentSpanContext` (OpenTelemetry JS SDK 2.x) with a fallback to `parentSpanId` (SDK 1.x) when deciding whether a span is the trace root. Under SDK 2.x every span was treated as a root, so child AI SDK spans were renamed to their `operation.name`, a later successful child span inherited an earlier sibling's ERROR status, and nested kind-less AI spans were promoted to AGENT when `reparentOrphanedSpans` is enabled.
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+  - @arizeai/openinference-genai@0.3.11
+
 ## 3.2.1
 
 ### Patch Changes
