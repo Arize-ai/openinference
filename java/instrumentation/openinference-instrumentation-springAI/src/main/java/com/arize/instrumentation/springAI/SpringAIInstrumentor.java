@@ -346,8 +346,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
             if (finishReason != null && !finishReason.isBlank()) {
                 span.setAttribute(SemanticConventions.LLM_FINISH_REASON, finishReason);
             }
-        } catch (Exception e) {
-            log.debug("Could not extract finish reason", e);
+        } catch (Exception ignored) {
         }
     }
 
