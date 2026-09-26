@@ -411,6 +411,9 @@ def _wrap_build_compaction_result_attributes(original: Any) -> Any:
     return wrapper
 
 
+_WORKFLOW_SPAN_PREFIXES = ("invoke_workflow", "invoke_node")
+
+
 class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """Tracer proxy that emits OI spans for tool/compaction spans and suppresses the rest.
 
@@ -470,7 +473,10 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     @_agnosticcontextmanager
     def start_as_current_span(self, name: str, *args: Any, **kwargs: Any) -> Iterator[Span]:
         is_compaction = isinstance(name, str) and name.startswith("compact_events ")
-        if is_compaction or (isinstance(name, str) and name.startswith("execute_tool")):
+        # ADK 2.x graph workflows (telemetry/node_tracing.py); no outer wrapper replaces these
+        is_workflow = isinstance(name, str) and name.startswith(_WORKFLOW_SPAN_PREFIXES)
+        is_tool = isinstance(name, str) and name.startswith("execute_tool")
+        if is_compaction or is_workflow or is_tool:
             # Tool/compaction path — produce a real OI span; _TraceToolCall
             # enriches tool spans via `get_current_span()` once
             # `tracing.trace_tool_call(...)` runs inside.
@@ -492,6 +498,12 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
                         logger.exception("Failed to set compaction span input.")
                 kwargs = dict(kwargs)
                 kwargs["attributes"] = {**kwargs.get("attributes", {}), **compaction_attributes}
+            elif is_workflow:
+                kwargs = dict(kwargs)
+                kwargs["attributes"] = {
+                    **kwargs.get("attributes", {}),
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+                }
             with self._self_oi_tracer.start_as_current_span(name, *args, **kwargs) as span:
                 yield span
             return
