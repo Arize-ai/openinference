@@ -201,7 +201,12 @@ def test_handler_basic_retrieval(
                 assert isinstance(query_output_value, str)
                 assert query_attributes.pop(OUTPUT_MIME_TYPE) == JSON
         elif is_stream:
-            if LLAMA_INDEX_VERSION >= (0, 14, 22):
+            if (0, 14, 22) <= LLAMA_INDEX_VERSION < (0, 14, 25):
+                # In this range the streaming request was issued eagerly, so a 400
+                # surfaced during `query()` and the span carried no output. Since
+                # 0.14.25 the request is issued lazily while the response generator
+                # is consumed, so `query()` returns a StreamingResponse (serialized
+                # as the output) and the error surfaces later on the LLM span.
                 assert OUTPUT_VALUE not in query_attributes
                 assert OUTPUT_MIME_TYPE not in query_attributes
             else:
@@ -278,7 +283,9 @@ def test_handler_basic_retrieval(
                 assert isinstance(synthesize_output_value, str)
                 assert synthesize_attributes.pop(OUTPUT_MIME_TYPE) == JSON
         elif is_stream:
-            if LLAMA_INDEX_VERSION >= (0, 14, 22):
+            if (0, 14, 22) <= LLAMA_INDEX_VERSION < (0, 14, 25):
+                # See the note on the query span above: only in this range did a 400
+                # surface eagerly during synthesis and leave the span without output.
                 assert OUTPUT_VALUE not in synthesize_attributes
                 assert OUTPUT_MIME_TYPE not in synthesize_attributes
             else:

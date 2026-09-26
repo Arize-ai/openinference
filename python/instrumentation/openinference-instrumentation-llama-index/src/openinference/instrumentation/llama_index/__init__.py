@@ -94,9 +94,24 @@ class LlamaIndexInstrumentor(BaseInstrumentor):  # type: ignore
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._use_legacy_callback_handler:
             import llama_index.core
+            from llama_index.core import Settings
+            from openinference.instrumentation.llama_index._callback import (
+                OpenInferenceTraceCallbackHandler,
+            )
 
             llama_index.core.global_handler = self._original_global_handler
             self._original_global_handler = None
+            # llama-index copies `global_handler` into the global Settings callback
+            # manager the first time a component runs and never removes it, so clearing
+            # `global_handler` alone leaves the handler active. Drop it here to fully
+            # deactivate the callback handler; otherwise it keeps producing spans (and
+            # wrapping streaming response generators) after uninstrumentation.
+            callback_manager = Settings.callback_manager
+            callback_manager.handlers[:] = [
+                handler
+                for handler in callback_manager.handlers
+                if not isinstance(handler, OpenInferenceTraceCallbackHandler)
+            ]
         else:
             if self._event_handler is None:
                 return
