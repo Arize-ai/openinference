@@ -31,7 +31,10 @@ from openinference.instrumentation import (
     suppress_tracing,
     using_attributes,
 )
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+from openinference.instrumentation.google_adk import (
+    GoogleADKInstrumentor,
+    _SelectiveExecuteToolTracer,
+)
 from openinference.instrumentation.google_adk._wrappers import (
     _BaseAgentRunAsync,
     _RunnerRunAsync,
@@ -3060,3 +3063,19 @@ async def test_google_adk_instrumentor_reasoning_content(
     ):
         call_llm_attributes.pop(key, None)
     assert not call_llm_attributes
+
+
+def test_selective_tracer_forwards_workflow_spans(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    oi_tracer = tracer_provider.get_tracer(__name__)
+    tracer = _SelectiveExecuteToolTracer(trace_api.NoOpTracer(), oi_tracer)
+    for name in ("invoke_workflow wf", "invoke_node step_one", "invoke_agent a"):
+        with tracer.start_as_current_span(name):
+            pass
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == ["invoke_workflow wf", "invoke_node step_one"]
+    for span in spans:
+        assert span.attributes
+        assert span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "CHAIN"
