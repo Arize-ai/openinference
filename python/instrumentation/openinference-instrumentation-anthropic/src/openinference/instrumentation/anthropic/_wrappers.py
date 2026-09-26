@@ -301,7 +301,7 @@ class _MessagesWrapper(_WithTracer):
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
-            return _MessagesStream(response, span)
+            return _MessagesStream(response, span, is_beta=self._span_name.startswith("beta."))
         else:
             _finish_message_tracing(span, response)
             return response
@@ -351,7 +351,7 @@ class _AsyncMessagesWrapper(_WithTracer):
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
-            return _MessagesStream(response, span)
+            return _MessagesStream(response, span, is_beta=self._span_name.startswith("beta."))
         else:
             _finish_message_tracing(span, response)
             return response
