@@ -148,7 +148,13 @@ class _AsyncStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unus
             try:
                 async for event in await self.stream:
                     self._process_chunk(event)
-                    if event.data.choices[0].finish_reason is not None:
+                    # `choices` can be empty (e.g. a trailing usage-only chunk),
+                    # same as every other `choices` access in this package
+                    # (see _response_accumulator.py, _response_attributes_extractor.py).
+                    # Indexing it unconditionally would raise IndexError out of
+                    # this generator and into the caller's `async for`, which
+                    # this repo's instrumentation contract forbids.
+                    if event.data.choices and event.data.choices[0].finish_reason is not None:
                         self._finish_tracing()
                     yield event
             except Exception as exception:
