@@ -1252,6 +1252,65 @@ def test_get_attributes_from_chat_completions_tool_call_dict(
             {},
             id="zero_tokens",
         ),
+        pytest.param(
+            {
+                "requests": 1,
+                "input_tokens": 1000,
+                "output_tokens": 50,
+                "total_tokens": 1050,
+                "input_tokens_details": {"cached_tokens": 800},
+                "output_tokens_details": {"reasoning_tokens": 20},
+            },
+            {
+                "llm.token_count.prompt": 1000,
+                "llm.token_count.completion": 50,
+                "llm.token_count.prompt_details.cache_read": 800,
+                "llm.token_count.completion_details.reasoning": 20,
+            },
+            id="agents_sdk_usage_with_details",
+        ),
+        pytest.param(
+            {
+                "input_tokens": 1000,
+                "output_tokens": 50,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            },
+            {
+                "llm.token_count.prompt": 1000,
+                "llm.token_count.completion": 50,
+                "llm.token_count.prompt_details.cache_read": 0,
+                "llm.token_count.completion_details.reasoning": 0,
+            },
+            id="zero_cache_and_reasoning_tokens",
+        ),
+        pytest.param(
+            {
+                "input_tokens": 1000,
+                "output_tokens": 50,
+                "input_tokens_details": {"cached_tokens": 600, "cache_write_tokens": 300},
+            },
+            {
+                "llm.token_count.prompt": 1000,
+                "llm.token_count.completion": 50,
+                "llm.token_count.prompt_details.cache_read": 600,
+                "llm.token_count.prompt_details.cache_write": 300,
+            },
+            id="cache_read_and_write_tokens",
+        ),
+        pytest.param(
+            {
+                "input_tokens": 1000,
+                "output_tokens": 50,
+                "input_tokens_details": None,
+                "output_tokens_details": {},
+            },
+            {
+                "llm.token_count.prompt": 1000,
+                "llm.token_count.completion": 50,
+            },
+            id="missing_token_details",
+        ),
     ],
 )
 def test_get_attributes_from_chat_completions_usage(

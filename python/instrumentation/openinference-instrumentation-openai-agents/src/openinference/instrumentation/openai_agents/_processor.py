@@ -755,6 +755,14 @@ def _get_attributes_from_chat_completions_usage(
         yield LLM_TOKEN_COUNT_PROMPT, input_tokens
     if output_tokens := obj.get("output_tokens"):
         yield LLM_TOKEN_COUNT_COMPLETION, output_tokens
+    if isinstance(input_details := obj.get("input_tokens_details"), Mapping):
+        if (cached_tokens := input_details.get("cached_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached_tokens
+        if (cache_write_tokens := input_details.get("cache_write_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_write_tokens
+    if isinstance(output_details := obj.get("output_tokens_details"), Mapping):
+        if (reasoning_tokens := output_details.get("reasoning_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning_tokens
 
 
 # convert dict, tuple, etc into one of these types ['bool', 'str', 'bytes', 'int', 'float']
