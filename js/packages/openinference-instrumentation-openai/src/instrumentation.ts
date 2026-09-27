@@ -375,7 +375,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
 
             return result;
           };
-          const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
+          const wrappedPromise = invokeMaybeAPIPromise(
+            execPromise,
+            wrappedPromiseThen,
+            endSpanWithError.bind(null, span),
+          );
           return context.bind(execContext, wrappedPromise);
         };
       },
@@ -439,7 +443,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             }
             return result;
           };
-          const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
+          const wrappedPromise = invokeMaybeAPIPromise(
+            execPromise,
+            wrappedPromiseThen,
+            endSpanWithError.bind(null, span),
+          );
           return context.bind(execContext, wrappedPromise);
         };
       },
@@ -502,7 +510,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             span.end();
             return result;
           };
-          const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
+          const wrappedPromise = invokeMaybeAPIPromise(
+            execPromise,
+            wrappedPromiseThen,
+            endSpanWithError.bind(null, span),
+          );
           return context.bind(execContext, wrappedPromise);
         };
       },
@@ -588,7 +600,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
 
               return result;
             };
-            const wrappedPromise = invokeMaybeAPIPromise(execPromise, wrappedPromiseThen);
+            const wrappedPromise = invokeMaybeAPIPromise(
+              execPromise,
+              wrappedPromiseThen,
+              endSpanWithError.bind(null, span),
+            );
             return context.bind(execContext, wrappedPromise);
           };
         },
@@ -1128,6 +1144,30 @@ function observeRejection(promise: unknown, onRejected: (error: unknown) => void
 }
 
 /**
+ * Records an exception on the span, sets the span status to ERROR, and ends the span.
+ *
+ * Mirrors the end-of-span handling used by the synchronous error callback in
+ * `safeExecuteInTheMiddle` so that promises rejected by the SDK receive the
+ * same treatment (#3845).
+ *
+ * @param span - The span to finalize
+ * @param error - The rejection value. Async rejections can be anything, so we
+ *   coerce non-Error values to an ExceptionContext before recording.
+ */
+function endSpanWithError(span: Span, error: unknown): void {
+  if (error instanceof Error) {
+    span.recordException(error);
+  } else {
+    span.recordException({ name: "Error", message: String(error) });
+  }
+  span.setStatus({
+    code: SpanStatusCode.ERROR,
+    message: error instanceof Error ? error.message : String(error),
+  });
+  span.end();
+}
+
+/**
  * Invokes the thennable of a promise or an APIPromise.
  *
  * This is necessary to safely invoke promises returned by openai sdk methods.
@@ -1136,18 +1176,45 @@ function observeRejection(promise: unknown, onRejected: (error: unknown) => void
  * Making them unusable by other openai sdk methods, such as when completions.parse internally
  * calls completions.create, expecting an APIPromise which we would otherwise consume by calling `then` on it.
  *
+ * If `onError` is provided, it is attached as a fire-and-forget rejection handler so
+ * that async failures still finalize the span (#3845). The rejection itself is not
+ * consumed: the original promise (or APIPromise) is still returned to the caller.
+ *
  * @param promise - The promise to invoke the thennable of
  * @param then - The thennable to invoke
+ * @param onError - Optional rejection handler to fire-and-forget attach
  * @returns The promise with the thennable invoked
  */
-function invokeMaybeAPIPromise<T>(promise: APIPromise<T>, then: (value: T) => T): APIPromise<T>;
-function invokeMaybeAPIPromise<T>(promise: Promise<T>, then: (value: T) => T): Promise<T>;
+function invokeMaybeAPIPromise<T>(
+  promise: APIPromise<T>,
+  then: (value: T) => T,
+  onError?: (error: unknown) => void,
+): APIPromise<T>;
+function invokeMaybeAPIPromise<T>(
+  promise: Promise<T>,
+  then: (value: T) => T,
+  onError?: (error: unknown) => void,
+): Promise<T>;
 function invokeMaybeAPIPromise<T>(promise: T, then: (value: T) => T): T;
-function invokeMaybeAPIPromise(promise: unknown, then: (value: unknown) => unknown): unknown {
+function invokeMaybeAPIPromise(
+  promise: unknown,
+  then: (value: unknown) => unknown,
+  onError?: (error: unknown) => void,
+): unknown {
   if (isAPIPromise<unknown>(promise)) {
-    return promise._thenUnwrap(then);
+    const result = promise._thenUnwrap(then);
+    if (onError) {
+      // Fire-and-forget: keep the APIPromise (and its rejection) intact for the caller.
+      void result.catch(onError);
+    }
+    return result;
   } else if (promise instanceof Promise) {
-    return promise.then(then);
+    const result = promise.then(then);
+    if (onError) {
+      // Fire-and-forget: the original `result` still rejects and is returned below.
+      void result.catch(onError);
+    }
+    return result;
   } else {
     // eslint-disable-next-line no-console
     console.warn("Promise is not an APIPromise or a regular promise, cannot instrument.");

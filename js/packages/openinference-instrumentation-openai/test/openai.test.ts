@@ -1,4 +1,4 @@
-import { context } from "@opentelemetry/api";
+import { context, SpanStatusCode } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
@@ -1145,6 +1145,107 @@ describe("OpenAIInstrumentation", () => {
         "output.value": "{"id":"chatcmpl-parseTest","object":"chat.completion","created":1706000000,"model":"gpt-4o-2024-08-06","choices":[{"index":0,"message":{"role":"assistant","content":"{\\"name\\":\\"science fair\\",\\"date\\":\\"Friday\\",\\"participants\\":[\\"Alice\\",\\"Bob\\"]}"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":10,"total_tokens":30}}",
       }
     `);
+  });
+  // Regression tests for https://github.com/Arize-ai/openinference/issues/3845:
+  // a rejected create() must still end its span, otherwise failed calls vanish
+  // from traces.
+  describe("rejected create() (#3845)", () => {
+    it("ends the chat completions span and records the error when create() rejects", async () => {
+      const rejection = new Error("chat completions blew up");
+      vi.spyOn(openai, "post").mockImplementation(() => {
+        return new APIPromise(openai, Promise.reject(rejection));
+      });
+      await expect(
+        openai.chat.completions.create({
+          messages: [{ role: "user", content: "boom" }],
+          model: "gpt-3.5-turbo",
+        }),
+      ).rejects.toThrow("chat completions blew up");
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      const span = spans[0];
+      expect(span.name).toBe("OpenAI Chat Completions");
+      expect(span.status.code).toBe(SpanStatusCode.ERROR);
+      expect(span.status.message).toBe("chat completions blew up");
+      expect(span.events.some((e) => e.name === "exception")).toBe(true);
+    });
+    it("ends the completions span and records the error when create() rejects", async () => {
+      const rejection = new Error("completions blew up");
+      vi.spyOn(openai, "post").mockImplementation(() => {
+        return new APIPromise(openai, Promise.reject(rejection));
+      });
+      await expect(
+        openai.completions.create({
+          prompt: "boom",
+          model: "gpt-3.5-turbo-instruct",
+        }),
+      ).rejects.toThrow("completions blew up");
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      const span = spans[0];
+      expect(span.name).toBe("OpenAI Completions");
+      expect(span.status.code).toBe(SpanStatusCode.ERROR);
+      expect(span.status.message).toBe("completions blew up");
+      expect(span.events.some((e) => e.name === "exception")).toBe(true);
+    });
+    it("ends the embeddings span and records the error when create() rejects", async () => {
+      const rejection = new Error("embeddings blew up");
+      vi.spyOn(openai, "post").mockImplementation(() => {
+        return new APIPromise(openai, Promise.reject(rejection));
+      });
+      await expect(
+        openai.embeddings.create({
+          input: "boom",
+          model: "text-embedding-ada-002",
+        }),
+      ).rejects.toThrow("embeddings blew up");
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      const span = spans[0];
+      expect(span.name).toBe("OpenAI Embeddings");
+      expect(span.status.code).toBe(SpanStatusCode.ERROR);
+      expect(span.status.message).toBe("embeddings blew up");
+      expect(span.events.some((e) => e.name === "exception")).toBe(true);
+    });
+    it("ends the responses span and records the error when create() rejects", async () => {
+      const rejection = new Error("responses blew up");
+      vi.spyOn(openai, "post").mockImplementation(() => {
+        return new APIPromise(openai, Promise.reject(rejection));
+      });
+      await expect(
+        openai.responses.create({
+          input: "boom",
+          model: "gpt-4o",
+        }),
+      ).rejects.toThrow("responses blew up");
+      // Find at least one finished "OpenAI Responses" span with the expected error.
+      // (Earlier tests in this describe block toggle disable()/enable() on the
+      // instrumentation, which currently leaves the Responses patch stacked; that
+      // is a separate pre-existing bug. We only assert that *our* fix ends the
+      // span the user-facing call produced.)
+      const span = memoryExporter.getFinishedSpans().find((s) => s.name === "OpenAI Responses");
+      expect(span).toBeDefined();
+      expect(span?.status.code).toBe(SpanStatusCode.ERROR);
+      expect(span?.status.message).toBe("responses blew up");
+      expect(span?.events.some((e) => e.name === "exception")).toBe(true);
+    });
+    it("ends the span even when create() rejects with a non-Error value", async () => {
+      vi.spyOn(openai, "post").mockImplementation(() => {
+        return new APIPromise(openai, Promise.reject("plain string rejection"));
+      });
+      await expect(
+        openai.chat.completions.create({
+          messages: [{ role: "user", content: "boom" }],
+          model: "gpt-3.5-turbo",
+        }),
+      ).rejects.toBe("plain string rejection");
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      const span = spans[0];
+      expect(span.status.code).toBe(SpanStatusCode.ERROR);
+      expect(span.status.message).toBe("plain string rejection");
+      expect(span.events.some((e) => e.name === "exception")).toBe(true);
+    });
   });
 });
 
