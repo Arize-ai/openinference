@@ -17,6 +17,7 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 
 import {
+  EveOperationNameToSpanKindMap,
   GenAIOperationNameToSpanKindMap,
   VercelSDKFunctionNameToSpanKindMap,
 } from "./constants.js";
@@ -59,7 +60,9 @@ const getOISpanKindFromAttributes = (
   if (typeof maybeOperationName === "string") {
     const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
     if (maybeFunctionName != null) {
-      const spanKind = VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName);
+      const spanKind =
+        VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName) ??
+        EveOperationNameToSpanKindMap.get(maybeFunctionName);
       if (spanKind != null) {
         return spanKind;
       }
@@ -1307,6 +1310,12 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
     ...vercelGenAIAttributes,
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]: finalSpanKind,
   };
+
+  // A session.id already on the span (e.g. propagated from setSession context) takes precedence
+  // over the one derived from gen_ai.conversation.id.
+  if (attributes[SemanticConventions.SESSION_ID] != null) {
+    delete result[SemanticConventions.SESSION_ID];
+  }
 
   if (
     finalSpanKind === OpenInferenceSpanKind.EMBEDDING ||

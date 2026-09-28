@@ -17,7 +17,10 @@ import {
   OpenInferenceBatchSpanProcessor,
   OpenInferenceSimpleSpanProcessor,
 } from "../src";
-import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
+import {
+  EveOperationNameToSpanKindMap,
+  VercelSDKFunctionNameToSpanKindMap,
+} from "../src/constants";
 import { VercelAISemanticConventions } from "../src/VercelAISemanticConventions";
 import embedDoEmbedFixture from "./__fixtures__/v6-spans/ai-embed-doEmbed.json";
 import generateObjectDoGenerateFixture from "./__fixtures__/v6-spans/ai-generateObject-doGenerate.json";
@@ -274,6 +277,42 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
           index: 0,
           score: 0.9,
         }),
+      },
+    },
+  ],
+  [
+    "eve agent.step span",
+    {
+      vercelFunctionName: "agent.step",
+      vercelAttributes: {
+        "operation.name": "agent.step",
+        "agent.framework.name": "eve",
+        "agent.step.index": 0,
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+        "gen_ai.generation.id": "gen_01M3MT17AY0GD5CM9F9EJGJMHY",
+        "gen_ai.usage.cost": 0.0020226,
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+    },
+  ],
+  [
+    "eve agent.action span",
+    {
+      vercelFunctionName: "agent.action",
+      vercelAttributes: {
+        "operation.name": "agent.action",
+        "agent.action.kind": "tool-call",
+        "agent.action.name": "get_weather",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+        "gen_ai.tool.call.arguments": JSON.stringify({ city: "Brooklyn" }),
+        "gen_ai.tool.call.result": JSON.stringify({ city: "Brooklyn", condition: "Sunny" }),
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
       },
     },
   ],
@@ -1090,6 +1129,23 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
     VercelSDKFunctionNameToSpanKindMap.forEach((spanKind, functionName) => {
       const span = tracer.startSpan(functionName);
       span.setAttribute("operation.name", functionName);
+      span.end();
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(spanKind);
+      memoryExporter.reset();
+    });
+  });
+
+  it("should get the span kind from eve operation names", () => {
+    const tracer = trace.getTracer("test-tracer");
+    EveOperationNameToSpanKindMap.forEach((spanKind, operationName) => {
+      const span = tracer.startSpan(operationName);
+      // eve control-flow spans carry gen_ai.* context but no gen_ai.operation.name.
+      span.setAttributes({
+        "operation.name": operationName,
+        "gen_ai.conversation.id": "conversation-1",
+      });
       span.end();
       const spans = memoryExporter.getFinishedSpans();
       expect(spans.length).toBe(1);
@@ -2198,6 +2254,30 @@ describe.each([
       const span = tracer.startSpan(
         "ai.generateText",
         { attributes: { "operation.name": "ai.generateText" } },
+        ctx,
+      );
+      span.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.length).toBe(1);
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("session-123");
+    });
+
+    it("keeps a context session.id over gen_ai.conversation.id", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const ctx = setSession(context.active(), { sessionId: "session-123" });
+      const span = tracer.startSpan(
+        "chat gpt-4o-mini",
+        {
+          attributes: {
+            "gen_ai.operation.name": "chat",
+            "gen_ai.conversation.id": "conversation-456",
+          },
+        },
         ctx,
       );
       span.end();

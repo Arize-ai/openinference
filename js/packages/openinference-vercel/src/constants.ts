@@ -25,6 +25,19 @@ export const VercelSDKFunctionNameToSpanKindMap = new Map([
   ["ai.toolCall", OpenInferenceSpanKind.TOOL],
 ]);
 
+/**
+ * A map of Vercel eve operation names to OpenInference span kinds.
+ * eve sets these on its control-flow spans under the operation.name attribute. They carry
+ * gen_ai.* context attributes (e.g. gen_ai.conversation.id) but no gen_ai.operation.name, so
+ * without an explicit mapping they fall through to the GenAI converter's LLM default.
+ * The model call and tool execution beneath them are the chat (LLM) and execute_tool (TOOL) spans.
+ * @see https://eve.dev/docs/observability/otel#trace-topology
+ */
+export const EveOperationNameToSpanKindMap = new Map([
+  ["agent.step", OpenInferenceSpanKind.CHAIN],
+  ["agent.action", OpenInferenceSpanKind.CHAIN],
+]);
+
 export const GenAIOperationNameToSpanKindMap = new Map([
   ["invoke_agent", OpenInferenceSpanKind.AGENT],
   ["agent_step", OpenInferenceSpanKind.CHAIN],
