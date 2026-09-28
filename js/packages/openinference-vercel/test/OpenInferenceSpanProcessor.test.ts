@@ -316,6 +316,74 @@ const generateV7GenAITestCases = (): SpanProcessorTestCase[] => [
       },
     },
   ],
+  [
+    "eve agent.action span for a subagent call",
+    {
+      vercelFunctionName: "agent.action",
+      vercelAttributes: {
+        "operation.name": "agent.action",
+        "agent.action.kind": "subagent-call",
+        "agent.action.name": "researcher",
+        "agent.invocation.role": "caller",
+        "gen_ai.agent.name": "researcher",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+        [SemanticConventions.AGENT_NAME]: "researcher",
+      },
+    },
+  ],
+  [
+    "eve agent.action span for a remote-agent call",
+    {
+      vercelFunctionName: "agent.action",
+      vercelAttributes: {
+        "operation.name": "agent.action",
+        "agent.action.kind": "remote-agent-call",
+        "agent.action.name": "billing",
+        "agent.invocation.role": "caller",
+        "gen_ai.agent.name": "billing",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+      },
+    },
+  ],
+  [
+    "eve agent.action span for a workflow",
+    {
+      vercelFunctionName: "invoke_workflow",
+      vercelAttributes: {
+        "operation.name": "invoke_workflow",
+        "agent.action.kind": "tool-call",
+        "gen_ai.operation.name": "invoke_workflow",
+        "gen_ai.workflow.name": "refund",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+      },
+    },
+  ],
+  [
+    "eve agent.approval span",
+    {
+      vercelFunctionName: "agent.approval",
+      vercelAttributes: {
+        "operation.name": "agent.approval",
+        "agent.approval.kind": "tool-approval",
+        "agent.approval.outcome": "approved",
+        "agent.action.name": "issue_refund",
+        "gen_ai.conversation.id": "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
+        [SemanticConventions.SESSION_ID]: "wrun_01M3MT16Z5VT0ECJBR61JAVF76",
+      },
+    },
+  ],
 ];
 
 /**

@@ -267,3 +267,7 @@ new OpenInferenceSimpleSpanProcessor({
 Because the values are written directly onto the span, they survive both
 `reparentOrphanedSpans` re-rooting and export, and spans started in the same context
 (child model/tool calls) inherit them.
+
+Spans that carry the GenAI `gen_ai.conversation.id` attribute (for example every span
+Vercel eve emits) also get `session.id` from it, with no context setup needed. A
+`session.id` propagated from the context takes precedence.

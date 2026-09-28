@@ -18,6 +18,7 @@ import {
 
 import {
   EveOperationNameToSpanKindMap,
+  GenAIAgentIdentityAttributes,
   GenAIOperationNameToSpanKindMap,
   VercelSDKFunctionNameToSpanKindMap,
 } from "./constants.js";
@@ -60,9 +61,10 @@ const getOISpanKindFromAttributes = (
   if (typeof maybeOperationName === "string") {
     const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
     if (maybeFunctionName != null) {
+      const hasAgentIdentity = GenAIAgentIdentityAttributes.some((key) => attributes[key] != null);
       const spanKind =
         VercelSDKFunctionNameToSpanKindMap.get(maybeFunctionName) ??
-        EveOperationNameToSpanKindMap.get(maybeFunctionName);
+        (hasAgentIdentity ? undefined : EveOperationNameToSpanKindMap.get(maybeFunctionName));
       if (spanKind != null) {
         return spanKind;
       }
