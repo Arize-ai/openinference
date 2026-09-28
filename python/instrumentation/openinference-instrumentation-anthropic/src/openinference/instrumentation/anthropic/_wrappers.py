@@ -805,16 +805,34 @@ def _get_llm_input_messages(
     synthetic system message so OI consumers see system content in
     LLM_INPUT_MESSAGES alongside user/assistant turns.
     """
-    start = 1 if system else 0
-    for i, message in enumerate(messages, start=start):
+    i = 1 if system else 0
+    for message in messages:
         tool_index = 0
-        if role := message["role"]:
-            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
-        if content := message["content"]:
-            if isinstance(content, str):
+        content = message["content"]
+        # A message can carry several tool_result blocks (parallel tool calls), but a
+        # span message has one message.content and one message.tool_call_id. Each block
+        # becomes its own tool message right after this one, per the OpenInference spec.
+        tool_result_blocks = (
+            [
+                block
+                for block in content
+                if (isinstance(block, dict) and block.get("type") == "tool_result")
+                or (not isinstance(block, dict) and getattr(block, "type", None) == "tool_result")
+            ]
+            if isinstance(content, list)
+            else []
+        )
+        pure_tool_results = (
+            isinstance(content, list)
+            and len(content) > 0
+            and len(tool_result_blocks) == len(content)
+        )
+        if not pure_tool_results:
+            if role := message["role"]:
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
+            if isinstance(content, str) and content:
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
-                continue
-            for j, block in enumerate(content):
+            for j, block in enumerate(content) if isinstance(content, list) else []:
                 if isinstance(block, dict):
                     if block["type"] == "text":
                         prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
@@ -842,18 +860,6 @@ def _get_llm_input_messages(
                             safe_json_dumps(block["input"]),
                         )
                         tool_index += 1
-                    elif block["type"] == "tool_result":
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALL_ID}",
-                            block["tool_use_id"],
-                        )
-                        if (tool_result_content := block.get("content")) is not None:
-                            yield (
-                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
-                                tool_result_content
-                                if isinstance(tool_result_content, str)
-                                else safe_json_dumps(tool_result_content),
-                            )
                     elif block["type"] == "image":
                         if source := block["source"]:
                             image_data = f"data:{source.get('media_type')};{source.get('type')}"
@@ -952,6 +958,25 @@ def _get_llm_input_messages(
                         pass
                     elif TYPE_CHECKING:
                         assert_never(block)
+            i += 1
+        for block in tool_result_blocks:
+            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "tool"
+            if isinstance(block, dict):
+                tool_use_id = block.get("tool_use_id")
+                tool_result_content = block.get("content")
+            else:
+                tool_use_id = getattr(block, "tool_use_id", None)
+                tool_result_content = getattr(block, "content", None)
+            if tool_use_id:
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALL_ID}", tool_use_id
+            if tool_result_content is not None:
+                yield (
+                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
+                    tool_result_content
+                    if isinstance(tool_result_content, str)
+                    else safe_json_dumps(tool_result_content),
+                )
+            i += 1
 
     if system:
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "system"

@@ -11,6 +11,7 @@ from typing import (
 from google.genai._transformers import t_contents
 from google.genai.types import (
     Content,
+    FunctionResponse,
     GenerateContentConfig,
     Part,
 )
@@ -84,27 +85,62 @@ class _RequestAttributesExtractor:
         if input_contents := request_parameters.get("contents"):
             try:
                 for content in t_contents(input_contents):
-                    for attr, value in self._get_attributes_from_content(content):
-                        yield (
-                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
-                            value,
-                        )
-                    input_messages_index += 1
+                    for message_attributes in self._iter_messages_from_content(content):
+                        for attr, value in message_attributes:
+                            yield (
+                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
+                                value,
+                            )
+                        input_messages_index += 1
             except Exception:
                 logger.warning(f"Failed to normalize input contents of type {type(input_contents)}")
 
     def _get_attributes_from_content(
         self, content: Content
     ) -> Iterator[tuple[str, AttributeValue]]:
-        if role := content.role:
+        yield from self._get_attributes_from_message(
+            content.role, list(content.parts) if content.parts else []
+        )
+
+    def _iter_messages_from_content(
+        self, content: Content
+    ) -> Iterator[Iterator[tuple[str, AttributeValue]]]:
+        parts = list(content.parts or [])
+        function_response_parts = [part for part in parts if part.function_response is not None]
+        if not function_response_parts:
+            yield self._get_attributes_from_message(content.role, parts)
+            return
+        # Each function response becomes its own tool message, so every id
+        # survives and each result can be matched back to its call.
+        other_parts = [part for part in parts if part.function_response is None]
+        if other_parts:
+            yield self._get_attributes_from_message(content.role, other_parts)
+        for part in function_response_parts:
+            yield self._get_attributes_from_function_response_part(part.function_response)
+
+    def _get_attributes_from_message(
+        self, role: Optional[str], parts: list[Part]
+    ) -> Iterator[tuple[str, AttributeValue]]:
+        if role:
             yield (
                 MessageAttributes.MESSAGE_ROLE,
                 role.value if isinstance(role, Enum) else role,
             )
         else:
             yield (MessageAttributes.MESSAGE_ROLE, "user")
-        if parts := content.parts:
+        if parts:
             yield from self._flatten_parts(parts)
+
+    def _get_attributes_from_function_response_part(
+        self, function_response: FunctionResponse
+    ) -> Iterator[tuple[str, AttributeValue]]:
+        yield (MessageAttributes.MESSAGE_ROLE, "tool")
+        if name := function_response.name:
+            yield (MessageAttributes.MESSAGE_NAME, name)
+        if response := function_response.response:
+            yield (MessageAttributes.MESSAGE_CONTENT, safe_json_dumps(response))
+        if id_ := function_response.id:
+            yield (MessageAttributes.MESSAGE_TOOL_CALL_ID, id_)
 
     def _flatten_parts(self, parts: list[Part]) -> Iterator[tuple[str, AttributeValue]]:
         content_index = 0
@@ -173,20 +209,6 @@ class _RequestAttributesExtractor:
                         base64.b64encode(thought_signature).decode(),
                     )
                 tool_call_index += 1
-            elif function_response := part.function_response:
-                if response := function_response.response:
-                    if len(parts) == 1:
-                        yield (MessageAttributes.MESSAGE_CONTENT, safe_json_dumps(response))
-                    else:
-                        prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}"
-                        yield (f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text")
-                        yield (
-                            f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
-                            safe_json_dumps(response),
-                        )
-                        increment_content_index = True
-                if id_ := function_response.id:
-                    yield (MessageAttributes.MESSAGE_TOOL_CALL_ID, id_)
             if inline_data := part.inline_data:
                 inline_attributes = dict(
                     _get_attributes_from_inline_data(inline_data, content_index)
