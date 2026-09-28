@@ -1,8 +1,7 @@
 import logging
 from typing import Any, Iterable, Iterator, Mapping, Tuple
 
-from opentelemetry.util.types import AttributeValue
-
+from openinference.instrumentation.groq._types import AttributeValue
 from openinference.instrumentation.groq._utils import (
     _as_output_attributes,
     _get_attributes_from_message,
