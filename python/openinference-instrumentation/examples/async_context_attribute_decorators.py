@@ -8,6 +8,9 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from openinference.instrumentation import (
     TracerProvider,
+    agent_span,
+    get_span_kind_attributes,
+    tool_span,
     using_attributes,
     using_session,
     using_tags,
@@ -26,7 +29,7 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(COLLECTO
 tracer = tracer_provider.get_tracer(__name__)
 
 
-@tracer.tool
+@tool_span(tracer=tracer)
 async def look_up_order(order_id: str) -> str:
     await asyncio.sleep(0.05)
     return f"order {order_id} shipped yesterday"
@@ -35,7 +38,9 @@ async def look_up_order(order_id: str) -> str:
 async def stream_answer(order_status: str) -> AsyncIterator[str]:
     for sentence in (f"Good news: {order_status}.", "Anything else I can help with?"):
         await asyncio.sleep(0.02)
-        with tracer.start_as_current_span("emit_chunk", openinference_span_kind="chain") as span:
+        with tracer.start_as_current_span(
+            "emit_chunk", attributes=get_span_kind_attributes("chain")
+        ) as span:
             span.set_output(sentence)
         yield sentence
 
@@ -51,7 +56,7 @@ async def answer_order_question(order_id: str) -> str:
 @using_session("session-billing-42")
 @using_user("customer-billing")
 @using_tags(["billing"])
-@tracer.agent
+@agent_span(tracer=tracer)
 async def billing_agent(order_id: str) -> str:
     return await answer_order_question(order_id)
 
@@ -62,7 +67,7 @@ async def billing_agent(order_id: str) -> str:
     metadata={"region": "eu-west", "tier": "gold"},
     tags=["shipping"],
 )
-@tracer.agent
+@agent_span(tracer=tracer)
 async def shipping_agent(order_id: str) -> str:
     return await answer_order_question(order_id)
 

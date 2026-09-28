@@ -17,6 +17,7 @@ from opentelemetry.trace import INVALID_SPAN_CONTEXT, SpanContext
 from openinference.instrumentation import (
     OITracer,
     TracerProvider,
+    agent_span,
     capture_span_context,
     get_attributes_from_context,
     safe_json_dumps,
@@ -588,7 +589,7 @@ async def test_decorator_stacked_on_tracer_decorator_puts_attributes_on_span(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     @using_session("agent-session")
-    @tracer.agent
+    @agent_span(tracer=tracer)
     async def run_agent() -> None:
         await asyncio.sleep(0.001)
 

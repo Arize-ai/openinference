@@ -37,7 +37,17 @@ from ._blob_upload import (
 from ._capture import capture_span_context
 from ._projects import dangerously_using_project
 from ._tracer_providers import TracerProvider
-from ._tracers import OITracer
+from ._tracers import (
+    OITracer,
+    agent_span,
+    chain_span,
+    evaluator_span,
+    guardrail_span,
+    llm_span,
+    reranker_span,
+    retriever_span,
+    tool_span,
+)
 from ._types import (
     Annotation,
     AnnotationScope,
@@ -90,6 +100,14 @@ __all__ = [
     "suppress_tracing",
     "TraceConfig",
     "OITracer",
+    "tool_span",
+    "retriever_span",
+    "reranker_span",
+    "llm_span",
+    "guardrail_span",
+    "evaluator_span",
+    "chain_span",
+    "agent_span",
     "REDACTED_VALUE",
     "Blob",
     "BlobUploader",

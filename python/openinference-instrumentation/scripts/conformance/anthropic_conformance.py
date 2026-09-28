@@ -38,7 +38,12 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from openinference.instrumentation import OITracer, TraceConfig, using_session
+from openinference.instrumentation import (
+    OITracer,
+    TraceConfig,
+    get_span_kind_attributes,
+    using_session,
+)
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
@@ -104,8 +109,8 @@ def main() -> None:
     tool_result = {"forecast": "sunny", "temperature_f": 72}
     with oi_tracer.start_as_current_span(
         tool_use.name,
-        openinference_span_kind="tool",
         attributes={
+            **get_span_kind_attributes("tool"),
             SpanAttributes.TOOL_NAME: tool_use.name,
             SpanAttributes.TOOL_DESCRIPTION: "Get the current weather for a city",
             SpanAttributes.TOOL_ID: tool_use.id,
@@ -120,8 +125,8 @@ def main() -> None:
     print("[embedding] simulated vector embedding")
     with oi_tracer.start_as_current_span(
         "embed",
-        openinference_span_kind="embedding",
         attributes={
+            **get_span_kind_attributes("embedding"),
             SpanAttributes.EMBEDDING_MODEL_NAME: "voyage-3",
             SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS: json.dumps(
                 {"encoding_format": "float"}
@@ -135,8 +140,8 @@ def main() -> None:
     print("[retrieval] simulated document fetch")
     with oi_tracer.start_as_current_span(
         "retrieve_docs",
-        openinference_span_kind="retriever",
         attributes={
+            **get_span_kind_attributes("retriever"),
             SpanAttributes.INPUT_VALUE: "What's the weather in Seattle?",
             SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
             f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.document.id": "doc-001",

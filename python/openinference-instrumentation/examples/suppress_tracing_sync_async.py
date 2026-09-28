@@ -27,7 +27,12 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-from openinference.instrumentation import TracerProvider, suppress_tracing
+from openinference.instrumentation import (
+    TracerProvider,
+    get_span_kind_attributes,
+    suppress_tracing,
+    tool_span,
+)
 from openinference.semconv.resource import ResourceAttributes
 
 PHOENIX_BASE_URL = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006")
@@ -41,41 +46,45 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(COLLECTO
 tracer = tracer_provider.get_tracer(__name__)
 
 
-@tracer.tool
+@tool_span(tracer=tracer)
 def sync_tool(name: str) -> str:
     return f"sync tool ran: {name}"
 
 
-@tracer.tool
+@tool_span(tracer=tracer)
 async def async_tool(name: str) -> str:
     await asyncio.sleep(0.01)
     return f"async tool ran: {name}"
 
 
 def run_sync() -> None:
-    with tracer.start_as_current_span("sync.traced", openinference_span_kind="chain"):
+    with tracer.start_as_current_span("sync.traced", attributes=get_span_kind_attributes("chain")):
         sync_tool("traced")
 
     with suppress_tracing():
         # Neither of these should produce a span.
-        with tracer.start_as_current_span("sync.suppressed", openinference_span_kind="chain"):
+        with tracer.start_as_current_span(
+            "sync.suppressed", attributes=get_span_kind_attributes("chain")
+        ):
             sync_tool("suppressed")
 
     # Suppression must be lifted once the block exits.
-    with tracer.start_as_current_span("sync.after", openinference_span_kind="chain"):
+    with tracer.start_as_current_span("sync.after", attributes=get_span_kind_attributes("chain")):
         sync_tool("after")
 
 
 async def run_async() -> None:
-    with tracer.start_as_current_span("async.traced", openinference_span_kind="chain"):
+    with tracer.start_as_current_span("async.traced", attributes=get_span_kind_attributes("chain")):
         await async_tool("traced")
 
     async with suppress_tracing():
         # Neither of these should produce a span, even across an await.
-        with tracer.start_as_current_span("async.suppressed", openinference_span_kind="chain"):
+        with tracer.start_as_current_span(
+            "async.suppressed", attributes=get_span_kind_attributes("chain")
+        ):
             await async_tool("suppressed")
 
-    with tracer.start_as_current_span("async.after", openinference_span_kind="chain"):
+    with tracer.start_as_current_span("async.after", attributes=get_span_kind_attributes("chain")):
         await async_tool("after")
 
     # An exception escaping the block must still restore tracing.
@@ -86,7 +95,9 @@ async def run_async() -> None:
     except ValueError:
         pass
 
-    with tracer.start_as_current_span("async.after_exception", openinference_span_kind="chain"):
+    with tracer.start_as_current_span(
+        "async.after_exception", attributes=get_span_kind_attributes("chain")
+    ):
         await async_tool("after_exception")
 
 

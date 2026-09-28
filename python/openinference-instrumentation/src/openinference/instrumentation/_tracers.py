@@ -28,6 +28,7 @@ from typing import (  # type: ignore[attr-defined]
 )
 
 import wrapt
+from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, Context, get_value
 from opentelemetry.sdk.trace.id_generator import IdGenerator, RandomIdGenerator
 from opentelemetry.trace import (
@@ -122,9 +123,14 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         *,
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
     ) -> Iterator[OpenInferenceSpan]:
+        if openinference_span_kind is not None:
+            _warn_deprecated_span_kind_argument()
+            attributes = {
+                **(dict(attributes) if attributes else {}),
+                **get_span_kind_attributes(openinference_span_kind),
+            }
         span = self.start_span(
             name=name,
-            openinference_span_kind=openinference_span_kind,
             context=context,
             kind=kind,
             attributes=attributes,
@@ -155,6 +161,8 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         openinference_span_kind: Optional["OpenInferenceSpanKind"] = None,
     ) -> OpenInferenceSpan:
         otel_span: Span
+        if openinference_span_kind is not None:
+            _warn_deprecated_span_kind_argument()
         # Apply masking to attributes before passing to sampler to ensure
         # samplers don't see sensitive data that should be masked
         user_attributes = dict(attributes) if attributes else {}
@@ -253,9 +261,11 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        return self._chain(
+        _warn_deprecated_tracer_method("agent")
+        return _chain_decorator(
             wrapped_function,
-            kind=OpenInferenceSpanKindValues.AGENT,  # chains and agents differ only in span kind
+            tracer=self,
+            kind=OpenInferenceSpanKindValues.AGENT,
             name=name,
         )
 
@@ -287,7 +297,13 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.CHAIN, name=name)
+        _warn_deprecated_tracer_method("chain")
+        return _chain_decorator(
+            wrapped_function,
+            tracer=self,
+            kind=OpenInferenceSpanKindValues.CHAIN,
+            name=name,
+        )
 
     @overload  # for @tracer.retriever usage (no parameters)
     def retriever(
@@ -317,7 +333,13 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.RETRIEVER, name=name)
+        _warn_deprecated_tracer_method("retriever")
+        return _chain_decorator(
+            wrapped_function,
+            tracer=self,
+            kind=OpenInferenceSpanKindValues.RETRIEVER,
+            name=name,
+        )
 
     @overload  # for @tracer.reranker usage (no parameters)
     def reranker(
@@ -347,7 +369,13 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.RERANKER, name=name)
+        _warn_deprecated_tracer_method("reranker")
+        return _chain_decorator(
+            wrapped_function,
+            tracer=self,
+            kind=OpenInferenceSpanKindValues.RERANKER,
+            name=name,
+        )
 
     @overload  # for @tracer.guardrail usage (no parameters)
     def guardrail(
@@ -377,7 +405,13 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.GUARDRAIL, name=name)
+        _warn_deprecated_tracer_method("guardrail")
+        return _chain_decorator(
+            wrapped_function,
+            tracer=self,
+            kind=OpenInferenceSpanKindValues.GUARDRAIL,
+            name=name,
+        )
 
     @overload  # for @tracer.evaluator usage (no parameters)
     def evaluator(
@@ -407,66 +441,13 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        return self._chain(wrapped_function, kind=OpenInferenceSpanKindValues.EVALUATOR, name=name)
-
-    def _chain(
-        self,
-        wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
-        /,
-        *,
-        kind: OpenInferenceSpanKindValues,
-        name: Optional[str] = None,
-    ) -> Union[
-        Callable[ParametersType, ReturnType],
-        Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
-    ]:
-        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
-        def sync_wrapper(
-            wrapped: Callable[ParametersType, ReturnType],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-        ) -> ReturnType:
-            tracer = self
-            with _chain_context(
-                tracer=tracer,
-                name=name,
-                kind=kind,
-                wrapped=wrapped,
-                instance=instance,
-                args=args,
-                kwargs=kwargs,
-            ) as chain_context:
-                output = wrapped(*args, **kwargs)
-                chain_context.process_output(output)
-                return output
-
-        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
-        async def async_wrapper(
-            wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-        ) -> ReturnType:
-            tracer = self
-            with _chain_context(
-                tracer=tracer,
-                name=name,
-                kind=kind,
-                wrapped=wrapped,
-                instance=instance,
-                args=args,
-                kwargs=kwargs,
-            ) as chain_context:
-                output = await wrapped(*args, **kwargs)
-                chain_context.process_output(output)
-                return output
-
-        if wrapped_function is not None:
-            if asyncio.iscoroutinefunction(wrapped_function):
-                return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
-            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
+        _warn_deprecated_tracer_method("evaluator")
+        return _chain_decorator(
+            wrapped_function,
+            tracer=self,
+            kind=OpenInferenceSpanKindValues.EVALUATOR,
+            name=name,
+        )
 
     @overload  # for @tracer.tool usage (no parameters)
     def tool(
@@ -502,57 +483,16 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
-        def sync_wrapper(
-            wrapped: Callable[ParametersType, ReturnType],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-        ) -> ReturnType:
-            tracer = self
-            with _tool_context(
-                tracer=tracer,
-                name=name,
-                description=description,
-                parameters=parameters,
-                wrapped=wrapped,
-                instance=instance,
-                args=args,
-                kwargs=kwargs,
-            ) as tool_context:
-                output = wrapped(*args, **kwargs)
-                tool_context.process_output(output)
-                return output
+        _warn_deprecated_tracer_method("tool")
+        return _tool_decorator(
+            wrapped_function,
+            tracer=self,
+            name=name,
+            description=description,
+            parameters=parameters,
+        )
 
-        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
-        async def async_wrapper(
-            wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-        ) -> ReturnType:
-            tracer = self
-            with _tool_context(
-                tracer=tracer,
-                name=name,
-                description=description,
-                parameters=parameters,
-                wrapped=wrapped,
-                instance=instance,
-                args=args,
-                kwargs=kwargs,
-            ) as tool_context:
-                output = await wrapped(*args, **kwargs)
-                tool_context.process_output(output)
-                return output
-
-        if wrapped_function is not None:
-            if asyncio.iscoroutinefunction(wrapped_function):
-                return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
-            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
-
-    @overload  # @tracer.llm usage with no explicit application of the decorator
+    @overload  # for @tracer.llm usage (no parameters)
     def llm(
         self,
         wrapped_function: Callable[ParametersType, ReturnType],
@@ -563,7 +503,18 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         process_output: None = None,
     ) -> Callable[ParametersType, ReturnType]: ...
 
-    @overload  # @tracer.llm(...) usage with explicit application of the decorator
+    @overload  # for @tracer.llm(name="name") usage without input/output processors
+    def llm(
+        self,
+        wrapped_function: None = None,
+        /,
+        *,
+        name: Optional[str] = None,
+        process_input: None = None,
+        process_output: None = None,
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+    @overload  # for @tracer.llm(process_input=...) usage (with parameters)
     def llm(
         self,
         wrapped_function: None = None,
@@ -572,10 +523,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         name: Optional[str] = None,
         process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
         process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
-    ) -> Callable[
-        [Callable[ParametersType, ReturnType]],
-        Callable[ParametersType, ReturnType],
-    ]: ...
+    ) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
 
     def llm(
         self,
@@ -589,128 +537,675 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
-        def sync_function_wrapper(
-            wrapped: Callable[ParametersType, ReturnType],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-        ) -> ReturnType:
-            tracer = self
-            with _llm_context(
-                tracer=tracer,
-                name=name,
-                process_input=process_input,
-                process_output=process_output,
-                wrapped=wrapped,
-                instance=instance,
-                args=args,
-                kwargs=kwargs,
-            ) as llm_context:
-                output = wrapped(*args, **kwargs)
-                llm_context.process_output(output)
-                return output
+        _warn_deprecated_tracer_method("llm")
+        return _llm_decorator(
+            wrapped_function,
+            tracer=self,
+            name=name,
+            process_input=process_input,
+            process_output=process_output,
+        )
 
-        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
-        async def async_function_wrapper(
-            wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-        ) -> ReturnType:
-            tracer = self
-            with _llm_context(
-                tracer=tracer,
-                name=name,
-                process_input=process_input,
-                process_output=process_output,
-                wrapped=wrapped,
-                instance=instance,
-                args=args,
-                kwargs=kwargs,
-            ) as llm_context:
-                output = await wrapped(*args, **kwargs)
-                llm_context.process_output(output)
-                return output
 
-        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
-        def sync_generator_function_wrapper(
-            wrapped: Callable[ParametersType, Generator[ReturnType, None, None]],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-        ) -> Generator[ReturnType, None, None]:
-            tracer = self
-            with _llm_context(
-                tracer=tracer,
-                name=name,
-                process_input=process_input,
-                process_output=process_output,
-                wrapped=wrapped,
-                instance=instance,
-                args=args,
-                kwargs=kwargs,
-            ) as llm_context:
-                outputs: list[ReturnType] = []
-                generator = wrapped(*args, **kwargs)
-                while True:
-                    try:
-                        output = next(generator)
-                    except StopIteration:
-                        break
-                    except Exception:
-                        llm_context.process_output(outputs)
-                        raise
-                    outputs.append(output)
-                    yield output
-                llm_context.process_output(outputs)
+@overload  # for @agent_span usage (no parameters)
+def agent_span(
+    wrapped_function: Callable[ParametersType, ReturnType],
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: None = None,
+) -> Callable[ParametersType, ReturnType]: ...
 
-        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
-        async def async_generator_function_wrapper(
-            wrapped: Callable[ParametersType, AsyncGenerator[ReturnType, None]],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-        ) -> AsyncGenerator[ReturnType, None]:
-            tracer = self
-            with _llm_context(
-                tracer=tracer,
-                name=name,
-                process_input=process_input,
-                process_output=process_output,
-                wrapped=wrapped,
-                instance=instance,
-                args=args,
-                kwargs=kwargs,
-            ) as llm_context:
-                outputs: list[ReturnType] = []
-                generator = wrapped(*args, **kwargs)
-                while True:
-                    try:
-                        output = await generator.__anext__()
-                    except StopAsyncIteration:
-                        break
-                    except Exception:
-                        llm_context.process_output(outputs)
-                        raise
-                    outputs.append(output)
-                    yield output
-                llm_context.process_output(outputs)
 
-        def select_wrapper(
-            wrapped: Any,
-        ) -> Any:
-            if inspect.isgeneratorfunction(wrapped):
-                return sync_generator_function_wrapper(wrapped)
-            elif inspect.isasyncgenfunction(wrapped):
-                return async_generator_function_wrapper(wrapped)
-            elif asyncio.iscoroutinefunction(wrapped):
-                return async_function_wrapper(wrapped)
-            return sync_function_wrapper(wrapped)
+@overload  # for @agent_span(tracer=tracer, name="name") usage (with parameters)
+def agent_span(
+    wrapped_function: None = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
 
-        if wrapped_function is not None:
-            return select_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return select_wrapper
+
+def agent_span(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    """
+    Decorator that wraps the function call in a span of OpenInference kind AGENT.
+
+    The span records the arguments as input and the return value as output. When ``tracer``
+    is omitted, the tracer is obtained from the global tracer provider at call time.
+    """
+    return _chain_decorator(
+        wrapped_function,
+        tracer=tracer,
+        kind=OpenInferenceSpanKindValues.AGENT,
+        name=name,
+    )
+
+
+@overload  # for @chain_span usage (no parameters)
+def chain_span(
+    wrapped_function: Callable[ParametersType, ReturnType],
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: None = None,
+) -> Callable[ParametersType, ReturnType]: ...
+
+
+@overload  # for @chain_span(tracer=tracer, name="name") usage (with parameters)
+def chain_span(
+    wrapped_function: None = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+
+def chain_span(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    """
+    Decorator that wraps the function call in a span of OpenInference kind CHAIN.
+
+    The span records the arguments as input and the return value as output. When ``tracer``
+    is omitted, the tracer is obtained from the global tracer provider at call time.
+    """
+    return _chain_decorator(
+        wrapped_function,
+        tracer=tracer,
+        kind=OpenInferenceSpanKindValues.CHAIN,
+        name=name,
+    )
+
+
+@overload  # for @retriever_span usage (no parameters)
+def retriever_span(
+    wrapped_function: Callable[ParametersType, ReturnType],
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: None = None,
+) -> Callable[ParametersType, ReturnType]: ...
+
+
+@overload  # for @retriever_span(tracer=tracer, name="name") usage (with parameters)
+def retriever_span(
+    wrapped_function: None = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+
+def retriever_span(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    """
+    Decorator that wraps the function call in a span of OpenInference kind RETRIEVER.
+
+    The span records the arguments as input and the return value as output. When ``tracer``
+    is omitted, the tracer is obtained from the global tracer provider at call time.
+    """
+    return _chain_decorator(
+        wrapped_function,
+        tracer=tracer,
+        kind=OpenInferenceSpanKindValues.RETRIEVER,
+        name=name,
+    )
+
+
+@overload  # for @reranker_span usage (no parameters)
+def reranker_span(
+    wrapped_function: Callable[ParametersType, ReturnType],
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: None = None,
+) -> Callable[ParametersType, ReturnType]: ...
+
+
+@overload  # for @reranker_span(tracer=tracer, name="name") usage (with parameters)
+def reranker_span(
+    wrapped_function: None = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+
+def reranker_span(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    """
+    Decorator that wraps the function call in a span of OpenInference kind RERANKER.
+
+    The span records the arguments as input and the return value as output. When ``tracer``
+    is omitted, the tracer is obtained from the global tracer provider at call time.
+    """
+    return _chain_decorator(
+        wrapped_function,
+        tracer=tracer,
+        kind=OpenInferenceSpanKindValues.RERANKER,
+        name=name,
+    )
+
+
+@overload  # for @guardrail_span usage (no parameters)
+def guardrail_span(
+    wrapped_function: Callable[ParametersType, ReturnType],
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: None = None,
+) -> Callable[ParametersType, ReturnType]: ...
+
+
+@overload  # for @guardrail_span(tracer=tracer, name="name") usage (with parameters)
+def guardrail_span(
+    wrapped_function: None = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+
+def guardrail_span(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    """
+    Decorator that wraps the function call in a span of OpenInference kind GUARDRAIL.
+
+    The span records the arguments as input and the return value as output. When ``tracer``
+    is omitted, the tracer is obtained from the global tracer provider at call time.
+    """
+    return _chain_decorator(
+        wrapped_function,
+        tracer=tracer,
+        kind=OpenInferenceSpanKindValues.GUARDRAIL,
+        name=name,
+    )
+
+
+@overload  # for @evaluator_span usage (no parameters)
+def evaluator_span(
+    wrapped_function: Callable[ParametersType, ReturnType],
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: None = None,
+) -> Callable[ParametersType, ReturnType]: ...
+
+
+@overload  # for @evaluator_span(tracer=tracer, name="name") usage (with parameters)
+def evaluator_span(
+    wrapped_function: None = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+
+def evaluator_span(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    """
+    Decorator that wraps the function call in a span of OpenInference kind EVALUATOR.
+
+    The span records the arguments as input and the return value as output. When ``tracer``
+    is omitted, the tracer is obtained from the global tracer provider at call time.
+    """
+    return _chain_decorator(
+        wrapped_function,
+        tracer=tracer,
+        kind=OpenInferenceSpanKindValues.EVALUATOR,
+        name=name,
+    )
+
+
+@overload  # for @tool_span usage (no parameters)
+def tool_span(
+    wrapped_function: Callable[ParametersType, ReturnType],
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: None = None,
+    description: Optional[str] = None,
+    parameters: Optional[Union[str, Dict[str, Any]]] = None,
+) -> Callable[ParametersType, ReturnType]: ...
+
+
+@overload  # for @tool_span(tracer=tracer, name="name") usage (with parameters)
+def tool_span(
+    wrapped_function: None = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    parameters: Optional[Union[str, Dict[str, Any]]] = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+
+def tool_span(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    parameters: Optional[Union[str, Dict[str, Any]]] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    """
+    Decorator that wraps the function call in a span of OpenInference kind TOOL.
+
+    The tool name, description, and JSON schema parameters are inferred from the function
+    unless given explicitly. When ``tracer`` is omitted, the tracer is obtained from the
+    global tracer provider at call time.
+    """
+    return _tool_decorator(
+        wrapped_function,
+        tracer=tracer,
+        name=name,
+        description=description,
+        parameters=parameters,
+    )
+
+
+@overload  # for @llm_span usage (no parameters)
+def llm_span(
+    wrapped_function: Callable[ParametersType, ReturnType],
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: None = None,
+    process_input: None = None,
+    process_output: None = None,
+) -> Callable[ParametersType, ReturnType]: ...
+
+
+@overload  # for @llm_span(tracer=tracer, name="name") usage without input/output processors
+def llm_span(
+    wrapped_function: None = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+    process_input: None = None,
+    process_output: None = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+
+@overload  # for @llm_span(tracer=tracer, process_input=...) usage (with parameters)
+def llm_span(
+    wrapped_function: None = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+    process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+    process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
+) -> Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]]: ...
+
+
+def llm_span(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]] = None,
+    name: Optional[str] = None,
+    process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+    process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    """
+    Decorator that wraps the function call in a span of OpenInference kind LLM.
+
+    ``process_input`` and ``process_output`` convert the arguments and return value into span
+    attributes; without them the raw values are recorded as input and output. When ``tracer``
+    is omitted, the tracer is obtained from the global tracer provider at call time.
+    """
+    return _llm_decorator(
+        wrapped_function,
+        tracer=tracer,
+        name=name,
+        process_input=process_input,
+        process_output=process_output,
+    )
+
+
+def _warn_deprecated_tracer_method(method: str) -> None:
+    warnings.warn(
+        f"`OITracer.{method}` is deprecated and will be removed in a future release. "
+        f"Use `from openinference.instrumentation import {method}_span` and "
+        f"`@{method}_span(tracer=tracer)` instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+
+
+def _warn_deprecated_span_kind_argument() -> None:
+    warnings.warn(
+        "`openinference_span_kind` is deprecated and will be removed in a future release. "
+        "Pass `attributes=get_span_kind_attributes(kind)` or call "
+        "`span.set_attributes(get_span_kind_attributes(kind))` instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+
+
+def _resolve_tracer(
+    tracer: Optional[Union[Tracer, "OITracer"]], wrapped: Callable[..., Any]
+) -> "OITracer":
+    if tracer is None:
+        tracer = trace_api.get_tracer(getattr(wrapped, "__module__", None) or __name__)
+    if isinstance(tracer, OITracer):
+        return tracer
+    return OITracer(tracer, config=TraceConfig())
+
+
+def _chain_decorator(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]],
+    kind: OpenInferenceSpanKindValues,
+    name: Optional[str] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
+    def sync_wrapper(
+        wrapped: Callable[ParametersType, ReturnType],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> ReturnType:
+        with _chain_context(
+            tracer=_resolve_tracer(tracer, wrapped),
+            name=name,
+            kind=kind,
+            wrapped=wrapped,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+        ) as chain_context:
+            output = wrapped(*args, **kwargs)
+            chain_context.process_output(output)
+            return output
+
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
+    async def async_wrapper(
+        wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> ReturnType:
+        with _chain_context(
+            tracer=_resolve_tracer(tracer, wrapped),
+            name=name,
+            kind=kind,
+            wrapped=wrapped,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+        ) as chain_context:
+            output = await wrapped(*args, **kwargs)
+            chain_context.process_output(output)
+            return output
+
+    if wrapped_function is not None:
+        if asyncio.iscoroutinefunction(wrapped_function):
+            return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+        return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+    return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
+
+
+def _tool_decorator(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]],
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    parameters: Optional[Union[str, Dict[str, Any]]] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
+    def sync_wrapper(
+        wrapped: Callable[ParametersType, ReturnType],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> ReturnType:
+        with _tool_context(
+            tracer=_resolve_tracer(tracer, wrapped),
+            name=name,
+            description=description,
+            parameters=parameters,
+            wrapped=wrapped,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+        ) as tool_context:
+            output = wrapped(*args, **kwargs)
+            tool_context.process_output(output)
+            return output
+
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
+    async def async_wrapper(
+        wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> ReturnType:
+        with _tool_context(
+            tracer=_resolve_tracer(tracer, wrapped),
+            name=name,
+            description=description,
+            parameters=parameters,
+            wrapped=wrapped,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+        ) as tool_context:
+            output = await wrapped(*args, **kwargs)
+            tool_context.process_output(output)
+            return output
+
+    if wrapped_function is not None:
+        if asyncio.iscoroutinefunction(wrapped_function):
+            return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+        return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+    return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
+
+
+def _llm_decorator(
+    wrapped_function: Optional[Callable[ParametersType, ReturnType]] = None,
+    /,
+    *,
+    tracer: Optional[Union[Tracer, "OITracer"]],
+    name: Optional[str] = None,
+    process_input: Optional[Callable[ParametersType, "Mapping[str, AttributeValue]"]] = None,
+    process_output: Optional[Callable[..., "Mapping[str, AttributeValue]"]] = None,
+) -> Union[
+    Callable[ParametersType, ReturnType],
+    Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
+]:
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
+    def sync_function_wrapper(
+        wrapped: Callable[ParametersType, ReturnType],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> ReturnType:
+        with _llm_context(
+            tracer=_resolve_tracer(tracer, wrapped),
+            name=name,
+            process_input=process_input,
+            process_output=process_output,
+            wrapped=wrapped,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+        ) as llm_context:
+            output = wrapped(*args, **kwargs)
+            llm_context.process_output(output)
+            return output
+
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
+    async def async_function_wrapper(
+        wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> ReturnType:
+        with _llm_context(
+            tracer=_resolve_tracer(tracer, wrapped),
+            name=name,
+            process_input=process_input,
+            process_output=process_output,
+            wrapped=wrapped,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+        ) as llm_context:
+            output = await wrapped(*args, **kwargs)
+            llm_context.process_output(output)
+            return output
+
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
+    def sync_generator_function_wrapper(
+        wrapped: Callable[ParametersType, Generator[ReturnType, None, None]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> Generator[ReturnType, None, None]:
+        with _llm_context(
+            tracer=_resolve_tracer(tracer, wrapped),
+            name=name,
+            process_input=process_input,
+            process_output=process_output,
+            wrapped=wrapped,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+        ) as llm_context:
+            outputs: list[ReturnType] = []
+            generator = wrapped(*args, **kwargs)
+            while True:
+                try:
+                    output = next(generator)
+                except StopIteration:
+                    break
+                except Exception:
+                    llm_context.process_output(outputs)
+                    raise
+                outputs.append(output)
+                yield output
+            llm_context.process_output(outputs)
+
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
+    async def async_generator_function_wrapper(
+        wrapped: Callable[ParametersType, AsyncGenerator[ReturnType, None]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> AsyncGenerator[ReturnType, None]:
+        with _llm_context(
+            tracer=_resolve_tracer(tracer, wrapped),
+            name=name,
+            process_input=process_input,
+            process_output=process_output,
+            wrapped=wrapped,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+        ) as llm_context:
+            outputs: list[ReturnType] = []
+            generator = wrapped(*args, **kwargs)
+            while True:
+                try:
+                    output = await generator.__anext__()
+                except StopAsyncIteration:
+                    break
+                except Exception:
+                    llm_context.process_output(outputs)
+                    raise
+                outputs.append(output)
+                yield output
+            llm_context.process_output(outputs)
+
+    def select_wrapper(
+        wrapped: Any,
+    ) -> Any:
+        if inspect.isgeneratorfunction(wrapped):
+            return sync_generator_function_wrapper(wrapped)
+        elif inspect.isasyncgenfunction(wrapped):
+            return async_generator_function_wrapper(wrapped)
+        elif asyncio.iscoroutinefunction(wrapped):
+            return async_function_wrapper(wrapped)
+        return sync_function_wrapper(wrapped)
+
+    if wrapped_function is not None:
+        return select_wrapper(wrapped_function)  # type: ignore[no-any-return]
+    return select_wrapper
 
 
 class _ChainContext:
@@ -748,8 +1243,10 @@ def _chain_context(
 
     with tracer.start_as_current_span(
         span_name,
-        openinference_span_kind=kind,
-        attributes=input_attributes,
+        attributes={
+            **input_attributes,
+            **get_span_kind_attributes(kind),
+        },
     ) as span:
         context = _ChainContext(span=span)
         yield context
@@ -807,10 +1304,10 @@ def _llm_context(
     llm_attributes = get_llm_attributes()
     with tracer.start_as_current_span(
         llm_span_name,
-        openinference_span_kind=OpenInferenceSpanKindValues.LLM,
         attributes={
             **input_attributes,
             **llm_attributes,
+            **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
         },
     ) as span:
         context = _LLMContext(
@@ -862,10 +1359,10 @@ def _tool_context(
     )
     with tracer.start_as_current_span(
         tool_name,
-        openinference_span_kind=OpenInferenceSpanKindValues.TOOL,
         attributes={
             **input_attributes,
             **tool_attributes,
+            **get_span_kind_attributes(OpenInferenceSpanKindValues.TOOL),
         },
     ) as span:
         context = _ToolContext(span=span)

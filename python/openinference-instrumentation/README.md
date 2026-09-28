@@ -61,6 +61,31 @@ carrying span to have `session.id`; post-hoc span and trace annotations require
 the target Span Link described in the
 [annotation specification](../../spec/annotations.md).
 
+## Span Decorators
+
+Wrap a function in a span of a given OpenInference kind with the `*_span` decorators:
+`agent_span`, `chain_span`, `retriever_span`, `reranker_span`, `guardrail_span`, `evaluator_span`,
+`tool_span`, and `llm_span`. The function arguments are recorded as the span input and the return
+value as the span output. The `tracer` argument is optional; when omitted, the tracer is obtained
+from the global tracer provider when the function is called.
+
+```python
+from openinference.instrumentation import chain_span, tool_span
+
+@chain_span
+def summarize(text: str) -> str:
+    ...
+
+@tool_span(tracer=tracer, name="lookup_weather")
+def lookup_weather(city: str) -> str:
+    """Get the current weather for a city."""
+    ...
+```
+
+The equivalent `OITracer` methods (`tracer.chain`, `tracer.tool`, ...) and the
+`openinference_span_kind` argument of `start_span` and `start_as_current_span` are deprecated.
+Use the decorators above, or pass `attributes=get_span_kind_attributes(kind)` instead.
+
 ## Customizing Spans
 
 The `openinference-instrumentation` package offers utilities to track important application metadata such as sessions and metadata using Python context managers:
@@ -112,6 +137,7 @@ generator or `async def` generator runs (without leaking into the code that cons
 ```python
 from openinference.instrumentation import using_session, using_user
 
+
 @using_session("my-session-id")
 @using_user("my-user-id")
 async def answer(question: str) -> str:
@@ -120,7 +146,7 @@ async def answer(question: str) -> str:
     ...
 ```
 
-When combining them with span-creating decorators such as `tracer.agent` or `tracer.tool`, put
+When combining them with span-creating decorators such as `agent_span` or `tool_span`, put
 the `using_*` decorators on top: the attributes are copied onto a span when it starts, so they
 have to be attached before the span-creating decorator runs.
 
