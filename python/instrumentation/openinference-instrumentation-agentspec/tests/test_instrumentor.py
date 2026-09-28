@@ -192,6 +192,7 @@ def test_instrumentor_context_triggers_processors_and_exports_tool_spans(
             == OpenInferenceSpanKindValues.TOOL.value
         )
         assert attrs.pop(SpanAttributes.TOOL_NAME) == agentspec_tool.name
+        assert agentspec_tool.description is not None
         assert attrs.pop(SpanAttributes.TOOL_DESCRIPTION) == agentspec_tool.description
         # Tool parameters are flattened under tool.parameters.*
         assert attrs.pop("tool.parameters.x") == 1
@@ -258,9 +259,9 @@ def test_instrumentor_context_triggers_processors_and_exports_llm_spans(
             attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
             == OpenInferenceSpanKindValues.LLM.value
         )
-        assert attrs.pop(SpanAttributes.LLM_MODEL_NAME) == getattr(
-            agentspec_llm_config, "model_id", None
-        )
+        model_id = getattr(agentspec_llm_config, "model_id", None)
+        assert model_id is not None
+        assert attrs.pop(SpanAttributes.LLM_MODEL_NAME) == model_id
         assert attrs.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == '{"temperature": 0.3}'
 
         # Input messages flattened
