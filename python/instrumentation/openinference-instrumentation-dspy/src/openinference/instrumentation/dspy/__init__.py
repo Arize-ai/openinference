@@ -22,7 +22,6 @@ import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import StatusCode
-from opentelemetry.util.types import AttributeValue
 from wrapt import BoundFunctionWrapper, FunctionWrapper, apply_patch, resolve_path, wrap_object
 
 from openinference.instrumentation import (
@@ -986,7 +985,7 @@ def _get_signature_name(signature: Any) -> Optional[str]:
     return str(qual_name.split(".")[-1])
 
 
-def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     for key, value in mapping.items():
         if value is None:
             continue
