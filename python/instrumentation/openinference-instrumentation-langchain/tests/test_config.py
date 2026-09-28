@@ -100,7 +100,7 @@ def test_chat_with_config_hiding_inputs(
     else:
         assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE, None) == "application/json"
         input_value = json.loads(cast(str, input_value))
-        input_messages = input_value.pop("messages")  # type:ignore
+        input_messages = input_value.pop("messages")
         assert len(input_messages) == 1
         input_message = input_messages[0][0]
         assert input_message.pop("kwargs").pop("content") == content
@@ -203,7 +203,7 @@ def test_chat_with_config_hiding_outputs(
     assert input_value is not None
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE, None) == "application/json"
     input_value = json.loads(cast(str, input_value))
-    input_messages = input_value.pop("messages")  # type:ignore
+    input_messages = input_value.pop("messages")
     assert len(input_messages) == 1
     input_message = input_messages[0][0]
     assert input_message.pop("kwargs").pop("content") == content

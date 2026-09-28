@@ -2,9 +2,8 @@ import logging
 from enum import Enum
 from typing import Any, Iterable, Iterator, Mapping, Sequence, Tuple
 
-from opentelemetry.util.types import AttributeValue
-
 from openinference.instrumentation import get_input_attributes, safe_json_dumps
+from openinference.instrumentation.ollama._types import AttributeValue
 from openinference.instrumentation.ollama._utils import _as_arguments_json
 from openinference.semconv.trace import (
     MessageAttributes,
