@@ -17,9 +17,8 @@ entries in the response.
 import logging
 from typing import Any, Iterator, Mapping
 
-from opentelemetry.util.types import AttributeValue
-
 from openinference.instrumentation.google_genai._context import get_captured_request
+from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     OpenInferenceLLMProviderValues,

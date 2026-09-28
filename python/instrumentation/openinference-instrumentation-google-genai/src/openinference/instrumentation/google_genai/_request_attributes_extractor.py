@@ -14,9 +14,9 @@ from google.genai.types import (
     GenerateContentConfig,
     Part,
 )
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
     _get_attributes_from_file_data,
     _get_attributes_from_inline_data,
