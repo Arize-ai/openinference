@@ -13,9 +13,9 @@ from typing import (
 )
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
+from openinference.instrumentation.mistralai._types import AttributeValue
 from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
 

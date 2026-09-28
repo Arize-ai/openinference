@@ -3,9 +3,9 @@ import warnings
 from typing import Any, Dict, Iterable, Iterator, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.together._types import AttributeValue
 from openinference.instrumentation.together._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 

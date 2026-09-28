@@ -760,7 +760,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._turn_span = self._tracer.start_span(
             name="pipecat.conversation.turn",
             context=Context(),  # Empty context ensures this is a true root span
-            attributes=span_attributes,  # type: ignore
+            attributes=span_attributes,
         )
 
         if self._conversation_id:
