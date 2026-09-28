@@ -641,143 +641,148 @@ def _get_llm_input_messages(
         if not pure_tool_results:
             if role := message["role"]:
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
-            if isinstance(content, str) and content:
-                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
-            for j, block in enumerate(content) if isinstance(content, list) else []:
-                if isinstance(block, dict):
-                    if block["type"] == "text":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block["text"]
-                    elif block["type"] == "tool_use":
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
-                            block["id"],
-                        )
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
-                            block["name"],
-                        )
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(block["input"]),
-                        )
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
-                        yield f"{prefix}.{TOOL_CALL_ID}", block["id"]
-                        yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block["name"]
-                        yield (
-                            f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(block["input"]),
-                        )
-                        tool_index += 1
-                    elif block["type"] == "image":
-                        if source := block["source"]:
-                            image_data = f"data:{source.get('media_type')};{source.get('type')}"
-                            image_data = f"{image_data},{source.get('data')}"
+            if isinstance(content, str):
+                if content:
+                    yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+            else:
+                for j, block in enumerate(content):
+                    if isinstance(block, dict):
+                        if block["type"] == "text":
                             prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "image"
-                            yield f"{prefix}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", image_data
-                    elif block["type"] == "document":
-                        pass
-                    elif block["type"] == "search_result":
-                        pass
-                    elif block["type"] == "thinking":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block["thinking"]
-                        if signature := block.get("signature"):
-                            yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
-                    elif block["type"] == "redacted_thinking":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-                        yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block["data"]
-                    elif block["type"] == "server_tool_use":
-                        pass
-                    elif block["type"] == "web_search_tool_result":
-                        pass
-                    elif block["type"] == "web_fetch_tool_result":
-                        pass
-                    elif block["type"] == "code_execution_tool_result":
-                        pass
-                    elif block["type"] == "bash_code_execution_tool_result":
-                        pass
-                    elif block["type"] == "text_editor_code_execution_tool_result":
-                        pass
-                    elif block["type"] == "tool_search_tool_result":
-                        pass
-                    elif block["type"] == "container_upload":
-                        pass
-                    elif block["type"] == "mid_conv_system":
-                        pass
-                    elif TYPE_CHECKING:
-                        assert_never(block)
-                else:
-                    if block.type == "text":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.text
-                    elif block.type == "tool_use":
-                        if tool_call_id := block.id:
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block["text"]
+                        elif block["type"] == "tool_use":
                             yield (
                                 f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
-                                tool_call_id,
+                                block["id"],
                             )
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
-                            block.name,
-                        )
-                        yield (
-                            f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(block.input),
-                        )
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
-                        if tool_call_id := block.id:
-                            yield f"{prefix}.{TOOL_CALL_ID}", tool_call_id
-                        yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block.name
-                        yield (
-                            f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                            safe_json_dumps(block.input),
-                        )
-                        tool_index += 1
-                    elif block.type == "thinking":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.thinking
-                        if signature := block.signature:
-                            yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
-                    elif block.type == "redacted_thinking":
-                        prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
-                        yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
-                        yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block.data
-                    elif block.type == "server_tool_use":
-                        pass
-                    elif block.type == "web_search_tool_result":
-                        pass
-                    elif block.type == "web_fetch_tool_result":
-                        pass
-                    elif block.type == "code_execution_tool_result":
-                        pass
-                    elif block.type == "bash_code_execution_tool_result":
-                        pass
-                    elif block.type == "text_editor_code_execution_tool_result":
-                        pass
-                    elif block.type == "tool_search_tool_result":
-                        pass
-                    elif block.type == "container_upload":
-                        pass
-                    elif TYPE_CHECKING:
-                        assert_never(block)
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
+                                block["name"],
+                            )
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                safe_json_dumps(block["input"]),
+                            )
+                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
+                            yield f"{prefix}.{TOOL_CALL_ID}", block["id"]
+                            yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block["name"]
+                            yield (
+                                f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                safe_json_dumps(block["input"]),
+                            )
+                            tool_index += 1
+                        elif block["type"] == "tool_result":
+                            # collected before the loop and emitted below as its own tool message
+                            pass
+                        elif block["type"] == "image":
+                            if source := block["source"]:
+                                image_data = f"data:{source.get('media_type')};{source.get('type')}"
+                                image_data = f"{image_data},{source.get('data')}"
+                                prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                                yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "image"
+                                yield f"{prefix}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", image_data
+                        elif block["type"] == "document":
+                            pass
+                        elif block["type"] == "search_result":
+                            pass
+                        elif block["type"] == "thinking":
+                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block["thinking"]
+                            if signature := block.get("signature"):
+                                yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
+                        elif block["type"] == "redacted_thinking":
+                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+                            yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block["data"]
+                        elif block["type"] == "server_tool_use":
+                            pass
+                        elif block["type"] == "web_search_tool_result":
+                            pass
+                        elif block["type"] == "web_fetch_tool_result":
+                            pass
+                        elif block["type"] == "code_execution_tool_result":
+                            pass
+                        elif block["type"] == "bash_code_execution_tool_result":
+                            pass
+                        elif block["type"] == "text_editor_code_execution_tool_result":
+                            pass
+                        elif block["type"] == "tool_search_tool_result":
+                            pass
+                        elif block["type"] == "container_upload":
+                            pass
+                        elif block["type"] == "mid_conv_system":
+                            pass
+                        elif TYPE_CHECKING:
+                            assert_never(block)
+                    else:
+                        if block.type == "text":
+                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "text"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.text
+                        elif block.type == "tool_use":
+                            if tool_call_id := block.id:
+                                yield (
+                                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
+                                    tool_call_id,
+                                )
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
+                                block.name,
+                            )
+                            yield (
+                                f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                safe_json_dumps(block.input),
+                            )
+                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "tool_use"
+                            if tool_call_id := block.id:
+                                yield f"{prefix}.{TOOL_CALL_ID}", tool_call_id
+                            yield f"{prefix}.{TOOL_CALL_FUNCTION_NAME}", block.name
+                            yield (
+                                f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                safe_json_dumps(block.input),
+                            )
+                            tool_index += 1
+                        elif block.type == "thinking":
+                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TEXT}", block.thinking
+                            if signature := block.signature:
+                                yield f"{prefix}.{MESSAGE_CONTENT_SIGNATURE}", signature
+                        elif block.type == "redacted_thinking":
+                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "reasoning"
+                            yield f"{prefix}.{MESSAGE_CONTENT_DATA}", block.data
+                        elif block.type == "server_tool_use":
+                            pass
+                        elif block.type == "web_search_tool_result":
+                            pass
+                        elif block.type == "web_fetch_tool_result":
+                            pass
+                        elif block.type == "code_execution_tool_result":
+                            pass
+                        elif block.type == "bash_code_execution_tool_result":
+                            pass
+                        elif block.type == "text_editor_code_execution_tool_result":
+                            pass
+                        elif block.type == "tool_search_tool_result":
+                            pass
+                        elif block.type == "container_upload":
+                            pass
+                        elif TYPE_CHECKING:
+                            assert_never(block)
             i += 1
-        for block in tool_result_blocks:
+        for tr_block in tool_result_blocks:
             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", "tool"
-            if isinstance(block, dict):
-                tool_use_id = block.get("tool_use_id")
-                tool_result_content = block.get("content")
+            if isinstance(tr_block, dict):
+                tool_use_id = tr_block.get("tool_use_id")
+                tool_result_content = tr_block.get("content")
             else:
-                tool_use_id = getattr(block, "tool_use_id", None)
-                tool_result_content = getattr(block, "content", None)
+                tool_use_id = getattr(tr_block, "tool_use_id", None)
+                tool_result_content = getattr(tr_block, "content", None)
             if tool_use_id:
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALL_ID}", tool_use_id
             if tool_result_content is not None:
