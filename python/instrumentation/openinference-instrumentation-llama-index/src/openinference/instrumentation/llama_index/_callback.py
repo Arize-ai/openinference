@@ -1,5 +1,6 @@
 import json
 import logging
+from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import Enum
 from threading import RLock
@@ -54,6 +55,16 @@ logger.addHandler(logging.NullHandler())
 
 _EventId: TypeAlias = str
 _ParentId: TypeAlias = str
+
+_STREAM_PARENT_ID_PREFIX = "__openinference_stream_parent__"
+
+_active_stream_context: ContextVar[Optional[context_api.Context]] = ContextVar(
+    "active_stream_context", default=None
+)
+"""The OTEL context of the span whose streaming response generator is currently being
+consumed. Newer llama-index versions emit the LLM callback event lazily during this
+consumption, after the parent event has ended, so this lets `on_event_start` re-parent
+those otherwise-orphaned LLM spans into the correct trace."""
 
 
 @dataclass
@@ -231,6 +242,20 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
             return event_id
         parent_id = parent_id or BASE_TRACE_EVENT
 
+        # Newer llama-index dispatches templating/LLM callback events lazily while the
+        # streaming response generator is consumed. By then the enclosing event has
+        # ended and llama-index reports their parent as the root trace event. For
+        # concurrent streams this makes them collide in the templating store (all
+        # keyed by the root event) and orphans the LLM span into a new trace. The
+        # response generator re-activates its span's context while iterating (see
+        # `_ResponseGen`), so derive a stable per-stream parent id from that span to
+        # keep each concurrent stream isolated and correctly parented.
+        stream_context = _active_stream_context.get()
+        if parent_id == BASE_TRACE_EVENT and stream_context is not None:
+            stream_span_context = trace_api.get_current_span(stream_context).get_span_context()
+            if stream_span_context.is_valid:
+                parent_id = f"{_STREAM_PARENT_ID_PREFIX}{stream_span_context.span_id}"
+
         if payload is None:
             payloads, exceptions, attributes = [], [], {}
         else:
@@ -268,6 +293,11 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
             with self._lock:
                 if parent_event_data := self._event_data.get(parent_id):
                     context = parent_event_data.context
+        if context is None and stream_context is not None:
+            # Parent event has already ended (lazy streaming, see above), so fall
+            # back to the streaming span's re-activated context to keep this span
+            # within the same trace and parented to the streaming span.
+            context = stream_context
         # Instead of relying on automatic context lookup, we set the context
         # manually based on `parent_id``, because using the automatic context
         # may produce a family tree that is different from what LlamaIndex has
@@ -418,8 +448,16 @@ class _ResponseGen(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unus
         # pass through mistaken calls
         if not hasattr(self.__wrapped__, "__next__"):
             self.__wrapped__.__next__()
+        # Re-activate this span's context while pulling the next token so that any
+        # callback events dispatched lazily during consumption (e.g. the streaming
+        # LLM event in newer llama-index) are parented under this span instead of
+        # being orphaned into a new trace.
+        token = _active_stream_context.set(self._self_event_data.context)
         try:
-            value: str = self.__wrapped__.__next__()
+            try:
+                value: str = self.__wrapped__.__next__()
+            finally:
+                _active_stream_context.reset(token)
         except Exception as exception:
             # Note that the user can still try to iterate on the stream even
             # after it's consumed (or has errored out), but we don't want to
