@@ -1,0 +1,7 @@
+# Applied to every `uv pip` call in the google_adk tox envs via UV_CONSTRAINT, so the
+# shared `--reinstall` steps can't re-resolve past it.
+# opentelemetry-api 1.45.0 declares AttributeValue by chained assignment, which mypy
+# rejects as a type alias. Remove once fixed upstream:
+# https://github.com/open-telemetry/opentelemetry-python/issues/5701
+opentelemetry-api<1.45
+opentelemetry-sdk<1.45
