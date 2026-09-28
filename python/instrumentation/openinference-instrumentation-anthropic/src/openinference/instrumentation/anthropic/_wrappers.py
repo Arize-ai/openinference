@@ -21,7 +21,6 @@ from typing import (
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 from wrapt import ObjectProxy
 
@@ -30,6 +29,7 @@ from openinference.instrumentation.anthropic._stream import (
     _MessagesStream,
     _RawStreamInterceptor,
 )
+from openinference.instrumentation.anthropic._types import AttributeValue
 from openinference.instrumentation.anthropic._utils import _get_token_counts
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (

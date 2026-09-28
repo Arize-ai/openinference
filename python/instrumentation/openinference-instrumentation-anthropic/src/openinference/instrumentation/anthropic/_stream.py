@@ -12,10 +12,10 @@ from typing import (
 )
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.anthropic._types import AttributeValue
 from openinference.instrumentation.anthropic._utils import (
     _finish_tracing,
     _get_token_counts,
