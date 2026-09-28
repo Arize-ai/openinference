@@ -780,3 +780,50 @@ def test_get_genai_attributes_keeps_system_role_messages_in_input_messages() -> 
         {"role": "user", "parts": [{"type": "text", "content": "Hello"}]},
     ]
     assert GenAIAttributes.GEN_AI_SYSTEM_INSTRUCTIONS not in genai_attributes
+
+
+@pytest.mark.parametrize("content", [[{"type": "text", "text": "hello"}], {"text": "hello"}, 7])
+def test_llm_input_message_non_string_content_is_not_stringified(content: Any) -> None:
+    attributes = get_llm_attributes(
+        input_messages=[
+            {"role": "user", "content": content, "contents": [{"type": "text", "text": "hello"}]}
+        ]
+    )
+    assert f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.content" not in attributes
+    genai_attributes = get_genai_attributes(
+        {
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+            **attributes,
+        }
+    )
+    assert _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_INPUT_MESSAGES) == [
+        {"role": "user", "parts": [{"type": "text", "content": "hello"}]}
+    ]
+
+
+@pytest.mark.parametrize("role", [{"type": "agent", "name": "planner"}, ["user"], 7])
+def test_llm_input_message_non_string_role_is_not_stringified(role: Any) -> None:
+    attributes = get_llm_attributes(input_messages=[{"role": role, "content": "hello"}])
+    assert f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role" not in attributes
+    genai_attributes = get_genai_attributes(
+        {
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+            **attributes,
+        }
+    )
+    assert GenAIAttributes.GEN_AI_INPUT_MESSAGES not in genai_attributes
+
+
+def test_llm_input_message_string_role_and_content_are_preserved() -> None:
+    attributes = get_llm_attributes(input_messages=[{"role": "user", "content": "hello"}])
+    assert attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role"] == "user"
+    assert attributes[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.content"] == "hello"
+    genai_attributes = get_genai_attributes(
+        {
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+            **attributes,
+        }
+    )
+    assert _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_INPUT_MESSAGES) == [
+        {"role": "user", "parts": [{"type": "text", "content": "hello"}]}
+    ]
