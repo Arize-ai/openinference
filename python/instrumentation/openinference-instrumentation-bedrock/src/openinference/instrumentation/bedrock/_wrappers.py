@@ -28,6 +28,7 @@ from openinference.instrumentation.bedrock.utils._extract_invoke_model_attribute
     _build_nova_input_messages,
     _build_nova_output_messages,
     _build_nova_tools,
+    get_openai_output_attributes,
     set_input_attributes,
 )
 
@@ -203,18 +204,20 @@ class _OpenAIStreamCallback:
     """
     Processes OpenAI (gpt-oss, GPT-5.x, GPT-6) invoke_model_with_response_stream events.
 
-    Each chunk is a Chat Completions ``chat.completion.chunk``: text arrives in
-    ``choices[0].delta.content`` and the finish reason in ``choices[0].finish_reason``.
-    GPT-5.x/GPT-6 send ``usage`` with the finish reason (again in a trailing chunk with
-    empty ``choices`` when ``stream_options.include_usage`` is set). gpt-oss sends
-    ``usage`` only with ``include_usage``, so token counts fall back to the
+    Each chunk is a Chat Completions ``chat.completion.chunk``. Every choice (keyed by
+    ``choices[].index``) streams its text in ``delta.content``, a refusal in
+    ``delta.refusal``, tool calls in ``delta.tool_calls`` (split into fragments keyed by
+    their own ``index``) and ends with ``finish_reason``. GPT-5.x/GPT-6 send ``usage``
+    with the finish reason (again in a trailing chunk with empty ``choices`` when
+    ``stream_options.include_usage`` is set). gpt-oss sends ``usage`` only with
+    ``include_usage``, so token counts fall back to the
     ``amazon-bedrock-invocationMetrics`` of the last chunk.
     """
 
     def __init__(self, span: Span) -> None:
         self._span = span
-        self._text = ""
-        self._finish_reason: str | None = None
+        # Accumulated message state per ``choice.index`` (more than one when ``n > 1``).
+        self._choices: Dict[int, Dict[str, Any]] = {}
         self._usage: Dict[str, Any] = {}
 
     def __call__(self, obj: Any) -> Any:
@@ -224,10 +227,7 @@ class _OpenAIStreamCallback:
                 try:
                     payload = json.loads(obj["chunk"]["bytes"])
                     for choice in payload.get("choices") or []:
-                        if content := (choice.get("delta") or {}).get("content"):
-                            self._text += content
-                        if finish_reason := choice.get("finish_reason"):
-                            self._finish_reason = finish_reason
+                        self._add_choice_delta(choice)
                     if isinstance(usage := payload.get("usage"), dict):
                         self._usage = usage
                     elif isinstance(
@@ -241,8 +241,10 @@ class _OpenAIStreamCallback:
                 except Exception:
                     pass
         elif isinstance(obj, (StopIteration, StopAsyncIteration)):
-            if self._finish_reason:
-                span.set_attribute(LLM_FINISH_REASON, self._finish_reason)
+            if self._choices and (
+                finish_reason := self._choices[min(self._choices)]["finish_reason"]
+            ):
+                span.set_attribute(LLM_FINISH_REASON, finish_reason)
             for key, attribute in (
                 ("prompt_tokens", LLM_TOKEN_COUNT_PROMPT),
                 ("completion_tokens", LLM_TOKEN_COUNT_COMPLETION),
@@ -250,10 +252,70 @@ class _OpenAIStreamCallback:
             ):
                 if isinstance(value := self._usage.get(key), int):
                     span.set_attribute(attribute, value)
-            _finish(span, self._text or None, {})
+            span.set_attributes(get_openai_output_attributes(self._output_messages()))
+            _finish(span, None, {})
         elif isinstance(obj, BaseException):
             _finish(span, obj, {})
         return obj
+
+    def _add_choice_delta(self, choice: Any) -> None:
+        if not isinstance(choice, dict):
+            return
+        index = choice.get("index")
+        state = self._choices.setdefault(
+            index if isinstance(index, int) else 0,
+            {
+                "role": "assistant",
+                "content": "",
+                "refusal": "",
+                "tool_calls": {},
+                "finish_reason": None,
+            },
+        )
+        delta = choice.get("delta") or {}
+        if role := delta.get("role"):
+            state["role"] = role
+        if content := delta.get("content"):
+            state["content"] += content
+        if refusal := delta.get("refusal"):
+            state["refusal"] += refusal
+        for tool_call in delta.get("tool_calls") or []:
+            self._add_tool_call_delta(state["tool_calls"], tool_call)
+        if finish_reason := choice.get("finish_reason"):
+            state["finish_reason"] = finish_reason
+
+    @staticmethod
+    def _add_tool_call_delta(tool_calls: Dict[int, Dict[str, Any]], tool_call: Any) -> None:
+        if not isinstance(tool_call, dict):
+            return
+        index = tool_call.get("index")
+        if not isinstance(index, int):
+            index = len(tool_calls)
+        accumulated = tool_calls.setdefault(
+            index, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}}
+        )
+        if tool_call_id := tool_call.get("id"):
+            accumulated["id"] = tool_call_id
+        function = tool_call.get("function") or {}
+        if name := function.get("name"):
+            accumulated["function"]["name"] = name
+        if arguments := function.get("arguments"):
+            accumulated["function"]["arguments"] += arguments
+
+    def _output_messages(self) -> list[Dict[str, Any]]:
+        messages: list[Dict[str, Any]] = []
+        for index in sorted(self._choices):
+            state = self._choices[index]
+            if not (state["content"] or state["refusal"] or state["tool_calls"]):
+                continue
+            message: Dict[str, Any] = {"role": state["role"], "content": state["content"] or None}
+            if state["refusal"]:
+                message["refusal"] = state["refusal"]
+            if state["tool_calls"]:
+                tool_calls = state["tool_calls"]
+                message["tool_calls"] = [tool_calls[i] for i in sorted(tool_calls)]
+            messages.append(message)
+        return messages
 
 
 def _is_async_at_decoration(wrapped: Callable[..., Any]) -> bool:
