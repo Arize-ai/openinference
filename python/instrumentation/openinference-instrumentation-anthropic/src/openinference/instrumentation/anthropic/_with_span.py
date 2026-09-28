@@ -5,10 +5,9 @@ from itertools import chain
 from typing import Dict, Iterable, Optional, Tuple, Union
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import (
-    Attributes,
-    AttributeValue,
-)
+from opentelemetry.util.types import Attributes
+
+from openinference.instrumentation.anthropic._types import AttributeValue
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
