@@ -1646,6 +1646,14 @@ def test_output_messages_keep_content_without_finish_reason(
 
     spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
     chat_attributes = dict(spans["FakeChatGenerator.run"].attributes or {})
+    assert chat_attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert chat_attributes.pop(LLM_MODEL_NAME) == "fake-model"
+    assert chat_attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(chat_attributes.pop(INPUT_VALUE), str)
+    assert chat_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(chat_attributes.pop(OUTPUT_VALUE), str)
+    assert chat_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hi"
+    assert chat_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert (
         chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Let me check that for you."
@@ -1656,12 +1664,28 @@ def test_output_messages_keep_content_without_finish_reason(
         )
         == "get_weather"
     )
+    assert isinstance(
+        tool_call_arguments := chat_attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert json.loads(tool_call_arguments) == {"city": "Paris"}
     assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "streamed answer"
     assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert not chat_attributes
 
     text_attributes = dict(spans["FakeTextGenerator.run"].attributes or {})
+    assert text_attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert text_attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(text_attributes.pop(INPUT_VALUE), str)
+    assert text_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(text_attributes.pop(OUTPUT_VALUE), str)
+    assert text_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hi"
+    assert text_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "answer one"
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "answer two"
     assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert not text_attributes
