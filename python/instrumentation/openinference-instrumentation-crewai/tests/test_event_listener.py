@@ -6,7 +6,7 @@ from collections.abc import Generator, Mapping
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Sequence, cast
 
 import pytest
 from crewai.events.event_bus import crewai_event_bus
@@ -920,7 +920,7 @@ def test_event_listener_context_attributes(
             "test-list": [1, 2, 3],
             "test-dict": {"key-1": "val-1", "key-2": "val-2"},
         }
-        assert list(attributes[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+        assert list(cast(Sequence[str], attributes[SpanAttributes.TAG_TAGS])) == ["tag-1", "tag-2"]
         assert attributes[SpanAttributes.LLM_PROMPT_TEMPLATE] == "test-prompt-template"
         assert attributes[SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION] == "v1.0"
         assert json.loads(str(attributes[SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES])) == {
