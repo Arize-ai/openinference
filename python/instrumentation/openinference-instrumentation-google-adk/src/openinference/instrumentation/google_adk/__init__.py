@@ -1,4 +1,5 @@
 import contextvars
+import importlib
 import logging
 import sys
 from typing import Any, Collection, Dict, Iterator, List, Optional, Tuple, cast
@@ -95,33 +96,28 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _patch_trace_call_llm(self) -> None:
         """Patch the LLM call tracing functionality to use our tracer."""
-        from google.adk.flows.llm_flows import base_llm_flow
-
         from openinference.instrumentation.google_adk._wrappers import _TraceCallLlm
 
-        setattr(base_llm_flow, "tracer", self._tracer)
+        target = _resolve_trace_call_llm_module()
+        setattr(target, "tracer", self._tracer)
         setattr(
-            base_llm_flow,
+            target,
             "trace_call_llm",
-            _TraceCallLlm(self._tracer)(base_llm_flow.trace_call_llm),  # type: ignore[attr-defined]
+            _TraceCallLlm(self._tracer)(target.trace_call_llm),
         )
 
     def _unpatch_trace_call_llm(self) -> None:
         """Restore the original LLM call tracing functionality."""
-        from google.adk.flows.llm_flows import base_llm_flow
+        target = _resolve_trace_call_llm_module()
 
         if callable(
-            original := getattr(base_llm_flow.trace_call_llm, "__wrapped__"),  # type: ignore[attr-defined]
+            original := getattr(target.trace_call_llm, "__wrapped__", None),
         ):
-            from google.adk.flows.llm_flows import (
-                base_llm_flow,
-            )
-
-            setattr(base_llm_flow, "trace_call_llm", original)
+            setattr(target, "trace_call_llm", original)
 
         from google.adk.telemetry import tracer
 
-        setattr(base_llm_flow, "tracer", tracer)
+        setattr(target, "tracer", tracer)
 
     def _patch_trace_tool_call(self) -> None:
         """Patch the tool call tracing functionality to use our tracer."""
@@ -516,7 +512,8 @@ def _merged_tool_span_modules() -> List[Any]:
     original tracer in a *local* name that a later reassignment of
     ``tracing.tracer`` won't reach. ADK 2.x moved the merged-span creation into
     ``flows/llm_flows/_batch_tool_executor.py``, which keeps its own such binding
-    (and ``functions.py`` no longer imports ``tracer`` at all). Patch whichever of
+    (and ``functions.py`` no longer imports ``tracer`` at all), and ADK 2.10 moved
+    it again to ``flows/llm_flows/tools/_batch_executor.py``. Patch whichever of
     these modules is present so the merged span is emitted through our OI tracer
     regardless of ADK version.
     """
@@ -532,7 +529,35 @@ def _merged_tool_span_modules() -> List[Any]:
         modules.append(_batch_tool_executor)
     except ImportError:
         pass
+    try:
+        # The `tools` package is new in ADK 2.10, so import dynamically.
+        modules.append(importlib.import_module("google.adk.flows.llm_flows.tools._batch_executor"))
+    except ImportError:
+        pass
     return modules
+
+
+def _resolve_trace_call_llm_module() -> Any:
+    """Return the module whose ``call_llm`` span uses ``tracer`` and ``trace_call_llm``.
+
+    ADK 2.10 moved the ``call_llm`` span out of
+    ``google.adk.flows.llm_flows.base_llm_flow`` into
+    ``google.adk.flows.llm_flows.core._model_call``, which imports its own
+    module-local ``tracer`` and ``trace_call_llm`` bindings. ``base_llm_flow``
+    no longer imports either name, so detect the new module by its binding
+    rather than by version.
+    """
+    try:
+        _model_call = importlib.import_module("google.adk.flows.llm_flows.core._model_call")
+    except ImportError:
+        pass
+    else:
+        if hasattr(_model_call, "trace_call_llm"):
+            return _model_call
+
+    from google.adk.flows.llm_flows import base_llm_flow
+
+    return base_llm_flow
 
 
 def _resolve_trace_tool_call_module() -> Any:

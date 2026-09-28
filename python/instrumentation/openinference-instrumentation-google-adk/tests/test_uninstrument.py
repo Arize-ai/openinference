@@ -29,6 +29,7 @@ from openinference.instrumentation.google_adk import (
     _compaction_input_var,
     _merged_tool_span_modules,
     _PassthroughTracer,
+    _resolve_trace_call_llm_module,
     _SelectiveExecuteToolTracer,
 )
 from openinference.semconv.trace import SpanAttributes
@@ -47,8 +48,11 @@ def test_instrumentation_patching() -> None:
     # Import all necessary modules
     from google.adk import runners
     from google.adk.agents import BaseAgent
-    from google.adk.flows.llm_flows import base_llm_flow
     from google.adk.runners import Runner
+
+    # ADK 2.10 moved the call_llm span from flows.llm_flows.base_llm_flow to
+    # flows.llm_flows.core._model_call.
+    llm_flow_module = _resolve_trace_call_llm_module()
 
     # ADK 1.32 moved trace_tool_call from flows.llm_flows.functions to telemetry.tracing
     # and removed the re-export of `tracer` from agents.base_agent.
@@ -74,8 +78,8 @@ def test_instrumentation_patching() -> None:
     original_runner_run_async = Runner.run_async
     original_agent_run_async = BaseAgent.run_async
     original_runners_tracer = runners.tracer
-    original_base_llm_flow_tracer = base_llm_flow.tracer
-    original_trace_call_llm = base_llm_flow.trace_call_llm
+    original_llm_flow_tracer = llm_flow_module.tracer
+    original_trace_call_llm = llm_flow_module.trace_call_llm
     original_trace_tool_module_tracer = trace_tool_module.tracer
     original_trace_tool_call = trace_tool_module.trace_tool_call
     original_build_attrs = getattr(trace_tool_module, "_build_compaction_attributes", None)
@@ -99,8 +103,8 @@ def test_instrumentation_patching() -> None:
     assert Runner.run_async is not original_runner_run_async
     assert BaseAgent.run_async is not original_agent_run_async
     assert runners.tracer is not original_runners_tracer
-    assert base_llm_flow.tracer is not original_base_llm_flow_tracer
-    assert base_llm_flow.trace_call_llm is not original_trace_call_llm
+    assert llm_flow_module.tracer is not original_llm_flow_tracer
+    assert llm_flow_module.trace_call_llm is not original_trace_call_llm
     assert trace_tool_module.tracer is not original_trace_tool_module_tracer
     assert trace_tool_module.trace_tool_call is not original_trace_tool_call
     if _ADK_VERSION >= (1, 32, 0):
@@ -130,7 +134,7 @@ def test_instrumentation_patching() -> None:
 
     # Verify all tracers are patched with correct types
     assert isinstance(runners.tracer, _PassthroughTracer)
-    assert isinstance(base_llm_flow.tracer, OITracer)
+    assert isinstance(llm_flow_module.tracer, OITracer)
     if _ADK_VERSION >= (1, 32, 0):
         # tracing.tracer is the global ADK tracer; on >= 1.32 we wrap it with a
         # selective tracer that emits OI spans for `execute_tool *` and
@@ -160,8 +164,8 @@ def test_instrumentation_patching() -> None:
     assert Runner.run_async is original_runner_run_async
     assert BaseAgent.run_async is original_agent_run_async
     assert runners.tracer is original_runners_tracer
-    assert base_llm_flow.tracer is original_base_llm_flow_tracer
-    assert base_llm_flow.trace_call_llm is original_trace_call_llm
+    assert llm_flow_module.tracer is original_llm_flow_tracer
+    assert llm_flow_module.trace_call_llm is original_trace_call_llm
     assert trace_tool_module.tracer is original_trace_tool_module_tracer
     assert trace_tool_module.trace_tool_call is original_trace_tool_call
     for merged_module, original_tracer in original_merged_tracers:
