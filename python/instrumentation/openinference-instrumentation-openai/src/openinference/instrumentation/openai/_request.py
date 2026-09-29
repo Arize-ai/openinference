@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from abc import ABC
 from contextlib import contextmanager
@@ -16,6 +15,7 @@ from typing import (
     Tuple,
 )
 
+import anyio
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -410,9 +410,12 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
                 getattr(config, "hide_inputs", False) or getattr(config, "hide_input_images", False)
             )
         ):
-            image_file_attributes = await asyncio.to_thread(
-                lambda: tuple(get_attributes_from_image_files(request_files))
-            )
+            try:
+                image_file_attributes = await anyio.to_thread.run_sync(
+                    lambda: tuple(get_attributes_from_image_files(request_files))
+                )
+            except Exception:
+                logger.exception("Failed to extract image file attributes")
         extract_image_files = image_file_attributes is not None
         with self._start_as_current_span(
             span_name=span_name,

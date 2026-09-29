@@ -84,6 +84,7 @@ def _read_file_bytes(content: Any) -> Optional[bytes]:
             return None
         position = content.tell()
         try:
+            content.seek(0)
             data = content.read()
         finally:
             # Reading is observational: leave the stream exactly where the SDK
