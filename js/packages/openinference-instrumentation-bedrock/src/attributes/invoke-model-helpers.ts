@@ -507,11 +507,9 @@ function convertOpenAIChatToBedrockMessages(
       return { ...converted, role: "developer" };
     }
     if (raw.role === "tool" && typeof raw.tool_call_id === "string") {
-      const text = Array.isArray(converted.content) ? converted.content : [];
       return {
         ...converted,
         content: [
-          ...text,
           {
             type: "tool_result",
             tool_use_id: raw.tool_call_id,

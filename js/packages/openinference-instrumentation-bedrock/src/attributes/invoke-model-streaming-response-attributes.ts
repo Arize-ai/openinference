@@ -49,11 +49,24 @@ interface StreamEventData {
     input?: Record<string, unknown>;
   };
   delta?: {
+    type?: string;
     text?: string;
+    partial_json?: string;
   };
+  index?: number;
   usage?: Record<string, unknown>;
   // OpenAI Chat Completions chunk fields
-  choices?: Array<{ delta?: { content?: string | null; refusal?: string | null } }>;
+  choices?: Array<{
+    delta?: {
+      content?: string | null;
+      refusal?: string | null;
+      tool_calls?: Array<{
+        index?: number;
+        id?: string;
+        function?: { name?: string; arguments?: string };
+      }>;
+    };
+  }>;
 
   // Amazon-specific fields
   outputText?: string;
@@ -99,17 +112,52 @@ function isValidStreamEventData(data: unknown): data is StreamEventData {
  * Stream processing state shared across chunk processors
  * Contains accumulated content and usage data during stream consumption
  */
+interface ContentBlock {
+  type: string;
+  text?: string;
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+}
+
 interface StreamProcessingState {
   finishReason?: string;
   outputText: string;
-  contentBlocks: Array<{
-    type: string;
-    text?: string;
-    id?: string;
-    name?: string;
-    input?: Record<string, unknown>;
-  }>;
+  contentBlocks: ContentBlock[];
   rawUsageData: Record<string, unknown>;
+  /** Tool blocks by content block index, with their partial input JSON */
+  toolBlocksByIndex: Record<number, { block: ContentBlock; json: string }>;
+}
+
+/**
+ * Parses the joined JSON fragments of each streamed tool call into its block's input.
+ */
+function finalizeToolInputs(state: StreamProcessingState): void {
+  for (const { block, json } of Object.values(state.toolBlocksByIndex)) {
+    if (!json) continue;
+    try {
+      block.input = JSON.parse(json);
+    } catch (error) {
+      diag.warn("Failed to parse streamed tool call arguments:", error);
+    }
+  }
+}
+
+/**
+ * Adds an Anthropic `input_json_delta` fragment to its tool block. The fragments are only
+ * valid JSON once joined.
+ */
+function appendToolInputFragment(data: StreamEventData, state: StreamProcessingState): void {
+  if (
+    data.type !== "content_block_delta" ||
+    data.delta?.type !== "input_json_delta" ||
+    typeof data.delta.partial_json !== "string" ||
+    typeof data.index !== "number"
+  ) {
+    return;
+  }
+  const tool = state.toolBlocksByIndex[data.index];
+  if (tool) tool.json += data.delta.partial_json;
 }
 
 /**
@@ -137,8 +185,13 @@ function processAnthropicStreamChunk(
     // Store tool use blocks for later processing, don't add duplicates
     if (data.content_block.type === "tool_use") {
       state.contentBlocks.push(data.content_block);
+      if (typeof data.index === "number") {
+        state.toolBlocksByIndex[data.index] = { block: data.content_block, json: "" };
+      }
     }
   }
+
+  appendToolInputFragment(data, state);
 
   if (data.type === "content_block_delta" && data.delta?.text) {
     // Accumulate all text into the main outputText string
@@ -182,6 +235,47 @@ function processMetaStreamChunk(
 }
 
 /**
+ * Collects OpenAI streamed tool call fragments by index. The arguments JSON is joined and
+ * parsed once the stream ends.
+ */
+function accumulateOpenAIToolCalls(
+  toolCalls: NonNullable<NonNullable<StreamEventData["choices"]>[number]["delta"]>["tool_calls"],
+  state: StreamProcessingState,
+): void {
+  for (const toolCall of toolCalls ?? []) {
+    const index = toolCall.index ?? 0;
+    let tool = state.toolBlocksByIndex[index];
+    if (!tool) {
+      tool = {
+        block: { type: "tool_use", id: toolCall.id, name: toolCall.function?.name },
+        json: "",
+      };
+      state.toolBlocksByIndex[index] = tool;
+      state.contentBlocks.push(tool.block);
+    }
+    tool.json += toolCall.function?.arguments ?? "";
+  }
+}
+
+/**
+ * Turns Bedrock invocation metrics into usage fields. Each count is kept on its own and the
+ * total needs both.
+ */
+function getOpenAIMetricsUsage(
+  metrics: { inputTokenCount?: number; outputTokenCount?: number } | undefined,
+): Record<string, number> {
+  const input = metrics?.inputTokenCount;
+  const output = metrics?.outputTokenCount;
+  const usage: Record<string, number> = {};
+  if (typeof input === "number") usage.prompt_tokens = input;
+  if (typeof output === "number") usage.completion_tokens = output;
+  if (typeof input === "number" && typeof output === "number") {
+    usage.total_tokens = input + output;
+  }
+  return usage;
+}
+
+/**
  * Processes OpenAI Chat Completions stream chunks (gpt-oss, GPT-5.x, GPT-6)
  */
 function processOpenAIStreamChunk(
@@ -196,18 +290,13 @@ function processOpenAIStreamChunk(
   if (typeof delta?.refusal === "string") {
     state.outputText += delta.refusal;
   }
+  accumulateOpenAIToolCalls(delta?.tool_calls, state);
   // Without stream_options.include_usage, gpt-oss sends no usage chunk, only Bedrock's
   // invocation metrics on the last chunk. They fill the gaps; a usage chunk always wins.
-  const metrics = data["amazon-bedrock-invocationMetrics"];
-  const input = metrics?.inputTokenCount;
-  const output = metrics?.outputTokenCount;
-  const fromMetrics: Record<string, number> = {};
-  if (typeof input === "number") fromMetrics.prompt_tokens = input;
-  if (typeof output === "number") fromMetrics.completion_tokens = output;
-  if (typeof input === "number" && typeof output === "number") {
-    fromMetrics.total_tokens = input + output;
-  }
-  state.rawUsageData = { ...fromMetrics, ...state.rawUsageData };
+  state.rawUsageData = {
+    ...getOpenAIMetricsUsage(data["amazon-bedrock-invocationMetrics"]),
+    ...state.rawUsageData,
+  };
   if (data.usage && typeof data.usage === "object") {
     state.rawUsageData = { ...state.rawUsageData, ...data.usage };
   }
@@ -579,6 +668,7 @@ export const consumeBedrockStreamChunks = withSafety({
       outputText: "",
       contentBlocks: [],
       rawUsageData: {},
+      toolBlocksByIndex: {},
     };
 
     for await (const chunk of stream) {
@@ -631,6 +721,8 @@ export const consumeBedrockStreamChunks = withSafety({
         }
       }
     }
+
+    finalizeToolInputs(state);
 
     // Normalize usage data once at the end
     const normalizedUsage = normalizeStreamUsageData(state.rawUsageData, modelType);

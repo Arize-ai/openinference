@@ -87,6 +87,7 @@ describe("OpenAI models", () => {
       "llm.input_messages.0.message.role": "developer",
       "llm.input_messages.1.message.role": "tool",
       "llm.input_messages.1.message.tool_call_id": "call_1",
+      "llm.input_messages.1.message.contents.0.message_content.text": '{"temp_c":18}',
     });
   });
 
@@ -133,6 +134,40 @@ describe("OpenAI models", () => {
     expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
       "llm.input_messages.0.message.contents.0.message_content.text": "Weather?",
       "llm.input_messages.2.message.tool_call_id": "call_1",
+    });
+  });
+
+  it("records a streamed tool call with its arguments", async () => {
+    const span = provider.getTracer("test").startSpan("invoke_model_stream");
+    async function* stream() {
+      for (const data of [
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "call_9", function: { name: "get_weather", arguments: "" } },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"city":' } }] } }],
+        },
+        {
+          choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"Tokyo"}' } }] } }],
+        },
+      ]) {
+        yield { chunk: { bytes: Buffer.from(JSON.stringify(data)) } };
+      }
+    }
+    await consumeBedrockStreamChunks({ span, stream: stream(), modelType: LLMSystem.OPENAI });
+    span.end();
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_9",
+      "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+      "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": '{"city":"Tokyo"}',
     });
   });
 
@@ -195,6 +230,68 @@ describe("OpenAI models", () => {
     expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
       "llm.output_messages.0.message.content": "1, 2, 3.",
       ...expected,
+    });
+  });
+
+  it("records Claude streamed tool arguments", async () => {
+    const span = provider.getTracer("test").startSpan("invoke_model_stream");
+    async function* stream() {
+      for (const data of [
+        { type: "message_start", message: { usage: { input_tokens: 5 } } },
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "toolu_9", name: "get_weather", input: {} },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "input_json_delta", partial_json: '{"ci' },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "input_json_delta", partial_json: 'ty":"Tokyo"}' },
+        },
+        { type: "content_block_stop", index: 0 },
+        { type: "message_delta", delta: {}, usage: { output_tokens: 7 } },
+      ]) {
+        yield { chunk: { bytes: Buffer.from(JSON.stringify(data)) } };
+      }
+    }
+    await consumeBedrockStreamChunks({ span, stream: stream(), modelType: LLMSystem.ANTHROPIC });
+    span.end();
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": '{"city":"Tokyo"}',
+    });
+  });
+
+  it("records the text of a Claude tool_result input message", () => {
+    const span = provider.getTracer("test").startSpan("invoke_model");
+    const command = new InvokeModelCommand({
+      modelId: "anthropic.claude-haiku-4-5-20251001-v1:0",
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "tool_result", tool_use_id: "toolu_1", content: "18C and clear" },
+              {
+                type: "tool_result",
+                tool_use_id: "toolu_2",
+                content: [{ type: "text", text: "from blocks" }],
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    extractInvokeModelRequestAttributes({ span, command, system: LLMSystem.ANTHROPIC });
+    span.end();
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "llm.input_messages.0.message.tool_call_id": "toolu_2",
+      "llm.input_messages.0.message.contents.0.message_content.text": "18C and clear",
+      "llm.input_messages.0.message.contents.1.message_content.text": "from blocks",
     });
   });
 });
