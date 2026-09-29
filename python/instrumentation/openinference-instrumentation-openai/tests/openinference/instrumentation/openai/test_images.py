@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any, Callable, Iterator, Mapping, cast
 from urllib.parse import urljoin
 
+import anyio
 import pytest
 from httpx import Response
 from opentelemetry import trace as trace_api
@@ -528,26 +529,30 @@ def test_images_response_from_another_module_keeps_compatibility() -> None:
     assert attributes == {_output_image(): "data:image/jpeg;base64,aW1hZ2U="}
 
 
-def test_image_files_leave_the_stream_where_they_found_it() -> None:
+@pytest.mark.parametrize("position", [0, 8, len(_PNG_BYTES)])
+def test_image_files_leave_the_stream_where_they_found_it(position: int) -> None:
     source = BytesIO(_PNG_BYTES)
+    source.seek(position)
 
     attributes = dict(get_attributes_from_image_files([("image", source)]))
 
-    assert source.tell() == 0
+    assert source.tell() == position
     assert attributes == {_input_image(): _data_url("image/png", _PNG_BYTES)}
 
 
-def test_image_files_rewind_the_stream_when_reading_fails() -> None:
+@pytest.mark.parametrize("position", [0, 8, len(_PNG_BYTES)])
+def test_image_files_rewind_the_stream_when_reading_fails(position: int) -> None:
     class FailingRead(BytesIO):
         def read(self, *args: Any, **kwargs: Any) -> bytes:
             super().read(1)
             raise OSError("read failed")
 
     source = FailingRead(_PNG_BYTES)
+    source.seek(position)
 
     attributes = dict(get_attributes_from_image_files([("image", source)]))
 
-    assert source.tell() == 0
+    assert source.tell() == position
     assert attributes == {}
 
 
@@ -564,3 +569,80 @@ def test_image_files_that_cannot_be_read_leave_no_gap_in_the_indexes() -> None:
     )
 
     assert attributes == {_input_image(): _data_url("image/png", _PNG_BYTES)}
+
+
+@pytest.mark.parametrize("operation", ["generate", "edit"])
+def test_async_images_support_trio(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    operation: str,
+) -> None:
+    endpoint = "generations" if operation == "generate" else "edits"
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, f"images/{endpoint}")).mock(
+        return_value=Response(200, json={"created": 1, "data": [{"b64_json": "aW1hZ2U="}]}),
+    )
+
+    async def call() -> None:
+        async with _client(True) as client:
+            if operation == "generate":
+                result = await client.images.generate(prompt="a lighthouse")
+            else:
+                result = await client.images.edit(image=_PNG_BYTES, prompt="a lighthouse")
+            assert result.data[0].b64_json == "aW1hZ2U="
+
+    anyio.run(call, backend="trio")
+
+    attributes = _image_span_attributes(in_memory_span_exporter, {"prompt": "a lighthouse"})
+    assert attributes.pop(_output_image()) == "data:image/png;base64,aW1hZ2U="
+    if operation == "edit":
+        assert attributes.pop(_input_image()) == _data_url("image/png", _PNG_BYTES)
+    assert attributes == {}
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("position", [8, len(_PNG_BYTES)])
+async def test_image_edit_records_the_complete_upload_from_a_seeked_stream(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    is_async: bool,
+    position: int,
+) -> None:
+    route = respx_mock.post(urljoin(_OPENAI_BASE_URL, "images/edits")).mock(
+        return_value=Response(200, json={"created": 1, "data": [{"b64_json": "aW1hZ2U="}]}),
+    )
+    source = BytesIO(_PNG_BYTES)
+    source.seek(position)
+    call = _client(is_async).images.edit(image=("image.png", source), prompt="edit this")
+    if is_async:
+        await call
+
+    assert _PNG_BYTES in route.calls.last.request.content
+    attributes = _image_span_attributes(in_memory_span_exporter, {"prompt": "edit this"})
+    assert attributes.pop(_input_image()) == _data_url("image/png", _PNG_BYTES)
+    assert attributes.pop(_output_image()) == "data:image/png;base64,aW1hZ2U="
+    assert attributes == {}
+
+
+async def test_async_image_extraction_failure_does_not_fail_the_request(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_extraction(files: Any) -> Iterator[tuple[str, AttributeValue]]:
+        raise RuntimeError("image extraction failed")
+
+    monkeypatch.setattr(
+        "openinference.instrumentation.openai._request.get_attributes_from_image_files",
+        fail_extraction,
+    )
+    respx_mock.post(urljoin(_OPENAI_BASE_URL, "images/edits")).mock(
+        return_value=Response(200, json={"created": 1, "data": [{"b64_json": "aW1hZ2U="}]}),
+    )
+
+    async with _client(True) as client:
+        result = await client.images.edit(image=_PNG_BYTES, prompt="edit this")
+
+    assert result.data[0].b64_json == "aW1hZ2U="
+    attributes = _image_span_attributes(in_memory_span_exporter, {"prompt": "edit this"})
+    assert attributes.pop(_output_image()) == "data:image/png;base64,aW1hZ2U="
+    assert attributes == {}
