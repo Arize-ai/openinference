@@ -27,7 +27,13 @@ from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from instructor.utils import is_async
-from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
+from openinference.instrumentation import (
+    Message,
+    MessageContent,
+    get_llm_input_message_attributes,
+    infer_llm_provider_from_host,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMProviderValues,
@@ -452,10 +458,11 @@ _LLM_SYSTEMS = {
     "vertexai": OpenInferenceLLMSystemValues.VERTEXAI,
 }
 
-# Instructor's own arguments, plus the messages reported as input.value.
+# Prompt data and Instructor's own arguments are not generation parameters.
 _NON_INVOCATION_PARAMETERS = frozenset(
     {
         "messages",
+        "system",
         "response_model",
         "context",
         "hooks",
@@ -726,24 +733,55 @@ class _V2CreateFactoryWrapper:
             default_model if isinstance(default_model, str) else None,
         )
 
+    @staticmethod
+    def _normalize_message(content: Any, role: Any = None) -> Message:
+        message: Message = {}
+        if isinstance(role, str):
+            message["role"] = role
+        if isinstance(content, str):
+            message["content"] = content
+        elif isinstance(content, (list, tuple)):
+            contents: List[MessageContent] = []
+            for block in content:
+                if not isinstance(block, Mapping):
+                    continue
+                if block.get("type") == "text":
+                    if isinstance(text := block.get("text"), str):
+                        contents.append({"type": "text", "text": text})
+                    continue
+                url = None
+                if block.get("type") == "image_url":
+                    image_url = block.get("image_url")
+                    url = image_url.get("url") if isinstance(image_url, Mapping) else image_url
+                elif block.get("type") == "image":
+                    source = block.get("source")
+                    if not isinstance(source, Mapping):
+                        continue
+                    if source.get("type") == "url":
+                        url = source.get("url")
+                    elif source.get("type") == "base64":
+                        media_type = source.get("media_type")
+                        data = source.get("data")
+                        if isinstance(media_type, str) and isinstance(data, str):
+                            url = f"data:{media_type};base64,{data}"
+                if isinstance(url, str):
+                    contents.append({"type": "image", "image": {"url": url}})
+            message["contents"] = contents
+        return message
+
     @classmethod
-    def _get_messages(cls, messages: Any) -> Dict[str, AttributeValue]:
-        attributes: Dict[str, AttributeValue] = {}
-        if not isinstance(messages, (list, tuple)):
-            return attributes
-        for index, message in enumerate(messages):
-            if not isinstance(message, Mapping):
-                continue
-            if isinstance(role := message.get("role"), str):
-                attributes[f"{LLM_INPUT_MESSAGES}.{index}.{MESSAGE_ROLE}"] = role
-            content = message.get("content")
-            if isinstance(content, str):
-                attributes[f"{LLM_INPUT_MESSAGES}.{index}.{MESSAGE_CONTENT}"] = content
-            elif content is not None:
-                attributes[f"{LLM_INPUT_MESSAGES}.{index}.{MESSAGE_CONTENT}"] = safe_json_dumps(
-                    content, cls=SafeJSONEncoder
+    def _get_messages(cls, messages: Any, system: Any = None) -> Dict[str, AttributeValue]:
+        normalized: List[Message] = []
+        if isinstance(system, (str, list, tuple)):
+            normalized.append(cls._normalize_message(system, "system"))
+        if isinstance(messages, (list, tuple)):
+            for message in messages:
+                normalized.append(
+                    cls._normalize_message(message.get("content"), message.get("role"))
+                    if isinstance(message, Mapping)
+                    else {}
                 )
-        return attributes
+        return dict(get_llm_input_message_attributes(normalized))
 
     @classmethod
     def _get_attributes(
@@ -763,7 +801,7 @@ class _V2CreateFactoryWrapper:
         except Exception:
             pass
         try:
-            attributes.update(cls._get_messages(kwargs.get("messages")))
+            attributes.update(cls._get_messages(kwargs.get("messages"), kwargs.get("system")))
         except Exception:
             pass
         try:
