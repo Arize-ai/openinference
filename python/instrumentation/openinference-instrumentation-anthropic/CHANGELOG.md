@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.1.6...python-openinference-instrumentation-anthropic-v2.1.7) (2026-09-29)
+
+
+### Bug Fixes
+
+* **anthropic:** use local AttributeValue alias for mypy compatibility with opentelemetry-api 1.37+ ([#3865](https://github.com/Arize-ai/openinference/issues/3865)) ([e6deb80](https://github.com/Arize-ai/openinference/commit/e6deb80db878e58d6da551c77bcdc8b2ff2604ce))
+
+## [2.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.1.5...python-openinference-instrumentation-anthropic-v2.1.6) (2026-09-24)
+
+
+### Bug Fixes
+
+* **anthropic:** support the anthropic 1.8.0 request body preparation rename ([#3824](https://github.com/Arize-ai/openinference/issues/3824)) ([0501716](https://github.com/Arize-ai/openinference/commit/05017165ecc5e08b25e0408107216778080ca4cd))
+
 ## [2.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.1.4...python-openinference-instrumentation-anthropic-v2.1.5) (2026-09-15)
 
 

@@ -17,7 +17,6 @@ from typing import (
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context.context import Context
-from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent
 from agno.models.message import Message
@@ -32,6 +31,7 @@ from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
+    AttributeValue,
     _bind_arguments,
     _flatten,
     _generate_node_id,

@@ -23,6 +23,7 @@ from openinference.instrumentation.anthropic._wrappers import (
 from openinference.instrumentation.anthropic.version import __version__
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 _instruments = ("anthropic >= 1.8.0",)
 
@@ -53,7 +54,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        from anthropic import _base_client
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
         from anthropic.resources.beta.messages import Messages as BetaMessages
         from anthropic.resources.messages import AsyncMessages, Messages
@@ -67,11 +67,6 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
-        )
-
-        self._original_prepare_request_data = getattr(_base_client, "prepare_request_data")
-        self._original_async_prepare_request_data = getattr(
-            _base_client, "async_prepare_request_data"
         )
 
         self._original_messages_create = Messages.create
@@ -198,17 +193,28 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ),
         )
 
-        wrap_function_wrapper(
-            "anthropic._base_client",
-            "prepare_request_data",
-            _PrepareRequestDataWrapper(),
-        )
+        self._wrap_request_preparation()
 
+    def _wrap_request_preparation(self) -> None:
+        from anthropic import _base_client
+
+        self._original_prepare_request_data = None
+        self._original_async_prepare_request_data = None
+        try:
+            original = getattr(_base_client, "prepare_request_data")
+            async_original = getattr(_base_client, "async_prepare_request_data")
+        except AttributeError:
+            logger.warning(
+                "Could not find Anthropic request preparation functions. Some invocation "
+                "parameters may be missing from LLM spans."
+            )
+            return
+        wrap_function_wrapper(_base_client, "prepare_request_data", _PrepareRequestDataWrapper())
         wrap_function_wrapper(
-            "anthropic._base_client",
-            "async_prepare_request_data",
-            _AsyncPrepareRequestDataWrapper(),
+            _base_client, "async_prepare_request_data", _AsyncPrepareRequestDataWrapper()
         )
+        self._original_prepare_request_data = original
+        self._original_async_prepare_request_data = async_original
 
     def _uninstrument(self, **kwargs: Any) -> None:
         from anthropic import _base_client

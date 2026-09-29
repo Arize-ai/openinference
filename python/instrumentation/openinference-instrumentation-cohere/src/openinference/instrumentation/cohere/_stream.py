@@ -4,13 +4,13 @@ from types import SimpleNamespace
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.cohere._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
+from openinference.instrumentation.cohere._types import AttributeValue
 from openinference.instrumentation.cohere._with_span import _WithSpan
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.60...python-openinference-instrumentation-openai-v0.1.61) (2026-09-24)
+
+
+### Features
+
+* **openai:** capture cache write and read token usage ([#3382](https://github.com/Arize-ai/openinference/issues/3382)) ([7feb0c4](https://github.com/Arize-ai/openinference/commit/7feb0c4ba2fd77cb76036712e21d06ff15a2be22))
+
 ## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.59...python-openinference-instrumentation-openai-v0.1.60) (2026-09-10)
 
 

@@ -4,6 +4,7 @@ Cassettes recorded against the real AWS Bedrock API and replayed for CI.
 """
 
 import json
+from typing import Any, Dict
 
 import boto3
 import pytest
@@ -50,7 +51,7 @@ class TestNovaInvokeModel:
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
-        attributes = dict(span.attributes or {})
+        attributes: Dict[str, Any] = dict(span.attributes or {})
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
@@ -109,7 +110,7 @@ class TestNovaInvokeModel:
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
-        attributes = dict(span.attributes or {})
+        attributes: Dict[str, Any] = dict(span.attributes or {})
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
@@ -192,7 +193,7 @@ class TestNovaInvokeModel:
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
-        attributes = dict(span.attributes or {})
+        attributes: Dict[str, Any] = dict(span.attributes or {})
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
@@ -260,7 +261,7 @@ class TestNovaInvokeModel:
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
-        attributes = dict(span.attributes or {})
+        attributes: Dict[str, Any] = dict(span.attributes or {})
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
@@ -317,7 +318,7 @@ class TestNovaInvokeModelWithResponseStream:
         assert len(spans) == 1
         span = spans[0]
         assert span.status.is_ok
-        attributes = dict(span.attributes or {})
+        attributes: Dict[str, Any] = dict(span.attributes or {})
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id

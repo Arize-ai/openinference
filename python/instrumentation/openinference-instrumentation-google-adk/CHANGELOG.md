@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.28...python-openinference-instrumentation-google-adk-v1.0.0) (2026-09-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **google_adk:** require google-adk >= 2.10 ([#3858](https://github.com/Arize-ai/openinference/issues/3858))
+
+### Bug Fixes
+
+* **google_adk:** define local AttributeValue type alias for opentelemetry-api 1.45.0 mypy compat ([#3869](https://github.com/Arize-ai/openinference/issues/3869)) ([91a2283](https://github.com/Arize-ai/openinference/commit/91a2283587b4cb690be7cf3ec21e9f482b2377cb))
+* **google_adk:** require google-adk &gt;= 2.10 ([#3858](https://github.com/Arize-ai/openinference/issues/3858)) ([28b6143](https://github.com/Arize-ai/openinference/commit/28b61437a2bb92d70200b7248d1a72fecc907d04))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.27...python-openinference-instrumentation-google-adk-v0.1.28) (2026-09-15)
 
 

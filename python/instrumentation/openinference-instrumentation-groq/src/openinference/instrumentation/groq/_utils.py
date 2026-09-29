@@ -4,9 +4,9 @@ from enum import Enum
 from typing import Any, Iterable, Iterator, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.groq._types import AttributeValue
 from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import (
     MessageAttributes,

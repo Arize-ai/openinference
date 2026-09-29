@@ -6,7 +6,6 @@ from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
@@ -26,7 +25,7 @@ class SafeJSONEncoder(json.JSONEncoder):
             return repr(o)
 
 
-def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
+def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
     if not mapping:
         return
     for key, value in mapping.items():

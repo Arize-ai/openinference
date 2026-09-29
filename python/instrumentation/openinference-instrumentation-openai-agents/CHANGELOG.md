@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.4.1...python-openinference-instrumentation-openai-agents-v2.5.0) (2026-09-24)
+
+
+### Features
+
+* **openai:** capture cache write and read token usage ([#3382](https://github.com/Arize-ai/openinference/issues/3382)) ([7feb0c4](https://github.com/Arize-ai/openinference/commit/7feb0c4ba2fd77cb76036712e21d06ff15a2be22))
+
 ## [2.4.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v2.4.0...python-openinference-instrumentation-openai-agents-v2.4.1) (2026-09-10)
 
 

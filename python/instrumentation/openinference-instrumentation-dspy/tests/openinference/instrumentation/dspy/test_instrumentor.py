@@ -234,7 +234,8 @@ class TestLM:
     ) -> None:
         # Force an invalid key so the LM call reliably errors even when a real key is set.
         monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-key")
-        lm = dspy.LM("openai/gpt-4", cache=False)
+        # DSPy retries three times by default; the cassette has one 401 interaction.
+        lm = dspy.LM("openai/gpt-4", cache=False, num_retries=0)
         prompt = "Who won the World Cup in 2018?"
         with pytest.raises(Exception):
             lm(prompt)
