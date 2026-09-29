@@ -717,7 +717,9 @@ def test_context_attributes_are_propagated(monkeypatch: Any) -> None:
     assert attributes[SpanAttributes.SESSION_ID] == "session-1"
     assert attributes[SpanAttributes.USER_ID] == "user-1"
     assert attributes[SpanAttributes.METADATA] == '{"team": "search"}'
-    assert list(attributes[SpanAttributes.TAG_TAGS]) == ["extraction"]  # type: ignore[arg-type]
+    tags = attributes[SpanAttributes.TAG_TAGS]
+    assert isinstance(tags, (list, tuple))
+    assert list(tags) == ["extraction"]
 
 
 def test_trace_config_hides_inputs_and_outputs(monkeypatch: Any) -> None:
