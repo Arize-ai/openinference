@@ -1,4 +1,6 @@
 import gc
+import json
+from copy import deepcopy
 from importlib import import_module
 from inspect import signature
 from types import SimpleNamespace
@@ -22,7 +24,9 @@ from openinference.instrumentation import (
 from openinference.instrumentation.instructor import InstructorInstrumentor
 from openinference.instrumentation.instructor._wrappers import _V2CreateFactoryWrapper
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -814,3 +818,248 @@ def test_provider_is_mapped_to_openinference_values() -> None:
     assert llm_attributes["provider"] == "anthropic"
     assert llm_attributes["system"] == "anthropic"
     assert llm_attributes["model"] == "claude-sonnet-4-5"
+
+
+async def _trace_public_request(
+    request: Any, config: TraceConfig, provider: Any, is_async: bool
+) -> Any:
+    tracer_provider, exporter = _make_tracer_provider()
+    instrumentor = InstructorInstrumentor()
+    original_request = deepcopy(request)
+    received = []
+    result = {"id": "normal-provider-response"}
+
+    def sync_create(**kwargs: Any) -> Any:
+        received.append(deepcopy(kwargs))
+        return result
+
+    async def async_create(**kwargs: Any) -> Any:
+        return sync_create(**kwargs)
+
+    try:
+        instrumentor.instrument(tracer_provider=tracer_provider, config=config)
+        create = instructor.patch(
+            create=async_create if is_async else sync_create,
+            provider=provider,
+            mode=instructor.Mode.TOOLS,
+        )
+        response: Any = create(response_model=None, **request)
+        if is_async:
+            response = await response
+    finally:
+        instrumentor.uninstrument()
+
+    assert response == {"id": "normal-provider-response"}
+    assert request == original_request
+    assert received == [original_request]
+    (span,) = exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.OK
+    attributes = dict(span.attributes or {})
+    invocation = attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS]
+    assert isinstance(invocation, str)
+    parameters = json.loads(invocation)
+    assert parameters["model"] == "test-model"
+    assert parameters["temperature"] == 0.25
+    assert parameters["max_tokens"] == 32
+    return attributes
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize(
+    "mask", ["visible", "hide_inputs", "hide_input_messages", "hide_input_text"]
+)
+async def test_public_patch_system_string_masking(is_async: bool, mask: str) -> None:
+    config = TraceConfig(
+        hide_inputs=mask == "hide_inputs",
+        hide_input_messages=mask == "hide_input_messages",
+        hide_input_text=mask == "hide_input_text",
+    )
+    attributes = await _trace_public_request(
+        {
+            "model": "test-model",
+            "temperature": 0.25,
+            "max_tokens": 32,
+            "system": "PRIVATE_SYSTEM",
+            "messages": [{"role": "user", "content": "PRIVATE_USER"}],
+        },
+        config,
+        instructor.Provider.ANTHROPIC,
+        is_async,
+    )
+    parameters = json.loads(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS])
+    assert parameters == {"model": "test-model", "temperature": 0.25, "max_tokens": 32}
+    messages = {
+        k: v for k, v in attributes.items() if k.startswith(SpanAttributes.LLM_INPUT_MESSAGES)
+    }
+    if mask in ("hide_inputs", "hide_input_messages"):
+        assert messages == {}
+    else:
+        prefix = SpanAttributes.LLM_INPUT_MESSAGES
+        assert messages == {
+            f"{prefix}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+            f"{prefix}.0.{MessageAttributes.MESSAGE_CONTENT}": (
+                REDACTED_VALUE if mask == "hide_input_text" else "PRIVATE_SYSTEM"
+            ),
+            f"{prefix}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+            f"{prefix}.1.{MessageAttributes.MESSAGE_CONTENT}": (
+                REDACTED_VALUE if mask == "hide_input_text" else "PRIVATE_USER"
+            ),
+        }
+    if mask == "hide_inputs":
+        assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+        assert "PRIVATE_SYSTEM" not in str(attributes)
+        assert "PRIVATE_USER" not in str(attributes)
+    else:
+        assert attributes[SpanAttributes.INPUT_VALUE] == (
+            '[{"role": "user", "content": "PRIVATE_USER"}]'
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mask", ["visible", "hide_inputs", "hide_input_messages", "hide_input_text"]
+)
+async def test_public_patch_system_blocks_masking(mask: str) -> None:
+    config = TraceConfig(
+        hide_inputs=mask == "hide_inputs",
+        hide_input_messages=mask == "hide_input_messages",
+        hide_input_text=mask == "hide_input_text",
+    )
+    attributes = await _trace_public_request(
+        {
+            "model": "test-model",
+            "temperature": 0.25,
+            "max_tokens": 32,
+            "system": [
+                {"type": "text", "text": "PRIVATE_SYSTEM", "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": "SECOND_SYSTEM"},
+            ],
+            "messages": [{"role": "user", "content": "PRIVATE_USER"}],
+        },
+        config,
+        instructor.Provider.ANTHROPIC,
+        False,
+    )
+    assert json.loads(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS]) == {
+        "model": "test-model",
+        "temperature": 0.25,
+        "max_tokens": 32,
+    }
+    messages = {
+        k: v for k, v in attributes.items() if k.startswith(SpanAttributes.LLM_INPUT_MESSAGES)
+    }
+    if mask in ("hide_inputs", "hide_input_messages"):
+        assert messages == {}
+    else:
+        prefix = SpanAttributes.LLM_INPUT_MESSAGES
+        content = f"{prefix}.0.{MessageAttributes.MESSAGE_CONTENTS}"
+        assert messages == {
+            f"{prefix}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+            f"{content}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+            f"{content}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": (
+                REDACTED_VALUE if mask == "hide_input_text" else "PRIVATE_SYSTEM"
+            ),
+            f"{content}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+            f"{content}.1.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": (
+                REDACTED_VALUE if mask == "hide_input_text" else "SECOND_SYSTEM"
+            ),
+            f"{prefix}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+            f"{prefix}.1.{MessageAttributes.MESSAGE_CONTENT}": (
+                REDACTED_VALUE if mask == "hide_input_text" else "PRIVATE_USER"
+            ),
+        }
+    assert "cache_control" not in str(attributes)
+    if mask == "hide_inputs":
+        assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
+        assert "PRIVATE_SYSTEM" not in str(attributes)
+        assert "SECOND_SYSTEM" not in str(attributes)
+        assert "PRIVATE_USER" not in str(attributes)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("hide_images", [False, True], ids=["visible", "hidden"])
+@pytest.mark.parametrize(
+    "provider,image_block,image_url",
+    [
+        (
+            instructor.Provider.OPENAI,
+            {"type": "image_url", "image_url": {"url": "https://example.com/private.png"}},
+            "https://example.com/private.png",
+        ),
+        (
+            instructor.Provider.ANTHROPIC,
+            {"type": "image", "source": {"type": "url", "url": "https://example.com/private.png"}},
+            "https://example.com/private.png",
+        ),
+        (
+            instructor.Provider.ANTHROPIC,
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": "image/png", "data": "cHJpdmF0ZQ=="},
+            },
+            "data:image/png;base64,cHJpdmF0ZQ==",
+        ),
+    ],
+    ids=["openai-url", "anthropic-url", "anthropic-base64"],
+)
+async def test_public_patch_image_masking(
+    is_async: bool, hide_images: bool, provider: Any, image_block: Any, image_url: str
+) -> None:
+    messages = [
+        {"role": "user", "content": [{"type": "text", "text": "Describe this"}, image_block]}
+    ]
+    attributes = await _trace_public_request(
+        {"model": "test-model", "temperature": 0.25, "max_tokens": 32, "messages": messages},
+        TraceConfig(hide_input_images=hide_images),
+        provider,
+        is_async,
+    )
+    assert attributes[SpanAttributes.INPUT_VALUE] == json.dumps(messages)
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    content = f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}"
+    semantic = {
+        k: v for k, v in attributes.items() if k.startswith(SpanAttributes.LLM_INPUT_MESSAGES)
+    }
+    expected = {
+        f"{prefix}.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{content}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+        f"{content}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": "Describe this",
+        f"{content}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "image",
+    }
+    if not hide_images:
+        expected[
+            f"{content}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        ] = image_url
+    assert semantic == expected
+    if hide_images:
+        assert image_url not in str(semantic)
+        assert "cHJpdmF0ZQ==" not in str(semantic)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "limit,expected", [(34, "data:image/png;base64,cHJpdmF0ZQ=="), (33, REDACTED_VALUE)]
+)
+async def test_public_patch_base64_image_length_masking(limit: int, expected: str) -> None:
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,cHJpdmF0ZQ=="}}
+            ],
+        }
+    ]
+    attributes = await _trace_public_request(
+        {"model": "test-model", "temperature": 0.25, "max_tokens": 32, "messages": messages},
+        TraceConfig(base64_image_max_length=limit),
+        instructor.Provider.OPENAI,
+        False,
+    )
+    assert attributes[SpanAttributes.INPUT_VALUE] == json.dumps(messages)
+    image_key = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENTS}.0."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    )
+    assert attributes[image_key] == expected
