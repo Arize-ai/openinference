@@ -3,8 +3,8 @@ from typing import Iterator, Tuple
 
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.util.types import AttributeValue
 
+from openinference.instrumentation.anthropic._types import AttributeValue
 from openinference.instrumentation.anthropic._utils import _finish_tracing
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 

@@ -58,7 +58,6 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Status, StatusCode, Tracer
-from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import (
@@ -76,6 +75,7 @@ from openinference.instrumentation.bedrock._rag_wrappers import (
     _retrieve_and_generate_wrapper,
     _retrieve_wrapper,
 )
+from openinference.instrumentation.bedrock._types import AttributeValue
 from openinference.instrumentation.bedrock._wrappers import (
     _apply_guardrail_wrapper,
     _ConverseStream,

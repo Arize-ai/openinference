@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.10...python-openinference-instrumentation-cohere-v0.1.11) (2026-09-29)
+
+
+### Bug Fixes
+
+* **cohere:** use local AttributeValue alias for opentelemetry-api 1.45.0 mypy compatibility ([#3866](https://github.com/Arize-ai/openinference/issues/3866)) ([1e7aea7](https://github.com/Arize-ai/openinference/commit/1e7aea789c57d53d19babc527b9213c69f5662c7))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-cohere-v0.1.9...python-openinference-instrumentation-cohere-v0.1.10) (2026-09-10)
 
 

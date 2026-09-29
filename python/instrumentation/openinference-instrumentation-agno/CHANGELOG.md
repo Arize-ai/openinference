@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.10...python-openinference-instrumentation-agno-v1.0.11) (2026-09-29)
+
+
+### Bug Fixes
+
+* **agno:** define local AttributeValue alias for opentelemetry-api&gt;=1.45.0 mypy compatibility ([#3864](https://github.com/Arize-ai/openinference/issues/3864)) ([60f558a](https://github.com/Arize-ai/openinference/commit/60f558a7227e2d4ddd94f7ef8efccf5b94a6ce0c))
+
 ## [1.0.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v1.0.9...python-openinference-instrumentation-agno-v1.0.10) (2026-09-15)
 
 

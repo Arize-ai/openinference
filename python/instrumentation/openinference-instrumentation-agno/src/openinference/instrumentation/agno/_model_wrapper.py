@@ -16,7 +16,6 @@ from typing import (
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from agno.models.base import Model
 from openinference.instrumentation import (
@@ -24,6 +23,7 @@ from openinference.instrumentation import (
     infer_llm_system_from_model_name,
     safe_json_dumps,
 )
+from openinference.instrumentation.agno.utils import AttributeValue
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.7...python-openinference-instrumentation-google-genai-v1.4.8) (2026-09-29)
+
+
+### Bug Fixes
+
+* **google_genai:** declare AttributeValue locally for opentelemetry-api chained-assignment alias ([#3873](https://github.com/Arize-ai/openinference/issues/3873)) ([18230d9](https://github.com/Arize-ai/openinference/commit/18230d9669442164e141cd4eb8885fb9625a2106))
+
 ## [1.4.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.6...python-openinference-instrumentation-google-genai-v1.4.7) (2026-09-10)
 
 

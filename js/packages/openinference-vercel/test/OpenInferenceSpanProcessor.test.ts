@@ -1,5 +1,6 @@
 import type { Attributes } from "@opentelemetry/api";
-import { context, SpanStatusCode, trace } from "@opentelemetry/api";
+import { context, SpanStatusCode, trace, TraceFlags } from "@opentelemetry/api";
+import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { BasicTracerProvider, InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
 
@@ -2309,6 +2310,156 @@ describe.each([
       for (const s of spans) {
         expect(s.attributes[SemanticConventions.SESSION_ID]).toBe("session-xyz");
       }
+    });
+  },
+);
+
+describe.each([
+  ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
+  ["OpenInferenceBatchSpanProcessor", OpenInferenceBatchSpanProcessor],
+] as [string, typeof OpenInferenceSimpleSpanProcessor | typeof OpenInferenceBatchSpanProcessor][])(
+  "%s — OpenTelemetry SDK 2.x span shape",
+  (_name, Processor) => {
+    // OpenTelemetry JS SDK 2.x removed `ReadableSpan.parentSpanId`; the parent is only
+    // available as `parentSpanContext`. This processor runs first and rewrites each span
+    // into that shape so the OpenInference processor sees what it would see under SDK 2.x.
+    const toSdk2SpanShape: SpanProcessor = {
+      onStart: (span) => {
+        const parentSpanId: unknown = Reflect.get(span, "parentSpanId");
+        Reflect.deleteProperty(span, "parentSpanId");
+        Reflect.set(
+          span,
+          "parentSpanContext",
+          typeof parentSpanId === "string"
+            ? {
+                traceId: span.spanContext().traceId,
+                spanId: parentSpanId,
+                traceFlags: TraceFlags.SAMPLED,
+              }
+            : undefined,
+        );
+      },
+      onEnd: () => {},
+      forceFlush: () => Promise.resolve(),
+      shutdown: () => Promise.resolve(),
+    };
+
+    const build = (reparentOrphanedSpans?: boolean, spanFilter?: SpanFilter) => {
+      const exporter = new InMemorySpanExporter();
+      const openInferenceSpanProcessor = new Processor({
+        exporter,
+        reparentOrphanedSpans,
+        spanFilter,
+      });
+      const provider = new BasicTracerProvider({
+        spanProcessors: [toSdk2SpanShape, openInferenceSpanProcessor],
+      });
+      return { exporter, provider, tracer: provider.getTracer("test") };
+    };
+
+    it("treats only the parentless span as the trace root", async () => {
+      const { exporter, provider, tracer } = build();
+
+      const root = tracer.startSpan("ai.generateText", {
+        attributes: { "operation.name": "ai.generateText my-fn" },
+      });
+      const rootCtx = trace.setSpan(context.active(), root);
+      const failed = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        { attributes: { "operation.name": "ai.generateText.doGenerate my-fn" } },
+        rootCtx,
+      );
+      failed.setStatus({ code: SpanStatusCode.ERROR, message: "Test error" });
+      failed.end();
+      const retried = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        { attributes: { "operation.name": "ai.generateText.doGenerate my-fn" } },
+        rootCtx,
+      );
+      retried.end();
+      root.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      const findExportedSpanById = (id: string) =>
+        spans.find((exportedSpan) => exportedSpan.spanContext().spanId === id);
+      const exportedRoot = findExportedSpanById(root.spanContext().spanId);
+      const exportedFailed = findExportedSpanById(failed.spanContext().spanId);
+      const exportedRetried = findExportedSpanById(retried.spanContext().spanId);
+
+      // The root is renamed and carries the aggregated trace error.
+      expect(exportedRoot?.name).toBe("ai.generateText my-fn");
+      expect(exportedRoot?.status).toEqual({ code: SpanStatusCode.ERROR, message: "Test error" });
+
+      // Children keep their names and their own status; an earlier sibling's error does not
+      // stick to a later sibling that succeeded.
+      expect(exportedFailed?.name).toBe("ai.generateText.doGenerate");
+      expect(exportedFailed?.status).toEqual({ code: SpanStatusCode.ERROR, message: "Test error" });
+      expect(exportedRetried?.name).toBe("ai.generateText.doGenerate");
+      expect(exportedRetried?.status).toEqual({ code: SpanStatusCode.OK });
+    });
+
+    it("does not promote a kind-less AI span nested under an AI parent", async () => {
+      const { exporter, provider, tracer } = build(true);
+
+      const top = tracer.startSpan("ai.generateText", {
+        attributes: { "operation.name": "ai.generateText" },
+      });
+      const nested = tracer.startSpan(
+        "ai.eve.turn",
+        { attributes: { "operation.name": "ai.eve.turn" } },
+        trace.setSpan(context.active(), top),
+      );
+      nested.end();
+      top.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      const exportedNested = spans.find(
+        (exportedSpan) => exportedSpan.spanContext().spanId === nested.spanContext().spanId,
+      );
+      expect(exportedNested).toBeDefined();
+      expect(
+        exportedNested?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
+      ).toBeUndefined();
+    });
+
+    it("re-roots and promotes a kind-less AI wrapper under a non-AI parent", async () => {
+      const { exporter, provider, tracer } = build(true, isOpenInferenceSpan);
+
+      const workflow = tracer.startSpan("vercel.workflow");
+      const turn = tracer.startSpan(
+        "ai.eve.turn",
+        { attributes: { "operation.name": "ai.eve.turn" } },
+        trace.setSpan(context.active(), workflow),
+      );
+      const llm = tracer.startSpan(
+        "ai.streamText.doStream",
+        { attributes: { "operation.name": "ai.streamText.doStream" } },
+        trace.setSpan(context.active(), turn),
+      );
+      llm.end();
+      turn.end();
+      workflow.end();
+
+      await provider.forceFlush();
+      const spans = exporter.getFinishedSpans();
+      await provider.shutdown();
+
+      expect(spans.find((exportedSpan) => exportedSpan.name === "vercel.workflow")).toBeUndefined();
+      const promoted = spans.find((exportedSpan) => exportedSpan.name === "ai.eve.turn");
+      expect(Reflect.get(promoted ?? {}, "parentSpanContext")).toBeUndefined();
+      expect(promoted?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+        OpenInferenceSpanKind.AGENT,
+      );
+      const child = spans.find((exportedSpan) => exportedSpan.name === "ai.streamText.doStream");
+      expect(Reflect.get(child ?? {}, "parentSpanContext")).toMatchObject({
+        spanId: turn.spanContext().spanId,
+      });
     });
   },
 );

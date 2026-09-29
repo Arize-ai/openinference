@@ -414,7 +414,7 @@ def test_context_attributes_propagation(
     assert attrs[SpanAttributes.SESSION_ID] == "my-session"
     assert attrs[SpanAttributes.USER_ID] == "my-user"
     assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
-    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]
 
 
 def test_trace_config_masking(
@@ -1246,7 +1246,7 @@ def test_rerank(
     assert attrs.pop(SpanAttributes.SESSION_ID) == "rerank-session"
     assert attrs.pop(SpanAttributes.USER_ID) == "rerank-user"
     assert json.loads(str(attrs.pop(SpanAttributes.METADATA))) == {"env": "test"}
-    assert list(attrs.pop(SpanAttributes.TAG_TAGS)) == ["rerank"]  # type: ignore[arg-type]
+    assert list(attrs.pop(SpanAttributes.TAG_TAGS)) == ["rerank"]
     assert not attrs
 
 

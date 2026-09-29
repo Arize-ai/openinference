@@ -20,7 +20,6 @@ from collections.abc import Sequence as AbcSequence
 from typing import Any, Dict, Mapping, Optional
 
 import msgspec
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     TokenCount,
@@ -29,6 +28,7 @@ from openinference.instrumentation import (
     get_output_attributes,
     get_span_kind_attributes,
 )
+from openinference.instrumentation.typesafe._types import AttributeValue
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, OpenInferenceSpanKindValues
 
 logger = logging.getLogger(__name__)

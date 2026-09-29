@@ -47,10 +47,7 @@ from pydantic import BaseModel, field_validator
 from wrapt import BoundFunctionWrapper, FunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.anthropic import (
-    AnthropicInstrumentor,
-    _get_anthropic_version,
-)
+from openinference.instrumentation.anthropic import AnthropicInstrumentor
 from openinference.instrumentation.anthropic._stream import _MessageExtractor
 from openinference.instrumentation.anthropic._wrappers import (
     _get_llm_input_messages,
@@ -58,7 +55,6 @@ from openinference.instrumentation.anthropic._wrappers import (
     _get_output_messages,
     _Params,
     _PrepareRequestDataWrapper,
-    _TransformWrapper,
 )
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -249,7 +245,7 @@ def test_anthropic_instrumentation_stream_message(
     span = spans[0]
     assert span.name == "messages.stream"
 
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -346,7 +342,7 @@ async def test_anthropic_instrumentation_async_stream_message(
     span = spans[0]
     assert span.name == "messages.stream"
 
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -444,7 +440,7 @@ def test_anthropic_instrumentation_messages(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -538,7 +534,7 @@ def test_anthropic_instrumentation_messages_streaming(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -639,7 +635,7 @@ def test_anthropic_instrumentation_messages_model_fallback(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -710,7 +706,7 @@ def test_anthropic_instrumentation_messages_streaming_model_fallback(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -777,7 +773,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -872,7 +868,7 @@ async def test_anthropic_instrumentation_async_messages(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -991,7 +987,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
     assert attributes.pop(LLM_FINISH_REASON, None) == "tool_use"
@@ -1188,7 +1184,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert spans[0].name == "messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
     assert attributes.pop(LLM_FINISH_REASON, None) == "tool_use"
@@ -1219,7 +1215,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     get_weather_input_str = attributes.pop(
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     )
-    assert json.loads(get_weather_input_str) == {"location": "New York, NY"}  # type: ignore
+    assert json.loads(get_weather_input_str) == {"location": "New York, NY"}
     assert isinstance(
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_ID}"), str
     )
@@ -1230,7 +1226,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     get_time_input_str = attributes.pop(
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.1.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     )
-    json.loads(get_time_input_str) == {"timezone": "America/New_York"}  # type: ignore
+    json.loads(get_time_input_str) == {"timezone": "America/New_York"}
     # MESSAGE_CONTENTS mirrors tool_use at content position (index 1 = get_weather, 2 = get_time)
     assert (
         attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
@@ -1664,7 +1660,7 @@ def test_anthropic_instrumentation_tool_use_in_input(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert (
         attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}")
@@ -1794,8 +1790,8 @@ def test_anthropic_instrumentation_messages_token_counts(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     s1, s2 = spans
-    att1 = dict(s1.attributes or {})
-    att2 = dict(s2.attributes or {})
+    att1: Dict[str, Any] = dict(s1.attributes or {})
+    att2: Dict[str, Any] = dict(s2.attributes or {})
     # Two requests have identical requests/prompts
     assert att1.pop(LLM_TOKEN_COUNT_PROMPT) == att2.pop(LLM_TOKEN_COUNT_PROMPT)
     # first request's cache write is 2nd request's cache read
@@ -1836,7 +1832,7 @@ def test_anthropic_instrumentation_messages_parse(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "messages.parse"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -1948,7 +1944,7 @@ async def test_anthropic_instrumentation_async_messages_parse(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "messages.parse"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -2059,7 +2055,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "beta.messages.parse"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -2174,7 +2170,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "beta.messages.parse"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -2305,16 +2301,9 @@ def test_request_body_preparation_is_instrumented_and_restored(
     instrument() only warns if the private request body preparation functions are missing, so
     this fails instead when an anthropic release moves them.
     """
-    anthropic_version = _get_anthropic_version()
-    assert anthropic_version is not None, anthropic.__version__
-    if anthropic_version >= (1, 8, 0):
-        import anthropic._base_client as module
+    import anthropic._base_client as module
 
-        sync_name, async_name = "prepare_request_data", "async_prepare_request_data"
-    else:
-        import anthropic._utils._transform as module  # type: ignore[no-redef]
-
-        sync_name, async_name = "transform", "async_transform"
+    sync_name, async_name = "prepare_request_data", "async_prepare_request_data"
     original = getattr(module, sync_name)
     async_original = getattr(module, async_name)
 
@@ -2334,7 +2323,6 @@ def test_request_body_preparation_is_instrumented_and_restored(
 @pytest.mark.parametrize(
     "wrapper,location,expected",
     [
-        pytest.param(_TransformWrapper(), {}, {"max_tokens": 256, "stream": True}, id="transform"),
         pytest.param(
             _PrepareRequestDataWrapper(),
             {"location": "body"},
@@ -2355,8 +2343,8 @@ def test_only_request_bodies_are_recorded_as_invocation_parameters(
     expected: Dict[str, Any],
 ) -> None:
     """
-    anthropic<1.8.0 prepares request bodies only. anthropic>=1.8.0 prepares request bodies and
-    query parameters with the same function, telling them apart with a ``location`` keyword.
+    Anthropic prepares request bodies and query parameters with the same function,
+    telling them apart with a ``location`` keyword.
     Only bodies carry invocation parameters.
     """
     prepared = {"stream": True}
@@ -2388,7 +2376,7 @@ def test_failed_streaming_request_is_recorded(
             pass
 
     span = _assert_error_span(in_memory_span_exporter, anthropic.BadRequestError)
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
     assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
         "max_tokens": 1000,
         "stream": True,
@@ -2409,7 +2397,7 @@ async def test_failed_async_streaming_request_is_recorded(
             pass
 
     span = _assert_error_span(in_memory_span_exporter, anthropic.BadRequestError)
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
     assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS])) == {
         "max_tokens": 1000,
         "stream": True,
@@ -2456,7 +2444,7 @@ def test_raw_response_is_recorded(
     assert response.parse().content[0].text == "hi"
     span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
     assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
     assert json.loads(str(attributes[OUTPUT_VALUE]))["content"][0]["text"] == "hi"
     assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
@@ -2474,7 +2462,7 @@ async def test_async_raw_response_is_recorded(
     assert (await response.parse()).content[0].text == "hi"
     span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
-    attributes = dict(span.attributes or {})
+    attributes: Dict[str, Any] = dict(span.attributes or {})
     assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "assistant"
     assert json.loads(str(attributes[OUTPUT_VALUE]))["content"][0]["text"] == "hi"
     assert attributes[LLM_TOKEN_COUNT_PROMPT] == 3
@@ -2659,12 +2647,8 @@ def test_any_request_body_key_is_recorded_without_raising(
     assert sent[0][str(key)] == value
     span = _get_span(in_memory_span_exporter)
     assert span.status.status_code == trace_api.StatusCode.OK
-    anthropic_version = _get_anthropic_version()
-    assert anthropic_version is not None, anthropic.__version__
-    if anthropic_version >= (1, 8, 0):
-        # earlier versions prepare the body before extra_body is merged into it
-        attributes = dict(span.attributes or {})
-        assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS]))[str(key)] == value
+    attributes: Dict[str, Any] = dict(span.attributes or {})
+    assert json.loads(str(attributes[LLM_INVOCATION_PARAMETERS]))[str(key)] == value
 
 
 @pytest.mark.parametrize(
@@ -2924,7 +2908,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "beta.messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -3016,7 +3000,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "beta.messages.create"
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -3407,11 +3391,96 @@ def test_cache_token_details_match_between_streaming_and_non_streaming(
         LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE: 1733,
     }
     for span in spans:
-        attributes = dict(span.attributes or {})
+        attributes: Dict[str, Any] = dict(span.attributes or {})
         assert {k: attributes.get(k) for k in expected} == expected
 
     # message_content.id must never be emitted for thinking/redacted_thinking blocks
     assert not any(key.endswith("message_content.id") for key in attributes)
+
+
+def test_stable_streaming_message_delta_usage_overrides_message_start(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """message_delta usage must override message_start usage when they differ."""
+    sse_events = [
+        b"event: message_start\ndata: "
+        + json.dumps(
+            {
+                "type": "message_start",
+                "message": {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [],
+                    "model": "claude-sonnet-4-6",
+                    "stop_reason": None,
+                    "stop_sequence": None,
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 1,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                },
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_start\ndata: "
+        + json.dumps(
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_delta\ndata: "
+        + json.dumps(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": "hi"},
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: content_block_stop\ndata: "
+        + json.dumps({"type": "content_block_stop", "index": 0}).encode()
+        + b"\n\n",
+        b"event: message_delta\ndata: "
+        + json.dumps(
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "cache_creation_input_tokens": 1733,
+                    "cache_read_input_tokens": 512,
+                },
+            }
+        ).encode()
+        + b"\n\n",
+        b"event: message_stop\ndata: " + json.dumps({"type": "message_stop"}).encode() + b"\n\n",
+    ]
+
+    def sse_handler(request: Any) -> Any:
+        return httpx2.Response(status_code=200, content=b"".join(sse_events))
+
+    for _ in _mock_anthropic_client(sse_handler).messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": "hello"}],
+        stream=True,
+    ):
+        pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(LLM_TOKEN_COUNT_COMPLETION) == 5
+    assert attributes.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 1733
+    assert attributes.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 512
 
 
 @pytest.mark.parametrize(
@@ -3529,7 +3598,7 @@ def test_finish_reason_values_messages_create(
     )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
     assert attributes.get(LLM_FINISH_REASON) == stop_reason
 
 
@@ -3607,7 +3676,7 @@ def test_finish_reason_values_messages_create_streaming(
         pass
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
     assert attributes.get(LLM_FINISH_REASON) == stop_reason
 
 

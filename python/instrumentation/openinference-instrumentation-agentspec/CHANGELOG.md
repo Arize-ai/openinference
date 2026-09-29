@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.11...python-openinference-instrumentation-agentspec-v0.1.12) (2026-09-29)
+
+
+### Bug Fixes
+
+* **agentspec:** narrow Optional fields in tests for pyagentspec 26.3.1 mypy compat ([#3861](https://github.com/Arize-ai/openinference/issues/3861)) ([c9cb325](https://github.com/Arize-ai/openinference/commit/c9cb325b028f6df15c7694e669f7d6bdc6ecce4f))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.10...python-openinference-instrumentation-agentspec-v0.1.11) (2026-09-10)
 
 
