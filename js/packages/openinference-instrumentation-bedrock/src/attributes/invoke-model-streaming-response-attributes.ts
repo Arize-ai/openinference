@@ -53,7 +53,7 @@ interface StreamEventData {
   };
   usage?: Record<string, unknown>;
   // OpenAI Chat Completions chunk fields
-  choices?: Array<{ delta?: { content?: string | null } }>;
+  choices?: Array<{ delta?: { content?: string | null; refusal?: string | null } }>;
 
   // Amazon-specific fields
   outputText?: string;
@@ -188,9 +188,13 @@ function processOpenAIStreamChunk(
   data: StreamEventData,
   state: StreamProcessingState,
 ): StreamProcessingState {
-  const content = data.choices?.[0]?.delta?.content;
-  if (typeof content === "string") {
-    state.outputText += content;
+  const delta = data.choices?.[0]?.delta;
+  if (typeof delta?.content === "string") {
+    state.outputText += delta.content;
+  }
+  // A refusal streams in delta.refusal instead of delta.content
+  if (typeof delta?.refusal === "string") {
+    state.outputText += delta.refusal;
   }
   // Without stream_options.include_usage, gpt-oss sends no usage chunk, only Bedrock's
   // invocation metrics on the last chunk. They fill the gaps; a usage chunk always wins.

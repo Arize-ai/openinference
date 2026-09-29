@@ -354,13 +354,17 @@ function convertMistralAssistantToolCallsMessage({
     if (typeof fn?.name !== "string" || typeof fn.arguments !== "string") {
       continue;
     }
-    const parsedInput: unknown = JSON.parse(fn.arguments);
-    content.push({
-      type: "tool_use",
-      id: typeof rawToolCall.id === "string" ? rawToolCall.id : "unknown",
-      name: fn.name,
-      input: parsedInput,
-    });
+    try {
+      content.push({
+        type: "tool_use",
+        id: typeof rawToolCall.id === "string" ? rawToolCall.id : "unknown",
+        name: fn.name,
+        input: JSON.parse(fn.arguments),
+      });
+    } catch (error) {
+      // Skip only this tool call so the rest of the history is still recorded
+      diag.warn("Failed to parse tool call arguments:", error);
+    }
   }
 
   // Add text content if present

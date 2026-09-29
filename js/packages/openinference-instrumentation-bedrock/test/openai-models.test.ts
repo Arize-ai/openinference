@@ -111,6 +111,48 @@ describe("OpenAI models", () => {
     });
   });
 
+  it("keeps the other messages when a tool call has malformed arguments", () => {
+    const span = provider.getTracer("test").startSpan("invoke_model");
+    const command = new InvokeModelCommand({
+      modelId: "us.openai.gpt-6-sol",
+      body: JSON.stringify({
+        messages: [
+          { role: "user", content: "Weather?" },
+          {
+            role: "assistant",
+            tool_calls: [
+              { id: "call_1", type: "function", function: { name: "get_weather", arguments: "{" } },
+            ],
+          },
+          { role: "tool", tool_call_id: "call_1", content: "18" },
+        ],
+      }),
+    });
+    extractInvokeModelRequestAttributes({ span, command, system: LLMSystem.OPENAI });
+    span.end();
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "llm.input_messages.0.message.contents.0.message_content.text": "Weather?",
+      "llm.input_messages.2.message.tool_call_id": "call_1",
+    });
+  });
+
+  it("records a refusal-only stream as the output message", async () => {
+    const span = provider.getTracer("test").startSpan("invoke_model_stream");
+    async function* stream() {
+      for (const data of [
+        { choices: [{ delta: { content: null, refusal: "I can't " } }] },
+        { choices: [{ delta: { refusal: "help." } }] },
+      ]) {
+        yield { chunk: { bytes: Buffer.from(JSON.stringify(data)) } };
+      }
+    }
+    await consumeBedrockStreamChunks({ span, stream: stream(), modelType: LLMSystem.OPENAI });
+    span.end();
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "llm.output_messages.0.message.content": "I can't help.",
+    });
+  });
+
   it.each([
     {
       // GPT-6 sends a usage chunk and Bedrock's metrics; the usage chunk wins
