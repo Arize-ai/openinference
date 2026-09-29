@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.28...python-openinference-instrumentation-groq-v0.1.29) (2026-09-29)
+
+
+### Bug Fixes
+
+* **groq:** use local AttributeValue alias for mypy compat with opentelemetry-api 1.45.0 ([#3872](https://github.com/Arize-ai/openinference/issues/3872)) ([84598b1](https://github.com/Arize-ai/openinference/commit/84598b11e084e9434218e1f3f801a4cafeb26431))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.27...python-openinference-instrumentation-groq-v0.1.28) (2026-09-18)
 
 
