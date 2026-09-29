@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-guardrails-v0.1.23...python-openinference-instrumentation-guardrails-v0.1.24) (2026-09-29)
+
+
+### Bug Fixes
+
+* **guardrails:** drop use of opentelemetry AttributeValue alias broken by OTel 1.45 ([#3871](https://github.com/Arize-ai/openinference/issues/3871)) ([29fe2f6](https://github.com/Arize-ai/openinference/commit/29fe2f65257018ca79462656fddeeec3d35905e4))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-guardrails-v0.1.22...python-openinference-instrumentation-guardrails-v0.1.23) (2026-09-15)
 
 
