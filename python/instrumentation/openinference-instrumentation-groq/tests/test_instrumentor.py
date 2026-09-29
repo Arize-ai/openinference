@@ -15,10 +15,10 @@ from groq.types.completion_usage import CompletionUsage
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
+from openinference.instrumentation.groq._types import AttributeValue
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMProviderValues,

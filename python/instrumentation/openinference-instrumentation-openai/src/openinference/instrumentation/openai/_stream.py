@@ -11,9 +11,9 @@ from typing import (
 )
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy  # type: ignore[attr-defined]
 
+from openinference.instrumentation.openai._types import AttributeValue
 from openinference.instrumentation.openai._utils import _finish_tracing
 from openinference.instrumentation.openai._with_span import _WithSpan
 

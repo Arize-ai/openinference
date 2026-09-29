@@ -19,7 +19,6 @@ from typing import Any, Dict, List
 
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     Message,
@@ -33,6 +32,7 @@ from openinference.instrumentation import (
     get_output_attributes,
     safe_json_dumps,
 )
+from openinference.instrumentation.bedrock._types import AttributeValue
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,

@@ -5,13 +5,13 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 from opentelemetry import context as context_api
 from opentelemetry.trace import Span, Status, StatusCode
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.typesafe._attributes import (
     get_request_attributes,
     get_response_attributes,
 )
+from openinference.instrumentation.typesafe._types import AttributeValue
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

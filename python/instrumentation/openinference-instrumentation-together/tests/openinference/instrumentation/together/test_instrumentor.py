@@ -237,7 +237,7 @@ def test_context_attributes_propagation(in_memory_span_exporter: InMemorySpanExp
     assert attrs[SpanAttributes.SESSION_ID] == "session-1"
     assert attrs[SpanAttributes.USER_ID] == "user-1"
     assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
-    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]
 
 
 @pytest.mark.vcr

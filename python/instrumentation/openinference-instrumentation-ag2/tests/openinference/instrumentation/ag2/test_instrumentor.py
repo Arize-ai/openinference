@@ -34,8 +34,8 @@ def _agent(name: str, default_auto_reply: str = "done") -> ConversableAgent:
     )
 
 
-def _attributes(span: ReadableSpan) -> Mapping[str, AttributeValue]:
-    return cast(Mapping[str, AttributeValue], span.attributes)
+def _attributes(span: ReadableSpan) -> Mapping[str, AttributeValue]:  # type: ignore[valid-type]
+    return cast(Mapping[str, AttributeValue], span.attributes)  # type: ignore[valid-type]
 
 
 def test_entrypoints() -> None:

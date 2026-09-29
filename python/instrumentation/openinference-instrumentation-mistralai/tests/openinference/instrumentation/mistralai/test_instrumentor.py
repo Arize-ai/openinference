@@ -25,10 +25,10 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
+from openinference.instrumentation.mistralai._types import AttributeValue
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,

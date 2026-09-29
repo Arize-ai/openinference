@@ -15,12 +15,12 @@ from contextvars import ContextVar, Token
 from typing import Any, Callable, Iterator, Mapping
 
 from opentelemetry import context as context_api
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import TraceConfig, safe_json_dumps
 from openinference.instrumentation.google_genai._image_utils import (
     redact_images_from_request_parameters,
 )
+from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     SpanAttributes,

@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Tuple, Union
 
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.openai._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
