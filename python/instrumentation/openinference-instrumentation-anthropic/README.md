@@ -14,7 +14,8 @@ These traces are fully OpenTelemetry compatible and can be sent to an OpenTeleme
 
 | `openinference-instrumentation-anthropic` | `anthropic`       | Python          |
 | ------------------------------------------ | ----------------- | --------------- |
-| `>=2.0`                                    | `>=1.0.0`         | `>=3.10, <3.15` |
+| Unreleased                                 | `>=1.8.0`         | `>=3.10, <3.15` |
+| `>=2.0, <=2.1.5`                            | `>=1.0.0, <1.8.0` | `>=3.10, <3.15` |
 | `>=1.0.1, <2.0`                            | `>=0.84.0, <1.0`  | `>=3.10, <3.15` |
 | `1.0.0`                                    | `>=0.84.0, <1.0`  | `>=3.9, <3.15`  |
 

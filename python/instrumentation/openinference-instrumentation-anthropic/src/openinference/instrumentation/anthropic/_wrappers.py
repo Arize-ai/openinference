@@ -114,7 +114,7 @@ class _Params:
 _params: ContextVar[Optional[_Params]] = ContextVar("params", default=None)
 
 
-class _TransformWrapper:
+class _PrepareRequestDataWrapper:
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -126,12 +126,12 @@ class _TransformWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
             return wrapped(*args, **kwargs)
         ans = wrapped(*args, **kwargs)
-        if isinstance(ans, Mapping):
+        if kwargs.get("location") == "body" and isinstance(ans, Mapping):
             params.update(**ans)
         return ans
 
 
-class _AsyncTransformWrapper:
+class _AsyncPrepareRequestDataWrapper:
     async def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -143,7 +143,7 @@ class _AsyncTransformWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
             return await wrapped(*args, **kwargs)
         ans = await wrapped(*args, **kwargs)
-        if isinstance(ans, Mapping):
+        if kwargs.get("location") == "body" and isinstance(ans, Mapping):
             params.update(**ans)
         return ans
 
@@ -338,8 +338,9 @@ class _MessagesStreamWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        params = _Params(kwargs, get_attributes=_get_attributes_from_messages_create)
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=params,
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -357,7 +358,7 @@ class _MessagesStreamWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-        return self._manager_class(response, span)
+        return self._manager_class(response, span, params)
 
 
 class _AsyncMessagesStreamWrapper(_WithTracer):
@@ -380,8 +381,9 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        params = _Params(kwargs, get_attributes=_get_attributes_from_messages_create)
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=params,
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -399,7 +401,7 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-        return self._manager_class(response, span)
+        return self._manager_class(response, span, params)
 
 
 # Sync stream manager proxies.
@@ -409,20 +411,29 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
 
 
 class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_params", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
         manager: "MessageStreamManager",
         with_span: _WithSpan,
+        params: _Params,
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_params = params
         self._self_interceptor: Optional[_RawStreamInterceptor] = None
         self._self_message_stream: Any = None
 
     def __enter__(self) -> Any:
-        message_stream = self.__wrapped__.__enter__()
+        try:
+            with self._self_params:
+                message_stream = self.__wrapped__.__enter__()
+        except Exception as exception:
+            self._self_with_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -444,20 +455,29 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type
 
 
 class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_params", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
         manager: "BetaMessageStreamManager",
         with_span: _WithSpan,
+        params: _Params,
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_params = params
         self._self_interceptor: Optional[_RawStreamInterceptor] = None
         self._self_message_stream: Any = None
 
     def __enter__(self) -> Any:
-        message_stream = self.__wrapped__.__enter__()
+        try:
+            with self._self_params:
+                message_stream = self.__wrapped__.__enter__()
+        except Exception as exception:
+            self._self_with_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -482,20 +502,29 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,
 
 
 class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_params", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
         manager: "AsyncMessageStreamManager",
         with_span: _WithSpan,
+        params: _Params,
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_params = params
         self._self_interceptor: Optional[_RawStreamInterceptor] = None
         self._self_message_stream: Any = None
 
     async def __aenter__(self) -> Any:
-        message_stream = await self.__wrapped__.__aenter__()
+        try:
+            with self._self_params:
+                message_stream = await self.__wrapped__.__aenter__()
+        except Exception as exception:
+            self._self_with_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -517,20 +546,29 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined
 
 
 class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_params", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
         manager: "BetaAsyncMessageStreamManager",
         with_span: _WithSpan,
+        params: _Params,
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_params = params
         self._self_interceptor: Optional[_RawStreamInterceptor] = None
         self._self_message_stream: Any = None
 
     async def __aenter__(self) -> Any:
-        message_stream = await self.__wrapped__.__aenter__()
+        try:
+            with self._self_params:
+                message_stream = await self.__wrapped__.__aenter__()
+        except Exception as exception:
+            self._self_with_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
