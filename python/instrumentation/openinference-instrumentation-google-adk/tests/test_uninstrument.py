@@ -1,23 +1,13 @@
 # pyright: reportPrivateImportUsage=false
 # mypy: disable-error-code="attr-defined"
 
-"""Tests for Google ADK instrumentation patching and unpatching functionality.
-
-This test verifies that the GoogleADKInstrumentor correctly patches and unpatchs:
-- Runner.run_async method
-- BaseAgent.run_async method
-- All tracers (runners, agents, llm_flows, functions/telemetry.tracing, apps.compaction)
-- trace_call_llm and trace_tool_call methods
-- apps.compaction's compaction-attribute builder functions (input/output source)
-"""
+"""Tests for Google ADK instrumentation patching and unpatching."""
 
 import sys
 from contextlib import contextmanager
 from types import ModuleType
 from typing import Iterator, Optional, cast
 
-import pytest
-from google.adk import __version__ as _ADK_VERSION_STR
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Tracer, get_current_span
@@ -29,89 +19,51 @@ from openinference.instrumentation.google_adk import (
     _compaction_input_var,
     _merged_tool_span_modules,
     _PassthroughTracer,
-    _resolve_trace_call_llm_module,
     _SelectiveExecuteToolTracer,
 )
 from openinference.semconv.trace import SpanAttributes
 
-_ADK_VERSION = cast(tuple[int, int, int], tuple(int(x) for x in _ADK_VERSION_STR.split(".")[:3]))
-
 
 def test_instrumentation_patching() -> None:
-    """Test that all instrumentation patching and unpatching works correctly.
-
-    This test verifies that:
-    1. All methods and tracers are properly wrapped during instrumentation
-    2. All tracers are replaced with appropriate types (_PassthroughTracer or OITracer)
-    3. All methods and tracers are restored to their original state after uninstrumentation
-    """
-    # Import all necessary modules
+    """Test that all instrumentation patching and unpatching works correctly."""
     from google.adk import runners
     from google.adk.agents import BaseAgent
+    from google.adk.flows.llm_flows.core import _model_call
     from google.adk.runners import Runner
+    from google.adk.telemetry import tracing
 
-    # ADK 2.10 moved the call_llm span from flows.llm_flows.base_llm_flow to
-    # flows.llm_flows.core._model_call.
-    llm_flow_module = _resolve_trace_call_llm_module()
+    compaction = sys.modules.get(_COMPACTION_MODULE)
+    original_merged_tracers = [
+        (module, module.tracer)
+        for module in _merged_tool_span_modules()
+        if hasattr(module, "tracer")
+    ]
 
-    # ADK 1.32 moved trace_tool_call from flows.llm_flows.functions to telemetry.tracing
-    # and removed the re-export of `tracer` from agents.base_agent.
-    trace_tool_module: ModuleType
-    compaction: Optional[ModuleType] = None
-    original_merged_tracers: list[tuple[ModuleType, Tracer]] = []
-    if _ADK_VERSION >= (1, 32, 0):
-        from google.adk.telemetry import tracing
-
-        compaction = sys.modules.get(_COMPACTION_MODULE)
-        trace_tool_module = tracing
-        original_merged_tracers = [
-            (module, module.tracer)
-            for module in _merged_tool_span_modules()
-            if hasattr(module, "tracer")
-        ]
-    else:
-        from google.adk.flows.llm_flows import functions
-
-        trace_tool_module = functions
-
-    # Store original state of all methods and tracers
     original_runner_run_async = Runner.run_async
     original_agent_run_async = BaseAgent.run_async
     original_runners_tracer = runners.tracer
-    original_llm_flow_tracer = llm_flow_module.tracer
-    original_trace_call_llm = llm_flow_module.trace_call_llm
-    original_trace_tool_module_tracer = trace_tool_module.tracer
-    original_trace_tool_call = trace_tool_module.trace_tool_call
-    original_build_attrs = getattr(trace_tool_module, "_build_compaction_attributes", None)
-    original_build_result_attrs = getattr(
-        trace_tool_module, "_build_compaction_result_attributes", None
-    )
+    original_llm_flow_tracer = _model_call.tracer
+    original_trace_call_llm = _model_call.trace_call_llm
+    original_trace_tool_module_tracer = tracing.tracer
+    original_trace_tool_call = tracing.trace_tool_call
+    original_build_attrs = getattr(tracing, "_build_compaction_attributes", None)
+    original_build_result_attrs = getattr(tracing, "_build_compaction_result_attributes", None)
     if compaction is not None:
         original_compaction_tracer = compaction.tracer
         original_compaction_build_attrs = compaction._build_compaction_attributes
         original_compaction_build_result_attrs = compaction._build_compaction_result_attributes
 
-    if _ADK_VERSION < (1, 32, 0):
-        from google.adk.agents import base_agent
-
-        original_agents_tracer = base_agent.tracer
-
-    # Apply instrumentation
     GoogleADKInstrumentor().instrument()
 
-    # Verify all methods and tracers are wrapped with our implementations
     assert Runner.run_async is not original_runner_run_async
     assert BaseAgent.run_async is not original_agent_run_async
     assert runners.tracer is not original_runners_tracer
-    assert llm_flow_module.tracer is not original_llm_flow_tracer
-    assert llm_flow_module.trace_call_llm is not original_trace_call_llm
-    assert trace_tool_module.tracer is not original_trace_tool_module_tracer
-    assert trace_tool_module.trace_tool_call is not original_trace_tool_call
-    if _ADK_VERSION >= (1, 32, 0):
-        assert trace_tool_module._build_compaction_attributes is not original_build_attrs
-        assert (
-            trace_tool_module._build_compaction_result_attributes is not original_build_result_attrs
-        )
+    assert _model_call.tracer is not original_llm_flow_tracer
+    assert _model_call.trace_call_llm is not original_trace_call_llm
+    assert tracing.tracer is not original_trace_tool_module_tracer
+    assert tracing.trace_tool_call is not original_trace_tool_call
+    assert tracing._build_compaction_attributes is not original_build_attrs
+    assert tracing._build_compaction_result_attributes is not original_build_result_attrs
     if compaction is not None:
         assert compaction.tracer is not original_compaction_tracer
         assert compaction._build_compaction_attributes is not original_compaction_build_attrs
@@ -119,60 +71,35 @@ def test_instrumentation_patching() -> None:
             compaction._build_compaction_result_attributes
             is not original_compaction_build_result_attrs
         )
-        # Preloaded case: apps.compaction ends up bound to the *same* wrapped
-        # callables telemetry.tracing was source-patched with -- not separate,
-        # independently-wrapped copies (that would be the double-wrap bug).
-        assert compaction.tracer is trace_tool_module.tracer
-        assert (
-            compaction._build_compaction_attributes
-            is trace_tool_module._build_compaction_attributes
-        )
+        assert compaction.tracer is tracing.tracer
+        assert compaction._build_compaction_attributes is tracing._build_compaction_attributes
         assert (
             compaction._build_compaction_result_attributes
-            is trace_tool_module._build_compaction_result_attributes
+            is tracing._build_compaction_result_attributes
         )
 
-    # Verify all tracers are patched with correct types
     assert isinstance(runners.tracer, _PassthroughTracer)
-    assert isinstance(llm_flow_module.tracer, OITracer)
-    if _ADK_VERSION >= (1, 32, 0):
-        # tracing.tracer is the global ADK tracer; on >= 1.32 we wrap it with a
-        # selective tracer that emits OI spans for `execute_tool *` and
-        # `compact_events *`, and passes through everything else.
-        assert isinstance(trace_tool_module.tracer, _SelectiveExecuteToolTracer)
-        # The merged-span module's `tracer` is also wrapped to catch
-        # `execute_tool (merged)` spans. On ADK 1.32 that module is
-        # flows.llm_flows.functions; ADK 2.x moved it to
-        # flows.llm_flows._batch_tool_executor.
-        assert original_merged_tracers
-        for _merged_module, _ in original_merged_tracers:
-            assert isinstance(_merged_module.tracer, _SelectiveExecuteToolTracer)
-        if compaction is not None:
-            assert isinstance(compaction.tracer, _SelectiveExecuteToolTracer)
-    else:
-        # functions.tracer is module-local; we substitute our OITracer directly
-        assert isinstance(trace_tool_module.tracer, OITracer)
+    assert isinstance(_model_call.tracer, OITracer)
+    assert isinstance(tracing.tracer, _SelectiveExecuteToolTracer)
+    assert original_merged_tracers
+    for merged_module, _ in original_merged_tracers:
+        assert isinstance(merged_module.tracer, _SelectiveExecuteToolTracer)
+    if compaction is not None:
+        assert isinstance(compaction.tracer, _SelectiveExecuteToolTracer)
 
-    if _ADK_VERSION < (1, 32, 0):
-        assert base_agent.tracer is not original_agents_tracer  # noqa: F821
-        assert isinstance(base_agent.tracer, _PassthroughTracer)  # noqa: F821
-
-    # Remove instrumentation
     GoogleADKInstrumentor().uninstrument()
 
-    # Verify all methods and tracers are restored to their original state
     assert Runner.run_async is original_runner_run_async
     assert BaseAgent.run_async is original_agent_run_async
     assert runners.tracer is original_runners_tracer
-    assert llm_flow_module.tracer is original_llm_flow_tracer
-    assert llm_flow_module.trace_call_llm is original_trace_call_llm
-    assert trace_tool_module.tracer is original_trace_tool_module_tracer
-    assert trace_tool_module.trace_tool_call is original_trace_tool_call
+    assert _model_call.tracer is original_llm_flow_tracer
+    assert _model_call.trace_call_llm is original_trace_call_llm
+    assert tracing.tracer is original_trace_tool_module_tracer
+    assert tracing.trace_tool_call is original_trace_tool_call
     for merged_module, original_tracer in original_merged_tracers:
         assert merged_module.tracer is original_tracer
-    if _ADK_VERSION >= (1, 32, 0):
-        assert trace_tool_module._build_compaction_attributes is original_build_attrs
-        assert trace_tool_module._build_compaction_result_attributes is original_build_result_attrs
+    assert tracing._build_compaction_attributes is original_build_attrs
+    assert tracing._build_compaction_result_attributes is original_build_result_attrs
     if compaction is not None:
         assert compaction.tracer is original_compaction_tracer
         assert compaction._build_compaction_attributes is original_compaction_build_attrs
@@ -180,14 +107,7 @@ def test_instrumentation_patching() -> None:
             compaction._build_compaction_result_attributes is original_compaction_build_result_attrs
         )
 
-    if _ADK_VERSION < (1, 32, 0):
-        assert base_agent.tracer is original_agents_tracer  # noqa: F821
 
-
-@pytest.mark.skipif(
-    _ADK_VERSION < (1, 32, 0),
-    reason="merged-span tracer rebinding only runs on google-adk >= 1.32.0",
-)
 def test_uninstrument_preserves_later_merged_tracer(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -337,10 +257,6 @@ def _compaction_module_absent() -> Iterator[None]:
             sys.modules.pop(_COMPACTION_MODULE, None)
 
 
-@pytest.mark.skipif(
-    _ADK_VERSION < (1, 32, 0),
-    reason="apps.compaction tracer/attribute-builder rebinding only runs on google-adk >= 1.32.0",
-)
 def test_compaction_module_preloaded_is_explicitly_patched_and_restored() -> None:
     """If apps.compaction is already imported when we instrument, its local
     `tracer`/`_build_compaction_attributes`/`_build_compaction_result_attributes`
@@ -392,10 +308,6 @@ def test_compaction_module_preloaded_is_explicitly_patched_and_restored() -> Non
         assert fake._build_compaction_result_attributes is compaction_original_build_result_attrs
 
 
-@pytest.mark.skipif(
-    _ADK_VERSION < (1, 32, 0),
-    reason="apps.compaction tracer/attribute-builder rebinding only runs on google-adk >= 1.32.0",
-)
 def test_compaction_module_not_preloaded_stays_untouched() -> None:
     """If apps.compaction is not loaded when we instrument, we must never
     force the import ourselves (that's the circular-dependency ADK is itself
@@ -409,10 +321,6 @@ def test_compaction_module_not_preloaded_stays_untouched() -> None:
         assert _COMPACTION_MODULE not in sys.modules
 
 
-@pytest.mark.skipif(
-    _ADK_VERSION < (1, 32, 0),
-    reason="apps.compaction tracer/attribute-builder rebinding only runs on google-adk >= 1.32.0",
-)
 def test_compaction_module_inherits_alias_when_imported_during_session() -> None:
     """If apps.compaction imports *during* the instrumented session (the
     common case on ADK >= 2.x, where it's deferred until the first actual
@@ -454,10 +362,6 @@ def test_compaction_module_inherits_alias_when_imported_during_session() -> None
         )
 
 
-@pytest.mark.skipif(
-    _ADK_VERSION < (1, 32, 0),
-    reason="apps.compaction tracer/attribute-builder rebinding only runs on google-adk >= 1.32.0",
-)
 def test_compaction_module_two_instrument_cycles_stay_pristine() -> None:
     """Instrument/uninstrument twice in a row with apps.compaction preloaded
     the whole time -- the second cycle must patch and restore exactly like
