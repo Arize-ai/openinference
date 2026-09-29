@@ -628,34 +628,44 @@ def test_chat_completion_with_generator_content(
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
-    input_messages = {
-        key: value
-        for key, value in (spans[0].attributes or {}).items()
-        if key.startswith(SpanAttributes.LLM_INPUT_MESSAGES)
-    }
-    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
-    assert input_messages.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
-    contents = f"{message}.{MessageAttributes.MESSAGE_CONTENTS}"
+    attributes = dict(spans[0].attributes or {})
     assert (
-        input_messages.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
-        == "text"
+        attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
     )
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS)
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    input_value = attributes.pop(SpanAttributes.INPUT_VALUE)
+    assert isinstance(input_value, str)
+    assert json.loads(input_value)["messages"][0]["content"] == list(parts)
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE)
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
+
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    contents = f"{message}.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
     assert (
-        input_messages.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
         == "What is in this image?"
     )
     assert (
-        input_messages.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
-        == "image"
+        attributes.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "image"
     )
     assert (
-        input_messages.pop(
+        attributes.pop(
             f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
             f"{ImageAttributes.IMAGE_URL}"
         )
         == "https://example.com/cat.png"
     )
-    assert not input_messages
+
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "A cat."
+    assert not attributes
 
 
 def _failing_content() -> Iterator[Any]:
