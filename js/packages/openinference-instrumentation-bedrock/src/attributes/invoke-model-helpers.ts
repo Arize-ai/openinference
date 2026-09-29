@@ -28,7 +28,11 @@ import {
 } from "../types/bedrock-types";
 
 const isExtendedConversationRole = (value: unknown): value is ExtendedConversationRole =>
-  value === "assistant" || value === "user" || value === "system" || value === "tool";
+  value === "assistant" ||
+  value === "user" ||
+  value === "system" ||
+  value === "tool" ||
+  value === "developer";
 
 const isMessageContentBlock = (
   item: unknown,
@@ -480,6 +484,43 @@ function convertMistralChatToBedrockMessages(
 }
 
 /**
+ * Converts an OpenAI Chat Completions request (gpt-oss, GPT-5.x, GPT-6) to BedrockMessage array.
+ * Reuses the Mistral chat conversion, then restores the `developer` role and links `tool`
+ * messages to their tool call through `tool_call_id`.
+ *
+ * @param requestBody The OpenAI-formatted request body containing messages array
+ * @returns {BedrockMessage[]} Array of converted BedrockMessage objects
+ */
+function convertOpenAIChatToBedrockMessages(
+  requestBody: Record<string, unknown>,
+): BedrockMessage[] {
+  const rawMessages = Array.isArray(requestBody.messages)
+    ? requestBody.messages.filter(isObjectWithStringKeys)
+    : [];
+  return convertMistralChatToBedrockMessages(requestBody).map((converted, index) => {
+    const raw = rawMessages[index];
+    if (raw.role === "developer") {
+      return { ...converted, role: "developer" };
+    }
+    if (raw.role === "tool" && typeof raw.tool_call_id === "string") {
+      const text = Array.isArray(converted.content) ? converted.content : [];
+      return {
+        ...converted,
+        content: [
+          ...text,
+          {
+            type: "tool_result",
+            tool_use_id: raw.tool_call_id,
+            content: typeof raw.content === "string" ? raw.content : "",
+          },
+        ],
+      };
+    }
+    return converted;
+  });
+}
+
+/**
  * Converts AI21 Jamba request format to standardized BedrockMessage array
  * Handles messages with system, user, and assistant roles
  * Similar to Anthropic format but supports system role like Mistral
@@ -644,8 +685,10 @@ export const normalizeRequestContentBlocks = withSafety({
         return hasStringProperty({ requestBody, key: "prompt" })
           ? convertSimpleTextToBedrockMessages(requestBody, "prompt")
           : fallbackNormalizeRequestContentBlocks(requestBody);
-      // OpenAI models on Bedrock take the same Chat Completions request as Mistral chat.
       case LLMSystem.OPENAI:
+        return isMistralChatRequest(requestBody)
+          ? convertOpenAIChatToBedrockMessages(requestBody)
+          : normalizeMistralRequestContentBlocks(requestBody);
       case LLMSystem.MISTRALAI:
         return normalizeMistralRequestContentBlocks(requestBody);
       case LLMSystem.AI21:
@@ -863,6 +906,12 @@ function convertAI21JambaToMessageContent(responseBody: Record<string, unknown>)
           content.push({
             type: "text",
             text: message.content,
+          });
+        } else if (typeof message.refusal === "string") {
+          // OpenAI-style refusals arrive as { content: null, refusal: "..." }
+          content.push({
+            type: "text",
+            text: message.refusal,
           });
         }
 

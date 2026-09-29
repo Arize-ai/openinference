@@ -70,6 +70,47 @@ describe("OpenAI models", () => {
     });
   });
 
+  it("keeps the developer role and links tool results to their call", () => {
+    const span = provider.getTracer("test").startSpan("invoke_model");
+    const command = new InvokeModelCommand({
+      modelId: "us.openai.gpt-6-sol",
+      body: JSON.stringify({
+        messages: [
+          { role: "developer", content: "Answer briefly." },
+          { role: "tool", tool_call_id: "call_1", content: '{"temp_c":18}' },
+        ],
+      }),
+    });
+    extractInvokeModelRequestAttributes({ span, command, system: LLMSystem.OPENAI });
+    span.end();
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "llm.input_messages.0.message.role": "developer",
+      "llm.input_messages.1.message.role": "tool",
+      "llm.input_messages.1.message.tool_call_id": "call_1",
+    });
+  });
+
+  it("records a refusal-only response as the output message", () => {
+    const span = provider.getTracer("test").startSpan("invoke_model");
+    const body = {
+      choices: [
+        {
+          finish_reason: "stop",
+          message: { role: "assistant", content: null, refusal: "I can't help with that." },
+        },
+      ],
+    };
+    extractInvokeModelResponseAttributes({
+      span,
+      response: { body: Buffer.from(JSON.stringify(body)), contentType: "application/json" },
+      modelType: LLMSystem.OPENAI,
+    });
+    span.end();
+    expect(exporter.getFinishedSpans()[0].attributes).toMatchObject({
+      "llm.output_messages.0.message.content": "I can't help with that.",
+    });
+  });
+
   it.each([
     {
       // GPT-6 sends a usage chunk and Bedrock's metrics; the usage chunk wins
@@ -89,6 +130,12 @@ describe("OpenAI models", () => {
         "llm.token_count.completion": 37,
         "llm.token_count.total": 112,
       },
+    },
+    {
+      // each metric is kept on its own; the total needs both
+      name: "input metric alone",
+      last: { "amazon-bedrock-invocationMetrics": { inputTokenCount: 75 } },
+      expected: { "llm.token_count.prompt": 75 },
     },
   ])("records the streamed text and tokens from the $name", async ({ last, expected }) => {
     const span = provider.getTracer("test").startSpan("invoke_model_stream");

@@ -197,14 +197,13 @@ function processOpenAIStreamChunk(
   const metrics = data["amazon-bedrock-invocationMetrics"];
   const input = metrics?.inputTokenCount;
   const output = metrics?.outputTokenCount;
+  const fromMetrics: Record<string, number> = {};
+  if (typeof input === "number") fromMetrics.prompt_tokens = input;
+  if (typeof output === "number") fromMetrics.completion_tokens = output;
   if (typeof input === "number" && typeof output === "number") {
-    state.rawUsageData = {
-      prompt_tokens: input,
-      completion_tokens: output,
-      total_tokens: input + output,
-      ...state.rawUsageData,
-    };
+    fromMetrics.total_tokens = input + output;
   }
+  state.rawUsageData = { ...fromMetrics, ...state.rawUsageData };
   if (data.usage && typeof data.usage === "object") {
     state.rawUsageData = { ...state.rawUsageData, ...data.usage };
   }
