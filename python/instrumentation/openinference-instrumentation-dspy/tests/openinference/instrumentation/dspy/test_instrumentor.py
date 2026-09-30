@@ -1,3 +1,4 @@
+import inspect
 import json
 from importlib.metadata import version
 from typing import Any, Dict, Generator, List, Mapping, Tuple, cast
@@ -31,6 +32,11 @@ from openinference.semconv.trace import (
 )
 
 VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy").split(".")[:3])))
+
+
+def _litellm_kwargs() -> Dict[str, str]:
+    # Older DSPy forwards unknown constructor kwargs to the provider.
+    return {"engine": "litellm"} if "engine" in inspect.signature(dspy.LM).parameters else {}
 
 
 def _span_attributes(span: trace_sdk.ReadableSpan) -> Dict[str, AttributeValue]:
@@ -80,6 +86,76 @@ class TestInstrumentor:
 
 
 class TestLM:
+    @pytest.mark.skipif(VERSION < (3, 4, 0), reason="Native lm15 requires DSPy 3.4")
+    @pytest.mark.disable_socket
+    @pytest.mark.parametrize("engine", ["auto", "lm15"])
+    def test_native_chat_completion(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        monkeypatch: MonkeyPatch,
+        engine: str,
+    ) -> None:
+        from dspy._vendor.lm15.transports._sync import StdlibTransport
+        from dspy._vendor.lm15.transports._types import TransportResponse
+
+        requests = []
+
+        def respond(transport: Any, request: Any) -> Any:
+            requests.append(request)
+            return TransportResponse(
+                status=200,
+                reason="OK",
+                headers=[("content-type", "application/json")],
+                http_version="HTTP/1.1",
+                chunks=iter(
+                    [
+                        json.dumps(
+                            {
+                                "id": "chatcmpl-local",
+                                "object": "chat.completion",
+                                "created": 0,
+                                "model": "gpt-4",
+                                "choices": [
+                                    {
+                                        "index": 0,
+                                        "message": {"role": "assistant", "content": "France"},
+                                        "finish_reason": "stop",
+                                    }
+                                ],
+                                "usage": {
+                                    "prompt_tokens": 10,
+                                    "completion_tokens": 1,
+                                    "total_tokens": 11,
+                                },
+                            }
+                        ).encode()
+                    ]
+                ),
+                release=lambda consumed: None,
+            )
+
+        monkeypatch.setattr(StdlibTransport, "stream", respond)
+        lm = dspy.LM("openai/gpt-4", engine=engine, cache=False, api_key="sk-fake-key")
+        prompt = "Who won the World Cup in 2018?"
+        assert lm(prompt) == ["France"]
+        assert len(requests) == 1
+        request = requests[0]
+        assert request.method == "POST"
+        assert request.url == "https://api.openai.com/v1/chat/completions"
+        body = json.loads(request.body)
+        assert body["model"] == "gpt-4"
+        assert body["messages"] == [{"role": "user", "content": prompt}]
+        (span,) = in_memory_span_exporter.get_finished_spans()
+        assert span.name == "LM.__call__"
+        assert span.status.is_ok
+        attributes = _span_attributes(span)
+        assert attributes[OPENINFERENCE_SPAN_KIND] == LLM
+        assert attributes[LLM_PROVIDER] == "openai"
+        assert attributes[LLM_MODEL_NAME] == "gpt-4"
+        assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == prompt
+        assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "France"
+        assert json.loads(str(attributes[OUTPUT_VALUE])) == ["France"]
+
     @pytest.mark.vcr
     def test_openai_chat_completions_api_invoked_via_prompt_positional_argument(
         self,
@@ -88,6 +164,7 @@ class TestLM:
     ) -> None:
         lm = dspy.LM(
             "openai/gpt-4",
+            **_litellm_kwargs(),
             cache=False,
             temperature=0.1,  # non-default
             top_p=0.1,
@@ -142,7 +219,7 @@ class TestLM:
         in_memory_span_exporter: InMemorySpanExporter,
         openai_api_key: str,
     ) -> None:
-        lm = dspy.LM("openai/gpt-4", cache=False)
+        lm = dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False)
         prompt = "Who won the World Cup in 2018?"
         messages = [{"role": "user", "content": prompt}]
         responses = lm(messages=messages)  # invoked via messages kwarg
@@ -190,6 +267,7 @@ class TestLM:
     ) -> None:
         lm = dspy.LM(
             "text-completion-openai/gpt-3.5-turbo-instruct",
+            **_litellm_kwargs(),
             model_type="text",
             cache=False,
         )
@@ -241,7 +319,7 @@ class TestLM:
         # Force an invalid key so the LM call reliably errors even when a real key is set.
         monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-key")
         # DSPy retries three times by default; the cassette has one 401 interaction.
-        lm = dspy.LM("openai/gpt-4", cache=False, num_retries=0)
+        lm = dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False, num_retries=0)
         prompt = "Who won the World Cup in 2018?"
         with pytest.raises(Exception):
             lm(prompt)
@@ -298,7 +376,7 @@ class TestLM:
     ) -> None:
         class MyLM(dspy.LM):  # type: ignore[misc]
             def __init__(self) -> None:
-                super().__init__("openai/gpt-4", cache=False)
+                super().__init__("openai/gpt-4", cache=False, **_litellm_kwargs())
 
             def __call__(
                 self,
@@ -383,7 +461,7 @@ async def test_rag_module(
             return dspy.Prediction(context=context, answer=prediction.answer)
 
     with dspy.context(
-        lm=dspy.LM("openai/gpt-4", cache=False),
+        lm=dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
     ):
         rag = RAG()
@@ -576,7 +654,7 @@ async def test_react(
     is_async: bool,
     openai_api_key: str,
 ) -> None:
-    with dspy.context(lm=dspy.LM("openai/gpt-4o-mini")):
+    with dspy.context(lm=dspy.LM("openai/gpt-4o-mini", **_litellm_kwargs())):
 
         def add(x: int, y: int) -> int:
             return x + y
@@ -1054,7 +1132,7 @@ def test_compilation(
     def exact_match(example: dspy.Example, pred: dspy.Example, trace: Any = None) -> bool:
         return bool(example.answer.lower() == pred.answer.lower())
 
-    with dspy.context(lm=dspy.LM("openai/gpt-4", cache=False)):
+    with dspy.context(lm=dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False)):
         teleprompter = BootstrapFewShotWithRandomSearch(
             metric=exact_match,
             max_bootstrapped_demos=1,
@@ -1129,7 +1207,7 @@ def test_context_attributes_are_instrumented(
             return dspy.Prediction(context=context, answer=prediction.answer)
 
     dspy.settings.configure(
-        lm=dspy.LM("openai/gpt-4", cache=False),
+        lm=dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
     )
     rag = RAG()
