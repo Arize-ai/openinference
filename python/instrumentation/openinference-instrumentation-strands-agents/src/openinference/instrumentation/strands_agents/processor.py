@@ -19,13 +19,19 @@ from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import Span, Status, StatusCode
 
+from openinference.instrumentation import TraceConfig
 from openinference.instrumentation.strands_agents.semantic_conventions import (
+    GEN_AI_INPUT_MESSAGES,
+    GEN_AI_OUTPUT_MESSAGES,
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_P,
     GEN_AI_SYSTEM,
+    GEN_AI_SYSTEM_INSTRUCTIONS,
+    GEN_AI_TOOL_CALL_ARGUMENTS,
+    GEN_AI_TOOL_CALL_RESULT,
     GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
@@ -46,6 +52,22 @@ logger = logging.getLogger(__name__)
 _STRANDS_SDK_NAME = "strands-agents"
 _EVENT_LOOP_CYCLE_ID = "event_loop.cycle_id"
 
+# Raw Strands attributes that carry prompt, message or tool content. The processor turns them
+# into OpenInference attributes, so they are kept out of `metadata` and are dropped when the
+# TraceConfig hides that side of the span.
+_RAW_INPUT_CONTENT = frozenset(
+    {
+        GEN_AI_SYSTEM_INSTRUCTIONS,
+        GEN_AI_INPUT_MESSAGES,
+        GEN_AI_TOOL_CALL_ARGUMENTS,
+        GenAIAttributes.SYSTEM_PROMPT,
+        GenAIAttributes.PROMPT,
+    }
+)
+_RAW_OUTPUT_CONTENT = frozenset(
+    {GEN_AI_OUTPUT_MESSAGES, GEN_AI_TOOL_CALL_RESULT, GenAIAttributes.COMPLETION}
+)
+
 
 class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
     """
@@ -61,15 +83,18 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     """
 
-    def __init__(self, debug: bool = False) -> None:
+    def __init__(self, debug: bool = False, config: Optional[TraceConfig] = None) -> None:
         """
         Initialize the processor.
 
         Args:
             debug: Whether to log debug information
+            config: Controls which inputs and outputs are kept on the exported spans. Defaults
+                to a TraceConfig built from the OPENINFERENCE_HIDE_* environment variables.
         """
         super().__init__()
         self.debug = debug
+        self._config = config or TraceConfig()
 
     def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
         """Called when a span is started."""
@@ -96,7 +121,10 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             transformed_attrs = self._transform_attributes(original_attrs, span, events)
 
             # Combine the original attributes with the OpenInference attributes.
-            span._attributes = {**original_attrs, **transformed_attrs}
+            span._attributes = {
+                **self._without_hidden_content(original_attrs),
+                **self._mask_attributes(transformed_attrs),
+            }
             if not span.status.status_code == StatusCode.ERROR:
                 span._status = Status(status_code=StatusCode.OK)
 
@@ -116,7 +144,26 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
 
         except Exception as e:
             logger.error(f"Failed to transform span '{span.name}': {e}", exc_info=True)
-            span._attributes = original_attrs
+            span._attributes = self._without_hidden_content(original_attrs)
+
+    def _mask_attributes(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply the TraceConfig to OpenInference attributes; hidden ones are dropped."""
+        masked: Dict[str, Any] = {}
+        for key, value in attrs.items():
+            masked_value = self._config.mask(key, value)
+            if masked_value is not None:
+                masked[key] = masked_value
+        return masked
+
+    def _without_hidden_content(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+        """Drop the raw Strands content attributes that the TraceConfig hides."""
+        config = self._config
+        hidden: frozenset[str] = frozenset()
+        if config.hide_inputs or config.hide_input_messages or config.hide_input_text:
+            hidden |= _RAW_INPUT_CONTENT
+        if config.hide_outputs or config.hide_output_messages or config.hide_output_text:
+            hidden |= _RAW_OUTPUT_CONTENT
+        return {key: value for key, value in attrs.items() if key not in hidden}
 
     def _is_strands_span(self, span: ReadableSpan) -> bool:
         """Return True if the span was emitted by Strands Agents SDK."""
@@ -169,6 +216,23 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 )
             else:
                 input_messages, output_messages = [], []
+
+        # Strands can also record the messages directly on the span instead of as events.
+        if not input_messages:
+            input_messages = self._parse_genai_messages(attrs.get(GEN_AI_INPUT_MESSAGES))
+        if not output_messages:
+            output_messages = self._parse_genai_messages(attrs.get(GEN_AI_OUTPUT_MESSAGES))
+
+        self._add_tool_message_names(input_messages, output_messages)
+
+        if not any(m.get("message.role") == "system" for m in input_messages):
+            system_message = self._parse_system_instructions(attrs.get(GEN_AI_SYSTEM_INSTRUCTIONS))
+            legacy_prompt = attrs.get(GenAIAttributes.SYSTEM_PROMPT)
+            if not system_message and legacy_prompt and isinstance(legacy_prompt, str):
+                # Strands 1.19-1.33 put the prompt on the agent span as plain text.
+                system_message = {"message.role": "system", "message.content": legacy_prompt}
+            if system_message:
+                input_messages.insert(0, system_message)
 
         model_id = attrs.get(GEN_AI_REQUEST_MODEL)
         # Check gen_ai.agent.name first (standard GenAI convention), then fall back to agent.name
@@ -225,7 +289,13 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 else event.get("attributes", {})
             )
 
-            if event_name == GenAIEventNames.USER_MESSAGE:
+            if event_name == GenAIEventNames.SYSTEM_MESSAGE:
+                content = event_attrs.get("content", "")
+                message = self._parse_message_content(content, "system")
+                if message:
+                    input_messages.append(message)
+
+            elif event_name == GenAIEventNames.USER_MESSAGE:
                 content = event_attrs.get("content", "")
                 message = self._parse_message_content(content, "user")
                 if message:
@@ -235,7 +305,8 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 content = event_attrs.get("content", "")
                 message = self._parse_message_content(content, "assistant")
                 if message:
-                    output_messages.append(message)
+                    # Earlier assistant turns are conversation history, so they belong to the input.
+                    input_messages.append(message)
 
             elif event_name == GenAIEventNames.CHOICE:
                 message_content = event_attrs.get("message", "")
@@ -248,14 +319,143 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
 
             elif event_name == GenAIEventNames.TOOL_MESSAGE:
                 content = event_attrs.get("content", "")
-                tool_id = event_attrs.get("id", "")
                 if content:
                     message = self._parse_message_content(content, "tool")
+                    # Tool spans carry the id on the event; LLM spans carry it in the toolResult.
+                    tool_id = event_attrs.get("id") or (message or {}).get("message.tool_call_id")
                     if message and tool_id:
                         message["message.tool_call_id"] = tool_id
                         input_messages.append(message)
 
+            else:
+                # Latest GenAI conventions carry everything on the operation details event.
+                if GEN_AI_SYSTEM_INSTRUCTIONS in event_attrs:
+                    if not any(m.get("message.role") == "system" for m in input_messages):
+                        message = self._parse_system_instructions(
+                            event_attrs.get(GEN_AI_SYSTEM_INSTRUCTIONS)
+                        )
+                        if message:
+                            input_messages.insert(0, message)
+                if GEN_AI_INPUT_MESSAGES in event_attrs:
+                    input_messages.extend(
+                        self._parse_genai_messages(event_attrs.get(GEN_AI_INPUT_MESSAGES))
+                    )
+                if GEN_AI_OUTPUT_MESSAGES in event_attrs:
+                    output_messages.extend(
+                        self._parse_genai_messages(event_attrs.get(GEN_AI_OUTPUT_MESSAGES))
+                    )
+
         return input_messages, output_messages
+
+    def _parse_genai_messages(self, value: Any) -> List[Dict[str, Any]]:
+        """Convert gen_ai.input.messages / gen_ai.output.messages ({role, parts}) to messages."""
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                return []
+        if isinstance(value, dict):
+            value = [value]
+        if not isinstance(value, list):
+            return []
+
+        messages: List[Dict[str, Any]] = []
+        for item in value:
+            if not isinstance(item, dict) or not isinstance(item.get("parts"), list):
+                continue
+            text_parts: List[str] = []
+            tool_calls: List[Dict[str, Any]] = []
+            tool_results: List[Dict[str, Any]] = []
+            for part in item["parts"]:
+                if not isinstance(part, dict):
+                    continue
+                part_type = part.get("type")
+                if part_type == "text" and part.get("content") is not None:
+                    text_parts.append(str(part["content"]))
+                elif part_type == "tool_call":
+                    tool_calls.append(
+                        {
+                            "tool_call.id": part.get("id", ""),
+                            "tool_call.function.name": part.get("name", ""),
+                            "tool_call.function.arguments": safe_json_dumps(
+                                part.get("arguments", {})
+                            ),
+                        }
+                    )
+                elif part_type == "tool_call_response":
+                    tool_results.append(part)
+
+            message: Dict[str, Any] = {"message.role": item.get("role") or "user"}
+            if text_parts:
+                message["message.content"] = " ".join(text_parts)
+            if tool_calls:
+                message["message.tool_calls"] = tool_calls
+            if finish_reason := item.get("finish_reason"):
+                message["message.finish_reason"] = finish_reason
+            if "message.content" in message or tool_calls:
+                messages.append(message)
+
+            # Each tool result is its own tool message, whatever role Strands filed it under.
+            for result in tool_results:
+                messages.append(
+                    {
+                        "message.role": "tool",
+                        "message.tool_call_id": result.get("id", ""),
+                        "message.content": self._tool_response_text(result.get("response")),
+                    }
+                )
+        return messages
+
+    def _tool_response_text(self, response: Any) -> str:
+        if isinstance(response, str):
+            return response
+        if isinstance(response, list):
+            texts = [b["text"] for b in response if isinstance(b, dict) and "text" in b]
+            if texts and len(texts) == len(response):
+                return " ".join(str(t) for t in texts)
+        return safe_json_dumps(response)
+
+    def _add_tool_message_names(
+        self, input_messages: List[Dict[str, Any]], output_messages: List[Dict[str, Any]]
+    ) -> None:
+        """Name each tool result message after the function whose call it answers."""
+        names: Dict[str, str] = {}
+        for message in input_messages + output_messages:
+            for call in message.get("message.tool_calls") or []:
+                call_id = call.get("tool_call.id")
+                if call_id:
+                    names[call_id] = call.get("tool_call.function.name", "")
+        for message in input_messages:
+            if message.get("message.role") == "tool" and "message.name" not in message:
+                name = names.get(message.get("message.tool_call_id", ""))
+                if name:
+                    message["message.name"] = name
+
+    def _parse_system_instructions(self, value: Any) -> Optional[Dict[str, Any]]:
+        """Build a system message from gen_ai.system_instructions (a JSON list of parts or text)."""
+        if not value:
+            return None
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                return {"message.role": "system", "message.content": value}
+        if isinstance(value, dict):
+            value = [value]
+        if not isinstance(value, list):
+            return {"message.role": "system", "message.content": str(value)}
+
+        text_parts: List[str] = []
+        for part in value:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict) and part.get("type", "text") == "text":
+                text = part.get("content", part.get("text"))
+                if text:
+                    text_parts.append(str(text))
+        if not text_parts:
+            return None
+        return {"message.role": "system", "message.content": " ".join(text_parts)}
 
     def _extract_messages_from_attributes(
         self, prompt: Any, completion: Any
@@ -421,11 +621,9 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         """Handle LLM/Agent span with extracted messages."""
 
         if input_messages:
-            result[SpanAttributes.LLM_INPUT_MESSAGES] = safe_json_dumps(input_messages)
             self._flatten_messages(input_messages, SpanAttributes.LLM_INPUT_MESSAGES, result)
 
         if output_messages:
-            result[SpanAttributes.LLM_OUTPUT_MESSAGES] = safe_json_dumps(output_messages)
             self._flatten_messages(output_messages, SpanAttributes.LLM_OUTPUT_MESSAGES, result)
 
         if tools := (attrs.get(GenAIAttributes.AGENT_TOOLS) or attrs.get("agent.tools")):
@@ -470,9 +668,12 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
 
         if span_kind in ["LLM", "AGENT", "CHAIN"]:
             if input_messages:
-                if len(input_messages) == 1 and input_messages[0].get("message.role") == "user":
+                # System prompts stay in llm.input_messages only, so a single user
+                # message still yields plain-text input.value.
+                non_system = [m for m in input_messages if m.get("message.role") != "system"]
+                if len(non_system) == 1 and non_system[0].get("message.role") == "user":
                     # Simple user message
-                    input_content = input_messages[0].get("message.content", "")
+                    input_content = non_system[0].get("message.content", "")
                     result[SpanAttributes.INPUT_VALUE] = input_content
                     result[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
                 else:
@@ -486,28 +687,29 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 content = last_message.get("message.content", "")
 
                 if span_kind == "LLM":
-                    output_structure = {
-                        "choices": [
+                    if finish_reason := last_message.get("message.finish_reason"):
+                        result[SpanAttributes.LLM_FINISH_REASON] = finish_reason
+                    if tool_calls := last_message.get("message.tool_calls"):
+                        calls = [
                             {
-                                "finish_reason": last_message.get("message.finish_reason", "stop"),
-                                "index": 0,
-                                "message": {
-                                    "content": content,
-                                    "role": last_message.get("message.role", "assistant"),
-                                },
+                                "id": call.get("tool_call.id"),
+                                "name": call.get("tool_call.function.name"),
+                                "arguments": call.get("tool_call.function.arguments"),
                             }
-                        ],
-                        "model": model_name,
-                        "usage": {
-                            "completion_tokens": result.get(
-                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
-                            ),
-                            "prompt_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT),
-                            "total_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL),
-                        },
-                    }
-                    result[SpanAttributes.OUTPUT_VALUE] = safe_json_dumps(output_structure)
-                    result[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+                            for call in tool_calls
+                        ]
+                        payload: Any = (
+                            {"content": content, "tool_calls": calls} if content else calls
+                        )
+                        result[SpanAttributes.OUTPUT_VALUE] = safe_json_dumps(payload)
+                        result[SpanAttributes.OUTPUT_MIME_TYPE] = (
+                            OpenInferenceMimeTypeValues.JSON.value
+                        )
+                    else:
+                        result[SpanAttributes.OUTPUT_VALUE] = content
+                        result[SpanAttributes.OUTPUT_MIME_TYPE] = (
+                            OpenInferenceMimeTypeValues.TEXT.value
+                        )
                 else:
                     result[SpanAttributes.OUTPUT_VALUE] = content
                     result[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
@@ -671,7 +873,6 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                         }
                     ]
 
-                    result[SpanAttributes.LLM_INPUT_MESSAGES] = safe_json_dumps(input_messages)
                     self._flatten_messages(
                         input_messages, SpanAttributes.LLM_INPUT_MESSAGES, result
                     )
@@ -788,11 +989,12 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         # - gen_ai.prompt/completion → llm.input_messages/llm.output_messages
         # - gen_ai.agent.tools/agent.tools → llm.tools.{idx}.*
         # Including these in metadata would be redundant and bloat span data.
+        # Prompt and message content is skipped as well so it is not exported a third time.
         skip_keys = {
-            GenAIAttributes.PROMPT,
-            GenAIAttributes.COMPLETION,
             GenAIAttributes.AGENT_TOOLS,
             "agent.tools",
+            *_RAW_INPUT_CONTENT,
+            *_RAW_OUTPUT_CONTENT,
         }
 
         for key, value in attrs.items():

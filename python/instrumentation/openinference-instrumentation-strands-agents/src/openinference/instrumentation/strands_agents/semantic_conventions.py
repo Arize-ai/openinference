@@ -36,6 +36,11 @@ __all__ = [
     "GEN_AI_REQUEST_MAX_TOKENS",
     "GEN_AI_REQUEST_TEMPERATURE",
     "GEN_AI_REQUEST_TOP_P",
+    "GEN_AI_INPUT_MESSAGES",
+    "GEN_AI_OUTPUT_MESSAGES",
+    "GEN_AI_SYSTEM_INSTRUCTIONS",
+    "GEN_AI_TOOL_CALL_ARGUMENTS",
+    "GEN_AI_TOOL_CALL_RESULT",
     "GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS",
     "GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS",
     "GenAIAttributes",
@@ -48,6 +53,11 @@ __all__ = [
 GEN_AI_REQUEST_MAX_TOKENS = "gen_ai.request.max_tokens"
 GEN_AI_REQUEST_TEMPERATURE = "gen_ai.request.temperature"
 GEN_AI_REQUEST_TOP_P = "gen_ai.request.top_p"
+GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
+GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
+GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
+GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
+GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
 # Prompt-cache usage attribute keys emitted by the Strands tracer
 GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read_input_tokens"
@@ -70,6 +80,8 @@ class GenAIAttributes:
     TOOL_CALL_ID = "gen_ai.tool.call.id"
 
     # Legacy/deprecated attributes
+    # Strands 1.19-1.33 record the system prompt only here, on the agent span
+    SYSTEM_PROMPT = "system_prompt"
     PROMPT = "gen_ai.prompt"
     COMPLETION = "gen_ai.completion"
 
