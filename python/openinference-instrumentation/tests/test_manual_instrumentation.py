@@ -110,6 +110,18 @@ def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class TestStartAsCurrentSpanContextManager:
+    def test_decision_span(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        with tracer.start_as_current_span("choice", openinference_span_kind="decision"):
+            pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert dict(spans[0].attributes or {}) == {OPENINFERENCE_SPAN_KIND: "DECISION"}
+
     def test_chain_with_plain_text_input_and_output(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
