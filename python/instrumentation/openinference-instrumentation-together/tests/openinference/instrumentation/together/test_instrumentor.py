@@ -1,11 +1,12 @@
 import json
-from typing import Any, Iterator, List
+from typing import Any, Iterable, Iterator, List
 
 import pytest
 import respx
 from httpx import Response
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
 from together import AsyncTogether, Together
 from together.types import ToolsParam
@@ -563,3 +564,51 @@ def test_chat_with_generator_content(
         == "https://example.com/cat.png"
     )
     assert not input_messages
+
+
+@pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("generator_location", ["content", "messages"])
+async def test_chat_with_raising_generator(
+    is_async: bool,
+    generator_location: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    error = RuntimeError("generator failed")
+
+    def failing_generator() -> Iterator[Any]:
+        if generator_location == "content":
+            yield {"type": "text", "text": "Hello"}
+        else:
+            yield {"role": "user", "content": "Hello"}
+        raise error
+
+    messages: Iterable[Any] = (
+        [{"role": "user", "content": failing_generator()}]
+        if generator_location == "content"
+        else failing_generator()
+    )
+    with respx.mock(base_url="https://api.together.ai") as respx_mock:
+        with pytest.raises(RuntimeError) as exc_info:
+            if is_async:
+                async with AsyncTogether() as client:
+                    await client.chat.completions.create(model=_MODEL, messages=messages)
+            else:
+                with Together() as sync_client:
+                    sync_client.chat.completions.create(model=_MODEL, messages=messages)
+        assert exc_info.value is error
+        assert len(respx_mock.calls) == 0
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == ("AsyncCompletions" if is_async else "Completions")
+    assert span.status.status_code == StatusCode.ERROR
+    attrs = dict(span.attributes or {})
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.TOGETHER.value
+    assert len(span.events) == 1
+    event = span.events[0]
+    assert event.name == "exception"
+    event_attrs = dict(event.attributes or {})
+    assert event_attrs["exception.type"] == "RuntimeError"
+    assert event_attrs["exception.message"] == "generator failed"
