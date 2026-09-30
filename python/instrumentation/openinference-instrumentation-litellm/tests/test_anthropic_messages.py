@@ -1,5 +1,17 @@
 import json
-from typing import Any, AsyncIterator, Awaitable, Dict, Generator, Iterator, List, Mapping, cast
+from copy import deepcopy
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    cast,
+)
 
 import litellm.anthropic_interface as litellm_anthropic
 import pytest
@@ -8,7 +20,6 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     OITracer,
@@ -17,6 +28,7 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
+from openinference.instrumentation.litellm._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -972,6 +984,151 @@ def test_create_input_content_blocks(
     # tool_result block
     assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "toolu_9"
     assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_CONTENT}"] == "42"
+
+
+def test_create_input_multiple_tool_result_blocks(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    messages: List[Dict[str, Any]] = [
+        {"role": "user", "content": "what is 2+2 and what is 3+3? call calc twice"},
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "id": "toolu_A", "name": "calc", "input": {"expr": "2+2"}},
+                {"type": "tool_use", "id": "toolu_B", "name": "calc", "input": {"expr": "3+3"}},
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "tool_result", "tool_use_id": "toolu_A", "content": "RESULT-A: 4"},
+                {"type": "tool_result", "tool_use_id": "toolu_B", "content": "RESULT-B: 6"},
+            ],
+        },
+    ]
+    original = LiteLLMInstrumentor.original_anthropic_funcs["create"]
+    LiteLLMInstrumentor.original_anthropic_funcs["create"] = (
+        lambda *args, **kwargs: _mock_anthropic_response()
+    )
+    try:
+        litellm_anthropic.create(model=MODEL, messages=messages, max_tokens=16)
+    finally:
+        LiteLLMInstrumentor.original_anthropic_funcs["create"] = original
+
+    attributes = dict(
+        cast(
+            Mapping[str, AttributeValue], in_memory_span_exporter.get_finished_spans()[0].attributes
+        )
+    )
+    in_prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_ROLE}"] == "tool"
+    assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "toolu_A"
+    assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_CONTENT}"] == "RESULT-A: 4"
+    assert attributes[f"{in_prefix}.3.{MessageAttributes.MESSAGE_ROLE}"] == "tool"
+    assert attributes[f"{in_prefix}.3.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "toolu_B"
+    assert attributes[f"{in_prefix}.3.{MessageAttributes.MESSAGE_CONTENT}"] == "RESULT-B: 6"
+
+
+@pytest.mark.parametrize(
+    "result_fields, expected_content",
+    [
+        pytest.param(
+            {"content": [{"type": "text", "text": "TEXT-RESULT"}]},
+            '[{"type": "text", "text": "TEXT-RESULT"}]',
+            id="text-blocks",
+        ),
+        pytest.param(
+            {
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "text",
+                            "media_type": "text/plain",
+                            "data": "DOCUMENT-RESULT",
+                        },
+                    }
+                ]
+            },
+            '[{"type": "document", "source": {"type": "text", '
+            '"media_type": "text/plain", "data": "DOCUMENT-RESULT"}}]',
+            id="document",
+        ),
+        pytest.param(
+            {
+                "content": [
+                    {
+                        "type": "search_result",
+                        "source": "https://example.com/result",
+                        "title": "Search result",
+                        "content": [{"type": "text", "text": "SEARCH-RESULT"}],
+                    }
+                ]
+            },
+            '[{"type": "search_result", "source": "https://example.com/result", '
+            '"title": "Search result", "content": [{"type": "text", "text": "SEARCH-RESULT"}]}]',
+            id="search-result",
+        ),
+        pytest.param(
+            {
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {"type": "url", "url": "https://example.com/tool-result.png"},
+                    }
+                ]
+            },
+            '[{"type": "image", "source": {"type": "url", '
+            '"url": "https://example.com/tool-result.png"}}]',
+            id="url-image",
+        ),
+        pytest.param({"content": "PLAIN-RESULT"}, "PLAIN-RESULT", id="string"),
+        pytest.param({"content": None}, None, id="none"),
+        pytest.param({}, None, id="missing"),
+    ],
+)
+def test_create_input_tool_result_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    result_fields: Dict[str, Any],
+    expected_content: Optional[str],
+) -> None:
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "tool_result", "tool_use_id": "toolu_A", **result_fields},
+                {"type": "tool_result", "tool_use_id": "toolu_B", "content": "SECOND-RESULT"},
+            ],
+        },
+    ]
+    original_messages = deepcopy(messages)
+    original = LiteLLMInstrumentor.original_anthropic_funcs["create"]
+    LiteLLMInstrumentor.original_anthropic_funcs["create"] = (
+        lambda *args, **kwargs: _mock_anthropic_response()
+    )
+    try:
+        litellm_anthropic.create(model=MODEL, messages=messages, max_tokens=16)
+    finally:
+        LiteLLMInstrumentor.original_anthropic_funcs["create"] = original
+
+    assert messages == original_messages
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    in_prefix = SpanAttributes.LLM_INPUT_MESSAGES
+    assert attributes[f"{in_prefix}.0.{MessageAttributes.MESSAGE_ROLE}"] == "tool"
+    assert attributes[f"{in_prefix}.0.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "toolu_A"
+    content_key = f"{in_prefix}.0.{MessageAttributes.MESSAGE_CONTENT}"
+    if expected_content is None:
+        assert content_key not in attributes
+    else:
+        assert attributes[content_key] == expected_content
+    assert attributes[f"{in_prefix}.1.{MessageAttributes.MESSAGE_ROLE}"] == "tool"
+    assert attributes[f"{in_prefix}.1.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "toolu_B"
+    assert attributes[f"{in_prefix}.1.{MessageAttributes.MESSAGE_CONTENT}"] == "SECOND-RESULT"
 
 
 def test_create_system_as_content_blocks(

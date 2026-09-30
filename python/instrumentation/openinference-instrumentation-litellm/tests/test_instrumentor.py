@@ -14,7 +14,6 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
 from openinference.instrumentation.litellm import (
@@ -22,6 +21,7 @@ from openinference.instrumentation.litellm import (
     _get_reasoning_content_blocks,
     _remove_redundant_reasoning_entries,
 )
+from openinference.instrumentation.litellm._types import AttributeValue
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
