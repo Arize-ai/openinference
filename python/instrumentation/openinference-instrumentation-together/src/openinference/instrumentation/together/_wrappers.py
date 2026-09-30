@@ -115,7 +115,11 @@ class _CompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        kwargs = _materialize_content_iterables(kwargs)
+        materialize_error: Optional[Exception] = None
+        try:
+            kwargs = _materialize_content_iterables(kwargs)
+        except Exception as exception:
+            materialize_error = exception
 
         request_parameters = self._parse_request(wrapped, args, kwargs)
         with self._start_as_current_span(
@@ -126,6 +130,8 @@ class _CompletionsWrapper(_WithTracer):
             ),
         ) as span:
             try:
+                if materialize_error is not None:
+                    raise materialize_error
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 self._finalize_error(span, exception)
@@ -151,7 +157,11 @@ class _AsyncCompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        kwargs = _materialize_content_iterables(kwargs)
+        materialize_error: Optional[Exception] = None
+        try:
+            kwargs = _materialize_content_iterables(kwargs)
+        except Exception as exception:
+            materialize_error = exception
 
         request_parameters = self._parse_request(wrapped, args, kwargs)
         with self._start_as_current_span(
@@ -162,6 +172,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
             ),
         ) as span:
             try:
+                if materialize_error is not None:
+                    raise materialize_error
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
                 self._finalize_error(span, exception)
