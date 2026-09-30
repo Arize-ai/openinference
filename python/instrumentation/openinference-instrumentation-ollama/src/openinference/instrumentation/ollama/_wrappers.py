@@ -17,7 +17,6 @@ from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Optional, T
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.ollama._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -26,6 +25,7 @@ from openinference.instrumentation.ollama._response_attributes_extractor import 
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.ollama._stream import _Stream
+from openinference.instrumentation.ollama._types import AttributeValue
 from openinference.instrumentation.ollama._utils import _finish_tracing
 from openinference.instrumentation.ollama._with_span import _WithSpan
 

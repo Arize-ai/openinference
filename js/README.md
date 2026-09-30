@@ -57,10 +57,6 @@ Some frameworks expose first-class middleware or telemetry hooks instead of bein
 - [`@arizeai/openinference-tanstack-ai`](./packages/openinference-tanstack-ai) — middleware for [TanStack AI](https://tanstack.com/ai/latest/docs/getting-started/overview) that emits OpenInference-shaped spans for `chat()` runs, including LLM turns and tool calls.
 - [`@arizeai/openinference-vercel`](./packages/openinference-vercel) — utilities to ingest [Vercel AI SDK](https://github.com/vercel/ai) telemetry and reshape it to the OpenInference spec.
 
-## Examples
-
-For more examples on how to use OpenInference, see the [examples](./examples) directory.
-
 ## Contributing
 
 See [contributing guide](../CONTRIBUTING) for information on how to contribute to this project and the [JS Development Guide](./DEVELOPMENT.md) for setting up a development environment.

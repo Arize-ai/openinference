@@ -9,7 +9,6 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
 
 from groq import NOT_GIVEN
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -19,7 +18,11 @@ from openinference.instrumentation.groq._request_attributes_extractor import (
 from openinference.instrumentation.groq._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
-from openinference.instrumentation.groq._utils import _finish_tracing
+from openinference.instrumentation.groq._types import AttributeValue
+from openinference.instrumentation.groq._utils import (
+    _finish_tracing,
+    _materialize_content_iterables,
+)
 from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -131,6 +134,8 @@ class _CompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        kwargs = _materialize_content_iterables(kwargs)
+
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
         for arg in args:
@@ -192,6 +197,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
+
+        kwargs = _materialize_content_iterables(kwargs)
 
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}

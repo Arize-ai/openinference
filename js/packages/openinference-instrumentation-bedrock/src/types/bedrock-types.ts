@@ -132,6 +132,16 @@ export interface ConverseStreamEventData {
   };
 }
 
+/** A single accumulated streaming content block, ordered by contentBlockIndex. */
+export type ConverseStreamContentBlock =
+  | { type: "text"; text: string }
+  | {
+      type: "reasoning";
+      text?: string;
+      signature?: string;
+      redactedContentBytes?: Buffer;
+    };
+
 /** In-memory state accumulated while consuming a Converse stream. */
 export interface ConverseStreamProcessingState {
   outputText: string;
@@ -149,6 +159,8 @@ export interface ConverseStreamProcessingState {
   stopReason?: string;
   /** Map of contentBlockIndex -> toolUseId for correlating input chunks */
   toolUseIdByIndex?: Record<number, string>;
+  /** Map of contentBlockIndex -> accumulated content block, preserving block order */
+  contentBlocksByIndex: Record<number, ConverseStreamContentBlock>;
 }
 
 /**
@@ -245,7 +257,8 @@ export type ConverseContentBlock =
   | ConverseTextContent
   | ConverseImageContent
   | ConverseToolUseContent
-  | ConverseToolResultContent;
+  | ConverseToolResultContent
+  | ConverseReasoningContent;
 
 /** Text content block in Converse API messages. */
 export interface ConverseTextContent {
@@ -277,6 +290,17 @@ export interface ConverseToolResultContent {
     toolUseId: string;
     content: ConverseContentBlock[];
     status?: "success" | "error";
+  };
+}
+
+/** Reasoning content block in Converse API messages (extended/chain-of-thought reasoning). */
+export interface ConverseReasoningContent {
+  reasoningContent: {
+    reasoningText?: {
+      text: string;
+      signature?: string;
+    };
+    redactedContent?: Uint8Array | Buffer | string;
   };
 }
 
@@ -386,6 +410,15 @@ export function isConverseToolResultContent(
   );
 }
 
+/** Type guard for Converse reasoning content. */
+export function isConverseReasoningContent(content: unknown): content is ConverseReasoningContent {
+  return (
+    isObjectWithStringKeys(content) &&
+    "reasoningContent" in content &&
+    isObjectWithStringKeys(content.reasoningContent)
+  );
+}
+
 /**
  * Loose type guard for Converse streaming events.
  * Ensures we have an object and at least one known event marker.
@@ -415,7 +448,14 @@ export function isValidConverseStreamEventData(data: unknown): data is ConverseS
 export type NormalizedConverseStreamEvent =
   | { kind: "messageStart" }
   | { kind: "messageStop"; stopReason?: string }
-  | { kind: "textDelta"; text: string }
+  | { kind: "textDelta"; text: string; contentBlockIndex?: number }
+  | {
+      kind: "reasoningDelta";
+      text?: string;
+      signature?: string;
+      redactedContent?: Uint8Array;
+      contentBlockIndex: number;
+    }
   | {
       kind: "toolUseStart";
       id: string;
@@ -447,7 +487,21 @@ function toStructuredConverseStreamEvent(
   if (e.messageStart) return { kind: "messageStart" };
   if (e.messageStop) return { kind: "messageStop", stopReason: e.messageStop.stopReason };
   if (e.contentBlockDelta?.delta?.text)
-    return { kind: "textDelta", text: e.contentBlockDelta.delta.text };
+    return {
+      kind: "textDelta",
+      text: e.contentBlockDelta.delta.text,
+      contentBlockIndex: e.contentBlockDelta.contentBlockIndex,
+    };
+  if (e.contentBlockDelta?.delta?.reasoningContent) {
+    const reasoningDelta = e.contentBlockDelta.delta.reasoningContent;
+    return {
+      kind: "reasoningDelta",
+      text: reasoningDelta.text,
+      signature: reasoningDelta.signature,
+      redactedContent: reasoningDelta.redactedContent,
+      contentBlockIndex: e.contentBlockDelta.contentBlockIndex,
+    };
+  }
   if (e.contentBlockStart?.start?.toolUse?.toolUseId && e.contentBlockStart.start.toolUse.name) {
     return {
       kind: "toolUseStart",
@@ -474,7 +528,7 @@ function toRawWireConverseStreamEvent(
   e: ConverseStreamEventData,
 ): NormalizedConverseStreamEvent | undefined {
   if (e.type === "content_block_delta" && e.delta?.type === "text_delta" && e.delta.text) {
-    return { kind: "textDelta", text: e.delta.text };
+    return { kind: "textDelta", text: e.delta.text, contentBlockIndex: e.index };
   }
   if (
     e.type === "content_block_start" &&
@@ -486,10 +540,15 @@ function toRawWireConverseStreamEvent(
       kind: "toolUseStart",
       id: e.content_block.id,
       name: e.content_block.name,
+      contentBlockIndex: e.index,
     };
   }
   if (e.type === "input_json_delta" && e.partial_json) {
-    return { kind: "toolUseInputChunk", chunk: e.partial_json };
+    return {
+      kind: "toolUseInputChunk",
+      chunk: e.partial_json,
+      contentBlockIndex: e.index,
+    };
   }
   if (e.metadata?.usage) {
     return {

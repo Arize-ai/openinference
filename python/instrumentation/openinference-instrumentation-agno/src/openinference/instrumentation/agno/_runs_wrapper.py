@@ -17,7 +17,6 @@ from typing import (
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context.context import Context
-from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent
 from agno.models.message import Message
@@ -32,6 +31,7 @@ from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
+    AttributeValue,
     _bind_arguments,
     _flatten,
     _generate_node_id,
@@ -115,6 +115,20 @@ def _extract_completed_event_output(
 
 def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
+
+
+def _span_method_name(wrapped: Callable[..., Any], default: str) -> str:
+    """Span-name suffix for the wrapped run function.
+
+    The continue-run entrypoints (_continue_run, _acontinue_run, and their
+    _stream variants) share the run/arun wrappers; reflect the continuation in
+    the span name, collapsing stream variants to the base name exactly like
+    the run spans do.
+    """
+    name = getattr(wrapped, "__name__", "")
+    if "continue" in name:
+        return name.lstrip("_").removesuffix("_stream")
+    return default
 
 
 def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -310,7 +324,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'run')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -388,7 +402,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'run')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -480,7 +494,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.arun"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'arun')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -559,7 +573,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.arun"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'arun')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)

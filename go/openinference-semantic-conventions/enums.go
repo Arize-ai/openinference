@@ -64,4 +64,8 @@ const (
 	LLMProviderPerplexity = "perplexity"
 	LLMProviderTogether   = "together"
 	LLMProviderOllama     = "ollama"
+	LLMProviderMeta       = "meta"
+	LLMProviderZAI        = "zai"
+	LLMProviderMiniMax    = "minimax"
+	LLMProviderOracle     = "oracle"
 )

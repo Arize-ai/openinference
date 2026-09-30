@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Optional, T
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.together._request_attributes_extractor import (
@@ -16,7 +15,11 @@ from openinference.instrumentation.together._response_attributes_extractor impor
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.together._stream import _Stream
-from openinference.instrumentation.together._utils import _finish_tracing
+from openinference.instrumentation.together._types import AttributeValue
+from openinference.instrumentation.together._utils import (
+    _finish_tracing,
+    _materialize_content_iterables,
+)
 from openinference.instrumentation.together._with_span import _WithSpan
 from together import AsyncStream, NotGiven, Omit, Stream
 
@@ -112,6 +115,12 @@ class _CompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        materialize_error: Optional[Exception] = None
+        try:
+            kwargs = _materialize_content_iterables(kwargs)
+        except Exception as exception:
+            materialize_error = exception
+
         request_parameters = self._parse_request(wrapped, args, kwargs)
         with self._start_as_current_span(
             span_name="Completions",
@@ -121,6 +130,8 @@ class _CompletionsWrapper(_WithTracer):
             ),
         ) as span:
             try:
+                if materialize_error is not None:
+                    raise materialize_error
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 self._finalize_error(span, exception)
@@ -146,6 +157,12 @@ class _AsyncCompletionsWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
+        materialize_error: Optional[Exception] = None
+        try:
+            kwargs = _materialize_content_iterables(kwargs)
+        except Exception as exception:
+            materialize_error = exception
+
         request_parameters = self._parse_request(wrapped, args, kwargs)
         with self._start_as_current_span(
             span_name="AsyncCompletions",
@@ -155,6 +172,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
             ),
         ) as span:
             try:
+                if materialize_error is not None:
+                    raise materialize_error
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
                 self._finalize_error(span, exception)

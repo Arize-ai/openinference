@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.17...python-openinference-instrumentation-claude-agent-sdk-v0.1.18) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.16...python-openinference-instrumentation-claude-agent-sdk-v0.1.17) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+
+### Documentation
+
+* **claude-agent-sdk:** fix stale README claims and Phoenix Cloud auth in examples ([#3702](https://github.com/Arize-ai/openinference/issues/3702)) ([5125ba3](https://github.com/Arize-ai/openinference/commit/5125ba366db2bac79db67fa7065ebc9bf8529f77))
+* **claude-agent-sdk:** rewrite stale examples section in README ([#3689](https://github.com/Arize-ai/openinference/issues/3689)) ([69ef922](https://github.com/Arize-ai/openinference/commit/69ef922901e585a5c5f5b604f3fb9edbc9f639a0))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.15...python-openinference-instrumentation-claude-agent-sdk-v0.1.16) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.14...python-openinference-instrumentation-claude-agent-sdk-v0.1.15) (2026-09-03)
+
+
+### Features
+
+* **claude_agent_sdk:** Add Finish Reason Attribute ([#3657](https://github.com/Arize-ai/openinference/issues/3657)) ([5a18a20](https://github.com/Arize-ai/openinference/commit/5a18a20e733b76e0d52d7af247b42ecfe7cc23be))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-claude-agent-sdk-v0.1.13...python-openinference-instrumentation-claude-agent-sdk-v0.1.14) (2026-08-27)
 
 

@@ -17,10 +17,9 @@ from typing import (
     cast,
 )
 
-from opentelemetry.util.types import AttributeValue
-
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
+from openinference.instrumentation.openai._types import AttributeValue
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
     EmbeddingAttributes,

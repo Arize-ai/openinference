@@ -25,6 +25,7 @@ const (
 	EnvHideLLMInvocationParameters = "OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS"
 	EnvHideLLMTools                = "OPENINFERENCE_HIDE_LLM_TOOLS"
 	EnvHidePrompts                 = "OPENINFERENCE_HIDE_PROMPTS"
+	EnvHideInputImages             = "OPENINFERENCE_HIDE_INPUT_IMAGES"
 )
 
 // TraceConfig controls which OpenInference attributes the provider
@@ -83,6 +84,11 @@ type TraceConfig struct {
 
 	// HidePrompts omits the completions-API llm.prompts.* attributes.
 	HidePrompts bool
+
+	// HideInputImages omits images from input messages and from the
+	// span-level input.images.* attributes. HideInputs also hides them,
+	// so call ShouldHideInputImages instead of reading this field directly.
+	HideInputImages bool
 }
 
 // TraceConfigFromEnv populates a TraceConfig by reading the
@@ -104,6 +110,7 @@ func TraceConfigFromEnv() TraceConfig {
 		HideLLMInvocationParameters: envBool(EnvHideLLMInvocationParameters),
 		HideLLMTools:                envBool(EnvHideLLMTools),
 		HidePrompts:                 envBool(EnvHidePrompts),
+		HideInputImages:             envBool(EnvHideInputImages),
 	}
 }
 
@@ -142,6 +149,27 @@ func (c TraceConfig) MaskOutputValue(value string) string {
 		return RedactedValue
 	}
 	return value
+}
+
+// ShouldHideInputImages reports whether input images should be omitted.
+// It covers images inside input messages and the span-level
+// input.images.* attributes, and is true when either HideInputs or
+// HideInputImages is set.
+//
+// No Go instrumentor captures images yet. This method exists so that the
+// first one to do so honors OPENINFERENCE_HIDE_INPUT_IMAGES, as the other
+// language SDKs do.
+func (c TraceConfig) ShouldHideInputImages() bool {
+	return c.HideInputs || c.HideInputImages
+}
+
+// ShouldHideOutputImages reports whether output images should be omitted.
+// It covers images inside output messages and the span-level
+// output.images.* attributes. There is no dedicated flag for output
+// images; they are hidden together with output.value when HideOutputs
+// is set.
+func (c TraceConfig) ShouldHideOutputImages() bool {
+	return c.HideOutputs
 }
 
 func envBool(key string) bool {

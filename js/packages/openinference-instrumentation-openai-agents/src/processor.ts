@@ -23,6 +23,7 @@ import {
   GRAPH_NODE_PARENT_ID,
   INPUT_MIME_TYPE,
   INPUT_VALUE,
+  LLM_FINISH_REASON,
   LLM_INPUT_MESSAGES,
   LLM_INVOCATION_PARAMETERS,
   LLM_MODEL_NAME,
@@ -33,6 +34,7 @@ import {
   LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+  LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
   LLM_TOKEN_COUNT_TOTAL,
   LLM_TOOLS,
   LLMProvider,
@@ -478,7 +480,26 @@ interface ChatCompletionTokenTotals {
   completionTokens?: number;
   totalTokens?: number;
   cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   reasoningTokens?: number;
+}
+
+/** Add an optional token count to a running total, leaving the total untouched when absent. */
+function addTokens(total: number | undefined, count: number | undefined): number | undefined {
+  return count === undefined ? total : (total ?? 0) + count;
+}
+
+/**
+ * Read OpenAI prompt cache counts from a `*_tokens_details` record
+ * (`prompt_tokens_details`, `input_tokens_details`, or generation `details`).
+ * Only fields that are present as numbers are returned.
+ */
+function getPromptCacheTokens(details: unknown): { cacheRead?: number; cacheWrite?: number } {
+  if (!isRecord(details)) return {};
+  return {
+    cacheRead: isNumber(details.cached_tokens) ? details.cached_tokens : undefined,
+    cacheWrite: isNumber(details.cache_write_tokens) ? details.cache_write_tokens : undefined,
+  };
 }
 
 /**
@@ -504,14 +525,10 @@ function accumulateChatCompletionUsage({
   } else if (promptTokens !== undefined || completionTokens !== undefined) {
     totals.totalTokens = (totals.totalTokens ?? 0) + (promptTokens ?? 0) + (completionTokens ?? 0);
   }
-  // OpenAI / DeepSeek prompt_tokens_details.cached_tokens
-  if (
-    isRecord(usage.prompt_tokens_details) &&
-    isNumber(usage.prompt_tokens_details.cached_tokens)
-  ) {
-    totals.cacheReadTokens =
-      (totals.cacheReadTokens ?? 0) + usage.prompt_tokens_details.cached_tokens;
-  }
+  // OpenAI / DeepSeek prompt_tokens_details.{cached_tokens,cache_write_tokens}
+  const { cacheRead, cacheWrite } = getPromptCacheTokens(usage.prompt_tokens_details);
+  totals.cacheReadTokens = addTokens(totals.cacheReadTokens, cacheRead);
+  totals.cacheWriteTokens = addTokens(totals.cacheWriteTokens, cacheWrite);
   // o-series completion_tokens_details.reasoning_tokens
   if (
     isRecord(usage.completion_tokens_details) &&
@@ -552,6 +569,11 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
         message: choice.message,
       });
       messageIndex++;
+      // chat_completions finish_reason values already match the OpenInference
+      // vocabulary, so this is a direct passthrough rather than a mapped lookup.
+      if (isString(choice.finish_reason) && choice.finish_reason.length > 0) {
+        attributes[LLM_FINISH_REASON] = choice.finish_reason;
+      }
     }
   }
 
@@ -562,6 +584,8 @@ function extractFromChatCompletionResponses(responses: ReadonlyArray<unknown>): 
   if (totals.totalTokens !== undefined) attributes[LLM_TOKEN_COUNT_TOTAL] = totals.totalTokens;
   if (totals.cacheReadTokens !== undefined)
     attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = totals.cacheReadTokens;
+  if (totals.cacheWriteTokens !== undefined)
+    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = totals.cacheWriteTokens;
   if (totals.reasoningTokens !== undefined)
     attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = totals.reasoningTokens;
 
@@ -586,9 +610,10 @@ function getGenerationUsageAttributes(usage: GenerationUsageData): Attributes {
     attributes[LLM_TOKEN_COUNT_TOTAL] = usage.input_tokens + usage.output_tokens;
   }
   if (isRecord(usage.details)) {
-    if (isNumber(usage.details.cached_tokens)) {
-      attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = usage.details.cached_tokens;
-    }
+    const { cacheRead, cacheWrite } = getPromptCacheTokens(usage.details);
+    if (cacheRead !== undefined) attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cacheRead;
+    if (cacheWrite !== undefined)
+      attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cacheWrite;
     if (isNumber(usage.details.reasoning_tokens)) {
       attributes[LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = usage.details.reasoning_tokens;
     }
@@ -719,6 +744,38 @@ const RESPONSE_NON_INVOCATION_PARAM_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Responses API `status` to OpenInference `llm.finish_reason` mapping.
+ */
+const RESPONSE_STATUS_TO_FINISH_REASON: ReadonlyMap<string, string> = new Map([
+  ["completed", "stop"],
+  ["failed", "error"],
+  ["cancelled", "cancelled"],
+  ["incomplete", "incomplete"],
+]);
+
+/**
+ * Responses API `incomplete_details.reason` to OpenInference `llm.finish_reason` mapping.
+ */
+const RESPONSE_INCOMPLETE_REASON_TO_FINISH_REASON: ReadonlyMap<string, string> = new Map([
+  ["max_output_tokens", "length"],
+  ["content_filter", "content_filter"],
+]);
+
+/**
+ * Maps a Responses API `status` and `incomplete_details.reason` to a single OpenInference
+ * `llm.finish_reason` value.
+ */
+function mapResponseFinishReason(status: unknown, incompleteReason: unknown): string | undefined {
+  if (isString(incompleteReason) && incompleteReason.length > 0) {
+    return RESPONSE_INCOMPLETE_REASON_TO_FINISH_REASON.get(incompleteReason) ?? incompleteReason;
+  }
+  if (isString(status) && status.length > 0) {
+    return RESPONSE_STATUS_TO_FINISH_REASON.get(status) ?? status;
+  }
+  return undefined;
+}
+
+/**
  * Extracts the input attributes from {@link ResponseSpanData}.
  *
  * @param data The response span data
@@ -781,10 +838,9 @@ function getResponseUsageAttributes(usage: Record<string, unknown>): Attributes 
   if (isNumber(usage.input_tokens)) attributes[LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
   if (isNumber(usage.output_tokens)) attributes[LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
   if (isNumber(usage.total_tokens)) attributes[LLM_TOKEN_COUNT_TOTAL] = usage.total_tokens;
-  if (isRecord(usage.input_tokens_details) && isNumber(usage.input_tokens_details.cached_tokens)) {
-    attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
-      usage.input_tokens_details.cached_tokens;
-  }
+  const { cacheRead, cacheWrite } = getPromptCacheTokens(usage.input_tokens_details);
+  if (cacheRead !== undefined) attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cacheRead;
+  if (cacheWrite !== undefined) attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cacheWrite;
   if (
     isRecord(usage.output_tokens_details) &&
     isNumber(usage.output_tokens_details.reasoning_tokens)
@@ -853,6 +909,14 @@ function getResponseAttributes(data: ResponseSpanData): Attributes {
 
   if (isString(response.model)) {
     attributes[LLM_MODEL_NAME] = response.model;
+  }
+
+  const incompleteReason = isRecord(response.incomplete_details)
+    ? response.incomplete_details.reason
+    : undefined;
+  const finishReason = mapResponseFinishReason(response.status, incompleteReason);
+  if (finishReason) {
+    attributes[LLM_FINISH_REASON] = finishReason;
   }
 
   Object.assign(attributes, getResponseInvocationParameterAttributes(response));

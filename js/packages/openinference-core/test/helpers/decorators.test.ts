@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import { defaultProcessOutput, getLLMAttributes, observe } from "../../src/helpers";
+import {
+  defaultProcessInput,
+  defaultProcessOutput,
+  getLLMAttributes,
+  observe,
+} from "../../src/helpers";
 
 let spanExporter: InMemorySpanExporter;
 let tracerProvider: NodeTracerProvider;
@@ -48,8 +53,10 @@ describe("observe", () => {
     const decorated = decorate(
       {
         kind: "LLM",
-        processInput: (request: { model: string }) =>
-          getLLMAttributes({ requestModelName: request.model }),
+        processInput: (request: { model: string }) => ({
+          ...defaultProcessInput(request),
+          ...getLLMAttributes({ requestModelName: request.model }),
+        }),
         processOutput: (response: { model: string }) => ({
           ...defaultProcessOutput(response),
           ...getLLMAttributes({ responseModelName: response.model }),
@@ -72,6 +79,9 @@ describe("observe", () => {
     expect(span.attributes[SemanticConventions.LLM_REQUEST_MODEL_NAME]).toBe("gpt-4");
     expect(span.attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME]).toBe("gpt-4-0613");
     expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("gpt-4-0613");
-    expect(span.attributes[SemanticConventions.OUTPUT_VALUE]).toBeDefined();
+    expect(span.attributes[SemanticConventions.INPUT_VALUE]).toBe(
+      JSON.stringify({ model: "gpt-4", prompt: "hi" }),
+    );
+    expect(span.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(JSON.stringify(result));
   });
 });

@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.11...python-openinference-instrumentation-agentspec-v0.1.12) (2026-09-29)
+
+
+### Bug Fixes
+
+* **agentspec:** narrow Optional fields in tests for pyagentspec 26.3.1 mypy compat ([#3861](https://github.com/Arize-ai/openinference/issues/3861)) ([c9cb325](https://github.com/Arize-ai/openinference/commit/c9cb325b028f6df15c7694e669f7d6bdc6ecce4f))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.10...python-openinference-instrumentation-agentspec-v0.1.11) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.9...python-openinference-instrumentation-agentspec-v0.1.10) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.8...python-openinference-instrumentation-agentspec-v0.1.9) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agentspec-v0.1.7...python-openinference-instrumentation-agentspec-v0.1.8) (2026-08-27)
 
 

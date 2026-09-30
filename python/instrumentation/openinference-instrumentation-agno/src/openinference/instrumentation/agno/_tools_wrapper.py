@@ -14,13 +14,13 @@ from typing import (
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from agno.run.agent import RunContentEvent, RunOutputEvent
 from agno.run.team import RunContentEvent as TeamRunContentEvent
 from agno.run.team import TeamRunOutputEvent
 from agno.tools.function import FunctionCall, ToolResult
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.agno.utils import AttributeValue
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,

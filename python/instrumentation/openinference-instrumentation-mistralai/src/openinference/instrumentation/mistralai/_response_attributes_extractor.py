@@ -8,8 +8,7 @@ from typing import (
     Tuple,
 )
 
-from opentelemetry.util.types import AttributeValue
-
+from openinference.instrumentation.mistralai._types import AttributeValue
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMProviderValues,

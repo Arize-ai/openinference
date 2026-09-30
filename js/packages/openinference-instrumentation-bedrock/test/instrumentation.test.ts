@@ -153,6 +153,7 @@ describe("BedrockInstrumentation", () => {
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Hello, how are you?"}]}",
+  "llm.finish_reason": "end_turn",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -213,6 +214,7 @@ describe("BedrockInstrumentation", () => {
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather like in San Francisco?"}]}",
+  "llm.finish_reason": "tool_use",
   "llm.input_messages.0.message.content": "What's the weather like in San Francisco?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -267,6 +269,7 @@ describe("BedrockInstrumentation", () => {
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather in Paris?"},{"role":"assistant","content":[{"type":"tool_use","id":"toolu_123","name":"get_weather","input":{"location":"Paris, France"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_123","content":"The weather in Paris is currently 22°C and sunny."},{"type":"text","text":"Great! What should I wear?"}]}]}",
+  "llm.finish_reason": "max_tokens",
   "llm.input_messages.0.message.content": "What's the weather in Paris?",
   "llm.input_messages.0.message.role": "user",
   "llm.input_messages.1.message.role": "assistant",
@@ -325,6 +328,7 @@ The key things are to dress for the warm temperatures and have layers you can",
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}},{"name":"calculate","description":"Perform mathematical calculations","input_schema":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}},{"name":"web_search","description":"Search the web for information","input_schema":{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"num_results":{"type":"integer","description":"Number of results to return","minimum":1,"maximum":10}},"required":["query"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco and what's 15 * 23?"}]}",
+  "llm.finish_reason": "max_tokens",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco and what's 15 * 23?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -433,6 +437,7 @@ The key things are to dress for the warm temperatures and have layers you can",
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":[{"type":"text","text":"What do you see in this image?"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="}}]}]}",
+  "llm.finish_reason": "max_tokens",
   "llm.input_messages.0.message.contents.0.message_content.text": "What do you see in this image?",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
@@ -522,6 +527,7 @@ The key things are to dress for the warm temperatures and have layers you can",
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short fact."}]}",
+  "llm.finish_reason": "end_turn",
   "llm.input_messages.0.message.content": "Tell me a short fact.",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -614,6 +620,7 @@ Honeybees can recognize human faces.",
 {
   "input.mime_type": "application/json",
   "input.value": "{"messages":[{"role":"user","content":"Hello, how are you?"}],"max_tokens":100,"temperature":0.7}",
+  "llm.finish_reason": "stop",
   "llm.input_messages.0.message.contents.0.message_content.text": "Hello, how are you?",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
@@ -694,6 +701,7 @@ Honeybees can recognize human faces.",
 {
   "input.mime_type": "application/json",
   "input.value": "{"messages":[{"role":"user","content":[{"text":"What's the weather like in San Francisco today? Please use the weather tool to check."}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.7},"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather information for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state/country for weather lookup"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit preference"}},"required":["location"]}}}}]}}",
+  "llm.finish_reason": "tool_use",
   "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather like in San Francisco today? Please use the weather tool to check.",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
@@ -746,6 +754,7 @@ Honeybees can recognize human faces.",
 {
   "input.mime_type": "application/json",
   "input.value": "{"inputText":"Hello, how are you?","textGenerationConfig":{"maxTokenCount":100,"temperature":0.7}}",
+  "llm.finish_reason": "FINISH",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokenCount":100,"temperature":0.7}",
@@ -790,6 +799,7 @@ This model is designed to avoid generating sensitive content. It is important to
 {
   "input.mime_type": "application/json",
   "input.value": "{"prompt":"Hello, how are you?","max_tokens":100,"temperature":0.7,"p":0.9,"k":0,"stop_sequences":[]}",
+  "llm.finish_reason": "COMPLETE",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"max_tokens":100,"temperature":0.7,"p":0.9,"k":0,"stop_sequences":[]}",
@@ -829,6 +839,7 @@ This model is designed to avoid generating sensitive content. It is important to
 {
   "input.mime_type": "application/json",
   "input.value": "{"prompt":"Hello, how are you?","max_gen_len":100,"temperature":0.7,"top_p":0.9}",
+  "llm.finish_reason": "length",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"max_gen_len":100,"temperature":0.7,"top_p":0.9}",
@@ -947,6 +958,7 @@ This model is designed to avoid generating sensitive content. It is important to
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short story"}]}",
+  "llm.finish_reason": "max_tokens",
   "llm.input_messages.0.message.content": "Tell me a short story",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -998,6 +1010,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 {
   "input.mime_type": "application/json",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco?"}]}",
+  "llm.finish_reason": "tool_use",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
@@ -1308,6 +1321,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 {
   "input.mime_type": "application/json",
   "input.value": "{"inputText":"Tell me a very short story about a robot learning to paint.","textGenerationConfig":{"maxTokenCount":100,"temperature":0.7}}",
+  "llm.finish_reason": "LENGTH",
   "llm.input_messages.0.message.content": "Tell me a very short story about a robot learning to paint.",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokenCount":100,"temperature":0.7}",
@@ -1358,6 +1372,7 @@ Once upon a time, a robot named PaintBot was created to paint beautiful landscap
 {
   "input.mime_type": "application/json",
   "input.value": "{"prompt":"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\\n\\nTell me a very short story about artificial intelligence in the future.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n","max_gen_len":120,"temperature":0.7}",
+  "llm.finish_reason": "length",
   "llm.input_messages.0.message.content": "<|begin_of_text|><|start_header_id|>user<|end_header_id|>
 
 Tell me a very short story about artificial intelligence in the future.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
@@ -1420,6 +1435,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 {
   "input.mime_type": "application/json",
   "input.value": "{"messages":[{"role":"user","content":[{"text":"Tell me a very short story about space exploration in the future."}]}],"inferenceConfig":{"max_new_tokens":150,"temperature":0.7}}",
+  "llm.finish_reason": "end_turn",
   "llm.input_messages.0.message.contents.0.message_content.text": "Tell me a very short story about space exploration in the future.",
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
@@ -1489,6 +1505,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "Hello, how are you?",
             "llm.input_messages.0.message.role": "user",
             "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -1537,29 +1554,92 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 
         const span = verifySpanBasics(spanExporter, "bedrock.converse");
 
+        expect(span.attributes["llm.output_messages.0.message.content"]).toBe(
+          "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
+        );
+        expect(
+          span.attributes["llm.output_messages.0.message.contents.0.message_content.text"],
+        ).toBeUndefined();
+
         // Comprehensive span attributes snapshot for streaming converse response
         // This test validates that converse streaming has proper instrumentation
         // NOTE: This snapshot will need to be updated after VCR recording is created
         expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
-  "llm.input_messages.0.message.content": "Hello, how are you?",
-  "llm.input_messages.0.message.role": "user",
-  "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.stop_reason": "end_turn",
-  "llm.system": "anthropic",
-  "llm.token_count.completion": 35,
-  "llm.token_count.prompt": 13,
-  "llm.token_count.total": 48,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?","tool_calls":[],"usage":{"input_tokens":13,"output_tokens":35,"total_tokens":48},"streaming":true,"stop_reason":"end_turn"}",
-}
-`);
+          {
+            "input.mime_type": "application/json",
+            "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
+            "llm.finish_reason": "end_turn",
+            "llm.input_messages.0.message.content": "Hello, how are you?",
+            "llm.input_messages.0.message.role": "user",
+            "llm.model_name": "claude-3-5-sonnet-20240620",
+            "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
+            "llm.output_messages.0.message.role": "assistant",
+            "llm.provider": "aws",
+            "llm.stop_reason": "end_turn",
+            "llm.system": "anthropic",
+            "llm.token_count.completion": 35,
+            "llm.token_count.prompt": 13,
+            "llm.token_count.total": 48,
+            "openinference.span.kind": "LLM",
+            "output.mime_type": "application/json",
+            "output.value": "{"text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?","tool_calls":[],"usage":{"input_tokens":13,"output_tokens":35,"total_tokens":48},"streaming":true,"stop_reason":"end_turn"}",
+          }
+        `);
+      });
+
+      it("should handle reasoningContent blocks in Converse API responses", async () => {
+        setupTestRecordingWrapper("should-handle-converse-reasoning-content");
+
+        const client = createTestClient(isRecordingMode);
+
+        const command = new ConverseCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "What is 6 * 7?",
+                },
+              ],
+            },
+          ],
+        });
+
+        const result = await client.send(command);
+
+        expect(result).toBeDefined();
+        expect(result.output?.message).toBeDefined();
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+        const attributes = span.attributes;
+
+        expect(attributes["llm.output_messages.0.message.contents.0.message_content.type"]).toBe(
+          "reasoning",
+        );
+        expect(attributes["llm.output_messages.0.message.contents.0.message_content.text"]).toBe(
+          "Let me think about this. 6 * 7 = 42.",
+        );
+        expect(
+          attributes["llm.output_messages.0.message.contents.0.message_content.signature"],
+        ).toBe("test-signature-token");
+
+        expect(attributes["llm.output_messages.0.message.contents.1.message_content.type"]).toBe(
+          "text",
+        );
+        expect(attributes["llm.output_messages.0.message.contents.1.message_content.text"]).toBe(
+          "The answer is 42.",
+        );
+
+        expect(attributes["llm.output_messages.0.message.contents.2.message_content.type"]).toBe(
+          "reasoning",
+        );
+        expect(attributes["llm.output_messages.0.message.contents.2.message_content.data"]).toBe(
+          "b3BhcXVlLWVuY3J5cHRlZC1yZWRhY3RlZC1jb250ZW50",
+        );
+
+        const idKeys = Object.keys(attributes).filter((k) => /message_content\.id$/.test(k));
+        expect(idKeys).toEqual([]);
       });
     });
 
@@ -1622,29 +1702,30 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 
           // Comprehensive span attributes snapshot for streaming tool calls
           expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's the weather in San Francisco and what time is it there?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}]}}",
-  "llm.input_messages.0.message.content": "What's the weather in San Francisco and what time is it there?",
-  "llm.input_messages.0.message.role": "user",
-  "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.content": "I can certainly help you with the weather in San Francisco, but I'm afraid I don't have a specific tool to check the current time there. Let me get the weather information for you.",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
-  "llm.output_messages.0.message.tool_calls.0.tool_call.id": "tooluse_wnjikhCUTruJciycmmm5Kg",
-  "llm.provider": "aws",
-  "llm.stop_reason": "tool_use",
-  "llm.system": "anthropic",
-  "llm.token_count.completion": 114,
-  "llm.token_count.prompt": 414,
-  "llm.token_count.total": 528,
-  "llm.tools.0.tool.json_schema": "{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":"I can certainly help you with the weather in San Francisco, but I'm afraid I don't have a specific tool to check the current time there. Let me get the weather information for you.","tool_calls":[{"id":"tooluse_wnjikhCUTruJciycmmm5Kg","name":"get_weather","input":{"location":"San Francisco, CA","unit":"fahrenheit"}}],"usage":{"input_tokens":414,"output_tokens":114,"total_tokens":528},"streaming":true,"stop_reason":"tool_use"}",
-}
-`);
+            {
+              "input.mime_type": "application/json",
+              "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's the weather in San Francisco and what time is it there?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}]}}",
+              "llm.finish_reason": "tool_use",
+              "llm.input_messages.0.message.content": "What's the weather in San Francisco and what time is it there?",
+              "llm.input_messages.0.message.role": "user",
+              "llm.model_name": "claude-3-5-sonnet-20240620",
+              "llm.output_messages.0.message.content": "I can certainly help you with the weather in San Francisco, but I'm afraid I don't have a specific tool to check the current time there. Let me get the weather information for you.",
+              "llm.output_messages.0.message.role": "assistant",
+              "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
+              "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+              "llm.output_messages.0.message.tool_calls.0.tool_call.id": "tooluse_wnjikhCUTruJciycmmm5Kg",
+              "llm.provider": "aws",
+              "llm.stop_reason": "tool_use",
+              "llm.system": "anthropic",
+              "llm.token_count.completion": 114,
+              "llm.token_count.prompt": 414,
+              "llm.token_count.total": 528,
+              "llm.tools.0.tool.json_schema": "{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}",
+              "openinference.span.kind": "LLM",
+              "output.mime_type": "application/json",
+              "output.value": "{"text":"I can certainly help you with the weather in San Francisco, but I'm afraid I don't have a specific tool to check the current time there. Let me get the weather information for you.","tool_calls":[{"id":"tooluse_wnjikhCUTruJciycmmm5Kg","name":"get_weather","input":{"location":"San Francisco, CA","unit":"fahrenheit"}}],"usage":{"input_tokens":414,"output_tokens":114,"total_tokens":528},"streaming":true,"stop_reason":"tool_use"}",
+            }
+          `);
         });
 
         it("should handle multi-modal content in streaming responses", async () => {
@@ -1689,35 +1770,94 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 
           // Comprehensive span attributes snapshot for multi-modal streaming
           expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Describe this image and tell me a short story about it:"},{"image":{"format":"png","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,100,248,207,80,15,0,3,134,1,128,90,52,125,107,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}]}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Describe this image and tell me a short story about it:",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
-  "llm.input_messages.0.message.contents.1.message_content.image.format": "png",
-  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-  "llm.input_messages.0.message.contents.1.message_content.type": "image",
-  "llm.input_messages.0.message.role": "user",
-  "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.content": "This image shows a simple, hand-drawn sketch of a house on lined notebook paper. The house has a triangular roof, rectangular body, a door in the center, and two windows on either side of the door. It's the kind of drawing a child might make when asked to draw a basic house.
+            {
+              "input.mime_type": "application/json",
+              "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Describe this image and tell me a short story about it:"},{"image":{"format":"png","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,100,248,207,80,15,0,3,134,1,128,90,52,125,107,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}]}",
+              "llm.finish_reason": "end_turn",
+              "llm.input_messages.0.message.contents.0.message_content.text": "Describe this image and tell me a short story about it:",
+              "llm.input_messages.0.message.contents.0.message_content.type": "text",
+              "llm.input_messages.0.message.contents.1.message_content.image.format": "png",
+              "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+              "llm.input_messages.0.message.contents.1.message_content.type": "image",
+              "llm.input_messages.0.message.role": "user",
+              "llm.model_name": "claude-3-5-sonnet-20240620",
+              "llm.output_messages.0.message.content": "This image shows a simple, hand-drawn sketch of a house on lined notebook paper. The house has a triangular roof, rectangular body, a door in the center, and two windows on either side of the door. It's the kind of drawing a child might make when asked to draw a basic house.
 
-Here's a short story inspired by this image:
+            Here's a short story inspired by this image:
 
-Little Timmy sat at his desk, daydreaming during math class. As the teacher droned on about fractions, Timmy's pencil moved almost on its own across his notebook paper. With a few quick strokes, a cozy little house appeared – just like the one he wished he lived in. 
+            Little Timmy sat at his desk, daydreaming during math class. As the teacher droned on about fractions, Timmy's pencil moved almost on its own across his notebook paper. With a few quick strokes, a cozy little house appeared – just like the one he wished he lived in. 
 
-In his imagination, this wasn't just any house. It was a magical place where homework didn't exist, where cookies were always fresh from the oven, and where his dog could talk. As the bell rang, signaling the end of class, Timmy smiled at his creation. Even if it was just a simple drawing, for a moment, it had been the most perfect home in the world.",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.stop_reason": "end_turn",
-  "llm.system": "anthropic",
-  "llm.token_count.completion": 230,
-  "llm.token_count.prompt": 24,
-  "llm.token_count.total": 254,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":"This image shows a simple, hand-drawn sketch of a house on lined notebook paper. The house has a triangular roof, rectangular body, a door in the center, and two windows on either side of the door. It's the kind of drawing a child might make when asked to draw a basic house.\\n\\nHere's a short story inspired by this image:\\n\\nLittle Timmy sat at his desk, daydreaming during math class. As the teacher droned on about fractions, Timmy's pencil moved almost on its own across his notebook paper. With a few quick strokes, a cozy little house appeared – just like the one he wished he lived in. \\n\\nIn his imagination, this wasn't just any house. It was a magical place where homework didn't exist, where cookies were always fresh from the oven, and where his dog could talk. As the bell rang, signaling the end of class, Timmy smiled at his creation. Even if it was just a simple drawing, for a moment, it had been the most perfect home in the world.","tool_calls":[],"usage":{"input_tokens":24,"output_tokens":230,"total_tokens":254},"streaming":true,"stop_reason":"end_turn"}",
-}
-`);
+            In his imagination, this wasn't just any house. It was a magical place where homework didn't exist, where cookies were always fresh from the oven, and where his dog could talk. As the bell rang, signaling the end of class, Timmy smiled at his creation. Even if it was just a simple drawing, for a moment, it had been the most perfect home in the world.",
+              "llm.output_messages.0.message.role": "assistant",
+              "llm.provider": "aws",
+              "llm.stop_reason": "end_turn",
+              "llm.system": "anthropic",
+              "llm.token_count.completion": 230,
+              "llm.token_count.prompt": 24,
+              "llm.token_count.total": 254,
+              "openinference.span.kind": "LLM",
+              "output.mime_type": "application/json",
+              "output.value": "{"text":"This image shows a simple, hand-drawn sketch of a house on lined notebook paper. The house has a triangular roof, rectangular body, a door in the center, and two windows on either side of the door. It's the kind of drawing a child might make when asked to draw a basic house.\\n\\nHere's a short story inspired by this image:\\n\\nLittle Timmy sat at his desk, daydreaming during math class. As the teacher droned on about fractions, Timmy's pencil moved almost on its own across his notebook paper. With a few quick strokes, a cozy little house appeared – just like the one he wished he lived in. \\n\\nIn his imagination, this wasn't just any house. It was a magical place where homework didn't exist, where cookies were always fresh from the oven, and where his dog could talk. As the bell rang, signaling the end of class, Timmy smiled at his creation. Even if it was just a simple drawing, for a moment, it had been the most perfect home in the world.","tool_calls":[],"usage":{"input_tokens":24,"output_tokens":230,"total_tokens":254},"streaming":true,"stop_reason":"end_turn"}",
+            }
+          `);
+        });
+
+        it("should handle reasoningContent blocks in streaming Converse responses", async () => {
+          setupTestRecordingWrapper("should-handle-converse-stream-reasoning-content");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: TEST_MODEL_ID,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "What is 6 * 7?",
+                  },
+                ],
+              },
+            ],
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+          const attributes = span.attributes;
+
+          expect(attributes["llm.output_messages.0.message.contents.0.message_content.type"]).toBe(
+            "reasoning",
+          );
+          expect(attributes["llm.output_messages.0.message.contents.0.message_content.text"]).toBe(
+            "Let me think about this. 6 * 7 = 42.",
+          );
+          expect(
+            attributes["llm.output_messages.0.message.contents.0.message_content.signature"],
+          ).toBe("test-signature-token");
+
+          expect(attributes["llm.output_messages.0.message.contents.1.message_content.type"]).toBe(
+            "text",
+          );
+          expect(attributes["llm.output_messages.0.message.contents.1.message_content.text"]).toBe(
+            "The answer is 42.",
+          );
+
+          expect(attributes["llm.output_messages.0.message.contents.2.message_content.type"]).toBe(
+            "reasoning",
+          );
+          expect(attributes["llm.output_messages.0.message.contents.2.message_content.data"]).toBe(
+            "b3BhcXVlLWVuY3J5cHRlZC1yZWFzb25pbmctYnl0ZXM=",
+          );
+
+          const idKeys = Object.keys(attributes).filter((key) =>
+            key.endsWith(".message_content.id"),
+          );
+          expect(idKeys).toEqual([]);
         });
       });
 
@@ -1868,6 +2008,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           expect(span.attributes).toEqual({
             "input.mime_type": "application/json",
             "input.value": expectedInputValue,
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": expectedMessage1,
             "llm.input_messages.0.message.role": "user",
             "llm.input_messages.1.message.content": expectedMessage2,
@@ -2043,32 +2184,33 @@ In his imagination, this wasn't just any house. It was a magical place where hom
               // Comprehensive span attributes snapshot for streaming context attributes
               // Tests OpenInference context propagation in streaming including session, user, metadata, tags, and prompt template
               expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
-  "llm.input_messages.0.message.content": "Hello, how are you?",
-  "llm.input_messages.0.message.role": "user",
-  "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.prompt_template.template": "Answer the question: {question}",
-  "llm.prompt_template.variables": "{"question":"Hello, how are you?"}",
-  "llm.prompt_template.version": "1.0",
-  "llm.provider": "aws",
-  "llm.stop_reason": "end_turn",
-  "llm.system": "anthropic",
-  "llm.token_count.completion": 35,
-  "llm.token_count.prompt": 13,
-  "llm.token_count.total": 48,
-  "metadata": "{"experiment_name":"stream-context-test","version":"1.0","environment":"testing"}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?","tool_calls":[],"usage":{"input_tokens":13,"output_tokens":35,"total_tokens":48},"streaming":true,"stop_reason":"end_turn"}",
-  "session.id": "test-session-streaming",
-  "tag.tags": "["test","context","streaming"]",
-  "user.id": "test-user-streaming",
-}
-`);
+                {
+                  "input.mime_type": "application/json",
+                  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
+                  "llm.finish_reason": "end_turn",
+                  "llm.input_messages.0.message.content": "Hello, how are you?",
+                  "llm.input_messages.0.message.role": "user",
+                  "llm.model_name": "claude-3-5-sonnet-20240620",
+                  "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
+                  "llm.output_messages.0.message.role": "assistant",
+                  "llm.prompt_template.template": "Answer the question: {question}",
+                  "llm.prompt_template.variables": "{"question":"Hello, how are you?"}",
+                  "llm.prompt_template.version": "1.0",
+                  "llm.provider": "aws",
+                  "llm.stop_reason": "end_turn",
+                  "llm.system": "anthropic",
+                  "llm.token_count.completion": 35,
+                  "llm.token_count.prompt": 13,
+                  "llm.token_count.total": 48,
+                  "metadata": "{"experiment_name":"stream-context-test","version":"1.0","environment":"testing"}",
+                  "openinference.span.kind": "LLM",
+                  "output.mime_type": "application/json",
+                  "output.value": "{"text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?","tool_calls":[],"usage":{"input_tokens":13,"output_tokens":35,"total_tokens":48},"streaming":true,"stop_reason":"end_turn"}",
+                  "session.id": "test-session-streaming",
+                  "tag.tags": "["test","context","streaming"]",
+                  "user.id": "test-user-streaming",
+                }
+              `);
             },
           );
         });
@@ -2106,36 +2248,37 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
           expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"meta.llama3-8b-instruct-v1:0","messages":[{"role":"user","content":[{"text":"Explain quantum computing in simple terms"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.content": "Explain quantum computing in simple terms",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
-  "llm.model_name": "llama3-8b-instruct-v1:0",
-  "llm.output_messages.0.message.content": "
+            {
+              "input.mime_type": "application/json",
+              "input.value": "{"modelId":"meta.llama3-8b-instruct-v1:0","messages":[{"role":"user","content":[{"text":"Explain quantum computing in simple terms"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
+              "llm.input_messages.0.message.content": "Explain quantum computing in simple terms",
+              "llm.input_messages.0.message.role": "user",
+              "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+              "llm.model_name": "llama3-8b-instruct-v1:0",
+              "llm.output_messages.0.message.content": "
 
-Quantum computing is a new way of processing information that's different from the way regular computers work. Here's a simple explanation:
+            Quantum computing is a new way of processing information that's different from the way regular computers work. Here's a simple explanation:
 
-**Classical Computing**
+            **Classical Computing**
 
-Regular computers use "bits" to store and process information. Bits are either 0 or 1, like a light switch that's either on or off. These bits are used to perform calculations and store data.
+            Regular computers use "bits" to store and process information. Bits are either 0 or 1, like a light switch that's either on or off. These bits are used to perform calculations and store data.
 
-**Quantum Computing**
+            **Quantum Computing**
 
-Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.stop_reason": "max_tokens",
-  "llm.system": "meta",
-  "llm.token_count.completion": 100,
-  "llm.token_count.prompt": 21,
-  "llm.token_count.total": 121,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":"\\n\\nQuantum computing is a new way of processing information that's different from the way regular computers work. Here's a simple explanation:\\n\\n**Classical Computing**\\n\\nRegular computers use \\"bits\\" to store and process information. Bits are either 0 or 1, like a light switch that's either on or off. These bits are used to perform calculations and store data.\\n\\n**Quantum Computing**\\n\\nQuantum computers use \\"qubits\\" (quantum bits) instead of bits. Qubits are","tool_calls":[],"usage":{"input_tokens":21,"output_tokens":100,"total_tokens":121},"streaming":true,"stop_reason":"max_tokens"}",
-}
-`);
+            Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
+              "llm.output_messages.0.message.role": "assistant",
+              "llm.provider": "aws",
+              "llm.stop_reason": "max_tokens",
+              "llm.system": "meta",
+              "llm.token_count.completion": 100,
+              "llm.token_count.prompt": 21,
+              "llm.token_count.total": 121,
+              "openinference.span.kind": "LLM",
+              "output.mime_type": "application/json",
+              "output.value": "{"text":"\\n\\nQuantum computing is a new way of processing information that's different from the way regular computers work. Here's a simple explanation:\\n\\n**Classical Computing**\\n\\nRegular computers use \\"bits\\" to store and process information. Bits are either 0 or 1, like a light switch that's either on or off. These bits are used to perform calculations and store data.\\n\\n**Quantum Computing**\\n\\nQuantum computers use \\"qubits\\" (quantum bits) instead of bits. Qubits are","tool_calls":[],"usage":{"input_tokens":21,"output_tokens":100,"total_tokens":121},"streaming":true,"stop_reason":"max_tokens"}",
+            }
+          `);
         });
 
         it("should handle Mistral models with streaming", async () => {
@@ -2169,30 +2312,31 @@ Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
           expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"mistral.mistral-7b-instruct-v0:2","messages":[{"role":"user","content":[{"text":"Write a haiku about technology"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.content": "Write a haiku about technology",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
-  "llm.model_name": "mistral-7b-instruct-v0:2",
-  "llm.output_messages.0.message.content": " Silent screens glow,
+            {
+              "input.mime_type": "application/json",
+              "input.value": "{"modelId":"mistral.mistral-7b-instruct-v0:2","messages":[{"role":"user","content":[{"text":"Write a haiku about technology"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "end_turn",
+              "llm.input_messages.0.message.content": "Write a haiku about technology",
+              "llm.input_messages.0.message.role": "user",
+              "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+              "llm.model_name": "mistral-7b-instruct-v0:2",
+              "llm.output_messages.0.message.content": " Silent screens glow,
 
-Connecting hearts, worlds apart,
+            Connecting hearts, worlds apart,
 
-Life in digital.",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.stop_reason": "end_turn",
-  "llm.system": "mistralai",
-  "llm.token_count.completion": 21,
-  "llm.token_count.prompt": 15,
-  "llm.token_count.total": 36,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":" Silent screens glow,\\n\\nConnecting hearts, worlds apart,\\n\\nLife in digital.","tool_calls":[],"usage":{"input_tokens":15,"output_tokens":21,"total_tokens":36},"streaming":true,"stop_reason":"end_turn"}",
-}
-`);
+            Life in digital.",
+              "llm.output_messages.0.message.role": "assistant",
+              "llm.provider": "aws",
+              "llm.stop_reason": "end_turn",
+              "llm.system": "mistralai",
+              "llm.token_count.completion": 21,
+              "llm.token_count.prompt": 15,
+              "llm.token_count.total": 36,
+              "openinference.span.kind": "LLM",
+              "output.mime_type": "application/json",
+              "output.value": "{"text":" Silent screens glow,\\n\\nConnecting hearts, worlds apart,\\n\\nLife in digital.","tool_calls":[],"usage":{"input_tokens":15,"output_tokens":21,"total_tokens":36},"streaming":true,"stop_reason":"end_turn"}",
+            }
+          `);
         });
 
         it("should handle Amazon Titan models with streaming", async () => {
@@ -2226,32 +2370,33 @@ Life in digital.",
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
           expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"amazon.titan-text-express-v1","messages":[{"role":"user","content":[{"text":"What are the benefits of cloud computing?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.content": "What are the benefits of cloud computing?",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
-  "llm.model_name": "titan-text-express-v1",
-  "llm.output_messages.0.message.content": "
+            {
+              "input.mime_type": "application/json",
+              "input.value": "{"modelId":"amazon.titan-text-express-v1","messages":[{"role":"user","content":[{"text":"What are the benefits of cloud computing?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
+              "llm.input_messages.0.message.content": "What are the benefits of cloud computing?",
+              "llm.input_messages.0.message.role": "user",
+              "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+              "llm.model_name": "titan-text-express-v1",
+              "llm.output_messages.0.message.content": "
 
-Cloud computing offers several benefits, including:
-1. Cost savings: Cloud computing allows businesses to reduce their IT costs by eliminating the need for expensive hardware and software investments.
-2. Scalability: Cloud computing allows businesses to scale their operations up or down quickly and easily, depending on their needs.
-3. Flexibility: Cloud computing allows businesses to access their data and applications from anywhere, at any time, and on any device.
-4. Security: Cloud computing providers offer",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.stop_reason": "max_tokens",
-  "llm.system": "amazon",
-  "llm.token_count.completion": 100,
-  "llm.token_count.prompt": 11,
-  "llm.token_count.total": 111,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":"\\n\\nCloud computing offers several benefits, including:\\n1. Cost savings: Cloud computing allows businesses to reduce their IT costs by eliminating the need for expensive hardware and software investments.\\n2. Scalability: Cloud computing allows businesses to scale their operations up or down quickly and easily, depending on their needs.\\n3. Flexibility: Cloud computing allows businesses to access their data and applications from anywhere, at any time, and on any device.\\n4. Security: Cloud computing providers offer","tool_calls":[],"usage":{"input_tokens":11,"output_tokens":100,"total_tokens":111},"streaming":true,"stop_reason":"max_tokens"}",
-}
-`);
+            Cloud computing offers several benefits, including:
+            1. Cost savings: Cloud computing allows businesses to reduce their IT costs by eliminating the need for expensive hardware and software investments.
+            2. Scalability: Cloud computing allows businesses to scale their operations up or down quickly and easily, depending on their needs.
+            3. Flexibility: Cloud computing allows businesses to access their data and applications from anywhere, at any time, and on any device.
+            4. Security: Cloud computing providers offer",
+              "llm.output_messages.0.message.role": "assistant",
+              "llm.provider": "aws",
+              "llm.stop_reason": "max_tokens",
+              "llm.system": "amazon",
+              "llm.token_count.completion": 100,
+              "llm.token_count.prompt": 11,
+              "llm.token_count.total": 111,
+              "openinference.span.kind": "LLM",
+              "output.mime_type": "application/json",
+              "output.value": "{"text":"\\n\\nCloud computing offers several benefits, including:\\n1. Cost savings: Cloud computing allows businesses to reduce their IT costs by eliminating the need for expensive hardware and software investments.\\n2. Scalability: Cloud computing allows businesses to scale their operations up or down quickly and easily, depending on their needs.\\n3. Flexibility: Cloud computing allows businesses to access their data and applications from anywhere, at any time, and on any device.\\n4. Security: Cloud computing providers offer","tool_calls":[],"usage":{"input_tokens":11,"output_tokens":100,"total_tokens":111},"streaming":true,"stop_reason":"max_tokens"}",
+            }
+          `);
         });
 
         it("should handle Amazon Nova models with streaming", async () => {
@@ -2285,34 +2430,35 @@ Cloud computing offers several benefits, including:
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
           expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"amazon.nova-lite-v1:0","messages":[{"role":"user","content":[{"text":"Describe the process of photosynthesis"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.content": "Describe the process of photosynthesis",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
-  "llm.model_name": "nova-lite-v1:0",
-  "llm.output_messages.0.message.content": "Photosynthesis is the process by which green plants, algae, and some bacteria convert light energy, usually from the sun, into chemical energy stored in glucose, a type of sugar. This process is crucial for life on Earth as it provides the primary source of organic matter for nearly all organisms.
+            {
+              "input.mime_type": "application/json",
+              "input.value": "{"modelId":"amazon.nova-lite-v1:0","messages":[{"role":"user","content":[{"text":"Describe the process of photosynthesis"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
+              "llm.input_messages.0.message.content": "Describe the process of photosynthesis",
+              "llm.input_messages.0.message.role": "user",
+              "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+              "llm.model_name": "nova-lite-v1:0",
+              "llm.output_messages.0.message.content": "Photosynthesis is the process by which green plants, algae, and some bacteria convert light energy, usually from the sun, into chemical energy stored in glucose, a type of sugar. This process is crucial for life on Earth as it provides the primary source of organic matter for nearly all organisms.
 
-Here's a detailed breakdown of the photosynthesis process:
+            Here's a detailed breakdown of the photosynthesis process:
 
-### Location:
-Photosynthesis occurs in the chloroplasts of plant cells, which contain a green pigment called chlorophyll.
+            ### Location:
+            Photosynthesis occurs in the chloroplasts of plant cells, which contain a green pigment called chlorophyll.
 
-### Main Stages:
-Photosynthesis can",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.stop_reason": "max_tokens",
-  "llm.system": "amazon",
-  "llm.token_count.completion": 100,
-  "llm.token_count.prompt": 5,
-  "llm.token_count.total": 105,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":"Photosynthesis is the process by which green plants, algae, and some bacteria convert light energy, usually from the sun, into chemical energy stored in glucose, a type of sugar. This process is crucial for life on Earth as it provides the primary source of organic matter for nearly all organisms.\\n\\nHere's a detailed breakdown of the photosynthesis process:\\n\\n### Location:\\nPhotosynthesis occurs in the chloroplasts of plant cells, which contain a green pigment called chlorophyll.\\n\\n### Main Stages:\\nPhotosynthesis can","tool_calls":[],"usage":{"input_tokens":5,"output_tokens":100,"total_tokens":105},"streaming":true,"stop_reason":"max_tokens"}",
-}
-`);
+            ### Main Stages:
+            Photosynthesis can",
+              "llm.output_messages.0.message.role": "assistant",
+              "llm.provider": "aws",
+              "llm.stop_reason": "max_tokens",
+              "llm.system": "amazon",
+              "llm.token_count.completion": 100,
+              "llm.token_count.prompt": 5,
+              "llm.token_count.total": 105,
+              "openinference.span.kind": "LLM",
+              "output.mime_type": "application/json",
+              "output.value": "{"text":"Photosynthesis is the process by which green plants, algae, and some bacteria convert light energy, usually from the sun, into chemical energy stored in glucose, a type of sugar. This process is crucial for life on Earth as it provides the primary source of organic matter for nearly all organisms.\\n\\nHere's a detailed breakdown of the photosynthesis process:\\n\\n### Location:\\nPhotosynthesis occurs in the chloroplasts of plant cells, which contain a green pigment called chlorophyll.\\n\\n### Main Stages:\\nPhotosynthesis can","tool_calls":[],"usage":{"input_tokens":5,"output_tokens":100,"total_tokens":105},"streaming":true,"stop_reason":"max_tokens"}",
+            }
+          `);
         });
 
         it("should handle Cohere Command models with streaming", async () => {
@@ -2346,28 +2492,29 @@ Photosynthesis can",
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
           expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"cohere.command-r-v1:0","messages":[{"role":"user","content":[{"text":"Explain the concept of machine learning"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.content": "Explain the concept of machine learning",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
-  "llm.model_name": "command-r-v1:0",
-  "llm.output_messages.0.message.content": "Machine learning is a fascinating field of artificial intelligence that enables computers to learn and improve from experience, without being explicitly programmed. It's a process of data-driven knowledge extraction, where systems can analyze vast amounts of data, identify patterns, make predictions, and improve their performance over time.
+            {
+              "input.mime_type": "application/json",
+              "input.value": "{"modelId":"cohere.command-r-v1:0","messages":[{"role":"user","content":[{"text":"Explain the concept of machine learning"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
+              "llm.input_messages.0.message.content": "Explain the concept of machine learning",
+              "llm.input_messages.0.message.role": "user",
+              "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+              "llm.model_name": "command-r-v1:0",
+              "llm.output_messages.0.message.content": "Machine learning is a fascinating field of artificial intelligence that enables computers to learn and improve from experience, without being explicitly programmed. It's a process of data-driven knowledge extraction, where systems can analyze vast amounts of data, identify patterns, make predictions, and improve their performance over time.
 
-At its core, machine learning involves creating algorithms and models that can automatically discover important features or patterns in data. These algorithms are often based on mathematical models, such as decision trees, neural networks, or support",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.stop_reason": "max_tokens",
-  "llm.system": "cohere",
-  "llm.token_count.completion": 98,
-  "llm.token_count.prompt": 6,
-  "llm.token_count.total": 104,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":"Machine learning is a fascinating field of artificial intelligence that enables computers to learn and improve from experience, without being explicitly programmed. It's a process of data-driven knowledge extraction, where systems can analyze vast amounts of data, identify patterns, make predictions, and improve their performance over time.\\n\\nAt its core, machine learning involves creating algorithms and models that can automatically discover important features or patterns in data. These algorithms are often based on mathematical models, such as decision trees, neural networks, or support","tool_calls":[],"usage":{"input_tokens":6,"output_tokens":98,"total_tokens":104},"streaming":true,"stop_reason":"max_tokens"}",
-}
-`);
+            At its core, machine learning involves creating algorithms and models that can automatically discover important features or patterns in data. These algorithms are often based on mathematical models, such as decision trees, neural networks, or support",
+              "llm.output_messages.0.message.role": "assistant",
+              "llm.provider": "aws",
+              "llm.stop_reason": "max_tokens",
+              "llm.system": "cohere",
+              "llm.token_count.completion": 98,
+              "llm.token_count.prompt": 6,
+              "llm.token_count.total": 104,
+              "openinference.span.kind": "LLM",
+              "output.mime_type": "application/json",
+              "output.value": "{"text":"Machine learning is a fascinating field of artificial intelligence that enables computers to learn and improve from experience, without being explicitly programmed. It's a process of data-driven knowledge extraction, where systems can analyze vast amounts of data, identify patterns, make predictions, and improve their performance over time.\\n\\nAt its core, machine learning involves creating algorithms and models that can automatically discover important features or patterns in data. These algorithms are often based on mathematical models, such as decision trees, neural networks, or support","tool_calls":[],"usage":{"input_tokens":6,"output_tokens":98,"total_tokens":104},"streaming":true,"stop_reason":"max_tokens"}",
+            }
+          `);
         });
 
         it("should handle AI21 Jamba models with streaming", async () => {
@@ -2401,28 +2548,29 @@ At its core, machine learning involves creating algorithms and models that can a
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
           expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"modelId":"ai21.jamba-1-5-mini-v1:0","messages":[{"role":"user","content":[{"text":"What is artificial intelligence?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.content": "What is artificial intelligence?",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
-  "llm.model_name": "jamba-1-5-mini-v1:0",
-  "llm.output_messages.0.message.content": " Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These machines can perform tasks that typically require human intelligence, such as understanding natural language, recognizing patterns, solving problems, and making decisions. AI encompasses a wide range of technologies and approaches, including:
+            {
+              "input.mime_type": "application/json",
+              "input.value": "{"modelId":"ai21.jamba-1-5-mini-v1:0","messages":[{"role":"user","content":[{"text":"What is artificial intelligence?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+              "llm.finish_reason": "max_tokens",
+              "llm.input_messages.0.message.content": "What is artificial intelligence?",
+              "llm.input_messages.0.message.role": "user",
+              "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+              "llm.model_name": "jamba-1-5-mini-v1:0",
+              "llm.output_messages.0.message.content": " Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These machines can perform tasks that typically require human intelligence, such as understanding natural language, recognizing patterns, solving problems, and making decisions. AI encompasses a wide range of technologies and approaches, including:
 
-1. **Machine Learning (ML):** A subset of AI that involves training algorithms on data to enable machines to learn from experience and improve their performance over time without being explicitly",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
-  "llm.stop_reason": "max_tokens",
-  "llm.system": "ai21",
-  "llm.token_count.completion": 100,
-  "llm.token_count.prompt": 15,
-  "llm.token_count.total": 115,
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"text":" Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These machines can perform tasks that typically require human intelligence, such as understanding natural language, recognizing patterns, solving problems, and making decisions. AI encompasses a wide range of technologies and approaches, including:\\n\\n1. **Machine Learning (ML):** A subset of AI that involves training algorithms on data to enable machines to learn from experience and improve their performance over time without being explicitly","tool_calls":[],"usage":{"input_tokens":15,"output_tokens":100,"total_tokens":115},"streaming":true,"stop_reason":"max_tokens"}",
-}
-`);
+            1. **Machine Learning (ML):** A subset of AI that involves training algorithms on data to enable machines to learn from experience and improve their performance over time without being explicitly",
+              "llm.output_messages.0.message.role": "assistant",
+              "llm.provider": "aws",
+              "llm.stop_reason": "max_tokens",
+              "llm.system": "ai21",
+              "llm.token_count.completion": 100,
+              "llm.token_count.prompt": 15,
+              "llm.token_count.total": 115,
+              "openinference.span.kind": "LLM",
+              "output.mime_type": "application/json",
+              "output.value": "{"text":" Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These machines can perform tasks that typically require human intelligence, such as understanding natural language, recognizing patterns, solving problems, and making decisions. AI encompasses a wide range of technologies and approaches, including:\\n\\n1. **Machine Learning (ML):** A subset of AI that involves training algorithms on data to enable machines to learn from experience and improve their performance over time without being explicitly","tool_calls":[],"usage":{"input_tokens":15,"output_tokens":100,"total_tokens":115},"streaming":true,"stop_reason":"max_tokens"}",
+            }
+          `);
         });
       });
     });
@@ -2465,6 +2613,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant that responds concisely."}],"messages":[{"role":"user","content":[{"text":"What is the capital of France?"}]}]}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "You are a helpful assistant that responds concisely.",
             "llm.input_messages.0.message.role": "system",
             "llm.input_messages.1.message.content": "What is the capital of France?",
@@ -2527,6 +2676,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant."},{"text":"Respond briefly."}],"messages":[{"role":"user","content":[{"text":"What is TypeScript?"}]}]}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "You are a helpful assistant.
 
           Respond briefly.",
@@ -2591,6 +2741,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Explain machine learning briefly."}]}],"inferenceConfig":{"maxTokens":150,"temperature":0.7,"topP":0.9,"stopSequences":["END","STOP"]}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "Explain machine learning briefly.",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":150,"temperature":0.7,"topP":0.9,"stopSequences":["END","STOP"]}",
@@ -2679,6 +2830,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, what's your name?"}]},{"role":"assistant","content":[{"text":"I'm Claude, an AI assistant. How can I help you today?"}]},{"role":"user","content":[{"text":"Can you tell me a joke?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "Hello, what's your name?",
             "llm.input_messages.0.message.role": "user",
             "llm.input_messages.1.message.content": "I'm Claude, an AI assistant. How can I help you today?",
@@ -2767,6 +2919,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant that tells jokes."}],"messages":[{"role":"user","content":[{"text":"Tell me about yourself."}]},{"role":"assistant","content":[{"text":"I'm Claude, an AI assistant who loves to help and tell jokes!"}]},{"role":"user","content":[{"text":"Great! Tell me a joke then."}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "You are a helpful assistant that tells jokes.",
             "llm.input_messages.0.message.role": "system",
             "llm.input_messages.1.message.content": "Tell me about yourself.",
@@ -2854,6 +3007,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's in this image?"},{"image":{"format":"png","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,252,255,159,161,30,0,7,130,2,127,61,200,72,239,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.contents.0.message_content.text": "What's in this image?",
             "llm.input_messages.0.message.contents.0.message_content.type": "text",
             "llm.input_messages.0.message.contents.1.message_content.image.format": "png",
@@ -2932,6 +3086,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Describe this JPEG image."},{"image":{"format":"jpeg","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,252,255,159,161,30,0,7,130,2,127,61,200,72,239,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.contents.0.message_content.text": "Describe this JPEG image.",
             "llm.input_messages.0.message.contents.0.message_content.type": "text",
             "llm.input_messages.0.message.contents.1.message_content.image.format": "jpeg",
@@ -3006,6 +3161,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"mistral.mistral-7b-instruct-v0:2","messages":[{"role":"user","content":[{"text":"Hello, can you tell me about yourself?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "Hello, can you tell me about yourself?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3068,6 +3224,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"meta.llama3-8b-instruct-v1:0","messages":[{"role":"user","content":[{"text":"Hello, can you tell me about yourself?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "Hello, can you tell me about yourself?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3140,6 +3297,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Brief response please."}]}],"inferenceConfig":{"maxTokens":50,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "Brief response please.",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":50,"temperature":0.1}",
@@ -3243,6 +3401,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"One word response."}]}]}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "One word response.",
             "llm.input_messages.0.message.role": "user",
             "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -3332,6 +3491,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's the weather in San Francisco?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}]},"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "What's the weather in San Francisco?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3422,6 +3582,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What is 15 * 23?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"calculate","description":"Perform mathematical calculations","inputSchema":{"json":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}}}}]},"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "tool_use",
             "llm.input_messages.0.message.content": "What is 15 * 23?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3521,6 +3682,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, what's your name?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "end_turn",
             "llm.input_messages.0.message.content": "Hello, what's your name?",
             "llm.input_messages.0.message.role": "user",
             "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
@@ -3631,6 +3793,7 @@ At its core, machine learning involves creating algorithms and models that can a
           {
             "input.mime_type": "application/json",
             "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant."}],"messages":[{"role":"user","content":[{"text":"What is the capital of Germany?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+            "llm.finish_reason": "max_tokens",
             "llm.input_messages.0.message.content": "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant.",
             "llm.input_messages.0.message.role": "system",
             "llm.input_messages.1.message.content": "What is the capital of Germany?",

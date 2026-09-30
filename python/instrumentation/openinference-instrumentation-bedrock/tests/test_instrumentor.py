@@ -178,7 +178,7 @@ def test_invoke_model_nova(
     assert len(spans) == 1
     span = spans[0]
     assert span.status.is_ok
-    attributes = dict(span.attributes or dict())
+    attributes: Dict[str, Any] = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == model_id
     assert attributes.pop(LLM_FINISH_REASON) == "end_turn"
@@ -265,7 +265,7 @@ def test_invoke_client(
     assert len(spans) == 1
     span = spans[0]
     assert span.status.is_ok
-    attributes = dict(span.attributes or dict())
+    attributes: Dict[str, Any] = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
     assert attributes.pop(INPUT_VALUE) == body["prompt"]
@@ -356,7 +356,7 @@ def test_invoke_client_with_missing_tokens(
     assert len(spans) == 1
     span = spans[0]
     assert span.status.is_ok
-    attributes = dict(span.attributes or dict())
+    attributes: Dict[str, Any] = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
     assert attributes.pop(INPUT_VALUE) == body["prompt"]
@@ -937,7 +937,7 @@ def _run_converse_checks(
     invocation_parameters: Dict[str, Any],
 ) -> None:
     assert span.status.is_ok
-    attributes = dict(span.attributes or dict())
+    attributes: Dict[str, Any] = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == model_name
     assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value

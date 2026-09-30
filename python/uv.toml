@@ -1,8 +1,15 @@
-# Exempt Arize/OpenInference-published packages from `exclude-newer` so freshly
-# released versions are picked up immediately. Far-future date acts as "no cutoff".
+# Exempt packages from `exclude-newer` so freshly released versions are picked up
+# immediately. Far-future date acts as "no cutoff".
 # Note: `exclude-newer-package` has no environment variable equivalent in uv,
 # so it must live in a config file rather than tox.ini's `setenv`.
 # Values must be full RFC 3339 timestamps: unlike the top-level `exclude-newer`,
 # `exclude-newer-package` rejects a bare `YYYY-MM-DD` date on uv < 0.9, which
 # fails the whole config file to parse rather than just ignoring the entry.
-exclude-newer-package = { "openinference-instrumentation" = "2099-12-31T00:00:00Z", "openinference-semantic-conventions" = "2099-12-31T00:00:00Z" }
+# Use the far-future date rather than a real one: a per-package timestamp takes
+# precedence over the global cutoff, so a real date becomes a permanent *ceiling*
+# that pins the package and silently turns its `-latest` tox factor into a no-op.
+#
+# The first two are Arize/OpenInference-published. `typesafe-sdk` is here because
+# the minimum version the instrumentor supports (0.6.0) is newer than the rolling
+# cutoff, so resolution fails without an override.
+exclude-newer-package = { "openinference-instrumentation" = "2099-12-31T00:00:00Z", "openinference-semantic-conventions" = "2099-12-31T00:00:00Z", "typesafe-sdk" = "2099-12-31T00:00:00Z" }

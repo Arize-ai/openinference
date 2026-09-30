@@ -1,5 +1,40 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.2.7
+
+### Patch Changes
+
+- 5a075b9: Add TypeSafe AI SDK instrumentation with one LLM span per systemOne call, structured JSON input/output payloads, question confidence metadata, token usage, context propagation, and configurable masking. Preserve the SDK's APIPromise interface and support both ESM and CommonJS. Add TypeSafe provider and system values to the semantic conventions and recognize the TypeSafe API hostname in provider inference.
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 4.2.6
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+  - @arizeai/openinference-core@2.7.0
+
+## 4.2.5
+
+### Patch Changes
+
+- Updated dependencies [6d9f813]
+  - @arizeai/openinference-semantic-conventions@2.10.0
+  - @arizeai/openinference-core@2.6.3
+
+## 4.2.4
+
+### Patch Changes
+
+- fd01216: Detect Meta AI, Z.ai, and MiniMax from the request host, so an OpenAI client pointed at one of their OpenAI-compatible endpoints records the real `llm.provider` instead of falling back to `openai`. Adds `api.meta.ai` → `meta`, `api.z.ai` → `zai`, and `api.minimax.io` / `api.minimaxi.com` / `api.minimax.chat` → `minimax` to `HOST_SUFFIX_TO_PROVIDER`. Matching stays suffix-based and anchored at a label boundary, so subdomains of these hosts resolve too and unrelated hosts are unaffected.
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+  - @arizeai/openinference-core@2.6.2
+
 ## 4.2.3
 
 ### Patch Changes

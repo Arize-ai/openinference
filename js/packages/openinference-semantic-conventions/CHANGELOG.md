@@ -1,5 +1,29 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.12.0
+
+### Minor Changes
+
+- 5a075b9: Add TypeSafe AI SDK instrumentation with one LLM span per systemOne call, structured JSON input/output payloads, question confidence metadata, token usage, context propagation, and configurable masking. Preserve the SDK's APIPromise interface and support both ESM and CommonJS. Add TypeSafe provider and system values to the semantic conventions and recognize the TypeSafe API hostname in provider inference.
+
+## 2.11.0
+
+### Minor Changes
+
+- 0ff0af2: Add `input.images` and `output.images` semantic conventions, letting any span kind record images without the LLM message structure.
+
+## 2.10.0
+
+### Minor Changes
+
+- 6d9f813: Add `message_content.audio`, `message_content.video`, and `video.url` constants.
+
+## 2.9.0
+
+### Minor Changes
+
+- fd01216: Add `META`, `ZAI`, and `MINIMAX` to the `LLMProvider` enum, giving Meta AI (`https://api.meta.ai/v1`, `muse-spark-*` models), Z.ai (`https://api.z.ai/api/paas/v4`, GLM models), and MiniMax (`https://api.minimax.io/v1`) well-known `llm.provider` values instead of leaving each to a custom string. Mirrors the same additions in the Python, Java, and Go semantic conventions and in the spec's well-known value table.
+
 ## 2.8.0
 
 ### Minor Changes

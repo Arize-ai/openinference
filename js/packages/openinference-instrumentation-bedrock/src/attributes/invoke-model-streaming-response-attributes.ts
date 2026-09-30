@@ -11,6 +11,7 @@
 
 import { PassThrough } from "stream";
 
+import type { MessageStopEvent } from "@aws-sdk/client-bedrock-runtime";
 import type { Span } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 
@@ -19,7 +20,7 @@ import { LLMSystem, SemanticConventions } from "@arizeai/openinference-semantic-
 
 import type { UsageAttributes } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
-import { normalizeUsageAttributes } from "./invoke-model-helpers";
+import { extractFinishReason, normalizeUsageAttributes } from "./invoke-model-helpers";
 
 /**
  * Interface for raw stream chunks from AWS SDK (network level)
@@ -35,6 +36,7 @@ interface StreamChunk {
  * Covers the common fields across different provider streaming formats
  */
 interface StreamEventData {
+  messageStop?: MessageStopEvent;
   type?: string;
   message?: {
     usage?: Record<string, unknown>;
@@ -96,6 +98,7 @@ function isValidStreamEventData(data: unknown): data is StreamEventData {
  * Contains accumulated content and usage data during stream consumption
  */
 interface StreamProcessingState {
+  finishReason?: string;
   outputText: string;
   contentBlocks: Array<{
     type: string;
@@ -352,11 +355,13 @@ function normalizeStreamUsageData(
  */
 function setStreamingOutputAttributes({
   span,
+  finishReason,
   outputText,
   contentBlocks,
   usage,
 }: {
   span: Span;
+  finishReason?: string;
   outputText: string;
   contentBlocks: StreamProcessingState["contentBlocks"];
   usage: UsageAttributes;
@@ -380,6 +385,7 @@ function setStreamingOutputAttributes({
   // Set output value as JSON (matching original behavior)
   setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, JSON.stringify(outputValue));
   setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
+  setSpanAttribute(span, SemanticConventions.LLM_FINISH_REASON, finishReason);
 
   // Set the message role
   setSpanAttribute(
@@ -551,6 +557,19 @@ export const consumeBedrockStreamChunks = withSafety({
               }
               const data: StreamEventData = rawData;
 
+              // Stop events may arrive without content or usage. Preserve the reason
+              // across subsequent metadata chunks until the stream is finalized.
+              state.finishReason =
+                extractFinishReason({ responseBody: data }) ??
+                extractFinishReason({ responseBody: data.messageStop }) ??
+                (data.type === "message_delta"
+                  ? extractFinishReason({ responseBody: data.delta })
+                  : undefined) ??
+                (data.type === "message_start"
+                  ? extractFinishReason({ responseBody: data.message })
+                  : undefined) ??
+                state.finishReason;
+
               // Process based on provider format using dedicated helpers
               if (modelType === LLMSystem.ANTHROPIC) {
                 processAnthropicStreamChunk(data, state);
@@ -577,6 +596,7 @@ export const consumeBedrockStreamChunks = withSafety({
 
     setStreamingOutputAttributes({
       span,
+      finishReason: state.finishReason,
       outputText: state.outputText,
       contentBlocks: state.contentBlocks,
       usage: normalizedUsage,

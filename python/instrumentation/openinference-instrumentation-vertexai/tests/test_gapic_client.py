@@ -41,10 +41,10 @@ from google.cloud.aiplatform_v1.services.prediction_service.transports import ( 
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan, Tracer
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
 from openinference.instrumentation.vertexai import VertexAIInstrumentor
+from openinference.instrumentation.vertexai._types import AttributeValue
 from openinference.instrumentation.vertexai._wrapper import _role
 from openinference.semconv.trace import (
     EmbeddingAttributes,

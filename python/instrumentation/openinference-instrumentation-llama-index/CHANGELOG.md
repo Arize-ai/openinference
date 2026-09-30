@@ -1,5 +1,31 @@
 # Changelog
 
+## [4.5.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.5.1...python-openinference-instrumentation-llama-index-v4.5.2) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [4.5.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.5.0...python-openinference-instrumentation-llama-index-v4.5.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+## [4.5.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.4.8...python-openinference-instrumentation-llama-index-v4.5.0) (2026-09-04)
+
+
+### Features
+
+* **semconv:** add meta, zai, and minimax as well-known llm.provider values ([#3671](https://github.com/Arize-ai/openinference/issues/3671)) ([fd01216](https://github.com/Arize-ai/openinference/commit/fd012164266f3e2eec58017e3880aea505667a16))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
 ## [4.4.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.4.7...python-openinference-instrumentation-llama-index-v4.4.8) (2026-08-27)
 
 

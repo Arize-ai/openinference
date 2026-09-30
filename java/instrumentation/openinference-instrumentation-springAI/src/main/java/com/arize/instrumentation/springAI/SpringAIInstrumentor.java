@@ -114,7 +114,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
 
     @Override
     public void onEvent(Observation.Event event, Observation.Context context) {
-        log.info("event occured");
+        log.info("event occurred");
     }
 
     @Override

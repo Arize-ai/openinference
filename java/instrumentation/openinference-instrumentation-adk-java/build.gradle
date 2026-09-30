@@ -1,0 +1,65 @@
+plugins {
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+description = 'OpenInference Instrumentation for Google ADK Java (ByteBuddy Java agent)'
+
+ext {
+    adkVersion = '0.4.0'
+}
+
+// docker-java (container code executors) is not needed to compile or test the advice.
+def adkExclusions = {
+    exclude group: 'com.github.docker-java', module: 'docker-java'
+    exclude group: 'com.github.docker-java', module: 'docker-java-transport-httpclient5'
+}
+
+dependencies {
+    // Brings openinference-semantic-conventions, the OpenTelemetry API/SDK BOM, TraceConfig,
+    // SuppressTracing and OpenInferenceAgent (shared with the other Java instrumentors).
+    api project(':openinference-instrumentation')
+
+    // The instrumented library is provided by the application at runtime and must never be
+    // bundled into the agent jar, otherwise the agent's copy shadows the application's version.
+    compileOnly("com.google.adk:google-adk:${adkVersion}", adkExclusions)
+
+    implementation "net.bytebuddy:byte-buddy:${byteBuddyVersion}"
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing"
+    // The integration test runs a real ADK Runner with a scripted model and installs the agent
+    // into the test JVM through the attach API.
+    testImplementation("com.google.adk:google-adk:${adkVersion}", adkExclusions)
+    testImplementation "net.bytebuddy:byte-buddy-agent:${byteBuddyVersion}"
+}
+
+test {
+    // ByteBuddyAgent.install() attaches to the running test JVM.
+    jvmArgs '-Djdk.attach.allowAttachSelf=true'
+}
+
+// The plain jar stays enabled so the root maven publication (`from components.java`) has an
+// artifact to publish; the fat `-all` shadow jar is what users pass to `-javaagent:`.
+def agentManifest = [
+        'Premain-Class'          : 'com.arize.instrumentation.adk.TelemetryAgent',
+        'Agent-Class'            : 'com.arize.instrumentation.adk.TelemetryAgent',
+        'Can-Redefine-Classes'   : 'true',
+        'Can-Retransform-Classes': 'true',
+]
+
+jar {
+    manifest {
+        attributes(agentManifest)
+    }
+}
+
+shadowJar {
+    archiveClassifier.set('all')
+    manifest {
+        attributes(agentManifest)
+    }
+    exclude('META-INF/*.SF')
+    exclude('META-INF/*.DSA')
+    exclude('META-INF/*.RSA')
+}

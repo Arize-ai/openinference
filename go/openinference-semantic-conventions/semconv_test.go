@@ -13,8 +13,10 @@ func TestAttributeKeys(t *testing.T) {
 		{OpenInferenceSpanKind, "openinference.span.kind"},
 		{InputValue, "input.value"},
 		{InputMimeType, "input.mime_type"},
+		{InputImages, "input.images"},
 		{OutputValue, "output.value"},
 		{OutputMimeType, "output.mime_type"},
+		{OutputImages, "output.images"},
 		{Metadata, "metadata"},
 		{TagTags, "tag.tags"},
 		{SessionID, "session.id"},
@@ -118,6 +120,8 @@ func TestAttributeKeys(t *testing.T) {
 		{MessageContentType, "message_content.type"},
 		{MessageContentText, "message_content.text"},
 		{MessageContentImage, "message_content.image"},
+		{MessageContentAudio, "message_content.audio"},
+		{MessageContentVideo, "message_content.video"},
 		{MessageContentID, "message_content.id"},
 		{MessageContentSignature, "message_content.signature"},
 		{MessageContentData, "message_content.data"},
@@ -128,6 +132,8 @@ func TestAttributeKeys(t *testing.T) {
 		{AudioURL, "audio.url"},
 		{AudioMimeType, "audio.mime_type"},
 		{AudioTranscript, "audio.transcript"},
+
+		{VideoURL, "video.url"},
 
 		{DocumentID, "document.id"},
 		{DocumentScore, "document.score"},
@@ -197,6 +203,10 @@ func TestEnumValues(t *testing.T) {
 		{LLMProviderCerebras, "cerebras"},
 		{LLMProviderPerplexity, "perplexity"},
 		{LLMProviderTogether, "together"},
+		{LLMProviderMeta, "meta"},
+		{LLMProviderZAI, "zai"},
+		{LLMProviderMiniMax, "minimax"},
+		{LLMProviderOracle, "oracle"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {
@@ -224,6 +234,8 @@ func TestIndexers(t *testing.T) {
 		{"RetrievalDocumentKey/content", RetrievalDocumentKey(4, DocumentContent), "retrieval.documents.4.document.content"},
 		{"EmbeddingKey/text", EmbeddingKey(0, EmbeddingText), "embedding.embeddings.0.embedding.text"},
 		{"EmbeddingKey/vector", EmbeddingKey(0, EmbeddingVector), "embedding.embeddings.0.embedding.vector"},
+		{"InputImageKey/url", InputImageKey(0, ImageURL), "input.images.0.image.url"},
+		{"OutputImageKey/url", OutputImageKey(2, ImageURL), "output.images.2.image.url"},
 		{"AnnotationKey/name", AnnotationKey(0, AnnotationName), "annotations.0.annotation.name"},
 		{"EvaluationKey/score", EvaluationKey(2, EvaluationScore), "evaluations.2.evaluation.score"},
 		{"TraceAnnotationKey/name", TraceAnnotationKey(0, AnnotationName), "trace.annotations.0.annotation.name"},

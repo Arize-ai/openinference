@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.60...python-openinference-instrumentation-openai-v0.1.61) (2026-09-24)
+
+
+### Features
+
+* **openai:** capture cache write and read token usage ([#3382](https://github.com/Arize-ai/openinference/issues/3382)) ([7feb0c4](https://github.com/Arize-ai/openinference/commit/7feb0c4ba2fd77cb76036712e21d06ff15a2be22))
+
+## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.59...python-openinference-instrumentation-openai-v0.1.60) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.58...python-openinference-instrumentation-openai-v0.1.59) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+* **openai:** handle new configuration_update response input item type from openai 3.x ([#3698](https://github.com/Arize-ai/openinference/issues/3698)) ([d56a72b](https://github.com/Arize-ai/openinference/commit/d56a72b1cbcf013a442cc9bb36016c0ca5376570))
+
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.57...python-openinference-instrumentation-openai-v0.1.58) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
 ## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.56...python-openinference-instrumentation-openai-v0.1.57) (2026-08-27)
 
 

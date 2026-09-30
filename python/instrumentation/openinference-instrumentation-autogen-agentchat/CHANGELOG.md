@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.18...python-openinference-instrumentation-autogen-agentchat-v0.1.19) (2026-09-29)
+
+
+### Bug Fixes
+
+* **autogen_agentchat:** define local AttributeValue alias for mypy compatibility with opentelemetry-api 1.45.0 ([#3863](https://github.com/Arize-ai/openinference/issues/3863)) ([7674c3d](https://github.com/Arize-ai/openinference/commit/7674c3d658f37ed403bf5e1ae6f4f1152bc49214))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.17...python-openinference-instrumentation-autogen-agentchat-v0.1.18) (2026-09-15)
+
+
+### Bug Fixes
+
+* make the instruments extras match instrumentation_dependencies() ([#3543](https://github.com/Arize-ai/openinference/issues/3543)) ([1899791](https://github.com/Arize-ai/openinference/commit/18997915a9c3d5da05ad9ba0044d8dd6fb520208))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.16...python-openinference-instrumentation-autogen-agentchat-v0.1.17) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.15...python-openinference-instrumentation-autogen-agentchat-v0.1.16) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.14...python-openinference-instrumentation-autogen-agentchat-v0.1.15) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.13...python-openinference-instrumentation-autogen-agentchat-v0.1.14) (2026-08-27)
 
 

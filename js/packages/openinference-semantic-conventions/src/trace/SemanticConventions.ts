@@ -27,6 +27,7 @@ export const SemanticAttributePrefixes = {
   message_content: "message_content",
   image: "image",
   audio: "audio",
+  video: "video",
   prompt: "prompt",
   agent: "agent",
   graph: "graph",
@@ -97,6 +98,8 @@ export const MessageContentsAttributePostfixes = {
   type: "type",
   text: "text",
   image: "image",
+  audio: "audio",
+  video: "video",
   id: "id",
   signature: "signature",
   data: "data",
@@ -104,6 +107,10 @@ export const MessageContentsAttributePostfixes = {
 } as const;
 
 export const ImageAttributesPostfixes = {
+  url: "url",
+} as const;
+
+export const VideoAttributesPostfixes = {
   url: "url",
 } as const;
 
@@ -211,10 +218,20 @@ export const EVALUATION_METADATA =
 export const INPUT_VALUE = `${SemanticAttributePrefixes.input}.value` as const;
 export const INPUT_MIME_TYPE = `${SemanticAttributePrefixes.input}.mime_type` as const;
 /**
+ * Images passed as input to a span of any kind. Flattened with an index,
+ * for example `input.images.0.image.url`.
+ */
+export const INPUT_IMAGES = `${SemanticAttributePrefixes.input}.images` as const;
+/**
  * The output of any span
  */
 export const OUTPUT_VALUE = `${SemanticAttributePrefixes.output}.value` as const;
 export const OUTPUT_MIME_TYPE = `${SemanticAttributePrefixes.output}.mime_type` as const;
+/**
+ * Images produced as output by a span of any kind. Flattened with an index,
+ * for example `output.images.0.image.url`.
+ */
+export const OUTPUT_IMAGES = `${SemanticAttributePrefixes.output}.images` as const;
 /**
  * The messages sent to the LLM for completions
  * Typically seen in OpenAI chat completions
@@ -500,6 +517,16 @@ export const MESSAGE_CONTENT_TEXT =
 export const MESSAGE_CONTENT_IMAGE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.image}` as const;
 /**
+ * The audio content of the message sent to the LLM
+ */
+export const MESSAGE_CONTENT_AUDIO =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.audio}` as const;
+/**
+ * The video content of the message sent to the LLM
+ */
+export const MESSAGE_CONTENT_VIDEO =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.video}` as const;
+/**
  * Provider-assigned identifier for this message content item. For OpenAI
  * Responses reasoning items, this maps to ResponseReasoningItem.id and should
  * be preserved for stateless replay
@@ -529,6 +556,12 @@ export const MESSAGE_CONTENT_ENCRYPTED_CONTENT =
  */
 export const IMAGE_URL =
   `${SemanticAttributePrefixes.image}.${ImageAttributesPostfixes.url}` as const;
+
+/**
+ * The URL, object-store URI, or base64 data URI of a video.
+ */
+export const VIDEO_URL =
+  `${SemanticAttributePrefixes.video}.${VideoAttributesPostfixes.url}` as const;
 
 export const DOCUMENT_ID =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.id}` as const;
@@ -763,10 +796,13 @@ export const SemanticConventions = {
   EVALUATION_IDENTIFIER,
   EVALUATION_METADATA,
   IMAGE_URL,
+  VIDEO_URL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
+  INPUT_IMAGES,
   OUTPUT_VALUE,
   OUTPUT_MIME_TYPE,
+  OUTPUT_IMAGES,
   LLM_INPUT_MESSAGES,
   LLM_OUTPUT_MESSAGES,
   LLM_MODEL_NAME,
@@ -814,6 +850,8 @@ export const SemanticConventions = {
   MESSAGE_CONTENT,
   MESSAGE_CONTENTS,
   MESSAGE_CONTENT_IMAGE,
+  MESSAGE_CONTENT_AUDIO,
+  MESSAGE_CONTENT_VIDEO,
   MESSAGE_CONTENT_ID,
   MESSAGE_CONTENT_SIGNATURE,
   MESSAGE_CONTENT_DATA,
@@ -894,6 +932,7 @@ export enum LLMSystem {
   AI21 = "ai21",
   META = "meta",
   AMAZON = "amazon",
+  TYPESAFE = "typesafe",
 }
 
 export enum LLMProvider {
@@ -914,4 +953,9 @@ export enum LLMProvider {
   PERPLEXITY = "perplexity",
   TOGETHER = "together",
   OLLAMA = "ollama",
+  META = "meta",
+  ZAI = "zai",
+  MINIMAX = "minimax",
+  TYPESAFE = "typesafe",
+  ORACLE = "oracle",
 }

@@ -10,6 +10,7 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 
 import {
+  defaultProcessInput,
   defaultProcessOutput,
   getLLMAttributes,
   traceAgent,
@@ -224,13 +225,16 @@ describe("withSpan", () => {
   });
 
   it("should support model name attributes composed via getLLMAttributes", async () => {
-    const asyncFn = async () => "response";
+    const asyncFn = async (prompt: string) => `response to ${prompt}`;
 
     const tracer = tracerProvider.getTracer("test");
     const wrappedFn = withSpan(asyncFn, {
       name: "llm-call",
       kind: "LLM",
-      processInput: () => getLLMAttributes({ requestModelName: "gpt-4" }),
+      processInput: (prompt) => ({
+        ...defaultProcessInput(prompt),
+        ...getLLMAttributes({ requestModelName: "gpt-4" }),
+      }),
       processOutput: (result) => ({
         ...defaultProcessOutput(result),
         ...getLLMAttributes({ responseModelName: "gpt-4-0613" }),
@@ -238,7 +242,7 @@ describe("withSpan", () => {
       tracer,
     });
 
-    await wrappedFn();
+    await wrappedFn("hello");
 
     const spans = spanExporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
@@ -248,8 +252,10 @@ describe("withSpan", () => {
     expect(span.attributes[SemanticConventions.LLM_RESPONSE_MODEL_NAME]).toBe("gpt-4-0613");
     // The response model overrides the request-derived llm.model_name
     expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("gpt-4-0613");
+    // Spreading defaultProcessInput keeps the default input capture
+    expect(span.attributes[SemanticConventions.INPUT_VALUE]).toBe("hello");
     // Spreading defaultProcessOutput keeps the default output capture
-    expect(span.attributes[SemanticConventions.OUTPUT_VALUE]).toBe("response");
+    expect(span.attributes[SemanticConventions.OUTPUT_VALUE]).toBe("response to hello");
   });
 
   it("should not apply processOutput attributes when the wrapped function throws", async () => {

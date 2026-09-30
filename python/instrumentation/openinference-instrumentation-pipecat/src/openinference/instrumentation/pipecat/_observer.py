@@ -96,7 +96,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
             turn_end_timeout_secs=turn_end_timeout_secs,
             **kwargs,
         )
-        self._latency_observer: UserBotLatencyObserver = UserBotLatencyObserver()  # type: ignore[no-untyped-call]
+        self._latency_observer: UserBotLatencyObserver = UserBotLatencyObserver()  # type: ignore[no-untyped-call, unused-ignore]
         self._last_user_to_bot_latency: Optional[float] = None
 
         @self._latency_observer.event_handler("on_latency_measured")  # type: ignore[misc]
@@ -760,7 +760,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._turn_span = self._tracer.start_span(
             name="pipecat.conversation.turn",
             context=Context(),  # Empty context ensures this is a true root span
-            attributes=span_attributes,  # type: ignore
+            attributes=span_attributes,
         )
 
         if self._conversation_id:

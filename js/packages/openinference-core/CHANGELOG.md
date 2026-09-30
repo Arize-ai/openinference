@@ -1,5 +1,37 @@
 # @arizeai/openinference-core
 
+## 2.7.1
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+
+## 2.7.0
+
+### Minor Changes
+
+- 0ff0af2: Apply the existing image privacy controls to the span-level `input.images` / `output.images` attributes: `hideInputs` and `hideInputImages` remove input images, `hideOutputs` removes output images, and `base64ImageMaxLength` redacts oversized base64 payloads recorded under `<input|output>.images.[i].image.url`.
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+
+## 2.6.3
+
+### Patch Changes
+
+- Updated dependencies [6d9f813]
+  - @arizeai/openinference-semantic-conventions@2.10.0
+
+## 2.6.2
+
+### Patch Changes
+
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+
 ## 2.6.1
 
 ### Patch Changes

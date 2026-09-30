@@ -1,8 +1,8 @@
 import pytest
 from openai.types.responses import ResponseOutputRefusal
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
+from openinference.instrumentation.openai._types import AttributeValue
 
 
 class TestResponseOutputRefusal:

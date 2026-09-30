@@ -19,11 +19,17 @@ const (
 	// set InputMimeType to "application/json" if the value is a JSON string.
 	InputValue    = "input.value"
 	InputMimeType = "input.mime_type"
+	// InputImages is the span-kind-independent list of input images,
+	// flattened with indexed prefixes (e.g. "input.images.0.image.url").
+	InputImages = "input.images"
 
 	// OutputValue is the output of the operation. Plain string by default;
 	// set OutputMimeType to "application/json" if the value is a JSON string.
 	OutputValue    = "output.value"
 	OutputMimeType = "output.mime_type"
+	// OutputImages is the span-kind-independent list of output images,
+	// flattened with indexed prefixes (e.g. "output.images.0.image.url").
+	OutputImages = "output.images"
 
 	// Metadata is a JSON-encoded map of user-defined key-value pairs.
 	Metadata = "metadata"
@@ -192,7 +198,7 @@ const (
 
 // Message-content attributes — for the contents array on a message.
 //
-// MessageContentType values include "text", "image", "audio", "reasoning",
+// MessageContentType values include "text", "image", "audio", "video", "reasoning",
 // and "tool_use". MessageContentID captures provider-assigned content ids such
 // as OpenAI ResponseReasoningItem.id. MessageContentSignature, MessageContentData,
 // and MessageContentEncryptedContent capture opaque provider reasoning-continuity
@@ -201,13 +207,15 @@ const (
 	MessageContentType             = "message_content.type"
 	MessageContentText             = "message_content.text"
 	MessageContentImage            = "message_content.image"
+	MessageContentAudio            = "message_content.audio"
+	MessageContentVideo            = "message_content.video"
 	MessageContentID               = "message_content.id"
 	MessageContentSignature        = "message_content.signature"
 	MessageContentData             = "message_content.data"
 	MessageContentEncryptedContent = "message_content.encrypted_content"
 )
 
-// Image attributes — nested under MessageContentImage.
+// Image attributes — nested under MessageContentImage, InputImages or OutputImages.
 const (
 	ImageURL = "image.url"
 )
@@ -217,6 +225,11 @@ const (
 	AudioURL        = "audio.url"
 	AudioMimeType   = "audio.mime_type"
 	AudioTranscript = "audio.transcript"
+)
+
+// Video attributes. Nested under MessageContentVideo.
+const (
+	VideoURL = "video.url"
 )
 
 // Document attributes — nested under RetrievalDocuments.{i}.

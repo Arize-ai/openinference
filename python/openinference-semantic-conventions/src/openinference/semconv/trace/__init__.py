@@ -28,6 +28,16 @@ class SpanAttributes:
     The type of input.value. If unspecified, the type is plain text by default.
     If type is JSON, the value is a string representing a JSON object.
     """
+    INPUT_IMAGES = "input.images"
+    """
+    A list of Image Objects that are inputs to an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `input.images.0.image.url`.
+    """
+    OUTPUT_IMAGES = "output.images"
+    """
+    A list of Image Objects produced by an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `output.images.0.image.url`.
+    """
 
     EMBEDDING_EMBEDDINGS = "embedding.embeddings"
     """
@@ -370,7 +380,7 @@ class MessageContentAttributes:
     MESSAGE_CONTENT_TYPE = "message_content.type"
     """
     The type of the content, such as "text", "image", "audio",
-    "reasoning", or "tool_use".
+    "video", "reasoning", or "tool_use".
     """
     MESSAGE_CONTENT_TEXT = "message_content.text"
     """
@@ -382,6 +392,16 @@ class MessageContentAttributes:
     An image can be made available to the model by passing a link to
     the image or by passing the base64 encoded image directly in the
     request.
+    """
+    MESSAGE_CONTENT_AUDIO = "message_content.audio"
+    """
+    The audio content of the message, if the type is "audio".
+    Nested leaves come from AudioAttributes.
+    """
+    MESSAGE_CONTENT_VIDEO = "message_content.video"
+    """
+    The video content of the message, if the type is "video".
+    Nested leaves come from VideoAttributes.
     """
     MESSAGE_CONTENT_ID = "message_content.id"
     """
@@ -433,6 +453,17 @@ class AudioAttributes:
     AUDIO_TRANSCRIPT = "audio.transcript"
     """
     The transcript of the audio file
+    """
+
+
+class VideoAttributes:
+    """
+    Attributes for video
+    """
+
+    VIDEO_URL = "video.url"
+    """
+    The URL, object-store URI, or base64 data URI of a video.
     """
 
 
@@ -615,3 +646,7 @@ class OpenInferenceLLMProviderValues(Enum):
     PERPLEXITY = "perplexity"
     TOGETHER = "together"
     OLLAMA = "ollama"
+    META = "meta"
+    ZAI = "zai"
+    MINIMAX = "minimax"
+    ORACLE = "oracle"
