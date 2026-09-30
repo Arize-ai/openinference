@@ -21,14 +21,15 @@ from typing import (
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
+    OITracer,
     get_attributes_from_context,
     get_input_attributes,
     get_output_attributes,
     safe_json_dumps,
 )
+from openinference.instrumentation.crewai._types import AttributeValue
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -353,7 +354,7 @@ def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
 
 
 class _ExecuteCoreWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -442,7 +443,7 @@ class _ExecuteWithoutTimeoutContextDescriptor:
 
 
 class _CrewKickoffWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -545,7 +546,7 @@ class _FlowKickoffWrapper:
     duplicate span.
     """
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -610,7 +611,7 @@ class _FlowKickoffWrapper:
 
 
 class _FlowKickoffAsyncWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     async def __call__(
@@ -680,7 +681,7 @@ class _FlowExecuteMethodWrapper:
     so users can see which nodes ran, their outputs, and their timings.
     """
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     async def __call__(
@@ -732,7 +733,7 @@ class _AgentKickoffWrapper:
     Creates an AGENT span for standalone agent invocations (outside a Crew).
     """
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -786,7 +787,7 @@ class _AgentKickoffWrapper:
 
 
 class _LongTermMemorySaveWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -836,7 +837,7 @@ class _LongTermMemorySaveWrapper:
 
 
 class _LongTermMemorySearchWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -883,7 +884,7 @@ class _LongTermMemorySearchWrapper:
 
 
 class _ShortTermMemorySaveWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -925,7 +926,7 @@ class _ShortTermMemorySaveWrapper:
 
 
 class _ShortTermMemorySearchWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -984,7 +985,7 @@ class _ShortTermMemorySearchWrapper:
 
 
 class _BaseToolRunWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(

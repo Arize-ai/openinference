@@ -116,11 +116,7 @@ class _Params:
 _params: ContextVar[Optional[_Params]] = ContextVar("params", default=None)
 
 
-class _TransformWrapper:
-    """
-    Wraps anthropic._utils._transform.transform (anthropic<1.8.0), which prepares request bodies.
-    """
-
+class _PrepareRequestDataWrapper:
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -132,7 +128,7 @@ class _TransformWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
             return wrapped(*args, **kwargs)
         ans = wrapped(*args, **kwargs)
-        if isinstance(ans, Mapping):
+        if kwargs.get("location") == "body" and isinstance(ans, Mapping):
             try:
                 params.update(ans)
             except Exception:
@@ -140,11 +136,7 @@ class _TransformWrapper:
         return ans
 
 
-class _AsyncTransformWrapper:
-    """
-    Wraps anthropic._utils._transform.async_transform (anthropic<1.8.0).
-    """
-
+class _AsyncPrepareRequestDataWrapper:
     async def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -156,48 +148,12 @@ class _AsyncTransformWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
             return await wrapped(*args, **kwargs)
         ans = await wrapped(*args, **kwargs)
-        if isinstance(ans, Mapping):
+        if kwargs.get("location") == "body" and isinstance(ans, Mapping):
             try:
                 params.update(ans)
             except Exception:
                 logger.exception("Failed to record the prepared request body")
         return ans
-
-
-class _PrepareRequestDataWrapper(_TransformWrapper):
-    """
-    Wraps prepare_request_data (anthropic>=1.8.0), which prepares query parameters as well as
-    request bodies, telling them apart with a required ``location`` keyword. Only bodies carry
-    invocation parameters.
-    """
-
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if kwargs.get("location") != "body":
-            return wrapped(*args, **kwargs)
-        return super().__call__(wrapped, instance, args, kwargs)
-
-
-class _AsyncPrepareRequestDataWrapper(_AsyncTransformWrapper):
-    """
-    Wraps async_prepare_request_data (anthropic>=1.8.0). See _PrepareRequestDataWrapper.
-    """
-
-    async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if kwargs.get("location") != "body":
-            return await wrapped(*args, **kwargs)
-        return await super().__call__(wrapped, instance, args, kwargs)
 
 
 class _WithTracer(ABC):
@@ -301,7 +257,7 @@ class _MessagesWrapper(_WithTracer):
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
-            return _MessagesStream(response, span)
+            return _MessagesStream(response, span, is_beta=self._span_name.startswith("beta."))
         else:
             _finish_message_tracing(span, response)
             return response
@@ -351,7 +307,7 @@ class _AsyncMessagesWrapper(_WithTracer):
             return response
         streaming = kwargs.get("stream", False)
         if streaming:
-            return _MessagesStream(response, span)
+            return _MessagesStream(response, span, is_beta=self._span_name.startswith("beta."))
         else:
             _finish_message_tracing(span, response)
             return response

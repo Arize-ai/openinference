@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.18...python-openinference-instrumentation-autogen-agentchat-v0.1.19) (2026-09-29)
+
+
+### Bug Fixes
+
+* **autogen_agentchat:** define local AttributeValue alias for mypy compatibility with opentelemetry-api 1.45.0 ([#3863](https://github.com/Arize-ai/openinference/issues/3863)) ([7674c3d](https://github.com/Arize-ai/openinference/commit/7674c3d658f37ed403bf5e1ae6f4f1152bc49214))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.17...python-openinference-instrumentation-autogen-agentchat-v0.1.18) (2026-09-15)
 
 

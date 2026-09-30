@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-ag2-v0.1.8...python-openinference-instrumentation-ag2-v0.1.9) (2026-09-29)
+
+
+### Bug Fixes
+
+* **ag2:** silence mypy valid-type error from opentelemetry AttributeValue chained assignment ([#3862](https://github.com/Arize-ai/openinference/issues/3862)) ([770b1d6](https://github.com/Arize-ai/openinference/commit/770b1d6d40704ab3cb2c8afa5fe7037e988dde80))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-ag2-v0.1.7...python-openinference-instrumentation-ag2-v0.1.8) (2026-09-10)
 
 

@@ -18,7 +18,6 @@ from opentelemetry.context import (
     detach,
     set_value,
 )
-from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -35,6 +34,7 @@ from ._blob_upload import (
     is_valid_reference_uri,
     load_blob_uploader,
 )
+from ._types import AttributeValue
 from .logging import logger
 
 
@@ -410,14 +410,9 @@ class TraceConfig:
             # cannot bypass the budget by arriving as a callable.
             value = value() if callable(value) else value
             if (
-                is_base64_url(value)  # type:ignore
-                and len(value) > self.base64_image_max_length  # type:ignore
+                is_base64_url(value) and len(value) > self.base64_image_max_length  # type:ignore
             ):
-                value = (
-                    self._externalize_or_redact(key, value)  # type:ignore
-                    if externalize
-                    else REDACTED_VALUE
-                )
+                value = self._externalize_or_redact(key, value) if externalize else REDACTED_VALUE  # type:ignore
         elif (
             (self.hide_embedding_vectors or self.hide_embeddings_vectors)
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key

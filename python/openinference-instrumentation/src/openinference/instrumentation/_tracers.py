@@ -42,7 +42,7 @@ from opentelemetry.trace import (
     Tracer,
     use_span,
 )
-from opentelemetry.util.types import Attributes, AttributeValue
+from opentelemetry.util.types import Attributes
 from typing_extensions import ParamSpec, TypeVar, _AnnotatedAlias, overload
 
 from openinference.semconv.trace import (
@@ -58,6 +58,7 @@ from ._attributes import (
 )
 from ._capture import _capture_span_context
 from ._spans import OpenInferenceSpan
+from ._types import AttributeValue
 from .config import (
     TraceConfig,
     mask_without_externalization,
@@ -218,7 +219,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         (the real, uploader-enabled masking happens exactly once in
         ``OpenInferenceSpan.set_attribute`` after the span exists).
         """
-        masked_attributes = {}
+        masked_attributes: Dict[str, Any] = {}
         for key, value in attributes.items():
             masked_value = mask_without_externalization(self._self_config, key, value)
             if masked_value is not None:

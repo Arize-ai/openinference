@@ -16,7 +16,6 @@ from typing import (
     Union,
 )
 
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeGuard
 
 from openinference.semconv.trace import (
@@ -40,6 +39,7 @@ from openinference.semconv.trace import (
 from ._types import (
     Annotation,
     AnnotationScope,
+    AttributeValue,
     Document,
     Embedding,
     Message,

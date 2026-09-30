@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.54](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.53...python-openinference-instrumentation-bedrock-v0.1.54) (2026-09-29)
+
+
+### Bug Fixes
+
+* **bedrock:** use local AttributeValue alias for opentelemetry-api 1.45.0 mypy compatibility ([#3867](https://github.com/Arize-ai/openinference/issues/3867)) ([780bb90](https://github.com/Arize-ai/openinference/commit/780bb90e3956e46a04683850a39b5d62c9b488b9))
+
 ## [0.1.53](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.52...python-openinference-instrumentation-bedrock-v0.1.53) (2026-09-10)
 
 
