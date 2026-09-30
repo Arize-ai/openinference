@@ -1,5 +1,6 @@
 import json
 import logging
+from contextvars import copy_context
 from dataclasses import dataclass
 from enum import Enum
 from threading import RLock
@@ -26,7 +27,6 @@ from uuid import uuid4
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias, TypeGuard
 from wrapt import ObjectProxy
 
@@ -38,6 +38,7 @@ from llama_index.core.callbacks.schema import BASE_TRACE_EVENT
 from llama_index.core.llms import ChatMessage, ChatResponse
 from llama_index.core.tools import ToolMetadata
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.llama_index._types import AttributeValue
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -400,6 +401,7 @@ class _BoundedDict(OrderedDict[str, _Value]):
 
 class _ResponseGen(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
+        "_self_context",
         "_self_tokens",
         "_self_is_finished",
         "_self_event_data",
@@ -410,54 +412,72 @@ class _ResponseGen(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unus
         self._self_tokens: List[str] = []
         self._self_is_finished = False
         self._self_event_data = event_data
+        self._self_context = copy_context()
+        if event_data.context is not None:
+            self._self_context.run(context_api.attach, event_data.context)
 
     def __iter__(self) -> "_ResponseGen":
         return self
 
     def __next__(self) -> str:
-        # pass through mistaken calls
-        if not hasattr(self.__wrapped__, "__next__"):
-            self.__wrapped__.__next__()
+        return self._self_context.run(self._next, self.__wrapped__.__next__)
+
+    def send(self, value: Any) -> str:
+        return self._self_context.run(self._next, self.__wrapped__.send, value)
+
+    def throw(self, *args: Any) -> str:
+        return self._self_context.run(self._next, self.__wrapped__.throw, *args)
+
+    def _next(self, operation: Callable[..., str], *args: Any) -> str:
         try:
-            value: str = self.__wrapped__.__next__()
-        except Exception as exception:
-            # Note that the user can still try to iterate on the stream even
-            # after it's consumed (or has errored out), but we don't want to
-            # end the span more than once.
-            if not self._self_is_finished:
-                event_data = self._self_event_data
-                span = event_data.span
-                if isinstance(exception, StopIteration):
-                    status = trace_api.Status(status_code=trace_api.StatusCode.OK)
-                else:
-                    status = trace_api.Status(
-                        status_code=trace_api.StatusCode.ERROR,
-                        # Follow the format in OTEL SDK for description, see:
-                        # https://github.com/open-telemetry/opentelemetry-python/blob/2b9dcfc5d853d1c10176937a6bcaade54cda1a31/opentelemetry-api/src/opentelemetry/trace/__init__.py#L588  # noqa E501
-                        description=f"{type(exception).__name__}: {exception}",
-                    )
-                    span.record_exception(exception)
-                if output_value := "".join(self._self_tokens):
-                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, output_value)
-                attributes = event_data.attributes
-                try:
-                    flattened_attributes = dict(_flatten(attributes))
-                except Exception:
-                    logger.exception(
-                        f"Failed to flatten attributes. event_type={event_data.event_type}, "
-                        f"attributes={attributes}",
-                    )
-                else:
-                    span.set_attributes(flattened_attributes)
-                span.set_attributes(dict(get_attributes_from_context()))
-                span.set_status(status=status)
-                end_time = event_data.end_time
-                span.end(end_time=end_time)
-                self._self_is_finished = True
+            value = operation(*args)
+        except BaseException as exception:
+            self._finish(exception)
             raise
-        else:
-            self._self_tokens.append(value)
-            return value
+        self._self_tokens.append(value)
+        return value
+
+    def close(self) -> None:
+        self._self_context.run(self._close)
+
+    def _close(self) -> None:
+        try:
+            self.__wrapped__.close()
+        except BaseException as exception:
+            self._finish(exception)
+            raise
+        self._finish()
+
+    def _finish(self, exception: Optional[BaseException] = None) -> None:
+        if self._self_is_finished:
+            return
+        self._self_is_finished = True
+        event_data = self._self_event_data
+        span = event_data.span
+        try:
+            if exception is None or isinstance(exception, (StopIteration, GeneratorExit)):
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+            else:
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.record_exception(exception)
+            span.set_status(status=status)
+            if output_value := "".join(self._self_tokens):
+                span.set_attribute(SpanAttributes.OUTPUT_VALUE, output_value)
+            span.set_attributes(dict(_flatten(event_data.attributes)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        except Exception:
+            logger.exception(
+                f"Failed to set attributes on span. event_type={event_data.event_type}, "
+                f"attributes={event_data.attributes}",
+            )
+        finally:
+            try:
+                span.end()
+            except Exception:
+                logger.exception("Failed to finish streaming span")
 
 
 def _finish_tracing(event_data: _EventData) -> None:

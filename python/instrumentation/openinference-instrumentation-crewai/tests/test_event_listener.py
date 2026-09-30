@@ -920,7 +920,7 @@ def test_event_listener_context_attributes(
             "test-list": [1, 2, 3],
             "test-dict": {"key-1": "val-1", "key-2": "val-2"},
         }
-        assert list(attributes[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+        assert attributes[SpanAttributes.TAG_TAGS] == ("tag-1", "tag-2")
         assert attributes[SpanAttributes.LLM_PROMPT_TEMPLATE] == "test-prompt-template"
         assert attributes[SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION] == "v1.0"
         assert json.loads(str(attributes[SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES])) == {
