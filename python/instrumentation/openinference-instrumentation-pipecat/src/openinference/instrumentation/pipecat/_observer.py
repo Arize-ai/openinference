@@ -175,6 +175,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 logger.error(f"Error closing debug log file: {e}")
                 pass
 
+    @property
+    def observe_every_push(self) -> bool:
+        return True
+
     async def on_push_frame(self, data: FramePushed) -> None:
         """
         Called when a frame is pushed between processors.
@@ -182,9 +186,9 @@ class OpenInferenceObserver(TurnTrackingObserver):
         Args:
             data: FramePushed event data with source, destination, frame, direction
         """
-        await super().on_push_frame(data)
-        # ensure UserBotLatencyLogObserver is using self._user_bot_latency_processed_frames !
-        await self._latency_observer.on_push_frame(data)
+        if getattr(data, "first_push", True):
+            await super().on_push_frame(data)
+            await self._latency_observer.on_push_frame(data)
 
         try:
             src = data.source
