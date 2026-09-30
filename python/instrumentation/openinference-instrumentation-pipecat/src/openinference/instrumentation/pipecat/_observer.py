@@ -91,7 +91,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
             verbose: Optional verbose logging
             kwargs: Additional keyword arguments to pass to the base class
         """
-        super().__init__(  # type: ignore[no-untyped-call]
+        super().__init__(  # type: ignore[no-untyped-call, unused-ignore]
             max_frames=max_frames,
             turn_end_timeout_secs=turn_end_timeout_secs,
             **kwargs,

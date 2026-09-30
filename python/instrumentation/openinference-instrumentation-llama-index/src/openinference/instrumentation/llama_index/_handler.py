@@ -35,7 +35,6 @@ from typing import (
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
-from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import PrivateAttr
 from pydantic.v1.json import pydantic_encoder
@@ -144,6 +143,7 @@ from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
 )
+from openinference.instrumentation.llama_index._types import AttributeValue
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -1375,7 +1375,14 @@ def _asdict(obj: Any) -> Any:
     elif isinstance(obj, (list, tuple)):
         return type(obj)(_asdict(v) for v in obj)
     elif isinstance(obj, dict):
-        return type(obj)((_asdict(k), _asdict(v)) for k, v in obj.items())
+        # Converting a dataclass key to a dict makes it unhashable and invalid as a JSON key.
+        return type(obj)(
+            (
+                k if isinstance(k, (str, int, float, bool, type(None))) else str(k),
+                _asdict(v),
+            )
+            for k, v in obj.items()
+        )
     else:
         if repr_str := _show_repr_str(obj):
             return repr_str

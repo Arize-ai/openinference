@@ -26,7 +26,6 @@ from uuid import uuid4
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias, TypeGuard
 from wrapt import ObjectProxy
 
@@ -38,6 +37,7 @@ from llama_index.core.callbacks.schema import BASE_TRACE_EVENT
 from llama_index.core.llms import ChatMessage, ChatResponse
 from llama_index.core.tools import ToolMetadata
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.llama_index._types import AttributeValue
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,

@@ -543,7 +543,7 @@ def test_crewai_instrumentation_context_attributes(
             },
         }
         tags = attributes.pop(TAG_TAGS)
-        assert list(tags) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+        assert list(tags) == ["tag-1", "tag-2"]
         assert attributes.pop(LLM_PROMPT_TEMPLATE) == "test-prompt-template"
         assert attributes.pop(LLM_PROMPT_TEMPLATE_VERSION) == "v1.0"
         assert json.loads(str(attributes.pop(LLM_PROMPT_TEMPLATE_VARIABLES))) == {
