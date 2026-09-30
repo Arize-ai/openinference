@@ -1,5 +1,6 @@
 import inspect
 import json
+from importlib import import_module
 from importlib.metadata import version
 from typing import Any, Dict, Generator, List, Mapping, Tuple, cast
 
@@ -95,8 +96,9 @@ class TestLM:
         monkeypatch: MonkeyPatch,
         engine: str,
     ) -> None:
-        from dspy._vendor.lm15.transports._sync import StdlibTransport
-        from dspy._vendor.lm15.transports._types import TransportResponse
+        # lm15 is typed but DSPy is not; static imports make mypy lose DSPy's exports.
+        StdlibTransport = import_module("dspy._vendor.lm15.transports._sync").StdlibTransport
+        TransportResponse = import_module("dspy._vendor.lm15.transports._types").TransportResponse
 
         requests = []
 
