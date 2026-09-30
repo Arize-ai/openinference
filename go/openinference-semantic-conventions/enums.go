@@ -10,6 +10,7 @@ package semconv
 const (
 	SpanKindLLM       = "LLM"
 	SpanKindChain     = "CHAIN"
+	SpanKindDecision  = "DECISION"
 	SpanKindTool      = "TOOL"
 	SpanKindRetriever = "RETRIEVER"
 	SpanKindEmbedding = "EMBEDDING"

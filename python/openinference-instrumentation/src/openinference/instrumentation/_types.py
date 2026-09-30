@@ -30,6 +30,7 @@ OpenInferenceSpanKind = Union[
     Literal[
         "agent",
         "chain",
+        "decision",
         "embedding",
         "evaluator",
         "guardrail",
