@@ -5,6 +5,7 @@ import json
 import logging
 import weakref
 from collections import defaultdict
+from contextvars import Context, copy_context
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
@@ -46,6 +47,8 @@ from workflows.runtime.types.step_function import (
 )
 
 from llama_index.core import QueryBundle
+from llama_index.core.response_synthesizers.base import BaseSynthesizer
+from openinference.instrumentation.llama_index._stream import _ResponseStream
 
 # Conditionally import agent base classes (they may not exist in all versions)
 try:
@@ -475,12 +478,14 @@ class _Span(BaseSpan):
             self.notify_parent(_StreamingStatus.FINISHED)
 
     def notify_parent(self, status: _StreamingStatus) -> None:
-        if not (parent := self._parent) or not parent.waiting_for_streaming:
+        if not (parent := self._parent) or not parent.active:
             return
         if status is _StreamingStatus.IN_PROGRESS:
             parent._last_updated_at = time()
-        else:
+        elif parent.waiting_for_streaming:
             parent.end()
+        else:
+            return
         parent.notify_parent(status)
 
     @singledispatchmethod
@@ -963,6 +968,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _otel_tracer: Tracer = PrivateAttr()
     _separate_trace_from_runtime_context: bool = PrivateAttr()
     _export_queue: _ExportQueue = PrivateAttr()
+    _pending_streams: weakref.WeakKeyDictionary[Any, List[Tuple[_Span, Context]]] = PrivateAttr()
 
     def __init__(
         self,
@@ -980,6 +986,7 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         self._otel_tracer = tracer
         self._separate_trace_from_runtime_context = separate_trace_from_runtime_context
         self._export_queue = _ExportQueue()
+        self._pending_streams = weakref.WeakKeyDictionary()
 
     def new_span(
         self,
@@ -994,6 +1001,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
             return None
         with self.lock:
             parent = self.open_spans.get(parent_span_id) if parent_span_id else None
+        if parent is None and parent_span_id:
+            parent = self._export_queue.find(parent_span_id)
         otel_span = self._otel_tracer.start_span(
             name=id_.partition("-")[0],
             start_time=time_ns(),
@@ -1028,6 +1037,29 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         with self.lock:
             span = self.open_spans.get(id_)
         if span:
+            if isinstance(instance, BaseSynthesizer) and isinstance(
+                result, (Generator, AsyncGenerator)
+            ):
+                span.process_output(instance, result)
+                with self.lock:
+                    self._pending_streams.setdefault(result, []).append((span, copy_context()))
+                self._export_queue.put(span)
+                return span
+            if isinstance(result, (StreamingResponse, AsyncStreamingResponse)):
+                stream = result.response_gen
+                with self.lock:
+                    pending = self._pending_streams.pop(stream, [])
+                for producer, context in pending:
+                    stream = _ResponseStream(  # type: ignore[assignment]
+                        stream, producer.context, producer.end, context
+                    )
+
+                span.process_output(instance, result)
+                result.response_gen = _ResponseStream(  # type: ignore[assignment]
+                    stream, span.context, span.end
+                )
+                self._export_queue.put(span)
+                return span
             if isinstance(instance, (BaseLLM, MultiModalLLM)) and (
                 isinstance(result, Generator)
                 and result.gi_frame is not None
