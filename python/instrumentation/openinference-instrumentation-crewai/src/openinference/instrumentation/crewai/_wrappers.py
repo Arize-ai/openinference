@@ -21,7 +21,6 @@ from typing import (
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     get_attributes_from_context,
@@ -174,7 +173,7 @@ def _serialize_input_argument(argument_name: str, argument_value: Any) -> Any:
         return argument_value
 
 
-def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
+def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
     if not mapping:
         return
     for key, value in mapping.items():
