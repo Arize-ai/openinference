@@ -1023,7 +1023,6 @@ def test_create_input_multiple_tool_result_blocks(
         )
     )
     in_prefix = SpanAttributes.LLM_INPUT_MESSAGES
-    # Each tool_result block is recorded as its own tool message, not clobbered by the last.
     assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_ROLE}"] == "tool"
     assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_TOOL_CALL_ID}"] == "toolu_A"
     assert attributes[f"{in_prefix}.2.{MessageAttributes.MESSAGE_CONTENT}"] == "RESULT-A: 4"

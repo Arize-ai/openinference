@@ -140,10 +140,13 @@ def _expand_tool_result_messages(
             and all(_get_block_type(block) == "tool_result" for block in content)
         ):
             for block in content:
+                tool_result_content = _get_block_field(block, "content")
+                if tool_result_content is not None and not isinstance(tool_result_content, str):
+                    tool_result_content = safe_json_dumps(tool_result_content)
                 expanded.append(
                     {
                         "role": "tool",
-                        "content": _get_block_field(block, "content"),
+                        "content": tool_result_content,
                         "tool_call_id": _get_block_field(block, "tool_use_id"),
                     }
                 )
