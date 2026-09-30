@@ -8,7 +8,6 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     OITracer,
@@ -17,6 +16,7 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
+from openinference.instrumentation.litellm._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,

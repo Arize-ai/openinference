@@ -6,9 +6,8 @@ import codecs
 import json
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, Union
 
-from opentelemetry.util.types import AttributeValue
-
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.litellm._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
