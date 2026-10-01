@@ -1,8 +1,9 @@
-import { SpanStatusCode } from "@opentelemetry/api";
+import { context, propagation, SpanStatusCode, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { setSession } from "@arizeai/openinference-core";
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
@@ -347,5 +348,98 @@ describe("V2 session wrappers", () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans[0].attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
+  });
+  it("keeps a caller-supplied session.id from context for prompt() (#3775)", async () => {
+    provider.register();
+    try {
+      const mockModule = {
+        query: () => ({
+          [Symbol.asyncIterator]: () => ({ next: async () => ({ done: true, value: undefined }) }),
+        }),
+        unstable_v2_prompt: async (_message: string, _options: Record<string, unknown>) => ({
+          type: "result",
+          subtype: "success",
+          result: "Prompt response",
+          usage: { input_tokens: 1, output_tokens: 1 },
+          total_cost_usd: 0.001,
+          num_turns: 1,
+          duration_ms: 1,
+          session_id: "sess-v2-1",
+        }),
+      };
+
+      instrumentation.manuallyInstrument(mockModule);
+
+      await context.with(setSession(context.active(), { sessionId: "ctx-session" }), () =>
+        mockModule.unstable_v2_prompt("What is 2+2?", { model: "claude-sonnet-4-20250514" }),
+      );
+
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].name).toBe("ClaudeAgent.prompt");
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("ctx-session");
+    } finally {
+      context.disable();
+      trace.disable();
+      propagation.disable();
+    }
+  });
+
+  it("keeps a caller-supplied session.id from context for session turns (#3775)", async () => {
+    provider.register();
+    try {
+      const mockSession = {
+        sessionId: "sess-mock",
+        send: async (_msg: string) => {},
+        stream: async function* () {
+          yield {
+            type: "system",
+            subtype: "init",
+            session_id: "sess-v2-session",
+            model: "claude-sonnet-4-20250514",
+            tools: [],
+          };
+          yield {
+            type: "result",
+            subtype: "success",
+            result: "Session response",
+            usage: { input_tokens: 1, output_tokens: 1 },
+            total_cost_usd: 0.001,
+            num_turns: 1,
+            duration_ms: 1,
+            session_id: "sess-v2-session",
+          };
+        },
+        close: () => {},
+      };
+      const mockModule = {
+        query: () => ({
+          [Symbol.asyncIterator]: () => ({ next: async () => ({ done: true, value: undefined }) }),
+        }),
+        unstable_v2_createSession: (_options: Record<string, unknown>) => mockSession,
+      };
+
+      instrumentation.manuallyInstrument(mockModule);
+
+      await context.with(setSession(context.active(), { sessionId: "ctx-session" }), async () => {
+        const session = mockModule.unstable_v2_createSession({ model: "claude-sonnet-4-20250514" });
+        await session.send("Hello session");
+        for await (const _msg of session.stream()) {
+          // consume
+        }
+      });
+
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].name).toBe("ClaudeAgent.turn");
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("ctx-session");
+      expect(spans[0].attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(
+        "claude-sonnet-4-20250514",
+      );
+    } finally {
+      context.disable();
+      trace.disable();
+      propagation.disable();
+    }
   });
 });

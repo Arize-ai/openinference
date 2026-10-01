@@ -1,8 +1,9 @@
-import { SpanStatusCode } from "@opentelemetry/api";
+import { context, propagation, SpanStatusCode, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { setSession } from "@arizeai/openinference-core";
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
@@ -309,5 +310,50 @@ describe("V1 query() wrapper", () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans[0].attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
+  });
+  it("keeps a caller-supplied session.id from context over the SDK session_id (#3775)", async () => {
+    // provider.register() installs an AsyncLocalStorage context manager so
+    // context.with() propagates into the wrapper.
+    provider.register();
+    try {
+      const mockModule = createMockModule([
+        {
+          type: "system",
+          subtype: "init",
+          session_id: "sess-123",
+          model: "claude-sonnet-4-20250514",
+          tools: [],
+        },
+        {
+          type: "result",
+          subtype: "success",
+          result: "Hello, world!",
+          usage: { input_tokens: 1, output_tokens: 1 },
+          total_cost_usd: 0.001,
+          num_turns: 1,
+          duration_ms: 1,
+          session_id: "sess-123",
+        },
+      ]);
+
+      instrumentation.manuallyInstrument(mockModule);
+
+      await context.with(setSession(context.active(), { sessionId: "ctx-session" }), async () => {
+        for await (const _msg of mockModule.query({ prompt: "Say hello" })) {
+          // consume
+        }
+      });
+
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("ctx-session");
+      expect(spans[0].attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(
+        "claude-sonnet-4-20250514",
+      );
+    } finally {
+      context.disable();
+      trace.disable();
+      propagation.disable();
+    }
   });
 });
