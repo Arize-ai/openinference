@@ -184,7 +184,9 @@ describe("TypeSafeInstrumentation", () => {
       expect(await response.json()).toEqual(result);
       await vi.waitFor(() => {
         expect(exporter.getFinishedSpans()).toHaveLength(1);
-        expect(exporter.getFinishedSpans()[0].attributes["decision.token_count.input"]).toBe(42);
+        const attributes = exporter.getFinishedSpans()[0].attributes;
+        expect(attributes["decision.token_count.input"]).toBe(42);
+        expect(attributes["decision.token_count.output"]).toBe(7);
       });
     },
   );
@@ -383,6 +385,7 @@ describe("TypeSafeInstrumentation", () => {
     expect(attributes["output.value"]).toBe(REDACTED_VALUE);
     expect(attributes["output.mime_type"]).toBeUndefined();
     expect(attributes["decision.token_count.input"]).toBe(42);
+    expect(attributes["decision.token_count.output"]).toBe(7);
   });
 
   it.each([{}, { hideInputMessages: true }, { hideOutputMessages: true }])(
