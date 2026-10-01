@@ -194,6 +194,7 @@ func TestEnumValues(t *testing.T) {
 		{LLMSystemCohere, "cohere"},
 		{LLMSystemMistralAI, "mistralai"},
 		{LLMSystemVertexAI, "vertexai"},
+		{LLMSystemTypeSafe, "typesafe"},
 
 		{LLMProviderOpenAI, "openai"},
 		{LLMProviderAnthropic, "anthropic"},
@@ -214,6 +215,12 @@ func TestEnumValues(t *testing.T) {
 		{LLMProviderZAI, "zai"},
 		{LLMProviderMiniMax, "minimax"},
 		{LLMProviderOracle, "oracle"},
+		{LLMProviderTypeSafe, "typesafe"},
+
+		{DecisionSystemTypeSafe, "typesafe"},
+		{DecisionSystemOpenAI, "openai"},
+		{DecisionProviderTypeSafe, "typesafe"},
+		{DecisionProviderOpenAI, "openai"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

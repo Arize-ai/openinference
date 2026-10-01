@@ -341,15 +341,23 @@ export const DECISION_RESPONSE_MODEL_NAME =
   `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.response}.${DecisionAttributePostfixes.model_name}` as const;
 
 /**
- * The hosting provider of the decision model. Uses the same well-known values
- * as LLM_PROVIDER.
+ * The hosting provider of the decision model: who runs the hardware that
+ * answered (e.g. "typesafe" when calling TypeSafe directly, or the cloud or
+ * self-hosting provider for a model served elsewhere). Distinct from
+ * DECISION_SYSTEM, which names the API shape. Well-known values are
+ * {@link DecisionProvider}, which alias the matching {@link LLMProvider} values.
  */
 export const DECISION_PROVIDER =
   `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.provider}` as const;
 
 /**
- * The AI product serving the decision model, as identified by the client or
- * server. Uses the same well-known values as LLM_SYSTEM.
+ * The decision API ecosystem the call conforms to, i.e. which request and
+ * response shape the client speaks, as identified by the client or server:
+ * "typesafe" for the TypeSafe System One / Jev API, "openai" for the OpenAI
+ * Decisions API. A self-hosted vLLM server answering the Jev-compatible
+ * /v1/systemone shape is still "typesafe". Distinct from DECISION_PROVIDER,
+ * which says who hosts the model. Well-known values are {@link DecisionSystem},
+ * which alias the matching {@link LLMSystem} values.
  */
 export const DECISION_SYSTEM =
   `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.system}` as const;
@@ -1022,4 +1030,28 @@ export enum LLMProvider {
   MINIMAX = "minimax",
   TYPESAFE = "typesafe",
   ORACLE = "oracle",
+}
+
+/**
+ * Well-known values for `decision.system`: the decision API ecosystem a
+ * DECISION span conforms to. Each member aliases the {@link LLMSystem} member
+ * for the same vendor, so the same string names the same vendor on LLM and
+ * DECISION spans. The list is the subset of vendors currently known to offer a
+ * decision API.
+ */
+export enum DecisionSystem {
+  /** TypeSafe AI System One / Jev API, including Jev-compatible servers. */
+  TYPESAFE = LLMSystem.TYPESAFE,
+  /** OpenAI Decisions API. */
+  OPENAI = LLMSystem.OPENAI,
+}
+
+/**
+ * Well-known values for `decision.provider`: who hosts the decision model that
+ * answered. Each member aliases the {@link LLMProvider} member for the same
+ * vendor.
+ */
+export enum DecisionProvider {
+  TYPESAFE = LLMProvider.TYPESAFE,
+  OPENAI = LLMProvider.OPENAI,
 }

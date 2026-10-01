@@ -46,6 +46,25 @@ class SemanticConventionsTest {
     }
 
     @Test
+    void decisionSystemAndProviderValuesAliasTheLlmValues() {
+        assertThat(SemanticConventions.DecisionSystem.TYPESAFE.getValue()).isEqualTo("typesafe");
+        assertThat(SemanticConventions.DecisionSystem.OPENAI.getValue()).isEqualTo("openai");
+        assertThat(SemanticConventions.DecisionProvider.TYPESAFE.getValue()).isEqualTo("typesafe");
+        assertThat(SemanticConventions.DecisionProvider.OPENAI.getValue()).isEqualTo("openai");
+        for (SemanticConventions.DecisionSystem system : SemanticConventions.DecisionSystem.values()) {
+            assertThat(system.getLLMSystem()).isEqualTo(SemanticConventions.LLMSystem.valueOf(system.name()));
+            assertThat(system.toString()).isEqualTo(system.getLLMSystem().getValue());
+        }
+        for (SemanticConventions.DecisionProvider provider : SemanticConventions.DecisionProvider.values()) {
+            assertThat(provider.getLLMProvider())
+                    .isEqualTo(SemanticConventions.LLMProvider.valueOf(provider.name()));
+            assertThat(provider.toString()).isEqualTo(provider.getLLMProvider().getValue());
+        }
+        assertThat(SemanticConventions.LLMSystem.TYPESAFE.getValue()).isEqualTo("typesafe");
+        assertThat(SemanticConventions.LLMProvider.TYPESAFE.getValue()).isEqualTo("typesafe");
+    }
+
+    @Test
     void decisionSpanKindUsesTheDocumentedValue() {
         assertThat(SemanticConventions.OpenInferenceSpanKind.DECISION.getValue())
                 .isEqualTo("DECISION");

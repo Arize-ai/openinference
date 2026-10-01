@@ -140,13 +140,22 @@ const (
 	// the response, as reported by the provider.
 	DecisionResponseModelName = "decision.response.model_name"
 
-	// DecisionProvider is the hosting provider of the decision model. Uses the
-	// same well-known values as LLMProvider.
+	// DecisionProvider is the hosting provider of the decision model: who runs
+	// the hardware that answered (e.g. "typesafe" when calling TypeSafe
+	// directly, or the cloud or self-hosting provider for a model served
+	// elsewhere). Distinct from DecisionSystem, which names the API shape.
+	// Well-known values are the DecisionProvider* constants, which alias the
+	// matching LLMProvider* constants.
 	DecisionProvider = "decision.provider"
 
-	// DecisionSystem is the AI product serving the decision model, as
-	// identified by the client or server. Uses the same well-known values as
-	// LLMSystem.
+	// DecisionSystem is the decision API ecosystem the call conforms to, i.e.
+	// which request and response shape the client speaks, as identified by
+	// the client or server: "typesafe" for the TypeSafe System One / Jev API,
+	// "openai" for the OpenAI Decisions API. A self-hosted vLLM server
+	// answering the Jev-compatible /v1/systemone shape is still "typesafe".
+	// Distinct from DecisionProvider, which says who hosts the model.
+	// Well-known values are the DecisionSystem* constants, which alias the
+	// matching LLMSystem* constants.
 	DecisionSystem = "decision.system"
 )
 

@@ -122,13 +122,23 @@ class SpanAttributes:
     """
     DECISION_PROVIDER = "decision.provider"
     """
-    The hosting provider of the decision model. Uses the same well-known values
-    as llm.provider.
+    The hosting provider of the decision model: who runs the hardware that
+    answered (e.g. "typesafe" when calling TypeSafe directly, or the cloud or
+    self-hosting provider for a model served elsewhere). Distinct from
+    decision.system, which names the API shape. Well-known values are
+    OpenInferenceDecisionProviderValues, which alias the matching
+    OpenInferenceLLMProviderValues.
     """
     DECISION_SYSTEM = "decision.system"
     """
-    The AI product serving the decision model, as identified by the client or
-    server. Uses the same well-known values as llm.system.
+    The decision API ecosystem the call conforms to, i.e. which request and
+    response shape the client speaks, as identified by the client or server:
+    "typesafe" for the TypeSafe System One / Jev API, "openai" for the OpenAI
+    Decisions API. A self-hosted
+    vLLM server answering the Jev-compatible /v1/systemone shape is still
+    "typesafe". Distinct from decision.provider, which says who hosts the
+    model. Well-known values are OpenInferenceDecisionSystemValues, which alias
+    the matching OpenInferenceLLMSystemValues.
     """
     LLM_PROMPTS = "llm.prompts"
     """
@@ -665,6 +675,7 @@ class OpenInferenceLLMSystemValues(Enum):
     COHERE = "cohere"
     MISTRALAI = "mistralai"
     VERTEXAI = "vertexai"
+    TYPESAFE = "typesafe"
 
 
 class OpenInferenceLLMProviderValues(Enum):
@@ -688,3 +699,30 @@ class OpenInferenceLLMProviderValues(Enum):
     ZAI = "zai"
     MINIMAX = "minimax"
     ORACLE = "oracle"
+    TYPESAFE = "typesafe"
+
+
+class OpenInferenceDecisionSystemValues(Enum):
+    """
+    Well-known values for decision.system: the decision API ecosystem a DECISION
+    span conforms to. Each member aliases the OpenInferenceLLMSystemValues member
+    for the same vendor, so the same string names the same vendor on LLM and
+    DECISION spans. The list is the subset of vendors currently known to offer a
+    decision API.
+    """
+
+    TYPESAFE = OpenInferenceLLMSystemValues.TYPESAFE.value
+    """TypeSafe AI System One / Jev API, including Jev-compatible servers."""
+    OPENAI = OpenInferenceLLMSystemValues.OPENAI.value
+    """OpenAI Decisions API."""
+
+
+class OpenInferenceDecisionProviderValues(Enum):
+    """
+    Well-known values for decision.provider: who hosts the decision model that
+    answered. Each member aliases the OpenInferenceLLMProviderValues member for
+    the same vendor.
+    """
+
+    TYPESAFE = OpenInferenceLLMProviderValues.TYPESAFE.value
+    OPENAI = OpenInferenceLLMProviderValues.OPENAI.value

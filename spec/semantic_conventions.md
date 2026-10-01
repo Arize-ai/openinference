@@ -38,10 +38,10 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `trace.annotations`                            | List of objects<sup>†</sup> | `[{"annotation.name": "retrieval_quality", "annotation.score": 0.92}]`                                                       | Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*`                                                                               |
 | `session.annotations`                          | List of objects<sup>†</sup> | `[{"annotation.name": "conversational_coherence", "annotation.label": "coherent"}]`                                        | Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id`                                                    |
 | `decision.model_name`                          | String                      | `"jev-1.13.0"`                                                                                                                | The name of the decision model being utilized. Mirrors `llm.model_name` for `DECISION` spans.                                                                                       |
-| `decision.provider`                            | String                      | `typesafe`                                                                                                                    | The hosting provider of the decision model. Uses the same well-known values as `llm.provider`.                                                                                      |
+| `decision.provider`                            | String                      | `typesafe`                                                                                                                    | The hosting provider of the decision model: who runs the hardware that answered, e.g. `typesafe` when calling TypeSafe directly, `openai` for the OpenAI Decisions API, or the cloud or self-hosting provider for a model served elsewhere. Distinct from `decision.system`, which names the API shape. See the [well-known values](#decision-system-and-provider-values), which alias the matching `llm.provider` values. |
 | `decision.request.model_name`                  | String                      | `"jev-latest"`                                                                                                                | The decision model requested by the caller, as sent in the request. May differ from `decision.response.model_name` when the provider resolves an alias or routes the request.      |
 | `decision.response.model_name`                 | String                      | `"jev-1.13.0"`                                                                                                                | The decision model that actually produced the response, as reported by the provider. May differ from `decision.request.model_name`.                                                 |
-| `decision.system`                              | String                      | `typesafe`                                                                                                                    | The AI product that serves the decision model, as identified by the client or server instrumentation. Uses the same well-known values as `llm.system`.                             |
+| `decision.system`                              | String                      | `typesafe`                                                                                                                    | The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks, as identified by the client or server instrumentation: `typesafe` for the TypeSafe System One / Jev API, `openai` for the OpenAI Decisions API. A self-hosted vLLM server answering the Jev-compatible `/v1/systemone` shape is still `typesafe`. Distinct from `decision.provider`, which says who hosts the model. See the [well-known values](#decision-system-and-provider-values), which alias the matching `llm.system` values. |
 | `document.content`                             | String                      | `"This is a sample document content."`                                                                                        | The content of a retrieved document                                                                                                                                                 |
 | `document.id`                                  | String/Integer              | `"1234"` or `1`                                                                                                               | Unique identifier for a document                                                                                                                                                    |
 | `document.metadata`                            | JSON String                 | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                                                                              | Metadata associated with a document                                                                                                                                                 |
@@ -203,6 +203,31 @@ used; otherwise, a custom value MAY be used.
 | `typesafe`   | TypeSafe AI     |
 | `oracle`     | Oracle (OCI Generative AI) |
 
+### Decision System and Provider Values
+
+`decision.system` and `decision.provider` draw from the same identifier space as `llm.system` and `llm.provider`: the
+same string names the same vendor in both attribute families, and the semantic convention packages expose the
+decision values as aliases of the matching LLM values (for example `OpenInferenceDecisionSystemValues.TYPESAFE` is
+`OpenInferenceLLMSystemValues.TYPESAFE`). The decision lists are the subset of vendors currently known to offer a
+decision API. If one of them applies, then the respective value MUST be used; otherwise, a custom value MAY be used.
+
+`decision.system` has the following list of well-known values:
+
+| Value      | Description                                                                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `typesafe` | [TypeSafe AI System One / Jev API](https://typesafe.ai/blog/introducing-system-one-models-and-jev), including Jev-compatible servers such as vLLM's `/v1/systemone` |
+| `openai`   | [OpenAI Decisions API](https://openai.com/index/devday-2026-recap/)                                                                           |
+
+`decision.provider` has the following list of well-known values:
+
+| Value      | Description |
+| ---------- | ----------- |
+| `typesafe` | TypeSafe AI |
+| `openai`   | OpenAI      |
+
+vLLM's native `/v1/decisions` API ([RFC](https://github.com/vllm-project/vllm/issues/59365)) does not yet have a
+well-known value; a custom value MAY be used until it is added.
+
 ### Token Count Details
 
 `llm.token_count.prompt_details.cache_read` and `llm.token_count.prompt_details.cache_write` provide granular token count information for cache operations, enabling detailed API usage tracking and cost analysis.
@@ -263,7 +288,9 @@ record both values as distinct, queryable attributes when it can tell them apart
   models. Existing instrumentations that predate these conventions may still emit them during a transition period;
   see [Decision Spans](./decision_spans.md#transition-note)
 - Use `decision.system`, `decision.provider`, and `decision.model_name` in place of `llm.system`, `llm.provider`,
-  and `llm.model_name`. They carry the same meanings and the same well-known values.
+  and `llm.model_name`. They carry the same meanings and the same well-known values: `decision.system` names the
+  decision API ecosystem the call conforms to (TypeSafe's System One / Jev API, the OpenAI Decisions API, and
+  vLLM's `/v1/decisions` API are different systems), while `decision.provider` names who hosts the model.
 - `decision.request.model_name` and `decision.response.model_name` follow the same rules as
   `llm.request.model_name` and `llm.response.model_name`: set them when the response distinguishes the requested
   model (e.g. an alias such as `jev-latest`) from the model that served it (e.g. `jev-1.13.0`), and keep

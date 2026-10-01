@@ -20,7 +20,7 @@ OpenInference models these calls as `DECISION` spans rather than `LLM` spans bec
 All decision spans MUST include:
 
 - `openinference.span.kind`: Set to `"DECISION"`
-- `decision.system`: The AI system/product serving the decision model (e.g., "typesafe")
+- `decision.system`: The decision API ecosystem the call conforms to, i.e. which request/response shape the client speaks (e.g., "typesafe" for the System One / Jev API, "openai" for the OpenAI Decisions API)
 
 ## Common Attributes
 
@@ -29,7 +29,7 @@ Decision spans typically include:
 - `decision.model_name`: The decision model used (e.g., "jev-1.13.0")
 - `decision.request.model_name`: The model requested by the caller, when it can differ from the model that served the response (e.g., an alias such as "jev-latest")
 - `decision.response.model_name`: The model that actually produced the decision, as reported by the provider (e.g., "jev-1.13.0")
-- `decision.provider`: The hosting provider of the decision model, when different from the system (e.g., "typesafe")
+- `decision.provider`: Who hosts the model that answered, when it differs from the system (e.g., a self-hosted vLLM deployment serving a Jev-compatible API)
 - `input.value`: The raw request as a JSON string, including the candidate options
 - `input.mime_type`: Usually "application/json"
 - `output.value`: The raw response as a JSON string, including the selection or scores
@@ -47,7 +47,26 @@ The `decision.*` identification attributes mirror their `llm.*` counterparts and
 | `decision.request.model_name`  | `llm.request.model_name`  |
 | `decision.response.model_name` | `llm.response.model_name` |
 
-- `decision.system` and `decision.provider` MUST use the well-known values listed for `llm.system` and `llm.provider` in the [Semantic Conventions](./semantic_conventions.md#reserved-attributes) when one applies; otherwise a custom value MAY be used.
+- `decision.system` and `decision.provider` MUST use the [well-known decision values](./semantic_conventions.md#decision-system-and-provider-values) when one applies; otherwise a custom value MAY be used. Those values are aliases of the matching `llm.system` and `llm.provider` values, so the same string names the same vendor whether a span is an `LLM` span or a `DECISION` span. Today the canonical list is `typesafe` and `openai`.
+
+### System versus Provider
+
+`decision.system` and `decision.provider` answer two different questions, exactly as `llm.system` and `llm.provider` do for LLM spans:
+
+- `decision.system` identifies the **decision API ecosystem the call conforms to**: the request and response shape the client speaks, and therefore which questions, answer types, and probability semantics a consumer should expect. TypeSafe's System One / Jev API, the OpenAI Decisions API, and vLLM's native `/v1/decisions` API are different systems even though all three return typed decisions, so instrumentation for each sets a different value.
+- `decision.provider` identifies **who hosts the model that answered**: the company or deployment running the hardware. It matters for pricing, quotas, and data residency, and it differs from the system whenever a model is served through someone else's API shape.
+
+| Call                                                                   | `decision.system`                      | `decision.provider`                                  |
+| ---------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------- |
+| TypeSafe SDK calling `api.typesafe.ai` `system_one` with Jev           | `typesafe`                             | `typesafe`                                           |
+| Jev reached through a gateway that resells TypeSafe's API unchanged    | `typesafe`                             | the gateway's provider value                         |
+| OpenAI Decisions API                                                   | `openai`                               | `openai`                                             |
+| Self-hosted vLLM serving the Jev-compatible `POST /v1/systemone` shape | `typesafe`                             | the deployment's provider value (for example `vllm`) |
+| vLLM's native `POST /v1/decisions` API                                 | custom value (no well-known value yet) | the deployment's provider value                      |
+| vLLM Semantic Router Decision 1.0 models through the router's own API  | custom value (no well-known value yet) | the deployment's provider value                      |
+
+When a well-known value exists for the ecosystem (`typesafe`, `openai`), it MUST be used. vLLM's native decision API has no well-known value yet, so a custom value is used for it; one may be added once that API stabilizes.
+
 - `decision.request.model_name` and `decision.response.model_name` are optional. Set them only when the response distinguishes the requested model from the model that served it, for example when the caller requests a floating alias (`jev-latest`) and the provider reports the pinned version that answered (`jev-1.13.0`).
 - `decision.model_name` SHOULD equal `decision.response.model_name` when known, falling back to `decision.request.model_name` otherwise, so consumers that only read `decision.model_name` see the most specific model identifier available.
 
@@ -65,7 +84,7 @@ Decision spans inherit the same context attributes as every other OpenInference 
 
 ## Example
 
-A TypeSafe System One call that asks Jev one Noul (yes/no) question about a piece of state. The caller requested the `jev-latest` alias and the provider answered with `jev-1.13.0`, so both model attributes are set and `decision.model_name` carries the resolved version.
+A TypeSafe System One call that asks Jev one Noul (yes/no) question about a piece of state. The call goes directly to TypeSafe, so `decision.system` and `decision.provider` are both `typesafe`. The caller requested the `jev-latest` alias and the provider answered with `jev-1.13.0`, so both model attributes are set and `decision.model_name` carries the resolved version.
 
 ```
 openinference.span.kind = "DECISION"

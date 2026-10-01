@@ -1,5 +1,7 @@
 from openinference.semconv.trace import (
     OpenInferenceAnnotatorKindValues,
+    OpenInferenceDecisionProviderValues,
+    OpenInferenceDecisionSystemValues,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
@@ -49,6 +51,7 @@ class TestOpenInferenceLLMSystemValues:
             OpenInferenceLLMSystemValues.COHERE: "cohere",
             OpenInferenceLLMSystemValues.MISTRALAI: "mistralai",
             OpenInferenceLLMSystemValues.OPENAI: "openai",
+            OpenInferenceLLMSystemValues.TYPESAFE: "typesafe",
             OpenInferenceLLMSystemValues.VERTEXAI: "vertexai",
         }
 
@@ -76,4 +79,29 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.ZAI: "zai",
             OpenInferenceLLMProviderValues.MINIMAX: "minimax",
             OpenInferenceLLMProviderValues.ORACLE: "oracle",
+            OpenInferenceLLMProviderValues.TYPESAFE: "typesafe",
         }
+
+
+class TestOpenInferenceDecisionSystemValues:
+    def test_values(self) -> None:
+        assert {e: e.value for e in OpenInferenceDecisionSystemValues} == {
+            OpenInferenceDecisionSystemValues.OPENAI: "openai",
+            OpenInferenceDecisionSystemValues.TYPESAFE: "typesafe",
+        }
+
+    def test_aliases_llm_system_values(self) -> None:
+        for member in OpenInferenceDecisionSystemValues:
+            assert member.value == OpenInferenceLLMSystemValues[member.name].value
+
+
+class TestOpenInferenceDecisionProviderValues:
+    def test_values(self) -> None:
+        assert {e: e.value for e in OpenInferenceDecisionProviderValues} == {
+            OpenInferenceDecisionProviderValues.OPENAI: "openai",
+            OpenInferenceDecisionProviderValues.TYPESAFE: "typesafe",
+        }
+
+    def test_aliases_llm_provider_values(self) -> None:
+        for member in OpenInferenceDecisionProviderValues:
+            assert member.value == OpenInferenceLLMProviderValues[member.name].value

@@ -44,6 +44,7 @@ const (
 	LLMSystemCohere    = "cohere"
 	LLMSystemMistralAI = "mistralai"
 	LLMSystemVertexAI  = "vertexai"
+	LLMSystemTypeSafe  = "typesafe"
 )
 
 // Values for the LLMProvider attribute (the company providing the model —
@@ -70,4 +71,26 @@ const (
 	LLMProviderZAI        = "zai"
 	LLMProviderMiniMax    = "minimax"
 	LLMProviderOracle     = "oracle"
+	LLMProviderTypeSafe   = "typesafe"
+)
+
+// Values for the DecisionSystem attribute: the decision API ecosystem a
+// DECISION span conforms to. Each constant aliases the LLMSystem* constant
+// for the same vendor, so the same string names the same vendor on LLM and
+// DECISION spans. The list is the subset of vendors currently known to offer
+// a decision API.
+const (
+	// DecisionSystemTypeSafe is the TypeSafe AI System One / Jev API,
+	// including Jev-compatible servers.
+	DecisionSystemTypeSafe = LLMSystemTypeSafe
+	// DecisionSystemOpenAI is the OpenAI Decisions API.
+	DecisionSystemOpenAI = LLMSystemOpenAI
+)
+
+// Values for the DecisionProvider attribute: who hosts the decision model
+// that answered. Each constant aliases the LLMProvider* constant for the
+// same vendor.
+const (
+	DecisionProviderTypeSafe = LLMProviderTypeSafe
+	DecisionProviderOpenAI   = LLMProviderOpenAI
 )
