@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.1.7...python-openinference-instrumentation-mistralai-v2.2.0) (2026-10-01)
+
+
+### Features
+
+* add decision span decorators and attribute helpers (JS + Python) ([#3897](https://github.com/Arize-ai/openinference/issues/3897)) ([0d26a59](https://github.com/Arize-ai/openinference/commit/0d26a5983cd8ba3f9c0afcadd102b15887887795))
+
 ## [2.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v2.1.6...python-openinference-instrumentation-mistralai-v2.1.7) (2026-10-01)
 
 
