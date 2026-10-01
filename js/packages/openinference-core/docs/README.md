@@ -200,7 +200,7 @@ keys used by OpenInference (e.g., `input.value`, `output.value`,
 `llm.model_name`, `retrieval.documents.0.document.content`).
 
 You rarely need to use these constants directly. The attribute helpers
-(`getLLMAttributes`, `getRetrieverAttributes`, etc.) abstract over them, producing
+(`getLLMAttributes`, `getDecisionAttributes`, `getRetrieverAttributes`, etc.) abstract over them, producing
 correctly-keyed attributes from simple objects. For example:
 
 ```typescript
@@ -253,6 +253,7 @@ span.setAttributes(
 
 **Attribute Helpers**
 - `getLLMAttributes({ provider?, system?, modelName?, requestModelName?, responseModelName?, inputMessages?, outputMessages?, tokenCount?, tools?, invocationParameters? })`
+- `getDecisionAttributes({ provider?, system?, modelName?, requestModelName?, responseModelName?, tokenCount? })`
 - `getEmbeddingAttributes({ modelName?, embeddings? })`
 - `getRetrieverAttributes({ documents })`
 - `getDocumentAttributes(document, documentIndex, keyPrefix)` -- single document with custom key prefix
@@ -286,7 +287,7 @@ src/
     withSpan.ts                     # withSpan implementation
     wrappers.ts                     # traceChain, traceAgent, traceTool, traceDecision, ...
     decorators.ts                   # @observe decorator
-    attributeHelpers.ts             # getLLMAttributes, getEmbeddingAttributes, etc.
+    attributeHelpers.ts             # getLLMAttributes, getDecisionAttributes, etc.
     tracerHelpers.ts                # getTracer, wrapTracer
     types.ts                        # SpanTraceOptions, SpanInput/Output, Message, TokenCount, etc.
   trace/

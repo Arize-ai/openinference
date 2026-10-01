@@ -2,6 +2,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from datetime import datetime
+from enum import Enum
 from json import JSONEncoder
 from types import ModuleType
 from typing import (
@@ -40,9 +41,12 @@ from ._types import (
     Annotation,
     AnnotationScope,
     AttributeValue,
+    DecisionTokenCount,
     Document,
     Embedding,
     Message,
+    OpenInferenceDecisionProvider,
+    OpenInferenceDecisionSystem,
     OpenInferenceLLMProvider,
     OpenInferenceLLMSystem,
     OpenInferenceMimeType,
@@ -806,6 +810,98 @@ def get_llm_tool_attributes(
     return attributes
 
 
+def get_decision_attributes(
+    *,
+    provider: Optional[OpenInferenceDecisionProvider] = None,
+    system: Optional[OpenInferenceDecisionSystem] = None,
+    model_name: Optional[str] = None,
+    request_model_name: Optional[str] = None,
+    response_model_name: Optional[str] = None,
+    token_count: Optional[DecisionTokenCount] = None,
+) -> Dict[str, AttributeValue]:
+    """Build OpenInference DECISION span attributes.
+
+    A decision model scores or selects among candidate options supplied in the
+    request rather than generating text, so decision spans identify the model
+    under ``decision.*`` instead of ``llm.*``. The arguments mirror
+    :func:`get_llm_attributes` and follow the same rules: ``system`` names the
+    decision API ecosystem the call conforms to, ``provider`` names who hosts
+    the model, and ``decision.model_name`` is ``model_name``, else
+    ``response_model_name``, else ``request_model_name``.
+    ``decision.request.model_name`` and ``decision.response.model_name`` are set
+    only when those arguments are passed.
+
+    Decision spans have no input or output messages; record the raw request and
+    response with ``span.set_input`` / ``span.set_output``.
+    """
+    return {
+        **get_decision_provider_attributes(provider),
+        **get_decision_system_attributes(system),
+        **get_decision_model_name_attributes(
+            model_name or response_model_name or request_model_name
+        ),
+        **get_decision_request_model_name_attributes(request_model_name),
+        **get_decision_response_model_name_attributes(response_model_name),
+        **get_decision_token_count_attributes(token_count),
+    }
+
+
+def get_decision_provider_attributes(
+    provider: Optional[OpenInferenceDecisionProvider],
+) -> "Mapping[str, AttributeValue]":
+    if isinstance(provider, Enum):
+        return {DECISION_PROVIDER: provider.value}
+    if isinstance(provider, str):
+        return {DECISION_PROVIDER: provider.lower()}
+    return {}
+
+
+def get_decision_system_attributes(
+    system: Optional[OpenInferenceDecisionSystem],
+) -> "Mapping[str, AttributeValue]":
+    if isinstance(system, Enum):
+        return {DECISION_SYSTEM: system.value}
+    if isinstance(system, str):
+        return {DECISION_SYSTEM: system.lower()}
+    return {}
+
+
+def get_decision_model_name_attributes(
+    model_name: Optional[str],
+) -> "Mapping[str, AttributeValue]":
+    if isinstance(model_name, str):
+        return {DECISION_MODEL_NAME: model_name}
+    return {}
+
+
+def get_decision_request_model_name_attributes(
+    request_model_name: Optional[str],
+) -> "Mapping[str, AttributeValue]":
+    if isinstance(request_model_name, str):
+        return {DECISION_REQUEST_MODEL_NAME: request_model_name}
+    return {}
+
+
+def get_decision_response_model_name_attributes(
+    response_model_name: Optional[str],
+) -> "Mapping[str, AttributeValue]":
+    if isinstance(response_model_name, str):
+        return {DECISION_RESPONSE_MODEL_NAME: response_model_name}
+    return {}
+
+
+def get_decision_token_count_attributes(
+    token_count: Optional[DecisionTokenCount],
+) -> "Mapping[str, AttributeValue]":
+    attributes: Dict[str, AttributeValue] = {}
+    if isinstance(token_count, dict):
+        if (input_tokens := token_count.get("input")) is not None:
+            attributes[DECISION_TOKEN_COUNT_INPUT] = input_tokens
+        if (output_tokens := token_count.get("output")) is not None:
+            attributes[DECISION_TOKEN_COUNT_OUTPUT] = output_tokens
+    return attributes
+
+
 # document attributes
 DOCUMENT_CONTENT = DocumentAttributes.DOCUMENT_CONTENT
 DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
@@ -842,7 +938,25 @@ RERANKER_OUTPUT_DOCUMENTS = RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS
 RERANKER_QUERY = RerankerAttributes.RERANKER_QUERY
 RERANKER_TOP_K = RerankerAttributes.RERANKER_TOP_K
 
+
 # span attributes
+# DECISION_* joined SpanAttributes after semconv 0.1.40; fall back to the
+# literal keys so importing this module does not require the newer semconv.
+DECISION_MODEL_NAME = getattr(SpanAttributes, "DECISION_MODEL_NAME", "decision.model_name")
+DECISION_PROVIDER = getattr(SpanAttributes, "DECISION_PROVIDER", "decision.provider")
+DECISION_REQUEST_MODEL_NAME = getattr(
+    SpanAttributes, "DECISION_REQUEST_MODEL_NAME", "decision.request.model_name"
+)
+DECISION_RESPONSE_MODEL_NAME = getattr(
+    SpanAttributes, "DECISION_RESPONSE_MODEL_NAME", "decision.response.model_name"
+)
+DECISION_SYSTEM = getattr(SpanAttributes, "DECISION_SYSTEM", "decision.system")
+DECISION_TOKEN_COUNT_INPUT = getattr(
+    SpanAttributes, "DECISION_TOKEN_COUNT_INPUT", "decision.token_count.input"
+)
+DECISION_TOKEN_COUNT_OUTPUT = getattr(
+    SpanAttributes, "DECISION_TOKEN_COUNT_OUTPUT", "decision.token_count.output"
+)
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE

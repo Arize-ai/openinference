@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Any, Dict, List, Literal, TypedDict, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, TypedDict, Union
 
 from typing_extensions import Required, TypeAlias
 
@@ -9,6 +9,15 @@ from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
 )
+
+if TYPE_CHECKING:
+    # OpenInferenceDecision{Provider,System}Values joined semconv after 0.1.40.
+    # They are only needed for annotations, so import them for type checking
+    # alone and keep the runtime import surface compatible with older semconv.
+    from openinference.semconv.trace import (
+        OpenInferenceDecisionProviderValues,
+        OpenInferenceDecisionSystemValues,
+    )
 
 # opentelemetry-api 1.45.0 redefined ``AttributeValue`` via a chained assignment
 # (``AnyValue = AttributeValue = ...``), which mypy no longer accepts as a valid
@@ -49,6 +58,14 @@ OpenInferenceMimeType = Union[
 ]
 OpenInferenceLLMProvider: TypeAlias = Union[str, OpenInferenceLLMProviderValues]
 OpenInferenceLLMSystem: TypeAlias = Union[str, OpenInferenceLLMSystemValues]
+# decision.system / decision.provider draw from the same identifier space as
+# llm.system / llm.provider, so the LLM enums are accepted too.
+OpenInferenceDecisionProvider: TypeAlias = Union[
+    str, "OpenInferenceDecisionProviderValues", OpenInferenceLLMProviderValues
+]
+OpenInferenceDecisionSystem: TypeAlias = Union[
+    str, "OpenInferenceDecisionSystemValues", OpenInferenceLLMSystemValues
+]
 AnnotationScope: TypeAlias = Literal["span", "trace", "session"]
 
 
@@ -120,6 +137,18 @@ class TokenCount(TypedDict, total=False):
     completion: int
     total: int
     prompt_details: PromptDetails
+
+
+class DecisionTokenCount(TypedDict, total=False):
+    """Token usage of a decision model call.
+
+    Decision models have no prompt/completion split: ``input`` counts the tokens
+    sent (state, questions, and candidate options) and ``output`` the tokens in
+    the typed answers. There is no total; it is the sum when both are present.
+    """
+
+    input: int
+    output: int
 
 
 class Tool(TypedDict, total=False):

@@ -35,6 +35,7 @@ from pydantic import BaseModel
 from typing_extensions import Annotated, TypeAlias
 
 from openinference.instrumentation import (
+    DecisionTokenCount,
     Image,
     ImageMessageContent,
     Message,
@@ -47,6 +48,7 @@ from openinference.instrumentation import (
     ToolCall,
     ToolCallFunction,
     TraceConfig,
+    get_decision_attributes,
     get_llm_attributes,
     get_output_attributes,
     infer_llm_provider_from_host,
@@ -64,6 +66,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceDecisionProviderValues,
+    OpenInferenceDecisionSystemValues,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
@@ -2409,6 +2413,225 @@ class TestTracerLLMDecorator:
         assert attributes["exception.message"] == "Something went wrong"
 
 
+class TestTracerDecisionDecorator:
+    """The decision decorator mirrors the llm decorator with a DECISION span kind."""
+
+    def test_sync_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.decision
+        def choose_route(request: Dict[str, Any]) -> Dict[str, Any]:
+            return {"model": "jev-1.13.0", "answers": {"route": {"answer": "billing"}}}
+
+        request = {"model": "jev-latest", "state": "I was charged twice"}
+        response = choose_route(request)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "choose_route"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == DECISION
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"request": request}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == response
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    def test_unhandled_exception_in_sync_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.decision
+        def choose_route(request: Dict[str, Any]) -> Dict[str, Any]:
+            raise ValueError("Something went wrong")
+
+        with pytest.raises(ValueError):
+            choose_route({"state": "I was charged twice"})
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "choose_route"
+        assert not span.status.is_ok
+        assert span.status.description is not None
+        assert "Something went wrong" in span.status.description
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == DECISION
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"request": {"state": "I was charged twice"}}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert not attributes
+        events = span.events
+        assert len(events) == 1
+        event = events[0]
+        assert event.name == "exception"
+        event_attributes = dict(event.attributes or {})
+        assert event_attributes["exception.type"] == "ValueError"
+        assert event_attributes["exception.message"] == "Something went wrong"
+
+    async def test_async_function_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.decision
+        async def choose_route(request: Dict[str, Any]) -> Dict[str, Any]:
+            return {"model": "jev-1.13.0", "answers": {"route": {"answer": "billing"}}}
+
+        request = {"model": "jev-latest", "state": "I was charged twice"}
+        response = await choose_route(request)
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "choose_route"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == DECISION
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"request": request}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == response
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    def test_sync_generator_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.decision
+        def score_items(items: List[str]) -> Generator[float, None, None]:
+            for index, _ in enumerate(items):
+                yield index / 10
+
+        scores = list(score_items(["a", "b", "c"]))
+        assert scores == [0.0, 0.1, 0.2]
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "score_items"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == DECISION
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"items": ["a", "b", "c"]}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == scores
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    def test_sync_function_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def process_input(request: Dict[str, Any]) -> "Mapping[str, AttributeValue]":
+            return {
+                INPUT_VALUE: "request",
+                **get_decision_attributes(
+                    system=OpenInferenceDecisionSystemValues.TYPESAFE,
+                    provider="TypeSafe",
+                    request_model_name=request["model"],
+                ),
+            }
+
+        def process_output(response: Dict[str, Any]) -> "Mapping[str, AttributeValue]":
+            return {
+                OUTPUT_VALUE: "response",
+                **get_decision_attributes(
+                    response_model_name=response["model"],
+                    token_count=DecisionTokenCount(
+                        input=response["usage"]["input_tokens"],
+                        output=response["usage"]["output_tokens"],
+                    ),
+                ),
+            }
+
+        @tracer.decision(
+            name="route-selection",
+            process_input=process_input,
+            process_output=process_output,
+        )
+        def choose_route(request: Dict[str, Any]) -> Dict[str, Any]:
+            return {
+                "model": "jev-1.13.0",
+                "answers": {"route": {"answer": "billing", "probability": 0.93}},
+                "usage": {"input_tokens": 412, "output_tokens": 2},
+            }
+
+        choose_route({"model": "jev-latest", "state": "I was charged twice"})
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "route-selection"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == DECISION
+        assert attributes.pop(INPUT_VALUE) == "request"
+        assert attributes.pop(OUTPUT_VALUE) == "response"
+        assert attributes.pop(DECISION_SYSTEM) == "typesafe"
+        assert attributes.pop(DECISION_PROVIDER) == "typesafe"
+        assert attributes.pop(DECISION_REQUEST_MODEL_NAME) == "jev-latest"
+        assert attributes.pop(DECISION_RESPONSE_MODEL_NAME) == "jev-1.13.0"
+        # decision.model_name is mirrored from the response model once it is known
+        assert attributes.pop(DECISION_MODEL_NAME) == "jev-1.13.0"
+        assert attributes.pop(DECISION_TOKEN_COUNT_INPUT) == 412
+        assert attributes.pop(DECISION_TOKEN_COUNT_OUTPUT) == 2
+        assert not attributes
+
+    def test_decision_spans_do_not_emit_llm_attributes(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def process_input(state: str) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: state}
+
+        def process_output(answer: bool) -> "Mapping[str, AttributeValue]":
+            return get_decision_attributes(
+                system="typesafe",
+                provider="typesafe",
+                model_name="jev-1.13.0",
+                token_count={"input": 412, "output": 2},
+            )
+
+        @tracer.decision(process_input=process_input, process_output=process_output)
+        def judge(state: str) -> bool:
+            return True
+
+        judge("The response cites a source")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        attributes = dict(spans[0].attributes or {})
+        assert attributes[OPENINFERENCE_SPAN_KIND] == DECISION
+        assert not [key for key in attributes if key.startswith("llm.")]
+        assert {key for key in attributes if key.startswith("decision.")} == {
+            DECISION_SYSTEM,
+            DECISION_PROVIDER,
+            DECISION_MODEL_NAME,
+            DECISION_TOKEN_COUNT_INPUT,
+            DECISION_TOKEN_COUNT_OUTPUT,
+        }
+
+
 def test_get_llm_attributes_returns_expected_attributes() -> None:
     input_messages: Sequence[Message] = [
         Message(
@@ -2644,6 +2867,84 @@ def test_get_llm_attributes_explicit_model_name_overrides_mirrored_model_name() 
         LLM_MODEL_NAME: "my-alias",
         LLM_RESPONSE_MODEL_NAME: "gpt-4-0613",
     }
+
+
+def test_get_decision_attributes_returns_expected_attributes() -> None:
+    attributes = get_decision_attributes(
+        provider=OpenInferenceDecisionProviderValues.TYPESAFE,
+        system=OpenInferenceDecisionSystemValues.TYPESAFE,
+        model_name="jev-1.13.0",
+        request_model_name="jev-latest",
+        response_model_name="jev-1.13.0",
+        token_count=DecisionTokenCount(input=412, output=2),
+    )
+    assert attributes == {
+        DECISION_PROVIDER: "typesafe",
+        DECISION_SYSTEM: "typesafe",
+        DECISION_MODEL_NAME: "jev-1.13.0",
+        DECISION_REQUEST_MODEL_NAME: "jev-latest",
+        DECISION_RESPONSE_MODEL_NAME: "jev-1.13.0",
+        DECISION_TOKEN_COUNT_INPUT: 412,
+        DECISION_TOKEN_COUNT_OUTPUT: 2,
+    }
+
+
+def test_get_decision_attributes_lowercases_string_provider_and_system() -> None:
+    attributes = get_decision_attributes(provider="TypeSafe", system="OpenAI")
+    assert attributes == {DECISION_PROVIDER: "typesafe", DECISION_SYSTEM: "openai"}
+
+
+def test_get_decision_attributes_accepts_llm_enum_values() -> None:
+    """decision.system / decision.provider share the llm.* identifier space."""
+    attributes = get_decision_attributes(
+        provider=OpenInferenceLLMProviderValues.OPENAI,
+        system=OpenInferenceLLMSystemValues.OPENAI,
+    )
+    assert attributes == {DECISION_PROVIDER: "openai", DECISION_SYSTEM: "openai"}
+
+
+def test_get_decision_attributes_model_name_only_omits_request_and_response_model_name() -> None:
+    attributes = get_decision_attributes(model_name="jev-1.13.0")
+    assert attributes == {DECISION_MODEL_NAME: "jev-1.13.0"}
+
+
+def test_get_decision_attributes_model_name_falls_back_to_response_then_request_model_name() -> (
+    None
+):
+    attributes = get_decision_attributes(response_model_name="jev-1.13.0")
+    assert attributes == {
+        DECISION_MODEL_NAME: "jev-1.13.0",
+        DECISION_RESPONSE_MODEL_NAME: "jev-1.13.0",
+    }
+
+    attributes = get_decision_attributes(request_model_name="jev-latest")
+    assert attributes == {
+        DECISION_MODEL_NAME: "jev-latest",
+        DECISION_REQUEST_MODEL_NAME: "jev-latest",
+    }
+
+    attributes = get_decision_attributes(
+        request_model_name="jev-latest", response_model_name="jev-1.13.0"
+    )
+    assert attributes == {
+        DECISION_MODEL_NAME: "jev-1.13.0",
+        DECISION_REQUEST_MODEL_NAME: "jev-latest",
+        DECISION_RESPONSE_MODEL_NAME: "jev-1.13.0",
+    }
+
+
+def test_get_decision_attributes_explicit_model_name_overrides_mirrored_model_name() -> None:
+    attributes = get_decision_attributes(model_name="my-alias", response_model_name="jev-1.13.0")
+    assert attributes == {
+        DECISION_MODEL_NAME: "my-alias",
+        DECISION_RESPONSE_MODEL_NAME: "jev-1.13.0",
+    }
+
+
+def test_get_decision_attributes_only_sets_reported_token_counts() -> None:
+    assert get_decision_attributes(token_count={"input": 412}) == {DECISION_TOKEN_COUNT_INPUT: 412}
+    assert get_decision_attributes(token_count={}) == {}
+    assert get_decision_attributes() == {}
 
 
 def _reasoning_message(role: str) -> Message:
@@ -3145,6 +3446,13 @@ MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
 
 # Span attributes
+DECISION_MODEL_NAME = SpanAttributes.DECISION_MODEL_NAME
+DECISION_PROVIDER = SpanAttributes.DECISION_PROVIDER
+DECISION_REQUEST_MODEL_NAME = SpanAttributes.DECISION_REQUEST_MODEL_NAME
+DECISION_RESPONSE_MODEL_NAME = SpanAttributes.DECISION_RESPONSE_MODEL_NAME
+DECISION_SYSTEM = SpanAttributes.DECISION_SYSTEM
+DECISION_TOKEN_COUNT_INPUT = SpanAttributes.DECISION_TOKEN_COUNT_INPUT
+DECISION_TOKEN_COUNT_OUTPUT = SpanAttributes.DECISION_TOKEN_COUNT_OUTPUT
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
@@ -3187,6 +3495,7 @@ JSON = OpenInferenceMimeTypeValues.JSON.value
 # Span kinds
 AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
+DECISION = OpenInferenceSpanKindValues.DECISION.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 TOOL = OpenInferenceSpanKindValues.TOOL.value
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value

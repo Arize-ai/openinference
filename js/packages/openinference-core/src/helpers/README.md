@@ -146,6 +146,20 @@ const attrs = getLLMAttributes({
 });
 ```
 
+**Decision Attributes** - Generate attributes for decision model calls (route selection, rubric scoring):
+
+```typescript
+import { getDecisionAttributes } from "@arizeai/openinference-core";
+
+const attrs = getDecisionAttributes({
+  system: "typesafe",
+  provider: "typesafe",
+  requestModelName: "jev-latest",
+  responseModelName: "jev-1.13.0",
+  tokenCount: { input: 412, output: 2 },
+});
+```
+
 **Embedding Attributes** - Generate attributes for embedding operations:
 
 ```typescript

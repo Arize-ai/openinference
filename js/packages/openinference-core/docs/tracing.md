@@ -215,6 +215,43 @@ const route = traceDecision(selectRoute, { name: "route-selection" }); // kind =
 | `traceDecision` | DECISION | Decision model calls that score or select among candidate options (route selection, rubric scoring) |
 | `withSpan` | (any) | When you need to set `kind` dynamically or use a kind without a dedicated wrapper |
 
+### Decision Spans
+
+`traceDecision` marks a call to a decision model (one that scores or selects
+among candidate options instead of generating text). Pair it with
+`getDecisionAttributes` in `processInput` / `processOutput` to record the
+`decision.*` model identification and token counts alongside the raw request
+and response:
+
+```typescript
+import {
+  defaultProcessInput,
+  defaultProcessOutput,
+  getDecisionAttributes,
+  traceDecision,
+} from "@arizeai/openinference-core";
+
+const chooseRoute = traceDecision(
+  async (request: SystemOneRequest) => client.systemOne.create(request),
+  {
+    name: "route-selection",
+    processInput: (request) => ({
+      ...defaultProcessInput(request),
+      ...getDecisionAttributes({ system: "typesafe", requestModelName: request.model }),
+    }),
+    processOutput: (response) => ({
+      ...defaultProcessOutput(response),
+      ...getDecisionAttributes({
+        responseModelName: response.model,
+        tokenCount: { input: response.usage.input_tokens, output: response.usage.output_tokens },
+      }),
+    }),
+  },
+);
+```
+
+See [attribute-helpers.md](./attribute-helpers.md#getdecisionattributes) for the full option list.
+
 ### Nested Tracing Example
 
 Wrapped functions automatically create parent-child span relationships:
