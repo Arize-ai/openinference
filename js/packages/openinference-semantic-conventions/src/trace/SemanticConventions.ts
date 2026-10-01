@@ -31,6 +31,7 @@ export const SemanticAttributePrefixes = {
   prompt: "prompt",
   agent: "agent",
   graph: "graph",
+  decision: "decision",
 } as const;
 
 export const LLMAttributePostfixes = {
@@ -49,6 +50,14 @@ export const LLMAttributePostfixes = {
   tools: "tools",
   cost: "cost",
   finish_reason: "finish_reason",
+} as const;
+
+export const DecisionAttributePostfixes = {
+  provider: "provider",
+  system: "system",
+  model_name: "model_name",
+  request: "request",
+  response: "response",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -295,6 +304,41 @@ export const LLM_PROVIDER =
  */
 export const LLM_SYSTEM =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.system}` as const;
+
+/**
+ * The name of the decision model. Mirrors LLM_MODEL_NAME for DECISION spans.
+ */
+export const DECISION_MODEL_NAME =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.model_name}` as const;
+
+/**
+ * The decision model requested by the caller, as sent in the request. May
+ * differ from decision.response.model_name when the provider resolves an
+ * alias (e.g. jev-latest) or routes the request to a different model.
+ */
+export const DECISION_REQUEST_MODEL_NAME =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.request}.${DecisionAttributePostfixes.model_name}` as const;
+
+/**
+ * The decision model that actually produced the response, as reported by the
+ * provider. May differ from decision.request.model_name.
+ */
+export const DECISION_RESPONSE_MODEL_NAME =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.response}.${DecisionAttributePostfixes.model_name}` as const;
+
+/**
+ * The hosting provider of the decision model. Uses the same well-known values
+ * as LLM_PROVIDER.
+ */
+export const DECISION_PROVIDER =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.provider}` as const;
+
+/**
+ * The AI product serving the decision model, as identified by the client or
+ * server. Uses the same well-known values as LLM_SYSTEM.
+ */
+export const DECISION_SYSTEM =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.system}` as const;
 
 /** Token count for the completion by the llm (in tokens) */
 export const LLM_TOKEN_COUNT_COMPLETION =
@@ -823,6 +867,11 @@ export const SemanticConventions = {
   LLM_TOKEN_COUNT_TOTAL,
   LLM_SYSTEM,
   LLM_PROVIDER,
+  DECISION_MODEL_NAME,
+  DECISION_REQUEST_MODEL_NAME,
+  DECISION_RESPONSE_MODEL_NAME,
+  DECISION_SYSTEM,
+  DECISION_PROVIDER,
   LLM_TOOLS,
   LLM_FINISH_REASON,
   LLM_COST,

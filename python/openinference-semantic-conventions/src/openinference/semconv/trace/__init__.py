@@ -93,6 +93,32 @@ class SpanAttributes:
     """
     The AI product as identified by the client or server
     """
+    DECISION_MODEL_NAME = "decision.model_name"
+    """
+    The name of the decision model being used. Mirrors llm.model_name for
+    DECISION spans.
+    """
+    DECISION_REQUEST_MODEL_NAME = "decision.request.model_name"
+    """
+    The decision model requested by the caller, as sent in the request. May
+    differ from decision.response.model_name when the provider resolves an
+    alias (e.g. jev-latest) or routes the request to a different model.
+    """
+    DECISION_RESPONSE_MODEL_NAME = "decision.response.model_name"
+    """
+    The decision model that actually produced the response, as reported by the
+    provider. May differ from decision.request.model_name.
+    """
+    DECISION_PROVIDER = "decision.provider"
+    """
+    The hosting provider of the decision model. Uses the same well-known values
+    as llm.provider.
+    """
+    DECISION_SYSTEM = "decision.system"
+    """
+    The AI product serving the decision model, as identified by the client or
+    server. Uses the same well-known values as llm.system.
+    """
     LLM_PROMPTS = "llm.prompts"
     """
     Prompts provided to a completions API. Use indexed format with nested structure.

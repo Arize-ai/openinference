@@ -33,6 +33,7 @@ public class SemanticConventions {
         public static final String PROMPT = "prompt";
         public static final String AGENT = "agent";
         public static final String GRAPH = "graph";
+        public static final String DECISION = "decision";
     }
 
     @UtilityClass
@@ -53,6 +54,15 @@ public class SemanticConventions {
         public static final String COST = "cost";
         public static final String CHOICES = "choices";
         public static final String FINISH_REASON = "finish_reason";
+    }
+
+    @UtilityClass
+    public static class DecisionAttributePostfixes {
+        public static final String PROVIDER = "provider";
+        public static final String SYSTEM = "system";
+        public static final String MODEL_NAME = "model_name";
+        public static final String REQUEST = "request";
+        public static final String RESPONSE = "response";
     }
 
     @UtilityClass
@@ -341,6 +351,46 @@ public class SemanticConventions {
      * The AI product as identified by the client or server
      */
     public static final String LLM_SYSTEM = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.SYSTEM;
+
+    /**
+     * The name of the decision model. Mirrors LLM_MODEL_NAME for DECISION spans.
+     */
+    public static final String DECISION_MODEL_NAME =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The decision model requested by the caller, as sent in the request. May differ from
+     * DECISION_RESPONSE_MODEL_NAME when the provider resolves an alias (e.g. jev-latest) or routes the
+     * request to a different model.
+     */
+    public static final String DECISION_REQUEST_MODEL_NAME = SemanticAttributePrefixes.DECISION
+            + "."
+            + DecisionAttributePostfixes.REQUEST
+            + "."
+            + DecisionAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The decision model that actually produced the response, as reported by the provider. May differ
+     * from DECISION_REQUEST_MODEL_NAME.
+     */
+    public static final String DECISION_RESPONSE_MODEL_NAME = SemanticAttributePrefixes.DECISION
+            + "."
+            + DecisionAttributePostfixes.RESPONSE
+            + "."
+            + DecisionAttributePostfixes.MODEL_NAME;
+
+    /**
+     * The hosting provider of the decision model. Uses the same well-known values as LLM_PROVIDER.
+     */
+    public static final String DECISION_PROVIDER =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.PROVIDER;
+
+    /**
+     * The AI product serving the decision model, as identified by the client or server. Uses the same
+     * well-known values as LLM_SYSTEM.
+     */
+    public static final String DECISION_SYSTEM =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.SYSTEM;
 
     /** Token count for the completion by the llm (in tokens) */
     public static final String LLM_TOKEN_COUNT_COMPLETION =

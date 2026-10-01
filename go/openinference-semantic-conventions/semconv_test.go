@@ -63,6 +63,12 @@ func TestAttributeKeys(t *testing.T) {
 		{LLMPromptTemplateVersion, "llm.prompt_template.version"},
 		{LLMTools, "llm.tools"},
 
+		{DecisionModelName, "decision.model_name"},
+		{DecisionRequestModelName, "decision.request.model_name"},
+		{DecisionResponseModelName, "decision.response.model_name"},
+		{DecisionProvider, "decision.provider"},
+		{DecisionSystem, "decision.system"},
+
 		{LLMTokenCountPrompt, "llm.token_count.prompt"},
 		{LLMTokenCountPromptDetails, "llm.token_count.prompt_details"},
 		{LLMTokenCountPromptDetailsAudio, "llm.token_count.prompt_details.audio"},

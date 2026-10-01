@@ -37,6 +37,11 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `annotations`                                  | List of objects<sup>†</sup> | `[{"annotation.name": "hallucination", "annotation.label": "hallucinated"}]`                                                | Feedback using annotation terminology, flattened as `annotations.0.annotation.*`. See [Annotations and Evaluations](./annotations.md)                                            |
 | `trace.annotations`                            | List of objects<sup>†</sup> | `[{"annotation.name": "retrieval_quality", "annotation.score": 0.92}]`                                                       | Trace-scoped feedback using annotation terminology, flattened as `trace.annotations.0.annotation.*`                                                                               |
 | `session.annotations`                          | List of objects<sup>†</sup> | `[{"annotation.name": "conversational_coherence", "annotation.label": "coherent"}]`                                        | Session-scoped feedback using annotation terminology, flattened as `session.annotations.0.annotation.*`; requires `session.id`                                                    |
+| `decision.model_name`                          | String                      | `"jev-0123"`                                                                                                                  | The name of the decision model being utilized. Mirrors `llm.model_name` for `DECISION` spans.                                                                                       |
+| `decision.provider`                            | String                      | `typesafe`                                                                                                                    | The hosting provider of the decision model. Uses the same well-known values as `llm.provider`.                                                                                      |
+| `decision.request.model_name`                  | String                      | `"jev-latest"`                                                                                                                | The decision model requested by the caller, as sent in the request. May differ from `decision.response.model_name` when the provider resolves an alias or routes the request.      |
+| `decision.response.model_name`                 | String                      | `"jev-0123"`                                                                                                                  | The decision model that actually produced the response, as reported by the provider. May differ from `decision.request.model_name`.                                                 |
+| `decision.system`                              | String                      | `typesafe`                                                                                                                    | The AI product that serves the decision model, as identified by the client or server instrumentation. Uses the same well-known values as `llm.system`.                             |
 | `document.content`                             | String                      | `"This is a sample document content."`                                                                                        | The content of a retrieved document                                                                                                                                                 |
 | `document.id`                                  | String/Integer              | `"1234"` or `1`                                                                                                               | Unique identifier for a document                                                                                                                                                    |
 | `document.metadata`                            | JSON String                 | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                                                                              | Metadata associated with a document                                                                                                                                                 |
@@ -251,6 +256,17 @@ record both values as distinct, queryable attributes when it can tell them apart
 - `llm.model_name` keeps its existing meaning and remains required where applicable: it should equal
   `llm.response.model_name` when known, falling back to `llm.request.model_name` otherwise. This keeps
   `llm.model_name` backward compatible for consumers that don't yet read the new attributes.
+
+**For decision operations (`openinference.span.kind: "DECISION"`):**
+
+- `llm.*` identification attributes are **not used**; decision models are not language models
+- Use `decision.system`, `decision.provider`, and `decision.model_name` in place of `llm.system`, `llm.provider`,
+  and `llm.model_name`. They carry the same meanings and the same well-known values.
+- `decision.request.model_name` and `decision.response.model_name` follow the same rules as
+  `llm.request.model_name` and `llm.response.model_name`: set them when the response distinguishes the requested
+  model (e.g. an alias such as `jev-latest`) from the model that served it (e.g. `jev-0123`), and keep
+  `decision.model_name` equal to the response model when known, falling back to the requested model otherwise.
+- See the [Decision Spans](./decision_spans.md) specification for the full attribute set
 
 **For embedding operations (`openinference.span.kind: "EMBEDDING"`):**
 

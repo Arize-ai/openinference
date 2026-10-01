@@ -37,6 +37,15 @@ class SemanticConventionsTest {
     }
 
     @Test
+    void decisionAttributesUseTheDocumentedKeys() {
+        assertThat(SemanticConventions.DECISION_MODEL_NAME).isEqualTo("decision.model_name");
+        assertThat(SemanticConventions.DECISION_REQUEST_MODEL_NAME).isEqualTo("decision.request.model_name");
+        assertThat(SemanticConventions.DECISION_RESPONSE_MODEL_NAME).isEqualTo("decision.response.model_name");
+        assertThat(SemanticConventions.DECISION_PROVIDER).isEqualTo("decision.provider");
+        assertThat(SemanticConventions.DECISION_SYSTEM).isEqualTo("decision.system");
+    }
+
+    @Test
     void decisionSpanKindUsesTheDocumentedValue() {
         assertThat(SemanticConventions.OpenInferenceSpanKind.DECISION.getValue())
                 .isEqualTo("DECISION");

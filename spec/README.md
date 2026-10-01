@@ -71,6 +71,7 @@ The [Semantic Conventions](./semantic_conventions.md) document is the authoritat
 
 - [LLM Spans](./llm_spans.md) — Attributes for language model calls: messages, token counts, model parameters, and tool definitions
 - [Embedding Spans](./embedding_spans.md) — Attributes for vector embedding generation
+- [Decision Spans](./decision_spans.md) — Attributes for decision model calls: model, system, and provider identification
 
 ### Attribute Conventions
 

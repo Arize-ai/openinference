@@ -110,6 +110,32 @@ const (
 	LLMTools = "llm.tools"
 )
 
+// Decision-span attributes — set when the span represents a call to a
+// decision model (SpanKindDecision). These mirror the llm.* identification
+// attributes and share their well-known values.
+const (
+	// DecisionModelName is the name of the decision model being used.
+	DecisionModelName = "decision.model_name"
+
+	// DecisionRequestModelName is the decision model requested by the caller,
+	// as sent in the request. May differ from DecisionResponseModelName when
+	// the provider resolves an alias (e.g. jev-latest) or routes the request.
+	DecisionRequestModelName = "decision.request.model_name"
+
+	// DecisionResponseModelName is the decision model that actually produced
+	// the response, as reported by the provider.
+	DecisionResponseModelName = "decision.response.model_name"
+
+	// DecisionProvider is the hosting provider of the decision model. Uses the
+	// same well-known values as LLMProvider.
+	DecisionProvider = "decision.provider"
+
+	// DecisionSystem is the AI product serving the decision model, as
+	// identified by the client or server. Uses the same well-known values as
+	// LLMSystem.
+	DecisionSystem = "decision.system"
+)
+
 // Token-count attributes for LLM spans. Values are integer counts of tokens.
 const (
 	LLMTokenCountPrompt                     = "llm.token_count.prompt"
