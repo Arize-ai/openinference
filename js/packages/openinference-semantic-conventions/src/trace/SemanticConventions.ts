@@ -912,6 +912,7 @@ export enum OpenInferenceSpanKind {
   GUARDRAIL = "GUARDRAIL",
   EVALUATOR = "EVALUATOR",
   PROMPT = "PROMPT",
+  DECISION = "DECISION",
 }
 
 /**
