@@ -398,15 +398,16 @@ export const mapAgentAttributes = (spanAttributes: Attributes): Attributes => {
  * Map the GenAI conversation id to the OpenInference session id.
  *
  * gen_ai.conversation.id identifies the conversation (session or thread) a span belongs to,
- * which is what session.id represents in OpenInference.
+ * which is what session.id represents in OpenInference. An explicit session.id takes precedence.
  *
  * @param spanAttributes - The GenAI span attributes to read the conversation id from
  * @returns The mapped OpenInference session attributes
  */
 export const mapConversationId = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
+  const sessionId = getString(spanAttributes[SemanticConventions.SESSION_ID]);
   const conversationId = getString(spanAttributes[ATTR_GEN_AI_CONVERSATION_ID]);
-  set(attrs, SemanticConventions.SESSION_ID, conversationId);
+  set(attrs, SemanticConventions.SESSION_ID, sessionId ?? conversationId);
   return attrs;
 };
 

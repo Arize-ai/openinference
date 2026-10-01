@@ -716,6 +716,14 @@ describe("attributes helpers", () => {
   });
 
   describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
+    it("preserves an explicit session id over the conversation id", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        [SemanticConventions.SESSION_ID]: "explicit-session",
+        "gen_ai.conversation.id": "eve-conversation",
+      });
+      expect(attrs[SemanticConventions.SESSION_ID]).toBe("explicit-session");
+    });
+
     it("includes finish reason when present", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
         "gen_ai.operation.name": "chat",
