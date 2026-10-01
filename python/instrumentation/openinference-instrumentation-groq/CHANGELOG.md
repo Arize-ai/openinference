@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.29...python-openinference-instrumentation-groq-v0.1.30) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+* **groq:** keep multimodal input message content on spans ([#3758](https://github.com/Arize-ai/openinference/issues/3758)) ([53a902d](https://github.com/Arize-ai/openinference/commit/53a902d7913e88b65cbce9b651a3123e8cdbee97))
+
 ## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.28...python-openinference-instrumentation-groq-v0.1.29) (2026-09-29)
 
 

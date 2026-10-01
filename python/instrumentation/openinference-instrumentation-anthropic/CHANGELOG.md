@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.1.7...python-openinference-instrumentation-anthropic-v3.0.0) (2026-10-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **anthropic:** handle beta streams with SDK 1.8+ ([#3629](https://github.com/Arize-ai/openinference/issues/3629))
+
+### Bug Fixes
+
+* **anthropic:** handle beta streams with SDK 1.8+ ([#3629](https://github.com/Arize-ai/openinference/issues/3629)) ([e85d02a](https://github.com/Arize-ai/openinference/commit/e85d02a8ec333192153e5c22c1a6bc81dd85cb59))
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+
 ## [2.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v2.1.6...python-openinference-instrumentation-anthropic-v2.1.7) (2026-09-29)
 
 

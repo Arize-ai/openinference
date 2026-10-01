@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.62](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.61...python-openinference-instrumentation-openai-v0.1.62) (2026-10-01)
+
+
+### Features
+
+* **openai:** record input and output images for image APIs ([#3737](https://github.com/Arize-ai/openinference/issues/3737)) ([34d2348](https://github.com/Arize-ai/openinference/commit/34d2348c2a9f07964f13cfe8ef9ae3107d5ddb88))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+
 ## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.60...python-openinference-instrumentation-openai-v0.1.61) (2026-09-24)
 
 
