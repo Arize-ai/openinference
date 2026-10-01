@@ -9,8 +9,11 @@ structured output is the map of typed answers. ``input.value`` and ``output.valu
 the wire request and response bodies, and they are the only place the request's ``state``
 and ``questions`` are recorded, so ``hide_inputs`` alone keeps every part of the request off
 the span.
-``llm.invocation_parameters`` carries only call configuration: the ``model`` and any
-``extra_body`` fields. See the package README for the full attribute mapping.
+The model is identified under ``decision.*`` rather than ``llm.*``, so decision model usage is
+not counted as LLM usage, and token counts go to ``decision.token_count.input`` and
+``decision.token_count.output``. ``llm.invocation_parameters`` carries only call
+configuration: the ``model`` and any ``extra_body`` fields. See the package README for the
+full attribute mapping.
 
 A ``system_one`` call is not a chat exchange: neither side is a message list, so
 ``llm.input_messages`` and ``llm.output_messages`` are deliberately not recorded.
@@ -24,19 +27,23 @@ from typing import Any, Dict, Mapping, Optional
 import msgspec
 
 from openinference.instrumentation import (
-    TokenCount,
+    DecisionTokenCount,
+    get_decision_attributes,
     get_input_attributes,
     get_llm_attributes,
     get_output_attributes,
     get_span_kind_attributes,
 )
 from openinference.instrumentation.typesafe._types import AttributeValue
-from openinference.semconv.trace import OpenInferenceMimeTypeValues, OpenInferenceSpanKindValues
+from openinference.semconv.trace import (
+    OpenInferenceDecisionProviderValues,
+    OpenInferenceDecisionSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
-LLM_PROVIDER = "typesafe"
 
 
 def _enc_hook(value: Any) -> Any:
@@ -93,7 +100,8 @@ def get_request_attributes(
         extra_body: Extra top-level request body fields, if any.
 
     Returns:
-        The span kind, ``input.value``, and the request-side ``llm.*`` attributes.
+        The span kind, ``input.value``, the request-side ``decision.*`` attributes, and
+        ``llm.invocation_parameters``.
     """
     body: Dict[str, Any] = {
         "state": _to_builtins(state),
@@ -113,11 +121,12 @@ def get_request_attributes(
     return {
         **get_span_kind_attributes(OpenInferenceSpanKindValues.DECISION),
         **get_input_attributes(body, mime_type=OpenInferenceMimeTypeValues.JSON),
-        **get_llm_attributes(
-            provider=LLM_PROVIDER,
+        **get_decision_attributes(
+            system=OpenInferenceDecisionSystemValues.TYPESAFE,
+            provider=OpenInferenceDecisionProviderValues.TYPESAFE,
             request_model_name=model,
-            invocation_parameters=invocation_parameters,
         ),
+        **get_llm_attributes(invocation_parameters=invocation_parameters),
     }
 
 
@@ -138,7 +147,7 @@ def get_response_attributes(response: Any) -> Dict[str, AttributeValue]:
         "usage": _to_builtins(usage),
     }
     return {
-        **get_llm_attributes(
+        **get_decision_attributes(
             response_model_name=model,
             token_count=_get_token_count(usage),
         ),
@@ -146,23 +155,21 @@ def get_response_attributes(response: Any) -> Dict[str, AttributeValue]:
     }
 
 
-def _get_token_count(usage: Any) -> Optional[TokenCount]:
-    """Returns the prompt, completion, and total token counts, or ``None`` when unreported.
+def _get_token_count(usage: Any) -> Optional[DecisionTokenCount]:
+    """Returns the input and output token counts, or ``None`` when unreported.
 
     Args:
         usage: The ``usage`` object on a ``SystemOneResponse``, or ``None``.
 
     Returns:
-        A ``TokenCount`` with whichever counts the response reported, else ``None``. The
-        total is only derived when both the prompt and completion counts are present.
+        A ``DecisionTokenCount`` with whichever counts the response reported, else ``None``.
+        Decision spans have no total, so none is derived.
     """
-    prompt = getattr(usage, "input_tokens", None)
-    completion = getattr(usage, "output_tokens", None)
-    token_count: TokenCount = {}
-    if isinstance(prompt, int):
-        token_count["prompt"] = prompt
-    if isinstance(completion, int):
-        token_count["completion"] = completion
-    if isinstance(prompt, int) and isinstance(completion, int):
-        token_count["total"] = prompt + completion
+    input_tokens = getattr(usage, "input_tokens", None)
+    output_tokens = getattr(usage, "output_tokens", None)
+    token_count: DecisionTokenCount = {}
+    if isinstance(input_tokens, int):
+        token_count["input"] = input_tokens
+    if isinstance(output_tokens, int):
+        token_count["output"] = output_tokens
     return token_count or None

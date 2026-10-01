@@ -9,8 +9,11 @@ Calls to `TypeSafeClient.system_one` and `AsyncTypeSafeClient.system_one` are tr
 - `input.value`: the request body (`state`, `model`, `questions`) as JSON
 - `llm.invocation_parameters`: the call configuration, meaning the `model` and any `extra_body` fields
 - `output.value`: the response body (`model`, `answers`, `usage`) as JSON
-- `llm.request.model_name` (for example `jev-latest`) and `llm.response.model_name` (the resolved model, for example `jev-1.13.0`)
-- `llm.token_count.prompt`, `llm.token_count.completion`, and `llm.token_count.total`
+- `decision.system` and `decision.provider`: both `typesafe`
+- `decision.request.model_name` (for example `jev-latest`), `decision.response.model_name` (the resolved model, for example `jev-1.13.0`), and `decision.model_name` (the response model when reported, else the requested one)
+- `decision.token_count.input` and `decision.token_count.output`, from the response's `usage`
+
+The model and its token usage are recorded under `decision.*` rather than `llm.*`, following the OpenInference [decision span conventions](https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md), so decision model usage is not priced or counted as LLM usage.
 
 A System One call is not a chat exchange, so the `state` and the `answers` are recorded only as `input.value` and `output.value`, not as `llm.input_messages` / `llm.output_messages`.
 
