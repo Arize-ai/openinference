@@ -42,8 +42,12 @@ from openinference.instrumentation.strands_agents.semantic_conventions import (
     safe_json_dumps,
 )
 from openinference.semconv.trace import (
+    AudioAttributes,
+    ImageAttributes,
+    MessageContentAttributes,
     OpenInferenceMimeTypeValues,
     SpanAttributes,
+    VideoAttributes,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +71,27 @@ _RAW_INPUT_CONTENT = frozenset(
 _RAW_OUTPUT_CONTENT = frozenset(
     {GEN_AI_OUTPUT_MESSAGES, GEN_AI_TOOL_CALL_RESULT, GenAIAttributes.COMPLETION}
 )
+
+# Legacy Strands events and the side of the span whose content they carry.
+_INPUT_EVENTS = frozenset(
+    {
+        GenAIEventNames.SYSTEM_MESSAGE,
+        GenAIEventNames.USER_MESSAGE,
+        GenAIEventNames.ASSISTANT_MESSAGE,
+        GenAIEventNames.TOOL_MESSAGE,
+    }
+)
+_OUTPUT_EVENTS = frozenset({GenAIEventNames.CHOICE})
+
+# Content blocks that carry no content of their own.
+_EMPTY_BLOCKS = frozenset({"cachePoint"})
+
+# Media blocks whose source can be a stored location, and the URL attribute for each.
+_MEDIA_URL_KEYS = {
+    "image": f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+    "video": f"{MessageContentAttributes.MESSAGE_CONTENT_VIDEO}.{VideoAttributes.VIDEO_URL}",
+    "audio": f"{MessageContentAttributes.MESSAGE_CONTENT_AUDIO}.{AudioAttributes.AUDIO_URL}",
+}
 
 
 class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
@@ -145,6 +170,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         except Exception as e:
             logger.error(f"Failed to transform span '{span.name}': {e}", exc_info=True)
             span._attributes = self._without_hidden_content(original_attrs)
+            self._strip_hidden_events(span)
 
     def _mask_attributes(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         """Apply the TraceConfig to OpenInference attributes; hidden ones are dropped."""
@@ -155,15 +181,42 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 masked[key] = masked_value
         return masked
 
+    def _hidden_sides(self) -> tuple[bool, bool]:
+        """Whether the TraceConfig hides any of the input content, and any of the output."""
+        config = self._config
+        return (
+            bool(config.hide_inputs or config.hide_input_messages or config.hide_input_text),
+            bool(config.hide_outputs or config.hide_output_messages or config.hide_output_text),
+        )
+
     def _without_hidden_content(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         """Drop the raw Strands content attributes that the TraceConfig hides."""
-        config = self._config
+        hide_input, hide_output = self._hidden_sides()
         hidden: frozenset[str] = frozenset()
-        if config.hide_inputs or config.hide_input_messages or config.hide_input_text:
+        if hide_input:
             hidden |= _RAW_INPUT_CONTENT
-        if config.hide_outputs or config.hide_output_messages or config.hide_output_text:
+        if hide_output:
             hidden |= _RAW_OUTPUT_CONTENT
         return {key: value for key, value in attrs.items() if key not in hidden}
+
+    def _strip_hidden_events(self, span: ReadableSpan) -> None:
+        """Drop the gen_ai.* events whose content the TraceConfig hides.
+
+        Used when the conversion fails, because the events are then exported as they are.
+        """
+        hide_input, hide_output = self._hidden_sides()
+        if not (hide_input or hide_output) or not getattr(span, "_events", None):
+            return
+
+        def is_hidden(event: Any) -> bool:
+            name = getattr(event, "name", "")
+            keys = set(getattr(event, "attributes", None) or {})
+            return bool(
+                (hide_input and (name in _INPUT_EVENTS or keys & _RAW_INPUT_CONTENT))
+                or (hide_output and (name in _OUTPUT_EVENTS or keys & _RAW_OUTPUT_CONTENT))
+            )
+
+        span._events = [event for event in span._events if not is_hidden(event)]
 
     def _is_strands_span(self, span: ReadableSpan) -> bool:
         """Return True if the span was emitted by Strands Agents SDK."""
@@ -364,6 +417,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             if not isinstance(item, dict) or not isinstance(item.get("parts"), list):
                 continue
             text_parts: List[str] = []
+            contents: List[Dict[str, Any]] = []
             tool_calls: List[Dict[str, Any]] = []
             tool_results: List[Dict[str, Any]] = []
             for part in item["parts"]:
@@ -372,6 +426,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 part_type = part.get("type")
                 if part_type == "text" and part.get("content") is not None:
                     text_parts.append(str(part["content"]))
+                    contents.append(self._text_item(str(part["content"])))
                 elif part_type == "tool_call":
                     tool_calls.append(
                         {
@@ -384,15 +439,24 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                     )
                 elif part_type == "tool_call_response":
                     tool_results.append(part)
+                elif isinstance(part_type, str):
+                    # Strands files every other content block as {"type": <block>, "content": ...}.
+                    body = (
+                        part["content"]
+                        if "content" in part
+                        else {k: v for k, v in part.items() if k != "type"}
+                    )
+                    if converted := self._unconverted_item({part_type: body}):
+                        contents.append(converted)
 
-            message: Dict[str, Any] = {"message.role": item.get("role") or "user"}
-            if text_parts:
-                message["message.content"] = " ".join(text_parts)
+            role = item.get("role") or "user"
+            message: Dict[str, Any] = {"message.role": role}
+            self._set_content(message, role, text_parts, contents)
             if tool_calls:
                 message["message.tool_calls"] = tool_calls
             if finish_reason := item.get("finish_reason"):
                 message["message.finish_reason"] = finish_reason
-            if "message.content" in message or tool_calls:
+            if "message.content" in message or "message.contents" in message or tool_calls:
                 messages.append(message)
 
             # Each tool result is its own tool message, whatever role Strands filed it under.
@@ -405,6 +469,66 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                     }
                 )
         return messages
+
+    @staticmethod
+    def _text_item(text: str) -> Dict[str, Any]:
+        return {
+            MessageContentAttributes.MESSAGE_CONTENT_TYPE: "text",
+            MessageContentAttributes.MESSAGE_CONTENT_TEXT: text,
+        }
+
+    def _unconverted_item(self, block: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Content item for a Strands block that has no OpenInference attribute of its own.
+
+        Reasoning keeps its own type, and so do images, video and audio stored in S3, whose
+        URI Strands keeps. Strands replaces raw image, audio and video bytes with a placeholder
+        before they reach the span, so every other block is kept as its JSON text instead of
+        being dropped.
+        """
+        if _EMPTY_BLOCKS.intersection(block):
+            return None
+        for kind, url_key in _MEDIA_URL_KEYS.items():
+            media = block.get(kind)
+            source = media.get("source") if isinstance(media, dict) else None
+            location = source.get("location") if isinstance(source, dict) else None
+            if isinstance(location, dict) and isinstance(location.get("uri"), str):
+                return {
+                    MessageContentAttributes.MESSAGE_CONTENT_TYPE: kind,
+                    url_key: location["uri"],
+                }
+        reasoning = block.get("reasoningContent")
+        if isinstance(reasoning, dict):
+            reasoning_text = reasoning.get("reasoningText")
+            if isinstance(reasoning_text, dict) and reasoning_text.get("text"):
+                return {
+                    MessageContentAttributes.MESSAGE_CONTENT_TYPE: "reasoning",
+                    MessageContentAttributes.MESSAGE_CONTENT_TEXT: str(reasoning_text["text"]),
+                }
+        return self._text_item(safe_json_dumps(block))
+
+    @staticmethod
+    def _set_content(
+        message: Dict[str, Any], role: str, text_parts: List[str], contents: List[Dict[str, Any]]
+    ) -> None:
+        """Plain `message.content` for text-only messages, `message.contents` otherwise."""
+        if len(contents) > len(text_parts):
+            message["message.contents"] = contents
+        elif text_parts:
+            # Strands joins the text blocks of a system prompt with line breaks.
+            message["message.content"] = ("\n" if role == "system" else " ").join(text_parts)
+
+    @staticmethod
+    def _message_text(message: Dict[str, Any]) -> str:
+        """The text of a message, whether it is plain content or ordered content items."""
+        content = message.get("message.content")
+        if isinstance(content, str):
+            return content
+        texts = [
+            str(item.get(MessageContentAttributes.MESSAGE_CONTENT_TEXT, ""))
+            for item in message.get("message.contents") or []
+            if item.get(MessageContentAttributes.MESSAGE_CONTENT_TYPE) == "text"
+        ]
+        return " ".join(texts)
 
     def _tool_response_text(self, response: Any) -> str:
         if isinstance(response, str):
@@ -455,7 +579,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                     text_parts.append(str(text))
         if not text_parts:
             return None
-        return {"message.role": "system", "message.content": " ".join(text_parts)}
+        return {"message.role": "system", "message.content": "\n".join(text_parts)}
 
     def _extract_messages_from_attributes(
         self, prompt: Any, completion: Any
@@ -533,11 +657,13 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 message: Dict[str, Any] = {"message.role": role}
 
                 text_parts: List[str] = []
+                contents: List[Dict[str, Any]] = []
                 tool_calls: List[Dict[str, Any]] = []
                 for item in content_data:
                     if isinstance(item, dict):
                         if "text" in item:
                             text_parts.append(str(item["text"]))
+                            contents.append(self._text_item(str(item["text"])))
                         elif "toolUse" in item and isinstance(item["toolUse"], dict):
                             tool_use = item["toolUse"]
                             tool_call = {
@@ -550,24 +676,26 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                             tool_calls.append(tool_call)
                         elif "toolResult" in item:
                             tool_result = item["toolResult"]
-                            if "content" in tool_result:
-                                if isinstance(tool_result["content"], list):
-                                    for tr_content in tool_result["content"]:
-                                        if isinstance(tr_content, dict) and "text" in tr_content:
-                                            text_parts.append(str(tr_content["text"]))
-                                elif isinstance(tool_result["content"], str):
-                                    text_parts.append(tool_result["content"])
+                            if tool_result.get("content"):
+                                result_text = self._tool_response_text(tool_result["content"])
+                                text_parts.append(result_text)
+                                contents.append(self._text_item(result_text))
                             message["message.role"] = "tool"
                             if "toolUseId" in tool_result:
                                 message["message.tool_call_id"] = tool_result["toolUseId"]
+                        elif converted := self._unconverted_item(item):
+                            contents.append(converted)
 
-                if text_parts:
-                    message["message.content"] = " ".join(text_parts)
+                self._set_content(message, str(message["message.role"]), text_parts, contents)
 
                 if tool_calls:
                     message["message.tool_calls"] = tool_calls
 
-                if "message.content" not in message and "message.tool_calls" not in message:
+                if (
+                    "message.content" not in message
+                    and "message.contents" not in message
+                    and "message.tool_calls" not in message
+                ):
                     return None
 
                 return message
@@ -641,14 +769,14 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 clean_key = key.replace("message.", "") if key.startswith("message.") else key
                 dotted_key = f"{key_prefix}.{idx}.message.{clean_key}"
 
-                if clean_key == "tool_calls" and isinstance(value, list):
-                    for tool_idx, tool_call in enumerate(value):
-                        if isinstance(tool_call, dict):
-                            for tool_key, tool_val in tool_call.items():
-                                tool_dotted_key = (
-                                    f"{key_prefix}.{idx}.message.tool_calls.{tool_idx}.{tool_key}"
+                if clean_key in ("tool_calls", "contents") and isinstance(value, list):
+                    for item_idx, item in enumerate(value):
+                        if isinstance(item, dict):
+                            for item_key, item_val in item.items():
+                                item_dotted_key = (
+                                    f"{key_prefix}.{idx}.message.{clean_key}.{item_idx}.{item_key}"
                                 )
-                                result[tool_dotted_key] = self._serialize_value(tool_val)
+                                result[item_dotted_key] = self._serialize_value(item_val)
                 else:
                     result[dotted_key] = self._serialize_value(value)
 
@@ -671,7 +799,11 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 # System prompts stay in llm.input_messages only, so a single user
                 # message still yields plain-text input.value.
                 non_system = [m for m in input_messages if m.get("message.role") != "system"]
-                if len(non_system) == 1 and non_system[0].get("message.role") == "user":
+                if (
+                    len(non_system) == 1
+                    and non_system[0].get("message.role") == "user"
+                    and "message.contents" not in non_system[0]
+                ):
                     # Simple user message
                     input_content = non_system[0].get("message.content", "")
                     result[SpanAttributes.INPUT_VALUE] = input_content
@@ -684,32 +816,31 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
 
             if output_messages:
                 last_message = output_messages[-1]
-                content = last_message.get("message.content", "")
+                content = self._message_text(last_message)
 
                 if span_kind == "LLM":
-                    if finish_reason := last_message.get("message.finish_reason"):
-                        result[SpanAttributes.LLM_FINISH_REASON] = finish_reason
-                    if tool_calls := last_message.get("message.tool_calls"):
-                        calls = [
+                    output_structure = {
+                        "choices": [
                             {
-                                "id": call.get("tool_call.id"),
-                                "name": call.get("tool_call.function.name"),
-                                "arguments": call.get("tool_call.function.arguments"),
+                                "finish_reason": last_message.get("message.finish_reason", "stop"),
+                                "index": 0,
+                                "message": {
+                                    "content": content,
+                                    "role": last_message.get("message.role", "assistant"),
+                                },
                             }
-                            for call in tool_calls
-                        ]
-                        payload: Any = (
-                            {"content": content, "tool_calls": calls} if content else calls
-                        )
-                        result[SpanAttributes.OUTPUT_VALUE] = safe_json_dumps(payload)
-                        result[SpanAttributes.OUTPUT_MIME_TYPE] = (
-                            OpenInferenceMimeTypeValues.JSON.value
-                        )
-                    else:
-                        result[SpanAttributes.OUTPUT_VALUE] = content
-                        result[SpanAttributes.OUTPUT_MIME_TYPE] = (
-                            OpenInferenceMimeTypeValues.TEXT.value
-                        )
+                        ],
+                        "model": model_name,
+                        "usage": {
+                            "completion_tokens": result.get(
+                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+                            ),
+                            "prompt_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT),
+                            "total_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL),
+                        },
+                    }
+                    result[SpanAttributes.OUTPUT_VALUE] = safe_json_dumps(output_structure)
+                    result[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
                 else:
                     result[SpanAttributes.OUTPUT_VALUE] = content
                     result[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value

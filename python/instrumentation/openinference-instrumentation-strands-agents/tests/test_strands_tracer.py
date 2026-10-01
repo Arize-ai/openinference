@@ -33,6 +33,22 @@ ASSISTANT_MESSAGE: Any = {"role": "assistant", "content": [{"text": "Hi there."}
 USAGE: Any = {"inputTokens": 5, "outputTokens": 3, "totalTokens": 8}
 METRICS: Any = {"latencyMs": 1}
 
+
+def llm_output(content: str, finish_reason: str, model: str = "gpt-4") -> Dict[str, Any]:
+    """The `output.value` of an LLM span: the reply as a single OpenAI-style choice."""
+    return {
+        "choices": [
+            {
+                "finish_reason": finish_reason,
+                "index": 0,
+                "message": {"content": content, "role": "assistant"},
+            }
+        ],
+        "model": model,
+        "usage": {"completion_tokens": None, "prompt_tokens": None, "total_tokens": None},
+    }
+
+
 # Raw Strands attributes that hold prompt or message content.
 CONTENT_KEYS = {
     "gen_ai.system_instructions",
@@ -132,9 +148,10 @@ def test_model_span(
     )
     assert attributes.pop(SpanAttributes.INPUT_VALUE) == "Hello"
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "text/plain"
-    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hi there."
-    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "text/plain"
-    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "end_turn"
+    assert json.loads(attributes.pop(SpanAttributes.OUTPUT_VALUE)) == llm_output(
+        "Hi there.", "end_turn"
+    )
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
     assert not attributes
 
 
@@ -195,3 +212,105 @@ def test_hide_inputs_removes_the_system_prompt_everywhere(
     assert attributes[SpanAttributes.INPUT_VALUE] == REDACTED_VALUE
     assert SYSTEM_PROMPT not in json.dumps(attributes, default=str)
     assert "Hello" not in json.dumps(attributes, default=str)
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_image_only_message_is_not_dropped(
+    mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    harness = make_harness(monkeypatch, tracer_provider, in_memory_span_exporter, mode)
+    image: Any = {"image": {"format": "png", "source": {"bytes": b"\x89PNG"}}}
+    messages: Any = [{"role": "user", "content": [image]}]
+    span = harness.tracer.start_model_invoke_span(messages, model_id="gpt-4")
+    harness.tracer.end_model_invoke_span(span, ASSISTANT_MESSAGE, USAGE, METRICS, "end_turn")
+
+    attributes = openinference_attributes(harness.only_span())
+    # Strands replaces the raw bytes before they reach the span, so the block is kept as JSON.
+    placeholder = json.dumps({"image": {"format": "png", "source": {"bytes": "<replaced>"}}})
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message"
+    assert attributes.pop(f"{prefix}.role") == "user"
+    assert attributes.pop(f"{prefix}.contents.0.message_content.type") == "text"
+    assert attributes.pop(f"{prefix}.contents.0.message_content.text") == placeholder
+    pop_messages(
+        attributes,
+        SpanAttributes.LLM_OUTPUT_MESSAGES,
+        [{"role": "assistant", "content": "Hi there.", "finish_reason": "end_turn"}],
+    )
+    assert json.loads(attributes.pop(SpanAttributes.INPUT_VALUE)) == {
+        "messages": [
+            {
+                "message.role": "user",
+                "message.contents": [
+                    {"message_content.type": "text", "message_content.text": placeholder}
+                ],
+            }
+        ],
+        "model": "gpt-4",
+    }
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert json.loads(attributes.pop(SpanAttributes.OUTPUT_VALUE)) == llm_output(
+        "Hi there.", "end_turn"
+    )
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert not attributes
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_system_prompt_blocks_keep_line_breaks(
+    mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    harness = make_harness(monkeypatch, tracer_provider, in_memory_span_exporter, mode)
+    if (
+        "system_prompt_content"
+        not in inspect.signature(harness.tracer.start_model_invoke_span).parameters
+    ):
+        pytest.skip("this Strands version has no structured system prompt on model spans")
+    blocks: Any = [{"text": "Be brief."}, {"text": "No emoji."}]
+    span = harness.tracer.start_model_invoke_span(
+        USER_MESSAGES,
+        model_id="gpt-4",
+        system_prompt="Be brief.\nNo emoji.",
+        system_prompt_content=blocks,
+    )
+    harness.tracer.end_model_invoke_span(span, ASSISTANT_MESSAGE, USAGE, METRICS, "end_turn")
+
+    attributes = openinference_attributes(harness.only_span())
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message"
+    assert attributes.pop(f"{prefix}.role") == "system"
+    assert attributes.pop(f"{prefix}.content") == "Be brief.\nNo emoji."
+
+
+@pytest.mark.parametrize("kind", ["image", "video", "audio"])
+@pytest.mark.parametrize("mode", MODES)
+def test_s3_media_becomes_a_url(
+    mode: str,
+    kind: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    harness = make_harness(monkeypatch, tracer_provider, in_memory_span_exporter, mode)
+    location = {"type": "s3", "uri": "s3://bucket/cat.png"}
+    messages: Any = [
+        {
+            "role": "user",
+            "content": [{kind: {"format": "png", "source": {"location": location}}}],
+        }
+    ]
+    span = harness.tracer.start_model_invoke_span(messages, model_id="gpt-4")
+    harness.tracer.end_model_invoke_span(span, ASSISTANT_MESSAGE, USAGE, METRICS, "end_turn")
+
+    attributes = openinference_attributes(harness.only_span())
+    prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message"
+    assert attributes.pop(f"{prefix}.role") == "user"
+    assert attributes.pop(f"{prefix}.contents.0.message_content.type") == kind
+    assert (
+        attributes.pop(f"{prefix}.contents.0.message_content.{kind}.{kind}.url")
+        == "s3://bucket/cat.png"
+    )
