@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-typesafe
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
 ## 0.3.0
 
 ### Minor Changes
