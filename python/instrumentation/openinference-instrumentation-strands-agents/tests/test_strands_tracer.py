@@ -314,3 +314,54 @@ def test_s3_media_becomes_a_url(
         attributes.pop(f"{prefix}.contents.0.message_content.{kind}.{kind}.url")
         == "s3://bucket/cat.png"
     )
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_tool_span_input_and_output(
+    mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    harness = make_harness(monkeypatch, tracer_provider, in_memory_span_exporter, mode)
+    tool: Any = {"toolUseId": "call_1", "name": "get_weather", "input": {"city": "Paris"}}
+    result: Any = {"toolUseId": "call_1", "status": "success", "content": [{"text": "Sunny"}]}
+    span = harness.tracer.start_tool_call_span(tool)
+    harness.tracer.end_tool_call_span(span, result)
+
+    attributes = dict(harness.only_span().attributes or {})
+    assert attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "TOOL"
+    assert attributes[SpanAttributes.TOOL_NAME] == "get_weather"
+    assert json.loads(str(attributes[SpanAttributes.TOOL_PARAMETERS])) == {"city": "Paris"}
+    assert json.loads(str(attributes[SpanAttributes.INPUT_VALUE])) == {"city": "Paris"}
+    assert attributes[SpanAttributes.INPUT_MIME_TYPE] == "application/json"
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == "Sunny"
+    assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == "text/plain"
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        # The provider already counts the cache in inputTokens.
+        {"inputTokens": 8, "outputTokens": 2, "totalTokens": 10, "cacheReadInputTokens": 3},
+        # The provider reports the cache on top of inputTokens.
+        {"inputTokens": 5, "outputTokens": 2, "totalTokens": 10, "cacheReadInputTokens": 3},
+    ],
+)
+@pytest.mark.parametrize("mode", MODES)
+def test_cached_tokens_are_counted_once(
+    mode: str,
+    usage: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    harness = make_harness(monkeypatch, tracer_provider, in_memory_span_exporter, mode)
+    span = harness.tracer.start_model_invoke_span(USER_MESSAGES, model_id="gpt-4")
+    harness.tracer.end_model_invoke_span(span, ASSISTANT_MESSAGE, usage, METRICS, "end_turn")
+
+    attributes = dict(harness.only_span().attributes or {})
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 8
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 10
+    assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 3

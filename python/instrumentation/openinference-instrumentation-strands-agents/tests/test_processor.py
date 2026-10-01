@@ -1172,6 +1172,48 @@ class TestStrandsAgentsToOpenInferenceProcessor:
         assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 631
         assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 58291
 
+    @pytest.mark.parametrize(
+        "cache_attributes",
+        [
+            # Strands 1.34+ in its default mode: current names plus the deprecated aliases.
+            {
+                "gen_ai.usage.cache_read.input_tokens": 3,
+                "gen_ai.usage.cache_creation.input_tokens": 1,
+                "gen_ai.usage.cache_read_input_tokens": 3,
+                "gen_ai.usage.cache_write_input_tokens": 1,
+            },
+            # Latest conventions: current names only.
+            {
+                "gen_ai.usage.cache_read.input_tokens": 3,
+                "gen_ai.usage.cache_creation.input_tokens": 1,
+            },
+        ],
+    )
+    def test_cached_tokens_already_in_the_prompt_are_not_added_again(
+        self, cache_attributes: Dict[str, int]
+    ) -> None:
+        """When prompt + completion == total, the prompt count already includes the cache."""
+        processor = StrandsAgentsToOpenInferenceProcessor()
+        span = MockReadableSpan(
+            name="chat",
+            attributes={
+                "gen_ai.request.model": "gpt-4",
+                "gen_ai.system": "strands-agents",
+                "gen_ai.usage.input_tokens": 8,
+                "gen_ai.usage.output_tokens": 2,
+                "gen_ai.usage.total_tokens": 10,
+                **cache_attributes,
+            },
+        )
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        attributes = span._attributes
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 8
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 10
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 3
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] == 1
+
     def test_processor_omits_cache_details_when_zero(self) -> None:
         """Zero cache counts (Strands emits 0 when caching is unused) add no attributes."""
         processor = StrandsAgentsToOpenInferenceProcessor()
@@ -1410,6 +1452,101 @@ class TestStrandsAgentsToOpenInferenceProcessor:
         processor.on_end(span)  # type: ignore[arg-type]
 
 
+class TestLatestToolSpans:
+    """Tool spans recorded with OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental."""
+
+    BASE = {
+        "gen_ai.system": "strands-agents",
+        "gen_ai.tool.name": "weather",
+        "gen_ai.tool.call.id": "call_1",
+    }
+
+    def _assert_tool_span(self, span: MockReadableSpan, raw: Dict[str, Any]) -> None:
+        attributes = dict(span._attributes)
+        for key, value in raw.items():
+            assert attributes.pop(key) == value
+        assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "TOOL"
+        assert attributes.pop("graph.node.id") == "tool_weather_12345"
+        assert attributes.pop(SpanAttributes.TOOL_NAME) == "weather"
+        assert attributes.pop("tool.call_id") == "call_1"
+        assert json.loads(attributes.pop(SpanAttributes.TOOL_PARAMETERS)) == {"city": "Paris"}
+        prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message"
+        assert attributes.pop(f"{prefix}.role") == "assistant"
+        assert attributes.pop(f"{prefix}.content") == ""
+        call = f"{prefix}.tool_calls.0.tool_call"
+        assert attributes.pop(f"{call}.id") == "call_1"
+        assert attributes.pop(f"{call}.function.name") == "weather"
+        assert json.loads(attributes.pop(f"{call}.function.arguments")) == {"city": "Paris"}
+        assert json.loads(attributes.pop(SpanAttributes.INPUT_VALUE)) == {"city": "Paris"}
+        assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+        assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Sunny in Paris"
+        assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "text/plain"
+        assert json.loads(attributes.pop(SpanAttributes.METADATA)) == self.BASE
+        assert not attributes
+
+    def test_arguments_and_result_span_attributes(self) -> None:
+        raw = {
+            **self.BASE,
+            "gen_ai.tool.call.arguments": '{"city": "Paris"}',
+            "gen_ai.tool.call.result": '[{"text": "Sunny in Paris"}]',
+        }
+        span = MockReadableSpan(name="execute_tool weather", attributes=dict(raw))
+        StrandsAgentsToOpenInferenceProcessor().on_end(span)  # type: ignore[arg-type]
+
+        self._assert_tool_span(span, raw)
+
+    def test_operation_details_events(self) -> None:
+        """Without the result attribute (e.g. on error) the output comes from the event."""
+        span = MockReadableSpan(
+            name="execute_tool weather",
+            attributes=dict(self.BASE),
+            events=[
+                MockEvent(
+                    "gen_ai.client.inference.operation.details",
+                    {
+                        "gen_ai.input.messages": json.dumps(
+                            [
+                                {
+                                    "role": "tool",
+                                    "parts": [
+                                        {
+                                            "type": "tool_call",
+                                            "name": "weather",
+                                            "id": "call_1",
+                                            "arguments": {"city": "Paris"},
+                                        }
+                                    ],
+                                }
+                            ]
+                        )
+                    },
+                ),
+                MockEvent(
+                    "gen_ai.client.inference.operation.details",
+                    {
+                        "gen_ai.output.messages": json.dumps(
+                            [
+                                {
+                                    "role": "tool",
+                                    "parts": [
+                                        {
+                                            "type": "tool_call_response",
+                                            "id": "call_1",
+                                            "response": [{"text": "Sunny in Paris"}],
+                                        }
+                                    ],
+                                }
+                            ]
+                        )
+                    },
+                ),
+            ],
+        )
+        StrandsAgentsToOpenInferenceProcessor().on_end(span)  # type: ignore[arg-type]
+
+        self._assert_tool_span(span, self.BASE)
+
+
 class TestTraceConfigMasking:
     """The processor honors TraceConfig for everything it copies out of Strands spans."""
 
@@ -1610,6 +1747,7 @@ class TestTraceConfigMasking:
         )
         processor.on_end(span)  # type: ignore[arg-type]
 
+        # tool.parameters carries the call's argument values here, so it is hidden too.
         attributes = dict(span._attributes)
         for key in ("gen_ai.system", "gen_ai.tool.name", "gen_ai.tool.call.id"):
             assert attributes.pop(key) == raw[key]
@@ -1617,6 +1755,8 @@ class TestTraceConfigMasking:
         assert attributes.pop("graph.node.id") == "tool_weather_12345"
         assert attributes.pop(SpanAttributes.TOOL_NAME) == "weather"
         assert attributes.pop("tool.call_id") == "call_1"
+        assert attributes.pop(SpanAttributes.INPUT_VALUE) == REDACTED_VALUE
+        assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == REDACTED_VALUE
         assert json.loads(attributes.pop(SpanAttributes.METADATA)) == {
             "gen_ai.system": "strands-agents",
             "gen_ai.tool.name": "weather",

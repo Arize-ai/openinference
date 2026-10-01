@@ -33,7 +33,9 @@ from openinference.instrumentation.strands_agents.semantic_conventions import (
     GEN_AI_TOOL_CALL_ARGUMENTS,
     GEN_AI_TOOL_CALL_RESULT,
     GEN_AI_TOOL_NAME,
+    GEN_AI_USAGE_CACHE_CREATION_TOKENS,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_READ_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
@@ -176,6 +178,9 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         """Apply the TraceConfig to OpenInference attributes; hidden ones are dropped."""
         masked: Dict[str, Any] = {}
         for key, value in attrs.items():
+            if key == SpanAttributes.TOOL_PARAMETERS and self._config.hide_inputs:
+                # This processor puts the call's argument values in tool.parameters.
+                continue
             masked_value = self._config.mask(key, value)
             if masked_value is not None:
                 masked[key] = masked_value
@@ -933,10 +938,9 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         if tool_status:
             result["tool.status"] = tool_status
 
+        tool_parameters: Optional[Dict[str, Any]] = None
+        tool_output: Optional[str] = None
         if events:
-            tool_parameters = None
-            tool_output = None
-
             for event in events:
                 event_name = (
                     getattr(event, "name", "") if hasattr(event, "name") else event.get("name", "")
@@ -981,48 +985,103 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                         except (json.JSONDecodeError, TypeError):
                             tool_output = str(message)
 
-            if tool_parameters:
-                result[SpanAttributes.TOOL_PARAMETERS] = safe_json_dumps(tool_parameters)
-
-                if tool_name and tool_call_id:
-                    # For tool spans, the assistant message contains only tool_calls
-                    # (no text content). The empty content is intentional as the
-                    # tool call itself IS the message payload.
-                    input_messages = [
-                        {
-                            "message.role": "assistant",
-                            "message.content": "",
-                            "message.tool_calls": [
-                                {
-                                    "tool_call.id": tool_call_id,
-                                    "tool_call.function.name": tool_name,
-                                    "tool_call.function.arguments": safe_json_dumps(
-                                        tool_parameters
-                                    ),
-                                }
-                            ],
-                        }
-                    ]
-
-                    self._flatten_messages(
-                        input_messages, SpanAttributes.LLM_INPUT_MESSAGES, result
+                # Latest GenAI conventions: the call and its response are tool messages.
+                if tool_parameters is None and GEN_AI_INPUT_MESSAGES in event_attrs:
+                    tool_parameters = self._latest_tool_arguments(
+                        event_attrs.get(GEN_AI_INPUT_MESSAGES)
                     )
+                if tool_output is None and GEN_AI_OUTPUT_MESSAGES in event_attrs:
+                    tool_output = self._latest_tool_output(event_attrs.get(GEN_AI_OUTPUT_MESSAGES))
 
-                if isinstance(tool_parameters, dict):
-                    if "text" in tool_parameters:
-                        result[SpanAttributes.INPUT_VALUE] = tool_parameters["text"]
-                        result[SpanAttributes.INPUT_MIME_TYPE] = (
-                            OpenInferenceMimeTypeValues.TEXT.value
-                        )
-                    else:
-                        result[SpanAttributes.INPUT_VALUE] = safe_json_dumps(tool_parameters)
-                        result[SpanAttributes.INPUT_MIME_TYPE] = (
-                            OpenInferenceMimeTypeValues.JSON.value
-                        )
+        # Latest GenAI conventions also record them as span attributes.
+        if tool_parameters is None:
+            tool_parameters = self._tool_arguments(
+                attrs.get(GEN_AI_TOOL_CALL_ARGUMENTS)
+            ) or self._latest_tool_arguments(attrs.get(GEN_AI_INPUT_MESSAGES))
+        if tool_output is None:
+            tool_output = self._tool_result_text(
+                attrs.get(GEN_AI_TOOL_CALL_RESULT)
+            ) or self._latest_tool_output(attrs.get(GEN_AI_OUTPUT_MESSAGES))
 
-            if tool_output:
-                result[SpanAttributes.OUTPUT_VALUE] = tool_output
-                result[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
+        if tool_parameters:
+            result[SpanAttributes.TOOL_PARAMETERS] = safe_json_dumps(tool_parameters)
+
+            if tool_name and tool_call_id:
+                # For tool spans, the assistant message contains only tool_calls
+                # (no text content). The empty content is intentional as the
+                # tool call itself IS the message payload.
+                input_messages = [
+                    {
+                        "message.role": "assistant",
+                        "message.content": "",
+                        "message.tool_calls": [
+                            {
+                                "tool_call.id": tool_call_id,
+                                "tool_call.function.name": tool_name,
+                                "tool_call.function.arguments": safe_json_dumps(tool_parameters),
+                            }
+                        ],
+                    }
+                ]
+
+                self._flatten_messages(input_messages, SpanAttributes.LLM_INPUT_MESSAGES, result)
+
+            if isinstance(tool_parameters, dict):
+                if "text" in tool_parameters:
+                    result[SpanAttributes.INPUT_VALUE] = tool_parameters["text"]
+                    result[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
+                else:
+                    result[SpanAttributes.INPUT_VALUE] = safe_json_dumps(tool_parameters)
+                    result[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+
+        if tool_output:
+            result[SpanAttributes.OUTPUT_VALUE] = tool_output
+            result[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
+
+    @staticmethod
+    def _tool_arguments(value: Any) -> Optional[Dict[str, Any]]:
+        """Tool call arguments as a dict, the way legacy tool messages are read."""
+        if value is None or value == "":
+            return None
+        try:
+            data = json.loads(value) if isinstance(value, str) else value
+        except (json.JSONDecodeError, TypeError):
+            return {"input": str(value)}
+        return data if isinstance(data, dict) else {"input": str(data)}
+
+    def _tool_result_text(self, value: Any) -> Optional[str]:
+        if value is None or value == "":
+            return None
+        try:
+            data = json.loads(value) if isinstance(value, str) else value
+        except (json.JSONDecodeError, TypeError):
+            return str(value)
+        return self._tool_response_text(data)
+
+    @staticmethod
+    def _latest_tool_part(value: Any, part_type: str) -> Optional[Dict[str, Any]]:
+        """First part of the given type in a gen_ai.input/output.messages value."""
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                return None
+        for message in value if isinstance(value, list) else []:
+            parts = message.get("parts") if isinstance(message, dict) else None
+            for part in parts if isinstance(parts, list) else []:
+                if isinstance(part, dict) and part.get("type") == part_type:
+                    return part
+        return None
+
+    def _latest_tool_arguments(self, value: Any) -> Optional[Dict[str, Any]]:
+        part = self._latest_tool_part(value, "tool_call")
+        return self._tool_arguments(part.get("arguments")) if part else None
+
+    def _latest_tool_output(self, value: Any) -> Optional[str]:
+        part = self._latest_tool_part(value, "tool_call_response")
+        if part is None or part.get("response") is None:
+            return None
+        return self._tool_response_text(part["response"])
 
     def _map_tools(self, tools_data: Any, result: Dict[str, Any]) -> None:
         """Map tools from Strands to OpenInference format."""
@@ -1060,18 +1119,29 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
             if value is not None:
                 result[openinf_key] = value
 
-        cache_read = attrs.get(GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS) or 0
-        cache_write = attrs.get(GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS) or 0
+        cache_read = (
+            attrs.get(GEN_AI_USAGE_CACHE_READ_TOKENS)
+            or attrs.get(GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS)
+            or 0
+        )
+        cache_write = (
+            attrs.get(GEN_AI_USAGE_CACHE_CREATION_TOKENS)
+            or attrs.get(GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS)
+            or 0
+        )
         if cache_read:
             result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read
         if cache_write:
             result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cache_write
         if cache_read or cache_write:
-            # Strands' input token count excludes cache reads/writes, but the
-            # OpenInference prompt aggregate includes its prompt_details breakdown
-            # (so prompt + completion == total).
-            input_tokens = result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) or 0
-            result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = input_tokens + cache_read + cache_write
+            # The OpenInference prompt count includes its cached tokens. Strands 1.34+ and some
+            # providers already count them in the input tokens; the totals tell which, the same
+            # way Strands decides it: prompt + completion == total means they are included.
+            prompt = result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) or 0
+            completion = result.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) or 0
+            total = result.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
+            if total is None or prompt + completion != total:
+                result[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = prompt + cache_read + cache_write
 
     def _map_invocation_parameters(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
         params = {}

@@ -41,7 +41,9 @@ __all__ = [
     "GEN_AI_SYSTEM_INSTRUCTIONS",
     "GEN_AI_TOOL_CALL_ARGUMENTS",
     "GEN_AI_TOOL_CALL_RESULT",
+    "GEN_AI_USAGE_CACHE_CREATION_TOKENS",
     "GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS",
+    "GEN_AI_USAGE_CACHE_READ_TOKENS",
     "GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS",
     "GenAIAttributes",
     "GenAIEventNames",
@@ -60,6 +62,9 @@ GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
 GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
 # Prompt-cache usage attribute keys emitted by the Strands tracer
+GEN_AI_USAGE_CACHE_READ_TOKENS = "gen_ai.usage.cache_read.input_tokens"
+GEN_AI_USAGE_CACHE_CREATION_TOKENS = "gen_ai.usage.cache_creation.input_tokens"
+# Deprecated names: the only ones before Strands 1.34, not emitted under the latest conventions
 GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read_input_tokens"
 GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write_input_tokens"
 

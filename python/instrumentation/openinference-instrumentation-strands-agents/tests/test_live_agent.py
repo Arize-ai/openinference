@@ -235,7 +235,10 @@ def test_agent_with_system_prompt_and_tool(
     assert not attributes
 
     (tool_span,) = spans_of_kind(in_memory_span_exporter, "TOOL")
-    assert (tool_span.attributes or {})[SpanAttributes.TOOL_NAME] == "get_weather"
+    tool_attributes = dict(tool_span.attributes or {})
+    assert tool_attributes[SpanAttributes.TOOL_NAME] == "get_weather"
+    assert json.loads(str(tool_attributes[SpanAttributes.INPUT_VALUE])) == {"city": "Paris"}
+    assert tool_attributes[SpanAttributes.OUTPUT_VALUE] == WEATHER
 
 
 @pytest.mark.vcr
