@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
 ## 0.5.3
 
 ### Patch Changes
