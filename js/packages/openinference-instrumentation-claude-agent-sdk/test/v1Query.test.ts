@@ -310,4 +310,132 @@ describe("V1 query() wrapper", () => {
     const spans = exporter.getFinishedSpans();
     expect(spans[0].attributes).not.toHaveProperty(SemanticConventions.LLM_FINISH_REASON);
   });
+  it("returns the SDK Query object with its control methods intact (#3774)", async () => {
+    // The real SDK returns a Query: an AsyncGenerator carrying control methods
+    // such as interrupt() and setPermissionMode(). Mirror that shape.
+    const calls: string[] = [];
+    const messages = [
+      {
+        type: "system",
+        subtype: "init",
+        session_id: "sess-q",
+        model: "claude-sonnet-4-20250514",
+        tools: [],
+      },
+      {
+        type: "result",
+        subtype: "success",
+        result: "done",
+        stop_reason: "end_turn",
+        usage: { input_tokens: 1, output_tokens: 1 },
+        total_cost_usd: 0.001,
+        num_turns: 1,
+        duration_ms: 1,
+        session_id: "sess-q",
+      },
+    ];
+    const mockModule = {
+      query: function (_params: { prompt: string; options?: Record<string, unknown> }) {
+        let index = 0;
+        const query = {
+          async next() {
+            return index < messages.length
+              ? { done: false, value: messages[index++] }
+              : { done: true, value: undefined };
+          },
+          async return() {
+            return { done: true, value: undefined };
+          },
+          async throw(error: unknown) {
+            throw error;
+          },
+          [Symbol.asyncIterator]() {
+            return query;
+          },
+          async interrupt() {
+            calls.push("interrupt");
+          },
+          async setPermissionMode(mode: string) {
+            calls.push(`setPermissionMode:${mode}`);
+          },
+        };
+        return query;
+      },
+    };
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    const q = mockModule.query({ prompt: "Say hello" });
+    expect(typeof q.interrupt).toBe("function");
+    expect(typeof q.setPermissionMode).toBe("function");
+
+    await q.setPermissionMode("plan");
+    for await (const _msg of q) {
+      // consume
+    }
+    await q.interrupt();
+    expect(calls).toEqual(["setPermissionMode:plan", "interrupt"]);
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("ClaudeAgent.query");
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+    expect(spans[0].attributes[SemanticConventions.OUTPUT_VALUE]).toBe("done");
+  });
+
+  it("traces iteration driven through next()/return() on the returned object (#3774)", async () => {
+    const mockModule = createMockModule([
+      {
+        type: "system",
+        subtype: "init",
+        session_id: "sess-123",
+        model: "claude-sonnet-4-20250514",
+        tools: [],
+      },
+      {
+        type: "result",
+        subtype: "success",
+        result: "Hello, world!",
+        usage: { input_tokens: 1, output_tokens: 1 },
+        total_cost_usd: 0.001,
+        num_turns: 1,
+        duration_ms: 1,
+        session_id: "sess-123",
+      },
+    ]);
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    // Query extends AsyncGenerator, so callers may drive it by hand.
+    const q = mockModule.query({ prompt: "Say hello" }) as unknown as AsyncGenerator<unknown, void>;
+    const first = await q.next();
+    expect(first.done).toBe(false);
+    await q.return(undefined);
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("ClaudeAgent.query");
+    expect(spans[0].status.code).toBe(SpanStatusCode.OK);
+  });
+
+  it("calls the SDK query() when the wrapper is called, not when iteration begins (#3774)", () => {
+    // Unwrapped, query() spawns the Claude Code process at call time, and the
+    // Query object it returns has to exist for the wrapper to hand it back.
+    let calls = 0;
+    const mockModule = {
+      query: (_params: { prompt: string; options?: Record<string, unknown> }) => {
+        calls++;
+        return {
+          [Symbol.asyncIterator]() {
+            return { next: async () => ({ done: true as const, value: undefined }) };
+          },
+        };
+      },
+    };
+
+    instrumentation.manuallyInstrument(mockModule);
+
+    mockModule.query({ prompt: "Say hello" });
+    expect(calls).toBe(1);
+  });
 });
