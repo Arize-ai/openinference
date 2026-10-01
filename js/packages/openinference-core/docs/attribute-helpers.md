@@ -8,6 +8,7 @@ calling `span.setAttributes()` on the active span.
 ```typescript
 import {
   getLLMAttributes,
+  getDecisionAttributes,
   getEmbeddingAttributes,
   getRetrieverAttributes,
   getAnnotationAttributes,
@@ -222,6 +223,79 @@ getLLMAttributes({
     },
   ],
 });
+```
+
+## getDecisionAttributes
+
+Generates attributes for DECISION operations: calls to a decision model that
+scores or selects among candidate options supplied in the request rather than
+generating free-form text (route selection, yes/no judgements, rubric scoring).
+Decision spans identify the model under the `decision.*` namespace instead of
+`llm.*`; see the [decision spans specification](../../../../spec/decision_spans.md).
+
+### Signature
+
+```typescript
+function getDecisionAttributes(options: {
+  provider?: string;              // Who hosts the model, e.g. "typesafe", "openai" (decision.provider)
+  system?: string;                // Decision API ecosystem, e.g. "typesafe", "openai" (decision.system)
+  modelName?: string;             // e.g., "jev-1.13.0" (decision.model_name)
+  requestModelName?: string;      // Model requested by the caller (decision.request.model_name)
+  responseModelName?: string;     // Model that produced the decision (decision.response.model_name)
+  tokenCount?: DecisionTokenCount; // Token usage
+}): Attributes;
+```
+
+The options mirror `getLLMAttributes` and follow the same rules: `provider` and
+`system` are lowercased, and `decision.model_name` mirrors
+`responseModelName ?? requestModelName` whenever `modelName` is not passed
+explicitly. Well-known `system` and `provider` values are `DecisionSystem` and
+`DecisionProvider` from `@arizeai/openinference-semantic-conventions`; they alias
+the matching `LLMSystem` and `LLMProvider` values.
+
+Decision spans have no input or output messages. Record the raw request and
+response (including the candidate options and the returned scores) with
+`input.value` / `output.value`, which the default processors already do.
+
+### DecisionTokenCount Type
+
+```typescript
+interface DecisionTokenCount {
+  input?: number;  // tokens consumed: state, questions, and candidate options
+  output?: number; // tokens in the typed answers; usually small
+}
+```
+
+There is no prompt/completion split and no total: a total is derivable as the
+sum when both counts are present. Only set a count the API actually reports.
+
+### Example
+
+```typescript
+import {
+  defaultProcessInput,
+  defaultProcessOutput,
+  getDecisionAttributes,
+  traceDecision,
+} from "@arizeai/openinference-core";
+
+const tracedChoose = traceDecision(
+  async (request: SystemOneRequest) => client.systemOne.create(request),
+  {
+    name: "route-selection",
+    processInput: (request) => ({
+      ...defaultProcessInput(request),
+      ...getDecisionAttributes({ system: "typesafe", requestModelName: request.model }),
+    }),
+    processOutput: (response) => ({
+      ...defaultProcessOutput(response),
+      ...getDecisionAttributes({
+        responseModelName: response.model,
+        tokenCount: { input: response.usage.input_tokens, output: response.usage.output_tokens },
+      }),
+    }),
+  },
+);
 ```
 
 ## getEmbeddingAttributes

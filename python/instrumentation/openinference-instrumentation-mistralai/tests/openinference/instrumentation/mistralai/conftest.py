@@ -1,3 +1,4 @@
+from importlib.util import find_spec
 from typing import Any, Dict, Generator, List
 
 import pytest
@@ -9,6 +10,23 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.mistralai import MistralAIInstrumentor
+
+if find_spec("httpcore2") is not None:
+    # mistralai>=3.0 performs HTTP through httpx2/httpcore2, forks of httpx/httpcore
+    # with the same transport interface. respx only patches httpcore, so without
+    # this the respx-mocked tests would send real requests under the newer SDK.
+    # Teach respx's default mocker about the httpcore2 transports as well; the
+    # request/response objects have the same shape, so its conversions work for
+    # both. (vcrpy already patches httpx2, so the cassette tests need nothing.)
+    from respx.mocks import HTTPCoreMocker
+
+    HTTPCoreMocker.add_targets(
+        *[
+            target.replace("httpcore.", "httpcore2.", 1)
+            for target in HTTPCoreMocker.targets
+            if target.startswith("httpcore.")
+        ]
+    )
 
 
 def _strip_request_headers(request: Any) -> Any:
