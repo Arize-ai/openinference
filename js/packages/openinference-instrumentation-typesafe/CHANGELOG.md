@@ -1,5 +1,17 @@
 # @arizeai/openinference-instrumentation-typesafe
 
+## 0.3.0
+
+### Minor Changes
+
+- 565edea: Record `TypeSafeClient.systemOne` calls as `DECISION` spans instead of `LLM` spans. System One scores or selects among the candidate options supplied in the request rather than generating free-form text, which is what the new `DECISION` span kind describes. The `llm.*` attributes (provider, system, model names, invocation parameters, token counts) are unchanged.
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-core@2.7.3
+
 ## 0.2.1
 
 ### Patch Changes
