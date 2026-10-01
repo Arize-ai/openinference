@@ -56,8 +56,7 @@ class SemanticConventionsTest {
             assertThat(system.toString()).isEqualTo(system.getLLMSystem().getValue());
         }
         for (SemanticConventions.DecisionProvider provider : SemanticConventions.DecisionProvider.values()) {
-            assertThat(provider.getLLMProvider())
-                    .isEqualTo(SemanticConventions.LLMProvider.valueOf(provider.name()));
+            assertThat(provider.getLLMProvider()).isEqualTo(SemanticConventions.LLMProvider.valueOf(provider.name()));
             assertThat(provider.toString()).isEqualTo(provider.getLLMProvider().getValue());
         }
         assertThat(SemanticConventions.LLMSystem.TYPESAFE.getValue()).isEqualTo("typesafe");
