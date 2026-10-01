@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-together-v0.1.9...python-openinference-instrumentation-together-v0.1.10) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+* **together:** keep multimodal input message content on spans ([#3843](https://github.com/Arize-ai/openinference/issues/3843)) ([732eec1](https://github.com/Arize-ai/openinference/commit/732eec1b0d7e5c753f22ea9ac328132003372dd1))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-together-v0.1.8...python-openinference-instrumentation-together-v0.1.9) (2026-09-10)
 
 

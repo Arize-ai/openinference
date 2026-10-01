@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.19...python-openinference-instrumentation-portkey-v0.1.20) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+* **portkey:** keep multimodal input message content on spans ([#3842](https://github.com/Arize-ai/openinference/issues/3842)) ([ce50232](https://github.com/Arize-ai/openinference/commit/ce50232abbafc833d67dcc14ec248df2b8664f56))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.18...python-openinference-instrumentation-portkey-v0.1.19) (2026-09-10)
 
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.67](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.66...python-openinference-instrumentation-v0.1.67) (2026-10-01)
+
+
+### Features
+
+* **semconv:** add DECISION span kind ([#3825](https://github.com/Arize-ai/openinference/issues/3825)) ([a1f276c](https://github.com/Arize-ai/openinference/commit/a1f276cdbe16ceed207973b461074410846a4cfc))
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+
 ## [0.1.66](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.65...python-openinference-instrumentation-v0.1.66) (2026-09-24)
 
 
