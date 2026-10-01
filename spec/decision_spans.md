@@ -34,6 +34,8 @@ Decision spans typically include:
 - `input.mime_type`: Usually "application/json"
 - `output.value`: The raw response as a JSON string, including the selection or scores
 - `output.mime_type`: Usually "application/json"
+- `decision.token_count.input`: Number of input tokens consumed (state, questions, and candidate options)
+- `decision.token_count.output`: Number of output tokens produced; typically small because the answers are typed values, not text
 
 ## Model Identification
 
@@ -70,9 +72,19 @@ When a well-known value exists for the ecosystem (`typesafe`, `openai`), it MUST
 - `decision.request.model_name` and `decision.response.model_name` are optional. Set them only when the response distinguishes the requested model from the model that served it, for example when the caller requests a floating alias (`jev-latest`) and the provider reports the pinned version that answered (`jev-1.13.0`).
 - `decision.model_name` SHOULD equal `decision.response.model_name` when known, falling back to `decision.request.model_name` otherwise, so consumers that only read `decision.model_name` see the most specific model identifier available.
 
+## Token Counts
+
+Decision spans record token usage with `decision.token_count.input` and `decision.token_count.output` when the API reports it. Both are integers.
+
+- `decision.token_count.input` counts the tokens the model consumed: the state, the questions, and any candidate options or rubric levels. For TypeSafe System One responses this is `usage.input_tokens`.
+- `decision.token_count.output` counts the tokens that make up the returned answers. Because decision models return typed values with probabilities rather than generated text, this is usually a handful of tokens per question, and some providers do not bill for it at all. For TypeSafe System One responses this is `usage.output_tokens`.
+- There is no `prompt` / `completion` split and no `total` attribute: decision models have no chat-style prompt and completion, and a total is derivable as the sum of the two counts when both are present. Only set a count the API actually reports; do not infer one.
+
+Decision spans SHOULD NOT reuse `llm.token_count.*`. Keeping decision usage in its own namespace lets consumers price decision models from their own catalogue (for example [models.dev](https://models.dev/models/typesafe/jev-latest/) for Jev, where output tokens are free) instead of applying LLM pricing to them. The [Transition Note](#transition-note) below applies to instrumentations that still emit `llm.token_count.*` for decision models.
+
 ## Attributes Not Used in Decision Spans
 
-Decision spans SHOULD NOT set `llm.system`, `llm.provider`, `llm.model_name`, `llm.request.model_name`, or `llm.response.model_name`. Those attributes identify language models; using them on decision spans conflates decision model usage with LLM usage in downstream analytics such as model-level cost and token reporting.
+Decision spans SHOULD NOT set `llm.system`, `llm.provider`, `llm.model_name`, `llm.request.model_name`, `llm.response.model_name`, or the `llm.token_count.*` attributes. Those attributes identify language models; using them on decision spans conflates decision model usage with LLM usage in downstream analytics such as model-level cost and token reporting.
 
 ### Transition Note
 
@@ -84,7 +96,7 @@ Decision spans inherit the same context attributes as every other OpenInference 
 
 ## Example
 
-A TypeSafe System One call that asks Jev one Noul (yes/no) question about a piece of state. The call goes directly to TypeSafe, so `decision.system` and `decision.provider` are both `typesafe`. The caller requested the `jev-latest` alias and the provider answered with `jev-1.13.0`, so both model attributes are set and `decision.model_name` carries the resolved version.
+A TypeSafe System One call that asks Jev one Noul (yes/no) question about a piece of state. The call goes directly to TypeSafe, so `decision.system` and `decision.provider` are both `typesafe`. The caller requested the `jev-latest` alias and the provider answered with `jev-1.13.0`, so both model attributes are set and `decision.model_name` carries the resolved version. The response's `usage` block supplies the token counts.
 
 ```
 openinference.span.kind = "DECISION"
@@ -93,10 +105,12 @@ decision.provider = "typesafe"
 decision.request.model_name = "jev-latest"
 decision.response.model_name = "jev-1.13.0"
 decision.model_name = "jev-1.13.0"
+decision.token_count.input = 412
+decision.token_count.output = 2
 input.mime_type = "application/json"
 input.value = "{\"model\": \"jev-latest\", \"state\": \"The assistant replied: 'Per the 2024 audit (p. 12), revenue grew 8%.'\", \"questions\": {\"cites_source\": {\"type\": \"noul\", \"question\": \"Does the response cite a source?\"}}}"
 output.mime_type = "application/json"
-output.value = "{\"model\": \"jev-1.13.0\", \"answers\": {\"cites_source\": {\"answer\": true, \"probability\": 0.93}}}"
+output.value = "{\"model\": \"jev-1.13.0\", \"answers\": {\"cites_source\": {\"answer\": true, \"probability\": 0.93}}, \"usage\": {\"input_tokens\": 412, \"output_tokens\": 2}}"
 ```
 
 ## References

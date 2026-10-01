@@ -133,6 +133,18 @@ class SpanAttributes:
     model. Well-known values are OpenInferenceDecisionSystemValues, which alias
     the matching OpenInferenceLLMSystemValues.
     """
+    DECISION_TOKEN_COUNT_INPUT = "decision.token_count.input"
+    """
+    The number of input tokens consumed by a decision model call: the state,
+    questions, and candidate options. Maps to usage.input_tokens in TypeSafe
+    System One responses.
+    """
+    DECISION_TOKEN_COUNT_OUTPUT = "decision.token_count.output"
+    """
+    The number of output tokens produced by a decision model call. Decision
+    models emit typed answers rather than text, so this is typically small.
+    Maps to usage.output_tokens in TypeSafe System One responses.
+    """
     LLM_PROMPTS = "llm.prompts"
     """
     Prompts provided to a completions API. Use indexed format with nested structure.

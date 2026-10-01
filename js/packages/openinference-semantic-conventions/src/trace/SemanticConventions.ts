@@ -58,6 +58,7 @@ export const DecisionAttributePostfixes = {
   model_name: "model_name",
   request: "request",
   response: "response",
+  token_count: "token_count",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -351,6 +352,22 @@ export const DECISION_PROVIDER =
  */
 export const DECISION_SYSTEM =
   `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.system}` as const;
+
+/**
+ * The number of input tokens consumed by a decision model call: the state,
+ * questions, and candidate options. Maps to usage.input_tokens in TypeSafe
+ * System One responses.
+ */
+export const DECISION_TOKEN_COUNT_INPUT =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.token_count}.input` as const;
+
+/**
+ * The number of output tokens produced by a decision model call. Decision
+ * models emit typed answers rather than text, so this is typically small.
+ * Maps to usage.output_tokens in TypeSafe System One responses.
+ */
+export const DECISION_TOKEN_COUNT_OUTPUT =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.token_count}.output` as const;
 
 /** Token count for the completion by the llm (in tokens) */
 export const LLM_TOKEN_COUNT_COMPLETION =
@@ -884,6 +901,8 @@ export const SemanticConventions = {
   DECISION_RESPONSE_MODEL_NAME,
   DECISION_SYSTEM,
   DECISION_PROVIDER,
+  DECISION_TOKEN_COUNT_INPUT,
+  DECISION_TOKEN_COUNT_OUTPUT,
   LLM_TOOLS,
   LLM_FINISH_REASON,
   LLM_COST,

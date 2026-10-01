@@ -43,6 +43,8 @@ class SemanticConventionsTest {
         assertThat(SemanticConventions.DECISION_RESPONSE_MODEL_NAME).isEqualTo("decision.response.model_name");
         assertThat(SemanticConventions.DECISION_PROVIDER).isEqualTo("decision.provider");
         assertThat(SemanticConventions.DECISION_SYSTEM).isEqualTo("decision.system");
+        assertThat(SemanticConventions.DECISION_TOKEN_COUNT_INPUT).isEqualTo("decision.token_count.input");
+        assertThat(SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT).isEqualTo("decision.token_count.output");
     }
 
     @Test

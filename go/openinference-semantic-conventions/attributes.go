@@ -147,6 +147,17 @@ const (
 	// Well-known values are the DecisionSystem* constants, which alias the
 	// matching LLMSystem* constants.
 	DecisionSystem = "decision.system"
+
+	// DecisionTokenCountInput is the number of input tokens consumed by a
+	// decision model call: the state, questions, and candidate options. Maps
+	// to usage.input_tokens in TypeSafe System One responses.
+	DecisionTokenCountInput = "decision.token_count.input"
+
+	// DecisionTokenCountOutput is the number of output tokens produced by a
+	// decision model call. Decision models emit typed answers rather than
+	// text, so this is typically small. Maps to usage.output_tokens in
+	// TypeSafe System One responses.
+	DecisionTokenCountOutput = "decision.token_count.output"
 )
 
 // Token-count attributes for LLM spans. Values are integer counts of tokens.

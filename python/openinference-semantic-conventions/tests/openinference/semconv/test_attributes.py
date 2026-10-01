@@ -97,6 +97,10 @@ class TestSpanAttributes:
                     "model_name": SpanAttributes.DECISION_RESPONSE_MODEL_NAME,
                 },
                 "system": SpanAttributes.DECISION_SYSTEM,
+                "token_count": {
+                    "input": SpanAttributes.DECISION_TOKEN_COUNT_INPUT,
+                    "output": SpanAttributes.DECISION_TOKEN_COUNT_OUTPUT,
+                },
             },
             "embedding": {
                 "embeddings": SpanAttributes.EMBEDDING_EMBEDDINGS,

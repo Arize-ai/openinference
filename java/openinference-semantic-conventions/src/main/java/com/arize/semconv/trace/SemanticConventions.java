@@ -63,6 +63,7 @@ public class SemanticConventions {
         public static final String MODEL_NAME = "model_name";
         public static final String REQUEST = "request";
         public static final String RESPONSE = "response";
+        public static final String TOKEN_COUNT = "token_count";
     }
 
     @UtilityClass
@@ -402,6 +403,21 @@ public class SemanticConventions {
      */
     public static final String DECISION_SYSTEM =
             SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.SYSTEM;
+
+    /**
+     * The number of input tokens consumed by a decision model call: the state, questions, and candidate
+     * options. Maps to usage.input_tokens in TypeSafe System One responses.
+     */
+    public static final String DECISION_TOKEN_COUNT_INPUT =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.TOKEN_COUNT + ".input";
+
+    /**
+     * The number of output tokens produced by a decision model call. Decision models emit typed answers
+     * rather than text, so this is typically small. Maps to usage.output_tokens in TypeSafe System One
+     * responses.
+     */
+    public static final String DECISION_TOKEN_COUNT_OUTPUT =
+            SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.TOKEN_COUNT + ".output";
 
     /** Token count for the completion by the llm (in tokens) */
     public static final String LLM_TOKEN_COUNT_COMPLETION =
