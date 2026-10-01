@@ -2,6 +2,7 @@ import type { Attributes } from "@opentelemetry/api";
 import type { RequestOptions, SystemOneRequest } from "@typesafe-ai/sdk";
 
 import {
+  getDecisionAttributes,
   getInputAttributes,
   getLLMAttributes,
   getOutputAttributes,
@@ -13,15 +14,15 @@ import { MimeType } from "@arizeai/openinference-semantic-conventions";
 /**
  * Builds OpenInference attributes for a `systemOne` request.
  *
- * Serializes `request` onto `input.value` and records the resolved model plus
- * invocation parameters from `options` (timeout and retry only; headers and
- * abort signals are omitted).
+ * Serializes `request` onto `input.value`, records the resolved model as
+ * `decision.request.model_name`, and records invocation parameters from
+ * `options` (timeout and retry only; headers and abort signals are omitted).
  *
  * @param args - Attribute source values for the outbound call.
  * @param args.request - The `systemOne` request body.
  * @param args.options - Optional per-call request options.
  * @param args.defaultModel - Client default model when `request.model` is unset.
- * @returns OpenInference input and LLM request attributes.
+ * @returns OpenInference input, decision request, and invocation parameter attributes.
  */
 function getRequestAttributes({
   request,
@@ -39,8 +40,8 @@ function getRequestAttributes({
       value: safelyJSONStringify(request) ?? "",
       mimeType: MimeType.JSON,
     }),
+    ...getDecisionAttributes({ requestModelName: model }),
     ...getLLMAttributes({
-      requestModelName: model,
       invocationParameters: {
         model,
         timeout: options?.timeout,
@@ -65,11 +66,11 @@ function asString(value: unknown): string | undefined {
  * Builds OpenInference attributes for a parsed `systemOne` response.
  *
  * Serializes `result` onto `output.value`. When `result` is an object, also
- * records `llm.response.model_name` and token counts from `usage` when those
- * fields are present.
+ * records `decision.response.model_name` and `decision.token_count.*` from
+ * `usage` when those fields are present.
  *
  * @param result - The parsed `systemOne` response body.
- * @returns OpenInference output and LLM response attributes.
+ * @returns OpenInference output and decision response attributes.
  */
 function getResponseAttributes(result: unknown): Attributes {
   const output = getOutputAttributes({
@@ -79,17 +80,14 @@ function getResponseAttributes(result: unknown): Attributes {
   if (!isObjectWithStringKeys(result)) return output;
 
   const usage = isObjectWithStringKeys(result.usage) ? result.usage : undefined;
-  const prompt = asNumber(usage?.input_tokens);
-  const completion = asNumber(usage?.output_tokens);
 
   return {
     ...output,
-    ...getLLMAttributes({
+    ...getDecisionAttributes({
       responseModelName: asString(result.model),
       tokenCount: {
-        prompt,
-        completion,
-        total: prompt != null && completion != null ? prompt + completion : undefined,
+        input: asNumber(usage?.input_tokens),
+        output: asNumber(usage?.output_tokens),
       },
     }),
   };

@@ -102,11 +102,11 @@ describe("TypeSafeInstrumentation", () => {
     expect(spans[0].status).toEqual({ code: SpanStatusCode.OK });
     expect(spans[0].attributes).toEqual({
       "openinference.span.kind": "DECISION",
-      "llm.provider": "typesafe",
-      "llm.system": "typesafe",
-      "llm.model_name": "jev-resolved",
-      "llm.request.model_name": "jev-default",
-      "llm.response.model_name": "jev-resolved",
+      "decision.provider": "typesafe",
+      "decision.system": "typesafe",
+      "decision.model_name": "jev-resolved",
+      "decision.request.model_name": "jev-default",
+      "decision.response.model_name": "jev-resolved",
       "llm.invocation_parameters": JSON.stringify({
         model: "jev-default",
         timeout: 5000,
@@ -116,9 +116,8 @@ describe("TypeSafeInstrumentation", () => {
       "input.mime_type": "application/json",
       "output.value": JSON.stringify(result),
       "output.mime_type": "application/json",
-      "llm.token_count.prompt": 42,
-      "llm.token_count.completion": 7,
-      "llm.token_count.total": 49,
+      "decision.token_count.input": 42,
+      "decision.token_count.output": 7,
     });
   });
 
@@ -128,29 +127,26 @@ describe("TypeSafeInstrumentation", () => {
       const { client } = makeClient({ ...result, model: undefined });
       await client.systemOne({ ...request, model });
       const attributes = exporter.getFinishedSpans()[0].attributes;
-      expect(attributes["llm.model_name"]).toBe(model ?? "jev-default");
-      expect(attributes["llm.request.model_name"]).toBe(model ?? "jev-default");
-      expect(attributes["llm.response.model_name"]).toBeUndefined();
+      expect(attributes["decision.model_name"]).toBe(model ?? "jev-default");
+      expect(attributes["decision.request.model_name"]).toBe(model ?? "jev-default");
+      expect(attributes["decision.response.model_name"]).toBeUndefined();
     },
   );
 
   it.each([
-    [undefined, undefined, undefined, undefined],
-    [{}, undefined, undefined, undefined],
-    [{ input_tokens: 0 }, 0, undefined, undefined],
-    [{ output_tokens: 5 }, undefined, 5, undefined],
-    [{ input_tokens: null, output_tokens: 5 }, undefined, 5, undefined],
-    [{ input_tokens: 0, output_tokens: 0 }, 0, 0, 0],
-  ])(
-    "handles partial usage %j without inventing token counts",
-    async (usage, prompt, completion, total) => {
-      await makeClient({ ...result, usage }).client.systemOne(request);
-      const attributes = exporter.getFinishedSpans()[0].attributes;
-      expect(attributes["llm.token_count.prompt"]).toBe(prompt);
-      expect(attributes["llm.token_count.completion"]).toBe(completion);
-      expect(attributes["llm.token_count.total"]).toBe(total);
-    },
-  );
+    [undefined, undefined, undefined],
+    [{}, undefined, undefined],
+    [{ input_tokens: 0 }, 0, undefined],
+    [{ output_tokens: 5 }, undefined, 5],
+    [{ input_tokens: null, output_tokens: 5 }, undefined, 5],
+    [{ input_tokens: 0, output_tokens: 0 }, 0, 0],
+  ])("handles partial usage %j without inventing token counts", async (usage, input, output) => {
+    await makeClient({ ...result, usage }).client.systemOne(request);
+    const attributes = exporter.getFinishedSpans()[0].attributes;
+    expect(attributes["decision.token_count.input"]).toBe(input);
+    expect(attributes["decision.token_count.output"]).toBe(output);
+    expect(Object.keys(attributes).some((key) => key.startsWith("llm.token_count"))).toBe(false);
+  });
 
   it("preserves APIPromise, withResponse, map, and a single cached SDK parse", async () => {
     const { client, fetch } = makeClient();
@@ -188,7 +184,7 @@ describe("TypeSafeInstrumentation", () => {
       expect(await response.json()).toEqual(result);
       await vi.waitFor(() => {
         expect(exporter.getFinishedSpans()).toHaveLength(1);
-        expect(exporter.getFinishedSpans()[0].attributes["llm.token_count.total"]).toBe(49);
+        expect(exporter.getFinishedSpans()[0].attributes["decision.token_count.input"]).toBe(42);
       });
     },
   );
@@ -386,7 +382,7 @@ describe("TypeSafeInstrumentation", () => {
     const attributes = exporter.getFinishedSpans()[0].attributes;
     expect(attributes["output.value"]).toBe(REDACTED_VALUE);
     expect(attributes["output.mime_type"]).toBeUndefined();
-    expect(attributes["llm.token_count.total"]).toBe(49);
+    expect(attributes["decision.token_count.input"]).toBe(42);
   });
 
   it.each([{}, { hideInputMessages: true }, { hideOutputMessages: true }])(

@@ -88,7 +88,7 @@ Decision spans SHOULD NOT set `llm.system`, `llm.provider`, `llm.model_name`, `l
 
 ### Transition Note
 
-This section is not yet normative. Instrumentations written before the `DECISION` span kind and the `decision.*` attributes existed (for example, the OpenInference TypeSafe instrumentors for [Python](../python/instrumentation/openinference-instrumentation-typesafe) and [JavaScript](../js/packages/openinference-instrumentation-typesafe)) currently record decision model calls as `LLM` spans carrying `llm.system`, `llm.provider`, and `llm.model_name`. Those instrumentations are expected to migrate to `DECISION` spans with `decision.*` attributes in a follow-up release. Until that migration ships, consumers SHOULD accept both representations, and the `SHOULD NOT` above is guidance for new instrumentations rather than a conformance requirement for existing ones.
+This section is not yet normative. Instrumentations written before the `DECISION` span kind and the `decision.*` attributes existed recorded decision model calls with `llm.system`, `llm.provider`, `llm.model_name`, and `llm.token_count.*`. The OpenInference TypeSafe instrumentors for [Python](../python/instrumentation/openinference-instrumentation-typesafe) and [JavaScript](../js/packages/openinference-instrumentation-typesafe) have migrated to `decision.*`, but spans from their earlier releases still carry the `llm.*` attributes. Consumers SHOULD accept both representations, and the `SHOULD NOT` above is guidance for new instrumentations rather than a conformance requirement for existing ones.
 
 ## Context Attributes
 
