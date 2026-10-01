@@ -3456,6 +3456,7 @@ class TestGetProviderFromHost:
                 "inference.generativeai.eu-frankfurt-1.oci.oraclecloud.com",
                 OpenInferenceLLMProviderValues.ORACLE,
             ),
+            ("api.typesafe.ai", OpenInferenceLLMProviderValues.TYPESAFE),
         ],
     )
     def test_known_hosts(self, host: str, expected: OpenInferenceLLMProviderValues) -> None:
@@ -3523,6 +3524,9 @@ class TestGetSystemFromModel:
             ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
             ("vertex-ai-model", OpenInferenceLLMSystemValues.VERTEXAI),
             ("google-palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("jev-latest", OpenInferenceLLMSystemValues.TYPESAFE),
+            ("jev-1.13.0", OpenInferenceLLMSystemValues.TYPESAFE),
+            ("typesafe/jev", OpenInferenceLLMSystemValues.TYPESAFE),
         ],
     )
     def test_known_models(self, model_name: str, expected: OpenInferenceLLMSystemValues) -> None:

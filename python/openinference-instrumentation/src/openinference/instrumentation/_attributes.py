@@ -110,6 +110,11 @@ if _minimax_provider := getattr(OpenInferenceLLMProviderValues, "MINIMAX", None)
 if _oracle_provider := getattr(OpenInferenceLLMProviderValues, "ORACLE", None):
     _HOST_SUFFIX_TO_PROVIDER["oci.oraclecloud.com"] = _oracle_provider
 
+# TYPESAFE joined OpenInferenceLLMProviderValues after semconv 0.1.40; same guard.
+# TypeSafe AI serves its System One decision API from api.typesafe.ai.
+if _typesafe_provider := getattr(OpenInferenceLLMProviderValues, "TYPESAFE", None):
+    _HOST_SUFFIX_TO_PROVIDER["api.typesafe.ai"] = _typesafe_provider
+
 # Maps model name prefixes to their corresponding LLM system value.
 _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
     "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC,
@@ -135,6 +140,14 @@ _MODEL_PREFIX_TO_SYSTEM: Dict[str, OpenInferenceLLMSystemValues] = {
     "vertex": OpenInferenceLLMSystemValues.VERTEXAI,
     "google": OpenInferenceLLMSystemValues.VERTEXAI,
 }
+
+# TYPESAFE joined OpenInferenceLLMSystemValues after semconv 0.1.40; guard the
+# reference so an older semconv release degrades to "no prefix mapping" instead
+# of an import-time AttributeError. TypeSafe's System One models are the "jev"
+# family (e.g. jev-latest, jev-1.13.0).
+if _typesafe_system := getattr(OpenInferenceLLMSystemValues, "TYPESAFE", None):
+    _MODEL_PREFIX_TO_SYSTEM["jev"] = _typesafe_system
+    _MODEL_PREFIX_TO_SYSTEM["typesafe"] = _typesafe_system
 
 
 def infer_llm_provider_from_host(host: str) -> Optional[OpenInferenceLLMProviderValues]:
