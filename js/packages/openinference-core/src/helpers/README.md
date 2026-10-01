@@ -75,18 +75,19 @@ const tracedWeatherTool = traceTool(fetchWeather, { name: "weather-api" });
 
 Convenience wrappers are available for every OpenInference span kind. Each one pre-configures `withSpan` with the corresponding `kind` and otherwise accepts the same options:
 
-| Wrapper          | Span kind   | Typical use                                 |
-| ---------------- | ----------- | ------------------------------------------- |
-| `traceChain`     | `CHAIN`     | Workflow sequences and pipelines            |
-| `traceAgent`     | `AGENT`     | Autonomous decision-making entities         |
-| `traceTool`      | `TOOL`      | External tools, APIs, and utilities         |
-| `traceLLM`       | `LLM`       | Language model inference calls              |
-| `traceRetriever` | `RETRIEVER` | Document/context retrieval (RAG)            |
-| `traceReranker`  | `RERANKER`  | Reordering candidate documents by relevance |
-| `traceEmbedding` | `EMBEDDING` | Generating vector representations           |
-| `traceGuardrail` | `GUARDRAIL` | Safety, validation, and policy checks       |
-| `traceEvaluator` | `EVALUATOR` | Scoring/assessing output quality            |
-| `tracePrompt`    | `PROMPT`    | Constructing or templating prompts          |
+| Wrapper          | Span kind   | Typical use                                  |
+| ---------------- | ----------- | -------------------------------------------- |
+| `traceChain`     | `CHAIN`     | Workflow sequences and pipelines             |
+| `traceAgent`     | `AGENT`     | Autonomous decision-making entities          |
+| `traceTool`      | `TOOL`      | External tools, APIs, and utilities          |
+| `traceLLM`       | `LLM`       | Language model inference calls               |
+| `traceRetriever` | `RETRIEVER` | Document/context retrieval (RAG)             |
+| `traceReranker`  | `RERANKER`  | Reordering candidate documents by relevance  |
+| `traceEmbedding` | `EMBEDDING` | Generating vector representations            |
+| `traceGuardrail` | `GUARDRAIL` | Safety, validation, and policy checks        |
+| `traceEvaluator` | `EVALUATOR` | Scoring/assessing output quality             |
+| `tracePrompt`    | `PROMPT`    | Constructing or templating prompts           |
+| `traceDecision`  | `DECISION`  | Scoring or selecting among candidate options |
 
 ```typescript
 import { traceLLM, traceRetriever } from "@arizeai/openinference-core";

@@ -230,6 +230,14 @@ span.setAttributes(
 - `traceChain(fn, options?)` -- wrap with CHAIN span kind
 - `traceAgent(fn, options?)` -- wrap with AGENT span kind
 - `traceTool(fn, options?)` -- wrap with TOOL span kind
+- `traceLLM(fn, options?)` -- wrap with LLM span kind
+- `traceRetriever(fn, options?)` -- wrap with RETRIEVER span kind
+- `traceReranker(fn, options?)` -- wrap with RERANKER span kind
+- `traceEmbedding(fn, options?)` -- wrap with EMBEDDING span kind
+- `traceGuardrail(fn, options?)` -- wrap with GUARDRAIL span kind
+- `traceEvaluator(fn, options?)` -- wrap with EVALUATOR span kind
+- `tracePrompt(fn, options?)` -- wrap with PROMPT span kind
+- `traceDecision(fn, options?)` -- wrap with DECISION span kind
 
 **Decorator**
 - `observe(options?)` -- class method decorator for tracing
@@ -276,7 +284,7 @@ src/
   index.ts                          # Main entry point (re-exports everything)
   helpers/
     withSpan.ts                     # withSpan implementation
-    wrappers.ts                     # traceChain, traceAgent, traceTool
+    wrappers.ts                     # traceChain, traceAgent, traceTool, traceDecision, ...
     decorators.ts                   # @observe decorator
     attributeHelpers.ts             # getLLMAttributes, getEmbeddingAttributes, etc.
     tracerHelpers.ts                # getTracer, wrapTracer
