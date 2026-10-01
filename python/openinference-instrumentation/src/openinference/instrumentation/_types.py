@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, TypedDict, Union
+from typing import Any, Dict, List, Literal, TypedDict, Union
 
 from typing_extensions import Required, TypeAlias
 
@@ -10,14 +10,20 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
 )
 
-if TYPE_CHECKING:
-    # OpenInferenceDecision{Provider,System}Values joined semconv after 0.1.40.
-    # They are only needed for annotations, so import them for type checking
-    # alone and keep the runtime import surface compatible with older semconv.
+try:
     from openinference.semconv.trace import (
-        OpenInferenceDecisionProviderValues,
-        OpenInferenceDecisionSystemValues,
+        OpenInferenceDecisionProviderValues as OpenInferenceDecisionProviderValues,
     )
+    from openinference.semconv.trace import (
+        OpenInferenceDecisionSystemValues as OpenInferenceDecisionSystemValues,
+    )
+except ImportError:  # pragma: no cover
+    # OpenInferenceDecision{Provider,System}Values joined semconv after 0.1.40.
+    # Their members alias the matching LLM values, so an older semconv degrades
+    # to the LLM enums instead of failing at import time. Remove once the
+    # minimum semconv version includes them.
+    OpenInferenceDecisionProviderValues = OpenInferenceLLMProviderValues  # type: ignore[misc,assignment]
+    OpenInferenceDecisionSystemValues = OpenInferenceLLMSystemValues  # type: ignore[misc,assignment]
 
 # opentelemetry-api 1.45.0 redefined ``AttributeValue`` via a chained assignment
 # (``AnyValue = AttributeValue = ...``), which mypy no longer accepts as a valid
@@ -61,10 +67,10 @@ OpenInferenceLLMSystem: TypeAlias = Union[str, OpenInferenceLLMSystemValues]
 # decision.system / decision.provider draw from the same identifier space as
 # llm.system / llm.provider, so the LLM enums are accepted too.
 OpenInferenceDecisionProvider: TypeAlias = Union[
-    str, "OpenInferenceDecisionProviderValues", OpenInferenceLLMProviderValues
+    str, OpenInferenceDecisionProviderValues, OpenInferenceLLMProviderValues
 ]
 OpenInferenceDecisionSystem: TypeAlias = Union[
-    str, "OpenInferenceDecisionSystemValues", OpenInferenceLLMSystemValues
+    str, OpenInferenceDecisionSystemValues, OpenInferenceLLMSystemValues
 ]
 AnnotationScope: TypeAlias = Literal["span", "trace", "session"]
 

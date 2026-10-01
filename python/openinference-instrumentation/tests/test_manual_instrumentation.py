@@ -57,6 +57,7 @@ from openinference.instrumentation import (
     using_session,
 )
 from openinference.instrumentation._attributes import (
+    _DECISION_ATTRIBUTE_FALLBACKS,
     _HOST_SUFFIX_TO_PROVIDER,
     _MODEL_PREFIX_TO_SYSTEM,
 )
@@ -2535,6 +2536,79 @@ class TestTracerDecisionDecorator:
         assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
         assert not attributes
 
+    async def test_async_generator_with_unapplied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        @tracer.decision
+        async def score_items(items: List[str]) -> AsyncGenerator[float, None]:
+            for index, _ in enumerate(items):
+                yield index / 10
+
+        scores = [score async for score in score_items(["a", "b", "c"])]
+        assert scores == [0.0, 0.1, 0.2]
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "score_items"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == DECISION
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {"items": ["a", "b", "c"]}
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == scores
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert not attributes
+
+    def test_sync_generator_with_applied_decorator(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        tracer: OITracer,
+    ) -> None:
+        def process_input(items: List[str]) -> "Mapping[str, AttributeValue]":
+            return {INPUT_VALUE: "items"}
+
+        def process_output(scores: Sequence[float]) -> "Mapping[str, AttributeValue]":
+            return {
+                OUTPUT_VALUE: "scores",
+                **get_decision_attributes(
+                    model_name="jev-1.13.0",
+                    token_count={"input": 30, "output": len(scores)},
+                ),
+            }
+
+        @tracer.decision(
+            name="rubric-scoring",
+            process_input=process_input,
+            process_output=process_output,
+        )
+        def score_items(items: List[str]) -> Generator[float, None, None]:
+            for index, _ in enumerate(items):
+                yield index / 10
+
+        scores = list(score_items(["a", "b", "c"]))
+        assert scores == [0.0, 0.1, 0.2]
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.name == "rubric-scoring"
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == DECISION
+        assert attributes.pop(INPUT_VALUE) == "items"
+        assert attributes.pop(OUTPUT_VALUE) == "scores"
+        assert attributes.pop(DECISION_MODEL_NAME) == "jev-1.13.0"
+        assert attributes.pop(DECISION_TOKEN_COUNT_INPUT) == 30
+        assert attributes.pop(DECISION_TOKEN_COUNT_OUTPUT) == 3
+        assert not attributes
+
     def test_sync_function_with_applied_decorator(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -2939,6 +3013,20 @@ def test_get_decision_attributes_explicit_model_name_overrides_mirrored_model_na
         DECISION_MODEL_NAME: "my-alias",
         DECISION_RESPONSE_MODEL_NAME: "jev-1.13.0",
     }
+
+
+def test_decision_attribute_fallback_keys_match_semconv() -> None:
+    """The fallback keys used with older semconv releases must track SpanAttributes."""
+    for name, fallback in _DECISION_ATTRIBUTE_FALLBACKS.items():
+        assert getattr(SpanAttributes, name) == fallback
+
+
+def test_get_decision_attributes_ignores_unrelated_enums() -> None:
+    attributes = get_decision_attributes(
+        provider=OpenInferenceSpanKindValues.LLM,  # type: ignore[arg-type]
+        system=OpenInferenceSpanKindValues.LLM,  # type: ignore[arg-type]
+    )
+    assert attributes == {}
 
 
 def test_get_decision_attributes_only_sets_reported_token_counts() -> None:
