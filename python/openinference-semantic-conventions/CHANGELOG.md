@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.40...python-openinference-semantic-conventions-v0.1.41) (2026-10-01)
+
+
+### Features
+
+* **semconv:** add decision model attributes ([#3900](https://github.com/Arize-ai/openinference/issues/3900)) ([53b7a0e](https://github.com/Arize-ai/openinference/commit/53b7a0e2c7b0dd2622a9390a124e737ea7d50759))
+
 ## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.39...python-openinference-semantic-conventions-v0.1.40) (2026-10-01)
 
 

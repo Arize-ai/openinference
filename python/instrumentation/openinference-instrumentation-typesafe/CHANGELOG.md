@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-typesafe-v0.1.2...python-openinference-instrumentation-typesafe-v0.1.3) (2026-10-01)
+
+
+### Features
+
+* **typesafe:** trace system_one calls as DECISION spans ([#3898](https://github.com/Arize-ai/openinference/issues/3898)) ([565edea](https://github.com/Arize-ai/openinference/commit/565edead3e4bdafb5875b86f7803978c2d131f8b))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-typesafe-v0.1.1...python-openinference-instrumentation-typesafe-v0.1.2) (2026-10-01)
 
 
