@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.20...java-openinference-semantic-conventions-v0.1.21) (2026-10-01)
+
+
+### Features
+
+* **semconv:** add DECISION span kind ([#3825](https://github.com/Arize-ai/openinference/issues/3825)) ([a1f276c](https://github.com/Arize-ai/openinference/commit/a1f276cdbe16ceed207973b461074410846a4cfc))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.19...java-openinference-semantic-conventions-v0.1.20) (2026-09-24)
 
 
