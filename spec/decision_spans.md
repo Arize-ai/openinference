@@ -40,7 +40,11 @@ The `decision.*` identification attributes mirror their `llm.*` counterparts and
 
 ## Attributes Not Used in Decision Spans
 
-Decision spans MUST NOT set `llm.system`, `llm.provider`, `llm.model_name`, `llm.request.model_name`, or `llm.response.model_name`. Those attributes identify language models; using them on decision spans would conflate decision model usage with LLM usage in downstream analytics such as model-level cost and token reporting.
+Decision spans SHOULD NOT set `llm.system`, `llm.provider`, `llm.model_name`, `llm.request.model_name`, or `llm.response.model_name`. Those attributes identify language models; using them on decision spans conflates decision model usage with LLM usage in downstream analytics such as model-level cost and token reporting.
+
+### Transition Note
+
+This section is not yet normative. Instrumentations written before the `DECISION` span kind and the `decision.*` attributes existed (for example, the OpenInference TypeSafe instrumentors) currently record decision model calls as `LLM` spans carrying `llm.system`, `llm.provider`, and `llm.model_name`. Those instrumentations are expected to migrate to `DECISION` spans with `decision.*` attributes in a follow-up release. Until that migration ships, consumers SHOULD accept both representations, and the `SHOULD NOT` above is guidance for new instrumentations rather than a conformance requirement for existing ones.
 
 ## Context Attributes
 

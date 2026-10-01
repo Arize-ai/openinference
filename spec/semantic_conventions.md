@@ -259,7 +259,9 @@ record both values as distinct, queryable attributes when it can tell them apart
 
 **For decision operations (`openinference.span.kind: "DECISION"`):**
 
-- `llm.*` identification attributes are **not used**; decision models are not language models
+- `llm.*` identification attributes **should not be used** on new decision spans; decision models are not language
+  models. Existing instrumentations that predate these conventions may still emit them during a transition period;
+  see [Decision Spans](./decision_spans.md#transition-note)
 - Use `decision.system`, `decision.provider`, and `decision.model_name` in place of `llm.system`, `llm.provider`,
   and `llm.model_name`. They carry the same meanings and the same well-known values.
 - `decision.request.model_name` and `decision.response.model_name` follow the same rules as
