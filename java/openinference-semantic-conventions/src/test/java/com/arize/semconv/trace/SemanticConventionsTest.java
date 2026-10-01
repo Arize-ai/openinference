@@ -38,7 +38,9 @@ class SemanticConventionsTest {
 
     @Test
     void decisionSpanKindUsesTheDocumentedValue() {
-        assertThat(SemanticConventions.OpenInferenceSpanKind.DECISION.getValue()).isEqualTo("DECISION");
-        assertThat(SemanticConventions.OpenInferenceSpanKind.DECISION.toString()).isEqualTo("DECISION");
+        assertThat(SemanticConventions.OpenInferenceSpanKind.DECISION.getValue())
+                .isEqualTo("DECISION");
+        assertThat(SemanticConventions.OpenInferenceSpanKind.DECISION.toString())
+                .isEqualTo("DECISION");
     }
 }
