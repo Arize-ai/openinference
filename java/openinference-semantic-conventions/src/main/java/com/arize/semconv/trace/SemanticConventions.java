@@ -354,6 +354,21 @@ public class SemanticConventions {
 
     /**
      * The name of the decision model. Mirrors LLM_MODEL_NAME for DECISION spans.
+     *
+     * <p>Decision models take state plus typed questions and return a typed, probabilistic answer per
+     * question instead of generated text. Examples:
+     *
+     * <ul>
+     *   <li>TypeSafe AI System One / Jev: https://typesafe.ai/blog/introducing-system-one-models-and-jev
+     *   <li>OpenAI Decisions API (DevDay 2026): https://openai.com/index/devday-2026-recap/
+     *   <li>vLLM structured decisions (/v1/systemone, proposed /v1/decisions):
+     *       https://docs.vllm.ai/en/latest/examples/features/structured_diffusion/ and
+     *       https://github.com/vllm-project/vllm/issues/59365
+     *   <li>vLLM Semantic Router Decision 1.0 models: https://vllm-sr.ai/blog/decision-models/
+     * </ul>
+     *
+     * @see <a href="https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md">Decision
+     *     Spans</a>
      */
     public static final String DECISION_MODEL_NAME =
             SemanticAttributePrefixes.DECISION + "." + DecisionAttributePostfixes.MODEL_NAME;

@@ -97,6 +97,17 @@ class SpanAttributes:
     """
     The name of the decision model being used. Mirrors llm.model_name for
     DECISION spans.
+
+    Decision models take state plus typed questions and return a typed,
+    probabilistic answer per question instead of generated text. Examples:
+    TypeSafe AI System One / Jev
+    (https://typesafe.ai/blog/introducing-system-one-models-and-jev), the
+    OpenAI Decisions API (https://openai.com/index/devday-2026-recap/), vLLM
+    structured decisions
+    (https://docs.vllm.ai/en/latest/examples/features/structured_diffusion/,
+    https://github.com/vllm-project/vllm/issues/59365), and vLLM Semantic
+    Router Decision 1.0 (https://vllm-sr.ai/blog/decision-models/). See
+    https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md.
     """
     DECISION_REQUEST_MODEL_NAME = "decision.request.model_name"
     """

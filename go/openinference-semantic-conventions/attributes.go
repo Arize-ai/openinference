@@ -113,6 +113,20 @@ const (
 // Decision-span attributes — set when the span represents a call to a
 // decision model (SpanKindDecision). These mirror the llm.* identification
 // attributes and share their well-known values.
+//
+// Decision models take state plus typed questions and return a typed,
+// probabilistic answer per question instead of generated text. Examples:
+//   - TypeSafe AI System One / Jev:
+//     https://typesafe.ai/blog/introducing-system-one-models-and-jev
+//   - OpenAI Decisions API (DevDay 2026):
+//     https://openai.com/index/devday-2026-recap/
+//   - vLLM structured decisions (/v1/systemone, proposed /v1/decisions):
+//     https://docs.vllm.ai/en/latest/examples/features/structured_diffusion/
+//     https://github.com/vllm-project/vllm/issues/59365
+//   - vLLM Semantic Router Decision 1.0 models:
+//     https://vllm-sr.ai/blog/decision-models/
+//
+// See https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md.
 const (
 	// DecisionModelName is the name of the decision model being used.
 	DecisionModelName = "decision.model_name"
