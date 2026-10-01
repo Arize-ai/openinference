@@ -93,6 +93,58 @@ class SpanAttributes:
     """
     The AI product as identified by the client or server
     """
+    DECISION_MODEL_NAME = "decision.model_name"
+    """
+    The name of the decision model being used. Mirrors llm.model_name for
+    DECISION spans. A decision model takes state plus typed questions and
+    returns a typed, probabilistic answer per question instead of generated
+    text; see
+    https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+    for the convention and the decision model families it covers.
+    """
+    DECISION_REQUEST_MODEL_NAME = "decision.request.model_name"
+    """
+    The decision model requested by the caller, as sent in the request. May
+    differ from decision.response.model_name when the provider resolves an
+    alias (e.g. jev-latest) or routes the request to a different model.
+    """
+    DECISION_RESPONSE_MODEL_NAME = "decision.response.model_name"
+    """
+    The decision model that actually produced the response, as reported by the
+    provider. May differ from decision.request.model_name.
+    """
+    DECISION_PROVIDER = "decision.provider"
+    """
+    The hosting provider of the decision model: who runs the hardware that
+    answered (e.g. "typesafe" when calling TypeSafe directly, or the cloud or
+    self-hosting provider for a model served elsewhere). Distinct from
+    decision.system, which names the API shape. Well-known values are
+    OpenInferenceDecisionProviderValues, which alias the matching
+    OpenInferenceLLMProviderValues.
+    """
+    DECISION_SYSTEM = "decision.system"
+    """
+    The decision API ecosystem the call conforms to, i.e. which request and
+    response shape the client speaks, as identified by the client or server:
+    "typesafe" for the TypeSafe System One / Jev API, "openai" for the OpenAI
+    Decisions API. A self-hosted
+    vLLM server answering the Jev-compatible /v1/systemone shape is still
+    "typesafe". Distinct from decision.provider, which says who hosts the
+    model. Well-known values are OpenInferenceDecisionSystemValues, which alias
+    the matching OpenInferenceLLMSystemValues.
+    """
+    DECISION_TOKEN_COUNT_INPUT = "decision.token_count.input"
+    """
+    The number of input tokens consumed by a decision model call: the state,
+    questions, and candidate options. Maps to usage.input_tokens in TypeSafe
+    System One responses.
+    """
+    DECISION_TOKEN_COUNT_OUTPUT = "decision.token_count.output"
+    """
+    The number of output tokens produced by a decision model call. Decision
+    models emit typed answers rather than text, so this is typically small.
+    Maps to usage.output_tokens in TypeSafe System One responses.
+    """
     LLM_PROMPTS = "llm.prompts"
     """
     Prompts provided to a completions API. Use indexed format with nested structure.
@@ -628,6 +680,7 @@ class OpenInferenceLLMSystemValues(Enum):
     COHERE = "cohere"
     MISTRALAI = "mistralai"
     VERTEXAI = "vertexai"
+    TYPESAFE = "typesafe"
 
 
 class OpenInferenceLLMProviderValues(Enum):
@@ -651,3 +704,30 @@ class OpenInferenceLLMProviderValues(Enum):
     ZAI = "zai"
     MINIMAX = "minimax"
     ORACLE = "oracle"
+    TYPESAFE = "typesafe"
+
+
+class OpenInferenceDecisionSystemValues(Enum):
+    """
+    Well-known values for decision.system: the decision API ecosystem a DECISION
+    span conforms to. Each member aliases the OpenInferenceLLMSystemValues member
+    for the same vendor, so the same string names the same vendor on LLM and
+    DECISION spans. The list is the subset of vendors currently known to offer a
+    decision API.
+    """
+
+    TYPESAFE = OpenInferenceLLMSystemValues.TYPESAFE.value
+    """TypeSafe AI System One / Jev API, including Jev-compatible servers."""
+    OPENAI = OpenInferenceLLMSystemValues.OPENAI.value
+    """OpenAI Decisions API."""
+
+
+class OpenInferenceDecisionProviderValues(Enum):
+    """
+    Well-known values for decision.provider: who hosts the decision model that
+    answered. Each member aliases the OpenInferenceLLMProviderValues member for
+    the same vendor.
+    """
+
+    TYPESAFE = OpenInferenceLLMProviderValues.TYPESAFE.value
+    OPENAI = OpenInferenceLLMProviderValues.OPENAI.value
