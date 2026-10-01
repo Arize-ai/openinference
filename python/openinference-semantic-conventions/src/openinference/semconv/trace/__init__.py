@@ -608,6 +608,7 @@ class OpenInferenceSpanKindValues(Enum):
     GUARDRAIL = "GUARDRAIL"
     EVALUATOR = "EVALUATOR"
     PROMPT = "PROMPT"
+    DECISION = "DECISION"
 
 
 class OpenInferenceAnnotatorKindValues(Enum):

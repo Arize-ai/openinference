@@ -6,10 +6,12 @@ package semconv
 // lookups, EMBEDDING for embedding API calls, AGENT for an autonomous
 // sub-agent run nested inside a larger chain, RERANKER for rerank API calls,
 // GUARDRAIL for guardrail/policy checks, EVALUATOR for online eval calls,
-// PROMPT for a prompt-registry lookup.
+// PROMPT for a prompt-registry lookup, DECISION for a decision-model call that
+// scores or selects among candidate options.
 const (
 	SpanKindLLM       = "LLM"
 	SpanKindChain     = "CHAIN"
+	SpanKindDecision  = "DECISION"
 	SpanKindTool      = "TOOL"
 	SpanKindRetriever = "RETRIEVER"
 	SpanKindEmbedding = "EMBEDDING"

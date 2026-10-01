@@ -110,6 +110,7 @@ These are domain-level classifications (separate from OTel's `SpanKind`):
 | **RERANKER** | A document reranking operation | Cross-encoder reranker, Cohere rerank |
 | **GUARDRAIL** | An input/output safety check | Content filter, PII detector, toxicity check |
 | **EVALUATOR** | A quality or correctness evaluation | LLM-as-judge, relevance scorer |
+| **DECISION** | A decision model call that scores or selects among candidate options | Route selection, rubric scoring |
 
 #### How Span Kinds Compose
 
@@ -126,7 +127,7 @@ AGENT: "qa-agent"
 
 - An **AGENT** typically parents other spans as it orchestrates work
 - A **CHAIN** groups sequential steps without autonomous decision-making
-- **LLM**, **RETRIEVER**, **EMBEDDING**, **TOOL**, **RERANKER**, **GUARDRAIL**, and **EVALUATOR** are usually leaf spans
+- **LLM**, **RETRIEVER**, **EMBEDDING**, **TOOL**, **RERANKER**, **GUARDRAIL**, **EVALUATOR**, and **DECISION** are usually leaf spans
 
 ### The Tracing Stack
 

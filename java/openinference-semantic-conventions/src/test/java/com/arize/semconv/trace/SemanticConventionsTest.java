@@ -35,4 +35,12 @@ class SemanticConventionsTest {
         assertThat(SemanticConventions.MESSAGE_CONTENT_IMAGE + "." + SemanticConventions.IMAGE_URL)
                 .isEqualTo("message_content.image.image.url");
     }
+
+    @Test
+    void decisionSpanKindUsesTheDocumentedValue() {
+        assertThat(SemanticConventions.OpenInferenceSpanKind.DECISION.getValue())
+                .isEqualTo("DECISION");
+        assertThat(SemanticConventions.OpenInferenceSpanKind.DECISION.toString())
+                .isEqualTo("DECISION");
+    }
 }

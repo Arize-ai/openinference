@@ -165,6 +165,7 @@ func TestEnumValues(t *testing.T) {
 	}{
 		{SpanKindLLM, "LLM"},
 		{SpanKindChain, "CHAIN"},
+		{SpanKindDecision, "DECISION"},
 		{SpanKindTool, "TOOL"},
 		{SpanKindRetriever, "RETRIEVER"},
 		{SpanKindEmbedding, "EMBEDDING"},

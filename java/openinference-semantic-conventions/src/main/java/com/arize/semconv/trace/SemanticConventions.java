@@ -823,7 +823,8 @@ public class SemanticConventions {
         AGENT("AGENT"),
         GUARDRAIL("GUARDRAIL"),
         EVALUATOR("EVALUATOR"),
-        PROMPT("PROMPT");
+        PROMPT("PROMPT"),
+        DECISION("DECISION");
 
         private final String value;
 
