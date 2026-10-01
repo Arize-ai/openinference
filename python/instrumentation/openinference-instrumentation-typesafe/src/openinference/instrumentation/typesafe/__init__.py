@@ -23,7 +23,7 @@ __all__ = ("TypeSafeAIInstrumentor",)
 
 
 class TypeSafeAIInstrumentor(BaseInstrumentor):  # type: ignore[misc]
-    """Traces the TypeSafe AI Python SDK (``typesafe-sdk``) as OpenInference LLM spans.
+    """Traces the TypeSafe AI Python SDK (``typesafe-sdk``) as OpenInference DECISION spans.
 
     Wraps ``TypeSafeClient.system_one`` and ``AsyncTypeSafeClient.system_one``.
     ``instrument()`` accepts a ``tracer_provider`` and a ``TraceConfig``; ``uninstrument()``

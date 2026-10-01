@@ -3,10 +3,12 @@
 Every function here is side-effect free: it takes the SDK call arguments or the SDK
 response object and returns a flat mapping of OpenInference span attributes.
 
-A ``system_one`` call is modelled as an LLM span whose structured output is the map of
-typed answers. ``input.value`` and ``output.value`` mirror the wire request and response
-bodies, and they are the only place the request's ``state`` and ``questions`` are
-recorded, so ``hide_inputs`` alone keeps every part of the request off the span.
+A ``system_one`` call is modelled as a DECISION span: the model scores or selects among the
+candidate options the request supplies rather than generating free-form text, and the
+structured output is the map of typed answers. ``input.value`` and ``output.value`` mirror
+the wire request and response bodies, and they are the only place the request's ``state``
+and ``questions`` are recorded, so ``hide_inputs`` alone keeps every part of the request off
+the span.
 ``llm.invocation_parameters`` carries only call configuration: the ``model`` and any
 ``extra_body`` fields. See the package README for the full attribute mapping.
 
@@ -109,7 +111,7 @@ def get_request_attributes(
         k: v for k, v in body.items() if k not in ("state", "questions") and v is not None
     }
     return {
-        **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
+        **get_span_kind_attributes(OpenInferenceSpanKindValues.DECISION),
         **get_input_attributes(body, mime_type=OpenInferenceMimeTypeValues.JSON),
         **get_llm_attributes(
             provider=LLM_PROVIDER,

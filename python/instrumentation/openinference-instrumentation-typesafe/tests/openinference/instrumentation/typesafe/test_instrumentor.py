@@ -62,10 +62,12 @@ def _attrs(span: ReadableSpan) -> Dict[str, Any]:
     return dict(span.attributes or {})
 
 
-def _assert_llm_span(span: ReadableSpan, transport: RecordingTransport) -> None:
+def _assert_decision_span(span: ReadableSpan, transport: RecordingTransport) -> None:
     attrs = _attrs(span)
     assert span.status.status_code is StatusCode.OK
-    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.DECISION.value
+    )
     assert attrs[SpanAttributes.LLM_PROVIDER] == "typesafe"
     assert SpanAttributes.LLM_SYSTEM not in attrs
     assert attrs[SpanAttributes.LLM_REQUEST_MODEL_NAME] == "jev-latest"
@@ -118,7 +120,7 @@ def test_system_one(
 
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.name == "TypeSafeClient"
-    _assert_llm_span(span, transport)
+    _assert_decision_span(span, transport)
 
 
 async def test_async_system_one(
@@ -130,7 +132,7 @@ async def test_async_system_one(
 
     (span,) = in_memory_span_exporter.get_finished_spans()
     assert span.name == "AsyncTypeSafeClient"
-    _assert_llm_span(span, transport)
+    _assert_decision_span(span, transport)
 
 
 def test_structured_state_and_raw_dict_questions(
@@ -272,7 +274,9 @@ def test_error_sets_span_status(in_memory_span_exporter: InMemorySpanExporter) -
     assert any(event.name == "exception" for event in span.events)
     attrs = _attrs(span)
     # Request-side attributes are still recorded; there is no output.
-    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert (
+        attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.DECISION.value
+    )
     assert SpanAttributes.INPUT_VALUE in attrs
     assert SpanAttributes.OUTPUT_VALUE not in attrs
 
