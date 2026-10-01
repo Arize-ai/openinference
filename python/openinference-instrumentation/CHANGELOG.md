@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.68](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.67...python-openinference-instrumentation-v0.1.68) (2026-10-01)
+
+
+### Features
+
+* **semconv:** add decision model attributes ([#3900](https://github.com/Arize-ai/openinference/issues/3900)) ([53b7a0e](https://github.com/Arize-ai/openinference/commit/53b7a0e2c7b0dd2622a9390a124e737ea7d50759))
+
 ## [0.1.67](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.66...python-openinference-instrumentation-v0.1.67) (2026-10-01)
 
 
