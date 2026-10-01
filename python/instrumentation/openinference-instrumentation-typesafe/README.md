@@ -4,7 +4,7 @@
 
 Python auto-instrumentation library for the [TypeSafe AI](https://docs.typesafe.ai/) Python SDK ([`typesafe-sdk`](https://pypi.org/project/typesafe-sdk/)).
 
-Calls to `TypeSafeClient.system_one` and `AsyncTypeSafeClient.system_one` are traced and exported as OpenInference LLM spans. A System One request sends a `state` plus a map of typed `questions` (Noul, Choice, Score) and returns one typed `answer` per question, so the span records:
+Calls to `TypeSafeClient.system_one` and `AsyncTypeSafeClient.system_one` are traced and exported as OpenInference `DECISION` spans. A decision model scores or selects among the candidate options supplied in the request instead of generating free-form text, which is exactly what System One does: a request sends a `state` plus a map of typed `questions` (Noul, Choice, Score) and returns one typed `answer` per question, so the span records:
 
 - `input.value`: the request body (`state`, `model`, `questions`) as JSON
 - `llm.invocation_parameters`: the call configuration, meaning the `model` and any `extra_body` fields

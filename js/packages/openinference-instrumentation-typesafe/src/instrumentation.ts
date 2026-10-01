@@ -57,7 +57,7 @@ const safelyRecord = withSafety({
 /**
  * OpenInference instrumentation for `@typesafe-ai/sdk`.
  *
- * Emits one OpenInference `LLM` span per `TypeSafeClient.systemOne` call,
+ * Emits one OpenInference `DECISION` span per `TypeSafeClient.systemOne` call,
  * including SDK retries. Does not instrument `models.list`. Request and
  * response bodies are recorded as JSON on `input.value` / `output.value`.
  *
@@ -163,7 +163,7 @@ export class TypeSafeInstrumentation extends InstrumentationBase<TypeSafeModule>
           {
             kind: SpanKind.CLIENT,
             attributes: {
-              [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+              [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.DECISION,
               [LLM_PROVIDER]: LLMProvider.TYPESAFE,
               [LLM_SYSTEM]: LLMSystem.TYPESAFE,
             },

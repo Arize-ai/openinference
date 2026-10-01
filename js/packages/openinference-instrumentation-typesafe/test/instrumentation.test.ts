@@ -83,7 +83,7 @@ describe("TypeSafeInstrumentation", () => {
     vi.unstubAllEnvs();
   });
 
-  it("records one complete LLM span and leaves the request and response intact", async () => {
+  it("records one complete DECISION span and leaves the request and response intact", async () => {
     const { client, fetch } = makeClient();
     const options = { timeout: 5000, retry: { maxRetries: 1, httpStatuses: new Set([429]) } };
     const response = await client.systemOne(request, options);
@@ -101,7 +101,7 @@ describe("TypeSafeInstrumentation", () => {
     expect(spans[0].kind).toBe(SpanKind.CLIENT);
     expect(spans[0].status).toEqual({ code: SpanStatusCode.OK });
     expect(spans[0].attributes).toEqual({
-      "openinference.span.kind": "LLM",
+      "openinference.span.kind": "DECISION",
       "llm.provider": "typesafe",
       "llm.system": "typesafe",
       "llm.model_name": "jev-resolved",
