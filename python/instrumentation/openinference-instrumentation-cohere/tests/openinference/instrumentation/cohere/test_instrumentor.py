@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import gc
 import json
 import struct
 from contextlib import asynccontextmanager, contextmanager
@@ -734,6 +735,59 @@ def test_chat_stream_span_is_open_until_consumed(
 
     list(stream)
     assert len(in_memory_span_exporter.get_finished_spans()) == 1
+
+
+def test_chat_stream_abandoned_before_iteration(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An abandoned (never iterated) stream must still end its span."""
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    # Drop the stream without ever iterating it: the span must still be
+    # finished (with status UNSET, to distinguish it from a completed stream).
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+
+
+def test_chat_stream_closed_before_exhaustion(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicitly closing a partially consumed stream must end its span with UNSET status."""
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    stream_iterator = iter(stream)
+    # Consume message-start, content-start and the first content-delta, then
+    # close the stream before it is exhausted.
+    for _ in range(3):
+        next(stream_iterator)
+    stream.close()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    # The partial output that arrived before the drop is still recorded.
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == "The sky is blue "
 
 
 def test_chat_stream_with_tool_calls(
