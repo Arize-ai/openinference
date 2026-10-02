@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.71](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.70...python-openinference-instrumentation-v0.1.71) (2026-10-02)
+
+
+### Features
+
+* **instrumentation:** add hide_retrieval_documents TraceConfig option ([#3829](https://github.com/Arize-ai/openinference/issues/3829)) ([19363a0](https://github.com/Arize-ai/openinference/commit/19363a0a6d978b8200ed5f73a00609f3f6cdf772))
+
 ## [0.1.70](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.69...python-openinference-instrumentation-v0.1.70) (2026-10-01)
 
 
