@@ -212,6 +212,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
         self, events: List[Any]
     ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Extract input and output messages from Strands events with updated format handling."""
+        system_messages = []
         input_messages = []
         output_messages = []
 
@@ -225,7 +226,13 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                 else event.get("attributes", {})
             )
 
-            if event_name == GenAIEventNames.USER_MESSAGE:
+            if event_name == GenAIEventNames.SYSTEM_MESSAGE:
+                content = event_attrs.get("content", "")
+                message = self._parse_message_content(content, "system")
+                if message:
+                    system_messages.append(message)
+
+            elif event_name == GenAIEventNames.USER_MESSAGE:
                 content = event_attrs.get("content", "")
                 message = self._parse_message_content(content, "user")
                 if message:
@@ -255,7 +262,7 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                         message["message.tool_call_id"] = tool_id
                         input_messages.append(message)
 
-        return input_messages, output_messages
+        return system_messages + input_messages, output_messages
 
     def _extract_messages_from_attributes(
         self, prompt: Any, completion: Any

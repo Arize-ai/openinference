@@ -1,5 +1,6 @@
 """Tests for Strands to OpenInference processor."""
 
+import json
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -8,6 +9,7 @@ from opentelemetry.trace import SpanKind, Status, StatusCode
 from openinference.instrumentation.strands_agents.processor import (
     StrandsAgentsToOpenInferenceProcessor,
 )
+from openinference.instrumentation.strands_agents.semantic_conventions import GenAIEventNames
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
@@ -89,6 +91,47 @@ class TestStrandsAgentsToOpenInferenceProcessor:
             span._attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
             == OpenInferenceSpanKindValues.LLM.value
         )
+
+    def test_processor_extracts_system_prompt_from_event(self) -> None:
+        """A gen_ai.system.message event should become a system-role input message.
+
+        Strands emits the system prompt as a gen_ai.system.message event on the chat
+        span (see strands.telemetry.tracer._add_system_prompt_event), ahead of the
+        user message event.
+        """
+        processor = StrandsAgentsToOpenInferenceProcessor()
+
+        system_event = MockEvent(GenAIEventNames.SYSTEM_MESSAGE)
+        system_event.attributes = {
+            "content": json.dumps([{"text": "You are a helpful assistant."}])
+        }
+
+        user_event = MockEvent(GenAIEventNames.USER_MESSAGE)
+        user_event.attributes = {"content": json.dumps([{"text": "Hello"}])}
+
+        span = MockReadableSpan(
+            name="chat",
+            attributes={
+                "gen_ai.request.model": "gpt-4",
+                "gen_ai.system": "strands-agents",
+            },
+            events=[system_event, user_event],
+        )
+
+        processor.on_end(span)  # type: ignore[arg-type]
+
+        attributes = span._attributes
+        assert attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role") == "system"
+        assert (
+            attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.content")
+            == "You are a helpful assistant."
+        )
+        assert attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.message.role") == "user"
+        assert attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.message.content") == "Hello"
+
+        input_value = json.loads(attributes[SpanAttributes.INPUT_VALUE])
+        assert input_value["messages"][0]["message.role"] == "system"
+        assert input_value["messages"][0]["message.content"] == "You are a helpful assistant."
 
     def test_processor_maps_cache_token_counts(self) -> None:
         """Cache read/write tokens map to prompt_details and roll up into the prompt count."""
