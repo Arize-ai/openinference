@@ -8,7 +8,14 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from opentelemetry.util._importlib_metadata import entry_points
-from smolagents import LiteLLMModel, OpenAIServerModel, Tool, tool
+from smolagents import (
+    AzureOpenAIModel,
+    LiteLLMModel,
+    LiteLLMRouterModel,
+    OpenAIServerModel,
+    Tool,
+    tool,
+)
 from smolagents.agents import (  # type: ignore[import-untyped]
     CodeAgent,
     ToolCallingAgent,
@@ -133,6 +140,14 @@ class TestInstrumentor:
     # Ensure we're using the common OITracer from common openinference-instrumentation pkg
     def test_oitracer(self) -> None:
         assert isinstance(SmolagentsInstrumentor()._tracer, OITracer)
+
+    def test_uninstrument_restores_generate_on_models_that_inherit_it(self) -> None:
+        SmolagentsInstrumentor().uninstrument()
+        # These models inherit `generate` instead of defining their own, so once
+        # uninstrumented they must resolve to their parent's original method again
+        # rather than keep a wrapper that still creates LLM spans.
+        assert AzureOpenAIModel.generate is OpenAIServerModel.generate
+        assert LiteLLMRouterModel.generate is LiteLLMModel.generate
 
 
 class TestModels:
