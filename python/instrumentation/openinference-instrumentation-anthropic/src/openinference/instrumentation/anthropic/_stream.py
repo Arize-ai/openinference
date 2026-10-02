@@ -1,3 +1,4 @@
+import logging
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
@@ -33,6 +34,10 @@ if TYPE_CHECKING:
 
     from anthropic import Stream
     from anthropic.types import RawMessageStreamEvent
+
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
@@ -371,4 +376,13 @@ class _MessageExtractor:
                     safe_json_dumps(block.input),
                 )
                 tool_idx += 1
-        yield from _get_token_counts(snapshot.usage)
+        # Token counts come from a usage snapshot that can be partial or
+        # delta-shaped while streaming. Contain any failure here (the same
+        # @_stop_on_exception treatment the non-streaming path gives
+        # _get_llm_token_counts) so it can never blank out the attributes
+        # yielded above: without this, the exception would reach
+        # _finish_tracing, which drops every attribute on the span.
+        try:
+            yield from _get_token_counts(snapshot.usage)
+        except Exception:
+            logger.exception("Failed to get token counts from streaming snapshot.")
