@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import gc
 import json
 import struct
 from contextlib import asynccontextmanager, contextmanager
@@ -734,6 +735,87 @@ def test_chat_stream_span_is_open_until_consumed(
 
     list(stream)
     assert len(in_memory_span_exporter.get_finished_spans()) == 1
+
+
+def test_chat_stream_abandoned_before_iteration(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "ClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+
+
+def test_chat_stream_abandoned_after_partial_iteration(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    next(iter(stream))
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "ClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+
+
+def test_chat_stream_explicit_close(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    next(iter(stream))
+    stream.close()  # type: ignore[attr-defined]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "ClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+
+
+async def test_async_chat_stream_explicit_aclose(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(AsyncRawV2Client, "chat_stream", _raw_async_stream(_stream_events()))
+
+    client = cohere.AsyncClientV2(api_key="fake-key")
+    stream = client.chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    await stream.aclose()  # type: ignore[attr-defined]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "AsyncClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
 
 
 def test_chat_stream_with_tool_calls(
