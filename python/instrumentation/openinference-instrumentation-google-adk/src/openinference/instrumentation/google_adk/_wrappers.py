@@ -590,6 +590,9 @@ def _get_attributes_from_usage_metadata(
     prompt = (obj.prompt_token_count or 0) + (obj.tool_use_prompt_token_count or 0)
     if prompt:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
+    # Cached tokens are already included in `prompt_token_count`.
+    if cached := obj.cached_content_token_count:
+        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cached
     if obj.candidates_tokens_details:
         completion_details_audio = 0
         for modality_token_count in obj.candidates_tokens_details:
