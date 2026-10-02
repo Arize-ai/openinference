@@ -4,13 +4,13 @@ import json
 from typing import Any, Dict, List, Optional
 
 import pytest
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry.trace import SpanKind, Status, StatusCode
 
 from openinference.instrumentation.strands_agents.processor import (
     StrandsAgentsToOpenInferenceProcessor,
 )
 from openinference.instrumentation.strands_agents.semantic_conventions import GenAIEventNames
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
 class MockEvent:
