@@ -542,6 +542,20 @@ function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
             `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.media_type`
           ] = part.source.media_type;
         }
+      } else if (part.type === "document") {
+        const docSource = part.source as { type?: string; media_type?: string; data?: string };
+        if (docSource.type === "text" && typeof docSource.data === "string") {
+          attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+          attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] =
+            docSource.data;
+        } else {
+          attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
+            "document";
+          if (docSource.media_type) {
+            attributes[`${contentsIndexPrefix}message_content.document.media_type`] =
+              docSource.media_type;
+          }
+        }
       } else if (part.type === "tool_use") {
         const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
         attributes[`${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`] = part.id;
