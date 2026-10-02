@@ -1143,3 +1143,48 @@ def test_undumpable_computer_call_output_does_not_break_span() -> None:
     assert attrs["llm.input_messages.1.message.tool_call_id"] == "call-x"
     assert "_Undumpable" in str(attrs["llm.input_messages.1.message.content"])
     assert "_Undumpable" in str(attrs["input.value"])
+
+
+# --- Trace.group_id maps to session.id on the root span ----------------------------
+
+
+class _FakeTraceWithGroupId(_FakeTrace):
+    def __init__(self, group_id: Any, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.group_id = group_id
+
+
+def _root_span(exporter: InMemorySpanExporter) -> ReadableSpan:
+    """Return the root AGENT span (the one produced by on_trace_start)."""
+    spans = exporter.get_finished_spans()
+    roots = [s for s in spans if s.parent is None]
+    assert len(roots) == 1, f"Expected 1 root span, got {[s.name for s in roots]}"
+    return roots[0]
+
+
+def test_group_id_mapped_to_session_id() -> None:
+    """group_id present → root span carries session.id."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTraceWithGroupId("conv-abc"), [])
+    assert _root_span(exporter).attributes["session.id"] == "conv-abc"
+
+
+def test_none_group_id_omits_session_id() -> None:
+    """group_id=None → session.id must not be set on the root span."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTraceWithGroupId(None), [])
+    assert "session.id" not in (_root_span(exporter).attributes or {})
+
+
+def test_empty_group_id_mapped_to_session_id() -> None:
+    """group_id='' is a present value → mapped verbatim, not dropped."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTraceWithGroupId(""), [])
+    assert _root_span(exporter).attributes["session.id"] == ""
+
+
+def test_missing_group_id_attr_no_crash() -> None:
+    """Trace without a group_id attribute (older SDK) → no crash, session.id omitted."""
+    processor, exporter = _make_processor()
+    _run(processor, _FakeTrace(), [])  # _FakeTrace has no group_id attr
+    assert "session.id" not in (_root_span(exporter).attributes or {})
