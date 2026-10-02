@@ -6,8 +6,8 @@ from groq import AsyncGroq, Groq
 from groq._base_client import _StreamT
 from groq._types import Body, RequestFiles, RequestOptions, ResponseT
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
 
+from openinference.instrumentation.groq._types import AttributeValue
 from openinference.semconv.trace import SpanAttributes
 
 MODEL = "llama-3.1-8b-instant"
