@@ -487,15 +487,49 @@ function getAnthropicFallbackContentAttributes(
  * Converts the body of an Anthropic messages request to LLM input messages
  */
 function getAnthropicInputMessagesAttributes(body: MessageCreateParams): Attributes {
-  return body.messages.reduce<Attributes>((acc, message, index) => {
-    const messageAttributes = getAnthropicInputMessageAttributes(message);
-    const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
-    // Flatten the attributes on the index prefix
-    for (const [key, value] of Object.entries(messageAttributes)) {
-      acc[`${indexPrefix}${key}`] = value;
+  const attributes: Attributes = {};
+  let messageIndex = 0;
+  for (const message of body.messages) {
+    const content = message.content;
+    const toolResultParts: Array<
+      Anthropic.Messages.ToolResultBlockParam | Anthropic.Beta.Messages.BetaToolResultBlockParam
+    > = [];
+    if (Array.isArray(content)) {
+      for (const part of content) {
+        if (part.type === "tool_result") {
+          toolResultParts.push(part);
+        }
+      }
     }
-    return acc;
-  }, {});
+    // A message made up only of tool_result parts is just the wrapper around
+    // the tool messages below, so it has no content of its own to record
+    const pureToolResults =
+      toolResultParts.length > 0 &&
+      Array.isArray(content) &&
+      content.length === toolResultParts.length;
+    if (!pureToolResults) {
+      const messageAttributes = getAnthropicInputMessageAttributes(message);
+      const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.`;
+      // Flatten the attributes on the index prefix
+      for (const [key, value] of Object.entries(messageAttributes)) {
+        attributes[`${indexPrefix}${key}`] = value;
+      }
+      messageIndex++;
+    }
+    // Each tool_result part becomes its own input message with role "tool",
+    // so several results in one message are all preserved
+    for (const part of toolResultParts) {
+      const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.`;
+      attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] = "tool";
+      attributes[`${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
+      if (part.content != null) {
+        attributes[`${indexPrefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+          typeof part.content === "string" ? part.content : JSON.stringify(part.content);
+      }
+      messageIndex++;
+    }
+  }
+  return attributes;
 }
 
 /**
@@ -560,13 +594,8 @@ function getAnthropicInputMessageAttributes(message: MessageParam): Attributes {
         ] = JSON.stringify(part.input);
         toolIndex++;
       } else if (part.type === "tool_result") {
-        attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
-        if (typeof part.content === "string") {
-          attributes[SemanticConventions.MESSAGE_CONTENT] = part.content;
-        } else if (Array.isArray(part.content)) {
-          // Handle complex tool result content
-          attributes[SemanticConventions.MESSAGE_CONTENT] = JSON.stringify(part.content);
-        }
+        // tool_result parts are recorded as their own tool messages by
+        // getAnthropicInputMessagesAttributes, so they are skipped here
       } else if (part.type === "thinking") {
         attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] =
           "reasoning";
