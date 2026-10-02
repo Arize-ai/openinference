@@ -565,14 +565,26 @@ def _merge_hooks(options: Any, tool_tracker: "_ToolSpanTrackerBase") -> Any | No
     return _set_hooks(opts, merged_hooks)
 
 
+def _extract_prompt(args: Tuple[Any, ...], kwargs: Mapping[str, Any]) -> Any:
+    """Extract a wrapped call's `prompt` argument.
+
+    Handles `prompt` passed positionally, as a keyword, or positionally
+    alongside unrelated keyword arguments (e.g. `ClaudeSDKClient.query(prompt,
+    session_id=...)`): falling back to `args[0]` only when `kwargs` is empty
+    would miss that last case and silently record `None` as the prompt.
+    """
+    prompt = kwargs.get("prompt") if kwargs else None
+    if prompt is None and args:
+        prompt = args[0]
+    return prompt
+
+
 def _extract_prompt_and_options(
     args: Tuple[Any, ...],
     kwargs: Mapping[str, Any],
 ) -> tuple[Any, Any]:
-    prompt = kwargs.get("prompt") if kwargs else None
+    prompt = _extract_prompt(args, kwargs)
     options = kwargs.get("options") if kwargs else None
-    if prompt is None and args:
-        prompt = args[0]
     if options is None and len(args) > 1:
         options = args[1]
     return prompt, options
@@ -1130,7 +1142,7 @@ class _ClientQueryWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        prompt = kwargs.get("prompt") if kwargs else (args[0] if args else None)
+        prompt = _extract_prompt(args, kwargs)
         setattr(instance, _OINFERENCE_LAST_PROMPT, prompt)
         delegating_tracker = _get_or_create_delegating_tracker(instance)
         _ensure_client_hooks(instance, delegating_tracker)
@@ -1150,7 +1162,7 @@ class _ClientConnectWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        prompt = kwargs.get("prompt") if kwargs else (args[0] if args else None)
+        prompt = _extract_prompt(args, kwargs)
         if prompt is not None:
             setattr(instance, _OINFERENCE_LAST_PROMPT, prompt)
         delegating_tracker = _get_or_create_delegating_tracker(instance)

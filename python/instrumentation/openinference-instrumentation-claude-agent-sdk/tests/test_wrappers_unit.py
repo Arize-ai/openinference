@@ -1,7 +1,8 @@
 """Unit tests for helpers in `_wrappers.py` that don't need the full instrumentor.
 
-Covers `_extract_model_name_from_usage` (issue #3136) and
-`_extract_usage_and_cost_attributes` (cache-token undercount, #3611).
+Covers `_extract_model_name_from_usage` (issue #3136),
+`_extract_usage_and_cost_attributes` (cache-token undercount, #3611), and
+`_extract_prompt` (positional prompt lost alongside other kwargs).
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ import pytest
 
 from openinference.instrumentation.claude_agent_sdk._wrappers import (
     _extract_model_name_from_usage,
+    _extract_prompt,
+    _extract_prompt_and_options,
     _extract_usage_and_cost_attributes,
 )
 from openinference.semconv.trace import SpanAttributes
@@ -238,3 +241,37 @@ def test_token_counts_fold_cache_tokens(
     assert (
         attrs.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == expected_cache_write
     )
+
+
+# ---------------------------------------------------------------------------
+# `_extract_prompt` — positional prompt must survive alongside other kwargs
+# ---------------------------------------------------------------------------
+
+
+def test_prompt_positional_only() -> None:
+    assert _extract_prompt(("hello",), {}) == "hello"
+
+
+def test_prompt_keyword_only() -> None:
+    assert _extract_prompt((), {"prompt": "hello"}) == "hello"
+
+
+def test_prompt_positional_alongside_unrelated_kwarg() -> None:
+    # ClaudeSDKClient.query(prompt, session_id=...) and .connect(prompt,
+    # session_id=...) both call wrappers this way. `kwargs` being non-empty
+    # must not stop `args[0]` from being used as the fallback — it previously
+    # did, silently recording `None` as the prompt for every such call.
+    assert _extract_prompt(("hello",), {"session_id": "my-session"}) == "hello"
+
+
+def test_prompt_absent_returns_none() -> None:
+    assert _extract_prompt((), {"session_id": "my-session"}) is None
+    assert _extract_prompt((), {}) is None
+
+
+def test_prompt_and_options_positional_alongside_unrelated_kwarg() -> None:
+    prompt, options = _extract_prompt_and_options(
+        ("hello", "some-options"), {"session_id": "my-session"}
+    )
+    assert prompt == "hello"
+    assert options == "some-options"
