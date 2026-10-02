@@ -365,3 +365,25 @@ def test_cached_tokens_are_counted_once(
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 2
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 10
     assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] == 3
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_zero_argument_tool_span_keeps_its_input(
+    mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    harness = make_harness(monkeypatch, tracer_provider, in_memory_span_exporter, mode)
+    tool: Any = {"toolUseId": "call_1", "name": "get_time", "input": {}}
+    result: Any = {"toolUseId": "call_1", "status": "success", "content": [{"text": "12:00"}]}
+    span = harness.tracer.start_tool_call_span(tool)
+    harness.tracer.end_tool_call_span(span, result)
+
+    attributes = dict(harness.only_span().attributes or {})
+    assert attributes[SpanAttributes.TOOL_PARAMETERS] == "{}"
+    assert attributes[SpanAttributes.INPUT_VALUE] == "{}"
+    assert attributes[SpanAttributes.INPUT_MIME_TYPE] == "application/json"
+    call = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.tool_calls.0.tool_call"
+    assert attributes[f"{call}.function.arguments"] == "{}"
+    assert attributes[SpanAttributes.OUTPUT_VALUE] == "12:00"

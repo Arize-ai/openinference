@@ -994,16 +994,17 @@ class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
                     tool_output = self._latest_tool_output(event_attrs.get(GEN_AI_OUTPUT_MESSAGES))
 
         # Latest GenAI conventions also record them as span attributes.
+        # A tool called with no arguments has `{}` as its input, so only None means missing.
         if tool_parameters is None:
-            tool_parameters = self._tool_arguments(
-                attrs.get(GEN_AI_TOOL_CALL_ARGUMENTS)
-            ) or self._latest_tool_arguments(attrs.get(GEN_AI_INPUT_MESSAGES))
+            tool_parameters = self._tool_arguments(attrs.get(GEN_AI_TOOL_CALL_ARGUMENTS))
+        if tool_parameters is None:
+            tool_parameters = self._latest_tool_arguments(attrs.get(GEN_AI_INPUT_MESSAGES))
         if tool_output is None:
             tool_output = self._tool_result_text(
                 attrs.get(GEN_AI_TOOL_CALL_RESULT)
             ) or self._latest_tool_output(attrs.get(GEN_AI_OUTPUT_MESSAGES))
 
-        if tool_parameters:
+        if tool_parameters is not None:
             result[SpanAttributes.TOOL_PARAMETERS] = safe_json_dumps(tool_parameters)
 
             if tool_name and tool_call_id:

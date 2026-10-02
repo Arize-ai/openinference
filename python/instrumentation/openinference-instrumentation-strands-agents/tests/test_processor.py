@@ -1547,6 +1547,84 @@ class TestLatestToolSpans:
         self._assert_tool_span(span, self.BASE)
 
 
+class TestZeroArgumentToolSpans:
+    """A tool called with no arguments still records `{}` as its input."""
+
+    BASE = {
+        "gen_ai.system": "strands-agents",
+        "gen_ai.tool.name": "get_time",
+        "gen_ai.tool.call.id": "call_1",
+    }
+
+    def _assert_empty_input(self, span: MockReadableSpan, raw: Dict[str, Any]) -> None:
+        attributes = dict(span._attributes)
+        for key, value in raw.items():
+            assert attributes.pop(key) == value
+        assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "TOOL"
+        assert attributes.pop("graph.node.id") == "tool_get_time_12345"
+        assert attributes.pop(SpanAttributes.TOOL_NAME) == "get_time"
+        assert attributes.pop("tool.call_id") == "call_1"
+        assert attributes.pop(SpanAttributes.TOOL_PARAMETERS) == "{}"
+        prefix = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message"
+        assert attributes.pop(f"{prefix}.role") == "assistant"
+        assert attributes.pop(f"{prefix}.content") == ""
+        call = f"{prefix}.tool_calls.0.tool_call"
+        assert attributes.pop(f"{call}.id") == "call_1"
+        assert attributes.pop(f"{call}.function.name") == "get_time"
+        assert attributes.pop(f"{call}.function.arguments") == "{}"
+        assert attributes.pop(SpanAttributes.INPUT_VALUE) == "{}"
+        assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+        assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "12:00"
+        assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "text/plain"
+        assert json.loads(attributes.pop(SpanAttributes.METADATA)) == self.BASE
+        assert not attributes
+
+    def test_legacy_events(self) -> None:
+        span = MockReadableSpan(
+            name="execute_tool get_time",
+            attributes=dict(self.BASE),
+            events=[
+                MockEvent("gen_ai.tool.message", {"role": "tool", "content": "{}", "id": "call_1"}),
+                MockEvent("gen_ai.choice", {"message": '[{"text": "12:00"}]', "id": "call_1"}),
+            ],
+        )
+        StrandsAgentsToOpenInferenceProcessor().on_end(span)  # type: ignore[arg-type]
+
+        self._assert_empty_input(span, self.BASE)
+
+    def test_latest_span_attributes(self) -> None:
+        raw = {
+            **self.BASE,
+            "gen_ai.tool.call.arguments": "{}",
+            "gen_ai.tool.call.result": '[{"text": "12:00"}]',
+        }
+        span = MockReadableSpan(name="execute_tool get_time", attributes=dict(raw))
+        StrandsAgentsToOpenInferenceProcessor().on_end(span)  # type: ignore[arg-type]
+
+        self._assert_empty_input(span, raw)
+
+    def test_latest_operation_details_events(self) -> None:
+        call = {"type": "tool_call", "name": "get_time", "id": "call_1", "arguments": {}}
+        response = {"type": "tool_call_response", "id": "call_1", "response": [{"text": "12:00"}]}
+        span = MockReadableSpan(
+            name="execute_tool get_time",
+            attributes=dict(self.BASE),
+            events=[
+                MockEvent(
+                    "gen_ai.client.inference.operation.details",
+                    {"gen_ai.input.messages": json.dumps([{"role": "tool", "parts": [call]}])},
+                ),
+                MockEvent(
+                    "gen_ai.client.inference.operation.details",
+                    {"gen_ai.output.messages": json.dumps([{"role": "tool", "parts": [response]}])},
+                ),
+            ],
+        )
+        StrandsAgentsToOpenInferenceProcessor().on_end(span)  # type: ignore[arg-type]
+
+        self._assert_empty_input(span, self.BASE)
+
+
 class TestTraceConfigMasking:
     """The processor honors TraceConfig for everything it copies out of Strands spans."""
 
