@@ -706,9 +706,9 @@ def _llm_messages_attributes(
     for message_index, message in enumerate(messages):
         if not isinstance(message, dict):
             continue
-        if (role := message.get("role")) is not None:
+        if isinstance(role := message.get("role"), str):
             yield f"{base_key}.{message_index}.{MESSAGE_ROLE}", role
-        if (content := message.get("content")) is not None:
+        if isinstance(content := message.get("content"), str):
             yield f"{base_key}.{message_index}.{MESSAGE_CONTENT}", content
         if isinstance(contents := message.get("contents"), Sequence):
             for content_block_index, content_block in enumerate(contents):
