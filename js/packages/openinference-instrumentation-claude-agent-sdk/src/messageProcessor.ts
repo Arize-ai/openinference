@@ -9,6 +9,7 @@ import type { Attributes } from "@opentelemetry/api";
 
 import {
   getInputAttributes,
+  getLLMAttributes,
   getOutputAttributes,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
@@ -127,13 +128,14 @@ function extractUsageAttributes(usage: SDKResultMessage["usage"]): Attributes {
   const cacheRead = usage.cache_read_input_tokens ?? 0;
   const cacheWrite = usage.cache_creation_input_tokens ?? 0;
   const prompt = usage.input_tokens + cacheRead + cacheWrite;
-  return {
-    [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: prompt,
-    [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: usage.output_tokens,
-    [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: prompt + usage.output_tokens,
-    [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: cacheRead,
-    [SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: cacheWrite,
-  };
+  return getLLMAttributes({
+    tokenCount: {
+      prompt,
+      completion: usage.output_tokens,
+      total: prompt + usage.output_tokens,
+      promptDetails: { cacheRead, cacheWrite },
+    },
+  });
 }
 
 /**
