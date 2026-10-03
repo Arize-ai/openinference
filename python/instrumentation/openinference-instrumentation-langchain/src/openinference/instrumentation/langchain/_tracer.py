@@ -206,10 +206,11 @@ class OpenInferenceTracer(BaseTracer):
             return
         span = self._spans_by_run.pop(run.id, None)
         if span:
-            try:
-                _update_span(span, run)
-            except Exception:
-                logger.exception("Failed to update span with run data.")
+            if span.is_recording():
+                try:
+                    _update_span(span, run)
+                except Exception:
+                    logger.exception("Failed to update span with run data.")
             # We can't use real time because the handler may be
             # called in a background thread.
             end_time_utc_nano = _as_utc_nano(run.end_time) if run.end_time else None
