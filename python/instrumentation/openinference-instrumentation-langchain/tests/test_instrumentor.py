@@ -43,6 +43,7 @@ from langchain_community.retrievers import KNNRetriever
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnableSerializable
+from langchain_core.tracers.schemas import Run
 from langchain_google_vertexai import VertexAI
 from langchain_openai import ChatOpenAI
 from opentelemetry import trace as trace_api
@@ -60,7 +61,7 @@ from openinference.instrumentation.langchain import (
     get_ancestor_spans,
     get_current_span,
 )
-from openinference.instrumentation.langchain._tracer import _finish_reason
+from openinference.instrumentation.langchain._tracer import OpenInferenceTracer, _finish_reason
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -132,6 +133,68 @@ def test_get_current_span_when_there_is_no_tracer() -> None:
         None,
         [],
     )
+
+
+def _make_run(name: str = "test_run") -> Run:
+    from datetime import datetime, timezone
+    from uuid import uuid4
+
+    now = datetime.now(timezone.utc)
+    return Run(
+        id=uuid4(),
+        name=name,
+        run_type="chain",
+        inputs={"input": "hello"},
+        outputs={"output": "world"},
+        start_time=now,
+        end_time=now,
+    )
+
+
+def test_end_trace_skips_serialization_when_span_is_not_recording() -> None:
+    """A span the sampler already dropped must not pay for input/output
+    serialization: ``_update_span`` does the expensive work and must not be
+    called for a non-recording span."""
+    tracer = OpenInferenceTracer(
+        tracer=trace_api.get_tracer(__name__),
+        separate_trace_from_runtime_context=False,
+    )
+    non_recording_span = trace_api.NonRecordingSpan(
+        trace_api.SpanContext(
+            trace_id=1,
+            span_id=1,
+            is_remote=False,
+        )
+    )
+    assert not non_recording_span.is_recording()
+    run = _make_run()
+    tracer._spans_by_run[run.id] = non_recording_span
+    with patch("openinference.instrumentation.langchain._tracer._update_span") as mock_update_span:
+        tracer._end_trace(run)
+    mock_update_span.assert_not_called()
+    # The run must still be cleaned up out of the live-span map.
+    assert run.id not in tracer._spans_by_run
+
+
+def test_end_trace_still_updates_a_recording_span(
+    tracer_provider: trace_api.TracerProvider,
+) -> None:
+    """A normal, recording span must still be updated and finished as
+    before; the ``is_recording()`` guard must only skip non-recording
+    spans."""
+    tracer = OpenInferenceTracer(
+        tracer=tracer_provider.get_tracer(__name__),
+        separate_trace_from_runtime_context=False,
+    )
+    with tracer_provider.get_tracer(__name__).start_as_current_span("recording") as span:
+        assert span.is_recording()
+        run = _make_run()
+        tracer._spans_by_run[run.id] = span
+        with patch(
+            "openinference.instrumentation.langchain._tracer._update_span"
+        ) as mock_update_span:
+            tracer._end_trace(run)
+        mock_update_span.assert_called_once_with(span, run)
 
 
 async def test_get_ancestor_spans(
