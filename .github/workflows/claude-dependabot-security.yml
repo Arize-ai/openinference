@@ -426,7 +426,7 @@ jobs:
       - name: Run Claude Code
         id: dependabot-fix
         if: steps.slice.outputs.count != '0' && steps.preflight.outputs.skip != 'true'
-        uses: anthropics/claude-code-action@2fee15510437d71399d9139ed60433470484a8fb # v1.0.153
+        uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
         env:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           CLAUDE_DEPENDABOT_TARGET_MANIFEST: ${{ matrix.manifest }}
@@ -517,7 +517,7 @@ jobs:
                 unlinked numeric range.
 
             Do not modify automation or agent-instruction files such as `.github/`, `.claude/`, `.agents/`, `AGENTS.md`, or `CLAUDE.md`.
-          claude_args: '--allowedTools Skill,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,"Bash(gh api:*)","Bash(gh pr list:*)","Bash(gh pr view:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(restore-target-from-head.sh:*)","Bash(uv:*)","Bash(uvx:*)","Bash(tox:*)","Bash(python:*)","Bash(python3:*)","Bash(pip:*)","Bash(pip3:*)","Bash(pipx:*)","Bash(poetry:*)","Bash(corepack:*)","Bash(pnpm:*)","Bash(npm:*)","Bash(npx:*)","Bash(make:*)","Bash(cd:*)","Bash(ls:*)","Bash(find:*)","Bash(grep:*)","Bash(sed:*)","Bash(awk:*)","Bash(jq:*)","Bash(cat:*)","Bash(head:*)","Bash(tail:*)","Bash(sort:*)","Bash(nl:*)","Bash(mkdir:*)","Bash(date:*)","Bash(echo:*)","Bash(printf:*)"'
+          claude_args: '--model claude-opus-5-5 --allowedTools Skill,Read,Write,Edit,Glob,Grep,Agent,WebFetch,WebSearch,"Bash(gh api:*)","Bash(gh pr list:*)","Bash(gh pr view:*)","Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git show:*)","Bash(restore-target-from-head.sh:*)","Bash(uv:*)","Bash(uvx:*)","Bash(tox:*)","Bash(python:*)","Bash(python3:*)","Bash(pip:*)","Bash(pip3:*)","Bash(pipx:*)","Bash(poetry:*)","Bash(corepack:*)","Bash(pnpm:*)","Bash(npm:*)","Bash(npx:*)","Bash(make:*)","Bash(cd:*)","Bash(ls:*)","Bash(find:*)","Bash(grep:*)","Bash(sed:*)","Bash(awk:*)","Bash(jq:*)","Bash(cat:*)","Bash(head:*)","Bash(tail:*)","Bash(sort:*)","Bash(nl:*)","Bash(mkdir:*)","Bash(date:*)","Bash(echo:*)","Bash(printf:*)"'
 
       - name: Upload Claude execution log
         if: ${{ always() && steps.dependabot-fix.outcome != 'skipped' }}
