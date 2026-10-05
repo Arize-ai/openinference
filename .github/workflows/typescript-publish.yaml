@@ -3,10 +3,7 @@ on:
   push:
     branches:
       - main
-permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+permissions: {}
 env:
   CI: true
   PNPM_CACHE_FOLDER: .pnpm-store
@@ -16,6 +13,11 @@ env:
 jobs:
   version:
     timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      # Required for npm trusted publishing (OIDC) and provenance.
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code repository
@@ -54,3 +56,20 @@ jobs:
           create-github-releases: true
           push-with-git-cli: true
           cwd: "${{ github.workspace }}/js"
+
+  slack:
+    name: Slack notification
+    needs: [version]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Send message to Slack
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ${{ toJSON(format('TypeScript publish failed on {0}: {1}/{2}/actions/runs/{3}', github.sha, github.server_url, github.repository, github.run_id)) }}
+            }
