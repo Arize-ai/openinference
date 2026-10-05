@@ -18,6 +18,16 @@ from typing import (
 )
 
 from dacite import from_dict
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
@@ -38,16 +48,6 @@ from openinference.instrumentation.bedrock.__generated__.anthropic._types import
     ToolUseBlock,
 )
 from openinference.instrumentation.bedrock.utils import _finish
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 
 if TYPE_CHECKING:
     from anthropic.types import (
@@ -224,7 +224,7 @@ def _attributes_from_system_message(
         return
     for i, block in enumerate(system):
         try:
-            yield f"{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", block["text"]
+            yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", block["text"]
         except KeyError:
             pass
 
