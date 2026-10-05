@@ -395,3 +395,20 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 USER_ID = SpanAttributes.USER_ID
+
+
+def test_system_message_block_attributes_include_message_prefix():
+    from openinference.instrumentation.bedrock.utils.anthropic._messages import (
+        _attributes_from_system_message,
+    )
+
+    attributes = dict(
+        _attributes_from_system_message(
+            [{"type": "text", "text": "SECRET-SYSTEM"}],
+            "llm.input_messages.0.",
+        )
+    )
+    assert attributes == {
+        "llm.input_messages.0.message.role": "system",
+        "llm.input_messages.0.message.contents.0.message_content.text": "SECRET-SYSTEM",
+    }
