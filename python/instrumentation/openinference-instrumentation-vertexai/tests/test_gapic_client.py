@@ -181,9 +181,7 @@ async def test_instrumentor(
         assert is_descendant(span, spans[0], spans_by_id)
 
 
-@pytest.mark.parametrize("is_async", [False, True])
-async def test_instrumentor_multiple_function_responses(
-    is_async: bool,
+def test_instrumentor_multiple_function_responses(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer: Tracer,
 ) -> None:
@@ -254,6 +252,11 @@ async def test_instrumentor_multiple_function_responses(
     assert json.loads(cast(str, attributes.pop(message_content(prefix, 4), None))) == {
         "result": "4"
     }
+    assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
+    assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS, None), str)
+    assert attributes == {}
 
 
 @pytest.mark.parametrize("hide_inputs", [False, True])
