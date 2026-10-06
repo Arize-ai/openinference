@@ -94,6 +94,9 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 self._request_scope = None
 
     def __iter__(self) -> Iterator["GenerateContentResponse"]:
+        # Also reached via GeneratorExit when the caller stops early (break, close(),
+        # or the iterator is garbage collected), so the span is ended with the output so far.
+        status = trace_api.Status(status_code=trace_api.StatusCode.OK)
         try:
             for item in self.__wrapped__:
                 self._capture_request_once()
@@ -105,15 +108,14 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 description=f"{type(exception).__name__}: {exception}",
             )
             self._with_span.record_exception(exception)
-            self._finish_tracing(status=status)
             raise
-        # completed without exception
-        status = trace_api.Status(
-            status_code=trace_api.StatusCode.OK,
-        )
-        self._finish_tracing(status=status)
+        finally:
+            self._finish_tracing(status=status)
 
     async def __aiter__(self) -> AsyncIterator["GenerateContentResponse"]:
+        # Also reached via GeneratorExit when the caller stops early (break, close(),
+        # or the iterator is garbage collected), so the span is ended with the output so far.
+        status = trace_api.Status(status_code=trace_api.StatusCode.OK)
         try:
             async for item in self.__wrapped__:
                 self._capture_request_once()
@@ -125,13 +127,9 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
                 description=f"{type(exception).__name__}: {exception}",
             )
             self._with_span.record_exception(exception)
-            self._finish_tracing(status=status)
             raise
-        # completed without exception
-        status = trace_api.Status(
-            status_code=trace_api.StatusCode.OK,
-        )
-        self._finish_tracing(status=status)
+        finally:
+            self._finish_tracing(status=status)
 
     def _finish_tracing(
         self,
