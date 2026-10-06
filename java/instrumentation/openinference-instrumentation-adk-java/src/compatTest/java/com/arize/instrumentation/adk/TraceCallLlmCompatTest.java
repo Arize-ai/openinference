@@ -26,6 +26,7 @@ import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import net.bytebuddy.agent.ByteBuddyAgent;
@@ -39,7 +40,9 @@ import org.mockito.stubbing.Answer;
  * the same compiled test runs against ADK 0.6.0, 0.9.0, 1.0.0 and 1.10.1 in separate JVMs.
  *
  * <p>The expected {@code traceCallLlm} arity is supplied by the task through {@code
- * adk.expected.arity}. A missing class or method fails the test; it is never skipped.
+ * adk.expected.arity}. A missing class or method fails the test; it is never skipped. A second test
+ * fails when the ADK version under test declares any {@code traceCallLlm} signature the agent does
+ * not recognize, catching telemetry signature drift in CI.
  */
 class TraceCallLlmCompatTest {
 
@@ -155,6 +158,71 @@ class TraceCallLlmCompatTest {
             assertThat(exported.getEvents())
                     .anySatisfy(event -> assertThat(event.getName()).isEqualTo("exception"));
         }
+    }
+
+    /**
+     * Guards against silent signature drift: every {@code Tracing.traceCallLlm} method declared by
+     * the ADK version under test must match a signature shape the agent recognizes (a static method
+     * with the 4-, 5- or 6-argument parameter list from {@link #isRecognizedTraceCallLlm}), and the
+     * shape expected for this task's ADK version must be present. A future ADK release that adds or
+     * changes a {@code traceCallLlm} signature therefore fails CI instead of silently dropping
+     * {@code call_llm} enrichment, as happened on ADK 0.6.0.
+     */
+    @Test
+    void traceCallLlmSignaturesAreRecognized() throws Exception {
+        int expectedArity = Integer.parseInt(System.getProperty("adk.expected.arity", "0"));
+        if (expectedArity != 4 && expectedArity != 5 && expectedArity != 6) {
+            throw new IllegalStateException("adk.expected.arity must be 4, 5 or 6 but was " + expectedArity);
+        }
+
+        Class<?> tracingClass = Class.forName(TRACING);
+        List<String> unrecognized = new ArrayList<>();
+        boolean expectedArityFound = false;
+        for (Method method : tracingClass.getDeclaredMethods()) {
+            if (!method.getName().equals("traceCallLlm")) {
+                continue;
+            }
+            if (isRecognizedTraceCallLlm(method)) {
+                expectedArityFound |= method.getParameterCount() == expectedArity;
+            } else {
+                unrecognized.add(method.toGenericString());
+            }
+        }
+        assertThat(unrecognized)
+                .describedAs("unrecognized Tracing.traceCallLlm signature(s); extend TelemetryAgent and"
+                        + " isRecognizedTraceCallLlm before supporting this ADK version")
+                .isEmpty();
+        assertThat(expectedArityFound)
+                .describedAs("no static %d-argument Tracing.traceCallLlm was found", expectedArity)
+                .isTrue();
+    }
+
+    /**
+     * Returns true for exactly the static {@code traceCallLlm} shapes the agent advises: 4 arguments
+     * {@code (InvocationContext, String, LlmRequest, LlmResponse)}, 5 arguments with a leading
+     * {@code Span}, or 6 arguments with a leading {@code Span} and a trailing {@code Exception}.
+     * Signatures are compared by class name so no ADK type is loaded by this test class.
+     */
+    private static boolean isRecognizedTraceCallLlm(Method method) {
+        if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) {
+            return false;
+        }
+        Class<?>[] types = method.getParameterTypes();
+        if (types.length == 4) {
+            return types[0].getName().equals(INVOCATION_CONTEXT)
+                    && types[1] == String.class
+                    && types[2].getName().equals(LLM_REQUEST)
+                    && types[3].getName().equals(LLM_RESPONSE);
+        }
+        if (types.length == 5 || types.length == 6) {
+            return types[0].getName().equals(SPAN)
+                    && types[1].getName().equals(INVOCATION_CONTEXT)
+                    && types[2] == String.class
+                    && types[3].getName().equals(LLM_REQUEST)
+                    && types[4].getName().equals(LLM_RESPONSE)
+                    && (types.length == 5 || types[5] == Exception.class);
+        }
+        return false;
     }
 
     private static Class<?>[] expectedParameters(
