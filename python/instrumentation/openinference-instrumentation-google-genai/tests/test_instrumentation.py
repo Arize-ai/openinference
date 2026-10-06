@@ -2438,3 +2438,26 @@ async def test_async_stream_left_early_ends_span(
             await iterator.aclose()
 
     _assert_stream_span_ended_with_partial_output(in_memory_span_exporter)
+
+
+async def test_async_stream_cancelled_ends_span_with_error(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="fake-key").aio
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        _mock_stream_generate_content(mock_router)
+        stream = await client.models.generate_content_stream(
+            model="gemini-2.0-flash", contents="hi"
+        )
+        iterator = stream.__aiter__()
+        await iterator.__anext__()
+        with pytest.raises(asyncio.CancelledError):
+            await iterator.athrow(asyncio.CancelledError())
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.status_code == StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]
