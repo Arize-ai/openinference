@@ -250,7 +250,8 @@ class using_session(_UsingAttributesContextManager):
     Also usable as a decorator on plain, ``async def``, generator and async generator
     functions; the attributes then apply for the whole call.
 
-    Examples:
+    Examples::
+
         with using_session("my-session-id"):
             # Tracing within this block will include the span attribute:
             # "session.id" = "my-session-id"
@@ -270,7 +271,8 @@ class using_user(_UsingAttributesContextManager):
     Also usable as a decorator on plain, ``async def``, generator and async generator
     functions; the attributes then apply for the whole call.
 
-    Examples:
+    Examples::
+
         with using_user("my-user-id"):
             # Tracing within this block will include the span attribute:
             # "user.id" = "my-user-id"
@@ -290,7 +292,8 @@ class using_metadata(_UsingAttributesContextManager):
     Also usable as a decorator on plain, ``async def``, generator and async generator
     functions; the attributes then apply for the whole call.
 
-    Examples:
+    Examples::
+
         metadata = {
             "key-1": value_1,
             "key-2": value_2,
@@ -315,7 +318,8 @@ class using_tags(_UsingAttributesContextManager):
     Also usable as a decorator on plain, ``async def``, generator and async generator
     functions; the attributes then apply for the whole call.
 
-    Examples:
+    Examples::
+
         tags = [
             "tag_1",
             "tag_2",
@@ -341,7 +345,8 @@ class using_prompt_template(_UsingAttributesContextManager):
     Also usable as a decorator on plain, ``async def``, generator and async generator
     functions; the attributes then apply for the whole call.
 
-    Examples:
+    Examples::
+
         prompt_template = "Please describe the weather forecast for {city} on {date}"
         prompt_template_variables = {"city": "Johannesburg", date:"July 11"}
         with using_prompt_template(
@@ -384,7 +389,8 @@ class using_attributes(_UsingAttributesContextManager):
     It is a convenient context manager to use if you find yourself using many others, provided
     by this package, combined.
 
-    Example:
+    Example::
+
         tags = [
             "tag_1",
             "tag_2",
@@ -422,7 +428,8 @@ class using_attributes(_UsingAttributesContextManager):
 
             ...
 
-    The previous example is equivalent to doing:
+    The previous example is equivalent to doing::
+
         with (
             using_session("my-session-id"),
             using_user("my-user-id"),
