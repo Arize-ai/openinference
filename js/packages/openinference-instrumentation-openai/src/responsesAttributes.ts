@@ -20,7 +20,7 @@ import { getNumberProperty } from "./typeUtils";
  * @returns The attributes for the item
  */
 function getResponseItemAttributes(
-  item: Exclude<ResponseInputItem | ResponseOutputItem, { role: string }>,
+  item: Exclude<ResponseInputItem | ResponseOutputItem, { role: string; content: unknown }>,
   prefix = "",
 ): Attributes {
   const attributes: Attributes = {};
@@ -40,13 +40,14 @@ function getResponseItemAttributes(
     }
     case "function_call_output": {
       attributes[`${prefix}${SemanticConventions.MESSAGE_ROLE}`] = "tool";
-      attributes[`${prefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = item.call_id;
+      attributes[`${prefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
+        item.call_id ?? undefined;
       if (typeof item.output === "string") {
         attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] = item.output;
       } else {
         // TODO(2410): figure out how to serialize the list of tools
         attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
-          safelyJSONStringify(item.output) || undefined;
+          safelyJSONStringify(item.output) ?? undefined;
       }
 
       break;
@@ -131,7 +132,9 @@ function getResponseItemMessageAttributes(
     typeof itemMessage === "string"
       ? ({ content: itemMessage, role: "user" } satisfies ResponseInputItem)
       : itemMessage;
-  if (!("role" in message)) {
+  // Items such as `additional_tools` carry a role but no content, and are
+  // handled with the other non-message items.
+  if (!("role" in message) || !("content" in message)) {
     return getResponseItemAttributes(message, prefix);
   }
   const role = message.role;
