@@ -71,5 +71,5 @@ jobs:
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": ${{ toJSON(format('TypeScript publish failed on {0}: {1}/{2}/actions/runs/{3}', github.sha, github.server_url, github.repository, github.run_id)) }}
+              "text": ${{ toJSON(format('🚨 TypeScript publish failed on {0}: {1}/{2}/actions/runs/{3}', github.sha, github.server_url, github.repository, github.run_id)) }}
             }
