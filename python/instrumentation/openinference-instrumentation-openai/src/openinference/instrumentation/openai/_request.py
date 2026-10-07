@@ -381,7 +381,7 @@ class _Request(_WithTracer, _WithOpenAI):
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 with_span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -460,7 +460,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         ) as with_span:
             try:
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 with_span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
