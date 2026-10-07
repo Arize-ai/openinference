@@ -9,6 +9,7 @@ from typing import Any, AsyncGenerator, cast
 
 import pytest
 from google.adk import Agent
+from google.adk.apps import App
 from google.adk.code_executors.built_in_code_executor import BuiltInCodeExecutor
 from google.adk.events import Event, EventActions
 from google.adk.models.base_llm import BaseLlm
@@ -19,6 +20,7 @@ from google.adk.runners import InMemoryRunner
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.load_artifacts_tool import load_artifacts_tool as load_artifacts
 from google.adk.tools.tool_context import ToolContext
+from google.adk.workflow import START, Workflow
 from google.genai import types
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
@@ -31,10 +33,7 @@ from openinference.instrumentation import (
     suppress_tracing,
     using_attributes,
 )
-from openinference.instrumentation.google_adk import (
-    GoogleADKInstrumentor,
-    _SelectiveExecuteToolTracer,
-)
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from openinference.instrumentation.google_adk._wrappers import (
     _BaseAgentRunAsync,
     _RunnerRunAsync,
@@ -3015,17 +3014,57 @@ async def test_google_adk_instrumentor_reasoning_content(
     assert not call_llm_attributes
 
 
-def test_selective_tracer_forwards_workflow_spans(
-    tracer_provider: trace_api.TracerProvider,
+def _workflow_step_one() -> str:
+    return "one"
+
+
+def _workflow_step_two(node_input: str) -> str:
+    return node_input + " two"
+
+
+async def _run_workflow() -> None:
+    workflow = Workflow(
+        name="wf",
+        edges=[(START, _workflow_step_one), (_workflow_step_one, _workflow_step_two)],
+    )
+    app_name = f"app{token_hex(4)}"
+    runner = InMemoryRunner(app=App(name=app_name, root_agent=workflow))
+    session = await runner.session_service.create_session(app_name=app_name, user_id="u")
+    message = types.Content(role="user", parts=[types.Part(text="go")])
+    async for _ in runner.run_async(user_id="u", session_id=session.id, new_message=message):
+        pass
+
+
+async def test_google_adk_instrumentor_workflow_spans(
+    instrument: None,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    oi_tracer = tracer_provider.get_tracer(__name__)
-    tracer = _SelectiveExecuteToolTracer(trace_api.NoOpTracer(), oi_tracer)
-    for name in ("invoke_workflow wf", "invoke_node step_one", "invoke_agent a"):
-        with tracer.start_as_current_span(name):
-            pass
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert [span.name for span in spans] == ["invoke_workflow wf", "invoke_node step_one"]
-    for span in spans:
+    await _run_workflow()
+
+    spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
+    invocation_span = next(span for name, span in spans.items() if name.startswith("invocation"))
+    workflow_span = spans["invoke_workflow wf"]
+    node_spans = [spans["invoke_node _workflow_step_one"], spans["invoke_node _workflow_step_two"]]
+
+    for span in [workflow_span, *node_spans]:
+        assert span.instrumentation_scope is not None
+        assert span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
         assert span.attributes
         assert span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "CHAIN"
+    assert workflow_span.attributes
+    assert workflow_span.attributes["gen_ai.operation.name"] == "invoke_workflow"
+    assert workflow_span.parent is not None
+    assert workflow_span.parent.span_id == invocation_span.context.span_id
+    for node_span in node_spans:
+        assert node_span.parent is not None
+        assert node_span.parent.span_id == workflow_span.context.span_id
+
+
+async def test_google_adk_instrumentor_workflow_spans_suppress_tracing(
+    instrument: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with suppress_tracing():
+        await _run_workflow()
+
+    assert not in_memory_span_exporter.get_finished_spans()

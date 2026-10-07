@@ -20,6 +20,7 @@ from openinference.instrumentation.google_adk import (
     _merged_tool_span_modules,
     _PassthroughTracer,
     _SelectiveExecuteToolTracer,
+    _workflow_span_modules,
 )
 from openinference.semconv.trace import SpanAttributes
 
@@ -35,7 +36,7 @@ def test_instrumentation_patching() -> None:
     compaction = sys.modules.get(_COMPACTION_MODULE)
     original_merged_tracers = [
         (module, module.tracer)
-        for module in _merged_tool_span_modules()
+        for module in _merged_tool_span_modules() + _workflow_span_modules()
         if hasattr(module, "tracer")
     ]
 
