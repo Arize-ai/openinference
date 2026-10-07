@@ -208,6 +208,8 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
             if callable(close):
                 close()
         finally:
+            # Closed before exhaustion: leave the span status UNSET to
+            # distinguish a truncated stream from a completed one.
             self._finish(None)
 
     async def aclose(self) -> None:
@@ -219,6 +221,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
             self._finish(None)
 
     def __del__(self) -> None:
+        # Abandoned (possibly never iterated): the span must still be ended.
         try:
             self._finish(None)
         except BaseException:
