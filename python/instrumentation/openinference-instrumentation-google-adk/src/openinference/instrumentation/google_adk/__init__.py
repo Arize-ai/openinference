@@ -60,9 +60,11 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
         from google.adk.agents import BaseAgent
         from google.adk.runners import Runner
+        from google.adk.workflow._node_runner import NodeRunner
 
         from openinference.instrumentation.google_adk._wrappers import (
             _BaseAgentRunAsync,
+            _NodeRunnerExecuteNode,
             _RunnerRunAsync,
         )
 
@@ -72,6 +74,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         method_wrappers: Dict[Any, Any] = {
             Runner.run_async: _RunnerRunAsync(self._tracer),
             BaseAgent.run_async: _BaseAgentRunAsync(self._tracer),
+            NodeRunner._execute_node: _NodeRunnerExecuteNode(),
         }
 
         # Wrap each method with its corresponding tracer
@@ -163,9 +166,10 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
             adk_proxy = cast(Tracer, _SelectiveExecuteToolTracer(original_adk_tracer, self._tracer))
             self._tracer_patches.append((adk_tracing, "tracer", original_adk_tracer, adk_proxy))
             setattr(adk_tracing, "tracer", adk_proxy)
-        # execute_tool (merged) uses a module-local tracer captured at import
-        # time. Reassigning tracing.tracer does not reach it.
-        for merged_module in _merged_tool_span_modules():
+        # execute_tool (merged) and the workflow/node spans use module-local
+        # tracers captured at import time. Reassigning tracing.tracer does not
+        # reach them.
+        for merged_module in _merged_tool_span_modules() + _workflow_span_modules():
             merged_tracer = getattr(merged_module, "tracer", None)
             if isinstance(merged_tracer, Tracer):
                 merged_proxy = _SelectiveExecuteToolTracer(merged_tracer, self._tracer)
@@ -349,6 +353,9 @@ def _wrap_build_compaction_result_attributes(original: Any) -> Any:
     return wrapper
 
 
+_WORKFLOW_SPAN_PREFIXES = ("invoke_workflow", "invoke_node")
+
+
 class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """Tracer proxy that emits OI spans for tool/compaction spans and suppresses the rest.
 
@@ -371,6 +378,10 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     - ``execute_tool {name}``   → emit as OI span (``_TraceToolCall`` enriches it)
     - ``execute_tool (merged)`` → emit as OI span (parallel-call summary)
 
+    ADK 2.x graph workflows add ``invoke_workflow {name}`` and ``invoke_node {name}``.
+    No outer wrapper covers them, so they are emitted as OI ``CHAIN`` spans, and
+    ``_NodeRunnerExecuteNode`` records their input and output.
+
     A blanket :class:`_PassthroughTracer` swallows the tool spans — leaving
     ``_TraceToolCall`` to write TOOL attributes onto the parent ``call_llm`` span
     and producing no tool span at all. A blanket ``OITracer`` swap goes the other
@@ -378,18 +389,21 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     alongside the OI ``agent_run`` / ``call_llm`` spans we already create.
 
     This proxy routes by span name: forward to the OI tracer for
-    ``execute_tool *`` and ``compact_events *`` (so ``_TraceToolCall`` and ADK
-    compaction each get a real span), passthrough for everything else.
+    ``execute_tool *``, ``compact_events *``, ``invoke_workflow *`` and
+    ``invoke_node *`` (so ``_TraceToolCall``, ADK compaction and workflows each
+    get a real span), passthrough for everything else.
 
-    Why the merged-span module's ``tracer`` is patched separately
-    -------------------------------------------------------------
+    Why some modules' ``tracer`` is patched separately
+    --------------------------------------------------
     The parallel-call ``execute_tool (merged)`` span is created in a module that
     did ``from ...telemetry.tracing import tracer`` at import time, capturing the
     original tracer in a *local* name. Later reassignments of ``tracing.tracer``
     don't reach it, so the merged span would emit through the original ADK tracer
     unless we patch that binding too. The binding lives on
     ``flows/llm_flows/tools/_batch_executor.py``. ``_disable_existing_tracers``
-    wraps it (see ``_merged_tool_span_modules``) with this proxy.
+    wraps it (see ``_merged_tool_span_modules``) with this proxy. Workflow and node
+    spans have the same problem in ``telemetry/node_tracing.py`` (see
+    ``_workflow_span_modules``).
 
     Implementation note
     -------------------
@@ -406,7 +420,10 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     @_agnosticcontextmanager
     def start_as_current_span(self, name: str, *args: Any, **kwargs: Any) -> Iterator[Span]:
         is_compaction = isinstance(name, str) and name.startswith("compact_events ")
-        if is_compaction or (isinstance(name, str) and name.startswith("execute_tool")):
+        # ADK 2.x graph workflows (telemetry/node_tracing.py); no outer wrapper replaces these
+        is_workflow = isinstance(name, str) and name.startswith(_WORKFLOW_SPAN_PREFIXES)
+        is_tool = isinstance(name, str) and name.startswith("execute_tool")
+        if is_compaction or is_workflow or is_tool:
             # Tool/compaction path — produce a real OI span; _TraceToolCall
             # enriches tool spans via `get_current_span()` once
             # `tracing.trace_tool_call(...)` runs inside.
@@ -428,6 +445,12 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
                         logger.exception("Failed to set compaction span input.")
                 kwargs = dict(kwargs)
                 kwargs["attributes"] = {**kwargs.get("attributes", {}), **compaction_attributes}
+            elif is_workflow:
+                kwargs = dict(kwargs)
+                kwargs["attributes"] = {
+                    **kwargs.get("attributes", {}),
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+                }
             with self._self_oi_tracer.start_as_current_span(name, *args, **kwargs) as span:
                 yield span
             return
@@ -446,3 +469,15 @@ def _merged_tool_span_modules() -> List[Any]:
     from google.adk.flows.llm_flows.tools import _batch_executor
 
     return [_batch_executor]
+
+
+def _workflow_span_modules() -> List[Any]:
+    """Return the module whose local ``tracer`` creates workflow and node spans.
+
+    ``telemetry/node_tracing.py`` does ``from .tracing import tracer`` at import
+    time, so a later reassignment of ``tracing.tracer`` does not reach the
+    ``invoke_workflow`` and ``invoke_node`` spans.
+    """
+    from google.adk.telemetry import node_tracing
+
+    return [node_tracing]
