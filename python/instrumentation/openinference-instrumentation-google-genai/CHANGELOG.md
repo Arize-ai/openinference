@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.10...python-openinference-instrumentation-google-genai-v1.4.11) (2026-10-07)
+
+
+### Bug Fixes
+
+* **google-genai:** record each function_response part as its own tool message ([#3814](https://github.com/Arize-ai/openinference/issues/3814)) ([7ce25b0](https://github.com/Arize-ai/openinference/commit/7ce25b0a137ae55bc9e67606f069c041767f68a4))
+* **openai,google-genai:** end the span when a request is cancelled or interrupted ([#3971](https://github.com/Arize-ai/openinference/issues/3971)) ([b6d18d9](https://github.com/Arize-ai/openinference/commit/b6d18d992a5bc323e550a952a233a196c32dcced))
+
 ## [1.4.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v1.4.9...python-openinference-instrumentation-google-genai-v1.4.10) (2026-10-01)
 
 
