@@ -1068,3 +1068,20 @@ JSON = OpenInferenceMimeTypeValues.JSON
 SESSION_ID = SpanAttributes.SESSION_ID
 USER_ID = SpanAttributes.USER_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS
+
+
+def test_uninstrument_restores_existing_clients(tracer_provider: trace_api.TracerProvider) -> None:
+    client = boto3.client(
+        "bedrock-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    assert hasattr(client, "_unwrapped_invoke_model")
+    original = client._unwrapped_invoke_model
+
+    BedrockInstrumentor().uninstrument()
+
+    assert client.invoke_model == original
+    assert not hasattr(client, "_unwrapped_invoke_model")
+    BedrockInstrumentor().instrument(tracer_provider=tracer_provider)

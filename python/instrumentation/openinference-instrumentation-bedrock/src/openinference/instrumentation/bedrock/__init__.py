@@ -36,6 +36,7 @@ Edge cases and limitations:
 import io
 import json
 import logging
+import weakref
 from functools import wraps
 from importlib import import_module
 from inspect import signature
@@ -263,6 +264,10 @@ class _LazyAsyncInvokeModelBody:
 # -----------------------------------------------------------------------------
 
 
+# clients whose methods were replaced, so uninstrument() can restore them (#3969)
+_instrumented_clients: "weakref.WeakSet[Any]" = weakref.WeakSet()
+
+
 def _instrument_client(
     client: Any, bound_arguments: Any, tracer: Tracer, module_version: str, is_async: bool
 ) -> BaseClient:
@@ -324,6 +329,7 @@ def _instrument_client(
         client._unwrapped_apply_guardrail = client.apply_guardrail
         client.apply_guardrail = _apply_guardrail_wrapper(tracer)(client)
 
+    _instrumented_clients.add(client)
     return client
 
 
@@ -652,6 +658,11 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
                 self._original_aio_client_creator = None
         except ImportError:
             pass
+        for client in list(_instrumented_clients):
+            for name in [n for n in vars(client) if n.startswith("_unwrapped_")]:
+                setattr(client, name.removeprefix("_unwrapped_"), getattr(client, name))
+                delattr(client, name)
+        _instrumented_clients.clear()
 
 
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
