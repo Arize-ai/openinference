@@ -16,6 +16,24 @@ from openinference.instrumentation.bedrock.utils.anthropic._messages import (
 _CASSETTES_DIR = Path(__file__).resolve().parent / "cassettes"
 
 
+def test_invoke_model_system_message_is_not_a_recorded_invocation_parameter() -> None:
+    from openinference.instrumentation.bedrock.utils.anthropic._attributes import (
+        _get_invocation_parameters,
+    )
+
+    kwargs = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "system": "SECRET-SYSTEM",
+        "messages": [],
+        "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+        "max_tokens": 10,
+    }
+    assert _get_invocation_parameters(kwargs) == {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 10,
+    }
+
+
 def test_file_image_source_emits_no_attributes() -> None:
     image_block: Any = {
         "type": "image",
