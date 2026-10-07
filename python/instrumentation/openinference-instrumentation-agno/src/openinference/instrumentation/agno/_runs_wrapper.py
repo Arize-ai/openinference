@@ -14,6 +14,12 @@ from typing import (
     cast,
 )
 
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context.context import Context
@@ -35,12 +41,7 @@ from openinference.instrumentation.agno.utils import (
     _bind_arguments,
     _flatten,
     _generate_node_id,
-)
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
+    _normalize_id,
 )
 
 
@@ -132,17 +133,20 @@ def _span_method_name(wrapped: Callable[..., Any], default: str) -> str:
 
 
 def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
-    user_id = arguments.get("user_id")
-    session_id = arguments.get("session_id")
+    raw_user_id = arguments.get("user_id")
+    raw_session_id = arguments.get("session_id")
 
     # For agno v2: session_id might be in the session object for internal _run method
     session = arguments.get("session")
     if session and hasattr(session, "session_id"):
-        session_id = session.session_id
+        raw_session_id = session.session_id
 
-    if session_id:
+    session_id = _normalize_id(raw_session_id, "session_id")
+    user_id = _normalize_id(raw_user_id, "user_id")
+
+    if session_id is not None:
         yield SESSION_ID, session_id
-    if user_id:
+    if user_id is not None:
         yield USER_ID, user_id
 
 
@@ -161,8 +165,15 @@ def _agent_run_attributes(
         if hasattr(agent, "id") and agent.id:
             yield "agno.team.id", agent.id
 
-        if hasattr(agent, "user_id") and agent.user_id:
-            yield USER_ID, agent.user_id
+        if hasattr(agent, "session_id"):
+            session_id = _normalize_id(agent.session_id, "session_id")
+            if session_id is not None:
+                yield SESSION_ID, session_id
+
+        if hasattr(agent, "user_id"):
+            user_id = _normalize_id(agent.user_id, "user_id")
+            if user_id is not None:
+                yield USER_ID, user_id
 
         # Use context parent instead of structural parent
         if context_parent_id:
@@ -184,8 +195,15 @@ def _agent_run_attributes(
         if hasattr(agent, "id") and agent.id:
             yield "agno.agent.id", agent.id
 
-        if hasattr(agent, "user_id") and agent.user_id:
-            yield USER_ID, agent.user_id
+        if hasattr(agent, "session_id"):
+            session_id = _normalize_id(agent.session_id, "session_id")
+            if session_id is not None:
+                yield SESSION_ID, session_id
+
+        if hasattr(agent, "user_id"):
+            user_id = _normalize_id(agent.user_id, "user_id")
+            if user_id is not None:
+                yield USER_ID, user_id
 
         # Use context parent instead of structural parent
         if context_parent_id:
