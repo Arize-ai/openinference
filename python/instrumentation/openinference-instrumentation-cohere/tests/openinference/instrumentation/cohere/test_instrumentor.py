@@ -753,8 +753,11 @@ def test_chat_stream_abandoned_before_iteration(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
+    attrs = dict(span.attributes or {})
     assert span.name == "ClientV2.chat_stream"
     assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"role": "assistant"}'
 
 
 def test_chat_stream_abandoned_after_partial_iteration(
@@ -774,8 +777,11 @@ def test_chat_stream_abandoned_after_partial_iteration(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
+    attrs = dict(span.attributes or {})
     assert span.name == "ClientV2.chat_stream"
     assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"role": "assistant"}'
 
 
 def test_chat_stream_explicit_close(
@@ -788,14 +794,19 @@ def test_chat_stream_explicit_close(
         model="command-a-03-2025",
         messages=[_user_message("Why is the sky blue?")],
     )
-    next(iter(stream))
+    stream_iterator = iter(stream)
+    # Consume message-start, content-start, and first content-delta
+    for _ in range(3):
+        next(stream_iterator)
     stream.close()  # type: ignore[attr-defined]
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
+    attrs = dict(span.attributes or {})
     assert span.name == "ClientV2.chat_stream"
     assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == "The sky is blue "
 
 
 async def test_async_chat_stream_explicit_aclose(
@@ -814,8 +825,11 @@ async def test_async_chat_stream_explicit_aclose(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
+    attrs = dict(span.attributes or {})
     assert span.name == "AsyncClientV2.chat_stream"
     assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"role": "assistant"}'
 
 
 def test_chat_stream_with_tool_calls(
