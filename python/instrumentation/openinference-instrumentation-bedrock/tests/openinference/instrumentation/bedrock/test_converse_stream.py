@@ -314,7 +314,7 @@ def _assert_converse_stream_tool_response_message_attrs(
         == "top_song"
     )
     assert attributes.pop("llm.input_messages.2.message.content") == "Rock and Roll Hall"
-    assert attributes.pop("llm.input_messages.2.message.role") == "user"
+    assert attributes.pop("llm.input_messages.2.message.role") == "tool"
     assert (
         attributes.pop("llm.input_messages.2.message.tool_call_id")
         == "tooluse_ZQEZysOVRqitr-89GxHizA"

@@ -26,6 +26,7 @@ def test_parallel_tool_results_keep_every_id_and_output() -> None:
         "call_weather": "sunny",
         "call_flight": "$420",
     }
+    assert all(message["role"] == "tool" for message in messages)
 
 
 def test_tool_result_with_several_content_blocks_keeps_them_all() -> None:
@@ -46,6 +47,7 @@ def test_tool_result_with_several_content_blocks_keeps_them_all() -> None:
     messages = get_message_objects(message_list)  # type: ignore[arg-type]
 
     assert len(messages) == 1
+    assert messages[0]["role"] == "tool"
     content = messages[0]["content"]
     assert "headline" in content
     assert '{"rows": 2}' in content
@@ -72,7 +74,7 @@ def test_single_tool_result_keeps_one_message_and_indexes() -> None:
 
     assert messages == [
         {
-            "role": "user",
+            "role": "tool",
             "tool_call_id": "tooluse_ZQEZysOVRqitr-89GxHizA",
             "content": "Rock and Roll Hall",
         }

@@ -124,7 +124,7 @@ def get_message_objects(message_list: Sequence[MessageUnionTypeDef]) -> List[Mes
                         pass  # TODO: handle video tool result
                     if "document" in _tr_content:
                         pass  # TODO: handle document tool result
-                tool_result_message = Message(role=role)
+                tool_result_message = Message(role="tool")
                 tool_result_message["tool_call_id"] = _tool_result["toolUseId"]
                 if tool_result_blocks:
                     tool_result_message["content"] = "\n\n".join(tool_result_blocks)
