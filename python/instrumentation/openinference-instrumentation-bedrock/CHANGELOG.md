@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.56...python-openinference-instrumentation-bedrock-v0.1.57) (2026-10-07)
+
+
+### Bug Fixes
+
+* **bedrock:** record input and output for OpenAI models (GPT-6, GPT-5.x, gpt-oss) on InvokeModel ([#3833](https://github.com/Arize-ai/openinference/issues/3833)) ([f4908d6](https://github.com/Arize-ai/openinference/commit/f4908d6d113255849e7774e62c752cba4db33577))
+* **bedrock:** restore instrumented clients on uninstrument ([#3970](https://github.com/Arize-ai/openinference/issues/3970)) ([641a073](https://github.com/Arize-ai/openinference/commit/641a0737f13cc2e9aae19bc871049dd044aec223))
+
 ## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.55...python-openinference-instrumentation-bedrock-v0.1.56) (2026-10-01)
 
 
