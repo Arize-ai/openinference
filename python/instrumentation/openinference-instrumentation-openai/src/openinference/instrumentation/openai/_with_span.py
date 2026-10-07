@@ -35,7 +35,7 @@ class _WithSpan:
     def is_finished(self) -> bool:
         return self._is_finished
 
-    def record_exception(self, exception: Exception) -> None:
+    def record_exception(self, exception: BaseException) -> None:
         if self._is_finished:
             return
         try:
