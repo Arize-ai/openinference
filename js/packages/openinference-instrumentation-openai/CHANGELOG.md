@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.4.0
+
+### Minor Changes
+
+- 889a937: Trace OpenAI Decisions API calls (`client.decisions.create`, openai >= 7.30.0) as `DECISION` spans with `decision.*` model, system, provider and token count attributes.
+
 ## 4.3.2
 
 ### Patch Changes
