@@ -4,6 +4,7 @@ import base64
 import json
 import os
 from typing import Any, Dict
+from unittest.mock import patch
 
 import pytest
 import respx
@@ -21,6 +22,7 @@ from google.genai.types import (
     ToolCodeExecution,
 )
 from httpx import Response
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel
@@ -2354,3 +2356,17 @@ def test_finish_reason_values(
     assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})
     assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
+
+
+def test_cancelled_generate_content_ends_span(
+    setup_google_genai_instrumentation: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    client = genai.Client(api_key="test")
+    with patch("httpx.Client.send", side_effect=KeyboardInterrupt), pytest.raises(
+        KeyboardInterrupt
+    ):
+        client.models.generate_content(model="gemini-2.0-flash", contents="hello")
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR
