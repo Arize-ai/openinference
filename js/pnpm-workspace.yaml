@@ -7,3 +7,6 @@ minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   # Reviewed SDK release used by the TypeSafe instrumentor's compatibility tests.
   - "@typesafe-ai/sdk@0.6.0"
+  # Reviewed SDK release that introduced the Decisions API (client.decisions.create),
+  # which the OpenAI instrumentor's tests exercise.
+  - "openai@7.30.0"

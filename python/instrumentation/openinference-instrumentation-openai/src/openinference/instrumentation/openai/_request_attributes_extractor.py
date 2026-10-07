@@ -10,6 +10,7 @@ from typing import (
     Iterator,
     List,
     Mapping,
+    Optional,
     Tuple,
     Type,
     TypeVar,
@@ -20,7 +21,7 @@ from typing import (
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._types import AttributeValue
-from openinference.instrumentation.openai._utils import _get_openai_version
+from openinference.instrumentation.openai._utils import _get_decision_type, _get_openai_version
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -50,6 +51,7 @@ class _RequestAttributesExtractor:
         "_completion_type",
         "_responses_type",
         "_create_embedding_response_type",
+        "_decision_type",
     )
 
     def __init__(self, openai: ModuleType) -> None:
@@ -60,6 +62,8 @@ class _RequestAttributesExtractor:
         self._create_embedding_response_type: Type["CreateEmbeddingResponse"] = (
             openai.types.CreateEmbeddingResponse
         )
+        # `None` on openai < 3.26.0, which predates the Decisions API.
+        self._decision_type: Optional[type] = _get_decision_type(openai)
 
     def get_attributes_from_request(
         self,
@@ -78,6 +82,8 @@ class _RequestAttributesExtractor:
             yield from _get_attributes_from_embedding_create_param(request_parameters)
         elif cast_to is self._completion_type:
             yield from _get_attributes_from_completion_create_param(request_parameters)
+        elif self._decision_type is not None and cast_to is self._decision_type:
+            yield from _get_attributes_from_decision_create_param(request_parameters)
         else:
             try:
                 yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_parameters)
@@ -268,6 +274,31 @@ def _get_attributes_from_embedding_create_param(
                         f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{EmbeddingAttributes.EMBEDDING_TEXT}",
                         text,
                     )
+
+
+def _get_attributes_from_decision_create_param(
+    params: Mapping[str, Any],
+) -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Extract request-side attributes for the Decisions API (`client.decisions.create`).
+
+    A decision call is modelled as a DECISION span: the model answers a fixed set of typed
+    questions about the input rather than generating text, so the model is identified under
+    `decision.*` instead of `llm.*` and no `llm.invocation_parameters` are recorded. The
+    request body (input, questions, model) is recorded once, in `input.value`, so that
+    `hide_inputs` alone keeps every part of the request off the span.
+
+    `decision.model_name` is set to the requested model here so that it is present even when
+    the request fails; a successful response overwrites it with the model that answered.
+
+    See https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md and
+    openai.types.DecisionCreateParams (openai>=3.26.0).
+    """
+    if not isinstance(params, Mapping):
+        return
+    if isinstance(model := params.get("model"), str) and model:
+        yield SpanAttributes.DECISION_REQUEST_MODEL_NAME, model
+        yield SpanAttributes.DECISION_MODEL_NAME, model
 
 
 T = TypeVar("T", bound=type)
