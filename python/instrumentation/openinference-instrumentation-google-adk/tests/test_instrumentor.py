@@ -9,6 +9,7 @@ from typing import Any, AsyncGenerator, cast
 
 import pytest
 from google.adk import Agent
+from google.adk.agents import LlmAgent
 from google.adk.apps import App
 from google.adk.code_executors.built_in_code_executor import BuiltInCodeExecutor
 from google.adk.events import Event, EventActions
@@ -3014,6 +3015,15 @@ async def test_google_adk_instrumentor_reasoning_content(
     assert not call_llm_attributes
 
 
+class _StaticTextLlm(BaseLlm):
+    """A fake model that always replies with the same text, no network needed."""
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
+        yield LlmResponse(content=types.Content(role="model", parts=[types.Part(text="haiku")]))
+
+
 def _workflow_step_one() -> str:
     return "one"
 
@@ -3022,42 +3032,168 @@ def _workflow_step_two(node_input: str) -> str:
     return node_input + " two"
 
 
-async def _run_workflow() -> None:
-    workflow = Workflow(
-        name="wf",
-        edges=[(START, _workflow_step_one), (_workflow_step_one, _workflow_step_two)],
-    )
+_WORKFLOW_MESSAGE = types.Content(role="user", parts=[types.Part(text="go")])
+_WORKFLOW_MESSAGE_JSON = '{"parts": [{"text": "go"}], "role": "user"}'
+_OI_SCOPE = "openinference.instrumentation.google_adk"
+
+
+async def _run_workflow(*nodes: Any) -> tuple[str, str]:
+    """Runs START -> nodes... as a workflow and returns ``(app_name, session_id)``."""
+    path = [START, *nodes]
+    workflow = Workflow(name="wf", edges=list(zip(path, path[1:])))
     app_name = f"app{token_hex(4)}"
     runner = InMemoryRunner(app=App(name=app_name, root_agent=workflow))
     session = await runner.session_service.create_session(app_name=app_name, user_id="u")
-    message = types.Content(role="user", parts=[types.Part(text="go")])
-    async for _ in runner.run_async(user_id="u", session_id=session.id, new_message=message):
+    async for _ in runner.run_async(
+        user_id="u", session_id=session.id, new_message=_WORKFLOW_MESSAGE
+    ):
         pass
+    return app_name, session.id
+
+
+def _pop_workflow_span_attributes(
+    span: ReadableSpan,
+    *,
+    operation: str,
+    session_id: str,
+    input_value: str,
+    input_mime_type: str,
+    output_value: str,
+) -> dict[str, Any]:
+    """Pops the attributes every workflow/node span carries and returns the rest."""
+    assert span.instrumentation_scope is not None
+    assert span.instrumentation_scope.name == _OI_SCOPE
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "CHAIN"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == input_value
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == input_mime_type
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == output_value
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop("gen_ai.operation.name") == operation
+    assert attributes.pop("gen_ai.conversation.id") == session_id
+    assert attributes.pop(SpanAttributes.SESSION_ID) == session_id
+    assert attributes.pop(SpanAttributes.USER_ID) == "u"
+    return attributes
 
 
 async def test_google_adk_instrumentor_workflow_spans(
     instrument: None,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    await _run_workflow()
+    app_name, session_id = await _run_workflow(_workflow_step_one, _workflow_step_two)
 
-    spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
-    invocation_span = next(span for name, span in spans.items() if name.startswith("invocation"))
-    workflow_span = spans["invoke_workflow wf"]
-    node_spans = [spans["invoke_node _workflow_step_one"], spans["invoke_node _workflow_step_two"]]
-
-    for span in [workflow_span, *node_spans]:
-        assert span.instrumentation_scope is not None
-        assert span.instrumentation_scope.name == "openinference.instrumentation.google_adk"
-        assert span.attributes
-        assert span.attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == "CHAIN"
-    assert workflow_span.attributes
-    assert workflow_span.attributes["gen_ai.operation.name"] == "invoke_workflow"
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == [
+        "invoke_node _workflow_step_one",
+        "invoke_node _workflow_step_two",
+        "invoke_workflow wf",
+        f"invocation [{app_name}]",
+    ]
+    step_one_span, step_two_span, workflow_span, invocation_span = spans
+    assert invocation_span.instrumentation_scope is not None
+    assert invocation_span.instrumentation_scope.name == _OI_SCOPE
     assert workflow_span.parent is not None
     assert workflow_span.parent.span_id == invocation_span.context.span_id
-    for node_span in node_spans:
+    for node_span in (step_one_span, step_two_span):
         assert node_span.parent is not None
         assert node_span.parent.span_id == workflow_span.context.span_id
+
+    workflow_attributes = _pop_workflow_span_attributes(
+        workflow_span,
+        operation="invoke_workflow",
+        session_id=session_id,
+        input_value=_WORKFLOW_MESSAGE_JSON,
+        input_mime_type="application/json",
+        output_value="one two",
+    )
+    assert workflow_attributes.pop("gen_ai.workflow.name") == "wf"
+    assert not workflow_attributes
+
+    for node_span, input_value, input_mime_type, output_value in (
+        (step_one_span, _WORKFLOW_MESSAGE_JSON, "application/json", "one"),
+        (step_two_span, "one", "text/plain", "one two"),
+    ):
+        node_attributes = _pop_workflow_span_attributes(
+            node_span,
+            operation="invoke_node",
+            session_id=session_id,
+            input_value=input_value,
+            input_mime_type=input_mime_type,
+            output_value=output_value,
+        )
+        assert node_attributes.pop("gcp.vertex.agent.associated_event_ids")
+        assert not node_attributes
+
+
+async def test_google_adk_instrumentor_workflow_agent_node_keeps_workflow_io(
+    instrument: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """An agent node runs under the workflow span; its I/O stays on ``agent_run``."""
+    agent = LlmAgent(name="writer", model=_StaticTextLlm(model="fake"), mode="single_turn")
+    app_name, session_id = await _run_workflow(_workflow_step_one, agent, _workflow_step_two)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert [span.name for span in spans] == [
+        "invoke_node _workflow_step_one",
+        "call_llm",
+        "agent_run [writer]",
+        "invoke_node _workflow_step_two",
+        "invoke_workflow wf",
+        f"invocation [{app_name}]",
+    ]
+    step_one_span, _, agent_span, step_two_span, workflow_span, _ = spans
+    for node_span in (step_one_span, agent_span, step_two_span):
+        assert node_span.parent is not None
+        assert node_span.parent.span_id == workflow_span.context.span_id
+
+    workflow_attributes = _pop_workflow_span_attributes(
+        workflow_span,
+        operation="invoke_workflow",
+        session_id=session_id,
+        input_value=_WORKFLOW_MESSAGE_JSON,
+        input_mime_type="application/json",
+        output_value="haiku two",
+    )
+    assert workflow_attributes.pop("gen_ai.workflow.name") == "wf"
+    assert not workflow_attributes
+    step_two_attributes = _pop_workflow_span_attributes(
+        step_two_span,
+        operation="invoke_node",
+        session_id=session_id,
+        input_value="haiku",
+        input_mime_type="text/plain",
+        output_value="haiku two",
+    )
+    assert step_two_attributes.pop("gcp.vertex.agent.associated_event_ids")
+    assert not step_two_attributes
+
+
+async def test_google_adk_instrumentor_workflow_spans_trace_config_hides_io(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    GoogleADKInstrumentor().instrument(
+        tracer_provider=tracer_provider,
+        config=TraceConfig(hide_inputs=True, hide_outputs=True),
+    )
+    try:
+        await _run_workflow(_workflow_step_one, _workflow_step_two)
+    finally:
+        GoogleADKInstrumentor().uninstrument()
+
+    workflow_spans = [
+        span
+        for span in in_memory_span_exporter.get_finished_spans()
+        if span.name.startswith(("invoke_workflow", "invoke_node"))
+    ]
+    assert len(workflow_spans) == 3
+    for span in workflow_spans:
+        attributes = dict(span.attributes or {})
+        assert attributes.pop(SpanAttributes.INPUT_VALUE) == REDACTED_VALUE
+        assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == REDACTED_VALUE
+        assert SpanAttributes.INPUT_MIME_TYPE not in attributes
+        assert SpanAttributes.OUTPUT_MIME_TYPE not in attributes
 
 
 async def test_google_adk_instrumentor_workflow_spans_suppress_tracing(
@@ -3065,6 +3201,6 @@ async def test_google_adk_instrumentor_workflow_spans_suppress_tracing(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     with suppress_tracing():
-        await _run_workflow()
+        await _run_workflow(_workflow_step_one, _workflow_step_two)
 
     assert not in_memory_span_exporter.get_finished_spans()

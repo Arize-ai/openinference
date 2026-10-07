@@ -32,6 +32,7 @@ def test_instrumentation_patching() -> None:
     from google.adk.flows.llm_flows.core import _model_call
     from google.adk.runners import Runner
     from google.adk.telemetry import tracing
+    from google.adk.workflow._node_runner import NodeRunner
 
     compaction = sys.modules.get(_COMPACTION_MODULE)
     original_merged_tracers = [
@@ -42,6 +43,7 @@ def test_instrumentation_patching() -> None:
 
     original_runner_run_async = Runner.run_async
     original_agent_run_async = BaseAgent.run_async
+    original_execute_node = NodeRunner._execute_node
     original_runners_tracer = runners.tracer
     original_llm_flow_tracer = _model_call.tracer
     original_trace_call_llm = _model_call.trace_call_llm
@@ -58,6 +60,7 @@ def test_instrumentation_patching() -> None:
 
     assert Runner.run_async is not original_runner_run_async
     assert BaseAgent.run_async is not original_agent_run_async
+    assert NodeRunner._execute_node is not original_execute_node
     assert runners.tracer is not original_runners_tracer
     assert _model_call.tracer is not original_llm_flow_tracer
     assert _model_call.trace_call_llm is not original_trace_call_llm
@@ -92,6 +95,7 @@ def test_instrumentation_patching() -> None:
 
     assert Runner.run_async is original_runner_run_async
     assert BaseAgent.run_async is original_agent_run_async
+    assert NodeRunner._execute_node is original_execute_node
     assert runners.tracer is original_runners_tracer
     assert _model_call.tracer is original_llm_flow_tracer
     assert _model_call.trace_call_llm is original_trace_call_llm

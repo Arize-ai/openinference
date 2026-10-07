@@ -60,9 +60,11 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
         from google.adk.agents import BaseAgent
         from google.adk.runners import Runner
+        from google.adk.workflow._node_runner import NodeRunner
 
         from openinference.instrumentation.google_adk._wrappers import (
             _BaseAgentRunAsync,
+            _NodeRunnerExecuteNode,
             _RunnerRunAsync,
         )
 
@@ -72,6 +74,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         method_wrappers: Dict[Any, Any] = {
             Runner.run_async: _RunnerRunAsync(self._tracer),
             BaseAgent.run_async: _BaseAgentRunAsync(self._tracer),
+            NodeRunner._execute_node: _NodeRunnerExecuteNode(),
         }
 
         # Wrap each method with its corresponding tracer
@@ -376,7 +379,8 @@ class _SelectiveExecuteToolTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-
     - ``execute_tool (merged)`` → emit as OI span (parallel-call summary)
 
     ADK 2.x graph workflows add ``invoke_workflow {name}`` and ``invoke_node {name}``.
-    No outer wrapper covers them, so they are emitted as OI ``CHAIN`` spans.
+    No outer wrapper covers them, so they are emitted as OI ``CHAIN`` spans, and
+    ``_NodeRunnerExecuteNode`` records their input and output.
 
     A blanket :class:`_PassthroughTracer` swallows the tool spans — leaving
     ``_TraceToolCall`` to write TOOL attributes onto the parent ``call_llm`` span
