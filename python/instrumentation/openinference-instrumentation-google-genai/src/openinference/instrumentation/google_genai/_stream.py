@@ -25,6 +25,9 @@ from openinference.instrumentation.google_genai._context import (
     get_llm_invocation_parameters,
     get_tool_attributes,
 )
+from openinference.instrumentation.google_genai._image_utils import (
+    redact_images_from_output_value,
+)
 from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
@@ -137,7 +140,10 @@ class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ig
         self,
         status: trace_api.Status | None = None,
     ) -> None:
-        response_extractor = _ResponseExtractor(response_accumulator=self._response_accumulator)
+        response_extractor = _ResponseExtractor(
+            response_accumulator=self._response_accumulator,
+            config=self._config,
+        )
         _finish_tracing(
             with_span=self._with_span,
             attributes=response_extractor.get_attributes(),
@@ -179,18 +185,31 @@ class _ResponseAccumulator:
 
 
 class _ResponseExtractor:
-    __slots__ = ("_response_accumulator",)
+    __slots__ = ("_response_accumulator", "_config")
 
     def __init__(
         self,
         response_accumulator: _ResponseAccumulator,
+        config: TraceConfig | None = None,
     ) -> None:
         self._response_accumulator = response_accumulator
+        self._config = config
 
     def get_attributes(self) -> Iterator[tuple[str, AttributeValue]]:
         if not (result := self._response_accumulator._result()):
             return
-        json_string = safe_json_dumps(result)
+        output_value: Any = result
+        if self._config is not None:
+            try:
+                redacted, changed = redact_images_from_output_value(
+                    result,
+                    base64_image_max_length=int(self._config.base64_image_max_length or 0),
+                )
+                if changed:
+                    output_value = redacted
+            except Exception:
+                logger.exception("Failed to redact images from output value")
+        json_string = safe_json_dumps(output_value)
         yield from _as_output_attributes(
             _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
         )
