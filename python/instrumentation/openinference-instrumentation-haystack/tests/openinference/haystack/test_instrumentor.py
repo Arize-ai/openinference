@@ -1341,12 +1341,16 @@ def test_individual_component_without_child_components(
     retriever = InMemoryBM25Retriever(document_store=document_store)
     results = retriever.run(query="How many languages are spoken around the world today?")
     assert results.get("documents") is not None
-    assert len(results["documents"]) == 3
+    # Haystack >= 3.0 drops documents whose BM25 score is exactly zero (no query term
+    # overlap), so the number of retrieved documents depends on the haystack-ai version.
+    assert 1 <= len(results["documents"]) <= len(documents)
+    written_contents = {document.content for document in documents}
     for document in results["documents"]:
         assert isinstance(document, Document)
         assert document.id is not None
         assert document.content_type == "text"
         assert isinstance(document.content, str)
+        assert document.content in written_contents
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     retriever_span = spans[0]
@@ -1396,12 +1400,16 @@ async def test_individual_component_run_async_without_child_components(
         query="How many languages are spoken around the world today?"
     )
     assert results.get("documents") is not None
-    assert len(results["documents"]) == 3
+    # Haystack >= 3.0 drops documents whose BM25 score is exactly zero (no query term
+    # overlap), so the number of retrieved documents depends on the haystack-ai version.
+    assert 1 <= len(results["documents"]) <= len(documents)
+    written_contents = {document.content for document in documents}
     for document in results["documents"]:
         assert isinstance(document, Document)
         assert document.id is not None
         assert document.content_type == "text"
         assert isinstance(document.content, str)
+        assert document.content in written_contents
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     retriever_span = spans[0]
