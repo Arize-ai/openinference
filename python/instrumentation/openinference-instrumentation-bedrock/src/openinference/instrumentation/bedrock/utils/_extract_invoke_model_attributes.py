@@ -21,6 +21,8 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import (
+    Image,
+    ImageMessageContent,
     Message,
     TextMessageContent,
     Tool,
@@ -77,6 +79,7 @@ def _set_model_name_attributes(
         - Cohere: Uses "generations" field
         - Meta: Uses "generation" field
         - Amazon Nova: Uses "output.message.content" field
+        - OpenAI: Uses "choices[].message" field
     """
     content = ""
     model_id = kwargs.get("modelId")
@@ -89,6 +92,18 @@ def _set_model_name_attributes(
         output_messages = _build_nova_output_messages(response_body)
         if output_messages:
             span.set_attributes(get_llm_output_message_attributes(output_messages))
+    elif "openai." in str(model_id):
+        # OpenAI models (gpt-oss, GPT-5.x, GPT-6) return a Chat Completions body.
+        choices = response_body.get("choices")
+        if isinstance(choices, list):
+            valid_choices = [c for c in choices if isinstance(c, dict)]
+            valid_choices.sort(key=_choice_index)
+            messages = [
+                message
+                for choice in valid_choices
+                if isinstance(message := choice.get("message"), dict) and message
+            ]
+            span.set_attributes(get_openai_output_attributes(messages))
     else:
         vendor = ""
         if model_id and isinstance(model_id, str):
@@ -220,6 +235,18 @@ def set_input_attributes(span: Span, request_body: Dict[str, Any], kwargs: Dict[
         tools = _build_nova_tools(request_body)
         if tools:
             span.set_attributes(get_llm_tool_attributes(tools))
+    elif "openai." in str(model_id):
+        # OpenAI models (gpt-oss, GPT-5.x, GPT-6) take a Chat Completions body.
+        input_messages = _build_openai_input_messages(request_body)
+        if input_messages:
+            span.set_attributes(get_llm_attributes(input_messages=input_messages))
+        tools = _build_openai_tools(request_body)
+        if tools:
+            span.set_attributes(get_llm_tool_attributes(tools))
+        input_value = safe_json_dumps(request_body.pop("messages", []))
+        span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value)
+        request_body.pop("tools", None)
+        invocation_parameters = safe_json_dumps(request_body)
     else:
         # All other models (anthropic completion style, cohere, meta, ai21):
         # input is the prompt field, remaining body fields are invocation params
@@ -390,6 +417,100 @@ def _build_nova_output_messages(response_body: Dict[str, Any]) -> List[Message]:
     if tool_calls:
         msg_obj["tool_calls"] = tool_calls
     return [msg_obj]
+
+
+def _build_openai_tools(request_body: Dict[str, Any]) -> List[Tool]:
+    """Extract Chat Completions tool definitions from a request body."""
+    raw_tools = request_body.get("tools")
+    if not isinstance(raw_tools, list):
+        return []
+    return [Tool(json_schema=dict(tool)) for tool in raw_tools if isinstance(tool, dict)]
+
+
+def _build_openai_input_messages(request_body: Dict[str, Any]) -> List[Message]:
+    """Convert the messages of a Chat Completions request body."""
+    raw_messages = request_body.get("messages")
+    if not isinstance(raw_messages, list):
+        return []
+    return [_build_openai_message(msg) for msg in raw_messages if isinstance(msg, dict)]
+
+
+def _choice_index(choice: Dict[str, Any]) -> int:
+    index = choice.get("index")
+    return index if isinstance(index, int) else 0
+
+
+def get_openai_output_attributes(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Output attributes for the assistant messages of a Chat Completions response.
+
+    A single reply with text (or a refusal) records that text as the output value.
+    Tool-call-only replies and multiple choices record the messages as JSON.
+    """
+    if not messages:
+        return {}
+    attributes: Dict[str, Any] = dict(
+        get_llm_output_message_attributes([_build_openai_message(m) for m in messages])
+    )
+    if len(messages) == 1 and (text := _openai_message_text(messages[0])):
+        attributes.update(get_output_attributes(text))
+    else:
+        attributes.update(get_output_attributes(messages[0] if len(messages) == 1 else messages))
+    return attributes
+
+
+def _openai_message_text(msg: Dict[str, Any]) -> str | None:
+    """The message text, or its refusal when the model declined to answer."""
+    for key in ("content", "refusal"):
+        if isinstance(value := msg.get(key), str) and value:
+            return value
+    return None
+
+
+def _build_openai_message(msg: Dict[str, Any]) -> Message:
+    """Convert one Chat Completions message, including tool calls and tool results."""
+    message = Message(role=str(msg.get("role") or "assistant"))
+    content = msg.get("content")
+    if isinstance(content, str) and content:
+        message["content"] = content
+    elif isinstance(refusal := msg.get("refusal"), str) and refusal:
+        message["content"] = refusal
+    elif isinstance(content, list):
+        contents: List[Any] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "text" and isinstance(text := part.get("text"), str):
+                contents.append(TextMessageContent(type="text", text=text))
+            elif (
+                part.get("type") == "image_url"
+                and isinstance(image_url := part.get("image_url"), dict)
+                and isinstance(url := image_url.get("url"), str)
+            ):
+                contents.append(ImageMessageContent(type="image", image=Image(url=url)))
+        if contents:
+            message["contents"] = contents
+    if isinstance(tool_call_id := msg.get("tool_call_id"), str) and tool_call_id:
+        message["tool_call_id"] = tool_call_id
+    tool_calls: List[ToolCall] = []
+    raw_tool_calls = msg.get("tool_calls")
+    for tool_call in raw_tool_calls if isinstance(raw_tool_calls, list) else []:
+        if not isinstance(tool_call, dict):
+            continue
+        function = tool_call.get("function")
+        if not isinstance(function, dict):
+            function = {}
+        tool_calls.append(
+            ToolCall(
+                id=str(tool_call.get("id") or ""),
+                function=ToolCallFunction(
+                    name=str(function.get("name") or ""),
+                    arguments=function.get("arguments") or "",
+                ),
+            )
+        )
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+    return message
 
 
 def _set_nova_body_token_attributes(span: Span, response_body: Dict[str, Any]) -> None:
