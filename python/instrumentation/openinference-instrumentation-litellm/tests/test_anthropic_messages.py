@@ -162,6 +162,42 @@ def setup_litellm_instrumentation(
     yield
 
 
+def test_create_does_not_record_proxy_server_request(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+    messages = [{"role": "user", "content": "Hello"}]
+    original = LiteLLMInstrumentor.original_anthropic_funcs["create"]
+
+    def mock_create(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        return _mock_anthropic_response("Beijing")
+
+    LiteLLMInstrumentor.original_anthropic_funcs["create"] = mock_create
+    try:
+        litellm_anthropic.messages.create(
+            model=MODEL,
+            messages=messages,
+            max_tokens=64,
+            proxy_server_request={
+                "url": "http://localhost:4000/v1/messages",
+                "method": "POST",
+                "headers": {},
+                "body": {"model": MODEL, "messages": messages, "max_tokens": 64},
+            },
+        )
+    finally:
+        LiteLLMInstrumentor.original_anthropic_funcs["create"] = original
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert json.loads(str(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS])) == {
+        "model": MODEL,
+        "max_tokens": 64,
+    }
+
+
 @pytest.mark.parametrize(
     "call_path",
     ["anthropic.create", "anthropic.messages.create"],
