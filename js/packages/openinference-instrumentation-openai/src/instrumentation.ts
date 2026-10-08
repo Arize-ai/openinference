@@ -635,6 +635,11 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           },
         });
       };
+      // Reading and encoding uploads is wasted work when the span is dropped.
+      const getUploadAttributes = (uploads: ReadonlyArray<unknown>): Promise<Attributes> =>
+        isTracingSuppressed(context.active())
+          ? Promise.resolve({})
+          : getInputImageAttributes(uploads, instrumentation.traceConfig);
 
       type ImagesGenerateType = typeof module.OpenAI.Images.prototype.generate;
       this._wrap(
@@ -645,12 +650,13 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           return function patchedGenerate(this: unknown, ...args: Parameters<ImagesGenerateType>) {
             const body = args[0];
             const requestBody = { ...body };
+            const inputAttributes: Promise<Attributes> = Promise.resolve({});
             const span = startImagesSpan(this, body, requestBody);
             const execContext = getExecContext(span);
             const execPromise = safeExecuteInTheMiddle(
               () =>
                 context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
-              getImageRequestErrorHandler(span),
+              getImageRequestErrorHandler(span, inputAttributes),
             );
             const wrappedPromise = invokeMaybeAPIPromiseAsync(
               execPromise,
@@ -658,10 +664,10 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 recordImagesResult({
                   result,
                   span,
-                  inputAttributes: Promise.resolve({}),
+                  inputAttributes,
                   requestFormat: body.output_format,
                 }),
-              getImageRequestErrorHandler(span),
+              getImageRequestErrorHandler(span, inputAttributes),
             );
             return context.bind(execContext, wrappedPromise);
           };
@@ -677,16 +683,15 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           return function patchedEdit(this: unknown, ...args: Parameters<ImagesEditType>) {
             const body = args[0];
             const { image, mask, ...requestBody } = body;
-            const inputAttributes = getInputImageAttributes(
+            const inputAttributes = getUploadAttributes(
               mask === undefined ? [image] : [image, mask],
-              instrumentation.traceConfig,
             );
             const span = startImagesSpan(this, body, requestBody);
             const execContext = getExecContext(span);
             const execPromise = safeExecuteInTheMiddle(
               () =>
                 context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
-              getImageRequestErrorHandler(span),
+              getImageRequestErrorHandler(span, inputAttributes),
             );
             const wrappedPromise = invokeMaybeAPIPromiseAsync(
               execPromise,
@@ -697,7 +702,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   inputAttributes,
                   requestFormat: body.output_format,
                 }),
-              getImageRequestErrorHandler(span),
+              getImageRequestErrorHandler(span, inputAttributes),
             );
             return context.bind(execContext, wrappedPromise);
           };
@@ -716,13 +721,13 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           ) {
             const body = args[0];
             const { image, ...requestBody } = body;
-            const inputAttributes = getInputImageAttributes([image], instrumentation.traceConfig);
+            const inputAttributes = getUploadAttributes([image]);
             const span = startImagesSpan(this, body, requestBody);
             const execContext = getExecContext(span);
             const execPromise = safeExecuteInTheMiddle(
               () =>
                 context.with(trace.setSpan(execContext, span), () => original.apply(this, args)),
-              getImageRequestErrorHandler(span),
+              getImageRequestErrorHandler(span, inputAttributes),
             );
             const wrappedPromise = invokeMaybeAPIPromiseAsync(
               execPromise,
@@ -733,7 +738,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   inputAttributes,
                   requestFormat: "png",
                 }),
-              getImageRequestErrorHandler(span),
+              getImageRequestErrorHandler(span, inputAttributes),
             );
             return context.bind(execContext, wrappedPromise);
           };
@@ -866,12 +871,21 @@ function isImagesStream(result: unknown): result is ImagesStreamLike {
   );
 }
 
-function getImageRequestErrorHandler(span: Span): (error?: Error) => void {
+function getImageRequestErrorHandler(
+  span: Span,
+  inputAttributes: Promise<Attributes>,
+): (error?: Error) => void {
   return (error) => {
     if (!error) return;
-    span.recordException(error);
-    span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-    span.end();
+    // Input images are read asynchronously; apply them before the span ends.
+    void inputAttributes
+      .then((attributes) => span.setAttributes(attributes))
+      .catch(() => undefined)
+      .finally(() => {
+        span.recordException(error);
+        span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+        span.end();
+      });
   };
 }
 
