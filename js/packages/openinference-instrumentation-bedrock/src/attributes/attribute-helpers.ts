@@ -277,6 +277,8 @@ export function extractModelName(modelId: string): string {
     // The model name is always the last dot-separated segment.
     // Standard IDs:     vendor.model-v1:0        (2 parts)
     // Cross-region IDs: region.vendor.model-v1:0  (3+ parts)
+    // Assumes the model segment itself never contains a '.', which holds for
+    // all current Bedrock model IDs.
     const modelPart = parts[parts.length - 1];
     if (modelId.includes("anthropic")) {
       const versionIndex = modelPart.indexOf("-v");

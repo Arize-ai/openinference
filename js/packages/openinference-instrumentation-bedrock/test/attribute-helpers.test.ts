@@ -35,6 +35,26 @@ describe("extractModelName", () => {
     );
   });
 
+  it("extracts Anthropic model name from cross-region global ID", () => {
+    expect(extractModelName("global.anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe(
+      "claude-sonnet-4-5-20250929",
+    );
+  });
+
+  it("extracts Anthropic model name from cross-region APAC ID", () => {
+    expect(extractModelName("apac.anthropic.claude-3-5-sonnet-20240620-v1:0")).toBe(
+      "claude-3-5-sonnet-20240620",
+    );
+  });
+
+  it("extracts Anthropic model name from inference profile ARN", () => {
+    expect(
+      extractModelName(
+        "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-3-5-sonnet-20240620-v1:0",
+      ),
+    ).toBe("claude-3-5-sonnet-20240620");
+  });
+
   // Non-Anthropic models
   it("extracts AI21 model name from standard ID", () => {
     expect(extractModelName("ai21.jamba-1-5-mini-v1:0")).toBe("jamba-1-5-mini-v1:0");
