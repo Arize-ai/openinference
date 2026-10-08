@@ -356,4 +356,43 @@ describe("V1 query() wrapper", () => {
       propagation.disable();
     }
   });
+
+  it("decides session.id precedence from the context the AGENT span starts in (#3775)", async () => {
+    provider.register();
+    try {
+      const messages = [
+        { type: "system", subtype: "init", session_id: "sess-123", model: "m", tools: [] },
+        {
+          type: "result",
+          subtype: "success",
+          result: "ok",
+          usage: { input_tokens: 1, output_tokens: 1 },
+          total_cost_usd: 0.001,
+          num_turns: 1,
+          duration_ms: 1,
+          session_id: "sess-123",
+        },
+      ];
+      const mockModule = createMockModule(messages);
+      instrumentation.manuallyInstrument(mockModule);
+
+      // query() is called inside a session context but iterated outside it:
+      // the span starts without a context session id, so the SDK id must fill it.
+      const iterable = context.with(
+        setSession(context.active(), { sessionId: "ctx-session" }),
+        () => mockModule.query({ prompt: "hi" }),
+      );
+      for await (const _msg of iterable) {
+        // consume
+      }
+
+      const spans = exporter.getFinishedSpans();
+      expect(spans).toHaveLength(1);
+      expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("sess-123");
+    } finally {
+      context.disable();
+      trace.disable();
+      propagation.disable();
+    }
+  });
 });

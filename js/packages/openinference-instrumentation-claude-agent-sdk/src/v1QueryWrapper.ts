@@ -63,7 +63,6 @@ export function wrapQuery({
     }
 
     const inputAttrs = formatPromptAttributes(params.prompt);
-    const preserveContextSessionId = hasContextSessionId(activeContext);
 
     const toolTracker = new ToolSpanTracker(oiTracer);
 
@@ -71,7 +70,10 @@ export function wrapQuery({
     // and wraps each yielded message.
     return {
       [Symbol.asyncIterator]() {
-        // Start the AGENT span when iteration begins
+        // Start the AGENT span when iteration begins. OITracer applies context
+        // attributes from the context active here, so the session.id
+        // precedence check must read the same context.
+        const preserveContextSessionId = hasContextSessionId(context.active());
         const span: Span = oiTracer.startSpan(`ClaudeAgent.query`, {
           attributes: {
             [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
