@@ -1,5 +1,49 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.4.0
+
+### Minor Changes
+
+- 889a937: Trace OpenAI Decisions API calls (`client.decisions.create`, openai >= 7.30.0) as `DECISION` spans with `decision.*` model, system, provider and token count attributes.
+
+## 4.3.2
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
+## 4.3.1
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-core@2.7.3
+
+## 4.3.0
+
+### Minor Changes
+
+- 7feb0c4: Capture `llm.token_count.prompt_details.cache_write` from OpenAI prompt cache usage (`cache_write_tokens`) on both the Chat Completions and Responses APIs. Chat Completions streams now record token usage from the final `stream_options.include_usage` chunk.
+
+### Patch Changes
+
+- a719562: Detect OCI Generative AI from the request host, so an OpenAI client pointed at its OpenAI-compatible endpoint (`https://inference.generativeai.<region>.oci.oraclecloud.com/openai/v1`) records `llm.provider = oracle` instead of falling back to `openai`. Adds `oci.oraclecloud.com` → `oracle` to `HOST_SUFFIX_TO_PROVIDER`; matching stays suffix-based and anchored at a label boundary, so every regional endpoint resolves and unrelated hosts are unaffected.
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
+## 4.2.7
+
+### Patch Changes
+
+- 5a075b9: Add TypeSafe AI SDK instrumentation with one LLM span per systemOne call, structured JSON input/output payloads, question confidence metadata, token usage, context propagation, and configurable masking. Preserve the SDK's APIPromise interface and support both ESM and CommonJS. Add TypeSafe provider and system values to the semantic conventions and recognize the TypeSafe API hostname in provider inference.
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
 ## 4.2.6
 
 ### Patch Changes

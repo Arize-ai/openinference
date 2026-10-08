@@ -1,6 +1,8 @@
+import inspect
 import json
+from importlib import import_module
 from importlib.metadata import version
-from typing import Any, Generator, List, Tuple, cast
+from typing import Any, Dict, Generator, List, Mapping, Tuple, cast
 
 import dspy
 import pytest
@@ -19,6 +21,7 @@ from openinference.instrumentation.dspy import (
     LLM_PROVIDER,
     DSPyInstrumentor,
 )
+from openinference.instrumentation.dspy._types import AttributeValue
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -30,6 +33,16 @@ from openinference.semconv.trace import (
 )
 
 VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy").split(".")[:3])))
+
+
+def _litellm_kwargs() -> Dict[str, str]:
+    # Older DSPy forwards unknown constructor kwargs to the provider.
+    return {"engine": "litellm"} if "engine" in inspect.signature(dspy.LM).parameters else {}
+
+
+def _span_attributes(span: trace_sdk.ReadableSpan) -> Dict[str, AttributeValue]:
+    # Use the local alias because OpenTelemetry's AnyValue is not narrowed by mypy.
+    return dict(cast(Mapping[str, AttributeValue], span.attributes or {}))
 
 
 @pytest.fixture()
@@ -74,6 +87,77 @@ class TestInstrumentor:
 
 
 class TestLM:
+    @pytest.mark.skipif(VERSION < (3, 4, 0), reason="Native lm15 requires DSPy 3.4")
+    @pytest.mark.disable_socket
+    @pytest.mark.parametrize("engine", ["auto", "lm15"])
+    def test_native_chat_completion(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+        monkeypatch: MonkeyPatch,
+        engine: str,
+    ) -> None:
+        # lm15 is typed but DSPy is not; static imports make mypy lose DSPy's exports.
+        StdlibTransport = import_module("dspy._vendor.lm15.transports._sync").StdlibTransport
+        TransportResponse = import_module("dspy._vendor.lm15.transports._types").TransportResponse
+
+        requests = []
+
+        def respond(transport: Any, request: Any) -> Any:
+            requests.append(request)
+            return TransportResponse(
+                status=200,
+                reason="OK",
+                headers=[("content-type", "application/json")],
+                http_version="HTTP/1.1",
+                chunks=iter(
+                    [
+                        json.dumps(
+                            {
+                                "id": "chatcmpl-local",
+                                "object": "chat.completion",
+                                "created": 0,
+                                "model": "gpt-4",
+                                "choices": [
+                                    {
+                                        "index": 0,
+                                        "message": {"role": "assistant", "content": "France"},
+                                        "finish_reason": "stop",
+                                    }
+                                ],
+                                "usage": {
+                                    "prompt_tokens": 10,
+                                    "completion_tokens": 1,
+                                    "total_tokens": 11,
+                                },
+                            }
+                        ).encode()
+                    ]
+                ),
+                release=lambda consumed: None,
+            )
+
+        monkeypatch.setattr(StdlibTransport, "stream", respond)
+        lm = dspy.LM("openai/gpt-4", engine=engine, cache=False, api_key="sk-fake-key")
+        prompt = "Who won the World Cup in 2018?"
+        assert lm(prompt) == ["France"]
+        assert len(requests) == 1
+        request = requests[0]
+        assert request.method == "POST"
+        assert request.url == "https://api.openai.com/v1/chat/completions"
+        body = json.loads(request.body)
+        assert body["model"] == "gpt-4"
+        assert body["messages"] == [{"role": "user", "content": prompt}]
+        (span,) = in_memory_span_exporter.get_finished_spans()
+        assert span.name == "LM.__call__"
+        assert span.status.is_ok
+        attributes = _span_attributes(span)
+        assert attributes[OPENINFERENCE_SPAN_KIND] == LLM
+        assert attributes[LLM_PROVIDER] == "openai"
+        assert attributes[LLM_MODEL_NAME] == "gpt-4"
+        assert attributes[f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == prompt
+        assert attributes[f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"] == "France"
+        assert json.loads(str(attributes[OUTPUT_VALUE])) == ["France"]
+
     @pytest.mark.vcr
     def test_openai_chat_completions_api_invoked_via_prompt_positional_argument(
         self,
@@ -82,6 +166,7 @@ class TestLM:
     ) -> None:
         lm = dspy.LM(
             "openai/gpt-4",
+            **_litellm_kwargs(),
             cache=False,
             temperature=0.1,  # non-default
             top_p=0.1,
@@ -100,7 +185,7 @@ class TestLM:
         span = spans[0]
         assert span.name == "LM.__call__"
         assert span.status.is_ok
-        attributes = dict(span.attributes or {})
+        attributes = _span_attributes(span)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -136,7 +221,7 @@ class TestLM:
         in_memory_span_exporter: InMemorySpanExporter,
         openai_api_key: str,
     ) -> None:
-        lm = dspy.LM("openai/gpt-4", cache=False)
+        lm = dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False)
         prompt = "Who won the World Cup in 2018?"
         messages = [{"role": "user", "content": prompt}]
         responses = lm(messages=messages)  # invoked via messages kwarg
@@ -148,7 +233,7 @@ class TestLM:
         span = spans[0]
         assert span.name == "LM.__call__"
         assert span.status.is_ok
-        attributes = dict(span.attributes or {})
+        attributes = _span_attributes(span)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -184,6 +269,7 @@ class TestLM:
     ) -> None:
         lm = dspy.LM(
             "text-completion-openai/gpt-3.5-turbo-instruct",
+            **_litellm_kwargs(),
             model_type="text",
             cache=False,
         )
@@ -197,7 +283,7 @@ class TestLM:
         span = spans[0]
         assert span.name == "LM.__call__"
         assert span.status.is_ok
-        attributes = dict(span.attributes or {})
+        attributes = _span_attributes(span)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -234,7 +320,8 @@ class TestLM:
     ) -> None:
         # Force an invalid key so the LM call reliably errors even when a real key is set.
         monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-key")
-        lm = dspy.LM("openai/gpt-4", cache=False)
+        # DSPy retries three times by default; the cassette has one 401 interaction.
+        lm = dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False, num_retries=0)
         prompt = "Who won the World Cup in 2018?"
         with pytest.raises(Exception):
             lm(prompt)
@@ -246,7 +333,8 @@ class TestLM:
         assert len(span.events) == 1
         event = span.events[0]
         assert event.name == "exception"
-        assert (event_attributes := event.attributes) is not None
+        assert event.attributes is not None
+        event_attributes = cast(Mapping[str, AttributeValue], event.attributes)
         assert isinstance(exception_type := event_attributes["exception.type"], str)
         # dspy < 3.3.0 propagates the raw litellm exception; dspy >= 3.3.0 wraps
         # it in an LMError subclass from dspy.utils.exceptions.
@@ -261,7 +349,7 @@ class TestLM:
             "Connection error" in exception_stacktrace
             or "Incorrect API key provided" in exception_stacktrace
         )
-        attributes = dict(span.attributes or {})
+        attributes = _span_attributes(span)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -290,7 +378,7 @@ class TestLM:
     ) -> None:
         class MyLM(dspy.LM):  # type: ignore[misc]
             def __init__(self) -> None:
-                super().__init__("openai/gpt-4", cache=False)
+                super().__init__("openai/gpt-4", cache=False, **_litellm_kwargs())
 
             def __call__(
                 self,
@@ -309,7 +397,7 @@ class TestLM:
         span = spans[0]
         assert span.name == "MyLM.__call__"
         assert span.status.is_ok
-        attributes = dict(span.attributes or {})
+        attributes = _span_attributes(span)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -375,7 +463,7 @@ async def test_rag_module(
             return dspy.Prediction(context=context, answer=prediction.answer)
 
     with dspy.context(
-        lm=dspy.LM("openai/gpt-4", cache=False),
+        lm=dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
     ):
         rag = RAG()
@@ -398,7 +486,7 @@ async def test_rag_module(
     span = next(it)
     expected_span_name = "RAG.aforward" if is_async else "RAG.forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -420,7 +508,7 @@ async def test_rag_module(
 
     span = next(it)
     assert span.name == "Retrieve.forward"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert json.loads(input_value) == {"query": "What's the capital of the United States?"}
@@ -433,7 +521,7 @@ async def test_rag_module(
     assert not attributes
 
     span = next(it)
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert span.name == "ColBERTv2.__call__"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.RETRIEVER.value
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -454,7 +542,7 @@ async def test_rag_module(
     span = next(it)
     expected_span_name = "ChainOfThought.aforward" if is_async else "ChainOfThought.forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -475,7 +563,7 @@ async def test_rag_module(
     span = next(it)
     expected_span_name = "Predict.aforward" if is_async else "Predict.forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -504,7 +592,7 @@ async def test_rag_module(
     span = next(it)
     expected_span_name = "Predict(StringSignature).forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -515,7 +603,7 @@ async def test_rag_module(
     span = next(it)
     expected_span_name = "ChatAdapter.acall" if is_async else "ChatAdapter.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -526,7 +614,7 @@ async def test_rag_module(
     span = next(it)
     expected_span_name = "LM.acall" if is_async else "LM.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -568,7 +656,7 @@ async def test_react(
     is_async: bool,
     openai_api_key: str,
 ) -> None:
-    with dspy.context(lm=dspy.LM("openai/gpt-4o-mini")):
+    with dspy.context(lm=dspy.LM("openai/gpt-4o-mini", **_litellm_kwargs())):
 
         def add(x: int, y: int) -> int:
             return x + y
@@ -593,7 +681,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "ReAct.aforward" if is_async else "ReAct.forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -616,7 +704,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "Predict.aforward" if is_async else "Predict.forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -641,7 +729,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "Predict(StringSignature).forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -671,7 +759,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "ChatAdapter.acall" if is_async else "ChatAdapter.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -706,7 +794,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "LM.acall" if is_async else "LM.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -729,7 +817,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "add.acall" if is_async else "add.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -752,7 +840,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "Predict.aforward" if is_async else "Predict.forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -781,7 +869,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "Predict(StringSignature).forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -808,7 +896,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "ChatAdapter.acall" if is_async else "ChatAdapter.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -842,7 +930,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "LM.acall" if is_async else "LM.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -870,7 +958,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "finish.acall" if is_async else "finish.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -893,7 +981,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "ChainOfThought.aforward" if is_async else "ChainOfThought.forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -914,7 +1002,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "Predict.aforward" if is_async else "Predict.forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -935,7 +1023,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "Predict(StringSignature).forward"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -961,7 +1049,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "ChatAdapter.acall" if is_async else "ChatAdapter.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -995,7 +1083,7 @@ async def test_react(
     span = next(it)
     expected_span_name = "LM.acall" if is_async else "LM.__call__"
     assert span.name == expected_span_name
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     input_value = attributes.pop(INPUT_VALUE)
     assert isinstance(input_value, str)
@@ -1046,7 +1134,7 @@ def test_compilation(
     def exact_match(example: dspy.Example, pred: dspy.Example, trace: Any = None) -> bool:
         return bool(example.answer.lower() == pred.answer.lower())
 
-    with dspy.context(lm=dspy.LM("openai/gpt-4", cache=False)):
+    with dspy.context(lm=dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False)):
         teleprompter = BootstrapFewShotWithRandomSearch(
             metric=exact_match,
             max_bootstrapped_demos=1,
@@ -1121,7 +1209,7 @@ def test_context_attributes_are_instrumented(
             return dspy.Prediction(context=context, answer=prediction.answer)
 
     dspy.settings.configure(
-        lm=dspy.LM("openai/gpt-4", cache=False),
+        lm=dspy.LM("openai/gpt-4", **_litellm_kwargs(), cache=False),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
     )
     rag = RAG()
@@ -1141,7 +1229,7 @@ def test_context_attributes_are_instrumented(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 8
     for span in spans:
-        attributes = dict(span.attributes or {})
+        attributes = _span_attributes(span)
         assert attributes.get(SESSION_ID) == session_id
         assert attributes.get(USER_ID) == user_id
         assert isinstance(metadata_str := attributes.get(METADATA), str)
@@ -1174,7 +1262,7 @@ def test_dummy_lm_instrumentation(
 
     span = next(it)
     assert span.name == "DummyLM.__call__"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert question in input_value
     assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
@@ -1187,7 +1275,7 @@ def test_dummy_lm_instrumentation(
     span = next(it)
 
     assert span.name == "ChatAdapter.__call__"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes is not None
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
     assert attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
@@ -1206,7 +1294,7 @@ def test_dummy_lm_instrumentation(
 
     span = next(it)
     assert span.name == "Predict(StringSignature).forward"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes is not None
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
     assert attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
@@ -1225,7 +1313,7 @@ def test_dummy_lm_instrumentation(
 
     span = next(it)
     assert span.name == "Predict.forward"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes is not None
     assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
     assert attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value

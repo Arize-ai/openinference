@@ -18,8 +18,10 @@ from typing import (
     Mapping,
     Optional,
     OrderedDict,
+    Sequence,
     TypedDict,
     TypeVar,
+    Union,
 )
 
 import wrapt
@@ -36,11 +38,12 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import StatusCode, get_current_span
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import NotRequired, ParamSpec
+from typing_extensions import NotRequired, ParamSpec, TypeAlias
 
 from openinference.instrumentation import (
     get_attributes_from_context,
+    get_input_attributes,
+    get_output_attributes,
     safe_json_dumps,
     using_session,
     using_user,
@@ -59,6 +62,20 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+# As of opentelemetry-api 1.45.0, `opentelemetry.util.types.AttributeValue` is defined
+# via a chained assignment (`AnyValue = AttributeValue = ...`), which mypy does not treat
+# as a valid type alias. Define our own alias to keep annotations working across versions.
+AttributeValue: TypeAlias = Union[
+    str,
+    bool,
+    int,
+    float,
+    Sequence[str],
+    Sequence[bool],
+    Sequence[int],
+    Sequence[float],
+]
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -247,6 +264,55 @@ class _BaseAgentRunAsync(_WithTracer):
                     span.set_status(StatusCode.OK)
 
         return _AsyncGenerator(generator)
+
+
+class _NodeRunnerExecuteNode:
+    """Records a workflow node's input and output on its ``invoke_node`` or
+    ``invoke_workflow`` span.
+
+    Agent nodes are skipped: ADK opens no span for them here, so the current
+    span is the enclosing workflow, and ``agent_run`` already records their
+    input and output.
+    """
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        span = get_current_span()
+        span_name = getattr(span, "name", None)
+        if isinstance(getattr(instance, "_node", None), BaseAgent) or not (
+            isinstance(span_name, str) and span_name.startswith(("invoke_workflow", "invoke_node"))
+        ):
+            return await wrapped(*args, **kwargs)
+        ctx = None
+        try:
+            arguments = bind_args_kwargs(wrapped, *args, **kwargs)
+            ctx = arguments.get("ctx")
+            if (node_input := arguments.get("node_input")) is not None:
+                value, mime_type = _get_node_io_value_and_mime_type(node_input)
+                span.set_attributes(get_input_attributes(value, mime_type=mime_type))
+        except Exception:
+            logger.exception("Failed to set workflow node input.")
+        result = await wrapped(*args, **kwargs)
+        try:
+            if (output := getattr(ctx, "output", None)) is not None:
+                value, mime_type = _get_node_io_value_and_mime_type(output)
+                span.set_attributes(get_output_attributes(value, mime_type=mime_type))
+        except Exception:
+            logger.exception("Failed to set workflow node output.")
+        return result
+
+
+def _get_node_io_value_and_mime_type(value: Any) -> tuple[str, OpenInferenceMimeTypeValues]:
+    if isinstance(value, str):
+        return value, OpenInferenceMimeTypeValues.TEXT
+    return json.dumps(value, default=_default, ensure_ascii=False), OpenInferenceMimeTypeValues.JSON
 
 
 class _TraceCallLlm(_WithTracer):

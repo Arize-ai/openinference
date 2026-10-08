@@ -19,7 +19,6 @@ from typing import (
 
 from dacite import from_dict
 from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from openinference.instrumentation import safe_json_dumps
@@ -37,6 +36,7 @@ from openinference.instrumentation.bedrock.__generated__.anthropic._types import
     TextDelta,
     ToolUseBlock,
 )
+from openinference.instrumentation.bedrock._types import AttributeValue
 from openinference.instrumentation.bedrock.utils import _finish
 from openinference.semconv.trace import (
     ImageAttributes,

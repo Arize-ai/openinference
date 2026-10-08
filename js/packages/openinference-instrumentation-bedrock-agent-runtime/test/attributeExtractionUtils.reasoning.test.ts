@@ -106,6 +106,7 @@ describe("getAttributesFromModelInvocationOutput - reasoning content blocks", ()
     expect(attrs[`${MSG}.0.${CONTENTS}.1.${TYPE}`]).toBe("text");
     expect(attrs[`${MSG}.0.${CONTENTS}.1.${TEXT}`]).toBe("The 10th Fibonacci number is 55.");
     expect(attrs["output.value"]).toBe("The 10th Fibonacci number is 55.");
+    expect(attrs[SemanticConventions.LLM_FINISH_REASON]).toBe("end_turn");
   });
 
   it("uses top-level reasoningContent and skips its rawResponse duplicate", () => {

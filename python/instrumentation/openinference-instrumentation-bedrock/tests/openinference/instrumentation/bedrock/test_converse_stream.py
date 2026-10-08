@@ -314,7 +314,7 @@ def _assert_converse_stream_tool_response_message_attrs(
         == "top_song"
     )
     assert attributes.pop("llm.input_messages.2.message.content") == "Rock and Roll Hall"
-    assert attributes.pop("llm.input_messages.2.message.role") == "user"
+    assert attributes.pop("llm.input_messages.2.message.role") == "tool"
     assert (
         attributes.pop("llm.input_messages.2.message.tool_call_id")
         == "tooluse_ZQEZysOVRqitr-89GxHizA"
@@ -396,7 +396,7 @@ def test_converse_tool_use_message(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].status.is_ok
-    attributes = dict(spans[0].attributes or {})
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == "mistral.devstral-2-123b"

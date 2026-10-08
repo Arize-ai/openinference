@@ -63,6 +63,14 @@ func TestAttributeKeys(t *testing.T) {
 		{LLMPromptTemplateVersion, "llm.prompt_template.version"},
 		{LLMTools, "llm.tools"},
 
+		{DecisionModelName, "decision.model_name"},
+		{DecisionRequestModelName, "decision.request.model_name"},
+		{DecisionResponseModelName, "decision.response.model_name"},
+		{DecisionProvider, "decision.provider"},
+		{DecisionSystem, "decision.system"},
+		{DecisionTokenCountInput, "decision.token_count.input"},
+		{DecisionTokenCountOutput, "decision.token_count.output"},
+
 		{LLMTokenCountPrompt, "llm.token_count.prompt"},
 		{LLMTokenCountPromptDetails, "llm.token_count.prompt_details"},
 		{LLMTokenCountPromptDetailsAudio, "llm.token_count.prompt_details.audio"},
@@ -165,6 +173,7 @@ func TestEnumValues(t *testing.T) {
 	}{
 		{SpanKindLLM, "LLM"},
 		{SpanKindChain, "CHAIN"},
+		{SpanKindDecision, "DECISION"},
 		{SpanKindTool, "TOOL"},
 		{SpanKindRetriever, "RETRIEVER"},
 		{SpanKindEmbedding, "EMBEDDING"},
@@ -187,6 +196,7 @@ func TestEnumValues(t *testing.T) {
 		{LLMSystemCohere, "cohere"},
 		{LLMSystemMistralAI, "mistralai"},
 		{LLMSystemVertexAI, "vertexai"},
+		{LLMSystemTypeSafe, "typesafe"},
 
 		{LLMProviderOpenAI, "openai"},
 		{LLMProviderAnthropic, "anthropic"},
@@ -206,6 +216,13 @@ func TestEnumValues(t *testing.T) {
 		{LLMProviderMeta, "meta"},
 		{LLMProviderZAI, "zai"},
 		{LLMProviderMiniMax, "minimax"},
+		{LLMProviderOracle, "oracle"},
+		{LLMProviderTypeSafe, "typesafe"},
+
+		{DecisionSystemTypeSafe, "typesafe"},
+		{DecisionSystemOpenAI, "openai"},
+		{DecisionProviderTypeSafe, "typesafe"},
+		{DecisionProviderOpenAI, "openai"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

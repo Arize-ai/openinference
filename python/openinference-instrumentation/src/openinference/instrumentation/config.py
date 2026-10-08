@@ -18,9 +18,9 @@ from opentelemetry.context import (
     detach,
     set_value,
 )
-from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
+    DocumentAttributes,
     EmbeddingAttributes,
     ImageAttributes,
     MessageAttributes,
@@ -35,6 +35,7 @@ from ._blob_upload import (
     is_valid_reference_uri,
     load_blob_uploader,
 )
+from ._types import AttributeValue
 from .logging import logger
 
 
@@ -111,6 +112,8 @@ OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
 # Hides LLM prompts (completions API)
 OPENINFERENCE_HIDE_CHOICES = "OPENINFERENCE_HIDE_CHOICES"
 # Hides LLM choices (completions API outputs)
+OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS = "OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS"
+# Hides the content (and metadata) of documents returned on RETRIEVER spans
 OPENINFERENCE_ENABLE_GENAI_SEMCONV = "OPENINFERENCE_ENABLE_GENAI_SEMCONV"
 # Emits OTel GenAI semantic conventions alongside OpenInference attributes
 REDACTED_VALUE = "__REDACTED__"
@@ -120,6 +123,7 @@ DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS = False
 DEFAULT_HIDE_LLM_TOOLS = False
 DEFAULT_HIDE_PROMPTS = False
 DEFAULT_HIDE_CHOICES = False
+DEFAULT_HIDE_RETRIEVAL_DOCUMENTS = False
 DEFAULT_ENABLE_GENAI_SEMCONV = False
 DEFAULT_HIDE_INPUTS = False
 DEFAULT_HIDE_OUTPUTS = False
@@ -261,6 +265,17 @@ class TraceConfig:
         },
     )
     """Hides LLM choices (completions API outputs)"""
+    hide_retrieval_documents: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS,
+            "default_value": DEFAULT_HIDE_RETRIEVAL_DOCUMENTS,
+        },
+    )
+    """Redacts the content and metadata of documents on RETRIEVER spans
+    (``retrieval.documents.*.document.content`` /
+    ``retrieval.documents.*.document.metadata``). ``hide_outputs`` implies
+    this, mirroring how it already redacts ``reranker.output_documents.*``."""
     enable_genai_semconv: Optional[bool] = field(
         default=None,
         metadata={
@@ -362,6 +377,10 @@ class TraceConfig:
         elif self.hide_outputs and _is_within(key, RerankerAttributes.RERANKER_OUTPUT_DOCUMENTS):
             return None
         elif (
+            self.hide_retrieval_documents or self.hide_outputs
+        ) and _is_retrieval_document_content(key):
+            value = REDACTED_VALUE
+        elif (
             self.hide_inputs or self.hide_input_messages
         ) and SpanAttributes.LLM_INPUT_MESSAGES in key:
             return None
@@ -410,14 +429,9 @@ class TraceConfig:
             # cannot bypass the budget by arriving as a callable.
             value = value() if callable(value) else value
             if (
-                is_base64_url(value)  # type:ignore
-                and len(value) > self.base64_image_max_length  # type:ignore
+                is_base64_url(value) and len(value) > self.base64_image_max_length  # type:ignore
             ):
-                value = (
-                    self._externalize_or_redact(key, value)  # type:ignore
-                    if externalize
-                    else REDACTED_VALUE
-                )
+                value = self._externalize_or_redact(key, value) if externalize else REDACTED_VALUE  # type:ignore
         elif (
             (self.hide_embedding_vectors or self.hide_embeddings_vectors)
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key
@@ -538,6 +552,16 @@ def mask_without_externalization(
 def _is_within(key: str, namespace: str) -> bool:
     """True for the namespace itself and anything indexed under it."""
     return key == namespace or key.startswith(f"{namespace}.")
+
+
+def _is_retrieval_document_content(key: str) -> bool:
+    """True for the content or metadata leaf of a retrieval document, e.g.
+    ``retrieval.documents.0.document.content`` /
+    ``retrieval.documents.0.document.metadata``."""
+    return _is_within(key, SpanAttributes.RETRIEVAL_DOCUMENTS) and (
+        key.endswith(DocumentAttributes.DOCUMENT_CONTENT)
+        or key.endswith(DocumentAttributes.DOCUMENT_METADATA)
+    )
 
 
 def _is_input_image(key: str) -> bool:

@@ -1,5 +1,44 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
+## 0.5.3
+
+### Patch Changes
+
+- 52ea8ba: Record OpenAI models on Bedrock (gpt-oss, GPT-5.x, GPT-6) with `llm.system` "openai" instead of "amazon", and parse their Chat Completions body on InvokeModel and InvokeModelWithResponseStream so the spans get token counts and output messages.
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-core@2.7.3
+
+## 0.5.2
+
+### Patch Changes
+
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 0.5.0
+
+### Minor Changes
+
+- 5a1db03: Record provider-native stop reasons as `llm.finish_reason` for Converse, InvokeModel, and streaming responses. Preserve the existing Converse `llm.stop_reason` attribute and omit the finish reason when unavailable.
+
 ## 0.4.31
 
 ### Patch Changes

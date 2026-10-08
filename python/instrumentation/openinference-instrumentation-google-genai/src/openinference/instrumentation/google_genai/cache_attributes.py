@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Iterator, Mapping
 
-from opentelemetry.util.types import AttributeValue
-
 from openinference.instrumentation import (
     TraceConfig,
     get_input_attributes,
@@ -13,6 +11,7 @@ from openinference.instrumentation import (
 from openinference.instrumentation.google_genai._image_utils import (
     redact_images_from_request_parameters,
 )
+from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
     _stop_on_exception_for_iter,
 )
