@@ -8,7 +8,10 @@
  * - Invocation parameters
  */
 
-import type { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import type {
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
 import type { Span } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 
@@ -20,7 +23,12 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 
 import type { BedrockMessage, InvokeModelRequestBody } from "../types/bedrock-types";
-import { isImageContent, isTextContent, isToolUseContent } from "../types/bedrock-types";
+import {
+  isImageContent,
+  isTextContent,
+  isToolResultContent,
+  isToolUseContent,
+} from "../types/bedrock-types";
 import { extractModelName, setSpanAttribute } from "./attribute-helpers";
 import {
   extractInvocationParameters,
@@ -145,6 +153,16 @@ function handleToolResultsInMessage({
 }
 
 /**
+ * Reads the text of a tool result, which is either a string or an array of text blocks.
+ */
+function getToolResultText(content: unknown): string | undefined {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return undefined;
+  const parts = content.filter(isTextContent).map((block) => block.text);
+  return parts.length > 0 ? parts.join("\n") : undefined;
+}
+
+/**
  * Adds detailed message content structure attributes for multi-modal content
  * Processes text, image, and other content types with appropriate OpenInference attributes
  *
@@ -179,6 +197,20 @@ function addMessageContentAttributes({
           `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
           content.text,
         );
+      } else if (isToolResultContent(content)) {
+        const text = getToolResultText(content.content);
+        if (text !== undefined) {
+          setSpanAttribute(
+            span,
+            `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+            "text",
+          );
+          setSpanAttribute(
+            span,
+            `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+            text,
+          );
+        }
       } else if (isImageContent(content)) {
         setSpanAttribute(
           span,
@@ -212,7 +244,7 @@ function extractBaseRequestAttributes({
   system,
 }: {
   span: Span;
-  command: InvokeModelCommand;
+  command: InvokeModelCommand | InvokeModelWithResponseStreamCommand;
   requestBody: InvokeModelRequestBody;
   system: LLMSystem;
 }): void {
@@ -330,7 +362,7 @@ export const extractInvokeModelRequestAttributes = withSafety({
     system,
   }: {
     span: Span;
-    command: InvokeModelCommand;
+    command: InvokeModelCommand | InvokeModelWithResponseStreamCommand;
     system: LLMSystem;
   }): void => {
     const requestBody = parseRequestBody(command);

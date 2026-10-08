@@ -4,16 +4,14 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, List
 
 import pytest
 from mcp import ClientSession
-from mcp.shared.session import RequestResponder
-from mcp.types import ClientResult, ServerNotification, ServerRequest, TextContent
+from mcp.types import CreateMessageResult, TextContent
 from opentelemetry.trace import Tracer
 
 from tests.collector import OTLPServer, Telemetry
-from tests.whoami import WhoamiClientResult, WhoamiResult, WhoamiServerRequest
 
 
 # The way MCP SDK creates async tasks means we need this to be called inline with the test,
@@ -29,13 +27,14 @@ async def mcp_client(
     from mcp.client.stdio import StdioServerParameters, stdio_client
     from mcp.client.streamable_http import streamable_http_client
 
-    async def message_handler(
-        message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
-    ) -> None:
-        if not isinstance(message, RequestResponder) or message.request.root.method != "whoami":
-            return
-        with message as responder, tracer.start_as_current_span("whoami"):
-            await responder.respond(WhoamiClientResult(WhoamiResult(name="OpenInference")))  # type: ignore
+    async def sampling_callback(context: Any, params: Any) -> CreateMessageResult:
+        del context, params
+        with tracer.start_as_current_span("whoami"):
+            return CreateMessageResult(
+                role="assistant",
+                content=TextContent(type="text", text="OpenInference"),
+                model="test-model",
+            )
 
     server_script = str(Path(__file__).parent / "mcpserver.py")
     pythonpath = str(Path(__file__).parent.parent)
@@ -71,9 +70,8 @@ async def mcp_client(
                     },
                 )
             ) as (reader, writer), ClientSession(
-                reader, writer, message_handler=message_handler
+                reader, writer, sampling_callback=sampling_callback
             ) as client:
-                client._receive_request_type = WhoamiServerRequest
                 await client.initialize()
                 yield client
         case "sse":
@@ -95,8 +93,7 @@ async def mcp_client(
                 async with sse_client(f"http://localhost:{port}/sse") as (
                     reader,
                     writer,
-                ), ClientSession(reader, writer, message_handler=message_handler) as client:
-                    client._receive_request_type = WhoamiServerRequest
+                ), ClientSession(reader, writer, sampling_callback=sampling_callback) as client:
                     await client.initialize()
                     yield client
             finally:
@@ -118,14 +115,13 @@ async def mcp_client(
             )
             try:
                 await _wait_for_port("127.0.0.1", port)
-                async with streamable_http_client(f"http://localhost:{port}/mcp") as (
-                    reader,
-                    writer,
-                    _,
-                ), ClientSession(reader, writer, message_handler=message_handler) as client:
-                    client._receive_request_type = WhoamiServerRequest
-                    await client.initialize()
-                    yield client
+                async with streamable_http_client(f"http://localhost:{port}/mcp") as streams:
+                    reader, writer = streams[:2]
+                    async with ClientSession(
+                        reader, writer, sampling_callback=sampling_callback
+                    ) as client:
+                        await client.initialize()
+                        yield client
             finally:
                 proc.kill()
                 await proc.wait()
@@ -178,9 +174,7 @@ async def test_stdio_validation_error(tracer: Tracer, otlp_collector: OTLPServer
 
     validation_error_received = False
 
-    async def message_handler(
-        message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
-    ) -> None:
+    async def message_handler(message: Any) -> None:
         nonlocal validation_error_received
         if isinstance(message, ValidationError):
             validation_error_received = True
@@ -245,3 +239,42 @@ async def test_stream_writer_exception_handling(tracer: Tracer) -> None:
         # Verify the exception was passed through correctly
         received = await read_stream.receive()
         assert isinstance(received, ValidationError)
+
+
+def test_uninstrument_removes_all_wrappers() -> None:
+    """uninstrument() fully reverses every wrapping target."""
+    import importlib
+    import inspect
+
+    import wrapt
+
+    from openinference.instrumentation.mcp import _WRAP_TARGETS, MCPInstrumentor, _resolve_target
+
+    # An independent statement of the wrapped targets, so dropping a row from
+    # _WRAP_TARGETS cannot silently shrink this test's coverage.
+    expected = [
+        "mcp.client.streamable_http.streamable_http_client",
+        "mcp.server.streamable_http.StreamableHTTPServerTransport.connect",
+        "mcp.client.sse.sse_client",
+        "mcp.server.sse.SseServerTransport.connect_sse",
+        "mcp.client.stdio.stdio_client",
+        "mcp.server.stdio.stdio_server",
+        "mcp.server.session.ServerSession.__init__",
+    ]
+    assert [f"{m}.{t}" for m, t, _ in _WRAP_TARGETS] == expected
+
+    def wrapped_targets() -> List[str]:
+        # inspect.getattr_static avoids descriptor binding, which for class methods
+        # would hide the FunctionWrapper behind a BoundFunctionWrapper.
+        names = []
+        for module_name, target, _ in _WRAP_TARGETS:
+            owner, attr = _resolve_target(importlib.import_module(module_name), target)
+            if isinstance(inspect.getattr_static(owner, attr), wrapt.FunctionWrapper):
+                names.append(f"{module_name}.{target}")
+        return names
+
+    # The autouse fixture called instrument(), which wrapped each module upon import.
+    assert wrapped_targets() == expected
+
+    MCPInstrumentor().uninstrument()
+    assert wrapped_targets() == []

@@ -67,10 +67,18 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_run_stream_method",
         "_original_arun_method",
         "_original_arun_stream_method",
+        "_original_continue_run_method",
+        "_original_continue_run_stream_method",
+        "_original_acontinue_run_method",
+        "_original_acontinue_run_stream_method",
         "_original_team_run_method",
         "_original_team_run_stream_method",
         "_original_team_arun_method",
         "_original_team_arun_stream_method",
+        "_original_team_continue_run_method",
+        "_original_team_continue_run_stream_method",
+        "_original_team_acontinue_run_method",
+        "_original_team_acontinue_run_stream_method",
         "_original_function_execute_method",
         "_original_function_aexecute_method",
         "_original_model_call_methods",
@@ -90,6 +98,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         from openinference.instrumentation.agno._workflow_wrapper import (
             _ParallelWrapper,
             _StepWrapper,
+            _WorkflowExecuteWrapper,
             _WorkflowWrapper,
         )
 
@@ -148,6 +157,43 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 run_wrapper.arun_stream,
             )
 
+        # Wrap Agent module-level continue-run functions, used to resume a run
+        # paused for human-in-the-loop input (confirmation, user input, or
+        # external execution). Without these, continued runs produce no agent
+        # span, so their model and tool spans are orphaned from the trace.
+        self._original_continue_run_method = getattr(agent_run_module, "_continue_run", None)
+        if self._original_continue_run_method:
+            wrap_function_wrapper(
+                agent_run_module,
+                "_continue_run",
+                run_wrapper.run,
+            )
+        self._original_continue_run_stream_method = getattr(
+            agent_run_module, "_continue_run_stream", None
+        )
+        if self._original_continue_run_stream_method:
+            wrap_function_wrapper(
+                agent_run_module,
+                "_continue_run_stream",
+                run_wrapper.run_stream,
+            )
+        self._original_acontinue_run_method = getattr(agent_run_module, "_acontinue_run", None)
+        if self._original_acontinue_run_method:
+            wrap_function_wrapper(
+                agent_run_module,
+                "_acontinue_run",
+                run_wrapper.arun,
+            )
+        self._original_acontinue_run_stream_method = getattr(
+            agent_run_module, "_acontinue_run_stream", None
+        )
+        if self._original_acontinue_run_stream_method:
+            wrap_function_wrapper(
+                agent_run_module,
+                "_acontinue_run_stream",
+                run_wrapper.arun_stream,
+            )
+
         # Wrap Team module-level run functions
         self._original_team_run_method = getattr(team_run_module, "_run", None)
         if self._original_team_run_method:
@@ -175,6 +221,42 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             wrap_function_wrapper(
                 team_run_module,
                 "_arun_stream",
+                run_wrapper.arun_stream,
+            )
+
+        # Wrap Team module-level continue-run functions. Team.continue_run()
+        # dispatches to these after a human-in-the-loop pause, just as the
+        # corresponding Agent API does.
+        self._original_team_continue_run_method = getattr(team_run_module, "_continue_run", None)
+        if self._original_team_continue_run_method:
+            wrap_function_wrapper(
+                team_run_module,
+                "_continue_run",
+                run_wrapper.run,
+            )
+        self._original_team_continue_run_stream_method = getattr(
+            team_run_module, "_continue_run_stream", None
+        )
+        if self._original_team_continue_run_stream_method:
+            wrap_function_wrapper(
+                team_run_module,
+                "_continue_run_stream",
+                run_wrapper.run_stream,
+            )
+        self._original_team_acontinue_run_method = getattr(team_run_module, "_acontinue_run", None)
+        if self._original_team_acontinue_run_method:
+            wrap_function_wrapper(
+                team_run_module,
+                "_acontinue_run",
+                run_wrapper.arun,
+            )
+        self._original_team_acontinue_run_stream_method = getattr(
+            team_run_module, "_acontinue_run_stream", None
+        )
+        if self._original_team_acontinue_run_stream_method:
+            wrap_function_wrapper(
+                team_run_module,
+                "_acontinue_run_stream",
                 run_wrapper.arun_stream,
             )
 
@@ -240,6 +322,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             from agno.workflow.workflow import Workflow
 
             workflow_wrapper = _WorkflowWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+            execute_wrapper = _WorkflowExecuteWrapper(tracer=self._tracer)  # type: ignore[arg-type]
             step_wrapper = _StepWrapper(tracer=self._tracer)  # type: ignore[arg-type]
 
             # Store original methods
@@ -262,6 +345,28 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                     Workflow,
                     "arun",
                     workflow_wrapper.arun,
+                )
+
+            # These do the real work for foreground & background runs to get the final output.
+
+            # Wrap Workflow.aexecute (async)
+            if hasattr(Workflow, "_aexecute") and callable(getattr(Workflow, "_aexecute", None)):
+                self._original_workflow_methods["_aexecute"] = Workflow._aexecute  # type: ignore[assignment]
+                wrap_function_wrapper(
+                    Workflow,
+                    "_aexecute",
+                    execute_wrapper.aexecute,
+                )
+
+            # Wrap Workflow.aexecute_stream (async streaming)
+            if hasattr(Workflow, "_aexecute_stream") and callable(
+                getattr(Workflow, "_aexecute_stream", None)
+            ):
+                self._original_workflow_methods["_aexecute_stream"] = Workflow._aexecute_stream  # type: ignore[assignment]
+                wrap_function_wrapper(
+                    Workflow,
+                    "_aexecute_stream",
+                    execute_wrapper.aexecute_stream,
                 )
 
             # Wrap Step.execute (sync)
@@ -377,6 +482,18 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_arun_stream_method is not None:
             agent_run_module._arun_stream = self._original_arun_stream_method
             self._original_arun_stream_method = None
+        if self._original_continue_run_method is not None:
+            agent_run_module._continue_run = self._original_continue_run_method
+            self._original_continue_run_method = None
+        if self._original_continue_run_stream_method is not None:
+            agent_run_module._continue_run_stream = self._original_continue_run_stream_method
+            self._original_continue_run_stream_method = None
+        if self._original_acontinue_run_method is not None:
+            agent_run_module._acontinue_run = self._original_acontinue_run_method
+            self._original_acontinue_run_method = None
+        if self._original_acontinue_run_stream_method is not None:
+            agent_run_module._acontinue_run_stream = self._original_acontinue_run_stream_method
+            self._original_acontinue_run_stream_method = None
 
         # Restore Team module-level functions
         if self._original_team_run_method is not None:
@@ -391,6 +508,18 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_team_arun_stream_method is not None:
             team_run_module._arun_stream = self._original_team_arun_stream_method
             self._original_team_arun_stream_method = None
+        if self._original_team_continue_run_method is not None:
+            team_run_module._continue_run = self._original_team_continue_run_method
+            self._original_team_continue_run_method = None
+        if self._original_team_continue_run_stream_method is not None:
+            team_run_module._continue_run_stream = self._original_team_continue_run_stream_method
+            self._original_team_continue_run_stream_method = None
+        if self._original_team_acontinue_run_method is not None:
+            team_run_module._acontinue_run = self._original_team_acontinue_run_method
+            self._original_team_acontinue_run_method = None
+        if self._original_team_acontinue_run_stream_method is not None:
+            team_run_module._acontinue_run_stream = self._original_team_acontinue_run_stream_method
+            self._original_team_acontinue_run_stream_method = None
 
         if self._original_model_call_methods is not None:
             for (

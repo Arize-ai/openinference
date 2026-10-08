@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel)
 
-This package provides utilities to transform [Vercel AI SDK](https://github.com/vercel/ai) OpenTelemetry spans into OpenInference spans for platforms like [Arize AX](https://arize.com/docs/ax) and [Phoenix](https://phoenix.arize.com/).
+This package provides utilities to transform [Vercel AI SDK](https://github.com/vercel/ai) OpenTelemetry spans into OpenInference spans for platforms like [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference) and [Phoenix](https://phoenix.arize.com/).
 
 > Note: This package targets AI SDK v7 telemetry. Use `@arizeai/openinference-vercel` v2.x for AI SDK v6.
 
@@ -267,3 +267,7 @@ new OpenInferenceSimpleSpanProcessor({
 Because the values are written directly onto the span, they survive both
 `reparentOrphanedSpans` re-rooting and export, and spans started in the same context
 (child model/tool calls) inherit them.
+
+Spans that carry the GenAI `gen_ai.conversation.id` attribute (for example every span
+Vercel eve emits) also get `session.id` from it, with no context setup needed. A
+`session.id` propagated from the context takes precedence.

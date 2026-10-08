@@ -343,5 +343,6 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     if (!moduleExports) return moduleExports;
     this._unwrap(moduleExports.BedrockAgentRuntimeClient.prototype, "send");
     _isBedrockAgentPatched = false;
+    return moduleExports;
   }
 }

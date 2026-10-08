@@ -53,7 +53,7 @@ main();
 |----------|----------------|
 | [tracing.md](./tracing.md) | Wrapping functions or class methods with tracing (`withSpan`, `traceChain`, `@observe`) |
 | [context-attributes.md](./context-attributes.md) | Propagating session, user, metadata, or tags across spans |
-| [attribute-helpers.md](./attribute-helpers.md) | Adding LLM, embedding, retriever, or tool attributes to spans |
+| [attribute-helpers.md](./attribute-helpers.md) | Adding LLM, annotation, evaluation, embedding, retriever, or tool attributes to spans |
 | [trace-config-and-masking.md](./trace-config-and-masking.md) | Hiding sensitive data from traces with `OITracer` |
 
 ## Docs and Source Code in node_modules
@@ -92,7 +92,7 @@ OpenInference extends OpenTelemetry, so a few OTel concepts are essential:
 - **Attributes** -- key-value pairs attached to spans. OpenInference defines
   semantic conventions for attribute keys (e.g., `input.value`, `llm.model_name`).
 - **Exporter** -- sends completed spans to a backend. Common choices:
-  `ConsoleSpanExporter` (stdout), `OTLPTraceExporter` (to [Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/docs/ax), Jaeger, etc.).
+  `ConsoleSpanExporter` (stdout), `OTLPTraceExporter` (to [Phoenix](https://github.com/Arize-ai/phoenix), [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference), Jaeger, etc.).
 
 ### OpenInference Span Kinds
 
@@ -110,6 +110,7 @@ These are domain-level classifications (separate from OTel's `SpanKind`):
 | **RERANKER** | A document reranking operation | Cross-encoder reranker, Cohere rerank |
 | **GUARDRAIL** | An input/output safety check | Content filter, PII detector, toxicity check |
 | **EVALUATOR** | A quality or correctness evaluation | LLM-as-judge, relevance scorer |
+| **DECISION** | A decision model call that scores or selects among candidate options | Route selection, rubric scoring |
 
 #### How Span Kinds Compose
 
@@ -126,7 +127,7 @@ AGENT: "qa-agent"
 
 - An **AGENT** typically parents other spans as it orchestrates work
 - A **CHAIN** groups sequential steps without autonomous decision-making
-- **LLM**, **RETRIEVER**, **EMBEDDING**, **TOOL**, **RERANKER**, **GUARDRAIL**, and **EVALUATOR** are usually leaf spans
+- **LLM**, **RETRIEVER**, **EMBEDDING**, **TOOL**, **RERANKER**, **GUARDRAIL**, **EVALUATOR**, and **DECISION** are usually leaf spans
 
 ### The Tracing Stack
 
@@ -199,7 +200,7 @@ keys used by OpenInference (e.g., `input.value`, `output.value`,
 `llm.model_name`, `retrieval.documents.0.document.content`).
 
 You rarely need to use these constants directly. The attribute helpers
-(`getLLMAttributes`, `getRetrieverAttributes`, etc.) abstract over them, producing
+(`getLLMAttributes`, `getDecisionAttributes`, `getRetrieverAttributes`, etc.) abstract over them, producing
 correctly-keyed attributes from simple objects. For example:
 
 ```typescript
@@ -229,6 +230,14 @@ span.setAttributes(
 - `traceChain(fn, options?)` -- wrap with CHAIN span kind
 - `traceAgent(fn, options?)` -- wrap with AGENT span kind
 - `traceTool(fn, options?)` -- wrap with TOOL span kind
+- `traceLLM(fn, options?)` -- wrap with LLM span kind
+- `traceRetriever(fn, options?)` -- wrap with RETRIEVER span kind
+- `traceReranker(fn, options?)` -- wrap with RERANKER span kind
+- `traceEmbedding(fn, options?)` -- wrap with EMBEDDING span kind
+- `traceGuardrail(fn, options?)` -- wrap with GUARDRAIL span kind
+- `traceEvaluator(fn, options?)` -- wrap with EVALUATOR span kind
+- `tracePrompt(fn, options?)` -- wrap with PROMPT span kind
+- `traceDecision(fn, options?)` -- wrap with DECISION span kind
 
 **Decorator**
 - `observe(options?)` -- class method decorator for tracing
@@ -243,14 +252,21 @@ span.setAttributes(
 - `getAttributesFromContext(context)` -- extract all propagated attributes for a span
 
 **Attribute Helpers**
-- `getLLMAttributes({ provider?, modelName?, inputMessages?, outputMessages?, tokenCount?, tools?, invocationParameters? })`
+- `getLLMAttributes({ provider?, system?, modelName?, requestModelName?, responseModelName?, inputMessages?, outputMessages?, tokenCount?, tools?, invocationParameters? })`
+- `getDecisionAttributes({ provider?, system?, modelName?, requestModelName?, responseModelName?, tokenCount? })`
 - `getEmbeddingAttributes({ modelName?, embeddings? })`
 - `getRetrieverAttributes({ documents })`
 - `getDocumentAttributes(document, documentIndex, keyPrefix)` -- single document with custom key prefix
+- `getAnnotationAttributes({ annotations, scope? })`
+- `getEvaluationAttributes({ evaluations, scope? })`
 - `getToolAttributes({ name, description?, parameters })`
 - `getMetadataAttributes(metadata)`
 - `getInputAttributes(input)` / `getOutputAttributes(output)`
 - `defaultProcessInput(...args)` / `defaultProcessOutput(result)`
+
+**Attribute Types**
+- `Annotation` -- annotation/evaluation result with a name and at least one result field
+- `AnnotationScope` -- `"span" | "trace" | "session"`
 
 **Trace Config & Masking**
 - `OITracer` -- tracer wrapper with context propagation and data masking
@@ -269,9 +285,9 @@ src/
   index.ts                          # Main entry point (re-exports everything)
   helpers/
     withSpan.ts                     # withSpan implementation
-    wrappers.ts                     # traceChain, traceAgent, traceTool
+    wrappers.ts                     # traceChain, traceAgent, traceTool, traceDecision, ...
     decorators.ts                   # @observe decorator
-    attributeHelpers.ts             # getLLMAttributes, getEmbeddingAttributes, etc.
+    attributeHelpers.ts             # getLLMAttributes, getDecisionAttributes, etc.
     tracerHelpers.ts                # getTracer, wrapTracer
     types.ts                        # SpanTraceOptions, SpanInput/Output, Message, TokenCount, etc.
   trace/

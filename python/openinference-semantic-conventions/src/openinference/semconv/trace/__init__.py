@@ -3,6 +3,19 @@ from enum import Enum
 
 
 class SpanAttributes:
+    ANNOTATIONS = "annotations"
+    """Feedback using annotation terminology."""
+    EVALUATIONS = "evaluations"
+    """Feedback using evaluation or eval terminology."""
+    TRACE_ANNOTATIONS = "trace.annotations"
+    """Trace-scoped feedback using annotation terminology."""
+    TRACE_EVALUATIONS = "trace.evaluations"
+    """Trace-scoped feedback using evaluation or eval terminology."""
+    SESSION_ANNOTATIONS = "session.annotations"
+    """Session-scoped feedback using annotation terminology."""
+    SESSION_EVALUATIONS = "session.evaluations"
+    """Session-scoped feedback using evaluation or eval terminology."""
+
     OUTPUT_VALUE = "output.value"
     OUTPUT_MIME_TYPE = "output.mime_type"
     """
@@ -14,6 +27,16 @@ class SpanAttributes:
     """
     The type of input.value. If unspecified, the type is plain text by default.
     If type is JSON, the value is a string representing a JSON object.
+    """
+    INPUT_IMAGES = "input.images"
+    """
+    A list of Image Objects that are inputs to an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `input.images.0.image.url`.
+    """
+    OUTPUT_IMAGES = "output.images"
+    """
+    A list of Image Objects produced by an operation, independent of span kind.
+    Flattened with indexed prefixes, e.g. `output.images.0.image.url`.
     """
 
     EMBEDDING_EMBEDDINGS = "embedding.embeddings"
@@ -50,6 +73,18 @@ class SpanAttributes:
     """
     The name of the model being used.
     """
+    LLM_REQUEST_MODEL_NAME = "llm.request.model_name"
+    """
+    The model requested by the caller, as sent in the request. May differ from
+    llm.response.model_name when the provider routes the request to a different
+    model (e.g. classifier-triggered fallback).
+    """
+    LLM_RESPONSE_MODEL_NAME = "llm.response.model_name"
+    """
+    The model that actually generated the response, as reported by the provider.
+    May differ from llm.request.model_name when the provider routes the request
+    to a different model (e.g. classifier-triggered fallback).
+    """
     LLM_PROVIDER = "llm.provider"
     """
     The provider of the model, such as OpenAI, Azure, Google, etc.
@@ -57,6 +92,58 @@ class SpanAttributes:
     LLM_SYSTEM = "llm.system"
     """
     The AI product as identified by the client or server
+    """
+    DECISION_MODEL_NAME = "decision.model_name"
+    """
+    The name of the decision model being used. Mirrors llm.model_name for
+    DECISION spans. A decision model takes state plus typed questions and
+    returns a typed, probabilistic answer per question instead of generated
+    text; see
+    https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+    for the convention and the decision model families it covers.
+    """
+    DECISION_REQUEST_MODEL_NAME = "decision.request.model_name"
+    """
+    The decision model requested by the caller, as sent in the request. May
+    differ from decision.response.model_name when the provider resolves an
+    alias (e.g. jev-latest) or routes the request to a different model.
+    """
+    DECISION_RESPONSE_MODEL_NAME = "decision.response.model_name"
+    """
+    The decision model that actually produced the response, as reported by the
+    provider. May differ from decision.request.model_name.
+    """
+    DECISION_PROVIDER = "decision.provider"
+    """
+    The hosting provider of the decision model: who runs the hardware that
+    answered (e.g. "typesafe" when calling TypeSafe directly, or the cloud or
+    self-hosting provider for a model served elsewhere). Distinct from
+    decision.system, which names the API shape. Well-known values are
+    OpenInferenceDecisionProviderValues, which alias the matching
+    OpenInferenceLLMProviderValues.
+    """
+    DECISION_SYSTEM = "decision.system"
+    """
+    The decision API ecosystem the call conforms to, i.e. which request and
+    response shape the client speaks, as identified by the client or server:
+    "typesafe" for the TypeSafe System One / Jev API, "openai" for the OpenAI
+    Decisions API. A self-hosted
+    vLLM server answering the Jev-compatible /v1/systemone shape is still
+    "typesafe". Distinct from decision.provider, which says who hosts the
+    model. Well-known values are OpenInferenceDecisionSystemValues, which alias
+    the matching OpenInferenceLLMSystemValues.
+    """
+    DECISION_TOKEN_COUNT_INPUT = "decision.token_count.input"
+    """
+    The number of input tokens consumed by a decision model call: the state,
+    questions, and candidate options. Maps to usage.input_tokens in TypeSafe
+    System One responses.
+    """
+    DECISION_TOKEN_COUNT_OUTPUT = "decision.token_count.output"
+    """
+    The number of output tokens produced by a decision model call. Decision
+    models emit typed answers rather than text, so this is typically small.
+    Maps to usage.output_tokens in TypeSafe System One responses.
     """
     LLM_PROMPTS = "llm.prompts"
     """
@@ -269,6 +356,30 @@ class SpanAttributes:
     """
 
 
+class AnnotationAttributes:
+    """Attributes for feedback about a span."""
+
+    ANNOTATION_NAME = "annotation.name"
+    ANNOTATION_SCORE = "annotation.score"
+    ANNOTATION_LABEL = "annotation.label"
+    ANNOTATION_EXPLANATION = "annotation.explanation"
+    ANNOTATION_ANNOTATOR_KIND = "annotation.annotator_kind"
+    ANNOTATION_IDENTIFIER = "annotation.identifier"
+    ANNOTATION_METADATA = "annotation.metadata"
+
+
+class EvaluationAttributes:
+    """Attributes for feedback using evaluation or eval terminology."""
+
+    EVALUATION_NAME = "evaluation.name"
+    EVALUATION_SCORE = "evaluation.score"
+    EVALUATION_LABEL = "evaluation.label"
+    EVALUATION_EXPLANATION = "evaluation.explanation"
+    EVALUATION_ANNOTATOR_KIND = "evaluation.annotator_kind"
+    EVALUATION_IDENTIFIER = "evaluation.identifier"
+    EVALUATION_METADATA = "evaluation.metadata"
+
+
 class MessageAttributes:
     """
     Attributes for a message sent to or from an LLM
@@ -321,7 +432,7 @@ class MessageContentAttributes:
     MESSAGE_CONTENT_TYPE = "message_content.type"
     """
     The type of the content, such as "text", "image", "audio",
-    "reasoning", or "tool_use".
+    "video", "reasoning", or "tool_use".
     """
     MESSAGE_CONTENT_TEXT = "message_content.text"
     """
@@ -333,6 +444,16 @@ class MessageContentAttributes:
     An image can be made available to the model by passing a link to
     the image or by passing the base64 encoded image directly in the
     request.
+    """
+    MESSAGE_CONTENT_AUDIO = "message_content.audio"
+    """
+    The audio content of the message, if the type is "audio".
+    Nested leaves come from AudioAttributes.
+    """
+    MESSAGE_CONTENT_VIDEO = "message_content.video"
+    """
+    The video content of the message, if the type is "video".
+    Nested leaves come from VideoAttributes.
     """
     MESSAGE_CONTENT_ID = "message_content.id"
     """
@@ -384,6 +505,17 @@ class AudioAttributes:
     AUDIO_TRANSCRIPT = "audio.transcript"
     """
     The transcript of the audio file
+    """
+
+
+class VideoAttributes:
+    """
+    Attributes for video
+    """
+
+    VIDEO_URL = "video.url"
+    """
+    The URL, object-store URI, or base64 data URI of a video.
     """
 
 
@@ -501,15 +633,19 @@ class ChoiceAttributes:
 
 
 class ToolAttributes:
-    """
-    Attributes for a tools
-    """
+    """Attributes for tools."""
 
     TOOL_JSON_SCHEMA = "tool.json_schema"
     """
     The json schema of a tool input, It is RECOMMENDED that this be in the
     OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
     """
+
+    TOOL_NAME = "tool.name"
+    """The name of the tool, i.e. the identifier the model uses to call it."""
+
+    TOOL_DESCRIPTION = "tool.description"
+    """The description of the tool, i.e. the text the model uses to decide whether to call it."""
 
 
 class OpenInferenceSpanKindValues(Enum):
@@ -524,6 +660,13 @@ class OpenInferenceSpanKindValues(Enum):
     GUARDRAIL = "GUARDRAIL"
     EVALUATOR = "EVALUATOR"
     PROMPT = "PROMPT"
+    DECISION = "DECISION"
+
+
+class OpenInferenceAnnotatorKindValues(Enum):
+    HUMAN = "HUMAN"
+    LLM = "LLM"
+    CODE = "CODE"
 
 
 class OpenInferenceMimeTypeValues(Enum):
@@ -537,6 +680,7 @@ class OpenInferenceLLMSystemValues(Enum):
     COHERE = "cohere"
     MISTRALAI = "mistralai"
     VERTEXAI = "vertexai"
+    TYPESAFE = "typesafe"
 
 
 class OpenInferenceLLMProviderValues(Enum):
@@ -555,3 +699,35 @@ class OpenInferenceLLMProviderValues(Enum):
     CEREBRAS = "cerebras"
     PERPLEXITY = "perplexity"
     TOGETHER = "together"
+    OLLAMA = "ollama"
+    META = "meta"
+    ZAI = "zai"
+    MINIMAX = "minimax"
+    ORACLE = "oracle"
+    TYPESAFE = "typesafe"
+
+
+class OpenInferenceDecisionSystemValues(Enum):
+    """
+    Well-known values for decision.system: the decision API ecosystem a DECISION
+    span conforms to. Each member aliases the OpenInferenceLLMSystemValues member
+    for the same vendor, so the same string names the same vendor on LLM and
+    DECISION spans. The list is the subset of vendors currently known to offer a
+    decision API.
+    """
+
+    TYPESAFE = OpenInferenceLLMSystemValues.TYPESAFE.value
+    """TypeSafe AI System One / Jev API, including Jev-compatible servers."""
+    OPENAI = OpenInferenceLLMSystemValues.OPENAI.value
+    """OpenAI Decisions API."""
+
+
+class OpenInferenceDecisionProviderValues(Enum):
+    """
+    Well-known values for decision.provider: who hosts the decision model that
+    answered. Each member aliases the OpenInferenceLLMProviderValues member for
+    the same vendor.
+    """
+
+    TYPESAFE = OpenInferenceLLMProviderValues.TYPESAFE.value
+    OPENAI = OpenInferenceLLMProviderValues.OPENAI.value

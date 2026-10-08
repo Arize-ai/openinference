@@ -448,6 +448,19 @@ export interface TokenCount {
 }
 
 /**
+ * Token count information for DECISION operations.
+ *
+ * Decision models have no prompt/completion split, only the tokens sent
+ * (state, questions, and candidate options) and the tokens that make up
+ * the typed answers. There is no total: it is derivable as the sum when
+ * both counts are present.
+ */
+export interface DecisionTokenCount {
+  input?: number;
+  output?: number;
+}
+
+/**
  * Tool definition for LLM function calling.
  *
  * Defines a tool that can be called by an LLM, including
@@ -480,3 +493,30 @@ export interface Document {
   metadata?: string | Record<string, unknown>;
   score?: number;
 }
+
+/** The target scope described by an annotation or evaluation. */
+export type AnnotationScope = "span" | "trace" | "session";
+
+interface AnnotationBase {
+  /** Criterion or metric name, such as `correctness` or `hallucination`. */
+  name: string;
+  /** The kind of judge, conventionally `HUMAN`, `LLM`, or `CODE`. */
+  annotatorKind?: string;
+  /** Stable producer-assigned identifier for this result. */
+  identifier?: string;
+  /** Additional result or annotator data, encoded as a JSON object string. */
+  metadata?: string | Record<string, unknown>;
+}
+
+type AnnotationResult =
+  | { score: number; label?: string; explanation?: string }
+  | { score?: number; label: string; explanation?: string }
+  | { score?: number; label?: string; explanation: string };
+
+/**
+ * A single annotation or evaluation result.
+ *
+ * Every result requires a name and at least one of `score`, `label`, or
+ * `explanation`.
+ */
+export type Annotation = AnnotationBase & AnnotationResult;

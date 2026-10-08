@@ -25,11 +25,12 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+  "anyio>=3.5.0",
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.51",
-  "openinference-semantic-conventions>=0.1.30",
+  "openinference-instrumentation>=0.1.71",
+  "openinference-semantic-conventions>=0.1.41",
   "typing-extensions",
   "wrapt",
 ]
@@ -62,6 +63,7 @@ packages = ["src/openinference"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+addopts = "-p openinference.instrumentation.openai._httpx2_compat --block-network"
 testpaths = [
   "tests",
 ]
@@ -79,6 +81,7 @@ exclude = [
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
+  "httpx2",
   "wrapt",
 ]
 

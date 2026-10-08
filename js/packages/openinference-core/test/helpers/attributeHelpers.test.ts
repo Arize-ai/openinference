@@ -11,8 +11,11 @@ import {
 import {
   defaultProcessInput,
   defaultProcessOutput,
+  getAnnotationAttributes,
+  getDecisionAttributes,
   getDocumentAttributes,
   getEmbeddingAttributes,
+  getEvaluationAttributes,
   getInputAttributes,
   getLLMAttributes,
   getMetadataAttributes,
@@ -302,6 +305,112 @@ describe("attributeHelpers", () => {
     });
   });
 
+  describe("annotation and evaluation attributes", () => {
+    it("should generate every annotation field and serialize metadata", () => {
+      const result = getAnnotationAttributes({
+        annotations: [
+          {
+            name: "hallucination",
+            score: 0,
+            label: "hallucinated",
+            explanation: "The claim is unsupported.",
+            annotatorKind: "LLM",
+            identifier: "judge-v2",
+            metadata: { rubricVersion: 2 },
+          },
+        ],
+      });
+
+      expect(result).toEqual({
+        "annotations.0.annotation.name": "hallucination",
+        "annotations.0.annotation.score": 0,
+        "annotations.0.annotation.label": "hallucinated",
+        "annotations.0.annotation.explanation": "The claim is unsupported.",
+        "annotations.0.annotation.annotator_kind": "LLM",
+        "annotations.0.annotation.identifier": "judge-v2",
+        "annotations.0.annotation.metadata": JSON.stringify({ rubricVersion: 2 }),
+      });
+    });
+
+    it.each([
+      ["span", "evaluations"],
+      ["trace", "trace.evaluations"],
+      ["session", "session.evaluations"],
+    ] as const)("should generate evaluation attributes at %s scope", (scope, prefix) => {
+      const result = getEvaluationAttributes({
+        evaluations: [
+          { name: "correctness", score: 0.9 },
+          { name: "style", label: "concise" },
+        ],
+        scope,
+      });
+
+      expect(result).toEqual({
+        [`${prefix}.0.evaluation.name`]: "correctness",
+        [`${prefix}.0.evaluation.score`]: 0.9,
+        [`${prefix}.1.evaluation.name`]: "style",
+        [`${prefix}.1.evaluation.label`]: "concise",
+      });
+    });
+
+    it("should compose annotation forms and preserve metadata strings", () => {
+      const result = {
+        ...getAnnotationAttributes({
+          annotations: [{ name: "quality", explanation: "Looks good" }],
+          scope: "trace",
+        }),
+        ...getEvaluationAttributes({
+          evaluations: [{ name: "quality", score: 1, metadata: '{"source":"review"}' }],
+          scope: "session",
+        }),
+      };
+
+      expect(result).toEqual({
+        "trace.annotations.0.annotation.name": "quality",
+        "trace.annotations.0.annotation.explanation": "Looks good",
+        "session.evaluations.0.evaluation.name": "quality",
+        "session.evaluations.0.evaluation.score": 1,
+        "session.evaluations.0.evaluation.metadata": '{"source":"review"}',
+      });
+    });
+
+    it("should generate session-scoped annotation attributes", () => {
+      expect(
+        getAnnotationAttributes({
+          annotations: [{ name: "coherence", label: "coherent" }],
+          scope: "session",
+        }),
+      ).toEqual({
+        "session.annotations.0.annotation.name": "coherence",
+        "session.annotations.0.annotation.label": "coherent",
+      });
+    });
+
+    it("should accept an empty collection", () => {
+      expect(getAnnotationAttributes({ annotations: [] })).toEqual({});
+    });
+
+    it.each([[{ score: 1 }], [{ name: "correctness" }], ["not-an-annotation-object"]])(
+      "should reject invalid annotations",
+      (annotations) => {
+        expect(() =>
+          getEvaluationAttributes({
+            evaluations: annotations as never,
+          }),
+        ).toThrow();
+      },
+    );
+
+    it("should reject an invalid scope", () => {
+      expect(() =>
+        getEvaluationAttributes({
+          evaluations: [{ name: "correctness", score: 1 }],
+          scope: "conversation" as never,
+        }),
+      ).toThrow("Invalid annotation terminology or scope");
+    });
+  });
+
   describe("getMetadataAttributes", () => {
     it("should generate metadata attributes", () => {
       const metadata = { version: "1.0", env: "prod", debug: true };
@@ -349,6 +458,90 @@ describe("attributeHelpers", () => {
     });
   });
 
+  describe("getDecisionAttributes", () => {
+    it("should generate basic decision attributes", () => {
+      const result = getDecisionAttributes({
+        provider: "typesafe",
+        system: "typesafe",
+        modelName: "jev-1.13.0",
+      });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_PROVIDER]: "typesafe",
+        [SemanticConventions.DECISION_SYSTEM]: "typesafe",
+        [SemanticConventions.DECISION_MODEL_NAME]: "jev-1.13.0",
+      });
+    });
+
+    it("should lowercase provider and system", () => {
+      const result = getDecisionAttributes({ provider: "TypeSafe", system: "OpenAI" });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_PROVIDER]: "typesafe",
+        [SemanticConventions.DECISION_SYSTEM]: "openai",
+      });
+    });
+
+    it("should generate request and response model name attributes", () => {
+      const result = getDecisionAttributes({
+        requestModelName: "jev-latest",
+        responseModelName: "jev-1.13.0",
+      });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_MODEL_NAME]: "jev-1.13.0",
+        [SemanticConventions.DECISION_REQUEST_MODEL_NAME]: "jev-latest",
+        [SemanticConventions.DECISION_RESPONSE_MODEL_NAME]: "jev-1.13.0",
+      });
+    });
+
+    it("should mirror decision.model_name from the request model when the response model is unknown", () => {
+      const result = getDecisionAttributes({ requestModelName: "jev-latest" });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_MODEL_NAME]: "jev-latest",
+        [SemanticConventions.DECISION_REQUEST_MODEL_NAME]: "jev-latest",
+      });
+    });
+
+    it("should let an explicit modelName override the mirrored model name", () => {
+      const result = getDecisionAttributes({
+        modelName: "my-alias",
+        responseModelName: "jev-1.13.0",
+      });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_MODEL_NAME]: "my-alias",
+        [SemanticConventions.DECISION_RESPONSE_MODEL_NAME]: "jev-1.13.0",
+      });
+    });
+
+    it("should generate token count attributes", () => {
+      const result = getDecisionAttributes({ tokenCount: { input: 412, output: 2 } });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_TOKEN_COUNT_INPUT]: 412,
+        [SemanticConventions.DECISION_TOKEN_COUNT_OUTPUT]: 2,
+      });
+    });
+
+    it("should only set the token counts that are provided", () => {
+      const result = getDecisionAttributes({ tokenCount: { input: 412 } });
+      expect(result).toEqual({
+        [SemanticConventions.DECISION_TOKEN_COUNT_INPUT]: 412,
+      });
+    });
+
+    it("should never emit llm.* attributes", () => {
+      const result = getDecisionAttributes({
+        provider: "typesafe",
+        system: "typesafe",
+        requestModelName: "jev-latest",
+        responseModelName: "jev-1.13.0",
+        tokenCount: { input: 412, output: 2 },
+      });
+      expect(Object.keys(result).every((key) => key.startsWith("decision."))).toBe(true);
+    });
+
+    it("should return empty attributes for empty options", () => {
+      expect(getDecisionAttributes({})).toEqual({});
+    });
+  });
+
   describe("getLLMAttributes", () => {
     it("should generate basic LLM attributes", () => {
       const options = {
@@ -361,6 +554,38 @@ describe("attributeHelpers", () => {
         [SemanticConventions.LLM_PROVIDER]: "openai",
         [SemanticConventions.LLM_SYSTEM]: "assistant",
         [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
+      });
+    });
+
+    it("should generate request and response model name attributes", () => {
+      const options = {
+        requestModelName: "gpt-4",
+        responseModelName: "gpt-4-0613",
+      };
+      const result = getLLMAttributes(options);
+      expect(result).toEqual({
+        [SemanticConventions.LLM_MODEL_NAME]: "gpt-4-0613",
+        [SemanticConventions.LLM_REQUEST_MODEL_NAME]: "gpt-4",
+        [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: "gpt-4-0613",
+      });
+    });
+
+    it("should mirror llm.model_name from the request model when the response model is unknown", () => {
+      const result = getLLMAttributes({ requestModelName: "gpt-4" });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
+        [SemanticConventions.LLM_REQUEST_MODEL_NAME]: "gpt-4",
+      });
+    });
+
+    it("should let an explicit modelName override the mirrored model name", () => {
+      const result = getLLMAttributes({
+        modelName: "my-alias",
+        responseModelName: "gpt-4-0613",
+      });
+      expect(result).toEqual({
+        [SemanticConventions.LLM_MODEL_NAME]: "my-alias",
+        [SemanticConventions.LLM_RESPONSE_MODEL_NAME]: "gpt-4-0613",
       });
     });
 

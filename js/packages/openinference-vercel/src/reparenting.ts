@@ -1,4 +1,4 @@
-import { type AttributeValue, type Context, trace } from "@opentelemetry/api";
+import { type Context, trace } from "@opentelemetry/api";
 import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
 
 import {
@@ -6,7 +6,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { isLikelyAISDKSpan } from "./typeUtils.js";
+import { getParentSpanId, isLikelyAISDKSpan } from "./typeUtils.js";
 
 /**
  * Decides whether an AI span would be orphaned by span filtering, and so should be
@@ -48,14 +48,14 @@ export const shouldReparentSpan = (span: Span, parentContext: Context): boolean 
   // SpanContext, with no `attributes` — even though its spanId is correct and the parent is
   // itself exported. "Can't inspect" is NOT "non-AI": treating it as non-AI re-roots the child
   // off an exported AI parent (orphaning it). When the parent isn't inspectable, leave the
-  // child attached; the parentSpanId link stays valid if the parent is exported.
-  const parentAttributes = (parentSpan as unknown as { attributes?: unknown }).attributes;
+  // child attached; the parent link stays valid if the parent is exported.
+  const parentAttributes = Reflect.get(parentSpan, "attributes");
   if (parentAttributes == null) return false;
 
   // The parent is inspectable and also looks like an AI span (so it will be exported too and
   // the link is fine). Only re-root when the parent is a real, inspectable, non-AI span — i.e.
   // likely to be filtered out, which is what would orphan this span.
-  if (isLikelyAISDKSpan(parentSpan as unknown as Span)) return false;
+  if (isLikelyAISDKSpan(parentSpan)) return false;
 
   return true;
 };
@@ -122,11 +122,14 @@ export const createReparentedSpanView = (span: ReadableSpan): ReadableSpan => {
  * onEnd, after attribute conversion and before the export filter.
  */
 export const promoteReparentedRoot = (span: ReadableSpan): void => {
-  if (span.parentSpanId != null) return;
+  if (getParentSpanId(span) != null) return;
   if (span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] != null) return;
   if (!isLikelyAISDKSpan(span)) return;
 
   // ReadableSpan attributes are typed readonly; runtime Span objects are mutable.
-  (span.attributes as Record<string, AttributeValue>)[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
-    OpenInferenceSpanKind.AGENT;
+  Reflect.set(
+    span.attributes,
+    SemanticConventions.OPENINFERENCE_SPAN_KIND,
+    OpenInferenceSpanKind.AGENT,
+  );
 };

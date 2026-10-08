@@ -9,10 +9,10 @@ from opentelemetry.sdk.trace import SpanLimits
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider, use_span
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
+from openinference.instrumentation._types import AttributeValue
 from openinference.instrumentation.config import (
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
     DEFAULT_ENABLE_GENAI_SEMCONV,
@@ -30,6 +30,7 @@ from openinference.instrumentation.config import (
     DEFAULT_HIDE_OUTPUT_TEXT,
     DEFAULT_HIDE_OUTPUTS,
     DEFAULT_HIDE_PROMPTS,
+    DEFAULT_HIDE_RETRIEVAL_DOCUMENTS,
     OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
     OPENINFERENCE_ENABLE_GENAI_SEMCONV,
     OPENINFERENCE_HIDE_CHOICES,
@@ -45,9 +46,16 @@ from openinference.instrumentation.config import (
     OPENINFERENCE_HIDE_OUTPUT_TEXT,
     OPENINFERENCE_HIDE_OUTPUTS,
     OPENINFERENCE_HIDE_PROMPTS,
+    OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS,
     REDACTED_VALUE,
 )
-from openinference.semconv.trace import SpanAttributes, ToolAttributes
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    ImageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+    ToolAttributes,
+)
 
 
 def test_default_settings() -> None:
@@ -66,8 +74,28 @@ def test_default_settings() -> None:
     assert config.hide_embeddings_text == DEFAULT_HIDE_EMBEDDINGS_TEXT
     assert config.hide_prompts == DEFAULT_HIDE_PROMPTS
     assert config.hide_choices == DEFAULT_HIDE_CHOICES
+    assert config.hide_retrieval_documents == DEFAULT_HIDE_RETRIEVAL_DOCUMENTS
     assert config.enable_genai_semconv == DEFAULT_ENABLE_GENAI_SEMCONV
     assert config.base64_image_max_length == DEFAULT_BASE64_IMAGE_MAX_LENGTH
+
+
+def test_unparsable_bool_env_var_falls_back_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUTS, "yes")
+    assert TraceConfig().hide_inputs == DEFAULT_HIDE_INPUTS
+
+
+def test_unparsable_bool_env_var_falls_back_to_default_while_handling_an_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare ``raise`` would re-raise the exception being handled here, so the
+    fallback in ``_parse_value`` would never run."""
+    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUTS, "yes")
+    try:
+        raise KeyboardInterrupt("unrelated")
+    except KeyboardInterrupt:
+        assert TraceConfig().hide_inputs == DEFAULT_HIDE_INPUTS
 
 
 def test_oi_tracer(
@@ -170,6 +198,7 @@ def test_settings_from_env_vars_and_code(
     monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_IMAGES, str(hide_input_images))
     monkeypatch.setenv(OPENINFERENCE_HIDE_PROMPTS, str(hide_prompts))
     monkeypatch.setenv(OPENINFERENCE_HIDE_CHOICES, str(hide_choices))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS, str(hide_outputs))
     monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_TEXT, str(hide_input_text))
     monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_TEXT, str(hide_output_text))
     monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS, str(hide_embeddings_vectors))
@@ -192,6 +221,9 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_embeddings_text is parse_bool_from_env(OPENINFERENCE_HIDE_EMBEDDINGS_TEXT)
     assert config.hide_prompts is parse_bool_from_env(OPENINFERENCE_HIDE_PROMPTS)
     assert config.hide_choices is parse_bool_from_env(OPENINFERENCE_HIDE_CHOICES)
+    assert config.hide_retrieval_documents is parse_bool_from_env(
+        OPENINFERENCE_HIDE_RETRIEVAL_DOCUMENTS
+    )
     assert config.hide_llm_tools is parse_bool_from_env(OPENINFERENCE_HIDE_LLM_TOOLS)
     assert config.enable_genai_semconv is parse_bool_from_env(OPENINFERENCE_ENABLE_GENAI_SEMCONV)
     assert config.base64_image_max_length == int(
@@ -212,6 +244,7 @@ def test_settings_from_env_vars_and_code(
     new_hide_embeddings_text = not hide_embeddings_text
     new_hide_prompts = not hide_prompts
     new_hide_choices = not hide_choices
+    new_hide_retrieval_documents = not hide_outputs
     new_hide_llm_tools = not hide_llm_tools
     new_enable_genai_semconv = not enable_genai_semconv
     config = TraceConfig(
@@ -226,6 +259,7 @@ def test_settings_from_env_vars_and_code(
         hide_embeddings_text=new_hide_embeddings_text,
         hide_prompts=new_hide_prompts,
         hide_choices=new_hide_choices,
+        hide_retrieval_documents=new_hide_retrieval_documents,
         hide_llm_tools=new_hide_llm_tools,
         enable_genai_semconv=new_enable_genai_semconv,
         base64_image_max_length=new_base64_image_max_length,
@@ -241,6 +275,7 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_embeddings_text is new_hide_embeddings_text
     assert config.hide_prompts is new_hide_prompts
     assert config.hide_choices is new_hide_choices
+    assert config.hide_retrieval_documents is new_hide_retrieval_documents
     assert config.hide_llm_tools is new_hide_llm_tools
     assert config.enable_genai_semconv is new_enable_genai_semconv
     assert config.base64_image_max_length == new_base64_image_max_length
@@ -272,6 +307,20 @@ def test_settings_from_env_vars_and_code(
         ),
         (
             "hide_llm_tools",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_NAME}",
+            "get_weather",
+            None,
+        ),
+        (
+            "hide_llm_tools",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_DESCRIPTION}",
+            "Get the weather",
+            None,
+        ),
+        (
+            "hide_llm_tools",
             None,
             f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}",
             "{'type': 'function', 'function': {'name': 'get_weather'}}",
@@ -284,6 +333,55 @@ def test_settings_from_env_vars_and_code(
             "{'type': 'function', 'function': {'name': 'get_weather'}}",
             None,
         ),
+        (
+            "hide_inputs",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_NAME}",
+            "get_weather",
+            None,
+        ),
+        (
+            "hide_inputs",
+            True,
+            f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_DESCRIPTION}",
+            "Get the weather",
+            None,
+        ),
+        (
+            "hide_retrieval_documents",
+            True,
+            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_CONTENT}",
+            "sensitive document text",
+            REDACTED_VALUE,
+        ),
+        (
+            "hide_retrieval_documents",
+            True,
+            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_METADATA}",
+            "{'source': 'secret.pdf'}",
+            REDACTED_VALUE,
+        ),
+        (
+            "hide_retrieval_documents",
+            True,
+            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_ID}",
+            "doc-1",
+            "doc-1",
+        ),
+        (
+            "hide_retrieval_documents",
+            None,
+            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_CONTENT}",
+            "sensitive document text",
+            "sensitive document text",
+        ),
+        (
+            "hide_outputs",
+            True,
+            f"{SpanAttributes.RETRIEVAL_DOCUMENTS}.0.{DocumentAttributes.DOCUMENT_CONTENT}",
+            "sensitive document text",
+            REDACTED_VALUE,
+        ),
     ],
 )
 def test_trace_config(
@@ -295,7 +393,7 @@ def test_trace_config(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    config = TraceConfig(**({} if param_value is None else {param: param_value}))
+    config = TraceConfig(**({} if param_value is None else {param: param_value}))  # type: ignore[arg-type]
     tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
     tracer.start_span("test", attributes={attr_key: attr_value}).end()
     span = in_memory_span_exporter.get_finished_spans()[0]
@@ -392,3 +490,97 @@ def test_embedding_vectors_env_var_backwards_compatibility(
         )
         == REDACTED_VALUE
     )
+
+
+@pytest.mark.parametrize(
+    "messages_prefix",
+    [SpanAttributes.LLM_INPUT_MESSAGES, SpanAttributes.LLM_OUTPUT_MESSAGES],
+)
+def test_base64_image_max_length_applies_to_input_and_output_messages(
+    messages_prefix: str,
+) -> None:
+    """base64_image_max_length must redact oversized base64 image URLs in both
+    input and output messages. Multimodal / image-generation models return
+    base64 images in output messages; previously the truncation guard only
+    matched LLM_INPUT_MESSAGES, so an oversized base64 image in an output
+    message was stored in full, ignoring the configured limit."""
+    config = TraceConfig(base64_image_max_length=100)
+    key = (
+        f"{messages_prefix}.0.message.contents.0."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    )
+
+    over_limit = "data:image/png;base64," + "A" * 200
+    under_limit = "data:image/png;base64," + "A" * 20
+
+    assert config.mask(key, over_limit) == REDACTED_VALUE
+    # A base64 image under the limit must pass through untouched.
+    assert config.mask(key, under_limit) == under_limit
+
+
+@pytest.mark.parametrize(
+    ("images_prefix", "other_prefix", "hiding_config"),
+    [
+        (SpanAttributes.INPUT_IMAGES, SpanAttributes.OUTPUT_IMAGES, {"hide_inputs": True}),
+        (SpanAttributes.INPUT_IMAGES, SpanAttributes.OUTPUT_IMAGES, {"hide_input_images": True}),
+        (SpanAttributes.OUTPUT_IMAGES, SpanAttributes.INPUT_IMAGES, {"hide_outputs": True}),
+    ],
+)
+def test_hiding_applies_to_span_level_images(
+    images_prefix: str,
+    other_prefix: str,
+    hiding_config: Dict[str, Any],
+) -> None:
+    """The span-level image namespaces obey the same hiding controls as message
+    images, so a configured hide setting cannot be bypassed by recording an image
+    outside the LLM message structure."""
+    config = TraceConfig(**hiding_config)
+    url = "https://example.com/a.png"
+    url_key = f"{images_prefix}.0.{ImageAttributes.IMAGE_URL}"
+
+    assert config.mask(url_key, "data:image/png;base64,iVBORw0KGgo=") is None
+    # The whole namespace is removed, not only the image.url leaves.
+    assert config.mask(images_prefix, "[]") is None
+    # The setting is scoped to its own side: the other namespace is untouched.
+    other_key = f"{other_prefix}.0.{ImageAttributes.IMAGE_URL}"
+    assert config.mask(other_key, url) == url
+    # A sibling namespace that merely shares the prefix string is not matched.
+    assert config.mask(f"{images_prefix}et.0.{ImageAttributes.IMAGE_URL}", url) == url
+    # Without the hide setting the same keys pass through.
+    assert TraceConfig().mask(url_key, url) == url
+
+
+@pytest.mark.parametrize(
+    "hiding_config",
+    [{"hide_input_messages": True}, {"hide_output_messages": True}],
+)
+def test_hiding_messages_leaves_span_level_images_visible(
+    hiding_config: Dict[str, Any],
+) -> None:
+    """input.images / output.images live outside the message structure, so the
+    message-only hide settings do not reach them."""
+    config = TraceConfig(**hiding_config)
+    url = "https://example.com/a.png"
+    for prefix in (SpanAttributes.INPUT_IMAGES, SpanAttributes.OUTPUT_IMAGES):
+        assert config.mask(f"{prefix}.0.{ImageAttributes.IMAGE_URL}", url) == url
+
+
+@pytest.mark.parametrize(
+    "images_prefix",
+    [SpanAttributes.INPUT_IMAGES, SpanAttributes.OUTPUT_IMAGES],
+)
+def test_base64_image_max_length_applies_to_span_level_images(
+    images_prefix: str,
+) -> None:
+    """The size limit follows the image.url leaf, so an oversized base64 payload is
+    redacted whether it sits under a message content item or at the span level."""
+    config = TraceConfig(base64_image_max_length=100)
+    key = f"{images_prefix}.0.{ImageAttributes.IMAGE_URL}"
+
+    over_limit = "data:image/png;base64," + "A" * 200
+    under_limit = "data:image/png;base64," + "A" * 20
+
+    assert config.mask(key, over_limit) == REDACTED_VALUE
+    assert config.mask(key, under_limit) == under_limit
+    # A plain URI is never subject to the base64 budget.
+    assert config.mask(key, "https://example.com/a.png") == "https://example.com/a.png"

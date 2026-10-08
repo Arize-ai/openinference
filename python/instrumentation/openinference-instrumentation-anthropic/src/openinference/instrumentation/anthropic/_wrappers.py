@@ -21,7 +21,6 @@ from typing import (
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 from wrapt import ObjectProxy
 
@@ -29,8 +28,9 @@ from openinference.instrumentation import get_attributes_from_context, safe_json
 from openinference.instrumentation.anthropic._stream import (
     _MessagesStream,
     _RawStreamInterceptor,
-    _Stream,
 )
+from openinference.instrumentation.anthropic._types import AttributeValue
+from openinference.instrumentation.anthropic._utils import _get_token_counts
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -104,7 +104,9 @@ class _Params:
         if self._token:
             _params.reset(self._token)
 
-    def update(self, **kwargs: Any) -> None:
+    def update(self, kwargs: Mapping[Any, Any]) -> None:
+        # a mapping, not keyword arguments: a request body can have any keys, e.g. "self" or
+        # non-strings from extra_body
         if self._updated:
             return
         self._kwargs.update(kwargs)
@@ -114,7 +116,7 @@ class _Params:
 _params: ContextVar[Optional[_Params]] = ContextVar("params", default=None)
 
 
-class _TransformWrapper:
+class _PrepareRequestDataWrapper:
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -126,12 +128,15 @@ class _TransformWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
             return wrapped(*args, **kwargs)
         ans = wrapped(*args, **kwargs)
-        if isinstance(ans, Mapping):
-            params.update(**ans)
+        if kwargs.get("location") == "body" and isinstance(ans, Mapping):
+            try:
+                params.update(ans)
+            except Exception:
+                logger.exception("Failed to record the prepared request body")
         return ans
 
 
-class _AsyncTransformWrapper:
+class _AsyncPrepareRequestDataWrapper:
     async def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -143,8 +148,11 @@ class _AsyncTransformWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY) or params is None:
             return await wrapped(*args, **kwargs)
         ans = await wrapped(*args, **kwargs)
-        if isinstance(ans, Mapping):
-            params.update(**ans)
+        if kwargs.get("location") == "body" and isinstance(ans, Mapping):
+            try:
+                params.update(ans)
+            except Exception:
+                logger.exception("Failed to record the prepared request body")
         return ans
 
 
@@ -189,113 +197,6 @@ class _WithTracer(ABC):
                 )
             )
             yield _WithSpan(span=span, params=stack.enter_context(params))
-
-
-@_stop_on_exception
-def _get_attributes_from_completions_create(
-    kwargs: Mapping[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    yield from _get_llm_model_name_from_input(kwargs)
-    invocation_parameters = dict(kwargs)
-    invocation_parameters.pop("extra_headers", None)
-    invocation_parameters.pop("model", None)
-    if prompt := invocation_parameters.pop("prompt", None):
-        yield from _get_llm_prompts(prompt)
-    if isinstance(tools := invocation_parameters.pop("tools", None), Iterable):
-        yield from _get_llm_tools(tools)
-    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
-
-
-class _CompletionsWrapper(_WithTracer):
-    """
-    Wrapper for the pipeline processing
-    Captures all calls to the pipeline
-    """
-
-    __slots__ = "_response_accumulator"
-
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
-
-        with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_completions_create),
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_span_kind(),
-                    _get_inputs(kwargs),
-                )
-            ),
-        ) as span:
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                span.finish_tracing()
-                raise
-        streaming = kwargs.get("stream", False)
-        if streaming:
-            return _Stream(response, span)
-        else:
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(_get_outputs(response)))
-            span.finish_tracing()
-            return response
-
-
-class _AsyncCompletionsWrapper(_WithTracer):
-    """
-    Wrapper for the pipeline processing
-    Captures all calls to the pipeline
-    """
-
-    async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
-
-        with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_completions_create),
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_span_kind(),
-                    _get_inputs(kwargs),
-                )
-            ),
-        ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                span.finish_tracing()
-                raise
-        streaming = kwargs.get("stream", False)
-        if streaming:
-            return _Stream(response, span)
-        else:
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(_get_outputs(response)))
-            span.finish_tracing()
-            return response
 
 
 @_stop_on_exception
@@ -345,26 +246,20 @@ class _MessagesWrapper(_WithTracer):
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
+                # BaseException, so that e.g. KeyboardInterrupt also finishes the span
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
+        if _is_api_response(response):
+            _finish_api_response_tracing(span, response, streaming=kwargs.get("stream", False))
+            return response
         streaming = kwargs.get("stream", False)
         if streaming:
-            return _MessagesStream(response, span)
+            return _MessagesStream(response, span, is_beta=self._span_name.startswith("beta."))
         else:
-            span.finish_tracing(
-                status=trace_api.Status(trace_api.StatusCode.OK),
-                extra_attributes=dict(
-                    chain(
-                        _get_llm_model_name_from_response(response),
-                        _get_output_messages(response),
-                        _get_llm_token_counts(response.usage),
-                        _get_outputs(response),
-                    )
-                ),
-            )
+            _finish_message_tracing(span, response)
             return response
 
 
@@ -398,27 +293,103 @@ class _AsyncMessagesWrapper(_WithTracer):
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
+                # BaseException, so that e.g. a cancelled task's CancelledError also finishes
+                # the span
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-        streaming = kwargs.get("stream", False)
-        if streaming:
-            return _MessagesStream(response, span)
-        else:
-            span.finish_tracing(
-                status=trace_api.Status(trace_api.StatusCode.OK),
-                extra_attributes=dict(
-                    chain(
-                        _get_llm_model_name_from_response(response),
-                        _get_output_messages(response),
-                        _get_llm_token_counts(response.usage),
-                        _get_outputs(response),
-                    )
-                ),
+        if _is_api_response(response):
+            await _async_finish_api_response_tracing(
+                span, response, streaming=kwargs.get("stream", False)
             )
             return response
+        streaming = kwargs.get("stream", False)
+        if streaming:
+            return _MessagesStream(response, span, is_beta=self._span_name.startswith("beta."))
+        else:
+            _finish_message_tracing(span, response)
+            return response
+
+
+def _finish_message_tracing(span: _WithSpan, message: Any) -> None:
+    span.finish_tracing(
+        status=trace_api.Status(trace_api.StatusCode.OK),
+        extra_attributes=dict(
+            chain(
+                _get_llm_model_name_from_response(message),
+                _get_output_messages(message),
+                _get_llm_token_counts_from_response(message),
+                _get_outputs(message),
+            )
+        ),
+    )
+
+
+def _is_api_response(response: Any) -> bool:
+    """
+    messages.with_raw_response and messages.with_streaming_response return the HTTP response,
+    wrapped in an APIResponse, instead of the message.
+    """
+    from anthropic import APIResponse, AsyncAPIResponse
+
+    return isinstance(response, (APIResponse, AsyncAPIResponse))
+
+
+def _parsing_runs_caller_code(response: Any) -> bool:
+    """
+    Parsing applies the request's post_parser, which is caller code: messages.parse() sets one
+    to validate the response against the caller's output_format, and middleware can set one on
+    any request. Caller code must run only when the caller parses a raw response itself.
+    """
+    from anthropic import NotGiven
+
+    options = getattr(response, "_options", None)
+    return not isinstance(getattr(options, "post_parser", None), NotGiven)
+
+
+def _finish_api_response_tracing(span: _WithSpan, response: Any, streaming: bool) -> None:
+    """
+    The output attributes are recorded only if the body has been read and parsing runs no caller
+    code; the response caches the parsed message for the caller's own parse(). An unread body
+    leaves the outcome unknown, e.g. a stream can still end in an error event, so the status is
+    left unset. An event stream counts as unread even if a transport buffered its body.
+    """
+    if streaming or not response.is_closed:
+        span.finish_tracing()
+        return
+    if _parsing_runs_caller_code(response):
+        span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
+        return
+    try:
+        message = response.parse()
+    except Exception:
+        logger.exception("Failed to parse the raw response")
+        span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
+        return
+    _finish_message_tracing(span, message)
+
+
+async def _async_finish_api_response_tracing(
+    span: _WithSpan, response: Any, streaming: bool
+) -> None:
+    """
+    See _finish_api_response_tracing.
+    """
+    if streaming or not response.is_closed:
+        span.finish_tracing()
+        return
+    if _parsing_runs_caller_code(response):
+        span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
+        return
+    try:
+        message = await response.parse()
+    except Exception:
+        logger.exception("Failed to parse the raw response")
+        span.finish_tracing(status=trace_api.Status(trace_api.StatusCode.OK))
+        return
+    _finish_message_tracing(span, message)
 
 
 class _MessagesStreamWrapper(_WithTracer):
@@ -445,8 +416,9 @@ class _MessagesStreamWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        params = _Params(kwargs, get_attributes=_get_attributes_from_messages_create)
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=params,
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -459,12 +431,12 @@ class _MessagesStreamWrapper(_WithTracer):
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-        return self._manager_class(response, span)
+        return self._manager_class(response, span, params)
 
 
 class _AsyncMessagesStreamWrapper(_WithTracer):
@@ -487,8 +459,9 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
+        params = _Params(kwargs, get_attributes=_get_attributes_from_messages_create)
         with self._start_as_current_span(
-            params=_Params(kwargs, get_attributes=_get_attributes_from_messages_create),
+            params=params,
             attributes=dict(
                 chain(
                     get_attributes_from_context(),
@@ -501,12 +474,12 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-        return self._manager_class(response, span)
+        return self._manager_class(response, span, params)
 
 
 # Sync stream manager proxies.
@@ -516,20 +489,35 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
 
 
 class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_params", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
         manager: "MessageStreamManager",
         with_span: _WithSpan,
+        params: _Params,
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_params = params
         self._self_interceptor: Optional[_RawStreamInterceptor] = None
         self._self_message_stream: Any = None
 
     def __enter__(self) -> Any:
-        message_stream = self.__wrapped__.__enter__()
+        try:
+            # the request is sent here, after stream() has returned, and anthropic>=1.8.0
+            # prepares its body here, so the params are made current again for the body
+            # preparation wrapper
+            with self._self_params:
+                message_stream = self.__wrapped__.__enter__()
+        except BaseException as exception:
+            # a failed request never reaches __exit__, so the span has to be finished here
+            self._self_with_span.set_status(
+                trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+            )
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -551,20 +539,35 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type
 
 
 class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_params", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
         manager: "BetaMessageStreamManager",
         with_span: _WithSpan,
+        params: _Params,
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_params = params
         self._self_interceptor: Optional[_RawStreamInterceptor] = None
         self._self_message_stream: Any = None
 
     def __enter__(self) -> Any:
-        message_stream = self.__wrapped__.__enter__()
+        try:
+            # the request is sent here, after stream() has returned, and anthropic>=1.8.0
+            # prepares its body here, so the params are made current again for the body
+            # preparation wrapper
+            with self._self_params:
+                message_stream = self.__wrapped__.__enter__()
+        except BaseException as exception:
+            # a failed request never reaches __exit__, so the span has to be finished here
+            self._self_with_span.set_status(
+                trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+            )
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -589,20 +592,35 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,
 
 
 class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_params", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
         manager: "AsyncMessageStreamManager",
         with_span: _WithSpan,
+        params: _Params,
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_params = params
         self._self_interceptor: Optional[_RawStreamInterceptor] = None
         self._self_message_stream: Any = None
 
     async def __aenter__(self) -> Any:
-        message_stream = await self.__wrapped__.__aenter__()
+        try:
+            # the request is sent here, after stream() has returned, and anthropic>=1.8.0
+            # prepares its body here, so the params are made current again for the body
+            # preparation wrapper
+            with self._self_params:
+                message_stream = await self.__wrapped__.__aenter__()
+        except BaseException as exception:
+            # a failed request never reaches __exit__, so the span has to be finished here
+            self._self_with_span.set_status(
+                trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+            )
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -624,20 +642,35 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined
 
 
 class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
+    __slots__ = ("_self_with_span", "_self_params", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
         manager: "BetaAsyncMessageStreamManager",
         with_span: _WithSpan,
+        params: _Params,
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_params = params
         self._self_interceptor: Optional[_RawStreamInterceptor] = None
         self._self_message_stream: Any = None
 
     async def __aenter__(self) -> Any:
-        message_stream = await self.__wrapped__.__aenter__()
+        try:
+            # the request is sent here, after stream() has returned, and anthropic>=1.8.0
+            # prepares its body here, so the params are made current again for the body
+            # preparation wrapper
+            with self._self_params:
+                message_stream = await self.__wrapped__.__aenter__()
+        except BaseException as exception:
+            # a failed request never reaches __exit__, so the span has to be finished here
+            self._self_with_span.set_status(
+                trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
+            )
+            self._self_with_span.record_exception(exception)
+            self._self_with_span.finish_tracing()
+            raise
         interceptor = _RawStreamInterceptor(
             message_stream._raw_stream, self._self_with_span, message_stream
         )
@@ -693,39 +726,26 @@ def _get_llm_system() -> Iterator[Tuple[str, Any]]:
 
 @_stop_on_exception
 def _get_llm_token_counts(usage: "Usage") -> Iterator[Tuple[str, Any]]:
-    # See https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#tracking-cache-performance
-    # cache_creation_input_tokens: Number of tokens written to the cache when creating a new entry.
-    # cache_read_input_tokens: Number of tokens retrieved from the cache for this request.
-    # input_tokens: Number of input tokens which were not read from or used to create a cache.
-    if prompt_tokens := (
-        usage.input_tokens
-        + (usage.cache_creation_input_tokens or 0)
-        + (usage.cache_read_input_tokens or 0)
-    ):
-        yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    if usage.output_tokens:
-        yield LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
-    if usage.cache_read_input_tokens:
-        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, usage.cache_read_input_tokens
-    if usage.cache_creation_input_tokens:
-        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, usage.cache_creation_input_tokens
+    yield from _get_token_counts(usage)
+
+
+@_stop_on_exception
+def _get_llm_token_counts_from_response(message: "Message") -> Iterator[Tuple[str, Any]]:
+    yield from _get_token_counts(message.usage)
 
 
 @_stop_on_exception
 def _get_llm_model_name_from_input(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     if model_name := arguments.get("model"):
         yield LLM_MODEL_NAME, model_name
+        yield LLM_REQUEST_MODEL_NAME, model_name
 
 
 @_stop_on_exception
 def _get_llm_model_name_from_response(message: "Message") -> Iterator[Tuple[str, Any]]:
     if model_name := message.model:
         yield LLM_MODEL_NAME, model_name
-
-
-@_stop_on_exception
-def _get_llm_prompts(prompt: str) -> Iterator[Tuple[str, Any]]:
-    yield LLM_PROMPTS, [prompt]
+        yield LLM_RESPONSE_MODEL_NAME, model_name
 
 
 @_stop_on_exception
@@ -914,6 +934,8 @@ def _get_output_messages(response: Message) -> Iterator[Tuple[str, Any]]:
     Extracts the tool call information from the response
     """
     yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", response.role
+    if stop_reason := response.stop_reason:
+        yield LLM_FINISH_REASON, stop_reason
     tool_index = 0
     for j, block in enumerate(response.content):
         if block.type == "text":
@@ -990,18 +1012,13 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_REQUEST_MODEL_NAME = SpanAttributes.LLM_REQUEST_MODEL_NAME
+LLM_RESPONSE_MODEL_NAME = SpanAttributes.LLM_RESPONSE_MODEL_NAME
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
-LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
-LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
-LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
-LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
-LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
-    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
-)
-LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

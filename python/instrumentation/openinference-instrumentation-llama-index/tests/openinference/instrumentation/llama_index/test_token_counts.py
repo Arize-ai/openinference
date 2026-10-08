@@ -69,8 +69,9 @@ class TestTokenCounts:
     def test_anthropic(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
+        anthropic_model: str,
     ) -> None:
-        llm = Anthropic(model="claude-3-5-haiku-20241022", api_key="sk-")
+        llm = Anthropic(model=anthropic_model, api_key="sk-")
         resp = llm.chat([ChatMessage(content="Hello!")])
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})

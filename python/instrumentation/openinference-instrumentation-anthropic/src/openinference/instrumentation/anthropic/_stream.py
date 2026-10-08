@@ -1,26 +1,23 @@
-from copy import deepcopy
+from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
     AsyncIterator,
     Dict,
-    Iterable,
     Iterator,
-    List,
-    Mapping,
     Optional,
     Tuple,
+    Type,
 )
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.anthropic._types import AttributeValue
 from openinference.instrumentation.anthropic._utils import (
-    _as_output_attributes,
     _finish_tracing,
-    _ValueAndType,
+    _get_token_counts,
 )
 from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
@@ -32,8 +29,10 @@ from openinference.semconv.trace import (
 )
 
 if TYPE_CHECKING:
+    from httpx2 import Headers
+
     from anthropic import Stream
-    from anthropic.types import Completion, RawMessageStreamEvent
+    from anthropic.types import RawMessageStreamEvent
 
 
 class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
@@ -101,115 +100,6 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type
         )
 
 
-class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
-    __slots__ = (
-        "_response_accumulator",
-        "_with_span",
-    )
-
-    def __init__(
-        self,
-        stream: "Stream[Completion]",
-        with_span: _WithSpan,
-    ) -> None:
-        super().__init__(stream)
-        self._response_accumulator = _ResponseAccumulator()
-        self._with_span = with_span
-
-    def __iter__(self) -> Iterator["Completion"]:
-        try:
-            for item in self.__wrapped__:
-                self._response_accumulator.process_chunk(item)
-                yield item
-        except Exception as exception:
-            status = trace_api.Status(
-                status_code=trace_api.StatusCode.ERROR,
-                description=f"{type(exception).__name__}: {exception}",
-            )
-            self._with_span.record_exception(exception)
-            self._finish_tracing(status=status)
-            raise
-        # completed without exception
-        status = trace_api.Status(
-            status_code=trace_api.StatusCode.OK,
-        )
-        self._finish_tracing(status=status)
-
-    async def __aiter__(self) -> AsyncIterator["Completion"]:
-        try:
-            async for item in self.__wrapped__:
-                self._response_accumulator.process_chunk(item)
-                yield item
-        except Exception as exception:
-            status = trace_api.Status(
-                status_code=trace_api.StatusCode.ERROR,
-                description=f"{type(exception).__name__}: {exception}",
-            )
-            self._with_span.record_exception(exception)
-            self._finish_tracing(status=status)
-            raise
-        # completed without exception
-        status = trace_api.Status(
-            status_code=trace_api.StatusCode.OK,
-        )
-        self._finish_tracing(status=status)
-
-    def _finish_tracing(
-        self,
-        status: Optional[trace_api.Status] = None,
-    ) -> None:
-        _finish_tracing(
-            with_span=self._with_span,
-            has_attributes=_ResponseExtractor(response_accumulator=self._response_accumulator),
-            status=status,
-        )
-
-
-class _ResponseAccumulator:
-    __slots__ = (
-        "_is_null",
-        "_values",
-    )
-
-    def __init__(self) -> None:
-        self._is_null = True
-        self._values = _ValuesAccumulator(
-            completion=_StringAccumulator(),
-            stop=_SimpleStringReplace(),
-            stop_reason=_SimpleStringReplace(),
-        )
-
-    def process_chunk(self, chunk: "Completion") -> None:
-        self._is_null = False
-        values = chunk.model_dump(exclude_unset=True, warnings=False)
-        self._values += values
-
-    def _result(self) -> Optional[Dict[str, Any]]:
-        if self._is_null:
-            return None
-        return dict(self._values)
-
-
-class _ResponseExtractor:
-    __slots__ = ("_response_accumulator",)
-
-    def __init__(
-        self,
-        response_accumulator: _ResponseAccumulator,
-    ) -> None:
-        self._response_accumulator = response_accumulator
-
-    def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if not (result := self._response_accumulator._result()):
-            return
-        json_string = safe_json_dumps(result)
-        yield from _as_output_attributes(
-            _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
-        )
-        if completion := result.get("completion", ""):
-            yield SpanAttributes.LLM_OUTPUT_MESSAGES, completion
-
-
 class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_response_accumulator",
@@ -220,10 +110,70 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
         self,
         stream: "Stream[RawMessageStreamEvent]",
         with_span: _WithSpan,
+        *,
+        is_beta: bool = False,
     ) -> None:
         super().__init__(stream)
-        self._response_accumulator = _MessageResponseAccumulator()
+        self._response_accumulator = _MessageResponseAccumulator(
+            is_beta=is_beta,
+            request_headers=stream.response.request.headers,
+        )
         self._with_span = with_span
+
+    # The SDK stream's context manager returns the SDK stream, which would bypass the iteration
+    # below, so these return the proxy. Exiting finishes the span if iteration has not, e.g. when
+    # the stream is left early, recording the exception that ended the context, e.g. a
+    # CancelledError, which iteration does not catch.
+
+    def __enter__(self) -> "_MessagesStream":
+        self.__wrapped__.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+        except BaseException as exception:
+            # e.g. closing the response failed
+            self._finish_tracing_on_exit(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
+
+    async def __aenter__(self) -> "_MessagesStream":
+        await self.__wrapped__.__aenter__()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        try:
+            await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseException as exception:
+            # e.g. closing the response failed, or the task was cancelled while it closed
+            self._finish_tracing_on_exit(exception)
+            raise
+        self._finish_tracing_on_exit(exc_val)
+
+    def _finish_tracing_on_exit(self, exception: Optional[BaseException]) -> None:
+        # GeneratorExit: a generator holding the context was closed, which leaves the stream
+        # early rather than failing the request
+        if exception is None or isinstance(exception, GeneratorExit):
+            self._finish_tracing()
+            return
+        self._with_span.record_exception(exception)
+        self._finish_tracing(
+            status=trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+        )
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:
@@ -277,18 +227,50 @@ class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,u
 class _MessageResponseAccumulator:
     """Accumulates raw SSE events into a ParsedMessage using the SDK's own accumulate_event."""
 
-    __slots__ = ("_snapshot",)
+    __slots__ = ("_is_beta", "_request_headers", "_snapshot", "_json_bufs")
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        is_beta: bool,
+        request_headers: "Headers",
+    ) -> None:
+        self._is_beta = is_beta
+        self._request_headers = request_headers
         self._snapshot: Any = None
+        # Buffers partial tool-use input JSON across events, keyed by content block
+        # index.
+        self._json_bufs: Dict[int, bytes] = {}
 
     def process_chunk(self, chunk: "RawMessageStreamEvent") -> None:
-        from anthropic.lib.streaming._messages import accumulate_event
+        # Beta and stable chunks need their matching accumulate_event; beta's
+        # raises on stable chunks and vice versa silently drops updates.
+        if self._is_beta:
+            from anthropic.lib.streaming._beta_messages import (
+                accumulate_event as accumulate_beta_event,
+            )
 
-        try:
-            self._snapshot = accumulate_event(event=chunk, current_snapshot=self._snapshot)
-        except Exception:
-            pass
+            beta_kwargs: Dict[str, Any] = dict(
+                event=chunk,
+                current_snapshot=self._snapshot,
+                request_headers=self._request_headers,
+                json_bufs=self._json_bufs,
+            )
+            try:
+                self._snapshot = accumulate_beta_event(**beta_kwargs)
+            except Exception:
+                pass
+        else:
+            from anthropic.lib.streaming._messages import accumulate_event
+
+            try:
+                self._snapshot = accumulate_event(
+                    event=chunk,
+                    current_snapshot=self._snapshot,
+                    json_bufs=self._json_bufs,
+                )
+            except Exception:
+                pass
 
     def _result(self) -> Any:
         return self._snapshot
@@ -312,10 +294,15 @@ class _MessageExtractor:
             return
         yield SpanAttributes.OUTPUT_VALUE, snapshot.model_dump_json()
         yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+        if model_name := getattr(snapshot, "model", None):
+            yield SpanAttributes.LLM_MODEL_NAME, model_name
+            yield SpanAttributes.LLM_RESPONSE_MODEL_NAME, model_name
         yield (
             f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}",
             snapshot.role,
         )
+        if stop_reason := getattr(snapshot, "stop_reason", None):
+            yield SpanAttributes.LLM_FINISH_REASON, stop_reason
         tool_idx = 0
         for block_idx, block in enumerate(snapshot.content):
             content_prefix = (
@@ -384,99 +371,4 @@ class _MessageExtractor:
                     safe_json_dumps(block.input),
                 )
                 tool_idx += 1
-        usage = snapshot.usage
-        prompt_tokens = (
-            usage.input_tokens
-            + (usage.cache_creation_input_tokens or 0)
-            + (usage.cache_read_input_tokens or 0)
-        )
-        if prompt_tokens:
-            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-        if usage.output_tokens:
-            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens
-        if total := prompt_tokens + (usage.output_tokens or 0):
-            yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total
-
-
-class _ValuesAccumulator:
-    __slots__ = ("_values",)
-
-    def __init__(self, **values: Any) -> None:
-        self._values: Dict[str, Any] = values
-
-    def __iter__(self) -> Iterator[Tuple[str, Any]]:
-        for key, value in self._values.items():
-            if value is None:
-                continue
-            if isinstance(value, _ValuesAccumulator):
-                if dict_value := dict(value):
-                    yield key, dict_value
-            elif isinstance(value, _SimpleStringReplace):
-                if str_value := str(value):
-                    yield key, str_value
-            elif isinstance(value, _StringAccumulator):
-                if str_value := str(value):
-                    yield key, str_value
-            else:
-                yield key, value
-
-    def __iadd__(self, values: Optional[Mapping[str, Any]]) -> "_ValuesAccumulator":
-        if not values:
-            return self
-        for key in self._values.keys():
-            if (value := values.get(key)) is None:
-                continue
-            self_value = self._values[key]
-            if isinstance(self_value, _ValuesAccumulator):
-                if isinstance(value, Mapping):
-                    self_value += value
-            elif isinstance(self_value, _StringAccumulator):
-                if isinstance(value, str):
-                    self_value += value
-            elif isinstance(self_value, _SimpleStringReplace):
-                if isinstance(value, str):
-                    self_value += value
-            elif isinstance(self_value, List) and isinstance(value, Iterable):
-                self_value.extend(value)
-            else:
-                self._values[key] = value  # replacement
-        for key in values.keys():
-            if key in self._values or (value := values[key]) is None:
-                continue
-            value = deepcopy(value)
-            if isinstance(value, Mapping):
-                value = _ValuesAccumulator(**value)
-            self._values[key] = value  # new entry
-        return self
-
-
-class _StringAccumulator:
-    __slots__ = ("_fragments",)
-
-    def __init__(self) -> None:
-        self._fragments: List[str] = []
-
-    def __str__(self) -> str:
-        return "".join(self._fragments)
-
-    def __iadd__(self, value: Optional[str]) -> "_StringAccumulator":
-        if not value:
-            return self
-        self._fragments.append(value)
-        return self
-
-
-class _SimpleStringReplace:
-    __slots__ = ("_str_val",)
-
-    def __init__(self) -> None:
-        self._str_val: str = ""
-
-    def __str__(self) -> str:
-        return self._str_val
-
-    def __iadd__(self, value: Optional[str]) -> "_SimpleStringReplace":
-        if not value:
-            return self
-        self._str_val = value
-        return self
+        yield from _get_token_counts(snapshot.usage)

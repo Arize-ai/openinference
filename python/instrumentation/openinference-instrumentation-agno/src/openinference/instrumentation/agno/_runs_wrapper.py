@@ -17,10 +17,10 @@ from typing import (
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context.context import Context
-from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent
 from agno.models.message import Message
+from agno.run import RunStatus
 from agno.run.agent import RunCompletedEvent as AgentRunCompletedEvent
 from agno.run.agent import RunOutput
 from agno.run.messages import RunMessages
@@ -32,6 +32,7 @@ from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
+    AttributeValue,
     _bind_arguments,
     _flatten,
     _generate_node_id,
@@ -93,8 +94,11 @@ def _extract_run_response_output(run_response: Union[RunOutput, TeamRunOutput]) 
     if run_response and run_response.content:
         if isinstance(run_response.content, str):
             return run_response.content
-        else:
+        if hasattr(run_response.content, "model_dump_json"):
             return str(run_response.content.model_dump_json())
+        if isinstance(run_response.content, dict):
+            return json.dumps(run_response.content)
+        return str(run_response.content)
     return ""
 
 
@@ -110,8 +114,31 @@ def _extract_completed_event_output(
     return str(completed_event.content)
 
 
+def _set_run_status(
+    span: trace_api.Span, run_response: Optional[Union[RunOutput, TeamRunOutput]]
+) -> None:
+    if getattr(run_response, "status", None) == RunStatus.error:
+        span.set_status(trace_api.StatusCode.ERROR, "run status: error")
+    else:
+        span.set_status(trace_api.StatusCode.OK)
+
+
 def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
+
+
+def _span_method_name(wrapped: Callable[..., Any], default: str) -> str:
+    """Span-name suffix for the wrapped run function.
+
+    The continue-run entrypoints (_continue_run, _acontinue_run, and their
+    _stream variants) share the run/arun wrappers; reflect the continuation in
+    the span name, collapsing stream variants to the base name exactly like
+    the run spans do.
+    """
+    name = getattr(wrapped, "__name__", "")
+    if "continue" in name:
+        return name.lstrip("_").removesuffix("_stream")
+    return default
 
 
 def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -307,7 +334,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'run')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -343,7 +370,7 @@ class _RunWrapper:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
                 run_response: RunOutput = wrapped(*args, **kwargs)
-            span.set_status(trace_api.StatusCode.OK)
+            _set_run_status(span, run_response)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
@@ -385,7 +412,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'run')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -447,7 +474,7 @@ class _RunWrapper:
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-            span.set_status(trace_api.StatusCode.OK)
+            _set_run_status(span, run_response)
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             span.record_exception(e)
@@ -477,7 +504,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.arun"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'arun')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -513,7 +540,7 @@ class _RunWrapper:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
                 run_response = await wrapped(*args, **kwargs)
-            span.set_status(trace_api.StatusCode.OK)
+            _set_run_status(span, run_response)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
@@ -556,7 +583,7 @@ class _RunWrapper:
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
-        span_name = f"{agent_name}.arun"
+        span_name = f"{agent_name}.{_span_method_name(wrapped, 'arun')}"
 
         # Get appropriate span context for Team instances
         span_context = _get_team_span_context(agent_or_team)
@@ -629,7 +656,7 @@ class _RunWrapper:
             elif completed_event_output:
                 span.set_attribute(OUTPUT_VALUE, completed_event_output)
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-            span.set_status(trace_api.StatusCode.OK)
+            _set_run_status(span, run_response)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))

@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List, Mapping, Optional, Type, Union, cast
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Type, Union, cast
 
 import pytest
 from groq import AsyncGroq, Groq
@@ -15,11 +15,19 @@ from groq.types.completion_usage import CompletionUsage
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.groq import GroqInstrumentor
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.instrumentation.groq._types import AttributeValue
+from openinference.instrumentation.groq._utils import _get_attributes_from_message
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 MOCK_COMPLETION = ChatCompletion(
     id="chat_comp_0",
@@ -87,6 +95,46 @@ async def _async_mock_post(
     return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
     """
     return cast(ResponseT, MOCK_COMPLETION)
+
+
+def _make_mock_post(finish_reason: str) -> Any:
+    completion = ChatCompletion(
+        id="chat_comp_0",
+        choices=[
+            Choice(
+                finish_reason=finish_reason,  # type: ignore[arg-type]
+                index=0,
+                logprobs=None,
+                message=ChatCompletionMessage(
+                    content="hi", role="assistant", function_call=None, tool_calls=None
+                ),
+            )
+        ],
+        created=1722531851,
+        model="fake_model",
+        object="chat.completion",
+        system_fingerprint="fp0",
+        usage=CompletionUsage(
+            completion_tokens=5,
+            prompt_tokens=5,
+            total_tokens=10,
+        ),
+    )
+
+    def _post(
+        self: Any,
+        path: str = "fake/url",
+        *,
+        cast_to: Type[ResponseT],
+        body: Optional[Body] = None,
+        options: RequestOptions = {},
+        files: Optional[RequestFiles] = None,
+        stream: bool = False,
+        stream_cls: Optional[Type[_StreamT]] = None,
+    ) -> Union[ResponseT, _StreamT]:
+        return cast(ResponseT, completion)
+
+    return _post
 
 
 @pytest.fixture()
@@ -226,6 +274,9 @@ def test_groq_instrumentation(
         attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == "idk, sorry!"
     )
+    assert attributes[SpanAttributes.LLM_MODEL_NAME] == "fake_model"
+    assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
+    assert attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.GROQ.value
 
 
 def test_groq_async_instrumentation(
@@ -294,6 +345,29 @@ def test_groq_async_instrumentation(
         attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == "idk, sorry!"
     )
+    assert attributes[SpanAttributes.LLM_MODEL_NAME] == "fake_model"
+    assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
+    assert attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.GROQ.value
+
+
+@pytest.mark.parametrize("finish_reason", ["stop", "length", "tool_calls", "function_call"])
+def test_finish_reason_values(
+    finish_reason: str,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_groq_instrumentation: Any,
+) -> None:
+    client = Groq(api_key="fake")
+    client.chat.completions._post = _make_mock_post(finish_reason)
+
+    client.chat.completions.create(
+        messages=[{"role": "user", "content": "hello"}],
+        model="fake_model",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
 
 
 def test_groq_uninstrumentation(
@@ -324,3 +398,190 @@ TAG_TAGS = SpanAttributes.TAG_TAGS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
+
+
+def test_groq_multimodal_input(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_groq_instrumentation: Any,
+) -> None:
+    client = Groq(api_key="fake")
+    client.chat.completions._post = _mock_post  # type: ignore[assignment]
+
+    client.chat.completions.create(
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What is in this image?"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/cat.png"},
+                    },
+                ],
+            }
+        ],
+        model="fake_model",
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert (
+        attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == OpenInferenceLLMProviderValues.GROQ.value
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "fake_model"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS)
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.INPUT_VALUE)
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE)
+    assert attributes.pop(SpanAttributes.LLM_FINISH_REASON) == "stop"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 25
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 379
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 404
+
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert attributes.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    contents = f"{message}.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "What is in this image?"
+    )
+    assert (
+        attributes.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        )
+        == "https://example.com/cat.png"
+    )
+
+    output_message = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{output_message}.{MessageAttributes.MESSAGE_CONTENT}") == "idk, sorry!"
+    assert not attributes
+
+
+def test_message_content_unsupported_part_keeps_position() -> None:
+    # Newer groq releases accept `document` parts, which are not flattened. The parts
+    # after it keep their original index so a gap is left rather than shifting them.
+    message = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Summarize this."},
+            {"type": "document", "document": {"data": {"title": "cats"}}},
+            {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+        ],
+    }
+    attributes = dict(_get_attributes_from_message(message))
+    assert attributes.pop(MessageAttributes.MESSAGE_ROLE) == "user"
+    contents = MessageAttributes.MESSAGE_CONTENTS
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "Summarize this."
+    )
+    assert (
+        attributes.pop(f"{contents}.2.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{contents}.2.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        )
+        == "https://example.com/cat.png"
+    )
+    assert not attributes
+
+
+def test_message_content_as_tuple() -> None:
+    # The SDKs accept any iterable of content parts, not only lists.
+    message = {
+        "role": "user",
+        "content": (
+            {"type": "text", "text": "What is in this image?"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+        ),
+    }
+    attributes = dict(_get_attributes_from_message(message))
+    assert attributes.pop(MessageAttributes.MESSAGE_ROLE) == "user"
+    contents = MessageAttributes.MESSAGE_CONTENTS
+    assert attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "text"
+    assert (
+        attributes.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "What is in this image?"
+    )
+    assert (
+        attributes.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}") == "image"
+    )
+    assert (
+        attributes.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        )
+        == "https://example.com/cat.png"
+    )
+    assert not attributes
+
+
+def test_groq_with_generator_content(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_groq_instrumentation: Any,
+) -> None:
+    sent: Dict[str, Any] = {}
+
+    def _capturing_post(self: Any, path: str = "fake/url", **kwargs: Any) -> Any:
+        sent["body"] = kwargs.get("body")
+        return MOCK_COMPLETION
+
+    client = Groq(api_key="fake")
+    client.chat.completions._post = _capturing_post  # type: ignore[assignment]
+    parts = (
+        {"type": "text", "text": "What is in this image?"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+    )
+    content: Iterator[Any] = (part for part in parts)
+
+    client.chat.completions.create(
+        messages=[{"role": "user", "content": content}],
+        model="fake_model",
+    )
+
+    # The generator is read once for the span, and the SDK still sends every part.
+    assert list(sent["body"]["messages"][0]["content"]) == list(parts)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    input_messages = {
+        key: value
+        for key, value in (spans[0].attributes or {}).items()
+        if key.startswith(SpanAttributes.LLM_INPUT_MESSAGES)
+    }
+    message = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0"
+    assert input_messages.pop(f"{message}.{MessageAttributes.MESSAGE_ROLE}") == "user"
+    contents = f"{message}.{MessageAttributes.MESSAGE_CONTENTS}"
+    assert (
+        input_messages.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "text"
+    )
+    assert (
+        input_messages.pop(f"{contents}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}")
+        == "What is in this image?"
+    )
+    assert (
+        input_messages.pop(f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}")
+        == "image"
+    )
+    assert (
+        input_messages.pop(
+            f"{contents}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}."
+            f"{ImageAttributes.IMAGE_URL}"
+        )
+        == "https://example.com/cat.png"
+    )
+    assert not input_messages

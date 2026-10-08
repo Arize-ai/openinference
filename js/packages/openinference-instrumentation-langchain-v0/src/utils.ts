@@ -22,6 +22,7 @@ import type {
   RetrievalDocument,
   TokenCountAttributes,
   ToolAttributes,
+  LLMMessageContent,
 } from "./types";
 import { assertUnreachable, isNonEmptyArray, isNumber, isObject, isString } from "./typeUtils";
 
@@ -30,12 +31,14 @@ export const RETRIEVAL_DOCUMENTS =
 
 export const SESSION_ID_KEYS = ["session_id", "thread_id", "conversation_id"] as const;
 
+const FINISH_REASON_KEYS = ["finish_reason", "stop_reason", "finishReason", "stopReason"] as const;
+
 /**
  * Handler for any unexpected errors that occur during processing.
  */
 const onError = (message: string) => (error: unknown) => {
   diag.warn(
-    `OpenInference-LangChain-v0: error processing langchain run, falling back to null. ${message}. ${error}`,
+    `OpenInference-LangChain-v0: error processing langchain run, falling back to null. ${message}. ${String(error)}`,
   );
 };
 
@@ -89,10 +92,14 @@ function getOpenInferenceSpanKindFromRunType(runType: string) {
     return OpenInferenceSpanKind.AGENT;
   }
 
-  if (normalizedRunType in OpenInferenceSpanKind) {
-    return OpenInferenceSpanKind[normalizedRunType as keyof typeof OpenInferenceSpanKind];
+  if (isOpenInferenceSpanKind(normalizedRunType)) {
+    return OpenInferenceSpanKind[normalizedRunType];
   }
   return OpenInferenceSpanKind.CHAIN;
+}
+
+function isOpenInferenceSpanKind(value: string): value is keyof typeof OpenInferenceSpanKind {
+  return value in OpenInferenceSpanKind;
 }
 
 /**
@@ -190,6 +197,73 @@ function getContentFromMessageData(messageKwargs: Record<string, unknown>): stri
   return isString(messageKwargs.content) ? messageKwargs.content : null;
 }
 
+/**
+ * Extracts the url of an image content block.
+ *
+ * Handles the OpenAI-style block `{ type: "image_url", image_url: url | { url } }`
+ * as well as the langchain standard block `{ type: "image", ... }`, whose image
+ * is given either as a `url` or as base64 `data` plus a `mimeType` (or the
+ * legacy `mime_type`). Base64 data is folded into a data url so that the
+ * TraceConfig base64 image masking applies to it.
+ * @param block - The image content block
+ * @returns The image url, or null when the block does not carry one
+ */
+function getImageUrlFromBlock(block: Record<string, unknown>): string | null {
+  const imageUrl = block.image_url;
+  if (isString(imageUrl)) {
+    return imageUrl;
+  }
+  if (isObject(imageUrl) && isString(imageUrl.url)) {
+    return imageUrl.url;
+  }
+  if (isString(block.url)) {
+    return block.url;
+  }
+  const mimeType = isString(block.mimeType) ? block.mimeType : block.mime_type;
+  if (isString(block.data) && isString(mimeType)) {
+    return `data:${mimeType};base64,${block.data}`;
+  }
+  return null;
+}
+
+/**
+ * Parses one entry of a langchain content block array into OpenInference
+ * message contents. Text blocks carry their text, image blocks carry their
+ * url, plain strings count as text, and unknown block types are skipped.
+ * @param block - The content block to parse
+ * @returns The OpenInference message content for the block, or null
+ */
+function parseMessageContentBlock(block: unknown): LLMMessageContent | null {
+  if (isString(block)) {
+    return {
+      [SemanticConventions.MESSAGE_CONTENT_TYPE]: "text",
+      [SemanticConventions.MESSAGE_CONTENT_TEXT]: block,
+    };
+  }
+  if (!isObject(block)) {
+    return null;
+  }
+  const type = block.type;
+  if (type === "text" && isString(block.text)) {
+    return {
+      [SemanticConventions.MESSAGE_CONTENT_TYPE]: "text",
+      [SemanticConventions.MESSAGE_CONTENT_TEXT]: block.text,
+    };
+  }
+  if (type === "image_url" || type === "image") {
+    const url = getImageUrlFromBlock(block);
+    if (url != null) {
+      return {
+        [SemanticConventions.MESSAGE_CONTENT_TYPE]: "image",
+        [SemanticConventions.MESSAGE_CONTENT_IMAGE]: {
+          [SemanticConventions.IMAGE_URL]: url,
+        },
+      };
+    }
+  }
+  return null;
+}
+
 function getFunctionCallDataFromAdditionalKwargs(
   additionalKwargs: Record<string, unknown>,
 ): LLMMessageFunctionCall {
@@ -255,6 +329,13 @@ function parseMessage(messageData: Record<string, unknown>): LLMMessage {
   const maybeContent = getContentFromMessageData(messageKwargs);
   if (maybeContent != null) {
     message[SemanticConventions.MESSAGE_CONTENT] = maybeContent;
+  } else if (Array.isArray(messageKwargs.content)) {
+    const contents = messageKwargs.content
+      .map(parseMessageContentBlock)
+      .filter((content): content is LLMMessageContent => content != null);
+    if (contents.length > 0) {
+      message[SemanticConventions.MESSAGE_CONTENTS] = contents;
+    }
   }
 
   const additionalKwargs = messageKwargs.additional_kwargs;
@@ -580,6 +661,49 @@ function formatTokenCounts(outputs: Run["outputs"]): TokenCountAttributes | null
   return null;
 }
 
+function getFinishReason(metadata: unknown): string | null {
+  if (!isObject(metadata)) {
+    return null;
+  }
+  for (const key of FINISH_REASON_KEYS) {
+    const finishReason = metadata[key];
+    if (isString(finishReason) && finishReason.length > 0) {
+      return finishReason;
+    }
+  }
+  return null;
+}
+
+/**
+ * Formats the finish reason of a langchain run into OpenInference attributes.
+ * @param outputs - The outputs of a langchain run
+ * @returns The OpenInference attributes for the finish reason
+ */
+function formatFinishReason(outputs: Run["outputs"]) {
+  const firstGeneration = getFirstOutputGeneration(outputs);
+  if (firstGeneration == null || !isObject(firstGeneration[0])) {
+    return null;
+  }
+  const generation = firstGeneration[0];
+
+  const generationFinishReason = getFinishReason(generation.generationInfo);
+  if (generationFinishReason != null) {
+    return { [SemanticConventions.LLM_FINISH_REASON]: generationFinishReason };
+  }
+
+  if (!isObject(generation.message)) {
+    return null;
+  }
+  let responseMetadata = generation.message.response_metadata;
+  if (!isObject(responseMetadata) && isObject(generation.message.lc_kwargs)) {
+    responseMetadata = generation.message.lc_kwargs.response_metadata;
+  }
+  const responseMetadataFinishReason = getFinishReason(responseMetadata);
+  return responseMetadataFinishReason == null
+    ? null
+    : { [SemanticConventions.LLM_FINISH_REASON]: responseMetadataFinishReason };
+}
+
 /**
  * Formats the function calls of a langchain run into OpenInference attributes.
  * @param outputs - The outputs of a langchain run
@@ -705,6 +829,10 @@ export const safelyFormatPromptTemplate = withSafety({
 export const safelyFormatTokenCounts = withSafety({
   fn: formatTokenCounts,
   onError: onError("Error formatting token counts"),
+});
+export const safelyFormatFinishReason = withSafety({
+  fn: formatFinishReason,
+  onError: onError("Error formatting finish reason"),
 });
 export const safelyFormatFunctionCalls = withSafety({
   fn: formatFunctionCalls,

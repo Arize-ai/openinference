@@ -3,6 +3,10 @@
  */
 
 export const SemanticAttributePrefixes = {
+  annotations: "annotations",
+  annotation: "annotation",
+  evaluations: "evaluations",
+  evaluation: "evaluation",
   input: "input",
   output: "output",
   llm: "llm",
@@ -17,20 +21,25 @@ export const SemanticAttributePrefixes = {
   metadata: "metadata",
   tag: "tag",
   session: "session",
+  trace: "trace",
   user: "user",
   openinference: "openinference",
   message_content: "message_content",
   image: "image",
   audio: "audio",
+  video: "video",
   prompt: "prompt",
   agent: "agent",
   graph: "graph",
+  decision: "decision",
 } as const;
 
 export const LLMAttributePostfixes = {
   provider: "provider",
   system: "system",
   model_name: "model_name",
+  request: "request",
+  response: "response",
   token_count: "token_count",
   input_messages: "input_messages",
   output_messages: "output_messages",
@@ -41,6 +50,15 @@ export const LLMAttributePostfixes = {
   tools: "tools",
   cost: "cost",
   finish_reason: "finish_reason",
+} as const;
+
+export const DecisionAttributePostfixes = {
+  provider: "provider",
+  system: "system",
+  model_name: "model_name",
+  request: "request",
+  response: "response",
+  token_count: "token_count",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -90,6 +108,8 @@ export const MessageContentsAttributePostfixes = {
   type: "type",
   text: "text",
   image: "image",
+  audio: "audio",
+  video: "video",
   id: "id",
   signature: "signature",
   data: "data",
@@ -97,6 +117,10 @@ export const MessageContentsAttributePostfixes = {
 } as const;
 
 export const ImageAttributesPostfixes = {
+  url: "url",
+} as const;
+
+export const VideoAttributesPostfixes = {
   url: "url",
 } as const;
 
@@ -147,16 +171,77 @@ export const GraphPostfixes = {
   node_name: "node.name",
   node_parent_id: "node.parent_id",
 } as const;
+
+export const FeedbackAttributePostfixes = {
+  name: "name",
+  score: "score",
+  label: "label",
+  explanation: "explanation",
+  annotator_kind: "annotator_kind",
+  identifier: "identifier",
+  metadata: "metadata",
+} as const;
+
+export const ANNOTATIONS = SemanticAttributePrefixes.annotations;
+export const EVALUATIONS = SemanticAttributePrefixes.evaluations;
+export const TRACE_ANNOTATIONS =
+  `${SemanticAttributePrefixes.trace}.${SemanticAttributePrefixes.annotations}` as const;
+export const TRACE_EVALUATIONS =
+  `${SemanticAttributePrefixes.trace}.${SemanticAttributePrefixes.evaluations}` as const;
+export const SESSION_ANNOTATIONS =
+  `${SemanticAttributePrefixes.session}.${SemanticAttributePrefixes.annotations}` as const;
+export const SESSION_EVALUATIONS =
+  `${SemanticAttributePrefixes.session}.${SemanticAttributePrefixes.evaluations}` as const;
+
+export const ANNOTATION_NAME =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.name}` as const;
+export const ANNOTATION_SCORE =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.score}` as const;
+export const ANNOTATION_LABEL =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.label}` as const;
+export const ANNOTATION_EXPLANATION =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.explanation}` as const;
+export const ANNOTATION_ANNOTATOR_KIND =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.annotator_kind}` as const;
+export const ANNOTATION_IDENTIFIER =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.identifier}` as const;
+export const ANNOTATION_METADATA =
+  `${SemanticAttributePrefixes.annotation}.${FeedbackAttributePostfixes.metadata}` as const;
+
+export const EVALUATION_NAME =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.name}` as const;
+export const EVALUATION_SCORE =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.score}` as const;
+export const EVALUATION_LABEL =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.label}` as const;
+export const EVALUATION_EXPLANATION =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.explanation}` as const;
+export const EVALUATION_ANNOTATOR_KIND =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.annotator_kind}` as const;
+export const EVALUATION_IDENTIFIER =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.identifier}` as const;
+export const EVALUATION_METADATA =
+  `${SemanticAttributePrefixes.evaluation}.${FeedbackAttributePostfixes.metadata}` as const;
 /**
  * The input to any span
  */
 export const INPUT_VALUE = `${SemanticAttributePrefixes.input}.value` as const;
 export const INPUT_MIME_TYPE = `${SemanticAttributePrefixes.input}.mime_type` as const;
 /**
+ * Images passed as input to a span of any kind. Flattened with an index,
+ * for example `input.images.0.image.url`.
+ */
+export const INPUT_IMAGES = `${SemanticAttributePrefixes.input}.images` as const;
+/**
  * The output of any span
  */
 export const OUTPUT_VALUE = `${SemanticAttributePrefixes.output}.value` as const;
 export const OUTPUT_MIME_TYPE = `${SemanticAttributePrefixes.output}.mime_type` as const;
+/**
+ * Images produced as output by a span of any kind. Flattened with an index,
+ * for example `output.images.0.image.url`.
+ */
+export const OUTPUT_IMAGES = `${SemanticAttributePrefixes.output}.images` as const;
 /**
  * The messages sent to the LLM for completions
  * Typically seen in OpenAI chat completions
@@ -194,6 +279,22 @@ export const LLM_MODEL_NAME =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.model_name}` as const;
 
 /**
+ * The model requested by the caller, as sent in the request. May differ from
+ * llm.response.model_name when the provider routes the request to a
+ * different model (e.g. classifier-triggered fallback).
+ */
+export const LLM_REQUEST_MODEL_NAME =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.request}.${LLMAttributePostfixes.model_name}` as const;
+
+/**
+ * The model that actually generated the response, as reported by the
+ * provider. May differ from llm.request.model_name when the provider routes
+ * the request to a different model (e.g. classifier-triggered fallback).
+ */
+export const LLM_RESPONSE_MODEL_NAME =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.response}.${LLMAttributePostfixes.model_name}` as const;
+
+/**
  * The provider of the inferences. E.g. the cloud provider
  */
 export const LLM_PROVIDER =
@@ -204,6 +305,69 @@ export const LLM_PROVIDER =
  */
 export const LLM_SYSTEM =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.system}` as const;
+
+/**
+ * The name of the decision model. Mirrors LLM_MODEL_NAME for DECISION spans.
+ * A decision model takes state plus typed questions and returns a typed,
+ * probabilistic answer per question instead of generated text.
+ *
+ * @see https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+ */
+export const DECISION_MODEL_NAME =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.model_name}` as const;
+
+/**
+ * The decision model requested by the caller, as sent in the request. May
+ * differ from decision.response.model_name when the provider resolves an
+ * alias (e.g. jev-latest) or routes the request to a different model.
+ */
+export const DECISION_REQUEST_MODEL_NAME =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.request}.${DecisionAttributePostfixes.model_name}` as const;
+
+/**
+ * The decision model that actually produced the response, as reported by the
+ * provider. May differ from decision.request.model_name.
+ */
+export const DECISION_RESPONSE_MODEL_NAME =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.response}.${DecisionAttributePostfixes.model_name}` as const;
+
+/**
+ * The hosting provider of the decision model: who runs the hardware that
+ * answered (e.g. "typesafe" when calling TypeSafe directly, or the cloud or
+ * self-hosting provider for a model served elsewhere). Distinct from
+ * DECISION_SYSTEM, which names the API shape. Well-known values are
+ * {@link DecisionProvider}, which alias the matching {@link LLMProvider} values.
+ */
+export const DECISION_PROVIDER =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.provider}` as const;
+
+/**
+ * The decision API ecosystem the call conforms to, i.e. which request and
+ * response shape the client speaks, as identified by the client or server:
+ * "typesafe" for the TypeSafe System One / Jev API, "openai" for the OpenAI
+ * Decisions API. A self-hosted vLLM server answering the Jev-compatible
+ * /v1/systemone shape is still "typesafe". Distinct from DECISION_PROVIDER,
+ * which says who hosts the model. Well-known values are {@link DecisionSystem},
+ * which alias the matching {@link LLMSystem} values.
+ */
+export const DECISION_SYSTEM =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.system}` as const;
+
+/**
+ * The number of input tokens consumed by a decision model call: the state,
+ * questions, and candidate options. Maps to usage.input_tokens in TypeSafe
+ * System One responses.
+ */
+export const DECISION_TOKEN_COUNT_INPUT =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.token_count}.input` as const;
+
+/**
+ * The number of output tokens produced by a decision model call. Decision
+ * models emit typed answers rather than text, so this is typically small.
+ * Maps to usage.output_tokens in TypeSafe System One responses.
+ */
+export const DECISION_TOKEN_COUNT_OUTPUT =
+  `${SemanticAttributePrefixes.decision}.${DecisionAttributePostfixes.token_count}.output` as const;
 
 /** Token count for the completion by the llm (in tokens) */
 export const LLM_TOKEN_COUNT_COMPLETION =
@@ -426,6 +590,16 @@ export const MESSAGE_CONTENT_TEXT =
 export const MESSAGE_CONTENT_IMAGE =
   `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.image}` as const;
 /**
+ * The audio content of the message sent to the LLM
+ */
+export const MESSAGE_CONTENT_AUDIO =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.audio}` as const;
+/**
+ * The video content of the message sent to the LLM
+ */
+export const MESSAGE_CONTENT_VIDEO =
+  `${SemanticAttributePrefixes.message_content}.${MessageContentsAttributePostfixes.video}` as const;
+/**
  * Provider-assigned identifier for this message content item. For OpenAI
  * Responses reasoning items, this maps to ResponseReasoningItem.id and should
  * be preserved for stateless replay
@@ -455,6 +629,12 @@ export const MESSAGE_CONTENT_ENCRYPTED_CONTENT =
  */
 export const IMAGE_URL =
   `${SemanticAttributePrefixes.image}.${ImageAttributesPostfixes.url}` as const;
+
+/**
+ * The URL, object-store URI, or base64 data URI of a video.
+ */
+export const VIDEO_URL =
+  `${SemanticAttributePrefixes.video}.${VideoAttributesPostfixes.url}` as const;
 
 export const DOCUMENT_ID =
   `${SemanticAttributePrefixes.document}.${DocumentAttributePostfixes.id}` as const;
@@ -668,14 +848,39 @@ export const GRAPH_NODE_PARENT_ID =
   `${SemanticAttributePrefixes.graph}.${GraphPostfixes.node_parent_id}` as const;
 
 export const SemanticConventions = {
+  ANNOTATIONS,
+  TRACE_ANNOTATIONS,
+  SESSION_ANNOTATIONS,
+  ANNOTATION_NAME,
+  ANNOTATION_SCORE,
+  ANNOTATION_LABEL,
+  ANNOTATION_EXPLANATION,
+  ANNOTATION_ANNOTATOR_KIND,
+  ANNOTATION_IDENTIFIER,
+  ANNOTATION_METADATA,
+  EVALUATIONS,
+  TRACE_EVALUATIONS,
+  SESSION_EVALUATIONS,
+  EVALUATION_NAME,
+  EVALUATION_SCORE,
+  EVALUATION_LABEL,
+  EVALUATION_EXPLANATION,
+  EVALUATION_ANNOTATOR_KIND,
+  EVALUATION_IDENTIFIER,
+  EVALUATION_METADATA,
   IMAGE_URL,
+  VIDEO_URL,
   INPUT_VALUE,
   INPUT_MIME_TYPE,
+  INPUT_IMAGES,
   OUTPUT_VALUE,
   OUTPUT_MIME_TYPE,
+  OUTPUT_IMAGES,
   LLM_INPUT_MESSAGES,
   LLM_OUTPUT_MESSAGES,
   LLM_MODEL_NAME,
+  LLM_REQUEST_MODEL_NAME,
+  LLM_RESPONSE_MODEL_NAME,
   LLM_PROMPTS,
   LLM_INVOCATION_PARAMETERS,
   LLM_TOKEN_COUNT_COMPLETION,
@@ -691,6 +896,13 @@ export const SemanticConventions = {
   LLM_TOKEN_COUNT_TOTAL,
   LLM_SYSTEM,
   LLM_PROVIDER,
+  DECISION_MODEL_NAME,
+  DECISION_REQUEST_MODEL_NAME,
+  DECISION_RESPONSE_MODEL_NAME,
+  DECISION_SYSTEM,
+  DECISION_PROVIDER,
+  DECISION_TOKEN_COUNT_INPUT,
+  DECISION_TOKEN_COUNT_OUTPUT,
   LLM_TOOLS,
   LLM_FINISH_REASON,
   LLM_COST,
@@ -718,6 +930,8 @@ export const SemanticConventions = {
   MESSAGE_CONTENT,
   MESSAGE_CONTENTS,
   MESSAGE_CONTENT_IMAGE,
+  MESSAGE_CONTENT_AUDIO,
+  MESSAGE_CONTENT_VIDEO,
   MESSAGE_CONTENT_ID,
   MESSAGE_CONTENT_SIGNATURE,
   MESSAGE_CONTENT_DATA,
@@ -761,6 +975,12 @@ export const SemanticConventions = {
   GRAPH_NODE_PARENT_ID,
 } as const;
 
+export enum AnnotatorKind {
+  HUMAN = "HUMAN",
+  LLM = "LLM",
+  CODE = "CODE",
+}
+
 export enum OpenInferenceSpanKind {
   LLM = "LLM",
   CHAIN = "CHAIN",
@@ -772,6 +992,7 @@ export enum OpenInferenceSpanKind {
   GUARDRAIL = "GUARDRAIL",
   EVALUATOR = "EVALUATOR",
   PROMPT = "PROMPT",
+  DECISION = "DECISION",
 }
 
 /**
@@ -792,6 +1013,7 @@ export enum LLMSystem {
   AI21 = "ai21",
   META = "meta",
   AMAZON = "amazon",
+  TYPESAFE = "typesafe",
 }
 
 export enum LLMProvider {
@@ -811,4 +1033,34 @@ export enum LLMProvider {
   CEREBRAS = "cerebras",
   PERPLEXITY = "perplexity",
   TOGETHER = "together",
+  OLLAMA = "ollama",
+  META = "meta",
+  ZAI = "zai",
+  MINIMAX = "minimax",
+  TYPESAFE = "typesafe",
+  ORACLE = "oracle",
+}
+
+/**
+ * Well-known values for `decision.system`: the decision API ecosystem a
+ * DECISION span conforms to. Each member aliases the {@link LLMSystem} member
+ * for the same vendor, so the same string names the same vendor on LLM and
+ * DECISION spans. The list is the subset of vendors currently known to offer a
+ * decision API.
+ */
+export enum DecisionSystem {
+  /** TypeSafe AI System One / Jev API, including Jev-compatible servers. */
+  TYPESAFE = LLMSystem.TYPESAFE,
+  /** OpenAI Decisions API. */
+  OPENAI = LLMSystem.OPENAI,
+}
+
+/**
+ * Well-known values for `decision.provider`: who hosts the decision model that
+ * answered. Each member aliases the {@link LLMProvider} member for the same
+ * vendor.
+ */
+export enum DecisionProvider {
+  TYPESAFE = LLMProvider.TYPESAFE,
+  OPENAI = LLMProvider.OPENAI,
 }

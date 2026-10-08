@@ -1,5 +1,144 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.4.0
+
+### Minor Changes
+
+- 889a937: Trace OpenAI Decisions API calls (`client.decisions.create`, openai >= 7.30.0) as `DECISION` spans with `decision.*` model, system, provider and token count attributes.
+
+## 4.3.2
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
+## 4.3.1
+
+### Patch Changes
+
+- Updated dependencies [53b7a0e]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-core@2.7.3
+
+## 4.3.0
+
+### Minor Changes
+
+- 7feb0c4: Capture `llm.token_count.prompt_details.cache_write` from OpenAI prompt cache usage (`cache_write_tokens`) on both the Chat Completions and Responses APIs. Chat Completions streams now record token usage from the final `stream_options.include_usage` chunk.
+
+### Patch Changes
+
+- a719562: Detect OCI Generative AI from the request host, so an OpenAI client pointed at its OpenAI-compatible endpoint (`https://inference.generativeai.<region>.oci.oraclecloud.com/openai/v1`) records `llm.provider = oracle` instead of falling back to `openai`. Adds `oci.oraclecloud.com` → `oracle` to `HOST_SUFFIX_TO_PROVIDER`; matching stays suffix-based and anchored at a label boundary, so every regional endpoint resolves and unrelated hosts are unaffected.
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+
+## 4.2.7
+
+### Patch Changes
+
+- 5a075b9: Add TypeSafe AI SDK instrumentation with one LLM span per systemOne call, structured JSON input/output payloads, question confidence metadata, token usage, context propagation, and configurable masking. Preserve the SDK's APIPromise interface and support both ESM and CommonJS. Add TypeSafe provider and system values to the semantic conventions and recognize the TypeSafe API hostname in provider inference.
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+
+## 4.2.6
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+  - @arizeai/openinference-core@2.7.0
+
+## 4.2.5
+
+### Patch Changes
+
+- Updated dependencies [6d9f813]
+  - @arizeai/openinference-semantic-conventions@2.10.0
+  - @arizeai/openinference-core@2.6.3
+
+## 4.2.4
+
+### Patch Changes
+
+- fd01216: Detect Meta AI, Z.ai, and MiniMax from the request host, so an OpenAI client pointed at one of their OpenAI-compatible endpoints records the real `llm.provider` instead of falling back to `openai`. Adds `api.meta.ai` → `meta`, `api.z.ai` → `zai`, and `api.minimax.io` / `api.minimaxi.com` / `api.minimax.chat` → `minimax` to `HOST_SUFFIX_TO_PROVIDER`. Matching stays suffix-based and anchored at a label boundary, so subdomains of these hosts resolve too and unrelated hosts are unaffected.
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+  - @arizeai/openinference-core@2.6.2
+
+## 4.2.3
+
+### Patch Changes
+
+- Updated dependencies [4d72f42]
+  - @arizeai/openinference-core@2.6.1
+
+## 4.2.2
+
+### Patch Changes
+
+- Updated dependencies [99f6e71]
+  - @arizeai/openinference-core@2.6.0
+
+## 4.2.1
+
+### Patch Changes
+
+- 5f38a16: Scope the double-patch guard to the module object so both the CJS and ESM builds of a dual-package SDK can be patched in the same process. Previously the module-global `_isOpenInferencePatched` flag made whichever build was patched first silently block `patch()`/`manuallyInstrument()` for the other build (#3557). The guard is now a `WeakSet` keyed on the patched class, which needs no write to the module and therefore also keeps protecting immutable modules (Deno, webpack) — the case the global flag existed for. `isPatched()` behavior is unchanged.
+- 0071b37: Split over-complex functions into focused helpers and make implicit returns explicit (enforce `eslint/complexity`). Also hardens bedrock-agent-runtime tool-call extraction against a `function: null` payload that previously threw. No other behavior changes.
+- Updated dependencies [0071b37]
+  - @arizeai/openinference-core@2.5.4
+
+## 4.2.0
+
+### Minor Changes
+
+- 3c31b68: Support `openai@^7`. The v7 major's only breaking change is requiring Node.js 22; every patched surface is unchanged, so the supported version range is widened with no other modifications.
+
+## 4.1.10
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+
+## 4.1.9
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+
+## 4.1.8
+
+### Patch Changes
+
+- 237ce2b: Add OLLAMA to the LLMProvider enum, map the ollama.com host to it, and anchor host-suffix matching at label boundaries
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 4.1.6
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+
 ## 4.1.5
 
 ### Patch Changes

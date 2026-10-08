@@ -1,5 +1,102 @@
 # Changelog
 
+## [0.1.64](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.63...python-openinference-instrumentation-openai-v0.1.64) (2026-10-07)
+
+
+### Features
+
+* **openai:** trace the OpenAI Decisions API as DECISION spans ([#3967](https://github.com/Arize-ai/openinference/issues/3967)) ([889a937](https://github.com/Arize-ai/openinference/commit/889a9375442f655f61f02726873aeab24c2cf970))
+
+
+### Bug Fixes
+
+* **openai,google-genai:** end the span when a request is cancelled or interrupted ([#3971](https://github.com/Arize-ai/openinference/issues/3971)) ([b6d18d9](https://github.com/Arize-ai/openinference/commit/b6d18d992a5bc323e550a952a233a196c32dcced))
+
+## [0.1.63](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.62...python-openinference-instrumentation-openai-v0.1.63) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.69 ([#3911](https://github.com/Arize-ai/openinference/issues/3911)) ([ac30a8f](https://github.com/Arize-ai/openinference/commit/ac30a8f3df9da1c0fb00f923a5281ad5cec94674))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+
+## [0.1.62](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.61...python-openinference-instrumentation-openai-v0.1.62) (2026-10-01)
+
+
+### Features
+
+* **openai:** record input and output images for image APIs ([#3737](https://github.com/Arize-ai/openinference/issues/3737)) ([34d2348](https://github.com/Arize-ai/openinference/commit/34d2348c2a9f07964f13cfe8ef9ae3107d5ddb88))
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+
+## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.60...python-openinference-instrumentation-openai-v0.1.61) (2026-09-24)
+
+
+### Features
+
+* **openai:** capture cache write and read token usage ([#3382](https://github.com/Arize-ai/openinference/issues/3382)) ([7feb0c4](https://github.com/Arize-ai/openinference/commit/7feb0c4ba2fd77cb76036712e21d06ff15a2be22))
+
+## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.59...python-openinference-instrumentation-openai-v0.1.60) (2026-09-10)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.37 ([#3711](https://github.com/Arize-ai/openinference/issues/3711)) ([a3b5b6c](https://github.com/Arize-ai/openinference/commit/a3b5b6cfaff65ee3947a3e1c1301d2b1a4ed1338))
+
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.58...python-openinference-instrumentation-openai-v0.1.59) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+* **openai:** handle new configuration_update response input item type from openai 3.x ([#3698](https://github.com/Arize-ai/openinference/issues/3698)) ([d56a72b](https://github.com/Arize-ai/openinference/commit/d56a72b1cbcf013a442cc9bb36016c0ca5376570))
+
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.57...python-openinference-instrumentation-openai-v0.1.58) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
+## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.56...python-openinference-instrumentation-openai-v0.1.57) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+
+## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.55...python-openinference-instrumentation-openai-v0.1.56) (2026-08-25)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.33 ([#3606](https://github.com/Arize-ai/openinference/issues/3606)) ([35c7353](https://github.com/Arize-ai/openinference/commit/35c735399cc37ef395138defaa1ccb3029d71e7e))
+
+## [0.1.55](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.54...python-openinference-instrumentation-openai-v0.1.55) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [0.1.54](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.53...python-openinference-instrumentation-openai-v0.1.54) (2026-08-07)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.31 ([#3474](https://github.com/Arize-ai/openinference/issues/3474)) ([5398a80](https://github.com/Arize-ai/openinference/commit/5398a80e9038ca53035cf61255992ca9d531b036))
+
+## [0.1.53](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.52...python-openinference-instrumentation-openai-v0.1.53) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [0.1.52](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.51...python-openinference-instrumentation-openai-v0.1.52) (2026-06-11)
 
 

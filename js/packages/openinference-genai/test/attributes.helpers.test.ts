@@ -3,6 +3,8 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 import {
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
   mapAgentAttributes,
+  mapConversationId,
+  mapFinishReason,
   mapInputMessages,
   mapInputValue,
   mapInvocationParameters,
@@ -156,6 +158,22 @@ describe("attributes helpers", () => {
     });
   });
 
+  describe("mapConversationId", () => {
+    it("maps conversation id to session.id", () => {
+      const attrs = mapConversationId({
+        "gen_ai.conversation.id": "conv_5j66UpCpwteGg4YSxUnt7lPY",
+      });
+      expect(attrs[SemanticConventions.SESSION_ID]).toBe("conv_5j66UpCpwteGg4YSxUnt7lPY");
+    });
+
+    it("ignores non-string conversation id", () => {
+      const attrs = mapConversationId({
+        "gen_ai.conversation.id": 42,
+      });
+      expect(attrs).toEqual({});
+    });
+  });
+
   describe("mapInvocationParameters", () => {
     it("maps known invocation params into llm.invocation_parameters JSON", () => {
       const attrs = mapInvocationParameters({
@@ -262,6 +280,44 @@ describe("attributes helpers", () => {
         "You are a helpful assistant.",
       );
     });
+
+    it.each([
+      ["an empty parts array", "[]"],
+      ["parts with no text content", JSON.stringify([{ type: "image", content: "x" }])],
+    ])(
+      "keeps the metadata but emits no system message for %s",
+      (_label, systemInstructions: string) => {
+        const attrs = mapSystemInstructions({
+          "gen_ai.system_instructions": systemInstructions,
+        });
+
+        expect(attrs[`${SemanticConventions.METADATA}.gen_ai.system_instructions`]).toBe(
+          systemInstructions,
+        );
+        expect(attrs["llm.input_messages.0.message.role"]).toBeUndefined();
+      },
+    );
+
+    it.each([
+      ["an empty parts array", "[]"],
+      ["parts with no text content", JSON.stringify([{ type: "image", content: "x" }])],
+    ])(
+      "does not overwrite the first input message's role for %s",
+      (_label, systemInstructions: string) => {
+        const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+          "gen_ai.system_instructions": systemInstructions,
+          "gen_ai.input.messages": JSON.stringify([
+            { role: "user", parts: [{ type: "text", content: "only root spans" }] },
+          ]),
+        });
+
+        expect(attrs["llm.input_messages.0.message.role"]).toBe("user");
+        expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+          "only root spans",
+        );
+        expect(attrs["llm.input_messages.1.message.role"]).toBeUndefined();
+      },
+    );
   });
 
   describe("mapInputMessagesAndInputValue", () => {
@@ -425,6 +481,32 @@ describe("attributes helpers", () => {
       );
     });
 
+    it("maps reasoning parts on input messages", () => {
+      const attrs = mapInputMessages({
+        "gen_ai.input.messages": JSON.stringify([
+          { role: "user", parts: [{ type: "text", content: "Think it through." }] },
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", content: "The user wants a plan." },
+              { type: "text", content: "Here is the plan." },
+            ],
+          },
+        ]),
+      });
+
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.type"]).toBe(
+        "reasoning",
+      );
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe(
+        "The user wants a plan.",
+      );
+      expect(attrs["llm.input_messages.1.message.contents.1.message_content.text"]).toBe(
+        "Here is the plan.",
+      );
+      expect(attrs["llm.input_messages.1.message.content"]).toBeUndefined();
+    });
+
     it("falls back to deprecated prompt when input messages missing", () => {
       const spanAttrs = {
         "gen_ai.prompt": JSON.stringify([
@@ -506,6 +588,71 @@ describe("attributes helpers", () => {
       expect(inOutAttrs["output.mime_type"]).toBe("application/json");
     });
 
+    it("maps reasoning parts to reasoning contents without duplicating into message.content", () => {
+      const attrs = mapOutputMessages({
+        "gen_ai.output.messages": JSON.stringify([
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", content: "*   Task: Translate a request ..." },
+              { type: "text", content: "parent_id is None" },
+            ],
+            finish_reason: "stop",
+          },
+        ]),
+      });
+
+      expect(attrs).toEqual({
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+        "llm.output_messages.0.message.contents.0.message_content.text":
+          "*   Task: Translate a request ...",
+        "llm.output_messages.0.message.contents.1.message_content.type": "text",
+        "llm.output_messages.0.message.contents.1.message_content.text": "parent_id is None",
+      });
+    });
+
+    it("keeps the reasoning content type when a reasoning part has no content", () => {
+      const attrs = mapOutputMessages({
+        "gen_ai.output.messages": JSON.stringify([
+          {
+            role: "assistant",
+            parts: [{ type: "reasoning" }, { type: "text", content: "Answer" }],
+            finish_reason: "stop",
+          },
+        ]),
+      });
+
+      expect(attrs["llm.output_messages.0.message.contents.0.message_content.type"]).toBe(
+        "reasoning",
+      );
+      expect(
+        attrs["llm.output_messages.0.message.contents.0.message_content.text"],
+      ).toBeUndefined();
+      // the reasoning part still occupies its content index
+      expect(attrs["llm.output_messages.0.message.contents.1.message_content.text"]).toBe("Answer");
+    });
+
+    it("serializes unknown part types into contents only", () => {
+      const attrs = mapOutputMessages({
+        "gen_ai.output.messages": JSON.stringify([
+          {
+            role: "assistant",
+            parts: [{ type: "custom_thing", foo: "bar" }],
+            finish_reason: "stop",
+          },
+        ]),
+      });
+
+      expect(attrs["llm.output_messages.0.message.contents.0.message_content.type"]).toBe(
+        "custom_thing",
+      );
+      expect(attrs["llm.output_messages.0.message.contents.0.message_content.text"]).toBe(
+        JSON.stringify({ type: "custom_thing", foo: "bar" }),
+      );
+      expect(attrs["llm.output_messages.0.message.content"]).toBeUndefined();
+    });
+
     it("stringifies unparseable output messages (malformed)", () => {
       const attrs = mapOutputMessages({
         // not JSON
@@ -569,6 +716,22 @@ describe("attributes helpers", () => {
   });
 
   describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
+    it("preserves an explicit session id over the conversation id", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        [SemanticConventions.SESSION_ID]: "explicit-session",
+        "gen_ai.conversation.id": "eve-conversation",
+      });
+      expect(attrs[SemanticConventions.SESSION_ID]).toBe("explicit-session");
+    });
+
+    it("includes finish reason when present", () => {
+      const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({
+        "gen_ai.operation.name": "chat",
+        "gen_ai.response.finish_reasons": ["tool_calls"],
+      });
+      expect(attrs["llm.finish_reason"]).toBe("tool_calls");
+    });
+
     it("returns minimal defaults for empty attributes (span kind only)", () => {
       const attrs = convertGenAISpanAttributesToOpenInferenceSpanAttributes({});
       expect(attrs).toEqual({ "openinference.span.kind": "LLM" });
@@ -584,5 +747,40 @@ describe("attributes helpers", () => {
         "openinference.span.kind": "AGENT",
       });
     });
+  });
+});
+
+describe("mapFinishReason", () => {
+  it("maps the first finish reason", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": ["tool_calls"],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("tool_calls");
+  });
+
+  it("takes only the first reason when multiple are present", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": ["stop", "length"],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
+  });
+
+  it('defaults to "stop" when the array is empty', () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": [],
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
+  });
+
+  it("sets nothing when the attribute is absent", () => {
+    const attrs = mapFinishReason({});
+    expect(attrs).toEqual({});
+  });
+
+  it("ignores non-array/malformed values (malformed)", () => {
+    const attrs = mapFinishReason({
+      "gen_ai.response.finish_reasons": "stop",
+    });
+    expect(attrs["llm.finish_reason"]).toBe("stop");
   });
 });

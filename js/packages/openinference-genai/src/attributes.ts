@@ -4,6 +4,7 @@ import {
   ATTR_GEN_AI_AGENT_ID,
   ATTR_GEN_AI_AGENT_NAME,
   ATTR_GEN_AI_COMPLETION,
+  ATTR_GEN_AI_CONVERSATION_ID,
   ATTR_GEN_AI_INPUT_MESSAGES,
   ATTR_GEN_AI_OPERATION_NAME,
   ATTR_GEN_AI_OUTPUT_MESSAGES,
@@ -18,6 +19,7 @@ import {
   ATTR_GEN_AI_REQUEST_TEMPERATURE,
   ATTR_GEN_AI_REQUEST_TOP_K,
   ATTR_GEN_AI_REQUEST_TOP_P,
+  ATTR_GEN_AI_RESPONSE_FINISH_REASONS,
   ATTR_GEN_AI_RESPONSE_MODEL,
   ATTR_GEN_AI_TOOL_CALL_ID,
   ATTR_GEN_AI_TOOL_DESCRIPTION,
@@ -121,8 +123,21 @@ const ATTR_GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input
 const ATTR_GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS =
   "gen_ai.usage.cache_creation.input_tokens" as const;
 
+/**
+ * A reasoning (thinking) message part.
+ *
+ * Producers such as `@ai-sdk/otel` already emit `{ type: "reasoning", content: "..." }` parts in
+ * `gen_ai.input.messages` / `gen_ai.output.messages`, but the draft OTel GenAI message schemas the
+ * types in `__generated__` are derived from do not yet declare the part — hence the local type.
+ */
+interface ReasoningPart {
+  type: "reasoning";
+  content?: unknown;
+  [k: string]: unknown;
+}
+
 // Shared part parsing
-type AnyPart = GenAIInputMessagePart | GenAIOutputMessagePart;
+type AnyPart = GenAIInputMessagePart | GenAIOutputMessagePart | ReasoningPart;
 
 /**
  * Type guard for a GenAI chat message
@@ -138,20 +153,23 @@ const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
 };
 
 /**
+ * Type guard for a plain record object.
+ * @param value - The value to check
+ */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
  * Normalize a GenAI tool definition into the OpenAI-style tool schema shape expected by OpenInference.
  * @param toolDefinition - The tool definition to normalize
  * @returns The normalized tool definition, or the original value when it cannot be normalized
  */
 const normalizeToolDefinition = (toolDefinition: unknown): unknown => {
-  if (
-    typeof toolDefinition !== "object" ||
-    toolDefinition === null ||
-    Array.isArray(toolDefinition)
-  ) {
+  if (!isRecord(toolDefinition)) {
     return toolDefinition;
   }
 
-  const definition = toolDefinition as Record<string, unknown>;
+  const definition = toolDefinition;
   if (typeof definition.function === "object" && definition.function !== null) {
     return definition;
   }
@@ -241,6 +259,20 @@ const processMessageParts = ({
         }
         continue;
       }
+      case "reasoning": {
+        // MESSAGE_CONTENTS entry carrying the reasoning text itself, not the serialized part
+        const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+        set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "reasoning");
+        if (part.content != null) {
+          set(
+            attrs,
+            `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+            toStringContent(part.content),
+          );
+        }
+        contentIndex += 1;
+        continue;
+      }
       case "tool_call": {
         const id = part.id ?? undefined;
         const name = part.name;
@@ -265,13 +297,14 @@ const processMessageParts = ({
         continue;
       }
       default: {
-        // Generic / unknown part type: capture as JSON text content
+        // Generic / unknown part type: capture as JSON text content. Only MESSAGE_CONTENTS is
+        // written — the flat MESSAGE_CONTENT is an alternative representation of the same message,
+        // so setting both duplicates the content in consumers that render each of them.
         const genericPart = part as GenericPart;
         const genericText = toStringContent(genericPart);
         const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
         set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`, genericPart.type);
         set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`, genericText);
-        set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`, genericText);
         contentIndex += 1;
       }
     }
@@ -313,7 +346,9 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
   return merge(
     mapProviderAndSystem(spanAttributes),
     mapAgentAttributes(spanAttributes),
+    mapConversationId(spanAttributes),
     mapModels(spanAttributes),
+    mapFinishReason(spanAttributes),
     mapSpanKind(spanAttributes),
     mapInvocationParameters(spanAttributes),
     mapInputMessages(spanAttributes),
@@ -360,6 +395,23 @@ export const mapAgentAttributes = (spanAttributes: Attributes): Attributes => {
 };
 
 /**
+ * Map the GenAI conversation id to the OpenInference session id.
+ *
+ * gen_ai.conversation.id identifies the conversation (session or thread) a span belongs to,
+ * which is what session.id represents in OpenInference. An explicit session.id takes precedence.
+ *
+ * @param spanAttributes - The GenAI span attributes to read the conversation id from
+ * @returns The mapped OpenInference session attributes
+ */
+export const mapConversationId = (spanAttributes: Attributes): Attributes => {
+  const attrs: Attributes = {};
+  const sessionId = getString(spanAttributes[SemanticConventions.SESSION_ID]);
+  const conversationId = getString(spanAttributes[ATTR_GEN_AI_CONVERSATION_ID]);
+  set(attrs, SemanticConventions.SESSION_ID, sessionId ?? conversationId);
+  return attrs;
+};
+
+/**
  * Map model name to openinference attributes
  * @param spanAttributes - The span attributes containing model name to map
  * @returns The mapped model name attributes
@@ -370,6 +422,21 @@ export const mapModels = (spanAttributes: Attributes): Attributes => {
   const responseModel = getString(spanAttributes[ATTR_GEN_AI_RESPONSE_MODEL]);
   const modelName = responseModel ?? requestModel;
   set(attrs, SemanticConventions.LLM_MODEL_NAME, modelName);
+  return attrs;
+};
+
+/**
+ * Map GenAI response finish reasons to the OpenInference LLM finish reason attribute.
+ * @param spanAttributes - The span attributes containing the finish reasons to map
+ * @returns The mapped finish reason attribute
+ */
+export const mapFinishReason = (spanAttributes: Attributes): Attributes => {
+  const attrs: Attributes = {};
+  if (ATTR_GEN_AI_RESPONSE_FINISH_REASONS in spanAttributes) {
+    const finishReasons = getStringArray(spanAttributes[ATTR_GEN_AI_RESPONSE_FINISH_REASONS]);
+    const finishReason = finishReasons && finishReasons.length > 0 ? finishReasons[0] : "stop";
+    set(attrs, SemanticConventions.LLM_FINISH_REASON, finishReason);
+  }
   return attrs;
 };
 
@@ -519,13 +586,16 @@ export const mapSystemInstructions = (spanAttributes: Attributes): Attributes =>
   if (systemInstructions) {
     set(attrs, `${SemanticConventions.METADATA}.gen_ai.system_instructions`, systemInstructions);
 
-    const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0.`;
-    set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, "system");
-    processMessageParts({
-      attrs,
-      msgPrefix,
-      parts: getSystemInstructionParts(spanAttributes) ?? [],
-    });
+    // Only emit the synthetic system message when there are parts to put in it.
+    // mapInputMessages shifts its indexes by one on exactly this condition, so
+    // emitting here without parts would claim index 0 while the input messages
+    // still start at 0, overwriting the first message's role with "system".
+    const parts = getSystemInstructionParts(spanAttributes);
+    if (parts != null) {
+      const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.0.`;
+      set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, "system");
+      processMessageParts({ attrs, msgPrefix, parts });
+    }
   }
   return attrs;
 };

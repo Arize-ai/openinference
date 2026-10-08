@@ -20,6 +20,7 @@ from typing import (
     Union,
     cast,
 )
+from unittest.mock import patch
 from urllib.parse import urljoin
 
 import pytest
@@ -28,11 +29,11 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
 from respx import MockRouter
 
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
+from openinference.instrumentation.openai._types import AttributeValue
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -55,6 +56,36 @@ for name, logger in logging.root.manager.loggerDict.items():
 _OPENAI_BASE_URL = "https://api.openai.com/v1/"
 _AZURE_BASE_URL = "https://aoairesource.openai.azure.com"
 
+_OPENINFERENCE_SCOPE = "openinference.instrumentation.openai"
+_HTTPX_SCOPE = "opentelemetry.instrumentation.httpx"
+
+
+def _spans_from(exporter: InMemorySpanExporter, scope: str) -> Tuple[ReadableSpan, ...]:
+    return tuple(
+        span
+        for span in exporter.get_finished_spans()
+        if span.instrumentation_scope is not None and span.instrumentation_scope.name == scope
+    )
+
+
+def _openinference_span(exporter: InMemorySpanExporter, name: str) -> ReadableSpan:
+    """Return the one span this instrumentor emitted, ignoring transport spans.
+
+    The httpx instrumentor only sees openai's client when the run aliases httpx
+    to httpx2, so its span is asserted on its own in
+    test_httpx_transport_span_is_emitted rather than through a total span count
+    that every other test would trip over.
+
+    The expected name is required rather than optional because most span names
+    come from the SDK response type (cast_to.__name__), so an upstream rename
+    would otherwise slip through every version lane unnoticed.
+    """
+    spans = _spans_from(exporter, _OPENINFERENCE_SCOPE)
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == name
+    return span
+
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
@@ -64,6 +95,42 @@ class TestInstrumentor:
         )
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, OpenAIInstrumentor)
+
+
+def test_httpx_transport_span_is_emitted(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """The transport instrumentor should still see the client openai uses.
+
+    On openai>=3 that holds only while the httpx2 alias is installed. Asserting
+    it here means a broken alias fails one obvious test instead of every test
+    that used to count total spans.
+    """
+    url = urljoin(_OPENAI_BASE_URL, "chat/completions")
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "sky is blue"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "model": "gpt-4",
+            },
+        )
+    )
+    openai = import_module("openai")
+    client = openai.OpenAI(api_key="sk-", base_url=_OPENAI_BASE_URL)
+    client.chat.completions.create(
+        messages=[{"role": "user", "content": "what color is the sky?"}],
+        model="gpt-4",
+    )
+    assert len(_spans_from(in_memory_span_exporter, _HTTPX_SCOPE)) == 1
+    assert len(_spans_from(in_memory_span_exporter, _OPENINFERENCE_SCOPE)) == 1
 
 
 @pytest.mark.parametrize(
@@ -185,9 +252,7 @@ def test_chat_completions(
                     else:
                         for _ in response:
                             pass
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -367,9 +432,7 @@ def test_completions(
                 if is_stream:
                     for _ in response:
                         pass
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "Completion")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -505,9 +568,7 @@ def test_embeddings(
         else:
             response = create(**create_kwargs)
             _ = response.parse() if is_raw else response
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "CreateEmbeddings")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -637,9 +698,7 @@ def test_embeddings_out_of_order(
         response = create(**create_kwargs)
         _ = response.parse() if is_raw else response
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "CreateEmbeddings")
     assert span.status.is_ok
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -943,9 +1002,7 @@ def test_responses(
                     else:
                         for _ in response:
                             pass
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "Response")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -1122,9 +1179,7 @@ def test_chat_completions_with_multiple_message_contents(
                 if is_stream:
                     for _ in response:
                         pass
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     if status_code == 200:
         assert span.status.is_ok
         assert not span.status.description
@@ -1249,9 +1304,7 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
 
     with suppress(openai.BadRequestError):
         _ = create(**create_kwargs)
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     assert span.status.is_ok
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -1356,9 +1409,7 @@ def test_chat_completions_with_image_url_formats_issue_2188(
     client = openai.OpenAI(api_key="sk-test")
     client.chat.completions.create(messages=input_messages, **invocation_parameters)
 
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # httpx instrumentor + openai instrumentor
-    span = spans[1]
+    span = _openinference_span(in_memory_span_exporter, "ChatCompletion")
 
     assert span.status.is_ok
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -1429,9 +1480,7 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
 
     with suppress(openai.BadRequestError):
         _ = create(**create_kwargs)
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2  # first span should be from the httpx instrumentor
-    span: ReadableSpan = spans[1]
+    span: ReadableSpan = _openinference_span(in_memory_span_exporter, "ChatCompletion")
     assert span.status.is_ok
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -1468,7 +1517,7 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
     output_value = attributes.pop(OUTPUT_VALUE, None)
     assert output_value is not None
     if hide_outputs:
-        output_value == REDACTED_VALUE
+        assert output_value == REDACTED_VALUE
     else:
         assert isinstance(output_value, str)
         assert (
@@ -1853,6 +1902,19 @@ def rand_message() -> Dict[str, Any]:
         "role": "assistant",
         "content": [{"type": "output_text", "text": randstr(), "annotations": []}],
     }
+
+
+def test_cancelled_request_ends_span(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    openai = import_module("openai")
+    client = openai.OpenAI(api_key="sk-", max_retries=0)
+    with (
+        patch("httpx.Client.send", side_effect=KeyboardInterrupt),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        client.chat.completions.create(messages=get_messages(), model="gpt-4")
+    spans = in_memory_span_exporter.get_finished_spans()
+    (span,) = [s for s in spans if s.name == "ChatCompletion"]
+    assert span.status.status_code == trace_api.StatusCode.ERROR
 
 
 def get_messages() -> List[Dict[str, Any]]:

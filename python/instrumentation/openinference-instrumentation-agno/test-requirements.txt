@@ -1,5 +1,6 @@
-agno==2.5.0
+agno==2.7.2
 opentelemetry-sdk
+pytest-asyncio
 pytest-recording
 openai
 ddgs

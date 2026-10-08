@@ -35,7 +35,15 @@ export type OpenAIAgentsInstrumentationOptions = {
 };
 
 type AgentsModuleWithPatchState = typeof AgentsModule & { openInferencePatched?: boolean };
-type InstrumentationModuleState = { moduleExports?: unknown };
+
+function isAgentsModule(value: unknown): value is AgentsModuleWithPatchState {
+  return (
+    value != null &&
+    typeof value === "object" &&
+    typeof Reflect.get(value, "setTraceProcessors") === "function" &&
+    typeof Reflect.get(value, "addTraceProcessor") === "function"
+  );
+}
 
 /**
  * Flag to track whether the agents module has been patched.
@@ -308,14 +316,16 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
     }
 
     if (typeof require !== "function") {
-      return;
+      return undefined;
     }
 
     try {
-      return require(MODULE_NAME) as AgentsModuleWithPatchState;
+      const module = require(MODULE_NAME);
+      return isAgentsModule(module) ? module : undefined;
     } catch (error) {
       diag.debug(`Failed to require ${MODULE_NAME}`, error);
     }
+    return undefined;
   }
 
   private getInstrumentedModuleExports(): AgentsModuleWithPatchState | undefined {
@@ -323,14 +333,15 @@ export class OpenAIAgentsInstrumentation extends InstrumentationBase<typeof Agen
     // accessor; guard defensively so an upstream rename degrades to the
     // require() fallback instead of throwing.
     try {
-      const modules = (this as unknown as { _modules?: InstrumentationModuleState[] })._modules;
+      const modules = Reflect.get(this, "_modules");
       if (!Array.isArray(modules)) {
-        return;
+        return undefined;
       }
       const moduleExports = modules[0]?.moduleExports;
-      return moduleExports as AgentsModuleWithPatchState | undefined;
+      return isAgentsModule(moduleExports) ? moduleExports : undefined;
     } catch (error) {
       diag.debug(`Failed to read instrumented module exports for ${MODULE_NAME}`, error);
     }
+    return undefined;
   }
 }

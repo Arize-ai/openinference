@@ -3,9 +3,9 @@ import logging
 from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from google.genai import types
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.google_genai._types import AttributeValue
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _get_attributes_from_content_text,
@@ -67,6 +67,11 @@ class _ResponseAttributesExtractor:
                 if content := getattr(candidate, "content", None):
                     for key, value in self._get_attributes_from_generate_content_content(content):
                         yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+
+                # Only capture finish_reason for the first candidate.
+                if index == 0:
+                    if (finish_reason := getattr(candidate, "finish_reason", None)) is not None:
+                        yield SpanAttributes.LLM_FINISH_REASON, finish_reason.value
 
         # Handle automatic function calling history
         # For automatic function calling, the function call details are stored separately

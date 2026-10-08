@@ -168,11 +168,12 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     moduleVersion?: string,
   ) {
     if (module == null) {
-      return;
+      return undefined;
     }
     diag.debug(
       `Removing patch for ${MODULE_NAME}${moduleVersion != null ? `@${moduleVersion}` : ""}`,
     );
+    // oxlint-disable-next-line typescript/unbound-method -- isWrapped inspects without invoking.
     if (isWrapped(module.CallbackManager.configure)) {
       this._unwrap(module.CallbackManager, "configure");
     }
@@ -182,6 +183,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
      */
     if (
       "_configureSync" in module.CallbackManager &&
+      // oxlint-disable-next-line typescript/unbound-method -- isWrapped inspects without invoking.
       isWrapped(module.CallbackManager._configureSync)
     ) {
       this._unwrap(module.CallbackManager, "_configureSync");

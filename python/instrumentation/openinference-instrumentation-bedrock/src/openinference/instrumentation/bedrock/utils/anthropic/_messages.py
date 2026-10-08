@@ -19,7 +19,6 @@ from typing import (
 
 from dacite import from_dict
 from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from openinference.instrumentation import safe_json_dumps
@@ -37,6 +36,7 @@ from openinference.instrumentation.bedrock.__generated__.anthropic._types import
     TextDelta,
     ToolUseBlock,
 )
+from openinference.instrumentation.bedrock._types import AttributeValue
 from openinference.instrumentation.bedrock.utils import _finish
 from openinference.semconv.trace import (
     ImageAttributes,
@@ -185,6 +185,8 @@ def _attributes_from_message(
 ) -> Iterator[tuple[str, AttributeValue]]:
     if role := message.role:
         yield f"{prefix}{MESSAGE_ROLE}", role.value if isinstance(role, Enum) else role
+    if stop_reason := message.stop_reason:
+        yield LLM_FINISH_REASON, stop_reason
     for block in message.content:
         if isinstance(block, TextBlock):
             yield f"{prefix}{MESSAGE_CONTENTS}.{0}.{MESSAGE_CONTENT_TEXT}", block.text
@@ -291,6 +293,10 @@ def _attributes_from_image_param(
             f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
             source["url"],
         )
+    elif source["type"] == "file":
+        # File sources only carry a `file_id` referencing a previously
+        # uploaded file, so there is no inline image URL to surface.
+        yield from ()
     elif TYPE_CHECKING:
         assert_never(source["type"])
 
@@ -359,6 +365,7 @@ JSON = OpenInferenceMimeTypeValues.JSON.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_FINISH_REASON = SpanAttributes.LLM_FINISH_REASON
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

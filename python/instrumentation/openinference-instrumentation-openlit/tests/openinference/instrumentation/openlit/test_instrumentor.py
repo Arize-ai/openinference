@@ -5,7 +5,6 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 from semantic_kernel.functions import KernelArguments
@@ -99,7 +98,7 @@ class TestOpenLitInstrumentor:
 
         for span in spans:
             # Get attributes
-            attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+            attributes = dict(cast(Mapping[str, Any], span.attributes))
 
             # OpenInference span kind
             assert is_openinference_span(span)
@@ -121,6 +120,7 @@ class TestOpenLitInstrumentor:
 
             # LLM identity
             assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4o-mini"
+            assert attributes[SpanAttributes.LLM_FINISH_REASON] == "stop"
             assert (
                 attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
             )

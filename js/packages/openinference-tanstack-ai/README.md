@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-tanstack-ai.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-tanstack-ai)
 
-This package provides an OpenInference middleware for [TanStack AI](https://tanstack.com/ai/latest/docs/getting-started/overview). It emits OpenTelemetry spans shaped according to the OpenInference specification so TanStack AI runs can be visualized in systems like [Arize AX](https://arize.com/docs/ax) and [Phoenix](https://phoenix.arize.com/).
+This package provides an OpenInference middleware for [TanStack AI](https://tanstack.com/ai/latest/docs/getting-started/overview). It emits OpenTelemetry spans shaped according to the OpenInference specification so TanStack AI runs can be visualized in systems like [Arize AX](https://arize.com/products/ax?utm_source=docs&utm_medium=web&utm_content=openinference) and [Phoenix](https://phoenix.arize.com/).
 
 ## Installation
 
@@ -136,7 +136,7 @@ For a tool loop, the trace will typically look like:
 - `TOOL`
 - `LLM 2`
 
-The `AGENT` span captures the top-level request and final response. The `LLM` spans capture provider/model metadata, input messages, output messages, tool definitions, and token counts. The `TOOL` spans capture tool names, arguments, outputs, and errors.
+The `AGENT` span captures the top-level request and final response. The `LLM` spans capture provider/model metadata, input messages, output messages, tool definitions, token counts, and the model's finish reason (`llm.finish_reason`) when provided. The `TOOL` spans capture tool names, arguments, outputs, and errors.
 
 ## Examples
 

@@ -1,5 +1,3 @@
-import { isPromise } from "util/types";
-
 import type {
   BedrockRuntimeClient,
   ConverseResponse,
@@ -23,7 +21,7 @@ import {
 } from "@opentelemetry/instrumentation";
 
 import type { TraceConfigOptions } from "@arizeai/openinference-core";
-import { getAttributesFromContext, OITracer } from "@arizeai/openinference-core";
+import { getAttributesFromContext, isPromise, OITracer } from "@arizeai/openinference-core";
 
 import { getSystemFromModelId, setBasicSpanAttributes } from "./attributes/attribute-helpers";
 import { extractConverseRequestAttributes } from "./attributes/converse-request-attributes";
@@ -51,10 +49,7 @@ interface BedrockModuleExports {
 
 // Strong types for Bedrock client send method and instance
 type BedrockClient = InstanceType<typeof BedrockRuntimeClient>;
-// Note: relax SendMethod here to satisfy _wrap signature expectations
-// while preserving strong typing in handlers
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SendMethod = any;
+type SendMethod = typeof BedrockRuntimeClient.prototype.send;
 
 /**
  * Track if the Bedrock instrumentation is patched
@@ -173,32 +168,66 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
       // Wrap the client's send method to intercept commands
       this._wrap(moduleExports.BedrockRuntimeClient.prototype, "send", (original: SendMethod) => {
-        return function patchedSend(this: BedrockClient, ...args: Parameters<SendMethod>) {
-          const command = args[0];
-          if (command instanceof InvokeModelCommand) {
-            return instrumentation.handleInvokeModelCommand(args, command, original, this);
-          }
+        // Shimmer (used by _wrap/_unwrap) defines marker properties (__original,
+        // __unwrap, __wrapped) on the wrapper it receives back. A transparent Proxy
+        // would forward those defineProperty calls to the original send method,
+        // permanently polluting the shared SDK prototype (isWrapped() would stay true
+        // even after unpatch). Keep wrapper-own properties in a shadow store instead.
+        const shadow = new Map<PropertyKey, PropertyDescriptor>();
+        return new Proxy(original, {
+          defineProperty(_target, property, descriptor) {
+            shadow.set(property, descriptor);
+            return true;
+          },
+          getOwnPropertyDescriptor(target, property) {
+            return shadow.get(property) ?? Reflect.getOwnPropertyDescriptor(target, property);
+          },
+          get(target, property, receiver) {
+            const descriptor = shadow.get(property);
+            if (descriptor) {
+              return descriptor.value;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+          set(_target, property, value) {
+            shadow.set(property, {
+              configurable: true,
+              enumerable: true,
+              writable: true,
+              value,
+            });
+            return true;
+          },
+          has(target, property) {
+            return shadow.has(property) || Reflect.has(target, property);
+          },
+          apply(target, client, args) {
+            const command = args[0];
+            if (command instanceof InvokeModelCommand) {
+              return instrumentation.handleInvokeModelCommand(args, command, target, client);
+            }
 
-          if (command instanceof InvokeModelWithResponseStreamCommand) {
-            return instrumentation.handleInvokeModelWithResponseStreamCommand(
-              args,
-              command,
-              original,
-              this,
-            );
-          }
+            if (command instanceof InvokeModelWithResponseStreamCommand) {
+              return instrumentation.handleInvokeModelWithResponseStreamCommand(
+                args,
+                command,
+                target,
+                client,
+              );
+            }
 
-          if (command instanceof ConverseCommand) {
-            return instrumentation.handleConverseCommand(args, command, original, this);
-          }
+            if (command instanceof ConverseCommand) {
+              return instrumentation.handleConverseCommand(args, command, target, client);
+            }
 
-          if (command instanceof ConverseStreamCommand) {
-            return instrumentation.handleConverseStreamCommand(args, command, original, this);
-          }
+            if (command instanceof ConverseStreamCommand) {
+              return instrumentation.handleConverseStreamCommand(args, command, target, client);
+            }
 
-          // Pass through other commands without instrumentation
-          return original.apply(this, args);
-        };
+            // Pass through other commands without instrumentation
+            return Reflect.apply(target, client, args);
+          },
+        });
       });
 
       _isBedrockPatched = true;
@@ -233,11 +262,11 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
    * @returns {Promise<InvokeModelResponse>} The response from the InvokeModel call
    */
   private handleInvokeModelCommand(
-    args: Parameters<SendMethod>,
+    args: unknown[],
     command: InvokeModelCommand,
     original: SendMethod,
     client: BedrockClient,
-  ): Promise<InvokeModelResponse> {
+  ): unknown {
     const span = this.oiTracer.startSpan("bedrock.invoke_model", {
       kind: SpanKind.INTERNAL,
     });
@@ -252,20 +281,22 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     extractInvokeModelRequestAttributes({ span, command, system });
 
     try {
-      const result = original.apply(client, args);
+      const result = Reflect.apply(original, client, args);
 
       // AWS SDK v3 send() method should always return a Promise
-      if (!isPromise(result)) {
+      if (!isPromise<InvokeModelResponse>(result)) {
         diag.warn("Expected Promise from AWS SDK send method, got:", typeof result);
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message: "Unexpected return type from AWS SDK",
         });
         span.end();
-        return result as Promise<InvokeModelResponse>;
+        // Pass the SDK's actual result through untouched (e.g. callback-style send()
+        // returns void) — instrumentation must never replace the app's return value.
+        return result;
       }
 
-      return (result as Promise<InvokeModelResponse>)
+      return result
         .then((response: InvokeModelResponse) => {
           extractInvokeModelResponseAttributes({
             span,
@@ -311,7 +342,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
    * @returns {Promise<{body: AsyncIterable<unknown>}>} Promise resolving to the response with preserved user stream
    */
   private handleInvokeModelWithResponseStreamCommand(
-    args: Parameters<SendMethod>,
+    args: unknown[],
     command: InvokeModelWithResponseStreamCommand,
     original: SendMethod,
     client: BedrockClient,
@@ -329,26 +360,28 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
     extractInvokeModelRequestAttributes({
       span,
-      command: command as unknown as InvokeModelCommand,
+      command,
       system,
     });
 
     // Execute AWS SDK call and handle stream splitting outside error boundaries
     // This ensures the user stream is ALWAYS returned, regardless of instrumentation failures
-    const result = original.apply(client, args);
+    const result = Reflect.apply(original, client, args);
 
     // Validate that we got a Promise as expected
-    if (!isPromise(result)) {
+    if (!isPromise<{ body: AsyncIterable<unknown> }>(result)) {
       diag.warn("Expected Promise from AWS SDK send method, got:", typeof result);
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: "Unexpected return type from AWS SDK",
       });
       span.end();
-      return result as Promise<{ body: AsyncIterable<unknown> }>;
+      // Pass the SDK's actual result through untouched (e.g. callback-style send()
+      // returns void) — the user stream is ALWAYS returned, regardless of instrumentation.
+      return result;
     }
 
-    return (result as Promise<{ body: AsyncIterable<unknown> }>)
+    return result
       .then((response: { body: AsyncIterable<unknown> }) => {
         // Guard against missing response body - return original response
         if (!response.body) {
@@ -422,11 +455,11 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
    * @returns {Promise<ConverseResponse>} The response from the Converse call
    */
   private handleConverseCommand(
-    args: Parameters<SendMethod>,
+    args: unknown[],
     command: ConverseCommand,
     original: SendMethod,
     client: BedrockClient,
-  ): Promise<ConverseResponse> {
+  ): unknown {
     const span = this.oiTracer.startSpan("bedrock.converse", {
       kind: SpanKind.INTERNAL,
     });
@@ -441,20 +474,22 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     extractConverseRequestAttributes({ span, command });
 
     try {
-      const result = original.apply(client, args);
+      const result = Reflect.apply(original, client, args);
 
       // AWS SDK v3 send() method should always return a Promise
-      if (!isPromise(result)) {
+      if (!isPromise<ConverseResponse>(result)) {
         diag.warn("Expected Promise from AWS SDK send method, got:", typeof result);
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message: "Unexpected return type from AWS SDK",
         });
         span.end();
-        return result as Promise<ConverseResponse>;
+        // Pass the SDK's actual result through untouched (e.g. callback-style send()
+        // returns void) — instrumentation must never replace the app's return value.
+        return result;
       }
 
-      return (result as Promise<ConverseResponse>)
+      return result
         .then((response: ConverseResponse) => {
           extractConverseResponseAttributes({ span, response });
           span.setStatus({ code: SpanStatusCode.OK });
@@ -496,7 +531,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
    * @returns {Promise<{stream: AsyncIterable<unknown>}>} Promise resolving to the response with preserved user stream
    */
   private handleConverseStreamCommand(
-    args: Parameters<SendMethod>,
+    args: unknown[],
     command: ConverseStreamCommand,
     original: SendMethod,
     client: BedrockClient,
@@ -519,20 +554,22 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
     // Execute AWS SDK call and handle stream splitting outside error boundaries
     // This ensures the user stream is ALWAYS returned, regardless of instrumentation failures
-    const result = original.apply(client, args);
+    const result = Reflect.apply(original, client, args);
 
     // Validate that we got a Promise as expected
-    if (!isPromise(result)) {
+    if (!isPromise<{ stream: AsyncIterable<unknown> }>(result)) {
       diag.warn("Expected Promise from AWS SDK send method, got:", typeof result);
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: "Unexpected return type from AWS SDK",
       });
       span.end();
-      return result as Promise<{ stream: AsyncIterable<unknown> }>;
+      // Pass the SDK's actual result through untouched (e.g. callback-style send()
+      // returns void) — the user stream is ALWAYS returned, regardless of instrumentation.
+      return result;
     }
 
-    return (result as Promise<{ stream: AsyncIterable<unknown> }>)
+    return result
       .then((response: { stream: AsyncIterable<unknown> }) => {
         // Guard against missing response stream - return original response
         if (!response.stream) {

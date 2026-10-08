@@ -54,8 +54,11 @@ from typing import Any
 
 from openinference.semconv.resource import ResourceAttributes
 from openinference.semconv.trace import (
+    AnnotationAttributes,
+    AudioAttributes,
     DocumentAttributes,
     EmbeddingAttributes,
+    EvaluationAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
@@ -63,6 +66,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
+    VideoAttributes,
 )
 
 
@@ -79,14 +83,31 @@ class TestSpanAttributes:
     def test_nesting(self) -> None:
         attributes = _get_attributes(SpanAttributes)
         assert _nested_dict(attributes) == {
+            "annotations": SpanAttributes.ANNOTATIONS,
             "agent": {
                 "name": SpanAttributes.AGENT_NAME,
+            },
+            "decision": {
+                "model_name": SpanAttributes.DECISION_MODEL_NAME,
+                "provider": SpanAttributes.DECISION_PROVIDER,
+                "request": {
+                    "model_name": SpanAttributes.DECISION_REQUEST_MODEL_NAME,
+                },
+                "response": {
+                    "model_name": SpanAttributes.DECISION_RESPONSE_MODEL_NAME,
+                },
+                "system": SpanAttributes.DECISION_SYSTEM,
+                "token_count": {
+                    "input": SpanAttributes.DECISION_TOKEN_COUNT_INPUT,
+                    "output": SpanAttributes.DECISION_TOKEN_COUNT_OUTPUT,
+                },
             },
             "embedding": {
                 "embeddings": SpanAttributes.EMBEDDING_EMBEDDINGS,
                 "invocation_parameters": SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS,
                 "model_name": SpanAttributes.EMBEDDING_MODEL_NAME,
             },
+            "evaluations": SpanAttributes.EVALUATIONS,
             "graph": {
                 "node": {
                     "id": SpanAttributes.GRAPH_NODE_ID,
@@ -95,6 +116,7 @@ class TestSpanAttributes:
                 },
             },
             "input": {
+                "images": SpanAttributes.INPUT_IMAGES,
                 "mime_type": SpanAttributes.INPUT_MIME_TYPE,
                 "value": SpanAttributes.INPUT_VALUE,
             },
@@ -130,6 +152,12 @@ class TestSpanAttributes:
                 },
                 "prompts": SpanAttributes.LLM_PROMPTS,
                 "provider": SpanAttributes.LLM_PROVIDER,
+                "request": {
+                    "model_name": SpanAttributes.LLM_REQUEST_MODEL_NAME,
+                },
+                "response": {
+                    "model_name": SpanAttributes.LLM_RESPONSE_MODEL_NAME,
+                },
                 "system": SpanAttributes.LLM_SYSTEM,
                 "token_count": {
                     "completion": SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
@@ -155,6 +183,7 @@ class TestSpanAttributes:
                 }
             },
             "output": {
+                "images": SpanAttributes.OUTPUT_IMAGES,
                 "mime_type": SpanAttributes.OUTPUT_MIME_TYPE,
                 "value": SpanAttributes.OUTPUT_VALUE,
             },
@@ -162,6 +191,8 @@ class TestSpanAttributes:
                 "documents": SpanAttributes.RETRIEVAL_DOCUMENTS,
             },
             "session": {
+                "annotations": SpanAttributes.SESSION_ANNOTATIONS,
+                "evaluations": SpanAttributes.SESSION_EVALUATIONS,
                 "id": SpanAttributes.SESSION_ID,
             },
             "tag": {
@@ -173,6 +204,10 @@ class TestSpanAttributes:
                 "name": SpanAttributes.TOOL_NAME,
                 "parameters": SpanAttributes.TOOL_PARAMETERS,
             },
+            "trace": {
+                "annotations": SpanAttributes.TRACE_ANNOTATIONS,
+                "evaluations": SpanAttributes.TRACE_EVALUATIONS,
+            },
             "user": {
                 "id": SpanAttributes.USER_ID,
             },
@@ -181,6 +216,38 @@ class TestSpanAttributes:
                 "url": SpanAttributes.PROMPT_URL,
                 "vendor": SpanAttributes.PROMPT_VENDOR,
             },
+        }
+
+
+class TestAnnotationAttributes:
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(AnnotationAttributes)
+        assert _nested_dict(attributes) == {
+            "annotation": {
+                "annotator_kind": AnnotationAttributes.ANNOTATION_ANNOTATOR_KIND,
+                "explanation": AnnotationAttributes.ANNOTATION_EXPLANATION,
+                "identifier": AnnotationAttributes.ANNOTATION_IDENTIFIER,
+                "label": AnnotationAttributes.ANNOTATION_LABEL,
+                "metadata": AnnotationAttributes.ANNOTATION_METADATA,
+                "name": AnnotationAttributes.ANNOTATION_NAME,
+                "score": AnnotationAttributes.ANNOTATION_SCORE,
+            }
+        }
+
+
+class TestEvaluationAttributes:
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(EvaluationAttributes)
+        assert _nested_dict(attributes) == {
+            "evaluation": {
+                "annotator_kind": EvaluationAttributes.EVALUATION_ANNOTATOR_KIND,
+                "explanation": EvaluationAttributes.EVALUATION_EXPLANATION,
+                "identifier": EvaluationAttributes.EVALUATION_IDENTIFIER,
+                "label": EvaluationAttributes.EVALUATION_LABEL,
+                "metadata": EvaluationAttributes.EVALUATION_METADATA,
+                "name": EvaluationAttributes.EVALUATION_NAME,
+                "score": EvaluationAttributes.EVALUATION_SCORE,
+            }
         }
 
 
@@ -218,6 +285,7 @@ class TestMessageContentAttributes:
         attributes = _get_attributes(MessageContentAttributes)
         assert _nested_dict(attributes) == {
             "message_content": {
+                "audio": MessageContentAttributes.MESSAGE_CONTENT_AUDIO,
                 "data": MessageContentAttributes.MESSAGE_CONTENT_DATA,
                 "encrypted_content": MessageContentAttributes.MESSAGE_CONTENT_ENCRYPTED_CONTENT,
                 "id": MessageContentAttributes.MESSAGE_CONTENT_ID,
@@ -225,6 +293,7 @@ class TestMessageContentAttributes:
                 "signature": MessageContentAttributes.MESSAGE_CONTENT_SIGNATURE,
                 "text": MessageContentAttributes.MESSAGE_CONTENT_TEXT,
                 "type": MessageContentAttributes.MESSAGE_CONTENT_TYPE,
+                "video": MessageContentAttributes.MESSAGE_CONTENT_VIDEO,
             }
         }
 
@@ -241,6 +310,28 @@ class TestImageAttributes:
         assert _nested_dict(attributes) == {
             "image": {
                 "url": ImageAttributes.IMAGE_URL,
+            }
+        }
+
+
+class TestAudioAttributes:
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(AudioAttributes)
+        assert _nested_dict(attributes) == {
+            "audio": {
+                "mime_type": AudioAttributes.AUDIO_MIME_TYPE,
+                "transcript": AudioAttributes.AUDIO_TRANSCRIPT,
+                "url": AudioAttributes.AUDIO_URL,
+            }
+        }
+
+
+class TestVideoAttributes:
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(VideoAttributes)
+        assert _nested_dict(attributes) == {
+            "video": {
+                "url": VideoAttributes.VIDEO_URL,
             }
         }
 
@@ -334,7 +425,9 @@ class TestToolAttributes:
         attributes = _get_attributes(ToolAttributes)
         assert _nested_dict(attributes) == {
             "tool": {
+                "description": ToolAttributes.TOOL_DESCRIPTION,
                 "json_schema": ToolAttributes.TOOL_JSON_SCHEMA,
+                "name": ToolAttributes.TOOL_NAME,
             }
         }
 

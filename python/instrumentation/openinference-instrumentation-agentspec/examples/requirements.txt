@@ -1,0 +1,6 @@
+pyagentspec>=26.1.0
+arize-phoenix
+openinference-instrumentation-agentspec
+opentelemetry-exporter-otlp
+opentelemetry-sdk
+wayflowcore>=26.1.0

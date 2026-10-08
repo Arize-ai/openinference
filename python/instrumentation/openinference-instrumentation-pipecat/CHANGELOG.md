@@ -1,5 +1,61 @@
 # Changelog
 
+## [2.0.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.7...python-openinference-instrumentation-pipecat-v2.0.8) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.69 ([#3911](https://github.com/Arize-ai/openinference/issues/3911)) ([ac30a8f](https://github.com/Arize-ai/openinference/commit/ac30a8f3df9da1c0fb00f923a5281ad5cec94674))
+
+## [2.0.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.6...python-openinference-instrumentation-pipecat-v2.0.7) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+
+## [2.0.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.5...python-openinference-instrumentation-pipecat-v2.0.6) (2026-09-15)
+
+
+### Bug Fixes
+
+* **pipecat:** tolerate typed UserBotLatencyObserver in pipecat-ai 1.9 ([#3739](https://github.com/Arize-ai/openinference/issues/3739)) ([7103041](https://github.com/Arize-ai/openinference/commit/71030411c089864aa90720135d9d259a61670862))
+
+## [2.0.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.4...python-openinference-instrumentation-pipecat-v2.0.5) (2026-09-09)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.61 ([#3680](https://github.com/Arize-ai/openinference/issues/3680)) ([ba0fc57](https://github.com/Arize-ai/openinference/commit/ba0fc57cc735c8d4d85c125403b781dd6c998ad6))
+
+## [2.0.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.3...python-openinference-instrumentation-pipecat-v2.0.4) (2026-09-04)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.60 ([#3658](https://github.com/Arize-ai/openinference/issues/3658)) ([930f580](https://github.com/Arize-ai/openinference/commit/930f58068a10d8a8b8bf461064ccebbac7f52b19))
+
+## [2.0.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.2...python-openinference-instrumentation-pipecat-v2.0.3) (2026-08-27)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.59 ([#3615](https://github.com/Arize-ai/openinference/issues/3615)) ([75168e8](https://github.com/Arize-ai/openinference/commit/75168e886ca6f9a605f3898bb566492d48c1d5dc))
+
+## [2.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.1...python-openinference-instrumentation-pipecat-v2.0.2) (2026-08-24)
+
+
+### Documentation
+
+* point Arize AX links at the product page with UTM parameters ([#3587](https://github.com/Arize-ai/openinference/issues/3587)) ([cae8ec9](https://github.com/Arize-ai/openinference/commit/cae8ec9615af214359d98cb552d841986a9f02e8))
+
+## [2.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v2.0.0...python-openinference-instrumentation-pipecat-v2.0.1) (2026-07-30)
+
+
+### Documentation
+
+* link Arize AX alongside Phoenix across all READMEs ([#3330](https://github.com/Arize-ai/openinference/issues/3330)) ([0433526](https://github.com/Arize-ai/openinference/commit/0433526b048474195b4f354e5df6bfea2db4804d))
+
 ## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v1.0.4...python-openinference-instrumentation-pipecat-v2.0.0) (2026-06-05)
 
 

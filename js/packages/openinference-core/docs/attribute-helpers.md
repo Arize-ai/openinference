@@ -1,6 +1,6 @@
 # Attribute Helpers
 
-These functions convert domain objects (LLM messages, documents, embeddings, tools)
+These functions convert domain objects (LLM messages, annotations, documents, embeddings, tools)
 into flat OpenTelemetry `Attributes` dictionaries using OpenInference semantic
 conventions. Use them in custom `processInput`/`processOutput` callbacks or by
 calling `span.setAttributes()` on the active span.
@@ -8,8 +8,11 @@ calling `span.setAttributes()` on the active span.
 ```typescript
 import {
   getLLMAttributes,
+  getDecisionAttributes,
   getEmbeddingAttributes,
   getRetrieverAttributes,
+  getAnnotationAttributes,
+  getEvaluationAttributes,
   getToolAttributes,
   getMetadataAttributes,
   getInputAttributes,
@@ -30,12 +33,65 @@ function getLLMAttributes(options: {
   provider?: string;              // e.g., "openai", "anthropic"
   system?: string;                // LLM system type
   modelName?: string;             // e.g., "gpt-4o", "claude-sonnet-4-5-20250514"
+  requestModelName?: string;      // Model requested by the caller (llm.request.model_name)
+  responseModelName?: string;     // Model that generated the response (llm.response.model_name)
   invocationParameters?: Record<string, unknown>;  // temperature, max_tokens, etc.
   inputMessages?: Message[];      // Messages sent to the LLM
   outputMessages?: Message[];     // Messages received from the LLM
   tokenCount?: TokenCount;        // Token usage
   tools?: Tool[];                 // Tool definitions available to the LLM
 }): Attributes;
+```
+
+### Request and Response Model Names
+
+`requestModelName` emits `llm.request.model_name` and `responseModelName`
+emits `llm.response.model_name`. Only set them when the provider actually
+distinguishes the requested model from the one that served the response —
+most providers echo the same model back, in which case `modelName` alone
+suffices. The two can differ when the provider routes
+the request to another model — for example
+[Anthropic's server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#server-side-fallback),
+where a classifier-triggered refusal hands the request off to a fallback model
+that generates the response.
+
+Because the spec requires `llm.model_name` to equal the response model when
+known (falling back to the request model), `getLLMAttributes` mirrors
+`responseModelName ?? requestModelName` into `llm.model_name` whenever
+`modelName` is not passed explicitly.
+
+With `withSpan` or the `@observe` decorator, compose them through the tracing
+options. Note that `attributes` is evaluated once when the function is wrapped
+(for a decorator, at class-definition time), so use it only for literal values;
+derive anything per-call from the arguments via `processInput`, and take the
+response model from the result via `processOutput`. Custom processors replace
+the default input/output capture, so spread `defaultProcessInput` and
+`defaultProcessOutput` to keep `input.value` and `output.value`:
+
+```typescript
+import {
+  defaultProcessInput,
+  defaultProcessOutput,
+  getLLMAttributes,
+  observe,
+} from "@arizeai/openinference-core";
+
+class ChatService {
+  @observe({
+    kind: "LLM",
+    processInput: (request) => ({
+      ...defaultProcessInput(request),
+      ...getLLMAttributes({ requestModelName: request.model }),
+    }),
+    processOutput: (response) => ({
+      ...defaultProcessOutput(response),
+      ...getLLMAttributes({ responseModelName: response.model }),
+    }),
+  })
+  async complete(request: ChatRequest) {
+    return await callLLM(request);
+  }
+}
 ```
 
 ### Message Type
@@ -169,6 +225,79 @@ getLLMAttributes({
 });
 ```
 
+## getDecisionAttributes
+
+Generates attributes for DECISION operations: calls to a decision model that
+scores or selects among candidate options supplied in the request rather than
+generating free-form text (route selection, yes/no judgements, rubric scoring).
+Decision spans identify the model under the `decision.*` namespace instead of
+`llm.*`; see the [decision spans specification](../../../../spec/decision_spans.md).
+
+### Signature
+
+```typescript
+function getDecisionAttributes(options: {
+  provider?: string;              // Who hosts the model, e.g. "typesafe", "openai" (decision.provider)
+  system?: string;                // Decision API ecosystem, e.g. "typesafe", "openai" (decision.system)
+  modelName?: string;             // e.g., "jev-1.13.0" (decision.model_name)
+  requestModelName?: string;      // Model requested by the caller (decision.request.model_name)
+  responseModelName?: string;     // Model that produced the decision (decision.response.model_name)
+  tokenCount?: DecisionTokenCount; // Token usage
+}): Attributes;
+```
+
+The options mirror `getLLMAttributes` and follow the same rules: `provider` and
+`system` are lowercased, and `decision.model_name` mirrors
+`responseModelName ?? requestModelName` whenever `modelName` is not passed
+explicitly. Well-known `system` and `provider` values are `DecisionSystem` and
+`DecisionProvider` from `@arizeai/openinference-semantic-conventions`; they alias
+the matching `LLMSystem` and `LLMProvider` values.
+
+Decision spans have no input or output messages. Record the raw request and
+response (including the candidate options and the returned scores) with
+`input.value` / `output.value`, which the default processors already do.
+
+### DecisionTokenCount Type
+
+```typescript
+interface DecisionTokenCount {
+  input?: number;  // tokens consumed: state, questions, and candidate options
+  output?: number; // tokens in the typed answers; usually small
+}
+```
+
+There is no prompt/completion split and no total: a total is derivable as the
+sum when both counts are present. Only set a count the API actually reports.
+
+### Example
+
+```typescript
+import {
+  defaultProcessInput,
+  defaultProcessOutput,
+  getDecisionAttributes,
+  traceDecision,
+} from "@arizeai/openinference-core";
+
+const tracedChoose = traceDecision(
+  async (request: SystemOneRequest) => client.systemOne.create(request),
+  {
+    name: "route-selection",
+    processInput: (request) => ({
+      ...defaultProcessInput(request),
+      ...getDecisionAttributes({ system: "typesafe", requestModelName: request.model }),
+    }),
+    processOutput: (response) => ({
+      ...defaultProcessOutput(response),
+      ...getDecisionAttributes({
+        responseModelName: response.model,
+        tokenCount: { input: response.usage.input_tokens, output: response.usage.output_tokens },
+      }),
+    }),
+  },
+);
+```
+
 ## getEmbeddingAttributes
 
 Generates attributes for embedding operations.
@@ -263,6 +392,80 @@ interface Document {
 
 Used by `getRetrieverAttributes` in the `documents` array and by
 `getDocumentAttributes` for individual document attributes.
+
+## getAnnotationAttributes / getEvaluationAttributes
+
+Generate flattened annotations at span, trace, or session scope. Evaluations
+use the same `Annotation` model and fields; only their semantic-convention
+terminology changes from `annotations.*.annotation.*` to
+`evaluations.*.evaluation.*`.
+
+```typescript
+type AnnotationScope = "span" | "trace" | "session";
+
+type AnnotationBase = {
+  name: string;
+  annotatorKind?: string;
+  identifier?: string;
+  metadata?: string | Record<string, unknown>;
+};
+
+type Annotation = AnnotationBase & (
+  | { score: number; label?: string; explanation?: string }
+  | { score?: number; label: string; explanation?: string }
+  | { score?: number; label?: string; explanation: string }
+);
+
+function getAnnotationAttributes(options: {
+  annotations: readonly Annotation[];
+  scope?: AnnotationScope;
+}): Attributes;
+
+function getEvaluationAttributes(options: {
+  evaluations: readonly Annotation[];
+  scope?: AnnotationScope;
+}): Attributes;
+```
+
+Every annotation requires `name` and at least one of `score`, `label`, or
+`explanation`. The TypeScript type enforces this constraint, and both helpers
+also validate it at runtime. Optional fields are omitted. Metadata objects are
+JSON-stringified; metadata strings are preserved.
+
+```typescript
+import {
+  getAnnotationAttributes,
+  getEvaluationAttributes,
+} from "@arizeai/openinference-core";
+
+const attributes = {
+  ...getAnnotationAttributes({
+    annotations: [
+      {
+        name: "hallucination",
+        label: "factual",
+        explanation: "Every claim is supported by the retrieved documents.",
+        annotatorKind: "LLM",
+        identifier: "judge-v2",
+        metadata: { rubricVersion: 2 },
+      },
+    ],
+  }),
+  ...getEvaluationAttributes({
+    evaluations: [{ name: "correctness", score: 0.95 }],
+    scope: "trace",
+  }),
+};
+
+span.setAttributes(attributes);
+```
+
+This produces `annotations.0.annotation.*` attributes for the span annotation
+and `trace.evaluations.0.evaluation.*` attributes for the trace evaluation.
+Collection indices are assigned contiguously in input order. For session scope,
+the carrying span must also have `session.id`. Post-hoc span and trace
+annotations must use the Span Link required by the OpenInference annotation
+specification.
 
 ## getToolAttributes
 

@@ -9,6 +9,7 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 
 import {
   safelyFlattenAttributes,
+  safelyFormatFinishReason,
   safelyFormatFunctionCalls,
   safelyFormatInputMessages,
   safelyFormatIO,
@@ -119,19 +120,22 @@ export class LangChainTracer extends BaseTracer {
       span.setStatus({ code: SpanStatusCode.OK });
     }
 
+    // OpenTelemetry drops later attributes at the span limit; keep
+    // session/model/token-count/metadata and IO ahead of verbose history.
     const attributes = safelyFlattenAttributes({
       ...safelyFormatIO({ io: run.inputs, ioType: "input" }),
       ...safelyFormatIO({ io: run.outputs, ioType: "output" }),
-      ...safelyFormatInputMessages(run.inputs),
-      ...safelyFormatOutputMessages(run.outputs),
-      ...safelyFormatRetrievalDocuments(run),
       ...safelyFormatLLMParams(run.extra),
       ...safelyFormatPromptTemplate(run),
       ...safelyFormatTokenCounts(run.outputs),
-      ...safelyFormatFunctionCalls(run.outputs),
-      ...safelyFormatToolCalls(run),
+      ...safelyFormatFinishReason(run.outputs),
       ...safelyFormatMetadata(run),
       ...safelyFormatSessionId(run),
+      ...safelyFormatInputMessages(run.inputs),
+      ...safelyFormatOutputMessages(run.outputs),
+      ...safelyFormatRetrievalDocuments(run),
+      ...safelyFormatFunctionCalls(run.outputs),
+      ...safelyFormatToolCalls(run),
     });
     if (attributes != null) {
       span.setAttributes(attributes);
@@ -143,11 +147,11 @@ export class LangChainTracer extends BaseTracer {
 
   private getParentSpanContext(run: Run) {
     if (run.parent_run_id == null) {
-      return;
+      return undefined;
     }
     const maybeParent = this.runs[run.parent_run_id];
     if (maybeParent == null) {
-      return;
+      return undefined;
     }
 
     return maybeParent.span.spanContext();

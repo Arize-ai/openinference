@@ -4,8 +4,10 @@ import base64
 import json
 import os
 from typing import Any, Dict
+from unittest.mock import patch
 
 import pytest
+import respx
 from google import genai
 from google.genai import types
 from google.genai.types import (
@@ -19,6 +21,8 @@ from google.genai.types import (
     Tool,
     ToolCodeExecution,
 )
+from httpx import Response
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel
@@ -284,7 +288,8 @@ def test_generate_content(
         ),
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}": "call_abc123",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "call_abc123",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "tool",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_NAME}": "get_weather",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
             {
                 "location": "San Francisco",
@@ -297,6 +302,7 @@ def test_generate_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -393,6 +399,7 @@ def test_generate_content_describe_image(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -456,6 +463,7 @@ def test_generate_content_with_config_as_dict(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -541,6 +549,7 @@ async def test_async_generate_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -600,6 +609,7 @@ def test_multi_turn_conversation(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response1.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -635,6 +645,7 @@ def test_multi_turn_conversation(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response2.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -698,6 +709,7 @@ def test_streaming_text_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -766,6 +778,7 @@ async def test_async_streaming_text_content(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -864,6 +877,7 @@ def test_generate_content_with_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
         or None,
@@ -1020,6 +1034,7 @@ def test_generate_content_with_raw_json_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
         or None,
@@ -1176,6 +1191,7 @@ def test_streaming_content_with_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -1352,6 +1368,7 @@ def test_response_with_multiple_tool_calls(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -1657,6 +1674,7 @@ def test_chat_session_with_tool(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
@@ -2048,6 +2066,7 @@ def test_generate_content_with_automatic_tool_calling(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -2207,6 +2226,7 @@ def test_generate_content_with_file_uri_image(
         SpanAttributes.LLM_PROVIDER: "google",
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
         SpanAttributes.LLM_MODEL_NAME: model_name,
+        SpanAttributes.LLM_FINISH_REASON: "STOP",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
@@ -2288,3 +2308,229 @@ def test_validate_token_counts_stream(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
         )
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    ["STOP", "MAX_TOKENS", "SAFETY", "RECITATION", "OTHER"],
+)
+def test_finish_reason_values(
+    finish_reason: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    api_key = "fake-key"
+    client = genai.Client(api_key=api_key)
+
+    mock_response = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"text": "hi there"}],
+                    "role": "model",
+                },
+                "finishReason": finish_reason,
+                "index": 0,
+            }
+        ],
+        "usageMetadata": {
+            "promptTokenCount": 5,
+            "candidatesTokenCount": 3,
+            "totalTokenCount": 8,
+        },
+        "modelVersion": "gemini-2.0-flash",
+    }
+
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        mock_router.post(path__regex=r"/v1beta/models/gemini-2\.0-flash:generateContent.*").mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=Content(role="user", parts=[Part.from_text(text="hello")]),
+        )
+        assert response is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get(SpanAttributes.LLM_FINISH_REASON) == finish_reason
+
+
+def test_generate_content_with_parallel_function_responses(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # The reply to parallel function calls arrives as one content with several
+    # function_response parts (the shape AFC writes into chat history). Each
+    # part must become its own tool message so every id survives.
+    client = genai.Client(api_key="fake-key")
+
+    contents = [
+        Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(name="get_weather", args={"city": "SF"}, id="fc-1")
+                ),
+                Part(function_call=FunctionCall(name="get_time", args={"city": "NYC"}, id="fc-2")),
+            ],
+        ),
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response={"result": "72F sunny"}, id="fc-1"
+                    )
+                ),
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_time", response={"result": "12:00 EDT"}, id="fc-2"
+                    )
+                ),
+            ],
+        ),
+    ]
+
+    mock_response = {
+        "candidates": [
+            {
+                "content": {"parts": [{"text": "72F and noon."}], "role": "model"},
+                "finishReason": "STOP",
+                "index": 0,
+            }
+        ],
+        "usageMetadata": {
+            "promptTokenCount": 50,
+            "candidatesTokenCount": 10,
+            "totalTokenCount": 60,
+        },
+        "modelVersion": "gemini-2.5-flash",
+    }
+
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        mock_router.post(path__regex=r"/v1beta/models/gemini-2\.5-flash:generateContent.*").mock(
+            return_value=Response(200, json=mock_response)
+        )
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=contents)
+        assert response is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}": "fc-1",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_time",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_ID}": "fc-2",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "tool",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
+            {"result": "72F sunny"}
+        ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "fc-1",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "tool",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_NAME}": "get_time",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
+            {"result": "12:00 EDT"}
+        ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "fc-2",
+    }
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+    # No merged user-role message carrying tool results.
+    roles = {
+        key: value
+        for key, value in attributes.items()
+        if key.startswith(f"{SpanAttributes.LLM_INPUT_MESSAGES}.")
+        and key.endswith(MessageAttributes.MESSAGE_ROLE)
+    }
+    assert "user" not in roles.values()
+
+
+def test_generate_content_with_mixed_text_and_function_response(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # A content mixing text and a function_response keeps its own message for
+    # the text, and the response becomes a separate tool message after it.
+    client = genai.Client(api_key="fake-key")
+
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part.from_text(text="Here are the results:"),
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather", response={"result": "72F sunny"}, id="fc-1"
+                    )
+                ),
+            ],
+        ),
+    ]
+
+    mock_response = {
+        "candidates": [
+            {
+                "content": {"parts": [{"text": "Thanks!"}], "role": "model"},
+                "finishReason": "STOP",
+                "index": 0,
+            }
+        ],
+        "usageMetadata": {
+            "promptTokenCount": 20,
+            "candidatesTokenCount": 5,
+            "totalTokenCount": 25,
+        },
+        "modelVersion": "gemini-2.5-flash",
+    }
+
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock_router:
+        mock_router.post(path__regex=r"/v1beta/models/gemini-2\.5-flash:generateContent.*").mock(
+            return_value=Response(200, json=mock_response)
+        )
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=contents)
+        assert response is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Here are the results:",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "tool",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
+            {"result": "72F sunny"}
+        ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "fc-1",
+    }
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+
+
+def test_cancelled_generate_content_ends_span(
+    setup_google_genai_instrumentation: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    client = genai.Client(api_key="test")
+    with patch("httpx.Client.send", side_effect=KeyboardInterrupt), pytest.raises(
+        KeyboardInterrupt
+    ):
+        client.models.generate_content(model="gemini-2.0-flash", contents="hello")
+
+    (span,) = in_memory_span_exporter.get_finished_spans()
+    assert span.status.status_code == trace_api.StatusCode.ERROR

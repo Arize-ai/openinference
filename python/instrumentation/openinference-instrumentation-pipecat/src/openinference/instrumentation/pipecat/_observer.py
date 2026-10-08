@@ -91,12 +91,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
             verbose: Optional verbose logging
             kwargs: Additional keyword arguments to pass to the base class
         """
-        super().__init__(  # type: ignore[no-untyped-call]
+        super().__init__(  # type: ignore[no-untyped-call, unused-ignore]
             max_frames=max_frames,
             turn_end_timeout_secs=turn_end_timeout_secs,
             **kwargs,
         )
-        self._latency_observer: UserBotLatencyObserver = UserBotLatencyObserver()  # type: ignore[no-untyped-call]
+        self._latency_observer: UserBotLatencyObserver = UserBotLatencyObserver()  # type: ignore[no-untyped-call, unused-ignore]
         self._last_user_to_bot_latency: Optional[float] = None
 
         @self._latency_observer.event_handler("on_latency_measured")  # type: ignore[misc]
@@ -175,6 +175,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 logger.error(f"Error closing debug log file: {e}")
                 pass
 
+    @property
+    def observe_every_push(self) -> bool:
+        return True
+
     async def on_push_frame(self, data: FramePushed) -> None:
         """
         Called when a frame is pushed between processors.
@@ -182,9 +186,9 @@ class OpenInferenceObserver(TurnTrackingObserver):
         Args:
             data: FramePushed event data with source, destination, frame, direction
         """
-        await super().on_push_frame(data)
-        # ensure UserBotLatencyLogObserver is using self._user_bot_latency_processed_frames !
-        await self._latency_observer.on_push_frame(data)
+        if getattr(data, "first_push", True):
+            await super().on_push_frame(data)
+            await self._latency_observer.on_push_frame(data)
 
         try:
             src = data.source
@@ -760,7 +764,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._turn_span = self._tracer.start_span(
             name="pipecat.conversation.turn",
             context=Context(),  # Empty context ensures this is a true root span
-            attributes=span_attributes,  # type: ignore
+            attributes=span_attributes,
         )
 
         if self._conversation_id:

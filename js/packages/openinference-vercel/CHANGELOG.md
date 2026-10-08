@@ -1,5 +1,157 @@
 # @arizeai/openinference-vercel
 
+## 3.2.4
+
+### Patch Changes
+
+- Updated dependencies [0d26a59]
+  - @arizeai/openinference-core@2.8.0
+
+## 3.2.3
+
+### Patch Changes
+
+- 945c024: Classify Vercel eve's `agent.step`, `agent.action`, and `agent.approval` control-flow spans as CHAIN instead of LLM (an `agent.action` for a subagent or remote-agent call stays AGENT). They carry `gen_ai.*` context but no `gen_ai.operation.name`, so they fell through to the GenAI converter's LLM default and inflated the LLM span count well beyond the number of model calls. A `session.id` already on a span (for example from `setSession` context) now takes precedence over the one derived from `gen_ai.conversation.id`.
+- Updated dependencies [53b7a0e]
+- Updated dependencies [945c024]
+  - @arizeai/openinference-semantic-conventions@2.14.0
+  - @arizeai/openinference-genai@0.4.0
+  - @arizeai/openinference-core@2.7.3
+
+## 3.2.2
+
+### Patch Changes
+
+- 300bba9: Read the parent span from `parentSpanContext` (OpenTelemetry JS SDK 2.x) with a fallback to `parentSpanId` (SDK 1.x) when deciding whether a span is the trace root. Under SDK 2.x every span was treated as a root, so child AI SDK spans were renamed to their `operation.name`, a later successful child span inherited an earlier sibling's ERROR status, and nested kind-less AI spans were promoted to AGENT when `reparentOrphanedSpans` is enabled.
+- Updated dependencies [a1f276c]
+- Updated dependencies [a719562]
+  - @arizeai/openinference-semantic-conventions@2.13.0
+  - @arizeai/openinference-core@2.7.2
+  - @arizeai/openinference-genai@0.3.11
+
+## 3.2.1
+
+### Patch Changes
+
+- Updated dependencies [5a075b9]
+  - @arizeai/openinference-semantic-conventions@2.12.0
+  - @arizeai/openinference-core@2.7.1
+  - @arizeai/openinference-genai@0.3.10
+
+## 3.2.0
+
+### Minor Changes
+
+- 4a64b91: Add the `llm.finish_reason` attribute to Vercel AI SDK LLM spans by mapping `ai.response.finishReason`.
+
+## 3.1.13
+
+### Patch Changes
+
+- Updated dependencies [0ff0af2]
+- Updated dependencies [0ff0af2]
+  - @arizeai/openinference-semantic-conventions@2.11.0
+  - @arizeai/openinference-core@2.7.0
+  - @arizeai/openinference-genai@0.3.9
+
+## 3.1.12
+
+### Patch Changes
+
+- Updated dependencies [6d9f813]
+  - @arizeai/openinference-semantic-conventions@2.10.0
+  - @arizeai/openinference-core@2.6.3
+  - @arizeai/openinference-genai@0.3.8
+
+## 3.1.11
+
+### Patch Changes
+
+- Updated dependencies [fd01216]
+  - @arizeai/openinference-semantic-conventions@2.9.0
+  - @arizeai/openinference-core@2.6.2
+  - @arizeai/openinference-genai@0.3.7
+
+## 3.1.10
+
+### Patch Changes
+
+- Updated dependencies [4d72f42]
+  - @arizeai/openinference-core@2.6.1
+
+## 3.1.9
+
+### Patch Changes
+
+- Updated dependencies [99f6e71]
+  - @arizeai/openinference-core@2.6.0
+
+## 3.1.8
+
+### Patch Changes
+
+- 0071b37: Split over-complex functions into focused helpers and make implicit returns explicit (enforce `eslint/complexity`). Also hardens bedrock-agent-runtime tool-call extraction against a `function: null` payload that previously threw. No other behavior changes.
+- Updated dependencies [0071b37]
+  - @arizeai/openinference-core@2.5.4
+  - @arizeai/openinference-genai@0.3.6
+
+## 3.1.7
+
+### Patch Changes
+
+- 3e25f67: Bump @opentelemetry/core to ^2.8.0 to address the W3C Baggage denial-of-service security advisory.
+
+## 3.1.6
+
+### Patch Changes
+
+- Updated dependencies [1fe497f]
+  - @arizeai/openinference-semantic-conventions@2.8.0
+  - @arizeai/openinference-core@2.5.3
+  - @arizeai/openinference-genai@0.3.5
+
+## 3.1.5
+
+### Patch Changes
+
+- 74ae809: Replace unsafe type assertions with runtime type guards across packages (enforce `typescript/no-unsafe-type-assertion`)
+- Updated dependencies [74ae809]
+  - @arizeai/openinference-core@2.5.2
+  - @arizeai/openinference-genai@0.3.4
+
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [237ce2b]
+  - @arizeai/openinference-semantic-conventions@2.7.0
+  - @arizeai/openinference-core@2.5.1
+  - @arizeai/openinference-genai@0.3.3
+
+## 3.1.3
+
+### Patch Changes
+
+- Updated dependencies [0168198]
+  - @arizeai/openinference-core@2.5.0
+
+## 3.1.2
+
+### Patch Changes
+
+- Updated dependencies [b1cdcb5]
+- Updated dependencies [3f3b146]
+  - @arizeai/openinference-genai@0.3.2
+
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [145e3c6]
+  - @arizeai/openinference-semantic-conventions@2.6.0
+  - @arizeai/openinference-core@2.4.1
+  - @arizeai/openinference-genai@0.3.1
+
 ## 3.1.0
 
 ### Minor Changes

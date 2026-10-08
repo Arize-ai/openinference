@@ -210,4 +210,45 @@ describe("mask reasoning content fields", () => {
       mask({ config: { ...DefaultTraceConfig, hideOutputMessages: true }, key, value: "token" }),
     ).toBeUndefined();
   });
+
+  describe("span-level images", () => {
+    const inputImageURL = "input.images.0.image.url";
+    const outputImageURL = "output.images.0.image.url";
+    const longBase64 = `data:image/png;base64,${"A".repeat(40000)}`;
+
+    test.each([
+      ["hideInputs", inputImageURL],
+      ["hideInputImages", inputImageURL],
+    ] as const)("%s drops %s", (configKey, key) => {
+      expect(
+        mask({
+          config: { ...DefaultTraceConfig, [configKey]: true },
+          key,
+          value: "data:image/png;base64,iVBORw0KGgo=",
+        }),
+      ).toBeUndefined();
+    });
+
+    test("hideOutputs drops output.images", () => {
+      expect(
+        mask({
+          config: { ...DefaultTraceConfig, hideOutputs: true },
+          key: outputImageURL,
+          value: "data:image/png;base64,iVBORw0KGgo=",
+        }),
+      ).toBeUndefined();
+    });
+
+    test.each([inputImageURL, outputImageURL])(
+      "an oversized base64 payload at %s is redacted",
+      (key) => {
+        expect(mask({ config: DefaultTraceConfig, key, value: longBase64 })).toBe(REDACTED_VALUE);
+      },
+    );
+
+    test.each([inputImageURL, outputImageURL])("a plain uri at %s passes through", (key) => {
+      const url = "https://example.com/a.png";
+      expect(mask({ config: DefaultTraceConfig, key, value: url })).toBe(url);
+    });
+  });
 });

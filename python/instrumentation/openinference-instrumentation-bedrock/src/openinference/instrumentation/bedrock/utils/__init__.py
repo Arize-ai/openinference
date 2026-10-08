@@ -5,10 +5,10 @@ from typing import Any, AsyncIterator, Callable, ContextManager, Iterator, Mappi
 import wrapt
 from botocore.eventstream import EventStream
 from opentelemetry.trace import Span, Status, StatusCode, use_span
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.bedrock._proxy import _AnyT, _CallbackT, _Iterator
+from openinference.instrumentation.bedrock._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,

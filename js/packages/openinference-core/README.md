@@ -7,7 +7,7 @@
 - context attribute propagation (`session.id`, `user.id`, metadata, tags, prompt template)
 - span wrappers (`withSpan`, `traceChain`, `traceAgent`, `traceTool`)
 - method decorator tracing (`@observe`)
-- helpers for LLM/retrieval/embedding/tool attributes
+- helpers for LLM/retrieval/embedding/tool and annotation/evaluation attributes
 - optional sensitive-data masking through `OITracer` trace config
 
 ## Installation
@@ -135,9 +135,11 @@ const retrieve = withSpan(
 );
 ```
 
-### `traceChain`, `traceAgent`, `traceTool`
+### `traceChain`, `traceAgent`, `traceTool`, and friends
 
-These wrappers call `withSpan` and set `kind` automatically.
+These wrappers call `withSpan` and set `kind` automatically. One exists for every
+OpenInference span kind (`traceLLM`, `traceRetriever`, `traceReranker`,
+`traceEmbedding`, `traceGuardrail`, `traceEvaluator`, `tracePrompt`, `traceDecision`).
 
 ```typescript
 import { traceAgent, traceChain, traceTool } from "@arizeai/openinference-core";
@@ -205,8 +207,11 @@ class ChatService {
 Use these helpers to generate OpenInference-compatible attributes and attach them to spans:
 
 - `getLLMAttributes({ provider, modelName, inputMessages, outputMessages, tokenCount, tools, ... })`
+- `getDecisionAttributes({ provider, system, modelName, requestModelName, responseModelName, tokenCount })`
 - `getEmbeddingAttributes({ modelName, embeddings })`
 - `getRetrieverAttributes({ documents })`
+- `getAnnotationAttributes({ annotations, scope? })`
+- `getEvaluationAttributes({ evaluations, scope? })`
 - `getToolAttributes({ name, description?, parameters })`
 - `getMetadataAttributes(metadataObject)`
 - `getInputAttributes(input)` / `getOutputAttributes(output)`

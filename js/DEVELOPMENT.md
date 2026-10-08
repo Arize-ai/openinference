@@ -19,8 +19,16 @@ This project and its packages are built using the following tools:
 - [pnpm](https://pnpm.io/) for managing packages across the repo. Note, this project uses pnpm workspaces, so you must use pnpm to install packages at the root of the repo.
 - [TypeScript](https://www.typescriptlang.org/) for type checking and transpiling.
 - [Vitest](https://vitest.dev/) for unit testing and test running.
-- [Eslint](https://eslint.org/) for linting and best practices.
-- [Prettier](https://prettier.io/) for code formatting.
+- [Oxlint](https://oxc.rs/docs/guide/usage/linter) for linting and best practices (including [type-aware](https://oxc.rs/docs/guide/usage/linter/type-aware) rules via `oxlint-tsgolint`).
+- [oxfmt](https://oxc.rs/docs/guide/usage/formatter) for code formatting.
+
+> [!NOTE]
+> The repo compiles with TypeScript 7 (the native compiler), which no longer ships
+> `tsserver`, so do not set `typescript.tsdk`. For IntelliSense that matches the
+> compiler, install the [TypeScript (Native Preview)](https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.native-preview)
+> extension; otherwise VS Code's built-in TypeScript language service works fine for
+> editing. Tools that still need the JS compiler API (e.g. TypeDoc) resolve the
+> `@typescript/typescript6` bridge via `.pnpmfile.cjs`.
 
 ### Setup
 
@@ -67,7 +75,7 @@ pnpm run -r test
 ```
 
 > [!NOTE]
-> The tests in this repo use `vitest` but it's auto-mocking feature can cause issues since instrumentation relies on it running first before the package is imported in user-code. For the tests you may have to manually set the instrumented module manually (e.x.`instrumentation._modules[0].moduleExports = module`)
+> The tests in this repo use `vitest` but its auto-mocking feature can cause issues since instrumentation relies on it running first before the package is imported in user-code. For the tests you may have to manually set the instrumented module manually (e.g. `instrumentation._modules[0].moduleExports = module`)
 
 ## Creating an Instrumentor
 
@@ -117,7 +125,7 @@ Every instrumentation must also be able to be disabled. The `disable` method is 
 
 There are a number of situations in which a user may want to attach a specific attribute to every span that gets created within a particular block or scope. For example a user may want to ensure that every span created has a user or session ID attached to it. We achieve this by allowing users to set attributes on [context](https://opentelemetry.io/docs/specs/otel/context/). Our instrumentors must respect these attributes and correctly propagate them to each span.
 
-This fetching and propagation is controlled by our [OITracer](./packages/openinference-core/src/trace/trace-config/OITracer.ts#117) and [context attributes](./packages/openinference-core/src/trace/contextAttributes.ts) from our core package. See the example above to properly use the OITracer in your instrumentor to ensure context attributes are repected.
+This fetching and propagation is controlled by our [OITracer](./packages/openinference-core/src/trace/trace-config/OITracer.ts#117) and [context attributes](./packages/openinference-core/src/trace/contextAttributes.ts) from our core package. See the example above to properly use the OITracer in your instrumentor to ensure context attributes are respected.
 
 #### Trace Configuration
 

@@ -1,6 +1,8 @@
 import type { RetrieveAndGenerateStreamResponseOutput } from "@aws-sdk/client-bedrock-agent-runtime";
 import { diag } from "@opentelemetry/api";
 
+import { isObjectWithStringKeys } from "@arizeai/openinference-core";
+
 import type { CallbackHandler, RagCallbackHandler } from "./callbackHandler";
 import { getObjectDataFromUnknown } from "./utils/jsonUtils";
 
@@ -14,8 +16,8 @@ export function interceptAgentResponse<
           try {
             if (item.chunk?.bytes) {
               callback.consumeResponse(item.chunk.bytes);
-            } else if (item.trace) {
-              callback.consumeTrace(item.trace as Record<string, unknown>);
+            } else if (isObjectWithStringKeys(item.trace)) {
+              callback.consumeTrace(item.trace);
             }
           } catch (err: unknown) {
             diag.debug("Error in interceptAgentResponse Stream:", err);

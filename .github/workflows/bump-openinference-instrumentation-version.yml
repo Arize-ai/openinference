@@ -33,6 +33,17 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # The `release: published` event fires as soon as release-please creates the
+      # GitHub release, which is minutes ahead of the publish workflow uploading the
+      # sdist/wheel to PyPI. Opening the bump PR before then makes every instrumentor
+      # CI job fail to resolve the new floor, so hold until PyPI can actually serve it.
+      - name: Wait for openinference-instrumentation on PyPI
+        if: steps.version.outputs.version
+        uses: ./.github/actions/wait-for-pypi-version
+        with:
+          package: openinference-instrumentation
+          version: ${{ steps.version.outputs.version }}
+
       - name: Update pyproject.toml files
         if: steps.version.outputs.version
         env:

@@ -1,4 +1,4 @@
-google-adk==1.2.1
+google-adk==2.10.0
 opentelemetry-sdk
 pytest
 pytest-asyncio

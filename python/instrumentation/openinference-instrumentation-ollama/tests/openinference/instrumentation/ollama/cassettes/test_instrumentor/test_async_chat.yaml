@@ -1,0 +1,37 @@
+interactions:
+- request:
+    body: '{"model":"qwen3.6:latest","stream":false,"options":{"temperature":0,"seed":42},"messages":[{"role":"user","content":"Why
+      is the sky blue? Answer in one sentence."}],"tools":[]}'
+    headers: {}
+    method: POST
+    uri: http://127.0.0.1:11434/api/chat
+  response:
+    body:
+      string: "{\"model\":\"qwen3.6:latest\",\"created_at\":\"2026-08-07T06:08:14.73237Z\",\"message\":{\"role\":\"assistant\",\"content\":\"The
+        sky appears blue because Earth's atmosphere scatters shorter blue wavelengths
+        of sunlight more effectively than longer red wavelengths, and human eyes are
+        more sensitive to blue light.\",\"thinking\":\"Here's a thinking process:\\n\\n1.
+        \ **Analyze User Input:**\\n   - **Question:** Why is the sky blue?\\n   -
+        **Constraint:** Answer in one sentence.\\n\\n2.  **Identify Key Scientific
+        Concept:**\\n   - The sky appears blue due to Rayleigh scattering.\\n   -
+        Sunlight contains all colors of the visible spectrum.\\n   - Earth's atmosphere
+        scatters shorter wavelengths (blue/violet) more than longer wavelengths (red/yellow).\\n
+        \  - Our eyes are more sensitive to blue than violet, so we perceive the sky
+        as blue.\\n\\n3.  **Draft - Mental Refinement (aiming for one sentence):**\\n
+        \  The sky appears blue because Earth's atmosphere scatters shorter blue wavelengths
+        of sunlight more effectively than longer red wavelengths, and our eyes are
+        more sensitive to blue light.\\n\\n4.  **Check Constraints:**\\n   - Answers
+        the question? Yes.\\n   - One sentence? Yes.\\n   - Accurate? Yes.\\n   -
+        Concise? Yes.\\n\\n5.  **Final Polish:**\\n   The sky appears blue because
+        Earth's atmosphere scatters shorter blue wavelengths of sunlight more than
+        longer red wavelengths, and our eyes are more sensitive to blue light. \\n
+        \  (Wait, let's verify if it's strictly one sentence. Yes, it has one period
+        at the end.)\\n   Could be slightly tighter: The sky appears blue because
+        Earth's atmosphere scatters shorter blue wavelengths of sunlight more effectively
+        than longer red ones, and human eyes are more sensitive to blue light.\\n\\n
+        \  All good. Meets all criteria. Output matches response.\u2705\"},\"done\":true,\"done_reason\":\"stop\",\"total_duration\":3699126583,\"load_duration\":141507000,\"prompt_eval_count\":21,\"prompt_eval_duration\":59398000,\"eval_count\":369,\"eval_duration\":3484161000}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

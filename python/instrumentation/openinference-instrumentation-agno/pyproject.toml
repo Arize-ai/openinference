@@ -28,19 +28,20 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.51",
-  "openinference-semantic-conventions>=0.1.17",
+  "openinference-instrumentation>=0.1.71",
+  "openinference-semantic-conventions>=0.1.41",
   "wrapt",
   "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "agno>=2.5.0",
+  "agno>=2.7.2",
 ]
 test = [
-  "agno>=2.5.0",
+  "agno>=2.7.2",
   "opentelemetry-sdk",
+  "pytest-asyncio",
   "pytest-recording",
   "brotli",
   "openai",

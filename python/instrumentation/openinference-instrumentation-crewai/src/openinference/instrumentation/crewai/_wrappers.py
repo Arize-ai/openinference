@@ -21,14 +21,15 @@ from typing import (
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
+    OITracer,
     get_attributes_from_context,
     get_input_attributes,
     get_output_attributes,
     safe_json_dumps,
 )
+from openinference.instrumentation.crewai._types import AttributeValue
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -55,6 +56,20 @@ _flow_span_in_progress: contextvars.ContextVar[Optional[str]] = contextvars.Cont
 # span is active so that Flow spans don't double-wrap standalone agent calls.
 _agent_kickoff_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "_oi_agent_kickoff_active", default=False
+)
+
+# Holds the id() of the tool instance whose run span is currently open on this
+# context. A tool's ``run`` may delegate to ``BaseTool.run`` (e.g. via
+# ``super().run()``) and both are wrapped, which would emit two spans for the
+# one invocation. The inner wrapper skips span creation only when re-entered for
+# the *same* instance, so a tool whose body legitimately calls another tool's
+# ``run`` still gets its own span.
+#
+# Being a ContextVar, the guard is scoped to the running task/thread. If a tool's
+# run were dispatched to a different thread, the delegation would not be de-duped
+# there; the fallout is at worst one duplicate span, never a dropped one.
+_tool_run_instance: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar(
+    "_oi_tool_run_instance", default=None
 )
 
 
@@ -339,7 +354,7 @@ def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
 
 
 class _ExecuteCoreWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -428,7 +443,7 @@ class _ExecuteWithoutTimeoutContextDescriptor:
 
 
 class _CrewKickoffWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -531,7 +546,7 @@ class _FlowKickoffWrapper:
     duplicate span.
     """
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -596,7 +611,7 @@ class _FlowKickoffWrapper:
 
 
 class _FlowKickoffAsyncWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     async def __call__(
@@ -666,7 +681,7 @@ class _FlowExecuteMethodWrapper:
     so users can see which nodes ran, their outputs, and their timings.
     """
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     async def __call__(
@@ -718,7 +733,7 @@ class _AgentKickoffWrapper:
     Creates an AGENT span for standalone agent invocations (outside a Crew).
     """
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -772,7 +787,7 @@ class _AgentKickoffWrapper:
 
 
 class _LongTermMemorySaveWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -822,7 +837,7 @@ class _LongTermMemorySaveWrapper:
 
 
 class _LongTermMemorySearchWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -869,7 +884,7 @@ class _LongTermMemorySearchWrapper:
 
 
 class _ShortTermMemorySaveWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -911,7 +926,7 @@ class _ShortTermMemorySaveWrapper:
 
 
 class _ShortTermMemorySearchWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -970,7 +985,7 @@ class _ShortTermMemorySearchWrapper:
 
 
 class _BaseToolRunWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: OITracer | trace_api.Tracer) -> None:
         self._tracer = tracer
 
     def __call__(
@@ -982,6 +997,24 @@ class _BaseToolRunWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+        # Skip only a re-entrant run on the SAME instance (Tool.run delegating to
+        # a wrapped BaseTool.run), which would otherwise emit a duplicate span. A
+        # nested run on a different tool instance still gets its own span.
+        if _tool_run_instance.get() == id(instance):
+            return wrapped(*args, **kwargs)
+        token = _tool_run_instance.set(id(instance))
+        try:
+            return self._run_with_span(wrapped, instance, args, kwargs)
+        finally:
+            _tool_run_instance.reset(token)
+
+    def _run_with_span(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
         # Enhanced tool naming - use meaningful tool name instead of generic "BaseTool.run"
         span_name = _get_tool_span_name(instance, wrapped)
         input_value = _get_input_value(wrapped, *args, **kwargs)
@@ -999,8 +1032,17 @@ class _BaseToolRunWrapper:
             if hasattr(instance, "name") and instance.name:
                 span.set_attribute(SpanAttributes.TOOL_NAME, str(instance.name))
             # Used to tell the model how/when/why to use the tool.
-            if hasattr(instance, "description") and instance.description:
-                span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, str(instance.description))
+            # crewai >= 1.15 preserves the authored ``description`` verbatim and
+            # exposes the LLM-facing composite (tool name + argument schema +
+            # description) via the new ``formatted_description`` property. Older
+            # versions rewrote ``description`` into that composite at construction
+            # time. Prefer the composite when available so the recorded value stays
+            # consistent across crewai versions.
+            tool_description = getattr(instance, "formatted_description", None) or getattr(
+                instance, "description", None
+            )
+            if tool_description:
+                span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, str(tool_description))
             # The schema for the arguments that the tool accepts.
             if hasattr(instance, "args_schema") and instance.args_schema is not None:
                 try:

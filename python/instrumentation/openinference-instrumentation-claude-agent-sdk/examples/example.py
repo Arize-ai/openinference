@@ -2,8 +2,9 @@
 
 Requirements:
   - Set ANTHROPIC_API_KEY
-  - (Optional) PHOENIX_COLLECTOR_ENDPOINT for Phoenix Cloud
-    Default: http://127.0.0.1:6006/v1/traces (local Phoenix)
+  - (Optional) PHOENIX_COLLECTOR_ENDPOINT to point at a remote Phoenix
+    Default: http://127.0.0.1:6006/v1/traces (local Phoenix; start it first)
+  - (Optional) PHOENIX_API_KEY, sent as a bearer token; required when Phoenix has auth enabled
 """
 
 import asyncio
@@ -19,6 +20,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 
 PHOENIX_ENDPOINT = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", "http://127.0.0.1:6006/v1/traces")
+PHOENIX_API_KEY = os.environ.get("PHOENIX_API_KEY")
 
 _TASK_PROMPT = (
     "Use the Task tool to delegate a sub-agent. The sub-agent must use the Bash tool "
@@ -28,7 +30,10 @@ _TASK_PROMPT = (
 
 def _setup_tracing() -> tuple[trace_sdk.TracerProvider, InMemorySpanExporter]:
     tracer_provider = trace_sdk.TracerProvider()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(PHOENIX_ENDPOINT)))
+    headers = {"authorization": f"Bearer {PHOENIX_API_KEY}"} if PHOENIX_API_KEY else None
+    tracer_provider.add_span_processor(
+        SimpleSpanProcessor(OTLPSpanExporter(PHOENIX_ENDPOINT, headers=headers))
+    )
     memory_exporter = InMemorySpanExporter()
     tracer_provider.add_span_processor(SimpleSpanProcessor(memory_exporter))
     ClaudeAgentSDKInstrumentor().instrument(tracer_provider=tracer_provider)
@@ -60,7 +65,7 @@ async def main() -> None:
         print(f"- {span.name}")
         print(json.dumps(dict(span.attributes or {}), indent=2, sort_keys=True, default=str))
 
-    print("\nDone. View traces in Phoenix Cloud or at http://127.0.0.1:6006 (local).")
+    print(f"\nDone. View traces in Phoenix at {PHOENIX_ENDPOINT.removesuffix('/v1/traces')}")
 
 
 if __name__ == "__main__":

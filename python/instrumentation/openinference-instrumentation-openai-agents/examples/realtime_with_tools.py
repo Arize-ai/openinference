@@ -209,18 +209,21 @@ async def run(args: argparse.Namespace) -> None:
             stdin_task.cancel()
             await asyncio.gather(send_task, events_task, stdin_task, return_exceptions=True)
 
-        with sd.InputStream(
-            samplerate=SAMPLE_RATE,
-            channels=CHANNELS,
-            dtype="int16",
-            blocksize=MIC_CHUNK_FRAMES,
-            callback=_make_mic_callback(mic_queue, loop),
-        ), sd.OutputStream(
-            samplerate=SAMPLE_RATE,
-            channels=CHANNELS,
-            dtype="int16",
-            blocksize=MIC_CHUNK_FRAMES,
-            callback=_make_speaker_callback(speaker_buf),
+        with (
+            sd.InputStream(
+                samplerate=SAMPLE_RATE,
+                channels=CHANNELS,
+                dtype="int16",
+                blocksize=MIC_CHUNK_FRAMES,
+                callback=_make_mic_callback(mic_queue, loop),
+            ),
+            sd.OutputStream(
+                samplerate=SAMPLE_RATE,
+                channels=CHANNELS,
+                dtype="int16",
+                blocksize=MIC_CHUNK_FRAMES,
+                callback=_make_speaker_callback(speaker_buf),
+            ),
         ):
             await _wait_and_teardown()
 

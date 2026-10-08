@@ -32,7 +32,13 @@ import { ClaudeAgentSDKInstrumentation } from "@arizeai/openinference-instrument
 const instrumentation = new ClaudeAgentSDKInstrumentation({
   tracerProvider: provider,
 });
-instrumentation.manuallyInstrument(ClaudeAgentSDK);
+const instrumentedClaudeAgentSDK = instrumentation.manuallyInstrument(ClaudeAgentSDK);
+
+for await (const message of instrumentedClaudeAgentSDK.query({
+  prompt: "Write a haiku about telemetry.",
+})) {
+  console.log(message);
+}
 ```
 
 ### With trace configuration (mask sensitive data)

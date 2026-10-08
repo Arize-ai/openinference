@@ -119,7 +119,7 @@ export function getPromptTemplate(context: Context): Partial<PromptTemplate> | u
   }
 
   if (Object.keys(attributes).length === 0) {
-    return;
+    return undefined;
   }
 
   return attributes;
@@ -160,6 +160,7 @@ export function getSession(context: Context): Session | undefined {
   if (typeof maybeSessionId === "string") {
     return { sessionId: maybeSessionId };
   }
+  return undefined;
 }
 
 /**
@@ -204,6 +205,7 @@ export function getMetadata(context: Context): Metadata | undefined {
     const parsedMetadata = safelyJSONParse(maybeMetadata);
     return isObjectWithStringKeys(parsedMetadata) ? parsedMetadata : undefined;
   }
+  return undefined;
 }
 
 /**
@@ -246,6 +248,7 @@ export function getUser(context: Context): User | undefined {
   if (typeof maybeUserId === "string") {
     return { userId: maybeUserId };
   }
+  return undefined;
 }
 
 /**
@@ -289,6 +292,7 @@ export function getTags(context: Context): Tags | undefined {
     const parsedTags = safelyJSONParse(maybeTags);
     return isStringArray(parsedTags) ? parsedTags : undefined;
   }
+  return undefined;
 }
 
 /**
@@ -332,6 +336,7 @@ export function getAttributes(context: Context): Attributes | undefined {
     const parsedAttributes = safelyJSONParse(maybeAttributes);
     return isAttributes(parsedAttributes) ? parsedAttributes : undefined;
   }
+  return undefined;
 }
 
 /**

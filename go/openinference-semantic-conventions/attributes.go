@@ -2,6 +2,15 @@ package semconv
 
 // Span-level attributes — set on the span representing the operation.
 const (
+	// Feedback collection prefixes. Use the indexer helpers to build flattened
+	// span-, trace-, and session-scoped attribute keys.
+	Annotations        = "annotations"
+	Evaluations        = "evaluations"
+	TraceAnnotations   = "trace.annotations"
+	TraceEvaluations   = "trace.evaluations"
+	SessionAnnotations = "session.annotations"
+	SessionEvaluations = "session.evaluations"
+
 	// OpenInferenceSpanKind classifies the span (LLM, CHAIN, TOOL, etc.).
 	// Use the SpanKind* constants below as the value.
 	OpenInferenceSpanKind = "openinference.span.kind"
@@ -10,11 +19,17 @@ const (
 	// set InputMimeType to "application/json" if the value is a JSON string.
 	InputValue    = "input.value"
 	InputMimeType = "input.mime_type"
+	// InputImages is the span-kind-independent list of input images,
+	// flattened with indexed prefixes (e.g. "input.images.0.image.url").
+	InputImages = "input.images"
 
 	// OutputValue is the output of the operation. Plain string by default;
 	// set OutputMimeType to "application/json" if the value is a JSON string.
 	OutputValue    = "output.value"
 	OutputMimeType = "output.mime_type"
+	// OutputImages is the span-kind-independent list of output images,
+	// flattened with indexed prefixes (e.g. "output.images.0.image.url").
+	OutputImages = "output.images"
 
 	// Metadata is a JSON-encoded map of user-defined key-value pairs.
 	Metadata = "metadata"
@@ -38,9 +53,39 @@ const (
 	GraphNodeParentID = "graph.node.parent_id"
 )
 
+// Feedback object attributes — nested under Annotations or Evaluations.
+const (
+	AnnotationName          = "annotation.name"
+	AnnotationScore         = "annotation.score"
+	AnnotationLabel         = "annotation.label"
+	AnnotationExplanation   = "annotation.explanation"
+	AnnotationAnnotatorKind = "annotation.annotator_kind"
+	AnnotationIdentifier    = "annotation.identifier"
+	AnnotationMetadata      = "annotation.metadata"
+
+	EvaluationName          = "evaluation.name"
+	EvaluationScore         = "evaluation.score"
+	EvaluationLabel         = "evaluation.label"
+	EvaluationExplanation   = "evaluation.explanation"
+	EvaluationAnnotatorKind = "evaluation.annotator_kind"
+	EvaluationIdentifier    = "evaluation.identifier"
+	EvaluationMetadata      = "evaluation.metadata"
+)
+
 // LLM-span attributes — set when the span represents an LLM API call.
 const (
-	LLMModelName            = "llm.model_name"
+	LLMModelName = "llm.model_name"
+
+	// LLMRequestModelName is the model requested by the caller, as sent in the
+	// request. May differ from LLMResponseModelName when the provider routes
+	// the request to a different model (e.g. classifier-triggered fallback).
+	LLMRequestModelName = "llm.request.model_name"
+
+	// LLMResponseModelName is the model that actually generated the response,
+	// as reported by the provider. May differ from LLMRequestModelName when
+	// the provider routes the request to a different model.
+	LLMResponseModelName = "llm.response.model_name"
+
 	LLMProvider             = "llm.provider"
 	LLMSystem               = "llm.system"
 	LLMInvocationParameters = "llm.invocation_parameters"
@@ -63,6 +108,56 @@ const (
 	LLMPromptTemplateVersion   = "llm.prompt_template.version"
 
 	LLMTools = "llm.tools"
+)
+
+// Decision-span attributes — set when the span represents a call to a
+// decision model (SpanKindDecision): a model that takes state plus typed
+// questions and returns a typed, probabilistic answer per question instead
+// of generated text. These mirror the llm.* identification attributes and
+// share their well-known values. See
+// https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md
+// for the convention and the decision model families it covers.
+const (
+	// DecisionModelName is the name of the decision model being used.
+	DecisionModelName = "decision.model_name"
+
+	// DecisionRequestModelName is the decision model requested by the caller,
+	// as sent in the request. May differ from DecisionResponseModelName when
+	// the provider resolves an alias (e.g. jev-latest) or routes the request.
+	DecisionRequestModelName = "decision.request.model_name"
+
+	// DecisionResponseModelName is the decision model that actually produced
+	// the response, as reported by the provider.
+	DecisionResponseModelName = "decision.response.model_name"
+
+	// DecisionProvider is the hosting provider of the decision model: who runs
+	// the hardware that answered (e.g. "typesafe" when calling TypeSafe
+	// directly, or the cloud or self-hosting provider for a model served
+	// elsewhere). Distinct from DecisionSystem, which names the API shape.
+	// Well-known values are the DecisionProvider* constants, which alias the
+	// matching LLMProvider* constants.
+	DecisionProvider = "decision.provider"
+
+	// DecisionSystem is the decision API ecosystem the call conforms to, i.e.
+	// which request and response shape the client speaks, as identified by
+	// the client or server: "typesafe" for the TypeSafe System One / Jev API,
+	// "openai" for the OpenAI Decisions API. A self-hosted vLLM server
+	// answering the Jev-compatible /v1/systemone shape is still "typesafe".
+	// Distinct from DecisionProvider, which says who hosts the model.
+	// Well-known values are the DecisionSystem* constants, which alias the
+	// matching LLMSystem* constants.
+	DecisionSystem = "decision.system"
+
+	// DecisionTokenCountInput is the number of input tokens consumed by a
+	// decision model call: the state, questions, and candidate options. Maps
+	// to usage.input_tokens in TypeSafe System One responses.
+	DecisionTokenCountInput = "decision.token_count.input"
+
+	// DecisionTokenCountOutput is the number of output tokens produced by a
+	// decision model call. Decision models emit typed answers rather than
+	// text, so this is typically small. Maps to usage.output_tokens in
+	// TypeSafe System One responses.
+	DecisionTokenCountOutput = "decision.token_count.output"
 )
 
 // Token-count attributes for LLM spans. Values are integer counts of tokens.
@@ -153,7 +248,7 @@ const (
 
 // Message-content attributes — for the contents array on a message.
 //
-// MessageContentType values include "text", "image", "audio", "reasoning",
+// MessageContentType values include "text", "image", "audio", "video", "reasoning",
 // and "tool_use". MessageContentID captures provider-assigned content ids such
 // as OpenAI ResponseReasoningItem.id. MessageContentSignature, MessageContentData,
 // and MessageContentEncryptedContent capture opaque provider reasoning-continuity
@@ -162,13 +257,15 @@ const (
 	MessageContentType             = "message_content.type"
 	MessageContentText             = "message_content.text"
 	MessageContentImage            = "message_content.image"
+	MessageContentAudio            = "message_content.audio"
+	MessageContentVideo            = "message_content.video"
 	MessageContentID               = "message_content.id"
 	MessageContentSignature        = "message_content.signature"
 	MessageContentData             = "message_content.data"
 	MessageContentEncryptedContent = "message_content.encrypted_content"
 )
 
-// Image attributes — nested under MessageContentImage.
+// Image attributes — nested under MessageContentImage, InputImages or OutputImages.
 const (
 	ImageURL = "image.url"
 )
@@ -178,6 +275,11 @@ const (
 	AudioURL        = "audio.url"
 	AudioMimeType   = "audio.mime_type"
 	AudioTranscript = "audio.transcript"
+)
+
+// Video attributes. Nested under MessageContentVideo.
+const (
+	VideoURL = "video.url"
 )
 
 // Document attributes — nested under RetrievalDocuments.{i}.

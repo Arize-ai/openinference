@@ -45,6 +45,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_short_term_memory_save",
         "_original_short_term_memory_search",
         "_original_base_tool_run",
+        "_original_tool_run",
         "_original_agent_kickoff",
         "_tracer",
         "_event_listener",
@@ -121,7 +122,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
-        execute_core_wrapper = _ExecuteCoreWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+        execute_core_wrapper = _ExecuteCoreWrapper(tracer=self._tracer)
         self._original_execute_core = getattr(import_module("crewai").Task, "_execute_core", None)
         wrap_function_wrapper(
             "crewai",
@@ -129,7 +130,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             execute_core_wrapper,
         )
 
-        crew_kickoff_wrapper = _CrewKickoffWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+        crew_kickoff_wrapper = _CrewKickoffWrapper(tracer=self._tracer)
         self._original_crew_kickoff = getattr(import_module("crewai").Crew, "kickoff", None)
         wrap_function_wrapper(
             "crewai",
@@ -137,7 +138,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             crew_kickoff_wrapper,
         )
 
-        flow_kickoff_wrapper = _FlowKickoffWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+        flow_kickoff_wrapper = _FlowKickoffWrapper(tracer=self._tracer)
         self._original_flow_kickoff = getattr(import_module("crewai").Flow, "kickoff", None)
         wrap_function_wrapper(
             "crewai",
@@ -145,7 +146,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             flow_kickoff_wrapper,
         )
 
-        flow_kickoff_async_wrapper = _FlowKickoffAsyncWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+        flow_kickoff_async_wrapper = _FlowKickoffAsyncWrapper(tracer=self._tracer)
         self._original_flow_kickoff_async = getattr(
             import_module("crewai").Flow, "kickoff_async", None
         )
@@ -155,7 +156,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             flow_kickoff_async_wrapper,
         )
 
-        flow_execute_method_wrapper = _FlowExecuteMethodWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+        flow_execute_method_wrapper = _FlowExecuteMethodWrapper(tracer=self._tracer)
         self._original_flow_execute_method = getattr(
             import_module("crewai.flow.flow").Flow, "_execute_method", None
         )
@@ -166,7 +167,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
                 flow_execute_method_wrapper,
             )
 
-        agent_kickoff_wrapper = _AgentKickoffWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+        agent_kickoff_wrapper = _AgentKickoffWrapper(tracer=self._tracer)
         self._original_agent_kickoff = getattr(import_module("crewai").Agent, "kickoff", None)
         if self._original_agent_kickoff is not None:
             wrap_function_wrapper(
@@ -182,8 +183,8 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_long_term_memory_save = None
             self._original_long_term_memory_search = None
         else:
-            long_term_memory_save_wrapper = _LongTermMemorySaveWrapper(tracer=self._tracer)  # type: ignore[arg-type]
-            long_term_memory_search_wrapper = _LongTermMemorySearchWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+            long_term_memory_save_wrapper = _LongTermMemorySaveWrapper(tracer=self._tracer)
+            long_term_memory_search_wrapper = _LongTermMemorySearchWrapper(tracer=self._tracer)
             self._original_long_term_memory_save = getattr(
                 long_term_memory_module.LongTermMemory, "save", None
             )
@@ -208,8 +209,8 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_short_term_memory_save = None
             self._original_short_term_memory_search = None
         else:
-            short_term_memory_save_wrapper = _ShortTermMemorySaveWrapper(tracer=self._tracer)  # type: ignore[arg-type]
-            short_term_memory_search_wrapper = _ShortTermMemorySearchWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+            short_term_memory_save_wrapper = _ShortTermMemorySaveWrapper(tracer=self._tracer)
+            short_term_memory_search_wrapper = _ShortTermMemorySearchWrapper(tracer=self._tracer)
             self._original_short_term_memory_save = getattr(
                 short_term_memory_module.ShortTermMemory, "save", None
             )
@@ -227,7 +228,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
                 short_term_memory_search_wrapper,
             )
 
-        base_tool_run_wrapper = _BaseToolRunWrapper(tracer=self._tracer)  # type: ignore[arg-type]
+        base_tool_run_wrapper = _BaseToolRunWrapper(tracer=self._tracer)
         self._original_base_tool_run = getattr(
             import_module("crewai.tools.base_tool").BaseTool, "run", None
         )
@@ -236,6 +237,26 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             "BaseTool.run",
             base_tool_run_wrapper,
         )
+
+        # The ``@tool`` decorator (and crewai's native tool-calling loop) executes
+        # tools via ``Tool.run``, not ``BaseTool.run``: crewai registers the bound
+        # ``tool.run`` as the callable in ``available_functions`` (see
+        # crewai.utilities.agent_utils), and ``Tool`` overrides ``run`` without
+        # calling ``super().run()``. Wrapping only ``BaseTool.run`` therefore misses
+        # every ``@tool`` invocation. Wrap ``Tool.run`` as well when the subclass
+        # actually overrides it (guarded so we don't double-wrap the inherited
+        # method on crewai versions where ``Tool`` doesn't override ``run``).
+        base_tool_module = import_module("crewai.tools.base_tool")
+        tool_cls = getattr(base_tool_module, "Tool", None)
+        self._original_tool_run = None
+        if tool_cls is not None and "run" in tool_cls.__dict__:
+            tool_run_wrapper = _BaseToolRunWrapper(tracer=self._tracer)
+            self._original_tool_run = tool_cls.__dict__["run"]
+            wrap_function_wrapper(
+                "crewai.tools.base_tool",
+                "Tool.run",
+                tool_run_wrapper,
+            )
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if getattr(self, "_event_listener", None) is not None:
@@ -298,5 +319,10 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             base_tool_module = import_module("crewai.tools.base_tool")
             base_tool_module.BaseTool.run = self._original_base_tool_run
             self._original_base_tool_run = None
+
+        if getattr(self, "_original_tool_run", None) is not None:
+            base_tool_module = import_module("crewai.tools.base_tool")
+            base_tool_module.Tool.run = self._original_tool_run
+            self._original_tool_run = None
 
         self._restore_context_thread_propagation()
