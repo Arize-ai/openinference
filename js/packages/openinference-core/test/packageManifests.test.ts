@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,8 @@ const packagesDir = join(process.cwd(), "..");
 
 const manifests = readdirSync(packagesDir, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
+  // Skip leftover directories (e.g. stale build output) that aren't packages.
+  .filter((entry) => existsSync(join(packagesDir, entry.name, "package.json")))
   .map((entry) => {
     const pkg = JSON.parse(readFileSync(join(packagesDir, entry.name, "package.json"), "utf8")) as {
       name: string;
