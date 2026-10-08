@@ -2,6 +2,8 @@ import { createReadStream, mkdtempSync, rmdirSync, unlinkSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { context } from "@opentelemetry/api";
+import { suppressTracing } from "@opentelemetry/core";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import OpenAI, { APIPromise } from "openai";
@@ -9,7 +11,7 @@ import type { ImageGenStreamEvent, ImagesResponse } from "openai/resources/image
 import { Stream } from "openai/streaming";
 import { vi } from "vitest";
 
-import { generateTraceConfig } from "@arizeai/openinference-core";
+import { generateTraceConfig, REDACTED_VALUE } from "@arizeai/openinference-core";
 
 import { OpenAIInstrumentation } from "../src";
 import { getInputImageAttributes } from "../src/imageAttributes";
@@ -19,6 +21,7 @@ describe("OpenAIInstrumentation - Images", () => {
   const tracerProvider = new NodeTracerProvider({
     spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
   });
+  tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation({ tracerProvider });
   let openai: OpenAI;
 
@@ -63,9 +66,31 @@ describe("OpenAIInstrumentation - Images", () => {
       "request failed",
     );
 
+    await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span.status.code).toBe(2);
     expect(span.status.message).toBe("request failed");
+  });
+
+  it("records input images when an edit request is rejected", async () => {
+    // @ts-expect-error test rejection does not need to model APIPromise internals.
+    vi.spyOn(openai, "post").mockImplementation(async () => {
+      throw new Error("request failed");
+    });
+    const image = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "source.png", {
+      type: "image/png",
+    });
+
+    await expect(openai.images.edit({ image, prompt: "remove the background" })).rejects.toThrow(
+      "request failed",
+    );
+
+    await vi.waitFor(() => expect(memoryExporter.getFinishedSpans()).toHaveLength(1));
+    const span = memoryExporter.getFinishedSpans()[0];
+    expect(span.status.code).toBe(2);
+    expect(span.attributes["input.images.0.image.url"]).toBe(
+      `data:image/png;base64,${Buffer.from(await image.arrayBuffer()).toString("base64")}`,
+    );
   });
 
   describe("over a real APIPromise", () => {
@@ -175,6 +200,34 @@ describe("OpenAIInstrumentation - Images", () => {
       ).resolves.toEqual({});
     }
     expect(arrayBufferSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not read uploads when tracing is suppressed", async () => {
+    const response = { created: 1, data: [] } satisfies ImagesResponse;
+    vi.spyOn(openai, "post").mockImplementation(
+      // @ts-expect-error return only needs to model the parsed SDK response.
+      async () => response,
+    );
+    const image = new File([new Uint8Array(128)], "source.png", { type: "image/png" });
+    // The SDK reads the upload itself to build the multipart body, so check encoding instead.
+    const btoaSpy = vi.spyOn(globalThis, "btoa");
+
+    await context.with(suppressTracing(context.active()), () =>
+      openai.images.createVariation({ image }),
+    );
+
+    expect(btoaSpy).not.toHaveBeenCalled();
+    expect(memoryExporter.getFinishedSpans()).toHaveLength(0);
+  });
+
+  it("redacts uploads longer than base64ImageMaxLength without encoding them", async () => {
+    const image = new File([new Uint8Array(128)], "source.png", { type: "image/png" });
+    const btoaSpy = vi.spyOn(globalThis, "btoa");
+
+    await expect(
+      getInputImageAttributes([image], generateTraceConfig({ base64ImageMaxLength: 64 })),
+    ).resolves.toEqual({ "input.images.0.image.url": REDACTED_VALUE });
+    expect(btoaSpy).not.toHaveBeenCalled();
   });
 
   it("captures a Node file stream without consuming the upload", async () => {

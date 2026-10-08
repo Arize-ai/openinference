@@ -5,7 +5,11 @@ import type {
   ImagesResponse,
 } from "openai/resources/images";
 
-import type { TraceConfigOptions } from "@arizeai/openinference-core";
+import {
+  generateTraceConfig,
+  REDACTED_VALUE,
+  type TraceConfigOptions,
+} from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 function imageAttributeKey(namespace: string, index: number): string {
@@ -100,7 +104,10 @@ export function getCompletedImageEventAttributes(
   };
 }
 
-async function uploadToDataURL(upload: unknown): Promise<string | undefined> {
+async function uploadToDataURL(
+  upload: unknown,
+  base64ImageMaxLength: number,
+): Promise<string | undefined> {
   try {
     let bytes: Uint8Array;
     let declaredMediaType: string | undefined;
@@ -133,7 +140,12 @@ async function uploadToDataURL(upload: unknown): Promise<string | undefined> {
       sniffImageMediaType(bytes) ??
       mediaTypeFromFilename(filename) ??
       "image/png";
-    return `data:${mediaType};base64,${bytesToBase64(bytes)}`;
+    const prefix = `data:${mediaType};base64,`;
+    // Masking would redact the data URL anyway, so skip encoding oversized uploads.
+    if (prefix.length + Math.ceil(bytes.length / 3) * 4 > base64ImageMaxLength) {
+      return REDACTED_VALUE;
+    }
+    return `${prefix}${bytesToBase64(bytes)}`;
   } catch {
     return undefined;
   }
@@ -141,11 +153,14 @@ async function uploadToDataURL(upload: unknown): Promise<string | undefined> {
 
 export async function getInputImageAttributes(
   uploads: ReadonlyArray<unknown>,
-  traceConfig: TraceConfigOptions = {},
+  traceConfigOptions: TraceConfigOptions = {},
 ): Promise<Attributes> {
+  const traceConfig = generateTraceConfig(traceConfigOptions);
   if (traceConfig.hideInputs || traceConfig.hideInputImages) return {};
   const flattenedUploads = uploads.flatMap((upload) => (Array.isArray(upload) ? upload : [upload]));
-  const dataURLs = await Promise.all(flattenedUploads.map(uploadToDataURL));
+  const dataURLs = await Promise.all(
+    flattenedUploads.map((upload) => uploadToDataURL(upload, traceConfig.base64ImageMaxLength)),
+  );
   const attributes: Attributes = {};
   let imageIndex = 0;
   for (const dataURL of dataURLs) {
