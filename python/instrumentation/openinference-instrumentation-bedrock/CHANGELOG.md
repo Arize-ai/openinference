@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.57...python-openinference-instrumentation-bedrock-v0.1.58) (2026-10-08)
+
+
+### Bug Fixes
+
+* **bedrock:** record every toolResult block of a Converse message ([#3787](https://github.com/Arize-ai/openinference/issues/3787)) ([be777f6](https://github.com/Arize-ai/openinference/commit/be777f681f6a6216e1db40e19918d3ac14af7d30))
+
 ## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.56...python-openinference-instrumentation-bedrock-v0.1.57) (2026-10-07)
 
 
