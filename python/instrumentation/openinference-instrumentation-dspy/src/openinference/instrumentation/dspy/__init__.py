@@ -22,7 +22,6 @@ import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import StatusCode
-from opentelemetry.util.types import AttributeValue
 from wrapt import BoundFunctionWrapper, FunctionWrapper, apply_patch, resolve_path, wrap_object
 
 from openinference.instrumentation import (
@@ -31,6 +30,7 @@ from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
 )
+from openinference.instrumentation.dspy._types import AttributeValue
 from openinference.instrumentation.dspy.package import _instruments
 from openinference.instrumentation.dspy.version import __version__
 from openinference.semconv.trace import (

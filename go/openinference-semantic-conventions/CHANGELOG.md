@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.10...go/openinference-semantic-conventions/v0.1.11) (2026-10-01)
+
+
+### Features
+
+* **semconv:** add decision model attributes ([#3900](https://github.com/Arize-ai/openinference/issues/3900)) ([53b7a0e](https://github.com/Arize-ai/openinference/commit/53b7a0e2c7b0dd2622a9390a124e737ea7d50759))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.9...go/openinference-semantic-conventions/v0.1.10) (2026-10-01)
+
+
+### Features
+
+* **semconv:** add DECISION span kind ([#3825](https://github.com/Arize-ai/openinference/issues/3825)) ([a1f276c](https://github.com/Arize-ai/openinference/commit/a1f276cdbe16ceed207973b461074410846a4cfc))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/go/openinference-semantic-conventions/v0.1.8...go/openinference-semantic-conventions/v0.1.9) (2026-09-24)
 
 

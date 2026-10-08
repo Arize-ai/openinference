@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import gc
 import json
 import struct
 from contextlib import asynccontextmanager, contextmanager
@@ -414,7 +415,7 @@ def test_context_attributes_propagation(
     assert attrs[SpanAttributes.SESSION_ID] == "my-session"
     assert attrs[SpanAttributes.USER_ID] == "my-user"
     assert json.loads(str(attrs[SpanAttributes.METADATA])) == {"env": "test"}
-    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+    assert list(attrs[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]
 
 
 def test_trace_config_masking(
@@ -734,6 +735,101 @@ def test_chat_stream_span_is_open_until_consumed(
 
     list(stream)
     assert len(in_memory_span_exporter.get_finished_spans()) == 1
+
+
+def test_chat_stream_abandoned_before_iteration(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"role": "assistant"}'
+
+
+def test_chat_stream_abandoned_after_partial_iteration(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    next(iter(stream))
+    del stream
+    gc.collect()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"role": "assistant"}'
+
+
+def test_chat_stream_explicit_close(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(RawV2Client, "chat_stream", _raw_stream(_stream_events()))
+
+    stream = _client().chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    stream_iterator = iter(stream)
+    # Consume message-start, content-start, and first content-delta
+    for _ in range(3):
+        next(stream_iterator)
+    stream.close()  # type: ignore[attr-defined]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "ClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == "The sky is blue "
+
+
+async def test_async_chat_stream_explicit_aclose(
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(AsyncRawV2Client, "chat_stream", _raw_async_stream(_stream_events()))
+
+    client = cohere.AsyncClientV2(api_key="fake-key")
+    stream = client.chat_stream(
+        model="command-a-03-2025",
+        messages=[_user_message("Why is the sky blue?")],
+    )
+    await stream.aclose()  # type: ignore[attr-defined]
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attrs = dict(span.attributes or {})
+    assert span.name == "AsyncClientV2.chat_stream"
+    assert span.status.status_code == StatusCode.UNSET
+    assert attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+    assert attrs[SpanAttributes.OUTPUT_VALUE] == '{"role": "assistant"}'
 
 
 def test_chat_stream_with_tool_calls(
@@ -1246,7 +1342,7 @@ def test_rerank(
     assert attrs.pop(SpanAttributes.SESSION_ID) == "rerank-session"
     assert attrs.pop(SpanAttributes.USER_ID) == "rerank-user"
     assert json.loads(str(attrs.pop(SpanAttributes.METADATA))) == {"env": "test"}
-    assert list(attrs.pop(SpanAttributes.TAG_TAGS)) == ["rerank"]  # type: ignore[arg-type]
+    assert list(attrs.pop(SpanAttributes.TAG_TAGS)) == ["rerank"]
     assert not attrs
 
 

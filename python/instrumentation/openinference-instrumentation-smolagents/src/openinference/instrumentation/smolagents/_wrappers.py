@@ -7,7 +7,6 @@ from urllib.parse import urlparse
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.util.types import AttributeValue
 
 import openinference.instrumentation as oi
 from openinference.instrumentation import (
@@ -16,6 +15,7 @@ from openinference.instrumentation import (
     infer_llm_system_from_model_name,
     safe_json_dumps,
 )
+from openinference.instrumentation.smolagents._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,

@@ -28,10 +28,38 @@ check, including when a new major version becomes available.
 
 OpenAI 3 uses `httpx2` as its default HTTP transport. `OpenAIInstrumentor` wraps
 the SDK request methods and supports this transport without application changes.
-Chat Completions, Completions, Embeddings, and Responses are tested with sync and
-async clients, including streaming where the API supports it. OpenInference spans
-are independent of HTTP transport spans: `opentelemetry-instrumentation-httpx`
-does not instrument the SDK's default `httpx2` client in normal application use.
+Chat Completions, Completions, Embeddings, Responses, Images, and Decisions are
+tested with sync and async clients, including streaming where the API supports it.
+OpenInference spans are independent of HTTP transport spans:
+`opentelemetry-instrumentation-httpx` does not instrument the SDK's default `httpx2`
+client in normal application use.
+
+### Decisions API
+
+Calls to the [Decisions API](https://developers.openai.com/api/docs/guides/decisions)
+(`client.decisions.create`, `openai>=3.26.0`) are recorded as `DECISION` spans
+following the [decision span conventions](https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md).
+A decision model answers a fixed set of typed questions (`predicate`, `choice`,
+`score`) about the input rather than generating text, so the span identifies the
+model under `decision.*` instead of `llm.*` and carries no `llm.*` attributes:
+
+| Attribute                        | Value                                                       |
+| -------------------------------- | ----------------------------------------------------------- |
+| `openinference.span.kind`        | `DECISION`                                                  |
+| `decision.system`                | `openai`                                                    |
+| `decision.provider`              | Inferred from the client host, e.g. `openai` or `azure`     |
+| `decision.request.model_name`    | The `model` sent in the request                             |
+| `decision.response.model_name`   | The `model` reported in the response                        |
+| `decision.model_name`            | The response model, falling back to the requested model     |
+| `decision.token_count.input`     | `usage.input_tokens`                                        |
+| `decision.token_count.output`    | `usage.output_tokens`                                       |
+| `input.value` / `input.mime_type`   | The request body (input, questions, model) as JSON       |
+| `output.value` / `output.mime_type` | The response body (answers, model, usage) as JSON        |
+
+The request and the answers live only in `input.value` and `output.value`, so the
+`hide_inputs` and `hide_outputs` trace configuration flags redact them completely, and
+`hide_input_images` / `base64_image_max_length` apply to inline images in the input.
+See [`examples/decisions.py`](./examples/decisions.py) for a runnable example.
 
 ## Development and testing
 

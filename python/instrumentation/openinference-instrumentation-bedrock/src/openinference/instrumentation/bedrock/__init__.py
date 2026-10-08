@@ -36,6 +36,7 @@ Edge cases and limitations:
 import io
 import json
 import logging
+import weakref
 from functools import wraps
 from importlib import import_module
 from inspect import signature
@@ -58,7 +59,6 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Status, StatusCode, Tracer
-from opentelemetry.util.types import AttributeValue
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import (
@@ -76,6 +76,7 @@ from openinference.instrumentation.bedrock._rag_wrappers import (
     _retrieve_and_generate_wrapper,
     _retrieve_wrapper,
 )
+from openinference.instrumentation.bedrock._types import AttributeValue
 from openinference.instrumentation.bedrock._wrappers import (
     _apply_guardrail_wrapper,
     _ConverseStream,
@@ -263,6 +264,23 @@ class _LazyAsyncInvokeModelBody:
 # -----------------------------------------------------------------------------
 
 
+# clients whose methods were replaced, so uninstrument() can restore them (#3969)
+_instrumented_clients: "weakref.WeakSet[Any]" = weakref.WeakSet()
+
+
+def _restore_client_methods(client: Any) -> None:
+    """
+    Drop instance-level wrappers so class methods are used again.
+
+    Keep ``_unwrapped_*`` backups: wrappers look those up at call time, so deleting
+    them can AttributeError into user code for a saved method alias or in-flight call.
+    """
+    for name in [n for n in vars(client) if n.startswith("_unwrapped_")]:
+        public = name.removeprefix("_unwrapped_")
+        if public in vars(client):
+            delattr(client, public)
+
+
 def _instrument_client(
     client: Any, bound_arguments: Any, tracer: Tracer, module_version: str, is_async: bool
 ) -> BaseClient:
@@ -272,6 +290,7 @@ def _instrument_client(
     Dispatches by service_name (bedrock-agent-runtime vs bedrock-runtime) and
     for bedrock-runtime uses is_async to choose sync vs async invoke_model wrapper.
     """
+    instrumented = False
     # --- bedrock-agent-runtime: agents and RAG ---
     if bound_arguments.arguments.get("service_name") == "bedrock-agent-runtime":
         client = cast(InstrumentedClient, client)
@@ -294,6 +313,7 @@ def _instrument_client(
         client.retrieve_and_generate_stream = _RetrieveAndGenerateStream(tracer)(
             client.retrieve_and_generate_stream
         )
+        instrumented = True
 
     # --- bedrock-runtime: invoke_model, streaming, converse ---
     if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
@@ -323,7 +343,14 @@ def _instrument_client(
             client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
         client._unwrapped_apply_guardrail = client.apply_guardrail
         client.apply_guardrail = _apply_guardrail_wrapper(tracer)(client)
+        instrumented = True
 
+    if instrumented:
+        try:
+            _instrumented_clients.add(client)
+        except TypeError:
+            # Rare non-weakrefable client; skip tracking rather than break construction.
+            logger.exception("Failed to track instrumented Bedrock client for uninstrument")
     return client
 
 
@@ -639,10 +666,21 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_aio_client_creator = None
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        """Restore original create_client implementations."""
+        """Restore per-client wrappers, then original create_client implementations."""
+        # Restore tracked clients before nulling creators so a restore failure cannot leave
+        # ClientCreator.create_client as None on a subsequent uninstrument().
+        for client in list(_instrumented_clients):
+            try:
+                _restore_client_methods(client)
+            except Exception:
+                logger.exception("Failed to restore instrumented Bedrock client methods")
+            finally:
+                _instrumented_clients.discard(client)
+
         boto = import_module(_MODULE)
-        boto.ClientCreator.create_client = self._original_client_creator
-        self._original_client_creator = None
+        if self._original_client_creator is not None:
+            boto.ClientCreator.create_client = self._original_client_creator
+            self._original_client_creator = None
         try:
             aioboto = import_module(_AIO_MODULE)
             # Only restore if we actually patched it; _original_aio_client_creator is None when

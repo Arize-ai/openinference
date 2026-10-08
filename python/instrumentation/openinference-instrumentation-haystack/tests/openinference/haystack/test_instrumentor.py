@@ -57,6 +57,13 @@ except ImportError:
 
 _ASYNC_PIPELINE_NAME = AsyncPipeline.__name__
 
+
+def _span_attributes(span: Any) -> Dict[str, Any]:
+    # opentelemetry-api 1.45 types these values as AnyValue, which mypy will not
+    # iterate or compare. Tests only need the runtime mapping.
+    return dict(span.attributes or {})
+
+
 # The non-chat `OpenAIGenerator` was removed from haystack-ai in 3.0.0 (only chat generators
 # remain). Guard the import so the pinned env (haystack-ai < 3.0) still exercises these tests
 # while the latest env skips the OpenAIGenerator-specific ones.
@@ -132,7 +139,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert span.status.is_ok
     assert not span.events
     assert span.name == "ChatPromptBuilder.run"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -144,7 +151,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert span.status.is_ok
     assert not span.events
     assert span.name == "OpenAIChatGenerator.run_async"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -180,7 +187,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert span.status.is_ok
     assert not span.events
     assert span.name == f"{_ASYNC_PIPELINE_NAME}.run_async_generator"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -191,7 +198,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert span.status.is_ok
     assert not span.events
     assert span.name == f"{_ASYNC_PIPELINE_NAME}.run_async"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -232,7 +239,7 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     assert span.status.is_ok
     assert not span.events
     assert span.name == "ChatPromptBuilder.run"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -244,7 +251,7 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     assert span.status.is_ok
     assert not span.events
     assert span.name == "OpenAIChatGenerator.run"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -280,7 +287,7 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     assert span.status.is_ok
     assert not span.events
     assert span.name == "Pipeline.run"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == CHAIN
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -442,7 +449,7 @@ def test_tool_calling_llm_span_has_expected_attributes(
     assert span.name == "OpenAIChatGenerator.run"
     assert span.status.is_ok
     assert not span.events
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
@@ -546,7 +553,7 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     assert span.name == generator_span_name
     assert span.status.is_ok
     assert not span.events
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
@@ -632,7 +639,7 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     assert span.status.is_ok
     assert not span.events
     assert span.name == "OpenAIChatGenerator.run"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
@@ -706,7 +713,7 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert span.status.is_ok
     assert not span.events
     assert span.name == "OpenAIChatGenerator.run_async"
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
@@ -770,7 +777,7 @@ def test_openai_generator_llm_span_has_expected_attributes(
     assert span.name == "OpenAIGenerator.run"
     assert span.status.is_ok
     assert not span.events
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -859,7 +866,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     assert span.name == "PromptBuilder.run"
     assert span.status.is_ok
     assert not span.events
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -915,7 +922,7 @@ def test_cohere_reranker_span_has_expected_attributes(
     assert span.name == "CohereRanker.run"
     assert span.status.is_ok
     assert not span.events
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RERANKER
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -981,7 +988,7 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     assert span.name == "SerperDevWebSearch.run"
     assert span.status.is_ok
     assert not span.events
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == RETRIEVER
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -1043,7 +1050,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     assert span.name == "CreateEmbeddings"
     assert span.status.is_ok
     assert not span.events
-    attributes = dict(span.attributes or {})
+    attributes = _span_attributes(span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
@@ -1127,7 +1134,7 @@ def test_error_status_code_and_exception_events_with_invalid_api_key(
         assert len(span.events) == 1
         event = span.events[0]
         assert event.name == "exception"
-        event_attributes = dict(event.attributes or {})
+        event_attributes = _span_attributes(event)
         assert isinstance(exception_message := event_attributes["exception.message"], str)
         assert "401" in exception_message
         assert "api key" in exception_message.lower()
@@ -1163,7 +1170,7 @@ def test_pipeline_and_component_spans_contain_context_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     for span in spans:
-        attributes = dict(span.attributes or {})
+        attributes = _span_attributes(span)
         assert attributes.get(SESSION_ID, "session-id")
         assert attributes.get(USER_ID, "user-id")
         assert attributes.get(METADATA, '{"metadata-key": "metadata-value"}')
@@ -1230,7 +1237,7 @@ async def test_agent_run_component_spans(
     openai_span = spans[0]
     assert openai_span.name == f"OpenAIChatGenerator.{run_method}"
     assert openai_span.status.is_ok
-    attributes = dict(openai_span.attributes or {})
+    attributes = _span_attributes(openai_span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -1263,7 +1270,7 @@ async def test_agent_run_component_spans(
         tool_invoker_span = spans[1]
         assert tool_invoker_span.name == f"ToolInvoker.{run_method}"
         assert tool_invoker_span.status.is_ok
-        attributes = dict(tool_invoker_span.attributes or {})
+        attributes = _span_attributes(tool_invoker_span)
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "CHAIN"
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
         assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -1273,7 +1280,7 @@ async def test_agent_run_component_spans(
     openai_span = spans[second_llm_index]
     assert openai_span.name == f"OpenAIChatGenerator.{run_method}"
     assert openai_span.status.is_ok
-    attributes = dict(openai_span.attributes or {})
+    attributes = _span_attributes(openai_span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -1301,7 +1308,7 @@ async def test_agent_run_component_spans(
     agent_run_span = spans[agent_index]  # root span
     assert agent_run_span.name == f"Agent.{run_method}"
     assert agent_run_span.status.is_ok
-    attributes = dict(agent_run_span.attributes or {})
+    attributes = _span_attributes(agent_run_span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "CHAIN"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -1334,18 +1341,22 @@ def test_individual_component_without_child_components(
     retriever = InMemoryBM25Retriever(document_store=document_store)
     results = retriever.run(query="How many languages are spoken around the world today?")
     assert results.get("documents") is not None
-    assert len(results["documents"]) == 3
+    # Haystack >= 3.0 drops documents whose BM25 score is exactly zero (no query term
+    # overlap), so the number of retrieved documents depends on the haystack-ai version.
+    assert 1 <= len(results["documents"]) <= len(documents)
+    written_contents = {document.content for document in documents}
     for document in results["documents"]:
         assert isinstance(document, Document)
         assert document.id is not None
         assert document.content_type == "text"
         assert isinstance(document.content, str)
+        assert document.content in written_contents
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     retriever_span = spans[0]
     assert retriever_span.name == "InMemoryBM25Retriever.run"
     assert retriever_span.status.is_ok
-    attributes = dict(retriever_span.attributes or {})
+    attributes = _span_attributes(retriever_span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "RETRIEVER"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -1389,18 +1400,22 @@ async def test_individual_component_run_async_without_child_components(
         query="How many languages are spoken around the world today?"
     )
     assert results.get("documents") is not None
-    assert len(results["documents"]) == 3
+    # Haystack >= 3.0 drops documents whose BM25 score is exactly zero (no query term
+    # overlap), so the number of retrieved documents depends on the haystack-ai version.
+    assert 1 <= len(results["documents"]) <= len(documents)
+    written_contents = {document.content for document in documents}
     for document in results["documents"]:
         assert isinstance(document, Document)
         assert document.id is not None
         assert document.content_type == "text"
         assert isinstance(document.content, str)
+        assert document.content in written_contents
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     retriever_span = spans[0]
     assert retriever_span.name == "InMemoryBM25Retriever.run_async"
     assert retriever_span.status.is_ok
-    attributes = dict(retriever_span.attributes or {})
+    attributes = _span_attributes(retriever_span)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "RETRIEVER"
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(INPUT_VALUE), str)
@@ -1593,3 +1608,99 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 USER_ID = SpanAttributes.USER_ID
+
+
+from typing import List  # noqa: E402
+
+from haystack import component  # noqa: E402
+from haystack.dataclasses import ToolCall  # noqa: E402
+
+
+@component
+class FakeChatGenerator:
+    @component.output_types(replies=List[ChatMessage])
+    def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+        # A reply that pairs text with a tool call, and one whose meta carries no
+        # finish_reason (haystack's own streaming conversion leaves it None when no
+        # chunk reports one).
+        tool_reply = ChatMessage.from_assistant(
+            text="Let me check that for you.",
+            tool_calls=[
+                ToolCall(tool_name="get_weather", arguments={"city": "Paris"}, id="call_1")
+            ],
+            meta={"model": "fake-model", "finish_reason": "tool_calls"},
+        )
+        plain_reply = ChatMessage.from_assistant(
+            text="streamed answer",
+            meta={"model": "fake-model"},
+        )
+        return {"replies": [tool_reply, plain_reply]}
+
+
+@component
+class FakeTextGenerator:
+    @component.output_types(replies=List[str])
+    def run(self, prompt: str) -> Dict[str, Any]:
+        return {"replies": ["answer one", "answer two"]}
+
+
+def test_output_messages_keep_content_without_finish_reason(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    pipe = Pipeline()
+    pipe.add_component("chat_llm", FakeChatGenerator())
+    pipe.add_component("text_llm", FakeTextGenerator())
+    pipe.run(
+        {
+            "chat_llm": {"messages": [ChatMessage.from_user("hi")]},
+            "text_llm": {"prompt": "hi"},
+        }
+    )
+
+    spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
+    chat_attributes = dict(spans["FakeChatGenerator.run"].attributes or {})
+    assert chat_attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert chat_attributes.pop(LLM_MODEL_NAME) == "fake-model"
+    assert chat_attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(chat_attributes.pop(INPUT_VALUE), str)
+    assert chat_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(chat_attributes.pop(OUTPUT_VALUE), str)
+    assert chat_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hi"
+    assert chat_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+        == "Let me check that for you."
+    )
+    assert (
+        chat_attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}"
+        )
+        == "get_weather"
+    )
+    assert isinstance(
+        tool_call_arguments := chat_attributes.pop(
+            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        ),
+        str,
+    )
+    assert json.loads(tool_call_arguments) == {"city": "Paris"}
+    assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "streamed answer"
+    assert chat_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert not chat_attributes
+
+    text_attributes = dict(spans["FakeTextGenerator.run"].attributes or {})
+    assert text_attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert text_attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(text_attributes.pop(INPUT_VALUE), str)
+    assert text_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(text_attributes.pop(OUTPUT_VALUE), str)
+    assert text_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "hi"
+    assert text_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == "answer one"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_CONTENT}") == "answer two"
+    assert text_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "assistant"
+    assert not text_attributes

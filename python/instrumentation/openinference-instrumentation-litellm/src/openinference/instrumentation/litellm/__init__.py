@@ -25,7 +25,6 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     OITracer,
@@ -51,6 +50,7 @@ from openinference.instrumentation.litellm._responses_attributes import (
     _get_attributes_from_response_input,
     _get_attributes_from_response_output,
 )
+from openinference.instrumentation.litellm._types import AttributeValue
 from openinference.instrumentation.litellm.package import _instruments
 from openinference.instrumentation.litellm.version import __version__
 from openinference.semconv.trace import (
@@ -70,7 +70,7 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 
 # Skip capture
-KEYS_TO_REDACT = ["api_key", "messages"]
+KEYS_TO_REDACT = ["api_key", "messages", "proxy_server_request"]
 
 RESPONSES_KEYS_TO_REDACT = KEYS_TO_REDACT + ["input", "tools", "model"]
 

@@ -2,7 +2,9 @@ import logging
 from typing import Optional
 
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import Attributes, AttributeValue
+from opentelemetry.util.types import Attributes
+
+from openinference.instrumentation.google_genai._types import AttributeValue
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

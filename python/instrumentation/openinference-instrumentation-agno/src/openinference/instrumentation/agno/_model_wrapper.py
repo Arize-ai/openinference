@@ -16,7 +16,6 @@ from typing import (
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.util.types import AttributeValue
 
 from agno.models.base import Model
 from openinference.instrumentation import (
@@ -24,6 +23,7 @@ from openinference.instrumentation import (
     infer_llm_system_from_model_name,
     safe_json_dumps,
 )
+from openinference.instrumentation.agno.utils import AttributeValue
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -471,7 +471,6 @@ class _ModelWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -506,6 +505,7 @@ class _ModelWrapper:
                 if (cost := getattr(metrics, "cost", None)) is not None:
                     span.set_attribute(LLM_COST_TOTAL, cost)
 
+            span.set_status(trace_api.StatusCode.OK)
             return response
 
     def run_stream(
@@ -533,7 +533,6 @@ class _ModelWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -583,6 +582,8 @@ class _ModelWrapper:
                 if (cost := getattr(metrics, "cost", None)) is not None:
                     span.set_attribute(LLM_COST_TOTAL, cost)
 
+            span.set_status(trace_api.StatusCode.OK)
+
     async def arun(
         self,
         wrapped: Callable[..., Awaitable[Any]],
@@ -609,7 +610,6 @@ class _ModelWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -647,6 +647,7 @@ class _ModelWrapper:
                     span.set_attribute(LLM_COST_TOTAL, cost)
 
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
+            span.set_status(trace_api.StatusCode.OK)
             return response
 
     async def arun_stream(
@@ -677,7 +678,6 @@ class _ModelWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
             span.set_attribute(LLM_PROVIDER, model.provider)
             if llm_system := _get_llm_system(model):
@@ -726,6 +726,8 @@ class _ModelWrapper:
 
                 if (cost := getattr(metrics, "cost", None)) is not None:
                     span.set_attribute(LLM_COST_TOTAL, cost)
+
+            span.set_status(trace_api.StatusCode.OK)
 
 
 # span attributes

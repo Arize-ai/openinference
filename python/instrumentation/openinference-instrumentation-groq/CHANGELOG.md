@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.31...python-openinference-instrumentation-groq-v0.1.32) (2026-10-07)
+
+
+### Bug Fixes
+
+* **groq:** record only the parameters the caller passed ([#3782](https://github.com/Arize-ai/openinference/issues/3782)) ([5822d35](https://github.com/Arize-ai/openinference/commit/5822d35d4a83ecadb741f851e5418756bdf3d223))
+
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.30...python-openinference-instrumentation-groq-v0.1.31) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.69 ([#3911](https://github.com/Arize-ai/openinference/issues/3911)) ([ac30a8f](https://github.com/Arize-ai/openinference/commit/ac30a8f3df9da1c0fb00f923a5281ad5cec94674))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.29...python-openinference-instrumentation-groq-v0.1.30) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-instrumentation minimum to &gt;=0.1.66 ([#3837](https://github.com/Arize-ai/openinference/issues/3837)) ([6ec4270](https://github.com/Arize-ai/openinference/commit/6ec4270e758e3c1309e2c830cf1b4979eae43301))
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+* **groq:** keep multimodal input message content on spans ([#3758](https://github.com/Arize-ai/openinference/issues/3758)) ([53a902d](https://github.com/Arize-ai/openinference/commit/53a902d7913e88b65cbce9b651a3123e8cdbee97))
+
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.28...python-openinference-instrumentation-groq-v0.1.29) (2026-09-29)
+
+
+### Bug Fixes
+
+* **groq:** use local AttributeValue alias for mypy compat with opentelemetry-api 1.45.0 ([#3872](https://github.com/Arize-ai/openinference/issues/3872)) ([84598b1](https://github.com/Arize-ai/openinference/commit/84598b11e084e9434218e1f3f801a4cafeb26431))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-groq-v0.1.27...python-openinference-instrumentation-groq-v0.1.28) (2026-09-18)
 
 

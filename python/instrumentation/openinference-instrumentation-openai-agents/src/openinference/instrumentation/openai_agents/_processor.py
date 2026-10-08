@@ -60,11 +60,11 @@ from opentelemetry.trace import (
     Tracer,
     set_span_in_context,
 )
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
 
 from openinference.instrumentation import infer_llm_provider_from_host, safe_json_dumps
 from openinference.instrumentation.openai_agents._tool_schemas import get_tool_schema
+from openinference.instrumentation.openai_agents._types import AttributeValue
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
