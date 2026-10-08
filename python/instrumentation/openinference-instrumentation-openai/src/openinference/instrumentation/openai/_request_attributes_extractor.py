@@ -199,6 +199,12 @@ class _RequestAttributesExtractor:
             if image := content.pop("image_url"):
                 for key, value in self._get_attributes_from_image(image):
                     yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
+        elif isinstance(type_, str):
+            # A part type this instrumentor does not model (e.g. `input_audio`, `file`) would
+            # otherwise vanish from the span, leaving a positional gap indistinguishable from
+            # the message simply having fewer parts. Record the type alone so the part stays
+            # observable; its payload has no agreed representation, so it is left out.
+            yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", type_
 
     def _get_attributes_from_image(
         self,
