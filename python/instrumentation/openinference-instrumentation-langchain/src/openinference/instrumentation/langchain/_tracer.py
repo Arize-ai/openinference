@@ -271,8 +271,21 @@ class OpenInferenceTracer(BaseTracer):
         return LangChainTracer.on_chat_model_start(self, *args, **kwargs)  # type: ignore
 
 
+def _is_ignored_exception(error_text: str) -> bool:
+    """Whether `error_text` names a framework control-flow signal rather than a failure.
+
+    LangGraph routes between graphs by raising exceptions (e.g. `ParentCommand`), which
+    surface through LangChain's error callbacks even though nothing failed.
+    """
+    return any(re.match(pattern, error_text) for pattern in IGNORED_EXCEPTION_PATTERNS)
+
+
 @audit_timing
 def _record_exception(span: Span, error: BaseException) -> None:
+    # Control-flow signals are not failures; recording an exception event for them would
+    # contradict the OK status set by `_update_span` and flag the span in tracing UIs.
+    if _is_ignored_exception(repr(error)):
+        return
     if isinstance(error, Exception):
         span.record_exception(error)
         return
@@ -296,9 +309,7 @@ def _record_exception(span: Span, error: BaseException) -> None:
 @audit_timing
 def _update_span(span: Span, run: Run) -> None:
     # If there  is no error or if there is an agent control exception, set the span to OK
-    if run.error is None or any(
-        re.match(pattern, run.error) for pattern in IGNORED_EXCEPTION_PATTERNS
-    ):
+    if run.error is None or _is_ignored_exception(run.error):
         span.set_status(trace_api.StatusCode.OK)
     else:
         span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, run.error))
