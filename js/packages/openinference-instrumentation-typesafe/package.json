@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-typesafe",
-  "version": "0.2.0",
+  "version": "0.4.3",
   "private": false,
   "description": "OpenInference instrumentation for the TypeSafe AI SDK",
   "keywords": [
@@ -59,7 +59,7 @@
     "@opentelemetry/sdk-trace-node": "^2.2.0",
     "@types/node": "^20.14.11",
     "@typesafe-ai/sdk": "0.6.0",
-    "openai": "6.7.0",
+    "openai": "7.30.0",
     "tsx": "^4.19.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.0",

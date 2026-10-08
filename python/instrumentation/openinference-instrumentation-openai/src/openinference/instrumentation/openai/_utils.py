@@ -2,6 +2,7 @@ import logging
 import warnings
 from functools import lru_cache
 from importlib.metadata import version
+from types import ModuleType
 from typing import (
     Any,
     Iterator,
@@ -29,6 +30,15 @@ logger.addHandler(logging.NullHandler())
 @lru_cache
 def _get_openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
+
+
+def _get_decision_type(openai: ModuleType) -> Optional[type]:
+    """
+    Return `openai.types.Decision`, the response type of the Decisions API, or `None` when the
+    installed SDK predates it (the Decisions API was added in openai 3.26.0).
+    """
+    decision_type = getattr(getattr(openai, "types", None), "Decision", None)
+    return decision_type if isinstance(decision_type, type) else None
 
 
 class _ValueAndType(NamedTuple):

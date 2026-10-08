@@ -53,6 +53,7 @@ export function getSystemFromModelId(modelId: string): LLMSystem {
   if (modelId.includes("cohere")) return LLMSystem.COHERE;
   if (modelId.includes("meta")) return LLMSystem.META;
   if (modelId.includes("mistral")) return LLMSystem.MISTRALAI;
+  if (modelId.includes("openai")) return LLMSystem.OPENAI;
   return LLMSystem.AMAZON;
 }
 

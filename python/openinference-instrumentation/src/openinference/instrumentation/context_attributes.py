@@ -24,11 +24,11 @@ from opentelemetry.context import (
     get_value,
     set_value,
 )
-from opentelemetry.util.types import AttributeValue
 from typing_extensions import Self
 
 from openinference.semconv.trace import SpanAttributes
 
+from ._types import AttributeValue
 from .helpers import safe_json_dumps
 
 DecoratedCallable = TypeVar("DecoratedCallable", bound=Callable[..., Any])

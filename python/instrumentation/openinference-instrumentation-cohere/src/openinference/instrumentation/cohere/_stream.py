@@ -187,18 +187,45 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
         return self
 
     def __exit__(self, *args: Any) -> Any:
-        result = self.__wrapped__.__exit__(*args)
-        self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
-        return result
+        try:
+            return self.__wrapped__.__exit__(*args)
+        finally:
+            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
 
     async def __aenter__(self) -> "_Stream":
         await self.__wrapped__.__aenter__()
         return self
 
     async def __aexit__(self, *args: Any) -> Any:
-        result = await self.__wrapped__.__aexit__(*args)
-        self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
-        return result
+        try:
+            return await self.__wrapped__.__aexit__(*args)
+        finally:
+            self._finish(trace_api.Status(status_code=trace_api.StatusCode.OK))
+
+    def close(self) -> None:
+        try:
+            close = getattr(self.__wrapped__, "close", None)
+            if callable(close):
+                close()
+        finally:
+            # Closed before exhaustion: leave the span status UNSET to
+            # distinguish a truncated stream from a completed one.
+            self._finish(None)
+
+    async def aclose(self) -> None:
+        try:
+            aclose = getattr(self.__wrapped__, "aclose", None)
+            if callable(aclose):
+                await aclose()
+        finally:
+            self._finish(None)
+
+    def __del__(self) -> None:
+        # Abandoned (possibly never iterated): the span must still be ended.
+        try:
+            self._finish(None)
+        except BaseException:
+            pass
 
     def _finish_error(self, exception: BaseException) -> None:
         self._self_with_span.record_exception(exception)
@@ -209,7 +236,7 @@ class _Stream(ObjectProxy):  # type: ignore[misc,type-arg,unused-ignore]
             )
         )
 
-    def _finish(self, status: trace_api.Status) -> None:
+    def _finish(self, status: Optional[trace_api.Status] = None) -> None:
         if self._self_with_span.is_finished:
             return
         attributes: Optional[Dict[str, AttributeValue]] = None

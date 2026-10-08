@@ -13,11 +13,16 @@ A Java agent (`-javaagent`) that decorates the OpenTelemetry spans created by
   and the tool result as `output.value` (ADK reports the result on a separate `tool_response [...]`
   span, which is kept as a `CHAIN` step).
 
+The complete span coverage above is currently tested against ADK 0.4.0
+(`com.google.adk.Telemetry`). The additional compatibility work only enriches `call_llm` spans for
+the observed `com.google.adk.telemetry.Tracing.traceCallLlm` signatures in ADK 0.6.0, 0.9.0, 1.0.0,
+and 1.10.1. It does not provide complete invocation, agent, or tool compatibility for ADK 0.6+.
+
 ## Usage
 
 Build or download the fat `-all` jar and pass it to the JVM. The application must register a
-global OpenTelemetry SDK before its first ADK call; ADK's `Telemetry` class captures
-`GlobalOpenTelemetry` when it is loaded.
+global OpenTelemetry SDK before its first ADK call; ADK's `Telemetry` or `Tracing` class captures
+`GlobalOpenTelemetry` when it is loaded, depending on the ADK version.
 
 ```bash
 ./gradlew :instrumentation:openinference-instrumentation-adk-java:shadowJar

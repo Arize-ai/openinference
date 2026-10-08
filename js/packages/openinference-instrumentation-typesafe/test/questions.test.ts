@@ -111,6 +111,7 @@ describe("question and state extraction", () => {
         (key) => key.startsWith("llm.input_messages") || key.startsWith("llm.output_messages"),
       ),
     ).toBe(false);
-    expect(attributes["llm.token_count.total"]).toBe(13);
+    expect(attributes["decision.token_count.input"]).toBe(10);
+    expect(attributes["decision.token_count.output"]).toBe(3);
   });
 });

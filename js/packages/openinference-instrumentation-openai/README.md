@@ -29,6 +29,26 @@ registerInstrumentations({
 });
 ```
 
+## Supported APIs
+
+| OpenAI API                                                    | Span kind   | Span name                 |
+| ------------------------------------------------------------- | ----------- | ------------------------- |
+| Chat Completions (`chat.completions.create`, incl. streaming) | `LLM`       | `OpenAI Chat Completions` |
+| Completions (`completions.create`, incl. streaming)           | `LLM`       | `OpenAI Completions`      |
+| Embeddings (`embeddings.create`)                              | `EMBEDDING` | `OpenAI Embeddings`       |
+| Responses (`responses.create`, incl. streaming)               | `LLM`       | `OpenAI Responses`        |
+| Decisions (`decisions.create`, requires `openai` >= 7.30.0)   | `DECISION`  | `OpenAI Decisions`        |
+
+### Decisions API
+
+Calls to the [Decisions API](https://developers.openai.com/api/docs/guides/decisions) are recorded as
+[`DECISION` spans](https://github.com/Arize-ai/openinference/blob/main/spec/decision_spans.md) rather than
+`LLM` spans: the model scores caller-supplied answers instead of generating text. The span carries
+`decision.system` / `decision.provider` (`openai`), `decision.request.model_name`,
+`decision.response.model_name`, `decision.model_name`, `decision.token_count.input` /
+`decision.token_count.output`, and the raw request and response as JSON on `input.value` /
+`output.value`. No `llm.*` attributes are set on decision spans.
+
 ## Examples
 
 To run an example, run the following commands:
@@ -85,6 +105,7 @@ openaiInstrumentation.setTracerProvider(customTracerProvider);
 
 | OpenAI Version | OpenInference Instrumentation Version |
 | -------------- | ------------------------------------- |
+| ^7.0.0         | ^4.4.0                                |
 | ^6.0.0         | ^4.0.0                                |
 | ^5.0.0         | ^3.0.0                                |
 | ^4.0.0         | ^2.0.0                                |

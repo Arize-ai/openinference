@@ -210,7 +210,7 @@ class _SyncEmbedContentWrapper(_WithTracer):
             with CapturedRequestScope():
                 try:
                     response = wrapped(*args, **kwargs)
-                except Exception as exception:
+                except BaseException as exception:
                     _set_captured_embedding_attributes(span, self._config)
                     span.record_exception(exception)
                     status = trace_api.Status(
@@ -268,7 +268,7 @@ class _AsyncEmbedContentWrapper(_WithTracer):
             with CapturedRequestScope():
                 try:
                     response = await wrapped(*args, **kwargs)
-                except Exception as exception:
+                except BaseException as exception:
                     _set_captured_embedding_attributes(span, self._config)
                     span.record_exception(exception)
                     status = trace_api.Status(
@@ -326,7 +326,7 @@ class _SyncGenerateContent(_WithTracer):
             with CapturedRequestScope():
                 try:
                     response = wrapped(*args, **kwargs)
-                except Exception as exception:
+                except BaseException as exception:
                     _set_captured_llm_attributes(span, self._config)
                     span.record_exception(exception)
                     status = trace_api.Status(
@@ -384,7 +384,7 @@ class _SyncCreateInteractionWrapper(_WithTracer):
                 span.set_attributes(get_attributes_from_response(request_parameters, response))
                 status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 span.finish_tracing(status=status)
-            except Exception as exception:
+            except BaseException as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -428,7 +428,7 @@ class _SyncGetInteractionWrapper(_WithTracer):
                 span.set_attributes(get_attributes_from_response(request_parameters, response))
                 status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 span.finish_tracing(status=status)
-            except Exception as exception:
+            except BaseException as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -472,7 +472,7 @@ class _SyncGenerateContentStream(_WithTracer):
             request_scope.__enter__()
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 _set_captured_llm_attributes(span, self._config)
                 request_scope.__exit__(None, None, None)
                 span.record_exception(exception)
@@ -529,7 +529,7 @@ class _AsyncGenerateContentWrapper(_WithTracer):
             with CapturedRequestScope():
                 try:
                     response = await wrapped(*args, **kwargs)
-                except Exception as exception:
+                except BaseException as exception:
                     _set_captured_llm_attributes(span, self._config)
                     span.record_exception(exception)
                     status = trace_api.Status(
@@ -587,7 +587,7 @@ class _AsyncGenerateContentStream(_WithTracer):
             request_scope.__enter__()
             try:
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 _set_captured_llm_attributes(span, self._config)
                 request_scope.__exit__(None, None, None)
                 span.record_exception(exception)
@@ -644,7 +644,7 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
                 span.set_attributes(get_attributes_from_response(request_parameters, response))
                 status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 span.finish_tracing(status=status)
-            except Exception as exception:
+            except BaseException as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -688,7 +688,7 @@ class _AsyncGetInteractionWrapper(_WithTracer):
                 span.set_attributes(get_attributes_from_response(request_parameters, response))
                 status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 span.finish_tracing(status=status)
-            except Exception as exception:
+            except BaseException as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,

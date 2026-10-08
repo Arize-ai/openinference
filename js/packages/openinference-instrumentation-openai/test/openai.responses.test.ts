@@ -27,6 +27,7 @@ describe("OpenAIInstrumentation - Responses", () => {
 
   const responseBase = {
     status: "completed",
+    access_programs: null,
     error: null,
     incomplete_details: null,
     instructions: null,
@@ -136,7 +137,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.token_count.total": 18,
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
-        "output.value": "{"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
+        "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
       }
     `);
   });
@@ -163,8 +164,6 @@ describe("OpenAIInstrumentation - Responses", () => {
           type: "image_generation_call" as const,
           status: "completed" as const,
           result: "c2Vjb25k",
-          // The runtime may return this before the generated SDK type exposes it.
-          // @ts-expect-error output_format is not in the current ImageGenerationCall type.
           output_format: "jpeg",
         },
       ],
@@ -277,7 +276,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.token_count.total": 18,
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
-        "output.value": "{"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
+        "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp_245","output":[{"id":"msg_example","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"This is a test."}],"role":"assistant"}],"model":"gpt-4.1","output_text":"This is a test."}",
       }
     `);
   });
@@ -364,7 +363,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         "llm.token_count.total": 18,
         "openinference.span.kind": "LLM",
         "output.mime_type": "application/json",
-        "output.value": "{"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp-567","model":"gpt-4.1","output":[{"type":"output_text","text":"I am streaming!","annotations":[]}]}",
+        "output.value": "{"status":"completed","access_programs":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"tools":[],"tool_choice":"auto","text":{"format":{"type":"text"}},"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","metadata":{},"object":"response","created_at":1744987785,"temperature":1,"top_p":1,"truncation":"disabled","usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":2},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18},"id":"resp-567","model":"gpt-4.1","output":[{"type":"output_text","text":"I am streaming!","annotations":[]}]}",
       }
     `);
   });

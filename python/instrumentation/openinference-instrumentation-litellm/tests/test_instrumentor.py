@@ -14,7 +14,6 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
-from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
 from openinference.instrumentation.litellm import (
@@ -22,6 +21,7 @@ from openinference.instrumentation.litellm import (
     _get_reasoning_content_blocks,
     _remove_redundant_reasoning_entries,
 )
+from openinference.instrumentation.litellm._types import AttributeValue
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -273,6 +273,32 @@ def test_completion_with_parameters(
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 20
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 30
     assert span.status.status_code == StatusCode.OK
+
+
+def test_completion_does_not_record_proxy_server_request(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    litellm.completion(
+        model="gpt-3.5-turbo",
+        messages=input_messages,
+        mock_response="Beijing",
+        proxy_server_request={
+            "url": "http://localhost:4000/v1/chat/completions",
+            "method": "POST",
+            "headers": {},
+            "body": {"model": "gpt-3.5-turbo", "messages": input_messages},
+        },
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+    assert attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
+        {"model": "gpt-3.5-turbo", "mock_response": "Beijing"}
+    )
 
 
 def test_completion_with_tool_calls(

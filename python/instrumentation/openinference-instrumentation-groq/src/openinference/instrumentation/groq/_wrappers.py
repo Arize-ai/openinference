@@ -19,7 +19,10 @@ from openinference.instrumentation.groq._response_attributes_extractor import (
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.groq._types import AttributeValue
-from openinference.instrumentation.groq._utils import _finish_tracing
+from openinference.instrumentation.groq._utils import (
+    _finish_tracing,
+    _materialize_content_iterables,
+)
 from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -92,9 +95,15 @@ def _parse_args(
     *args: Tuple[Any],
     **kwargs: Mapping[str, Any],
 ) -> Dict[str, Any]:
-    bound_signature = signature.bind(*args, **kwargs)
-    bound_signature.apply_defaults()
-    bound_arguments = bound_signature.arguments  # Defaults empty to NOT_GIVEN
+    """
+    Map the call's arguments to parameter names, keeping only values the caller set.
+
+    Applying signature defaults would add every optional parameter the caller left
+    out, and the SDK marks those with a sentinel (``Omit`` on groq >= 1.0, the
+    ``NOT_GIVEN`` singleton before that) that is not caller input: on groq 1.0.0 a
+    two-argument call ends up recording 34 parameters.
+    """
+    bound_arguments = signature.bind(*args, **kwargs).arguments
     request_data: Dict[str, Any] = {}
     for key, value in bound_arguments.items():
         try:
@@ -130,6 +139,8 @@ class _CompletionsWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+
+        kwargs = _materialize_content_iterables(kwargs)
 
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}
@@ -192,6 +203,8 @@ class _AsyncCompletionsWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
+
+        kwargs = _materialize_content_iterables(kwargs)
 
         # Prepare invocation parameters by merging args and kwargs
         invocation_parameters = {}

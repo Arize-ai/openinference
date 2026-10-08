@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.12...python-openinference-instrumentation-agent-framework-v0.1.13) (2026-10-07)
+
+
+### Bug Fixes
+
+* **agent-framework:** stop duplicating messages and include the system prompt ([#3913](https://github.com/Arize-ai/openinference/issues/3913)) ([f0b9a7a](https://github.com/Arize-ai/openinference/commit/f0b9a7a785635bc1a1b7de561323fc17650578b3))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.11...python-openinference-instrumentation-agent-framework-v0.1.12) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.41 ([#3907](https://github.com/Arize-ai/openinference/issues/3907)) ([04fe33f](https://github.com/Arize-ai/openinference/commit/04fe33f2b10147ec4481983f725d89a9ca42fc5f))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.10...python-openinference-instrumentation-agent-framework-v0.1.11) (2026-10-01)
+
+
+### Bug Fixes
+
+* bump openinference-semantic-conventions minimum to &gt;=0.1.39 ([#3836](https://github.com/Arize-ai/openinference/issues/3836)) ([90c1e28](https://github.com/Arize-ai/openinference/commit/90c1e28701ff03ab90f0158adf16b670ed323e36))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.9...python-openinference-instrumentation-agent-framework-v0.1.10) (2026-09-10)
 
 

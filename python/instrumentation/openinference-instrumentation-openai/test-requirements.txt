@@ -5,3 +5,4 @@ respx
 numpy
 pytest-recording
 httpx<0.28
+trio
